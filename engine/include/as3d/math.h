@@ -29,6 +29,7 @@
 //    unit vectors (an orthonormal, left-handed frame), which is what is tested.
 #pragma once
 
+#include "as3d/vec.h"
 #include <cmath>
 #include <cstddef>
 
@@ -42,9 +43,7 @@ inline float radToDeg(float rad) { return rad * (180.0f / kPi); }
 // ---------------------------------------------------------------------------
 // Vec2
 // ---------------------------------------------------------------------------
-struct Vec2 {
-    float x = 0.0f, y = 0.0f;
-};
+// Vec2 and Vec3 are defined in vec.h.
 
 inline Vec2 operator+(const Vec2& a, const Vec2& b) { return {a.x + b.x, a.y + b.y}; }
 inline Vec2 operator-(const Vec2& a, const Vec2& b) { return {a.x - b.x, a.y - b.y}; }
@@ -61,9 +60,6 @@ inline Vec2 normalize(const Vec2& a) {
 // ---------------------------------------------------------------------------
 // Vec3
 // ---------------------------------------------------------------------------
-struct Vec3 {
-    float x = 0.0f, y = 0.0f, z = 0.0f;
-};
 
 inline Vec3 operator+(const Vec3& a, const Vec3& b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
 inline Vec3 operator-(const Vec3& a, const Vec3& b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }

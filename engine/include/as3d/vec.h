@@ -1,6 +1,5 @@
-// Minimal plain vector structs. Owned temporarily by this work package: a parallel
-// worktree is building the real engine/include/as3d/math.h; when it merges, math.h
-// is expected to build on these same two structs rather than duplicate them.
+// Plain vector structs, for headers that need the types without the math
+// library. Operations on them live in as3d/math.h. Owned by the orchestrator.
 #pragma once
 
 namespace as3d {
