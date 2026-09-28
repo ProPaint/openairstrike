@@ -17,6 +17,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_compile_options(-Wall -Wextra -Wno-unused-parameter)
+# RTTI is off everywhere, tests included, so that interface vtables agree
+# between translation units.
+add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
 if(AS3D_SANITIZE)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)

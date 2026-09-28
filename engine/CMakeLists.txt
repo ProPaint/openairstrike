@@ -6,7 +6,7 @@ function(as3d_module name)
     add_library(as3d_${name} STATIC ${srcs})
     target_include_directories(as3d_${name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
                                             PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/${name})
-    target_compile_options(as3d_${name} PRIVATE -fno-exceptions -fno-rtti)
+    target_compile_options(as3d_${name} PRIVATE -fno-exceptions)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/${name}/module.cmake)
       include(${CMAKE_CURRENT_SOURCE_DIR}/src/${name}/module.cmake)
     endif()
