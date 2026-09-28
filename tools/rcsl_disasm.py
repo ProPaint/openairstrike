@@ -125,7 +125,14 @@ SEEN_MODES = {
 
 # Entity field indices (dword offsets from the value held by `self`), only those confirmed
 # from builtins in the executable. See rcsl-opcodes-v0.md.
-ENTITY_FIELDS = {5: "origin", 14: "angles", 34: "health"}
+ENTITY_FIELDS = {
+    1: "age", 2: "class", 3: "flags", 4: "dead", 5: "origin", 8: "attach_offset",
+    11: "prev_origin", 14: "angles", 17: "velocity", 20: "field20", 23: "wp_speed",
+    24: "wp_turn_rate", 25: "wp_bank", 28: "color", 32: "scale", 33: "frame?",
+    34: "health", 35: "damage", 36: "score?", 37: "wp_wait",
+}   # rcsl-vm.md "Entity fields"; names ending in "?" are GUESS
+CAMERA_FIELDS = {0: "position", 3: "angles", 6: "vel_x", 7: "scroll_speed",
+                 9: "scroll_factor"}
 ENTITY_GLOBALS = ("self", "other", "player")
 
 
@@ -476,12 +483,35 @@ def make_labels(s):
     return labels
 
 
+_BUILTINS = None
+
+
+def builtin_info():
+    """Builtin signatures from testdata/golden/rcsl_builtins.json (empty if missing)."""
+    global _BUILTINS
+    if _BUILTINS is None:
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "testdata", "golden", "rcsl_builtins.json")
+        try:
+            with open(path) as f:
+                _BUILTINS = {b["name"]: b for b in json.load(f)["builtins"]}
+        except (OSError, ValueError, KeyError):
+            _BUILTINS = {}
+    return _BUILTINS
+
+
 def fmt_instr(s, i, ins, labels):
     if ins.op not in OPCODES:
         return f"??{ins.op:02x}  {ins.a} {ins.b} {ins.c}"
     mnem, roles, tmpl, _ = OPCODES[ins.op]
     ops = operands(ins)
     txt = [fmt_operand(s, o, i, labels) for o in ops]
+    if ins.op in (0x1C, 0x1D) and ops[0].kind == "func":
+        info = builtin_info().get(txt[0])
+        if info is not None:
+            args = ", ".join(f"t{k}:{a['name']}" for k, a in enumerate(info["args"]))
+            txt[0] = f"{txt[0]}({args})"
+        tmpl = tmpl.replace("(t0...)", "")
     body = tmpl.format(a=txt[0], b=txt[1], c=txt[2])
     notes = []
     if ins.op == 0x12:
@@ -489,6 +519,9 @@ def fmt_instr(s, i, ins, labels):
         if base.kind == "global" and not base.deref and base.value < len(s.defs) \
                 and s.defs[base.value] in ENTITY_GLOBALS and ins.b in ENTITY_FIELDS:
             notes.append(f"{s.defs[base.value]}.{ENTITY_FIELDS[ins.b]}")
+        elif base.kind == "global" and not base.deref and base.value < len(s.defs) \
+                and s.defs[base.value] == "camera" and ins.b in CAMERA_FIELDS:
+            notes.append(f"camera.{CAMERA_FIELDS[ins.b]}")
     if ins.op == 0x11 and ops[1].kind == "imm" and ins.b == 0 and s.strg:
         notes.append(f'or str@0"{s.string_at(0)}"')
     if ins.op == 0x14 and (ins.a or ins.c):

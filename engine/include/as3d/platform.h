@@ -1,0 +1,60 @@
+// GLES 3.0 context creation. This header has no SDL or EGL types in it: it is safe to
+// include from anywhere, including the platform-independent `render` module (which
+// only needs *a* current context, not how it was made).
+//
+// Two backends exist behind createGraphicsContext(): a headless EGL context (renders
+// into a pbuffer surface; the actual pixels are read back through as3d::RenderTarget,
+// see as3d/gfx.h) and an SDL2 window (desktop only for now). Which one you get is
+// selected by GraphicsConfig::headless. Both, when creation succeeds, leave a current
+// OpenGL ES 3.0 context ready for the `render` module to use.
+#pragma once
+
+#include <memory>
+#include <string>
+
+namespace as3d {
+
+struct GraphicsConfig {
+    int width = 640;
+    int height = 480;
+    // true: EGL pbuffer context, no window system, no visible output.
+    // false: an on-screen SDL2 window (desktop only; returns null elsewhere).
+    bool headless = true;
+    bool vsync = true;
+    const char* title = "as3d";
+};
+
+// Owns a GLES 3.0 context (and, for the windowed backend, the window it belongs to).
+class GraphicsContext {
+public:
+    virtual ~GraphicsContext() = default;
+
+    // Makes this context current on the calling thread. Safe to call again (e.g. after
+    // another context was made current on the same thread).
+    virtual bool makeCurrent() = 0;
+
+    // Presents the default framebuffer. A no-op (but harmless) for the headless
+    // backend, whose "default framebuffer" is a pbuffer nothing ever looks at --
+    // render into an as3d::RenderTarget and read it back instead.
+    virtual void swapBuffers() = 0;
+
+    // Size of the default framebuffer (the pbuffer, or the window's drawable size).
+    virtual int width() const = 0;
+    virtual int height() const = 0;
+
+    // "<backend>: vendor=... renderer=... version=..." -- human-readable, logged by
+    // `as3d_viewer info` and useful in bug reports to know which GL implementation
+    // actually ran a test.
+    virtual std::string description() const = 0;
+
+    // Processes window-system events. Returns false once the user asked to close the
+    // window (e.g. clicked the close button); the headless backend has no events and
+    // always returns true. Callers that only render headless never need to call this.
+    virtual bool pumpEvents() { return true; }
+};
+
+// Creates a context per `config`. Returns null and logs the reason (AS3D_ERROR) on
+// failure -- e.g. no EGL device available, or no display for the windowed backend.
+std::unique_ptr<GraphicsContext> createGraphicsContext(const GraphicsConfig& config);
+
+} // namespace as3d

@@ -72,8 +72,43 @@ def sha1_arrays(data):
     """sha1 over exactly the array bytes (from the end of the header to EOF):
     vertices, uvs, faces, normals, tags, in file order. This is a byte-exact,
     order-sensitive fingerprint of everything parse() extracts, without
-    embedding any of that (possibly large) data in the golden file itself."""
+    embedding any of that (possibly large) data in the golden file itself.
+    Little-endian raw IEEE-754 floats and u16 indices, in array order, exactly
+    as stored on disk -- i.e. before any engine-side conversion."""
     return hashlib.sha1(data[mdl.HEADER_SIZE:]).hexdigest()
+
+
+def sha1_engine(m):
+    """sha1 over the same arrays after the one engine-side conversion that is
+    exactly, bit-for-bit reproducible across independent implementations: the
+    V flip (v' = 1 - v, a single IEEE-754 float32 subtraction, per
+    docs/spec/mdl.md "Texture V orientation"). Positions, face indices and
+    tags are unchanged from the raw on-disk bytes.
+
+    Deliberately excludes the smooth-normal recompute: that involves many
+    float32 operations in a specific order (see docs/spec/mdl.md "Normals"),
+    and this reference implementation does not guarantee the same rounding
+    as a C++ compiler's instruction selection (x87 vs SSE, FMA, etc.), so an
+    exact hash match is not "practical" for it as the spec's data model asks.
+    The C++ test instead checks the recomputed/normalized normals numerically
+    (direction and unit length within tolerance), not by hash.
+    """
+    parts = []
+    for x, y, z in m.vertices:
+        parts.append(struct.pack("<3f", x, y, z))
+    for u, v in m.uvs:
+        parts.append(struct.pack("<2f", u, 1.0 - v))
+    for face in m.faces:
+        parts.append(struct.pack("<6H", *face))
+    for x, y, z in m.normals:
+        parts.append(struct.pack("<3f", x, y, z))
+    for t in m.tags:
+        name = t.name.encode("ascii", "replace")[:mdl.TAG_NAME_SIZE]
+        name = name + b"\0" * (mdl.TAG_NAME_SIZE - len(name))
+        parts.append(name)
+        parts.append(struct.pack("<3f", *t.pos))
+        parts.append(struct.pack("<3f", *t.direction))
+    return hashlib.sha1(b"".join(parts)).hexdigest()
 
 
 def check_model(relpath, path, size, errors, warnings):
@@ -165,6 +200,7 @@ def check_model(relpath, path, size, errors, warnings):
         "bbox": list(m.bbox),
         "tag_names": [t.name for t in m.tags],
         "sha1_arrays": sha1_arrays(data),
+        "sha1_engine": sha1_engine(m),
     }
 
 
