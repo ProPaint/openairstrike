@@ -1,0 +1,21 @@
+# Copyrighted original game data and anything derived from it
+binaries/
+third_party_local/
+assets_extracted/
+android/app/src/main/assets/*.apk
+testdata/golden_png/
+# Reverse-engineering outputs (decompiler output is never committed)
+re/out/
+*.gpr
+*.rep/
+# Build
+build*/
+out/
+.gradle/
+android/.gradle/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+__pycache__/
+*.pyc
+.claude/worktrees/
