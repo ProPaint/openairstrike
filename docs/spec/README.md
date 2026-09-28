@@ -30,10 +30,11 @@ Every claim carries one of:
 | [pak.md](pak.md) | 1.0 | verified |
 | [text-blocks.md](text-blocks.md) | 1.0 | verified |
 | [tga.md](tga.md) | 1.0 | verified |
-| [mdl.md](mdl.md) | 1.1 | verified; winding reconciliation open |
+| [mdl.md](mdl.md) | 1.1 | verified, with corrections in render-pipeline.md section 11.3: front face is counter-clockwise, normals are renormalised |
 | [hmap.md](hmap.md) | 1.0 | layout verified; engine behaviour from code |
 | [obj.md](obj.md), [wpn.md](wpn.md), [ps.md](ps.md), [levels-txt.md](levels-txt.md) | 1.0 | verified from parsers; some sub-field names guessed |
 | [engine-behaviour.md](engine-behaviour.md) | 1.0 | verified from code; collision projection details open |
+| [render-pipeline.md](render-pipeline.md) | 1.0 | verified from code; lists corrections to obj, ps, mdl and levels-txt specs in section 11.3 |
 | [rcsl-vm.md](rcsl-vm.md) | 1.0 | verified from code |
 | [rcsl-builtins-table.md](rcsl-builtins-table.md) | 1.0 | signatures verified; gameplay builtin internals pending |
 | [rcsl-container.md](rcsl-container.md) | 1.0 | verified from code |
@@ -44,7 +45,8 @@ Every claim carries one of:
 | Topic | Original | Our engine |
 |---|---|---|
 | Random numbers | MSVC `rand()` | xorshift32, seed 1 (`as3d::Rng`) |
-| Smooth model normals | unnormalised sums | normalised |
 | Terrain vertices facing away from the sun | black (ambient not scaled by 255) | lit with the ambient colour |
 | `TerrainHeight` outside the map | reads one cell past the edge | clamps to the edge |
+| Frame timing | variable step, capped at 100 ms | fixed step, for determinism |
+| Collision rectangles | window pixels of the actual video mode, previous frame's matrices | same formulas on a fixed 800x600 viewport |
 | Online high scores, CD check | present | dropped |
