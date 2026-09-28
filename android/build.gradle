@@ -1,0 +1,5 @@
+// Root Gradle build for the AirStrike 3D Android bring-up skeleton (WP-18).
+// See docs/android.md for the versions chosen and how to build.
+plugins {
+    id "com.android.application" version "9.4.1" apply false
+}

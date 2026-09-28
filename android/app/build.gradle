@@ -1,0 +1,102 @@
+// AirStrike 3D Android bring-up app (WP-18). See docs/android.md.
+plugins {
+    id "com.android.application"
+}
+
+// Repository root (the worktree/checkout that contains engine/, apps/, docs/).
+def repoRoot = rootDir.parentFile
+
+// SDL2 sources, fetched by tools/fetch_third_party.sh into third_party_local/
+// (gitignored, shared across worktrees via AS3D_DATA_ROOT). Overridable so the
+// build scripts can point at a machine-specific location.
+def dataRoot = System.getenv("AS3D_DATA_ROOT") ?: repoRoot.absolutePath
+def sdl2Dir = System.getenv("AS3D_SDL2_DIR") ?: "${dataRoot}/third_party_local/SDL2-2.30.12"
+
+if (!new File(sdl2Dir, "include/SDL.h").exists()) {
+    // Not fatal here: Gradle configures every included project (this one)
+    // even for tasks that don't need native code (e.g. "gradlew wrapper" or
+    // "gradlew tasks"). tools/android_build.sh always runs
+    // tools/fetch_third_party.sh first, so by the time externalNativeBuild
+    // actually runs this will be present; if it isn't, CMake configuration
+    // fails below with a clear message instead.
+    logger.warn(
+        "SDL2 sources not found at ${sdl2Dir}. Run tools/fetch_third_party.sh " +
+        "before building native code (or set AS3D_SDL2_DIR)."
+    )
+}
+
+android {
+    namespace "org.as3dport.game"
+    compileSdk 36
+    ndkVersion "28.2.13676358"
+
+    defaultConfig {
+        applicationId "org.as3dport.game"
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName "0.1.0-wp18"
+
+        ndk {
+            abiFilters "arm64-v8a", "x86_64"
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DAS3D_SDL2_SOURCE_DIR=${sdl2Dir}",
+                          "-DAS3D_REPO_ROOT=${repoRoot.absolutePath}",
+                          "-DANDROID_STL=c++_shared"
+                abiFilters "arm64-v8a", "x86_64"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.31.6"
+        }
+    }
+
+    // The three original pak archives are copied into assets/ by
+    // tools/android_build.sh (gitignored: android/app/src/main/assets/*.apk).
+    // Keep them stored uncompressed so SDL_RWFromFile/AAsset can seek into
+    // them cheaply at the byte offsets recorded in the pak file table.
+    androidResources {
+        noCompress += ["apk"]
+    }
+
+    buildTypes {
+        debug {
+            // Debug signing (default debug keystore) is fine: this APK embeds
+            // copyrighted game data and is for personal use/testing only.
+            jniDebuggable true
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // SDL's Java glue (org.libsdl.app.*) is referenced in place from the
+    // unpacked SDL2 sources rather than copied into this repository.
+    sourceSets {
+        main {
+            java.srcDirs += ["${sdl2Dir}/android-project/app/src/main/java"]
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}
