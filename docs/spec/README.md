@@ -30,6 +30,20 @@ Every claim carries one of:
 | [pak.md](pak.md) | 1.0 | verified |
 | [text-blocks.md](text-blocks.md) | 1.0 | verified |
 | [tga.md](tga.md) | 1.0 | verified |
-| [mdl.md](mdl.md) | 1.0 | layout verified; tag direction and V orientation open |
+| [mdl.md](mdl.md) | 1.1 | verified; winding reconciliation open |
+| [hmap.md](hmap.md) | 1.0 | layout verified; engine behaviour from code |
+| [obj.md](obj.md), [wpn.md](wpn.md), [ps.md](ps.md), [levels-txt.md](levels-txt.md) | 1.0 | verified from parsers; some sub-field names guessed |
+| [rcsl-vm.md](rcsl-vm.md) | 1.0 | verified from code |
+| [rcsl-builtins-table.md](rcsl-builtins-table.md) | 1.0 | signatures verified; gameplay builtin internals pending |
 | [rcsl-container.md](rcsl-container.md) | 1.0 | verified from code |
-| [rcsl-opcodes-v0.md](rcsl-opcodes-v0.md) | 0 | opcodes verified from code; runtime spec pending |
+| [rcsl-opcodes-v0.md](rcsl-opcodes-v0.md) | 0 | opcodes verified from code |
+
+## Engine decisions where we deliberately differ from the original
+
+| Topic | Original | Our engine |
+|---|---|---|
+| Random numbers | MSVC `rand()` | xorshift32, seed 1 (`as3d::Rng`) |
+| Smooth model normals | unnormalised sums | normalised |
+| Terrain vertices facing away from the sun | black (ambient not scaled by 255) | lit with the ambient colour |
+| `TerrainHeight` outside the map | reads one cell past the edge | clamps to the edge |
+| Online high scores, CD check | present | dropped |
