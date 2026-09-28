@@ -1,0 +1,221 @@
+{
+ "files": {
+  "maps/levels.txt": {
+   "blocks": 24,
+   "statements": 261,
+   "tokens": 862
+  },
+  "objects/banner.obj": {
+   "blocks": 1,
+   "statements": 7,
+   "tokens": 15
+  },
+  "objects/boss1.obj": {
+   "blocks": 19,
+   "statements": 146,
+   "tokens": 426
+  },
+  "objects/boss2.obj": {
+   "blocks": 20,
+   "statements": 141,
+   "tokens": 386
+  },
+  "objects/boss3.obj": {
+   "blocks": 18,
+   "statements": 120,
+   "tokens": 315
+  },
+  "objects/btrs.obj": {
+   "blocks": 23,
+   "statements": 150,
+   "tokens": 440
+  },
+  "objects/buildings.obj": {
+   "blocks": 50,
+   "statements": 319,
+   "tokens": 783
+  },
+  "objects/cannons.obj": {
+   "blocks": 50,
+   "statements": 321,
+   "tokens": 793
+  },
+  "objects/desert_builds.obj": {
+   "blocks": 2,
+   "statements": 10,
+   "tokens": 24
+  },
+  "objects/effects.obj": {
+   "blocks": 66,
+   "statements": 291,
+   "tokens": 802
+  },
+  "objects/effects2.obj": {
+   "blocks": 1,
+   "statements": 8,
+   "tokens": 23
+  },
+  "objects/flora.obj": {
+   "blocks": 39,
+   "statements": 224,
+   "tokens": 487
+  },
+  "objects/futuristic.obj": {
+   "blocks": 6,
+   "statements": 60,
+   "tokens": 138
+  },
+  "objects/helics.obj": {
+   "blocks": 41,
+   "statements": 424,
+   "tokens": 1132
+  },
+  "objects/items.obj": {
+   "blocks": 45,
+   "statements": 342,
+   "tokens": 849
+  },
+  "objects/jeeps.obj": {
+   "blocks": 78,
+   "statements": 525,
+   "tokens": 1514
+  },
+  "objects/mapobjects.obj": {
+   "blocks": 80,
+   "statements": 479,
+   "tokens": 1160
+  },
+  "objects/misc.obj": {
+   "blocks": 16,
+   "statements": 74,
+   "tokens": 223
+  },
+  "objects/nature.obj": {
+   "blocks": 5,
+   "statements": 17,
+   "tokens": 45
+  },
+  "objects/planes.obj": {
+   "blocks": 20,
+   "statements": 212,
+   "tokens": 562
+  },
+  "objects/player.obj": {
+   "blocks": 33,
+   "statements": 324,
+   "tokens": 946
+  },
+  "objects/rocketlauncher.obj": {
+   "blocks": 16,
+   "statements": 108,
+   "tokens": 311
+  },
+  "objects/ruins.obj": {
+   "blocks": 13,
+   "statements": 44,
+   "tokens": 102
+  },
+  "objects/ships.obj": {
+   "blocks": 17,
+   "statements": 123,
+   "tokens": 346
+  },
+  "objects/tanks.obj": {
+   "blocks": 36,
+   "statements": 254,
+   "tokens": 752
+  },
+  "objects/trains.obj": {
+   "blocks": 6,
+   "statements": 45,
+   "tokens": 109
+  },
+  "objects/transport.obj": {
+   "blocks": 5,
+   "statements": 43,
+   "tokens": 128
+  },
+  "objects/weapons.obj": {
+   "blocks": 69,
+   "statements": 556,
+   "tokens": 1424
+  },
+  "objects/weapons_enemy.obj": {
+   "blocks": 67,
+   "statements": 613,
+   "tokens": 1582
+  },
+  "objects/weapons_enemy_missiles.obj": {
+   "blocks": 12,
+   "statements": 88,
+   "tokens": 220
+  },
+  "objects/zabors.obj": {
+   "blocks": 10,
+   "statements": 58,
+   "tokens": 133
+  },
+  "particles/explosions.ps": {
+   "blocks": 13,
+   "statements": 179,
+   "tokens": 618
+  },
+  "particles/particles.ps": {
+   "blocks": 34,
+   "statements": 420,
+   "tokens": 1416
+  },
+  "particles/water.ps": {
+   "blocks": 1,
+   "statements": 12,
+   "tokens": 42
+  },
+  "particles/weapons.ps": {
+   "blocks": 23,
+   "statements": 297,
+   "tokens": 1054
+  },
+  "particles/weapons_enemy.ps": {
+   "blocks": 5,
+   "statements": 70,
+   "tokens": 240
+  },
+  "particles/weather.ps": {
+   "blocks": 4,
+   "statements": 53,
+   "tokens": 182
+  },
+  "weapons/bosses.wpn": {
+   "blocks": 6,
+   "statements": 16,
+   "tokens": 38
+  },
+  "weapons/e_missiles.wpn": {
+   "blocks": 7,
+   "statements": 15,
+   "tokens": 37
+  },
+  "weapons/e_weapons.wpn": {
+   "blocks": 26,
+   "statements": 75,
+   "tokens": 176
+  },
+  "weapons/enemies.wpn": {
+   "blocks": 1,
+   "statements": 3,
+   "tokens": 7
+  },
+  "weapons/player.wpn": {
+   "blocks": 23,
+   "statements": 58,
+   "tokens": 139
+  }
+ },
+ "summary": {
+  "objects_distinct_names": 863,
+  "objects_duplicate_names": [
+   "tank_dead"
+  ],
+  "objects_total_named_blocks": 864
+ }
+}
