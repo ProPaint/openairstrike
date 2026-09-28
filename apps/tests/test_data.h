@@ -18,7 +18,8 @@ inline std::string root() {
 
 inline std::string extractedDir() { return root() + "/assets_extracted"; }
 inline std::string originalDir() { return root() + "/third_party_local/original"; }
-inline std::string goldenDir() { return root() + "/testdata/golden"; }
+// Golden files are committed, so they always come from this checkout.
+inline std::string goldenDir() { return std::string(AS3D_REPO_ROOT) + "/testdata/golden"; }
 
 // Reads an extracted file by game path, e.g. "models\\apache\\apache.mdl".
 inline bool readExtracted(const std::string& gamePath, as3d::Blob& out) {
