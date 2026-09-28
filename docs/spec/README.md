@@ -33,6 +33,7 @@ Every claim carries one of:
 | [mdl.md](mdl.md) | 1.1 | verified; winding reconciliation open |
 | [hmap.md](hmap.md) | 1.0 | layout verified; engine behaviour from code |
 | [obj.md](obj.md), [wpn.md](wpn.md), [ps.md](ps.md), [levels-txt.md](levels-txt.md) | 1.0 | verified from parsers; some sub-field names guessed |
+| [engine-behaviour.md](engine-behaviour.md) | 1.0 | verified from code; collision projection details open |
 | [rcsl-vm.md](rcsl-vm.md) | 1.0 | verified from code |
 | [rcsl-builtins-table.md](rcsl-builtins-table.md) | 1.0 | signatures verified; gameplay builtin internals pending |
 | [rcsl-container.md](rcsl-container.md) | 1.0 | verified from code |
