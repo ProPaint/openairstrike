@@ -28,3 +28,8 @@ Every claim carries one of:
 | Spec | Version | Status |
 |---|---|---|
 | [pak.md](pak.md) | 1.0 | verified |
+| [text-blocks.md](text-blocks.md) | 1.0 | verified |
+| [tga.md](tga.md) | 1.0 | verified |
+| [mdl.md](mdl.md) | 1.0 | layout verified; tag direction and V orientation open |
+| [rcsl-container.md](rcsl-container.md) | 1.0 | verified from code |
+| [rcsl-opcodes-v0.md](rcsl-opcodes-v0.md) | 0 | opcodes verified from code; runtime spec pending |
