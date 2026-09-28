@@ -1,6 +1,6 @@
 # RCSL instruction set, version 0
 
-Spec version 0.1. Container format: [rcsl-container.md](rcsl-container.md).
+Spec version 0.2. Container format: [rcsl-container.md](rcsl-container.md).
 Reference: `tools/rcsl_disasm.py` (`OPCODES`, `SEEN_MODES`), test `tools/ref/test_rcsl.py`
 (which reads the two tables below and fails if they disagree with the corpus).
 
@@ -80,7 +80,8 @@ duration (277 cases after TMO).
 
 Inside an event handler (see container spec) a pending LCALL makes the interpreter
 return; the dispatcher then restores the saved pc, so the rest of the handler is
-abandoned. GUESS: the compiler or script authors avoid this; not checked.
+abandoned. This happens in exactly one shipped script (`boss1\boss1_rl.scr`, `init`),
+see rcsl-vm.md, "Quirks" (VERIFIED-DATA, static reachability).
 
 ### The POP quirk (VERIFIED-CODE 0x419f7a, VERIFIED-DATA)
 
@@ -262,9 +263,13 @@ inside DEFS.
 
 ## Entity fields
 
+Superseded by the entity field map in rcsl-vm.md 1.0, which corrects two points below:
+the indices used through `self` are 1, 4, 5, 8, 14, 17, 20, 23, 24, 25, 28, 32, 33, 34, 35,
+37 (9 came from `camera`), and 23/24 are waypoint speed and turn rate, not
+health-related. Original 0.1 text:
+
 LEA through `self` (and `other`, `player`) addresses 4-byte fields of the entity, counted
-from entity + 0x7B. Field indices used through `self` in the corpus: 1, 4, 5, 8, 9, 14,
-17, 20, 23, 24, 25, 28, 32, 33, 34, 35, 37. Named so far:
+from entity + 0x7B. Named in 0.1:
 
 | Field | Meaning | Evidence |
 |---|---|---|
@@ -279,22 +284,16 @@ following waypoints), 23 and 24 health-related values set in `init`.
 
 ## Open questions (prioritised)
 
-1. Builtin argument lists and return values (72 used, 85 registered). Needed before any
-   script runs; only a handful were read here (`random`, `crandom`, `sin`..`atan`, `abs`,
-   `min`, `max`, `lerp`, `move*`, `rotate*`, `sleep`, `TerrainHeight`, `create` lookup,
-   `StartSound` lookup).
-2. The entity field map behind LEA indices (all 17 used indices through `self`, plus
-   those used through `player`, `other`, `camera` and through pointers returned by
-   builtins).
-3. Exact trigger conditions of `init` and `touch` (who calls 0x404fa0, 0x40544b,
-   0x405562 and when), and the order of events within an update.
-4. The meaning of the two addresses per DEFS record and the selector `[[self]+0x77]`.
-5. Header field 1 (always 16): unused by the loader; possibly read elsewhere.
-6. What happens when a nested subroutine (CALL with A ≥ 0) hits a pending LCALL, and
-   whether any shipped script does that.
-7. Whether PUSH/POP stack contents persist across updates in practice (the stack is not
-   reset by the dispatcher).
+Questions 1 to 5 of version 0.1 are answered by later specs: builtin signatures in
+rcsl-builtins-table.md; the entity field map (16 indices through `self`, not 17: the 0.1
+count included `camera`'s index 9), the event triggers and order, the two addresses per
+global record and header field 1 in rcsl-vm.md.
+
+6. Answered in rcsl-vm.md 1.0: nested latent calls (never occur in the data) and the
+   PUSH/POP stack across updates (never reset; balanced in the mock run).
 
 ## Changelog
 
 - 0.1 (WP-16): first version; all 31 handlers read from the executable, corpus checked.
+- 0.2 (WP-21/22): the latent-call-in-handler case is now checked against the data; open
+  questions 6 and 7 moved to rcsl-vm.md.

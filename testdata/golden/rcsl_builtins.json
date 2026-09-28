@@ -1,0 +1,2456 @@
+{
+ "version": 1,
+ "builtins": [
+  {
+   "index": 0,
+   "name": "debug",
+   "address": "0x0041a350",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Does nothing (empty function)."
+  },
+  {
+   "index": 1,
+   "name": "RespawnPlayer",
+   "address": "0x0041c640",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 3,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 3,
+    "agree": 3,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "If self is player 1 or player 2 entity, respawns that player (0x40b2f0)."
+  },
+  {
+   "index": 2,
+   "name": "EndLevel",
+   "address": "0x00407570",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 4,
+    "call": 4,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 4,
+    "agree": 4,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Sets the level-finished flags 0x4d52d6 and 0x458eab and calls 0x4269b0."
+  },
+  {
+   "index": 3,
+   "name": "random",
+   "address": "0x0041a360",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 79,
+    "call": 134,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 134,
+    "agree": 134,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Uniform value rand()/32767 in [0,1] from the C runtime LCG."
+  },
+  {
+   "index": 4,
+   "name": "crandom",
+   "address": "0x0041a380",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 15,
+    "call": 41,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 41,
+    "agree": 41,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "(rand()/32767 - 0.5) * 2, in [-1,1]."
+  },
+  {
+   "index": 5,
+   "name": "sin",
+   "address": "0x0041a3b0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "deg",
+     "type": "float"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 66,
+    "call": 98,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 98,
+    "agree": 98,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "sin of an angle in degrees."
+  },
+  {
+   "index": 6,
+   "name": "cos",
+   "address": "0x0041a3d0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "deg",
+     "type": "float"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 1,
+    "call": 1,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 1,
+    "agree": 1,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "cos of an angle in degrees."
+  },
+  {
+   "index": 7,
+   "name": "tan",
+   "address": "0x0041a3f0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "deg",
+     "type": "float"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "tan of an angle in degrees."
+  },
+  {
+   "index": 8,
+   "name": "atan",
+   "address": "0x0041a410",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "x",
+     "type": "float"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "QUIRK: returns atan(x * pi/180) in radians (input is converted as if it were degrees)."
+  },
+  {
+   "index": 9,
+   "name": "abs",
+   "address": "0x0041a430",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "x",
+     "type": "float"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 20,
+    "call": 20,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 20,
+    "agree": 20,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Absolute value."
+  },
+  {
+   "index": 10,
+   "name": "min",
+   "address": "0x0041a460",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "a",
+     "type": "float"
+    },
+    {
+     "name": "b",
+     "type": "float"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 13,
+    "call": 16,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 16,
+    "agree": 16,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "b if b <= a (or unordered) else a."
+  },
+  {
+   "index": 11,
+   "name": "max",
+   "address": "0x0041a4a0",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "a",
+     "type": "float"
+    },
+    {
+     "name": "b",
+     "type": "float"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 6,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 6,
+    "agree": 6,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "b if b >= a (or unordered) else a."
+  },
+  {
+   "index": 12,
+   "name": "lerp",
+   "address": "0x0041a4e0",
+   "same_impl_as": [],
+   "arity": 3,
+   "args": [
+    {
+     "name": "t",
+     "type": "float"
+    },
+    {
+     "name": "a",
+     "type": "float"
+    },
+    {
+     "name": "b",
+     "type": "float"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "a + (b - a) * t."
+  },
+  {
+   "index": 13,
+   "name": "vec_copy",
+   "address": "0x0041a500",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "src",
+     "type": "vec"
+    },
+    {
+     "name": "dst",
+     "type": "vec_out"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 14,
+    "call": 15,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 15,
+    "agree": 15,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "dst = src."
+  },
+  {
+   "index": 14,
+   "name": "vec_add",
+   "address": "0x0041a520",
+   "same_impl_as": [],
+   "arity": 3,
+   "args": [
+    {
+     "name": "a",
+     "type": "vec"
+    },
+    {
+     "name": "b",
+     "type": "vec"
+    },
+    {
+     "name": "out",
+     "type": "vec_out"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "out = a + b."
+  },
+  {
+   "index": 15,
+   "name": "vec_sub",
+   "address": "0x0041a550",
+   "same_impl_as": [],
+   "arity": 3,
+   "args": [
+    {
+     "name": "a",
+     "type": "vec"
+    },
+    {
+     "name": "b",
+     "type": "vec"
+    },
+    {
+     "name": "out",
+     "type": "vec_out"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 57,
+    "call": 64,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 64,
+    "agree": 64,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "out = a - b."
+  },
+  {
+   "index": 16,
+   "name": "vec_ma",
+   "address": "0x0041a580",
+   "same_impl_as": [],
+   "arity": 4,
+   "args": [
+    {
+     "name": "a",
+     "type": "vec"
+    },
+    {
+     "name": "s",
+     "type": "float"
+    },
+    {
+     "name": "b",
+     "type": "vec"
+    },
+    {
+     "name": "out",
+     "type": "vec_out"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 6,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 6,
+    "agree": 6,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "out = a + b * s."
+  },
+  {
+   "index": 17,
+   "name": "vec_length",
+   "address": "0x0041a5e0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "v",
+     "type": "vec"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 3,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 3,
+    "agree": 3,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Euclidean length."
+  },
+  {
+   "index": 18,
+   "name": "vec_norm",
+   "address": "0x0041a630",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "v",
+     "type": "vec_out"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Normalises v in place (unchanged if zero); returns the length before normalisation."
+  },
+  {
+   "index": 19,
+   "name": "vec_scale",
+   "address": "0x0041a650",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "v",
+     "type": "vec_out"
+    },
+    {
+     "name": "s",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 8,
+    "call": 8,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 8,
+    "agree": 8,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "v *= s in place."
+  },
+  {
+   "index": 20,
+   "name": "vec_setlen",
+   "address": "0x0041a680",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "v",
+     "type": "vec_out"
+    },
+    {
+     "name": "len",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 3,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 3,
+    "agree": 3,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Rescales v in place to the given length (unchanged if zero)."
+  },
+  {
+   "index": 21,
+   "name": "vec_toyaw",
+   "address": "0x0041a6a0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "v",
+     "type": "vec"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Yaw of v in degrees: atan2(y,x) in [0,360) minus 90; QUIRK: -90 whenever x == 0."
+  },
+  {
+   "index": 22,
+   "name": "vec_toangles",
+   "address": "0x0041a730",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "v",
+     "type": "vec"
+    },
+    {
+     "name": "out",
+     "type": "vec_out"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "out = (-pitch, 0, yaw - 90) in degrees."
+  },
+  {
+   "index": 23,
+   "name": "ClearAxis",
+   "address": "0x0041a750",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "axis",
+     "type": "raw"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 3,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 3,
+    "agree": 3,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Writes the 3x3 identity into 9 floats at the pointer."
+  },
+  {
+   "index": 24,
+   "name": "AnglesToAxis",
+   "address": "0x0041a780",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "angles",
+     "type": "vec"
+    },
+    {
+     "name": "axis",
+     "type": "raw"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 8,
+    "call": 8,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 8,
+    "agree": 8,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Writes the rotation matrix (9 floats) for angles in degrees."
+  },
+  {
+   "index": 25,
+   "name": "create",
+   "address": "0x0041a7a0",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "name",
+     "type": "string"
+    },
+    {
+     "name": "pos",
+     "type": "vec"
+    }
+   ],
+   "returns": "entity",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 176,
+    "call": 461,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 461,
+    "agree": 461,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Spawns object definition `name` at pos with self's angles; runs its init handler; returns the new entity or 0.0."
+  },
+  {
+   "index": 26,
+   "name": "remove",
+   "address": "0x0041a980",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "ent",
+     "type": "entity"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 228,
+    "call": 269,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 269,
+    "agree": 269,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Marks the entity and its attached children removed (flag 0x1) and detaches it."
+  },
+  {
+   "index": 27,
+   "name": "activate",
+   "address": "0x0041a9a0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "ent",
+     "type": "entity"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 1,
+    "call": 1,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 1,
+    "agree": 1,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Sets the active flag (0x4) on the entity and all its children."
+  },
+  {
+   "index": 28,
+   "name": "deactivate",
+   "address": "0x0041a9c0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "ent",
+     "type": "entity"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 4,
+    "call": 5,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 5,
+    "agree": 5,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Clears the active flag (0x4) on the entity and all its children."
+  },
+  {
+   "index": 29,
+   "name": "getentity",
+   "address": "0x0041a9e0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "ptr",
+     "type": "raw"
+    }
+   ],
+   "returns": "entity",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Converts a raw entity pointer to an entity reference (ptr + 0x7B)."
+  },
+  {
+   "index": 30,
+   "name": "setskin",
+   "address": "0x0041aa00",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "ent",
+     "type": "entity"
+    },
+    {
+     "name": "name",
+     "type": "string"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Sets the entity skin (entity+0x157) from a skin name."
+  },
+  {
+   "index": 31,
+   "name": "callback",
+   "address": "0x0041ae80",
+   "same_impl_as": [],
+   "arity": 4,
+   "args": [
+    {
+     "name": "ent",
+     "type": "entity"
+    },
+    {
+     "name": "msg",
+     "type": "float"
+    },
+    {
+     "name": "parm1",
+     "type": "float"
+    },
+    {
+     "name": "parm2",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 12,
+    "call": 12,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 12,
+    "agree": 12,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Sets cb_msg/cb_parm1/cb_parm2 and runs ent's callback handler synchronously."
+  },
+  {
+   "index": 32,
+   "name": "AttachEntity",
+   "address": "0x0041aa30",
+   "same_impl_as": [],
+   "arity": 4,
+   "args": [
+    {
+     "name": "child",
+     "type": "entity"
+    },
+    {
+     "name": "parent",
+     "type": "entity"
+    },
+    {
+     "name": "tag",
+     "type": "string"
+    },
+    {
+     "name": "flag",
+     "type": "int"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 8,
+    "call": 11,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 11,
+    "agree": 11,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Attaches child to parent at a named tag; flag stored as a boolean."
+  },
+  {
+   "index": 33,
+   "name": "AttachActivate",
+   "address": "0x0041aa90",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "name",
+     "type": "string"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 59,
+    "call": 86,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 86,
+    "agree": 86,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Activates the first attached child of self with this name (if not removed)."
+  },
+  {
+   "index": 34,
+   "name": "AttachDeactivate",
+   "address": "0x0041ab50",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "name",
+     "type": "string"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 63,
+    "call": 221,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 221,
+    "agree": 221,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Deactivates the first attached child of self with this name (if not removed)."
+  },
+  {
+   "index": 35,
+   "name": "AttachCallback",
+   "address": "0x0041ac10",
+   "same_impl_as": [],
+   "arity": 4,
+   "args": [
+    {
+     "name": "name",
+     "type": "string"
+    },
+    {
+     "name": "msg",
+     "type": "float"
+    },
+    {
+     "name": "parm1",
+     "type": "float"
+    },
+    {
+     "name": "parm2",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 21,
+    "call": 34,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 34,
+    "agree": 34,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Runs the callback handler of the first attached child with this name, if active."
+  },
+  {
+   "index": 36,
+   "name": "ParentCallback",
+   "address": "0x0041ada0",
+   "same_impl_as": [],
+   "arity": 3,
+   "args": [
+    {
+     "name": "msg",
+     "type": "float"
+    },
+    {
+     "name": "parm1",
+     "type": "float"
+    },
+    {
+     "name": "parm2",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 8,
+    "call": 8,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 8,
+    "agree": 8,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Runs the callback handler of self's parent entity."
+  },
+  {
+   "index": 37,
+   "name": "move",
+   "address": "0x0041af60",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "vel",
+     "type": "vec"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 78,
+    "call": 99,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 99,
+    "agree": 99,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "origin (fields 5..7) += vel * frametime."
+  },
+  {
+   "index": 38,
+   "name": "movex",
+   "address": "0x0041afb0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "speed",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 4,
+    "call": 6,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 6,
+    "agree": 6,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "field 5 (origin.x) += speed * frametime."
+  },
+  {
+   "index": 39,
+   "name": "movey",
+   "address": "0x0041afd0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "speed",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 49,
+    "call": 53,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 53,
+    "agree": 53,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "field 6 (origin.y) += speed * frametime."
+  },
+  {
+   "index": 40,
+   "name": "movez",
+   "address": "0x0041aff0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "speed",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 63,
+    "call": 64,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 64,
+    "agree": 64,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "field 7 (origin.z) += speed * frametime."
+  },
+  {
+   "index": 41,
+   "name": "rotate",
+   "address": "0x0041b010",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "rate",
+     "type": "vec"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 4,
+    "call": 4,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 4,
+    "agree": 4,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "angles (fields 14..16) += rate * frametime (degrees per second)."
+  },
+  {
+   "index": 42,
+   "name": "rotatex",
+   "address": "0x0041b060",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "rate",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 19,
+    "call": 20,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 20,
+    "agree": 20,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "field 14 += rate * frametime."
+  },
+  {
+   "index": 43,
+   "name": "rotatey",
+   "address": "0x0041b080",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "rate",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 20,
+    "call": 31,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 31,
+    "agree": 31,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "field 15 += rate * frametime."
+  },
+  {
+   "index": 44,
+   "name": "rotatez",
+   "address": "0x0041b0a0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "rate",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 96,
+    "call": 108,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 108,
+    "agree": 108,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "field 16 += rate * frametime."
+  },
+  {
+   "index": 45,
+   "name": "sleep",
+   "address": "0x0041b0c0",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "none",
+   "done_flag": "zero",
+   "corpus": {
+    "scripts": 73,
+    "call": 0,
+    "lcall": 90
+   },
+   "callsites": {
+    "total": 90,
+    "agree": 90,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Clears the done flag; used with TMO + LCALL, the wait is the timeout."
+  },
+  {
+   "index": 46,
+   "name": "Shoot",
+   "address": "0x0041b0d0",
+   "same_impl_as": [],
+   "arity": 3,
+   "args": [
+    {
+     "name": "weapon",
+     "type": "string"
+    },
+    {
+     "name": "point",
+     "type": "string"
+    },
+    {
+     "name": "dir",
+     "type": "vec"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 73,
+    "call": 379,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 379,
+    "agree": 379,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Fires weapon definition `weapon` from the named point of self along dir; spawns projectile(s) and runs their init."
+  },
+  {
+   "index": 47,
+   "name": "Damage",
+   "address": "0x0041b550",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "target",
+     "type": "entity"
+    },
+    {
+     "name": "amount",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 77,
+    "call": 93,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 93,
+    "agree": 93,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Applies amount * g_damage_factor to target via 0x404ae0 (runs its damage handler)."
+  },
+  {
+   "index": 48,
+   "name": "RadialDamage",
+   "address": "0x0041b5d0",
+   "same_impl_as": [],
+   "arity": 3,
+   "args": [
+    {
+     "name": "center",
+     "type": "vec"
+    },
+    {
+     "name": "radius",
+     "type": "float"
+    },
+    {
+     "name": "damage",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 4,
+    "call": 4,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 4,
+    "agree": 4,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Damages entities within radius; amount scaled by distance, frametime and g_damage_factor."
+  },
+  {
+   "index": 49,
+   "name": "RotateTo",
+   "address": "0x0041b750",
+   "same_impl_as": [
+    "lRotateTo"
+   ],
+   "arity": 2,
+   "args": [
+    {
+     "name": "target",
+     "type": "entity"
+    },
+    {
+     "name": "axes",
+     "type": "int"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "computed",
+   "corpus": {
+    "scripts": 23,
+    "call": 23,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 23,
+    "agree": 23,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Turns self toward the target entity origin (axes bit 0x1 yaw, 0x2 pitch) at field-24 rate; done when all requested axes arrived."
+  },
+  {
+   "index": 50,
+   "name": "lRotateTo",
+   "address": "0x0041b750",
+   "same_impl_as": [
+    "RotateTo"
+   ],
+   "arity": 2,
+   "args": [
+    {
+     "name": "target",
+     "type": "entity"
+    },
+    {
+     "name": "axes",
+     "type": "int"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "computed",
+   "corpus": {
+    "scripts": 32,
+    "call": 0,
+    "lcall": 32
+   },
+   "callsites": {
+    "total": 32,
+    "agree": 32,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Same implementation as RotateTo."
+  },
+  {
+   "index": 51,
+   "name": "RotateToClamp",
+   "address": "0x0041b9c0",
+   "same_impl_as": [
+    "lRotateToClamp"
+   ],
+   "arity": 4,
+   "args": [
+    {
+     "name": "target",
+     "type": "entity"
+    },
+    {
+     "name": "axes",
+     "type": "int"
+    },
+    {
+     "name": "max",
+     "type": "float"
+    },
+    {
+     "name": "min",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "computed",
+   "corpus": {
+    "scripts": 19,
+    "call": 20,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 20,
+    "agree": 20,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "RotateTo, then clamps the turned angles into [min, max]."
+  },
+  {
+   "index": 52,
+   "name": "lRotateToClamp",
+   "address": "0x0041b9c0",
+   "same_impl_as": [
+    "RotateToClamp"
+   ],
+   "arity": 4,
+   "args": [
+    {
+     "name": "target",
+     "type": "entity"
+    },
+    {
+     "name": "axes",
+     "type": "int"
+    },
+    {
+     "name": "max",
+     "type": "float"
+    },
+    {
+     "name": "min",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "computed",
+   "corpus": {
+    "scripts": 18,
+    "call": 0,
+    "lcall": 18
+   },
+   "callsites": {
+    "total": 18,
+    "agree": 18,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Same implementation as RotateToClamp."
+  },
+  {
+   "index": 53,
+   "name": "MoveToNextWP",
+   "address": "0x0041ba60",
+   "same_impl_as": [
+    "lMoveToNextWP"
+   ],
+   "arity": 1,
+   "args": [
+    {
+     "name": "align",
+     "type": "int"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "computed",
+   "corpus": {
+    "scripts": 20,
+    "call": 20,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 20,
+    "agree": 20,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Advances self along its waypoint path at field-23 speed; done on reaching a waypoint or path end."
+  },
+  {
+   "index": 54,
+   "name": "lMoveToNextWP",
+   "address": "0x0041ba60",
+   "same_impl_as": [
+    "MoveToNextWP"
+   ],
+   "arity": 1,
+   "args": [
+    {
+     "name": "align",
+     "type": "int"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "computed",
+   "corpus": {
+    "scripts": 28,
+    "call": 0,
+    "lcall": 34
+   },
+   "callsites": {
+    "total": 34,
+    "agree": 34,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Same implementation as MoveToNextWP."
+  },
+  {
+   "index": 55,
+   "name": "RotateToNextWP",
+   "address": "0x0041ba90",
+   "same_impl_as": [
+    "lRotateToNextWP"
+   ],
+   "arity": 0,
+   "args": [],
+   "returns": "none",
+   "done_flag": "computed",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Turns self yaw toward the path direction at field-24 rate; done when aligned."
+  },
+  {
+   "index": 56,
+   "name": "lRotateToNextWP",
+   "address": "0x0041ba90",
+   "same_impl_as": [
+    "RotateToNextWP"
+   ],
+   "arity": 0,
+   "args": [],
+   "returns": "none",
+   "done_flag": "computed",
+   "corpus": {
+    "scripts": 6,
+    "call": 0,
+    "lcall": 6
+   },
+   "callsites": {
+    "total": 6,
+    "agree": 6,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Same implementation as RotateToNextWP."
+  },
+  {
+   "index": 57,
+   "name": "GetWaypointDelay",
+   "address": "0x0041bab0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "index",
+     "type": "int"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 1,
+    "call": 1,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 1,
+    "agree": 1,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Delay value of waypoint index (mod count) of self's path; 0.0 without a path."
+  },
+  {
+   "index": 58,
+   "name": "TerrainHeight",
+   "address": "0x0041baf0",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "x",
+     "type": "float"
+    },
+    {
+     "name": "y",
+     "type": "float"
+    }
+   ],
+   "returns": "float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 35,
+    "call": 44,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 44,
+    "agree": 44,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Terrain height at (x, y) (0x416470)."
+  },
+  {
+   "index": 59,
+   "name": "PlaceLight",
+   "address": "0x0041bb20",
+   "same_impl_as": [],
+   "arity": 3,
+   "args": [
+    {
+     "name": "pos",
+     "type": "vec"
+    },
+    {
+     "name": "color",
+     "type": "vec"
+    },
+    {
+     "name": "radius",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 12,
+    "call": 23,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 23,
+    "agree": 23,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Adds a dynamic light for this frame (max 32); names of 2nd/3rd args GUESS."
+  },
+  {
+   "index": 60,
+   "name": "CameraQuake",
+   "address": "0x0041bb90",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "amount",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 11,
+    "call": 12,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 12,
+    "agree": 12,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Starts a camera shake of the given amount."
+  },
+  {
+   "index": 61,
+   "name": "LockTarget",
+   "address": "0x0041bb40",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "entity",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 3,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 3,
+    "agree": 3,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Picks the nearest lockable enemy for self's player and marks it locked; entity or 0.0."
+  },
+  {
+   "index": 62,
+   "name": "IsValidTarget",
+   "address": "0x0041bb60",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "ent",
+     "type": "entity"
+    }
+   ],
+   "returns": "int_as_float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 4,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 4,
+    "agree": 4,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "1.0 if ent != 0, its field 4 == 0 and its health (field 34) > 0, else 0.0."
+  },
+  {
+   "index": 63,
+   "name": "StartSound",
+   "address": "0x0041bc50",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "file",
+     "type": "string"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 58,
+    "call": 116,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 116,
+    "agree": 116,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Plays a sound (CASH kind 3 lookup) at self."
+  },
+  {
+   "index": 64,
+   "name": "StartLoopingSound",
+   "address": "0x0041bcd0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "file",
+     "type": "string"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Stops self's looping sound and starts this one looping."
+  },
+  {
+   "index": 65,
+   "name": "StopLoopingSound",
+   "address": "0x0041bca0",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 3,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 3,
+    "agree": 3,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Stops self's looping sound."
+  },
+  {
+   "index": 66,
+   "name": "TraceLine",
+   "address": "0x0041bd40",
+   "same_impl_as": [],
+   "arity": 3,
+   "args": [
+    {
+     "name": "from",
+     "type": "vec"
+    },
+    {
+     "name": "to",
+     "type": "vec"
+    },
+    {
+     "name": "mask",
+     "type": "int"
+    }
+   ],
+   "returns": "entity",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 0,
+    "call": 0,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 0,
+    "agree": 0,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Segment test against players (mask bit 2) and entities (bit 1); first hit entity or 0.0."
+  },
+  {
+   "index": 67,
+   "name": "TraceLineDamage",
+   "address": "0x0041bea0",
+   "same_impl_as": [],
+   "arity": 3,
+   "args": [
+    {
+     "name": "from",
+     "type": "vec"
+    },
+    {
+     "name": "to",
+     "type": "vec"
+    },
+    {
+     "name": "damage",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 2,
+    "call": 2,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 2,
+    "agree": 2,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Damages every player or entity (by self's side) crossed by the segment."
+  },
+  {
+   "index": 68,
+   "name": "Lightning",
+   "address": "0x0041c000",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 1,
+    "call": 1,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 1,
+    "agree": 0,
+    "disagree": 1
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Damages and draws lightning to targetable entities within 500 units of self."
+  },
+  {
+   "index": 69,
+   "name": "PushPlayer",
+   "address": "0x0041c170",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 17,
+    "call": 17,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 17,
+    "agree": 17,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Pushes self's player horizontally away from self (4000 * frametime)."
+  },
+  {
+   "index": 70,
+   "name": "G_AddPowerUp",
+   "address": "0x0041c210",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "type",
+     "type": "int"
+    },
+    {
+     "name": "count",
+     "type": "int"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 4,
+    "call": 4,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 4,
+    "agree": 4,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Adds power-ups of a type (<16) to self's player, capped at 99."
+  },
+  {
+   "index": 71,
+   "name": "G_UsePowerUp",
+   "address": "0x0041c2d0",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "int_as_float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 12,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 12,
+    "agree": 12,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Uses the current power-up of self's player (0x40b150), returns its integer result."
+  },
+  {
+   "index": 72,
+   "name": "G_GetPowerUp",
+   "address": "0x0041c2b0",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "int_as_float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 3,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 3,
+    "agree": 3,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Current power-up type of self's player."
+  },
+  {
+   "index": 73,
+   "name": "G_AddMissiles",
+   "address": "0x0041c2f0",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "type",
+     "type": "int"
+    },
+    {
+     "name": "count",
+     "type": "int"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 5,
+    "call": 5,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 5,
+    "agree": 5,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Adds missiles of a type (<5) to self's player, capped at 99."
+  },
+  {
+   "index": 74,
+   "name": "G_UseMissile",
+   "address": "0x0041c3b0",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "int_as_float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 15,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 15,
+    "agree": 15,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Uses a missile of self's player (0x40b220), returns its integer result."
+  },
+  {
+   "index": 75,
+   "name": "G_GetMissiles",
+   "address": "0x0041c390",
+   "same_impl_as": [],
+   "arity": 0,
+   "args": [],
+   "returns": "int_as_float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 3,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 3,
+    "agree": 3,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Current missile type of self's player."
+  },
+  {
+   "index": 76,
+   "name": "G_GetUpgrade",
+   "address": "0x0041c3d0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "index",
+     "type": "int"
+    }
+   ],
+   "returns": "int_as_float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 13,
+    "call": 16,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 16,
+    "agree": 16,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Upgrade slot value (index < 20) of self's player, else 0.0."
+  },
+  {
+   "index": 77,
+   "name": "G_SetUpgrade",
+   "address": "0x0041c440",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "index",
+     "type": "int"
+    },
+    {
+     "name": "value",
+     "type": "int"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 13,
+    "call": 13,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 13,
+    "agree": 13,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Sets upgrade slot (index < 20) of self's player."
+  },
+  {
+   "index": 78,
+   "name": "ShowTutorialHint",
+   "address": "0x0041c4c0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "text",
+     "type": "string"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 10,
+    "call": 10,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 10,
+    "agree": 10,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Shows a tutorial hint (0x42c000)."
+  },
+  {
+   "index": 79,
+   "name": "PlayerFreezeHealth",
+   "address": "0x0041c4e0",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "on",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 2,
+    "call": 4,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 4,
+    "agree": 4,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Increments (on != 0) or decrements (on == 0) the health-freeze counter of self's player."
+  },
+  {
+   "index": 80,
+   "name": "PlayerDisableAction",
+   "address": "0x0041c560",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "on",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 2,
+    "call": 3,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 3,
+    "agree": 3,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Sets the action-disabled flag of self's player; when set, clears p_action."
+  },
+  {
+   "index": 81,
+   "name": "FreezeHealth",
+   "address": "0x0041c530",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "ent",
+     "type": "entity"
+    },
+    {
+     "name": "on",
+     "type": "float"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 2,
+    "call": 6,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 6,
+    "agree": 6,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Sets (on != 0) or clears the invulnerability flag 0x10 of ent."
+  },
+  {
+   "index": 82,
+   "name": "SetFlag",
+   "address": "0x0041c5b0",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "flags",
+     "type": "int"
+    },
+    {
+     "name": "bit",
+     "type": "int"
+    }
+   ],
+   "returns": "int_as_float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 1,
+    "call": 4,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 4,
+    "agree": 4,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Returns int(flags) | int(bit) (pure)."
+  },
+  {
+   "index": 83,
+   "name": "ClearFlag",
+   "address": "0x0041c5e0",
+   "same_impl_as": [],
+   "arity": 2,
+   "args": [
+    {
+     "name": "flags",
+     "type": "int"
+    },
+    {
+     "name": "bit",
+     "type": "int"
+    }
+   ],
+   "returns": "int_as_float",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 1,
+    "call": 4,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 4,
+    "agree": 4,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Returns int(flags) & ~int(bit) (pure)."
+  },
+  {
+   "index": 84,
+   "name": "SetModel",
+   "address": "0x0041c610",
+   "same_impl_as": [],
+   "arity": 1,
+   "args": [
+    {
+     "name": "name",
+     "type": "string"
+    }
+   ],
+   "returns": "none",
+   "done_flag": "none",
+   "corpus": {
+    "scripts": 3,
+    "call": 9,
+    "lcall": 0
+   },
+   "callsites": {
+    "total": 9,
+    "agree": 9,
+    "disagree": 0
+   },
+   "confidence": "VERIFIED-CODE",
+   "summary": "Sets self's model (entity+0x153) by name."
+  }
+ ]
+}

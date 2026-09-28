@@ -1,6 +1,6 @@
 # RCSL compiled script (`scripts\*.scr`)
 
-Spec version 0.1. Reference implementation: `tools/rcsl_disasm.py`, test `tools/ref/test_rcsl.py`.
+Spec version 0.2. Reference implementation: `tools/rcsl_disasm.py`, test `tools/ref/test_rcsl.py`.
 Companion: [rcsl-opcodes-v0.md](rcsl-opcodes-v0.md) (instruction set, execution model).
 
 Claims tagged VERIFIED-DATA hold for all 339 `.scr` files of v1.70 (23,675 instructions).
@@ -48,7 +48,7 @@ non-zero; DATA and CODE are always present, DATA possibly with length 0 (VERIFIE
 | Offset | Field | Meaning | Tag |
 |---|---|---|---|
 | 0x00 | 0 | magic `RCSL` (0x4C534352) | VERIFIED-CODE |
-| 0x04 | 1 | always 16. Not read by the loader. GUESS: number of temporary slots (the event dispatcher saves exactly 16 slots, see opcodes spec) or a format version | VERIFIED-DATA (value) |
+| 0x04 | 1 | always 16. Not read by the loader nor anywhere else in the executable (see rcsl-vm.md, "Header field 1") | VERIFIED-DATA (value), VERIFIED-CODE (unused) |
 | 0x08 | 2 | CASH entry count | VERIFIED-CODE 0x41cd03 |
 | 0x0C | 3 | DEFS entry count | VERIFIED-CODE 0x41cc98 |
 | 0x10 | 4 | FUNC entry count | VERIFIED-CODE 0x41cb8c |
@@ -110,10 +110,12 @@ frametime 87, other 76, camera 59, cb_msg 34, g_map_pos 33, l_waterlevel 20,
 p_speedfactor 5, p_counter2 5, p_action 4, p_lives 4, p_weapon 3, cb_parm1 3,
 p_counter1 3, p_scores 2, l_water 1, p_stars 1.
 
-The two addresses per record differ only for the `p_*` globals (two player records,
-stride 0x171). VERIFIED-CODE 0x419bf4/0x419c59: the interpreter picks address 0 or 1 with
-an index read from the current `self` entity's definition (`[[self]+0x77]`). GUESS: player
-number in two-player mode.
+The two addresses per record differ only for `player` and the `p_*` globals (two player
+records, stride 0x171). VERIFIED-CODE 0x419bf4/0x419c59: the interpreter picks address 0
+or 1 with the player index stored at entity + 0x77 of the current `self` entity (reached
+as `[[self]+0x77]`, since the 4 bytes at `self` hold the entity address). Correction in 0.2:
+0.1 called this a field of the entity's definition. The meaning (the entity's associated
+player in two-player mode) is in rcsl-vm.md, "Globals".
 
 ### FUNC: builtins used
 
@@ -208,8 +210,9 @@ for the life of the instance. The disassembler names them `t0..t15` and `v16..`.
 **Globals.** A negative operand −(i+1) is the address of the engine variable named by DEFS
 entry i. `self` holds a pointer into the current entity (entity + 0x7B, VERIFIED-CODE
 0x404b6e), so field access is done with LEA (opcode 0x12) through that pointer. `other`,
-`player` and `camera` are used the same way by the scripts (GUESS: entity or object
-pointers); `frametime`, `cb_msg`, ... hold floats.
+`player` hold entity references of the same form; `camera` holds the address of the
+camera structure, not an entity (rcsl-vm.md, "Entity references and fields");
+`frametime`, `cb_msg`, ... hold floats.
 
 **String literals** appear as MOV immediates (opcode 0x11, mode 0x10, operand B) whose raw
 value is a STRG offset (1,619 cases, every one landing on a string start, VERIFIED-DATA).
@@ -229,9 +232,9 @@ who runs them:
 | 3 | 12 | `touch` | 0x40544b and 0x405562, which set global `other` just before | 117 |
 | 4 | 13 | `callback` | builtins `AttachCallback` (0x41ad59), `ParentCallback` (0x41ae40), `callback` (0x41af1e), which set `cb_msg`, `cb_parm1`, `cb_parm2` just before | 36 |
 
-The names `init` and `touch` are our interpretation (GUESS for the exact trigger
-conditions: `init` is run when an entity or projectile is created; `touch` is run with
-`other` set, presumably on collision). `damage` and `callback` follow directly from the
+The names `init` and `touch` are ours; the exact trigger conditions are now specified in
+rcsl-vm.md, "Event dispatch" (VERIFIED-CODE): `init` runs when an object is spawned or
+created, `touch` from the collision pass. `damage` and `callback` follow directly from the
 code. Data consistency (VERIFIED-DATA): `other` is used by 76 scripts, `cb_msg` by 34;
 the tank's `init` sets fields and deactivates an attachment, its `damage` handler tests
 health (field 34) and on ≤ 0 spawns explosions and removes itself.
@@ -266,3 +269,6 @@ STRG reference and DATA slot is within bounds. It also compares
 ## Changelog
 
 - 0.1 (WP-16): first version, container fully decoded, loader read from the executable.
+- 0.2 (WP-21/22): header field 1 shown unused; the player-index selector is entity + 0x77
+  (not the definition); `camera` is not an entity; entry-point triggers point to
+  rcsl-vm.md.
