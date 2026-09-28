@@ -1,0 +1,1 @@
+target_link_libraries(as3d_formats PUBLIC as3d_core)

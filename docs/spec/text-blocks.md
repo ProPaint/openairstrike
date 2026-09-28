@@ -1,6 +1,6 @@
 # Generic brace-block text syntax
 
-Spec version 1.0. Reference implementation: `tools/ref/textblock.py`.
+Spec version 1.1. Reference implementation: `tools/ref/textblock.py`.
 Engine implementation: `engine/src/formats/textblock.cpp`
 (`engine/include/as3d/textblock.h`).
 
@@ -307,11 +307,17 @@ Of those 864 blocks, **863 have distinct names**: `objects/tanks.obj`
 defines `tank_dead` twice (lines 41 and 180; see "Duplicate block names"
 above). Since the shipped log count (864) matches the raw block count and
 not the distinct-name count, the loader evidently does not reject or skip
-the duplicate — GUESS (unverified against the executable): a later
-`tank_dead` most likely overwrites an earlier one of the same name in
-whatever name-indexed table the loader builds afterward (last-wins), since
-that is the most common behavior for this kind of loader, but nothing here
-proves it over first-wins; both are consistent with "864 parsed".
+the duplicate: both are parsed into their own object-table slot.
+
+**Correction (WP-1B, superseding the original GUESS below this line in
+v1.0):** VERIFIED-CODE, object-name lookup `FUN_00409860` at `0x00409860`
+in the v1.70 executable: every name-based lookup (used both to resolve an
+`attach` target that isn't a particle system, and a weapon's `missile`/
+`flash`) scans the object table from index 1 upward and returns on the
+*first* exact (case-sensitive) match. So it is **first-wins**, not
+last-wins: the second `tank_dead` (line 180) is parsed and occupies a real
+slot in the 864, but is unreachable by name — dead data. See
+`docs/spec/obj.md` for the full address and reasoning.
 
 ## Golden data
 
@@ -335,12 +341,14 @@ in addition to its own synthetic-input unit tests and a fuzz test.
   losing data silently or crashing. If a genuine need for real nesting ever
   arises, `TextBlock` needs a `children` (or similar) field; that is an
   `engine/include/as3d/textblock.h` change outside this package's remit.
-- The last-wins-vs-first-wins question for duplicate object names (see
-  above) is a GUESS. Resolving it needs either the v1.70 executable's
-  object-loading code (`VERIFIED-CODE`) or an in-game test showing which
-  `tank_dead` definition actually gets used.
+- ~~The last-wins-vs-first-wins question for duplicate object names is a
+  GUESS.~~ Resolved in WP-1B: VERIFIED-CODE, first-wins (see the
+  "Correction" note above and `docs/spec/obj.md`).
 
 ## Changelog
 
+- 1.1 (WP-1B): corrected the duplicate-object-name resolution order from a
+  GUESS ("probably last-wins") to VERIFIED-CODE first-wins, per
+  `FUN_00409860` in the v1.70 executable.
 - 1.0 (WP-12): initial version. Grammar, edge cases, and the full
   statement-key inventory for all 42 shipped files.

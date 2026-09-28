@@ -1,0 +1,4160 @@
+{
+ "levels": [
+  {
+   "hash": "54521b494a0e524386587eaacb31cfaecb2da813",
+   "name": "mission1"
+  },
+  {
+   "hash": "286e93d500c55c30ad8f158de9bed739a1ac54ba",
+   "name": "mission2"
+  },
+  {
+   "hash": "f2ac66308945c36c53137fbe98715f0d7a3eb876",
+   "name": "mission3"
+  },
+  {
+   "hash": "5c1e11499c3ca987514f636b3934ae49e3b83e85",
+   "name": "mission4"
+  },
+  {
+   "hash": "a2d5c1ebf53058d5b1e39c2f3b08fa8010d89b6c",
+   "name": "mission5"
+  },
+  {
+   "hash": "6ea3b1d9cd2834c07847f478c40be8045c2a9534",
+   "name": "mission6"
+  },
+  {
+   "hash": "cfc237b6e4d7296577b0767d20c22af60a6c0057",
+   "name": "mission7"
+  },
+  {
+   "hash": "4c145d09c8f27dc5120ab56fa5fbc6257ef28e86",
+   "name": "mission8"
+  },
+  {
+   "hash": "b0a441906c42bc78d711eb42620b110b229d4e03",
+   "name": "mission9"
+  },
+  {
+   "hash": "a381218ae14867db570e63c01253f64d2d02df24",
+   "name": "mission10"
+  },
+  {
+   "hash": "162e377debb0a967d331e5c5f72734362340737f",
+   "name": "mission11"
+  },
+  {
+   "hash": "39a921e72eefe67a9f39bcaed1c92f4a3d5585b3",
+   "name": "mission12"
+  },
+  {
+   "hash": "77750382834be0045dd2ef5e5a7f867928920bb0",
+   "name": "mission13"
+  },
+  {
+   "hash": "4cd061922f205bf817d90ca781ebefb8bac4ab6c",
+   "name": "mission14"
+  },
+  {
+   "hash": "2b32c834e72d7940156de8a692c9e2e09584265c",
+   "name": "mission15"
+  },
+  {
+   "hash": "343fb0ddd46236d70f5fc60983f1023b4f206d0b",
+   "name": "mission16"
+  },
+  {
+   "hash": "d20988f1d001b286a7ef669adf6ee09727569f5e",
+   "name": "mission17"
+  },
+  {
+   "hash": "0213991eb85f209332c94a4a0e14b3250f61eb1d",
+   "name": "mission18"
+  },
+  {
+   "hash": "d40a17cc70a9eeb0cb489326a12c9c5ad90d84f8",
+   "name": "mission19"
+  },
+  {
+   "hash": "8a2045852deff92c2e8b38a9b54fc44285ca7888",
+   "name": "mission20"
+  },
+  {
+   "hash": "32f16982d6805ba524a7c6c73b479307ad4f5ef3",
+   "name": "intro2"
+  },
+  {
+   "hash": "a59cdcb389b1c13e9a173d5dc37a2fda46fdc117",
+   "name": "intro1"
+  },
+  {
+   "hash": "260d537a46b4a3020d7d6e664f28dd6f15ed9a8c",
+   "name": "intro4"
+  },
+  {
+   "hash": "f2e18e3fb7dd7c78dd82d44093bb1eba674f2bda",
+   "name": "intro3"
+  }
+ ],
+ "objects": [
+  {
+   "hash": "5cf42e323c25af16c2a85b4f4af907438a90d681",
+   "name": "banner"
+  },
+  {
+   "hash": "88ab26e0ac070a84897b94a9a43e66d4f6a4e795",
+   "name": "boss1_svet_redflasher"
+  },
+  {
+   "hash": "08e34b545052727597e6ebe1d18aa336987a0052",
+   "name": "boss1_rocketlauncher_flasher"
+  },
+  {
+   "hash": "cb2d9ae7e570538cb915fc0cd78bd239488bae95",
+   "name": "boss1_rocketlaucher"
+  },
+  {
+   "hash": "7c545511218e05ee53b78ad3335336b5274f1f48",
+   "name": "boss1_tank"
+  },
+  {
+   "hash": "d840139431888b24ba3115793cf850c3fd88e9d2",
+   "name": "boss1_left_door"
+  },
+  {
+   "hash": "bd1642d9de1b19f0c8263eab942d2249609911cb",
+   "name": "boss1_right_door"
+  },
+  {
+   "hash": "47f7074956b35d0ca75693cc3d37555ef3bb404d",
+   "name": "boss1_left_block"
+  },
+  {
+   "hash": "e2ad20ce3fd6102b2105cb47948e42caab9b5422",
+   "name": "boss1_right_block"
+  },
+  {
+   "hash": "2cdca3d839554285f3b4c7754916d8c68d885bc8",
+   "name": "boss1_cannon_lighting"
+  },
+  {
+   "hash": "616cdc493b21bd6c3c36ebdc170cc37633f76344",
+   "name": "boss1_cannon_left_gun"
+  },
+  {
+   "hash": "526de0b2c8feebb106ece2f0d33a07f603a89cb1",
+   "name": "boss1_cannon_left"
+  },
+  {
+   "hash": "b75581a1550f40de26a98248c052e9442d2748a4",
+   "name": "boss1_cover_left"
+  },
+  {
+   "hash": "03d224bff73a645f74d1307be9aed4d8229aee8b",
+   "name": "boss1_cover_right"
+  },
+  {
+   "hash": "df5b910b11c3c6e60c86ae501b5499c5827f4f6c",
+   "name": "boss1_cover"
+  },
+  {
+   "hash": "e50c3764f521d69a64ab561fba09844d57866595",
+   "name": "boss1_expl"
+  },
+  {
+   "hash": "4113b2fe0deb800e3ffdeff100892ce22455778e",
+   "name": "boss1_sphere"
+  },
+  {
+   "hash": "7649d6adf7df2f1cdb5cd2dbe52ee8151e48e33a",
+   "name": "boss_yellowflare"
+  },
+  {
+   "hash": "0b6c6c671111ca5ccb7b141638d079cee80f1683",
+   "name": "boss_redflare_small"
+  },
+  {
+   "hash": "2d4499beacb68d8d9a9afc6643568370da723f70",
+   "name": "boss1"
+  },
+  {
+   "hash": "edaaa8d026405c9eda5ae49e216995d4dd76c24f",
+   "name": "boss2_expl"
+  },
+  {
+   "hash": "9f0dc332c57767e5fa558f29f10a69bac002b166",
+   "name": "boss2_vint"
+  },
+  {
+   "hash": "48b9c8cbc0bdcaa60868b562a16bc730096cd8b4",
+   "name": "boss2_rapidgun_left"
+  },
+  {
+   "hash": "1db765313c6e399134635dcab6a54316af774ae3",
+   "name": "boss2_rapidgun_right"
+  },
+  {
+   "hash": "b28dbc1e6f3046795c0af87a8434fdf4c6b86251",
+   "name": "boss2_photon_cannon"
+  },
+  {
+   "hash": "a28117f7c2079b983d513fb2b0533fa721b91740",
+   "name": "boss2_kabina"
+  },
+  {
+   "hash": "b88eb3f428aef16bce09b9ea0ea3221c8cc6336f",
+   "name": "boss2"
+  },
+  {
+   "hash": "a75f099cabf4dff3439003e0d43f40387d937cdf",
+   "name": "boss2_missile"
+  },
+  {
+   "hash": "351e6030b49371603071eb2b78189195511e59c9",
+   "name": "boss2_rgunproj"
+  },
+  {
+   "hash": "cd242e910e4b818b8ab8194c314f7dbf2cdb96ec",
+   "name": "boss2_rgunflash"
+  },
+  {
+   "hash": "fd1d0be7590069fb614ef94783000ef187d80d3d",
+   "name": "boss2_pcanproj"
+  },
+  {
+   "hash": "86e801f84485d85a742d177af95f04ea61dbf9f2",
+   "name": "boss2_pcanflash"
+  },
+  {
+   "hash": "c5e4f80fd152cf4c35cee7c00fd7100d1cf69cd8",
+   "name": "pcan_hit"
+  },
+  {
+   "hash": "07100bf12ed5bc940f86a5991d15e1039c81d984",
+   "name": "boss2_flare_oreol"
+  },
+  {
+   "hash": "a4e60f15730845e99d3af7d506f8e7f7f0304f78",
+   "name": "boss2_lflare_oreol"
+  },
+  {
+   "hash": "beb1cdee12a39bb87d094eff804925aae5ada159",
+   "name": "boss2_rflare_oreol"
+  },
+  {
+   "hash": "4e4061c7858c01995a68325b59c54b5731b5c505",
+   "name": "boss2_flare_lense"
+  },
+  {
+   "hash": "b581552d51af7064aa11ae18b4d402e1462c8806",
+   "name": "boss2_flare"
+  },
+  {
+   "hash": "762c9448f0d2910f65cac5c0b7d76c41b405d9a1",
+   "name": "boss2_lflare"
+  },
+  {
+   "hash": "1662831aac68182c3bf9072ec9bd5a766d27e45f",
+   "name": "boss2_rflare"
+  },
+  {
+   "hash": "7f6987421fd974418376a345abd4ed4ded130e89",
+   "name": "boss3_left_door"
+  },
+  {
+   "hash": "d2f3faca3707fc8e9601b24b5c4789a6cd620456",
+   "name": "boss3_right_door"
+  },
+  {
+   "hash": "ac1ec17aad1cc534b5a157daee0e2c508e615970",
+   "name": "boss3_cannon_center"
+  },
+  {
+   "hash": "3f229b4bead53806f75bc11ecca0d380afed70a0",
+   "name": "boss3_cannon_big"
+  },
+  {
+   "hash": "4e059796dc36bba26c190a1f971d232dd6c532c4",
+   "name": "boss3_cannon_big2"
+  },
+  {
+   "hash": "8af04030309800bdd09e0f94531633ab7cca0ad5",
+   "name": "boss3_sphere"
+  },
+  {
+   "hash": "6ae2dde0b5354ccc324c99c9540d1cb79308463d",
+   "name": "boss3_fonar1"
+  },
+  {
+   "hash": "c46ac1238e3bf0d63919c63efbbcc2b09861c8b8",
+   "name": "boss3_fonar2"
+  },
+  {
+   "hash": "44f21c2b7907f50c3b7ad0ed52672581a3388300",
+   "name": "boss3_fonar_light1"
+  },
+  {
+   "hash": "12d190fc724637f2447382348c930b317b95ae81",
+   "name": "boss3_fonar_light1_wol"
+  },
+  {
+   "hash": "452255d36cd4720b0ec31ef88c3ca65c3d558e07",
+   "name": "boss3_fonar_light2"
+  },
+  {
+   "hash": "df72dccb340cbb9bb02de90f543c915978728674",
+   "name": "boss3_fonar_light2_wol"
+  },
+  {
+   "hash": "bf8f34785333210c82517eacb6fb60e817ebcbd1",
+   "name": "boss3_lredproj"
+  },
+  {
+   "hash": "88220a6b428979732f2a73e67615bd8660aababe",
+   "name": "boss3_l2proj"
+  },
+  {
+   "hash": "a90ff5c8064731e1415ca3d5673145237845968a",
+   "name": "boss3_mgunproj"
+  },
+  {
+   "hash": "cdf5e7b8475be6e34c74e8b818a8d2f85bc903b4",
+   "name": "boss3_cannon2_guns"
+  },
+  {
+   "hash": "f819ab8277d1eafeb443aa3ce138dd73d2ba4492",
+   "name": "boss3_cannon2_gun"
+  },
+  {
+   "hash": "1d608b6a88f2b9f7d5bb683cef9906339e660b29",
+   "name": "boss3"
+  },
+  {
+   "hash": "b1db90543ab2dc224ca3c5b31795a696bc40cda0",
+   "name": "btr_dead"
+  },
+  {
+   "hash": "42a3907e302c3d92ee6ea89053c7a7f03cd9b515",
+   "name": "btr_dead2"
+  },
+  {
+   "hash": "a32fb56c5c8b92c05c4dbe37659605d94bca9d55",
+   "name": "btr_sand_guns"
+  },
+  {
+   "hash": "681d78486971e2f1382126760993b994a5a54440",
+   "name": "btr_sand_cannon"
+  },
+  {
+   "hash": "b5428839513c48423b3ea1254fdfdbdbcf0a4110",
+   "name": "btr_sand"
+  },
+  {
+   "hash": "8c62984e008a3472eca299edb947b9be16ded244",
+   "name": "btr_green_guns"
+  },
+  {
+   "hash": "a3b3e4d75a4c0f13ad78a864a6eb882ffb88de56",
+   "name": "btr_green_cannon"
+  },
+  {
+   "hash": "421abd2474a054175ea679709608720059f73d14",
+   "name": "btr_green"
+  },
+  {
+   "hash": "235f52ae04ac661b56d1582872f89edf78d87c7b",
+   "name": "btr_white_guns"
+  },
+  {
+   "hash": "e6f92013ea6c570fc761e12ce35159d2d3874080",
+   "name": "btr_white_cannon"
+  },
+  {
+   "hash": "60af19e1872327745bfc03c876b118987c97e61a",
+   "name": "btr_white"
+  },
+  {
+   "hash": "c5da026bc898dfa20a435d241383de04b34c9e0f",
+   "name": "btr_medium_green_guns"
+  },
+  {
+   "hash": "8f8b5d6cdb0a1d61ff1c84e95c5b41aea99b6db6",
+   "name": "btr_medium_green_cannon"
+  },
+  {
+   "hash": "16897996f788c29d85ac37d219877344f5f3d9fa",
+   "name": "btr_medium_green"
+  },
+  {
+   "hash": "b8468fdd7ee5b300ae1b3f7643d7d8641ad20470",
+   "name": "btr_medium_blue_guns"
+  },
+  {
+   "hash": "d4b4ad39914d4d3d6448fb5e43fdce9b1978bbf8",
+   "name": "btr_medium_blue_cannon"
+  },
+  {
+   "hash": "bf1168a6e9104ea3b8ed5c553c85877facb0aca6",
+   "name": "btr_medium_blue"
+  },
+  {
+   "hash": "c821ad28cf5d223bb2266a1a7ab89d5daf167169",
+   "name": "btr_green_menu_guns"
+  },
+  {
+   "hash": "f35b2889c08fd72a1fc7117989778ca4a66dccb4",
+   "name": "btr_green_menu_cannon"
+  },
+  {
+   "hash": "3048f973a0fb02be95f958a9b4ccdac604b6897f",
+   "name": "btr_green_menu"
+  },
+  {
+   "hash": "da16f989e129e9699cc04bdd50d53363268648d1",
+   "name": "btr_medium_blue_menu_guns"
+  },
+  {
+   "hash": "1d53971989420b32882544cb1c972c6970f82f95",
+   "name": "btr_medium_blue_menu_cannon"
+  },
+  {
+   "hash": "bddf107ae43e64cfa53074df02481a95d43ff7af",
+   "name": "btr_medium_blue_menu"
+  },
+  {
+   "hash": "a0a2a02e31268113fa9464eca7bdce56aaee543d",
+   "name": "dom_light"
+  },
+  {
+   "hash": "5189135b875248702aecde0442263b5b0dd56519",
+   "name": "dom_flare"
+  },
+  {
+   "hash": "480e58f7c6aa366ee636aa22f250b54b51fa6702",
+   "name": "bigdom"
+  },
+  {
+   "hash": "84ea76ce54def0961a1c2b564bfe6e0683303a30",
+   "name": "dom1_redbricks"
+  },
+  {
+   "hash": "2ebb6154fb242b066f4aaae9b50e14618aad2618",
+   "name": "dom1_whitebricks"
+  },
+  {
+   "hash": "f7519e0e2efa0e3fe56a4e719967c9953e16784b",
+   "name": "dom2_yellowbricks"
+  },
+  {
+   "hash": "29cff0deda9836955489506cb6c6ad43390df7a6",
+   "name": "dom2_sand"
+  },
+  {
+   "hash": "720159691f28a61bdeb184b1271992357d3642e2",
+   "name": "dom2_white"
+  },
+  {
+   "hash": "bf1044171e81ca69770248ee19a400cc8a28f075",
+   "name": "dom3_white"
+  },
+  {
+   "hash": "b762ccecb5776d23860ee0bc79b1c7767ec6f2b1",
+   "name": "dom3_bricks"
+  },
+  {
+   "hash": "ffc9053c75c580cd9f1dcf62e27266189997e28e",
+   "name": "dom4_brown"
+  },
+  {
+   "hash": "a4f16f47df009262417e676a07a482f206ffb176",
+   "name": "dom4_sand"
+  },
+  {
+   "hash": "d3bbb76bbc63f34159db6b2e2c3671e8279f47bc",
+   "name": "dom4_wood"
+  },
+  {
+   "hash": "4e9eb13d54c3a2446134737a3232e0af3a830a91",
+   "name": "dom5_seno"
+  },
+  {
+   "hash": "edbb348420ad004c52512043288779ba6fa15881",
+   "name": "dom6_seno_circle"
+  },
+  {
+   "hash": "8fb34c0042319c1a643f50a3fbf860e2f2d5ab51",
+   "name": "dom7_wood"
+  },
+  {
+   "hash": "0d605fef06d9122b0d6a89f1f5d485c6466312b7",
+   "name": "factory1_sand"
+  },
+  {
+   "hash": "ab1dda3f33a1354657fa6b2c83ba34b03afe4096",
+   "name": "factory2_metal"
+  },
+  {
+   "hash": "140159ec68c4fd3e7ae092f2858bda88497a873c",
+   "name": "vishka_flare"
+  },
+  {
+   "hash": "b2591d3e06deab1ad8160ff1badd98376e2a6294",
+   "name": "vishka_flare_wol"
+  },
+  {
+   "hash": "d81f4dfe5972b968015c34b6a8b0fbd6a34893fa",
+   "name": "vishka_green"
+  },
+  {
+   "hash": "82fe16005b36d661e732347979256a925a9fb250",
+   "name": "vishka_redbricks"
+  },
+  {
+   "hash": "5d67ba6540543a7edb9cf045729e4d6085ccd7e5",
+   "name": "vishka_brownbricks"
+  },
+  {
+   "hash": "1282d12d2eceda61749dab89d21d6d388e424b7f",
+   "name": "tent_small_green"
+  },
+  {
+   "hash": "e3477e363ec685497d267c766b408e8cb49d7172",
+   "name": "tent_small_brown"
+  },
+  {
+   "hash": "5401bc80e433acd9cdf715cccc6911d6233b5543",
+   "name": "tent_small_white"
+  },
+  {
+   "hash": "55cf957fc2de3b87181df8cc0dd143a030d0a71b",
+   "name": "tent_small2_green"
+  },
+  {
+   "hash": "7673fbd35b60d0adbe80ee83f1063edfe80ef1e7",
+   "name": "tent_small2_blue"
+  },
+  {
+   "hash": "a2e7659840c21c9221371159ea7e30425f4e675f",
+   "name": "tent_small3_green"
+  },
+  {
+   "hash": "b1ef57bcc354fa3be0496f155202c6b15e95a58c",
+   "name": "barak_long"
+  },
+  {
+   "hash": "2a89026f7eaf75b789b19ddea4ebfe6faeae9adf",
+   "name": "barak_long_brown"
+  },
+  {
+   "hash": "2970e84a119d81f88859288f67f279590568aff3",
+   "name": "angar_leftdoor"
+  },
+  {
+   "hash": "43444f2891ca79745041ecb5ed9b757c17cc1544",
+   "name": "angar_rightdoor"
+  },
+  {
+   "hash": "5ed6516538136fcaa0d14730eac5b8c776dd5f0c",
+   "name": "angar"
+  },
+  {
+   "hash": "631f1b4543bfaa9f0db2d7f5f0f82ef37e3ccc58",
+   "name": "angar_brown_leftdoor"
+  },
+  {
+   "hash": "701c8fe074dc0a101479ae80a754d242740da559",
+   "name": "angar_brown_rightdoor"
+  },
+  {
+   "hash": "e12ec226a1e1c0b3495ab5f64dfc092561b77511",
+   "name": "angar_brown"
+  },
+  {
+   "hash": "2f4ec9b199067cabc73b88db4444c3c4b109be11",
+   "name": "angar_na_leftdoor"
+  },
+  {
+   "hash": "eb55303a52b1bde54b0ed38ce31dc5e6dcc5cdc8",
+   "name": "angar_na_rightdoor"
+  },
+  {
+   "hash": "3651c46de70da82f0eec416460a8dbb64ccf312a",
+   "name": "angar_na"
+  },
+  {
+   "hash": "324a8736a626a4557c09bf277c35ef29f1486fa8",
+   "name": "angar_na_brown_leftdoor"
+  },
+  {
+   "hash": "efbd695b17346a59646b3e5647100d22e1c7e145",
+   "name": "angar_na_brown_rightdoor"
+  },
+  {
+   "hash": "22672173b77636ed59075513dbeaecdf83a20aba",
+   "name": "angar_na_brown"
+  },
+  {
+   "hash": "e630ac8e8692e503d89472267f870e32eac50fe0",
+   "name": "oilpump"
+  },
+  {
+   "hash": "f749b410aa5f39cd31689a7a2fd6f75a17c6fe00",
+   "name": "oilpump_twice"
+  },
+  {
+   "hash": "ca2a1a1778e5d71acdcba3941debcdde03b48cf0",
+   "name": "oilpump_big"
+  },
+  {
+   "hash": "dad22fbf4d8962ce068bd7cb7507f8a39735c95a",
+   "name": "oilpump_right"
+  },
+  {
+   "hash": "2945b0b7843f7ae26f9d95abad0e15294b8a5c55",
+   "name": "oilpump_left"
+  },
+  {
+   "hash": "59c2363ba1c1f589547291d1bfb02f254b7712f8",
+   "name": "oilpump_kach"
+  },
+  {
+   "hash": "a81507e60e3d8a8064ae108b73563cca91fcf303",
+   "name": "oilpump2"
+  },
+  {
+   "hash": "cd4e538cbc0d1bbc2e422eaaab895d34e1bda8b0",
+   "name": "rocketlaucher_left"
+  },
+  {
+   "hash": "6a7c3909a2efcdeb8deb4b3840fa69d16503c5f3",
+   "name": "rocketlaucher_right"
+  },
+  {
+   "hash": "8f55c42236f25fd94e14e71c8362cfd4d37e5080",
+   "name": "rocketlaucher"
+  },
+  {
+   "hash": "84394d9c5dd3dd833f3ef7533384e24acafda590",
+   "name": "rocketlaucher_brown_left"
+  },
+  {
+   "hash": "e5a7c7fed966b661c128731bb37b233038dcca7f",
+   "name": "rocketlaucher_brown_right"
+  },
+  {
+   "hash": "9323df16d71f0202371568be41eaee1992c69213",
+   "name": "rocketlaucher_brown"
+  },
+  {
+   "hash": "5aa04cae569a07f02e78278c1edf3e3a7903c049",
+   "name": "rocketlaucher_winter_left"
+  },
+  {
+   "hash": "cb3c2ba749eecc33c6671434eb2dd0b64644b136",
+   "name": "rocketlaucher_winter_right"
+  },
+  {
+   "hash": "f24f8b8c125a4f68e38f57349aef3c20c8952059",
+   "name": "rocketlaucher_winter"
+  },
+  {
+   "hash": "6bc55773f8c2d6d2d4d62d8db9e9e194128d8bc8",
+   "name": "cannon_dead"
+  },
+  {
+   "hash": "4883d1d5e1f735c147477d84e083d8b0b9984d90",
+   "name": "cannon1_gun"
+  },
+  {
+   "hash": "f33e13f42f958ccc9325181cd440291f5b4f3896",
+   "name": "cannon1_bricks_gun"
+  },
+  {
+   "hash": "e8743c193aaadf5cfdd716fe2e48e7c9969fabb8",
+   "name": "cannon1_white_gun"
+  },
+  {
+   "hash": "ed8b1041130a4d2009fa35313f685b76ff46b631",
+   "name": "cannon1_green"
+  },
+  {
+   "hash": "c89836ab64f6e65669c970e2c212407d5f2db7f8",
+   "name": "cannon1_white"
+  },
+  {
+   "hash": "98a07ee1bfd822ff2f46d60764178d7a167e14b8",
+   "name": "cannon1_bricks"
+  },
+  {
+   "hash": "891f4174e3912202b95366eb777c3ecbe9c81605",
+   "name": "cannon2_guns"
+  },
+  {
+   "hash": "0a4d10a2c45a73159d8c45717633bd6767799ca3",
+   "name": "cannon2_gun"
+  },
+  {
+   "hash": "56739b1eea005627d665d3ef3f7e682e1d900216",
+   "name": "cannon2_brown_guns"
+  },
+  {
+   "hash": "f706c3d55334ae11a0f52f16bd8a3c5cc31f7bfa",
+   "name": "cannon2_brown_gun"
+  },
+  {
+   "hash": "7b7a02e9877f43c0f781de801034a1d5c078dd1b",
+   "name": "cannon2_big_guns"
+  },
+  {
+   "hash": "43df0e9605bfbba0c8659c8dad853bb1760f6341",
+   "name": "cannon2_big_gun"
+  },
+  {
+   "hash": "13043eeb8baafdf7aefd941efb30eb189a8aaf4e",
+   "name": "cannon2_bricks"
+  },
+  {
+   "hash": "9e3ba965416ac086ad1de4113fd7f4692656a335",
+   "name": "cannon2_big_bricks"
+  },
+  {
+   "hash": "71b4b9c37d19b383008fad204be3f2e96a297861",
+   "name": "cannon2_brown"
+  },
+  {
+   "hash": "e3603a4ce1706a8bdfd4ca403faf42eb3b1b1e16",
+   "name": "cannon3_gun"
+  },
+  {
+   "hash": "c29f35465c29c643b58ac0da78affbe897312cd8",
+   "name": "cannon3_bricks"
+  },
+  {
+   "hash": "671ea0408c50e223029675ca9d3df98acc0dea2b",
+   "name": "cannon4_gun"
+  },
+  {
+   "hash": "4d8b829e843e9e330782683357ac4f815dba4174",
+   "name": "cannon4_green"
+  },
+  {
+   "hash": "aae5284460deb2a45e1af60f4fe82c97c4dff033",
+   "name": "cannon5_gun"
+  },
+  {
+   "hash": "0d354b66620bd8ced2537ec8c570a4ff91c58358",
+   "name": "cannon5_laser"
+  },
+  {
+   "hash": "0e3d364c4c460ff3a7346cb15ebca58b96e758b0",
+   "name": "cannon6_plasma_gun"
+  },
+  {
+   "hash": "ab0e22f6f47078e0b478998b1ab3bf2a30548e97",
+   "name": "cannon6_plasma_holder"
+  },
+  {
+   "hash": "a3477a3738dc7da6a7e6d02c50dd1d46c64756ed",
+   "name": "cannon6_plasma"
+  },
+  {
+   "hash": "32a0bf7cd88c237f89cb0b12d00e3207f6b1c6e2",
+   "name": "cannon7_lighting_gun"
+  },
+  {
+   "hash": "ee7bf6e0110277314a4935e01cc1f2d43de2ddfb",
+   "name": "cannon7_lighting"
+  },
+  {
+   "hash": "72ca75630e4c6fd94baca05786a2c97ccee128d6",
+   "name": "cannon8_BMG_gun"
+  },
+  {
+   "hash": "b151c8185ea89fe78dd958460b9e67f6d6e2c44b",
+   "name": "cannon8_BMG_holder"
+  },
+  {
+   "hash": "6f6d90c3a40adbc3fcb11a406b85a6dc9d2b6463",
+   "name": "cannon8_BMG_mainholder"
+  },
+  {
+   "hash": "bea311e1b920faeedef42556c343188b242aa6ff",
+   "name": "cannon8_BMG"
+  },
+  {
+   "hash": "c754513b3aa64feeabff34c87deab161d1697131",
+   "name": "cannon8_BMG_brown_gun"
+  },
+  {
+   "hash": "864010a8cd28eae977d682904a436557f30548f3",
+   "name": "cannon8_BMG_brown_holder"
+  },
+  {
+   "hash": "93422fe42fb7a0b1a4233c678243c4920a9fd91d",
+   "name": "cannon8_BMG_brown_mainholder"
+  },
+  {
+   "hash": "41a80764602be92463bafb13fcb006f9b78a33ca",
+   "name": "cannon8_BMG_brown"
+  },
+  {
+   "hash": "6dfbff1c6deae69ac9e6816b4e9967f6c04bc8c1",
+   "name": "cannon_big_gun"
+  },
+  {
+   "hash": "030bfcf556f70ae564c28037f27779dc1abc8bbf",
+   "name": "cannon_big_turret"
+  },
+  {
+   "hash": "77426d1c599855650f25b6d2c8aede959591e16c",
+   "name": "cannon_big"
+  },
+  {
+   "hash": "086689c93929d0eeeef530ad6283b5f4a2ef9d8c",
+   "name": "cannon_big_gun_brown"
+  },
+  {
+   "hash": "d94dc2d3ada97ff24397402caac117040803b0d6",
+   "name": "cannon_big_brown_turret"
+  },
+  {
+   "hash": "b340bf4587328aea882aa00cdeb6086bc6033dc5",
+   "name": "cannon_big_brown"
+  },
+  {
+   "hash": "dcae7564a03039653b1cc2fddb20f3c6bcfd87b1",
+   "name": "desert_build1_tent"
+  },
+  {
+   "hash": "293ae6953dfe4dd8971b2a41ae435a39f12d0c3d",
+   "name": "desert_build1"
+  },
+  {
+   "hash": "19fe1eda6345a58d7b0e7ad8acf39547ab253b37",
+   "name": "fx_item_taken"
+  },
+  {
+   "hash": "af6ac5b6d10fd14143e27634db5355b72f273562",
+   "name": "mark"
+  },
+  {
+   "hash": "43c320b77fc315b233cb2f3be2b3d9432fe14213",
+   "name": "splash"
+  },
+  {
+   "hash": "fa013b9ad8b8fdc806a7f7039739253e283e2202",
+   "name": "campfire_light"
+  },
+  {
+   "hash": "3a9cc1b6f85e1ff841020705d75df5707690eb64",
+   "name": "campfire_light_small"
+  },
+  {
+   "hash": "9f21454f794c07656cda2f6f43456c374cbcf5a9",
+   "name": "campfire"
+  },
+  {
+   "hash": "d665849184458928bc22323b369df92b5f78bfa8",
+   "name": "campfire_small"
+  },
+  {
+   "hash": "00ae3f9c99e80131e2f0bad693001c83941be167",
+   "name": "helic_campfire"
+  },
+  {
+   "hash": "1a77f18b8f630b1f1b1de860fb4bdf83c21393c7",
+   "name": "barreltrail"
+  },
+  {
+   "hash": "ce31768f369c79acb1f759f009947bc30186978f",
+   "name": "score_num"
+  },
+  {
+   "hash": "2d3cf90f940cb145c78ad4f0df7d6dc2453d9bde",
+   "name": "gib_flare"
+  },
+  {
+   "hash": "310aa6ed215e602c5d4c8553aaefae6928f8f082",
+   "name": "gib_spark"
+  },
+  {
+   "hash": "07988e0cb1f3706276b33c65730b62c61dd098a2",
+   "name": "gib_big1"
+  },
+  {
+   "hash": "c22fa4c03bffa6f9f65ed4cbaa5b1498d4ac8395",
+   "name": "gib_big1_a"
+  },
+  {
+   "hash": "862e677b8fe949a9513f836e17147632992074d3",
+   "name": "gib_big2"
+  },
+  {
+   "hash": "2ab60ede4f24f76bbc05ee9d9e17c5d5ff64af10",
+   "name": "gib_big2_a"
+  },
+  {
+   "hash": "d56c511fc23e017986a57c539fc0f3a0485c92d0",
+   "name": "gib_big2_b"
+  },
+  {
+   "hash": "2ca06d33425f2c6b29356451393b19893fda3d5f",
+   "name": "gib_big3"
+  },
+  {
+   "hash": "efe274709522791139c8151b287821e17871d218",
+   "name": "gib_big3_b"
+  },
+  {
+   "hash": "243a7c2f8ff00686aa9dbb78269a013cd70f3452",
+   "name": "gib_medium1"
+  },
+  {
+   "hash": "198bda793bb531532e5ff52c9add386f73f01900",
+   "name": "gib_medium1_a"
+  },
+  {
+   "hash": "f5dd4747ca0775bd353956f73e1ad899c1cfd57f",
+   "name": "gib_medium1_b"
+  },
+  {
+   "hash": "9fde400ab6382010cc3d6b18d8987a8e2b6dc2fc",
+   "name": "gib_medium2"
+  },
+  {
+   "hash": "922b640ecddf25969de3e64d7e6687613f4df38a",
+   "name": "gib_medium2_a"
+  },
+  {
+   "hash": "1402c553b662653af8bc8e4669c33136ec03b8b7",
+   "name": "gib_medium2_b"
+  },
+  {
+   "hash": "949384fceadfe0aed67524f3334f6b602b30c4d0",
+   "name": "gib_small1"
+  },
+  {
+   "hash": "3f8e1620e991d3ce2419d4c38d749d17d25d0337",
+   "name": "gib_small2"
+  },
+  {
+   "hash": "7894789e6770923bbdac8cbe135899a9975d0176",
+   "name": "gib_small3"
+  },
+  {
+   "hash": "e92ab2daf80aed8e594905d0736188123df0d5c2",
+   "name": "gib_small3_a"
+  },
+  {
+   "hash": "faf1686914eb6fdf897ab06369d0eb30174beef8",
+   "name": "gib_small4"
+  },
+  {
+   "hash": "53a85033addddf87ca02865aef334273736a70a8",
+   "name": "gib_small5"
+  },
+  {
+   "hash": "e61523054d3f747960821966d2aba4b63bacfce2",
+   "name": "gib_small5_a"
+  },
+  {
+   "hash": "7a6e071a3e9dd23b034030faf53e8eaee8758a5c",
+   "name": "gib_small6"
+  },
+  {
+   "hash": "dbeb856cc08b637ed35087c50f7351650cfb44d6",
+   "name": "gib_small7"
+  },
+  {
+   "hash": "daa437e8b5f0a4cba5e2877d753fb93b5dba775c",
+   "name": "gib_small7_b"
+  },
+  {
+   "hash": "a09d9d51a1b52573d47b41f7c0c547e1eb1ead4c",
+   "name": "gib_small8"
+  },
+  {
+   "hash": "d0ea5253c0fe490357173d9082a642362b107700",
+   "name": "gib_small8_a"
+  },
+  {
+   "hash": "899d796c15623948ad7f7311e10124469f06aef3",
+   "name": "gib_small8_b"
+  },
+  {
+   "hash": "c05d1a41711a972e6106841af02eb77e0b9b95ae",
+   "name": "expl_wave"
+  },
+  {
+   "hash": "c8056ac7074bdec4cfd9621db10fa59f8e6eaa36",
+   "name": "expl_wave_small"
+  },
+  {
+   "hash": "9fa039c1a2e33593e7ed88454c20cfb84e841c65",
+   "name": "expl_wave_big"
+  },
+  {
+   "hash": "a0831a87b30f1057429ca38dfb7d80256e369486",
+   "name": "expl1"
+  },
+  {
+   "hash": "38d155c9237dbb56c6870e1c6e401191d357a6a7",
+   "name": "boss_tank_expl1"
+  },
+  {
+   "hash": "44a56d14d7432bbf2580f35e5e8e17fb5975a4e1",
+   "name": "expl2"
+  },
+  {
+   "hash": "13502a15698669b7a95d058904f53e30e067c070",
+   "name": "expl3"
+  },
+  {
+   "hash": "0b3571fd1c26028c9932965ca000bf46fed8512d",
+   "name": "expl1_air"
+  },
+  {
+   "hash": "9fbfcca5d367da5c8d718b9c444c049879a17587",
+   "name": "expl1_air_small"
+  },
+  {
+   "hash": "769c7ef2e79343e3d890565eb1df96c2cd2302ee",
+   "name": "expl1_helic"
+  },
+  {
+   "hash": "4df33d8334c9f8d26f4b69a47f0b5e2b57586635",
+   "name": "expl_big"
+  },
+  {
+   "hash": "e2d53a10644c1643cb8abcaad80db8329d5baff3",
+   "name": "expl_small"
+  },
+  {
+   "hash": "977e4206b21a1c35c20e9991428f34eab75a78b1",
+   "name": "expl_medium"
+  },
+  {
+   "hash": "7922194edce998c61a8fc6d95ccadb4abc27b84f",
+   "name": "expl_barrel"
+  },
+  {
+   "hash": "6e395eed8a9deb4d933fab3b5183602460f3aa89",
+   "name": "expl_missile"
+  },
+  {
+   "hash": "9e5f71a3cbefa044d9bd878a43bacfefb7e138e4",
+   "name": "expl_missile_big"
+  },
+  {
+   "hash": "c3f4b18340aae0dfd0d03ac21b71cfb662ec5f59",
+   "name": "expl_clustbomb"
+  },
+  {
+   "hash": "c9d2ee9c10944f9e6e833289f5011bb36ff29a4f",
+   "name": "expl_clustbomb_small"
+  },
+  {
+   "hash": "35938e0f32aca8c740187e16ab1ec5b64c8b75e4",
+   "name": "expl_abomb"
+  },
+  {
+   "hash": "7fde5dfde79cf7ab3de0436ed73b950ec429f7da",
+   "name": "expl_barrel_light"
+  },
+  {
+   "hash": "be4cecd27abfb19cea71bed0fe5a682e74b5d852",
+   "name": "expl1_light"
+  },
+  {
+   "hash": "50baf611f377dbf05de8e8e7b86ab1bf9571fe7a",
+   "name": "expl_small_light"
+  },
+  {
+   "hash": "c2826de5a0109af675cc300aa54180785cb8c0a4",
+   "name": "expl_big_light"
+  },
+  {
+   "hash": "d6c34100244678098cb27ab03bc8cabfae438e0e",
+   "name": "expl_abomb_light"
+  },
+  {
+   "hash": "fcc7c855591621a3d41d48068ad53cd8df4ab96d",
+   "name": "expl_ring"
+  },
+  {
+   "hash": "5f9a6ef429d57ba4089450d9e4487ffe6c82967f",
+   "name": "expl_ring_small"
+  },
+  {
+   "hash": "534737230700178dab5f63857b98409e89394965",
+   "name": "expl_ring_small2"
+  },
+  {
+   "hash": "dcd73256c4b2f486f2c018b1c092fcb034f7197f",
+   "name": "expl1_hit"
+  },
+  {
+   "hash": "8047f112853e91ca30a2d48f1357e4d2d1606880",
+   "name": "big_clouds"
+  },
+  {
+   "hash": "8c64786d8012c788f0736d691e5256d7b3e1869f",
+   "name": "palm"
+  },
+  {
+   "hash": "9f94db38ab7e49a553f67a22c659cbb2d2099fe4",
+   "name": "palm2"
+  },
+  {
+   "hash": "107ddb6c01e6ed11c824b49aec092860f6c71c32",
+   "name": "palm3"
+  },
+  {
+   "hash": "6ef48c9e20e3c1c53cbf38136c78da3b53de7824",
+   "name": "palm_small"
+  },
+  {
+   "hash": "f881806e3f3b1f42d59fe8f251abdc8429bc9cd1",
+   "name": "palm_iva_small"
+  },
+  {
+   "hash": "8a802f9bfc30ee70c6196ee6d1fa38703807acb2",
+   "name": "palm_iva"
+  },
+  {
+   "hash": "4c121adabf6012c4b55922522e5a25871018f209",
+   "name": "palm_big"
+  },
+  {
+   "hash": "5f23c994adfa8280c69891efb09a649f8f59f9e8",
+   "name": "palm_twice"
+  },
+  {
+   "hash": "5c6163ae15b4ce489dec2ad18fde64d80a947c04",
+   "name": "Tree"
+  },
+  {
+   "hash": "0b3fa0552786209b4ccfb95b0751db2d95b2cbb3",
+   "name": "Tree_redleafs"
+  },
+  {
+   "hash": "5420ee1c9fdf48f233ff790bffbe059cda4cb558",
+   "name": "Tree_sosna"
+  },
+  {
+   "hash": "3e217699e1cf9086a59b8e72ab4549587bca8c0d",
+   "name": "Tree_sosna2"
+  },
+  {
+   "hash": "5de08940ee48a07bf96a356f13355c3396465828",
+   "name": "Tree_sosna_forest"
+  },
+  {
+   "hash": "a553538156a12ed9fb50c6b4502765eacad3c350",
+   "name": "Tree_sosna_redleafs"
+  },
+  {
+   "hash": "bb140145102e63d1ada8a6e4465b9b5c6a5b8185",
+   "name": "Tree_sosna_without_leafs"
+  },
+  {
+   "hash": "3b550412cbd25b24c5da1602dea1fd66d0d59e06",
+   "name": "Tree_without_leafs"
+  },
+  {
+   "hash": "66815f8f33c5373dd1e189c809e217418b1fe72d",
+   "name": "Tree_big"
+  },
+  {
+   "hash": "2bd9ae95fdeed36fd496618805ff3476c942fe82",
+   "name": "Tree_big_green"
+  },
+  {
+   "hash": "cb0bb68d1c668e8234569e2f0189cd9d333bed5c",
+   "name": "elka_snow"
+  },
+  {
+   "hash": "441c6d8e884c884dde14eb821065dfcda66db39f",
+   "name": "elka"
+  },
+  {
+   "hash": "4e92743241bf42af8429295a3f982ed68fe8d32b",
+   "name": "elka_blue"
+  },
+  {
+   "hash": "a8184c2d4d65dfe11d2f70dcfd543f2365e52c9b",
+   "name": "bush_big_green2"
+  },
+  {
+   "hash": "f25ea4bebe4131c75c96be75e7199dacca1e2c6c",
+   "name": "bush_big_sand"
+  },
+  {
+   "hash": "94630bfbf2f74fe269befbb87aa17ba2f86a50d7",
+   "name": "bush_medium_green"
+  },
+  {
+   "hash": "f86fe7fcfbdfff79d2430e8956d250b8c434e970",
+   "name": "bush_medium_green2"
+  },
+  {
+   "hash": "15cdab11b26bc6ad074e5a89c461f7f4cb15f852",
+   "name": "bush_medium_sand2"
+  },
+  {
+   "hash": "410c2d7c51981b4104857404cb6a1c8bd8a5cb89",
+   "name": "bush_small_green"
+  },
+  {
+   "hash": "a5bd642fe1ae1c8f9c0c789114321af4a81efa74",
+   "name": "bush_small_green2"
+  },
+  {
+   "hash": "b568b552dc567cc7e5278ce7df7c2ce2d6d957ea",
+   "name": "bush_small_sand"
+  },
+  {
+   "hash": "49475353bc01ad2827c104f184ae371192092c78",
+   "name": "bush_small_sand2"
+  },
+  {
+   "hash": "d4a39ef1e71e5961cfaa740510e2ecde905358b5",
+   "name": "cactus1"
+  },
+  {
+   "hash": "0c69ac34941c73c9ee8c4936b0db12f14dea3cb5",
+   "name": "cactus2"
+  },
+  {
+   "hash": "c911d114b13b06ec189b872098c44efbe6d81127",
+   "name": "cactus3"
+  },
+  {
+   "hash": "bf2cef2df0fc90960c9c3611e296574ce64045d5",
+   "name": "cactus4"
+  },
+  {
+   "hash": "61d7105b7ea7db66e5c7fd73474fef6ab62b1589",
+   "name": "cactus_big"
+  },
+  {
+   "hash": "79783172e48afd25c8ebacdaee079dd4833e93f2",
+   "name": "kuvshinka"
+  },
+  {
+   "hash": "60f7aca6320b8e6518113811db3146db4c51f700",
+   "name": "kuvshinka2"
+  },
+  {
+   "hash": "3e453e99c08a62eb864d229cc472bc69b3cc24ba",
+   "name": "grass"
+  },
+  {
+   "hash": "0ac595b4e0f2f7d222958d88ae50600e74d14ee2",
+   "name": "grass2"
+  },
+  {
+   "hash": "a6eadafe2afe1e092703a170a30d1b697f3e9371",
+   "name": "airbomb_green"
+  },
+  {
+   "hash": "4e6a614aea8b0a3c99a315631472f98ecd6d6286",
+   "name": "airbomb2_green"
+  },
+  {
+   "hash": "097f459f7474f970558bccb64a7f2cd155357d85",
+   "name": "airbomb_brown"
+  },
+  {
+   "hash": "1e69fb3bce2234384fcfbfc55053f2c4c0aa8a0b",
+   "name": "airbomb2_brown"
+  },
+  {
+   "hash": "28ab04801653c787ea9f854ed899c7aaf5cd26e5",
+   "name": "airmine"
+  },
+  {
+   "hash": "6400269cf0911ca356af8740535f79f4df9e5a5d",
+   "name": "airmine_black"
+  },
+  {
+   "hash": "fcfb977f57509e64251e53092341ee3278d27ebd",
+   "name": "vint_a3_red"
+  },
+  {
+   "hash": "2c90b71bd591a5d6ecfb0d4e84e62b39896591b7",
+   "name": "vint_a3_red_i"
+  },
+  {
+   "hash": "600c747e329973925ca3c35ae185a519c76c9a1a",
+   "name": "vint_a3_red_big"
+  },
+  {
+   "hash": "87b20df08bcac915700f722966f9ccd9761b13d6",
+   "name": "vint_a3_red_big_i"
+  },
+  {
+   "hash": "fb86a844e77a68e7891d92150f4624cae7b9a63e",
+   "name": "vint_c4_red"
+  },
+  {
+   "hash": "2703ac6c4fe23d53b622148640b1081543420fcc",
+   "name": "vint_a4_red"
+  },
+  {
+   "hash": "ff41e8d37d2abbaf32eb4f1d085b3f1f5398bb53",
+   "name": "vint_a4_blue"
+  },
+  {
+   "hash": "2598207da9b894536025fcecb563e39c65b15fbc",
+   "name": "vint_c4_red_i"
+  },
+  {
+   "hash": "1021d9863abe603d23755978e297f9ebda9a0a9a",
+   "name": "vint_c4_blue"
+  },
+  {
+   "hash": "7bdf4edb9229ba0074da6ebaa104ff92e522b614",
+   "name": "vint_c4_blue_big"
+  },
+  {
+   "hash": "458aa0306a5a1c1f5e9f5b8a462b2f4e14d75ee7",
+   "name": "vint_c4_blue_big_i"
+  },
+  {
+   "hash": "1009ed2b07ab5ccceb7ed841bf6362b07c7d4243",
+   "name": "vint_dead"
+  },
+  {
+   "hash": "5084d8e64f29d88ae116059814e636f4234799f5",
+   "name": "helic_redflare"
+  },
+  {
+   "hash": "c44debd1918dfa000513a8dd77b608193b9ffc78",
+   "name": "helic_dead"
+  },
+  {
+   "hash": "79e0f862184bcae07890e8f720e82c4bfcebacd0",
+   "name": "helic_dead2"
+  },
+  {
+   "hash": "917b2bbf08895d69388807b812003c07e9cbaf6b",
+   "name": "helic1_green"
+  },
+  {
+   "hash": "3fd4cfd51ec27992fa894fbcfee1b5e95770ecd0",
+   "name": "helic1_brown"
+  },
+  {
+   "hash": "62d16edf6352791bc58de0c7d7f7db84576cf059",
+   "name": "helic1_blue"
+  },
+  {
+   "hash": "73728c4e939026de99986bf0889a3d43467a9f8d",
+   "name": "helic2_green"
+  },
+  {
+   "hash": "b17b387de767c815bfb3f471ca578e7cbe0d8be3",
+   "name": "helic2_brown"
+  },
+  {
+   "hash": "5c9df686f3823dd7d8ee96afc9c617146a21d374",
+   "name": "helic2_white"
+  },
+  {
+   "hash": "653fbff8973fd5771d325608330791bbafc2c4d5",
+   "name": "helic2_mini_red"
+  },
+  {
+   "hash": "c03568b97fb7b420dc8a541da621d19ffbbb4b06",
+   "name": "helic2_mini_blue"
+  },
+  {
+   "hash": "b2ddfd93bc53186c41a7598d27dac80172ae7718",
+   "name": "helic2_mini_yellow"
+  },
+  {
+   "hash": "0ae60ad44a1464bd2eabfe252613ecfd051c8b2a",
+   "name": "helic2_mini_green"
+  },
+  {
+   "hash": "c45d6254884c1188ce031022034c247b8a62bc40",
+   "name": "helic2_kamikadze"
+  },
+  {
+   "hash": "007af1f39bc719ad2942f03944cbd6986c9dc6c2",
+   "name": "helic3_white"
+  },
+  {
+   "hash": "7c39a47fd71be2f2b2af0913b78fa7600a882bc9",
+   "name": "helic3_black"
+  },
+  {
+   "hash": "bad9f26a1e4eb49c5bdf72a9aa5cf06dc9fc6039",
+   "name": "helic3_green"
+  },
+  {
+   "hash": "bcefb9e7273b733c660a81fe68fe8a85fed0f2b2",
+   "name": "helic3_big_black"
+  },
+  {
+   "hash": "2ab4ec8af00ee81b59429cb087d2c5563b80d09c",
+   "name": "helic3_big_red"
+  },
+  {
+   "hash": "819c7467f51d62a610be85fd8450564e368d2142",
+   "name": "helic4_green"
+  },
+  {
+   "hash": "70ecc52f4ae02fea5c944a6fd37ba8cc25145e05",
+   "name": "helic4_red"
+  },
+  {
+   "hash": "a0d149ea07b5c69e731eaea735baa833b107eba9",
+   "name": "helic4_blue"
+  },
+  {
+   "hash": "3639390ed76978b4d536751bb295f10e7b87baf3",
+   "name": "helic4_black"
+  },
+  {
+   "hash": "f438b1b4327ea0f7dea0b599f5d8b2d1272f825d",
+   "name": "helic5_green"
+  },
+  {
+   "hash": "609f22139f387c36ea3b6a3281b232e6bcae0d0b",
+   "name": "helic5_blue"
+  },
+  {
+   "hash": "1d968af1a640ffa06876e615c162a30ce41c04a8",
+   "name": "helic_big"
+  },
+  {
+   "hash": "97c24ed02ab7b948342ffca68b4a31eec6f2ef9c",
+   "name": "helic_big_blue"
+  },
+  {
+   "hash": "12f45b6514993830966f8c6a7edbe1d59a4cb511",
+   "name": "helic2_big"
+  },
+  {
+   "hash": "402f04cf3d6ba3491a7aec3d839ec25018d53ce2",
+   "name": "helic2_big_yellow"
+  },
+  {
+   "hash": "89b484d393abe472c7f0c7d5d648dee23efe33b2",
+   "name": "flare_blue"
+  },
+  {
+   "hash": "f7184a4ed26cdfe8230c5004316430de05b90a8c",
+   "name": "flare_red"
+  },
+  {
+   "hash": "b83861d34d81bdf85f9e102606a5e9dee89d7626",
+   "name": "flare_green"
+  },
+  {
+   "hash": "542aa23e0261423ba52fcae8564a37802d42e2f5",
+   "name": "item_life"
+  },
+  {
+   "hash": "b8334456e56e4404af6d2f89496adefae8d4dfb3",
+   "name": "item_shield"
+  },
+  {
+   "hash": "c0f16774a69b7a627b43e2e987ebab6272092554",
+   "name": "item_armor50"
+  },
+  {
+   "hash": "f8d639fff919e0cc1236e91c708da8244d1f4b3a",
+   "name": "item_armor100"
+  },
+  {
+   "hash": "1d994f5d587f8a9f16ed061667bc0274d28dbb3e",
+   "name": "item_points10k"
+  },
+  {
+   "hash": "15c731749ccd37f1354881b42d358793bbe9f108",
+   "name": "item_points5k"
+  },
+  {
+   "hash": "b945b3b265ff9147057ef8ddb1cf93a4fe5bbb11",
+   "name": "item_help"
+  },
+  {
+   "hash": "9f984f7d552571428ab38cc6d26b86532240e108",
+   "name": "item_speeddown"
+  },
+  {
+   "hash": "34c437e27cb61c8f4601f0a9a3aa6e6468d7e5ad",
+   "name": "item_speedup"
+  },
+  {
+   "hash": "6c3053d68c21dd0e6f584056c031fb5248edbb6a",
+   "name": "ammo_shell"
+  },
+  {
+   "hash": "db43b370682a2eb7181035a32b516eab1e18a2f1",
+   "name": "ammo_shell2"
+  },
+  {
+   "hash": "236d6c933bae02cbec1b4114f5a0d1d640575eeb",
+   "name": "bonus_shell"
+  },
+  {
+   "hash": "f166d772516128591b7d5cb0a9c53a306dcc1723",
+   "name": "light_green"
+  },
+  {
+   "hash": "fd65b9c030e94dc5aebef9735f92da10e6a4122a",
+   "name": "light_red"
+  },
+  {
+   "hash": "ec4f8d306e6712711c7c6fa0d988332fa1ec5290",
+   "name": "light_blue"
+  },
+  {
+   "hash": "7871994cf5414aeed1832de4d5e76c691034fd45",
+   "name": "light_yellow"
+  },
+  {
+   "hash": "9dff605e2a708e627c93f8e3c391781215aab43b",
+   "name": "light_magenta"
+  },
+  {
+   "hash": "b86d27a2b87fb397dd0d35d20f4a942beba383e3",
+   "name": "item_machinegun"
+  },
+  {
+   "hash": "c8c0bff0b480bb2b2b5d31a2b84c8eb5e978bca7",
+   "name": "item_impulsegun"
+  },
+  {
+   "hash": "b95cf4e4f29519392ab09cb7fe10edeef4f74683",
+   "name": "item_plasmagun"
+  },
+  {
+   "hash": "3b4fa98b141d6d34a69cee11a3ad17cbbcea88dc",
+   "name": "item_bigplasmagun"
+  },
+  {
+   "hash": "efedea65eeaed231c644d92e272ad2ee34e72da1",
+   "name": "item_laser"
+  },
+  {
+   "hash": "9c3ae5bd7801f10920caf90fdeb86a22365d6c97",
+   "name": "item_laser_green"
+  },
+  {
+   "hash": "02b72b0eee84a754aef626f9096da97bed0802c2",
+   "name": "item_bfg"
+  },
+  {
+   "hash": "cefa67aa7ed36bed7f61e4ac6cb18813e2c37342",
+   "name": "item_meteoritegun"
+  },
+  {
+   "hash": "b43764c0fc28565c5b2d3f21a1cf51879176a1bd",
+   "name": "item_flamefrower"
+  },
+  {
+   "hash": "b4f20143c8b71b996062c9a0c489de5078f825d0",
+   "name": "item_gorox"
+  },
+  {
+   "hash": "35649b9b52631355b5849f816c29929a42e43fc9",
+   "name": "item_missile"
+  },
+  {
+   "hash": "3c9abb9c881e2316fcd5b88b97f05ec836b4f786",
+   "name": "item_missile_heat"
+  },
+  {
+   "hash": "c0f793ff190e037e217241adff2166ba3e8196f5",
+   "name": "item_missile_big"
+  },
+  {
+   "hash": "a0a2d3a3d23a820b3a43497331d19c12b988613c",
+   "name": "item_missile_big_heat"
+  },
+  {
+   "hash": "079db35d75ec1075380fa334923f7a03529ec0ee",
+   "name": "item_missile_mad"
+  },
+  {
+   "hash": "132fa064de259157a6806fc4b132ff48c6134478",
+   "name": "item_lightingbomb"
+  },
+  {
+   "hash": "c5cad5682821ae194b2a4d049e4e59e63d611241",
+   "name": "i_lball_flare"
+  },
+  {
+   "hash": "1256231db82d432230b71fda16c13071943bea3f",
+   "name": "i_lball_plane"
+  },
+  {
+   "hash": "f588ad9bf08a9faf3a80f998f39bc49e84f5ab7b",
+   "name": "i_lightingbomb_proj"
+  },
+  {
+   "hash": "941753a6a7f1bd3655acc5f82807c3ed8d0ad068",
+   "name": "item_clustbomb"
+  },
+  {
+   "hash": "0eda7883cd9e88d87172dd255b15770ff8e6d310",
+   "name": "item_abomb"
+  },
+  {
+   "hash": "b37fef9e95abf8872373a003b28a0ea771f2fe47",
+   "name": "item_rocketbomb"
+  },
+  {
+   "hash": "014f8443028d354e006c41c67e58d31c463158c8",
+   "name": "item_satellite"
+  },
+  {
+   "hash": "df23b30b0ab29816d7b3c37113b48fb6d65b72ca",
+   "name": "item_satellite_laser"
+  },
+  {
+   "hash": "6aa27bbe39d98e31e13839f78b268028314db57d",
+   "name": "item_star"
+  },
+  {
+   "hash": "1c4527a39ed58cdc07b79709ca83463946ad9721",
+   "name": "jeep_sand_cannon"
+  },
+  {
+   "hash": "3441e47e2caad830c581b83166d08dbeb43f373d",
+   "name": "jeep_sand"
+  },
+  {
+   "hash": "dd10edc9e211d14b2269c35f43c43998fc41fa4d",
+   "name": "jeep_dead"
+  },
+  {
+   "hash": "bbba4a7fa7e67c9100d3c5854a6c7d5a5c309daf",
+   "name": "jeep_dead2"
+  },
+  {
+   "hash": "73247d870dd67f9ddf8b2b365da6271b8f106020",
+   "name": "jeep_sand2_cannon"
+  },
+  {
+   "hash": "f373ab1849fb95dc1294ee707d055882d6486152",
+   "name": "jeep_sand2"
+  },
+  {
+   "hash": "53fa6705a20b817fb1b79837ef23264c5424477c",
+   "name": "jeep_snow_cannon"
+  },
+  {
+   "hash": "511838c2f32188d0d88bcceee5a75abaffcc5c40",
+   "name": "jeep_snow"
+  },
+  {
+   "hash": "e4ed98517e00a08127dc7e82664187b080f7f5ed",
+   "name": "jeep_lsnow_cannon"
+  },
+  {
+   "hash": "8c91e5ccc265497a3af6219e873e8092b65e8bdc",
+   "name": "jeep_lsnow"
+  },
+  {
+   "hash": "0c49b41049ab1de1f384239b9aa857e6e223f99a",
+   "name": "jeep_haki_black_cannon"
+  },
+  {
+   "hash": "0488721a14d2622947bf80666614c946eb63cac3",
+   "name": "jeep_haki_black"
+  },
+  {
+   "hash": "c49ffd451b2ecb8df0c94dd34a521cd7ac2d54d2",
+   "name": "jeep_haki_green_cannon"
+  },
+  {
+   "hash": "97669a1786b79af5199432fe51adfe514ab8da9c",
+   "name": "jeep_haki_green"
+  },
+  {
+   "hash": "53b2e232a01fc9b6471e19a0eca7f29bb56c9660",
+   "name": "jeep_haki_lgreen_cannon"
+  },
+  {
+   "hash": "ba36fb6481c8bfb28149f361e73a4ea7d12021e1",
+   "name": "jeep_haki_lgreen"
+  },
+  {
+   "hash": "26a0a8c0af82e7351a43004fa6bde1ce8dd7f0ba",
+   "name": "jeep_army_sand_cannon"
+  },
+  {
+   "hash": "4203a1655b91face9fea5270c78e3349898c8d13",
+   "name": "jeep_army_sand"
+  },
+  {
+   "hash": "74fd7cb130a1fa5507ca4fe442d21cb09408e74d",
+   "name": "jeep_army_snow_cannon"
+  },
+  {
+   "hash": "7f7a39afe05e553031cdca43d10774595c411e07",
+   "name": "jeep_army_snow"
+  },
+  {
+   "hash": "857765515ce960c30adde34b4900c757daeeff4e",
+   "name": "jeep_army_lsnow_cannon"
+  },
+  {
+   "hash": "0505683a436016d5360b9d670c7df25f1107dcb4",
+   "name": "jeep_army_lsnow"
+  },
+  {
+   "hash": "fc5b37d12c6dc893c25d802d0272804f8cf9b089",
+   "name": "jeep_army_haki_black_cannon"
+  },
+  {
+   "hash": "b11bb8b898b9a22385ddd6370f6d34edc4f27ed6",
+   "name": "jeep_army_haki_black"
+  },
+  {
+   "hash": "931379a09759c25880d1d17322fc6185c4cdc3a6",
+   "name": "jeep_army_haki_green_cannon"
+  },
+  {
+   "hash": "25c6aea7f08c6eb5e60d29e4d5fca7443147ceca",
+   "name": "jeep_army_haki_green"
+  },
+  {
+   "hash": "333502264ac79d32366b6b89f021b19f5bd169b0",
+   "name": "jeep_army_haki_lgreen_cannon"
+  },
+  {
+   "hash": "6502d706d63c3dc08b6ce9a318ddc09f98fa30d5",
+   "name": "jeep_army_haki_lgreen"
+  },
+  {
+   "hash": "b9bfdf3fa6391f094a66cdd96cb691d00cb5a6dd",
+   "name": "jeep_army2_green_gun"
+  },
+  {
+   "hash": "cfdafb6a3aed045fd9dbbbbf7c569939b4ade686",
+   "name": "jeep_army2_green_cannon"
+  },
+  {
+   "hash": "1d158d55974677ee372948692715223bf649b72b",
+   "name": "jeep_army2_green"
+  },
+  {
+   "hash": "b3cda9f297f638864548ad03622ea32147df5b32",
+   "name": "jeep_army2_brown_gun"
+  },
+  {
+   "hash": "71e0ef7e5d8beec18c03c694b8606220c061c4ec",
+   "name": "jeep_army2_brown_cannon"
+  },
+  {
+   "hash": "caba486834198ed8e421ab3648f7f8ee78cfca91",
+   "name": "jeep_army2_brown"
+  },
+  {
+   "hash": "e548f5d0454ec80c022d0b6d657c266de6f8e681",
+   "name": "jeep_army2_white_gun"
+  },
+  {
+   "hash": "09bcee085fae9a3abdff0374a83ef2821933ed83",
+   "name": "jeep_army2_white_cannon"
+  },
+  {
+   "hash": "297180c2b4d723f3fe039e0d5a44c5cef47dd137",
+   "name": "jeep_army2_white"
+  },
+  {
+   "hash": "71de57ce5a15702261b458fd5b8eab5b88d83b98",
+   "name": "jeep_army2_black_gun"
+  },
+  {
+   "hash": "79b8686c48e7023925421eb85a03bf06d441f0ab",
+   "name": "jeep_army2_black_cannon"
+  },
+  {
+   "hash": "7e9d98b1e25d73fffe661ce1c83ed97c95802b9f",
+   "name": "jeep_army2_black"
+  },
+  {
+   "hash": "dd49375301e63c8866df0e96f095acd1996e6e91",
+   "name": "jeep_army3_green_gun"
+  },
+  {
+   "hash": "10c65489d79e8d7f749d377ecdaf749c4874f6e8",
+   "name": "jeep_army3_green_cannon"
+  },
+  {
+   "hash": "d0e73e3cdd913d07e69a2c11ba176e7ef7813c4b",
+   "name": "jeep_army3_green"
+  },
+  {
+   "hash": "bfb42cfc0e8b3f71b9f31a49f537da949963e43e",
+   "name": "jeep_army3_brown_gun"
+  },
+  {
+   "hash": "374513ce1fc79db9c62a268b4651dfec0df9df04",
+   "name": "jeep_army3_brown_cannon"
+  },
+  {
+   "hash": "060aa3de8447b680a6a8cce42d659e22fe1e444e",
+   "name": "jeep_army3_brown"
+  },
+  {
+   "hash": "48e16e3e43fc9663bc021c04a43fd3157b8fdc44",
+   "name": "jeep_army3_white_gun"
+  },
+  {
+   "hash": "f25784d2d9ea81e002c8ba09c826659fe4b4e9ab",
+   "name": "jeep_army3_white_cannon"
+  },
+  {
+   "hash": "8be87ae7136c7555c5f0c85bdcaa43a9aba046d5",
+   "name": "jeep_army3_white"
+  },
+  {
+   "hash": "9cdd368cf265841568515263897849bfc88fcd3b",
+   "name": "jeep_army3_black_gun"
+  },
+  {
+   "hash": "0696801ff9ec912781e4a7a8c6271828a72e1478",
+   "name": "jeep_army3_black_cannon"
+  },
+  {
+   "hash": "81dfc03ac61f16ee1b5751a0db04681aab3f9f88",
+   "name": "jeep_army3_black"
+  },
+  {
+   "hash": "c718ab2700550ea9c6615aad2b73c34e94bd6d1f",
+   "name": "jeep_army3_black_bridge"
+  },
+  {
+   "hash": "cb7dc0e970144102eb5912ed073ba10e9f33bf37",
+   "name": "jeep_bug_guns"
+  },
+  {
+   "hash": "3058182b8371cfc5b1f3912655ff393e53847f7d",
+   "name": "jeep_bug_cannon"
+  },
+  {
+   "hash": "9e413eeb5f3a7ad2ac267199206773bdc6962e05",
+   "name": "jeep_bug_wheel"
+  },
+  {
+   "hash": "3e463cfee789055f62af609d976428c29b116f45",
+   "name": "jeep_bug_wheel2"
+  },
+  {
+   "hash": "fd98a8c7d8e96c750194246c7a495e79c4de352c",
+   "name": "jeep_bug"
+  },
+  {
+   "hash": "0248588ef18a6ac3e61698e4705ada2e9b5940c8",
+   "name": "jeep_bug_green_guns"
+  },
+  {
+   "hash": "e5a0fb0304c600311e936f543fc819081c6fb329",
+   "name": "jeep_bug_green_cannon"
+  },
+  {
+   "hash": "2a9177b0c30433cd5a8caed8de2c2f7fae665396",
+   "name": "jeep_bug_green_wheel"
+  },
+  {
+   "hash": "996ffbd84ed5725f83fef932f43bc945d17fe4e1",
+   "name": "jeep_bug_green_wheel2"
+  },
+  {
+   "hash": "4b3a1442c60f51a5deb11f161b941cb2a4931056",
+   "name": "jeep_bug_green"
+  },
+  {
+   "hash": "c01748a1f5dc6912613125f1fa67b2db4d880bc5",
+   "name": "jeep_bron_cannon"
+  },
+  {
+   "hash": "84ce8e5109c4906f437ac81de99aa02b23178921",
+   "name": "jeep_bron"
+  },
+  {
+   "hash": "6797a3aff28ec6599c328a81e698e7f167dc64fa",
+   "name": "jeep_bug_big_guns"
+  },
+  {
+   "hash": "40c3c2047aad3abf936b74d177ec75fc4e5055c0",
+   "name": "jeep_bug_big_cannon"
+  },
+  {
+   "hash": "d42446418ca211dce68511151ff389b045ea1056",
+   "name": "jeep_bug_big_wheel"
+  },
+  {
+   "hash": "c75572d5ee352de221ba520e79768c78369fd10b",
+   "name": "jeep_bug_big_wheel2"
+  },
+  {
+   "hash": "cf82674f5936a015019b079dc2912d6b1287ff4c",
+   "name": "jeep_bug_big"
+  },
+  {
+   "hash": "b3d45a9447735433261d83f291783793788ef0ea",
+   "name": "jeep_bug_big_red_guns"
+  },
+  {
+   "hash": "5b3f400a383360df4dedc18a64096ba29c484559",
+   "name": "jeep_bug_big_red_cannon"
+  },
+  {
+   "hash": "e0239d103501b9c4b13a11d26e6438677929d65e",
+   "name": "jeep_bug_big_red_wheel"
+  },
+  {
+   "hash": "02d052064a3c66e9f941d75fc0f1245a0eafa2fa",
+   "name": "jeep_bug_big_red_wheel2"
+  },
+  {
+   "hash": "8a51d4ad675d16ceb20435e7fd801f6649a9714b",
+   "name": "jeep_bug_big_red"
+  },
+  {
+   "hash": "4b138f442a409b7e17d14270dc57663ebe6e07e4",
+   "name": "jeep_army3_brown_menu_gun"
+  },
+  {
+   "hash": "b0486ed2f7428c24272e8a0b12879a3789ae6c01",
+   "name": "jeep_army3_brown_menu_cannon"
+  },
+  {
+   "hash": "669c8ed56e9e30fe66d843bc65a2037d491593bb",
+   "name": "jeep_army3_brown_menu"
+  },
+  {
+   "hash": "ae601040d1ec4d8442627e129aae295416ed8b22",
+   "name": "barrel"
+  },
+  {
+   "hash": "e6828e011605ae53436d6f37900ee97aa4ab9802",
+   "name": "barrel_with_fire"
+  },
+  {
+   "hash": "a0e9de4b5c614ca594673b5dab0bca85c14e83b2",
+   "name": "barrel_benzin"
+  },
+  {
+   "hash": "e15168ad65e18e93bfc057b47f8fc5dd58bc2b0f",
+   "name": "barrel_benzin_dead"
+  },
+  {
+   "hash": "4db3491f3af9dd6b6884159b8bb91743b2ae46f3",
+   "name": "barrel_benzin_naboku"
+  },
+  {
+   "hash": "e15bb4169d8a57a57d591ad1b7c71a2aaba7f9bc",
+   "name": "barrel_big"
+  },
+  {
+   "hash": "3398bf64feec266464f2f6a93a7bfe62b0fb7c3f",
+   "name": "barrel_big_green"
+  },
+  {
+   "hash": "4e8579daf25b31dbaa4637d79fcffebd015a5291",
+   "name": "balon_gaz"
+  },
+  {
+   "hash": "15e31b05f1b11519f2c51f24acd3826dcc298fe6",
+   "name": "balon_gaz_dead"
+  },
+  {
+   "hash": "cd515211dd9fa5becf65827b676c875afb4375df",
+   "name": "koster"
+  },
+  {
+   "hash": "bb09e3132fd7b8e47ba9f069a5d40e639d44eea0",
+   "name": "box1"
+  },
+  {
+   "hash": "d5e2edb7615d5ea4f46a614a6d0b95246f4ec44c",
+   "name": "box2"
+  },
+  {
+   "hash": "4eb0c3aefbd3f04464a8d55bd0c567c9fca5d6b6",
+   "name": "box3"
+  },
+  {
+   "hash": "2af0e942d6cbea1866f6349df027fe5485673ffb",
+   "name": "box4_small"
+  },
+  {
+   "hash": "d7c171ffa09423d9810300938d87bc39c706be83",
+   "name": "box5_small"
+  },
+  {
+   "hash": "6f6a5dc150794cc407e06f9ed01d67bbf449701d",
+   "name": "box_crushed"
+  },
+  {
+   "hash": "4b35e90c38274e53825d250ddeeffe037ff3d4dc",
+   "name": "box_fromground"
+  },
+  {
+   "hash": "9344057eaf8a4db0f4adda35a549a50d9718bba8",
+   "name": "fonar2"
+  },
+  {
+   "hash": "aa64081415989219eacb5ba623da52029236b358",
+   "name": "fonar_big"
+  },
+  {
+   "hash": "7c7f0bac30bbe395484acef268dc87e49dd1f930",
+   "name": "fonar_stadion"
+  },
+  {
+   "hash": "f29bc9c09368a3760c1d7a5e7fbab34fb2f07334",
+   "name": "fonar_old1"
+  },
+  {
+   "hash": "c7a9ff14eea45ca7e9270bcd1dbc1ac60ea747db",
+   "name": "fonar_old2"
+  },
+  {
+   "hash": "affd482841523e0c721c5c86d83f1bd4afd964e4",
+   "name": "fonar_twice"
+  },
+  {
+   "hash": "eff4ef586f1d2da0d5ecc7442533a7270bb30412",
+   "name": "doroga_stop"
+  },
+  {
+   "hash": "eee953b6903ba016b3b755f02837ce9e4add4c1f",
+   "name": "zhelroad"
+  },
+  {
+   "hash": "976ea4a4d90e5fc470d3764483a5c5fac941e580",
+   "name": "zhelroad_diagonal"
+  },
+  {
+   "hash": "24c1c738a490882b381a4803e4334e342478c17e",
+   "name": "zhelroad_rotate"
+  },
+  {
+   "hash": "dbb1c980a3fe5c5102bfd19ff50f36cb5664c6a3",
+   "name": "zhelroad_old"
+  },
+  {
+   "hash": "6cf79a49cae77fb97d8991f28b049715a305a70f",
+   "name": "zhelroad_old2"
+  },
+  {
+   "hash": "a41e199890a043e0eb2ec6a4a2c19e04914fd5ed",
+   "name": "kusok_betona"
+  },
+  {
+   "hash": "a9eb1fa9c3cd7fe40ae3fd355561a1711c5daac3",
+   "name": "stone1_gray"
+  },
+  {
+   "hash": "c708d1715e3fd5556c4eb8eeecfacbb30eb031b8",
+   "name": "stone2_yellow"
+  },
+  {
+   "hash": "65658ca80a895d479f2564be0b3f1f1bdb443087",
+   "name": "stone3_gray_big"
+  },
+  {
+   "hash": "2ab4a7babb557cbbc3c5c24eea9bcdf51bc92d7a",
+   "name": "stone4_gray_small"
+  },
+  {
+   "hash": "71fb25f2b8280aaa9a93804e6d205ab8bdca0e79",
+   "name": "stone5_white"
+  },
+  {
+   "hash": "8f8b52fed6adaed7e68bc6666992f83380a79143",
+   "name": "stone6_gray"
+  },
+  {
+   "hash": "75d3816d557d921e6fb619a2cd09c5ee0567c6b9",
+   "name": "stone7_white"
+  },
+  {
+   "hash": "388c914cab0c27d5c66b1773c41fc03ae210c487",
+   "name": "stone8_white"
+  },
+  {
+   "hash": "ff38cc06dff0df48caecc1e6bc0217315a33e233",
+   "name": "stone9_yellow"
+  },
+  {
+   "hash": "2dd9df243d662e8e2b7edf53843ec0d8799f244d",
+   "name": "stone_comb1"
+  },
+  {
+   "hash": "ba6eb64758040f4134691a1ddb6ccb070af5a0f6",
+   "name": "stone_comb2"
+  },
+  {
+   "hash": "7e2a9ba4747ed1e03e812ca68f06e741e0274869",
+   "name": "truba_big"
+  },
+  {
+   "hash": "bf51db7c430a372bc5c1e01037233f2ff55cd810",
+   "name": "truba_small_twice"
+  },
+  {
+   "hash": "f89ed61b18ad5feac0de89ebe44553a2ddf22266",
+   "name": "truba_small_twice_rotate"
+  },
+  {
+   "hash": "ef9f37f87c0e397c21bca3c493defdfa124e45ec",
+   "name": "barricade"
+  },
+  {
+   "hash": "178dd8e334e2cf42ddc88dc3d7e75a103ec6e151",
+   "name": "whiteflare_small"
+  },
+  {
+   "hash": "dd7913038981d021f06783ffd2a8f16a9e789b8b",
+   "name": "redflare_small"
+  },
+  {
+   "hash": "294ed30300d2ba73157dbc10222947077a07b411",
+   "name": "radar_small_tarelka"
+  },
+  {
+   "hash": "87530f1c2c5cb12140dff8e9de9d52a903ab5023",
+   "name": "radar_small"
+  },
+  {
+   "hash": "e9d6469f17d7a786fd7e9a7f5057aba77cae98f2",
+   "name": "radar_small_black_tarelka"
+  },
+  {
+   "hash": "6451236c8e3761c0b1252426c9fc49941bdb4f87",
+   "name": "radar_small_black"
+  },
+  {
+   "hash": "fcd63cd7a8be318d26edd62513afeee9e899c4e2",
+   "name": "shlagbaum"
+  },
+  {
+   "hash": "8dadef8c2188f3a429b6b656112f0da89422b1e7",
+   "name": "shlagbaum_strela"
+  },
+  {
+   "hash": "52e4a3381b69b1f6401d19e373325883fcad64db",
+   "name": "windmill"
+  },
+  {
+   "hash": "5efb2c61215d929479addf9f6e042226ad0684af",
+   "name": "windmill_lopasti"
+  },
+  {
+   "hash": "f474e10f993448b385267ab1269369b47ec494af",
+   "name": "windmill2"
+  },
+  {
+   "hash": "606b82ad7e32aa97158791519e7a4e7e17b1bcd0",
+   "name": "windmill_lopasti2"
+  },
+  {
+   "hash": "b2df25d3058cae418174ad90945b14679788833f",
+   "name": "japanese_bridge_zabor"
+  },
+  {
+   "hash": "b982cb2216d1d11d658ef57484cbeb589d83d5de",
+   "name": "japanese_bridge"
+  },
+  {
+   "hash": "77af380ad4ec80d29b79240924c30e1367744c83",
+   "name": "japanese_bridge_wo_zabor"
+  },
+  {
+   "hash": "9f270840813625ba7cee0932a1bd67951b3f32c5",
+   "name": "bridge1"
+  },
+  {
+   "hash": "793f287d883a337dd663de60bf22f8bdcbde761a",
+   "name": "bridge1_single"
+  },
+  {
+   "hash": "690aed75a709491d142e071987fa97ebfe670616",
+   "name": "bridge_big"
+  },
+  {
+   "hash": "fbea2d627c79706fc67f62830122b1c552478f20",
+   "name": "bridge_big_single"
+  },
+  {
+   "hash": "b165e0bdcb9d54dcd297b1df2c5403c94b313716",
+   "name": "bridge_big_zhelroad"
+  },
+  {
+   "hash": "643d7b10d5f3a665fb524acd05bb29d166556399",
+   "name": "vulkan"
+  },
+  {
+   "hash": "e1626b9bef36f5c14c65da71c5f8c75ec27ab767",
+   "name": "geyser"
+  },
+  {
+   "hash": "5bb83f7e5b60b33fe2a49e6f7d58d28fa4d35f11",
+   "name": "blueflare_small"
+  },
+  {
+   "hash": "4ccfe428c7f020cd0a8a1f2529d08780b273a0d6",
+   "name": "helic_area"
+  },
+  {
+   "hash": "be1902987476cfd8877a0db2caebbd7609fc9cab",
+   "name": "helic_area_eol"
+  },
+  {
+   "hash": "dd36333aa5d251c30d2d7e0d6e24339eed8f6f1d",
+   "name": "blueflare_small2"
+  },
+  {
+   "hash": "7b908edd058be3a96453fa92d16317cb7cb9506b",
+   "name": "laser_bar_lasers"
+  },
+  {
+   "hash": "f5f8d2cf044d01243737de5b9e78264b8fe27fe8",
+   "name": "laser_bar"
+  },
+  {
+   "hash": "3037d8e69002b07f545e167bbc0a1948665a8ebb",
+   "name": "redflare2"
+  },
+  {
+   "hash": "8fc09e3a47505576e0898a19b390ceefc09e131a",
+   "name": "laser_bar_toggle_glass"
+  },
+  {
+   "hash": "a5a867f550655cffaf75ba651b03349d25f6f6cc",
+   "name": "laser_bar_toggle"
+  },
+  {
+   "hash": "6306e1e5517e92c93bd747250190a7042278a65b",
+   "name": "abomb_ground_glass"
+  },
+  {
+   "hash": "b8c18fdf81980b72e44345a1d1a3c0d42b171b21",
+   "name": "abomb_ground_bomb"
+  },
+  {
+   "hash": "f8903f8e9ba4ac3a1334cacdb09ab9aad3d2056a",
+   "name": "abomb_ground"
+  },
+  {
+   "hash": "d89fb9fa59c0dd72f7fa7c115ede9a01e9193e85",
+   "name": "ammo_box"
+  },
+  {
+   "hash": "99ccec3b15d1547c80a340d55e02b1a664cdde37",
+   "name": "end_of_the_level"
+  },
+  {
+   "hash": "501201117827bfc7d9ec9057ccb784113aa300cb",
+   "name": "hbar_empty"
+  },
+  {
+   "hash": "00dec1c4f5e6ad578d6095839d284b1b60344f5a",
+   "name": "hbar_full"
+  },
+  {
+   "hash": "b95a02a0ae616117a2f7c83c27a77c80d20e05a4",
+   "name": "svet_far_light"
+  },
+  {
+   "hash": "a5bab3c607b083cfe507205440e6dbfe37afca11",
+   "name": "svet_fonar_light"
+  },
+  {
+   "hash": "a03702ec7e9b1861602389acea2dd1cd845bba81",
+   "name": "svet_big"
+  },
+  {
+   "hash": "5a2082f9e1df2788e61c8ad8e40659b10e5de99a",
+   "name": "svet_far"
+  },
+  {
+   "hash": "65554ccdc451195161708ce83437d481db630337",
+   "name": "svet_far_wol"
+  },
+  {
+   "hash": "a6fb9351acaed30523dffd4f4b31149ba292f64d",
+   "name": "svet_far_helic"
+  },
+  {
+   "hash": "2996c4fba6c661e0bfd6cac2d96911a43b288c41",
+   "name": "yellowflare_fonar"
+  },
+  {
+   "hash": "4eff085f9f050c28a6e12de2cd43a5656c67c12a",
+   "name": "whiteflare_fonar"
+  },
+  {
+   "hash": "33b6b7c5498ac208c323a906ffa11d0f442d01d3",
+   "name": "redflare_fonar"
+  },
+  {
+   "hash": "9b719c2c7887898310f783e3d519777091eebaca",
+   "name": "svet_fonar"
+  },
+  {
+   "hash": "9d8bb85d605918fb572e122e3f6b46e88f94a2c1",
+   "name": "svet_fonar_big"
+  },
+  {
+   "hash": "ea887aecfe24b40c260c1c47b12b49c697fe3993",
+   "name": "svet_fonar_stad"
+  },
+  {
+   "hash": "ff177f9e98641340c347926132e7a15edb772545",
+   "name": "svet_fonar_stad_wol"
+  },
+  {
+   "hash": "8f098d7c72d404ad615271acaa9cddda0c449e15",
+   "name": "snow"
+  },
+  {
+   "hash": "33534477403fcb4b9781522a6cecef3176319d9f",
+   "name": "snow_constant"
+  },
+  {
+   "hash": "2af8f025d32c139a541c9b42bb8ebe951be7365e",
+   "name": "rain"
+  },
+  {
+   "hash": "f58c6720916a3ff359786dad37d004846cc23702",
+   "name": "rain_constant"
+  },
+  {
+   "hash": "c2a971b9b5fa7daacff8d9726e1d84e856e48662",
+   "name": "storm_spice"
+  },
+  {
+   "hash": "f374540b4bbdad19c5b7f2fcd6f6554f5daf71ae",
+   "name": "plane_dead"
+  },
+  {
+   "hash": "04fea7e7ba51cbb81d5e7db8b5eb40512bc73600",
+   "name": "plane_f15_sandhaki"
+  },
+  {
+   "hash": "2247a05282da0abc1083ff061dd11cd31ad331d9",
+   "name": "plane_f15_blue"
+  },
+  {
+   "hash": "5511293929e4135c60daca7aa2f1f23d7bfab31e",
+   "name": "plane_f15_dark"
+  },
+  {
+   "hash": "14d342730a16b16002717099fe6132a53208ecb5",
+   "name": "plane_f15_green"
+  },
+  {
+   "hash": "2bc7831c006fa47db4d60604c237be8aef4a0318",
+   "name": "plane_f15_darkgreen"
+  },
+  {
+   "hash": "c6f04a39e1b28ecef6f7017733c77d4e912e36b1",
+   "name": "plane1_sand"
+  },
+  {
+   "hash": "3d52e51765175c7acffffb433a233b2902e26635",
+   "name": "plane1_green"
+  },
+  {
+   "hash": "48be0c465d67185856f6575ba0df23603f437e2e",
+   "name": "plane1_blue"
+  },
+  {
+   "hash": "611c1477266575080577bef5584ece5067a0006a",
+   "name": "plane1_winter"
+  },
+  {
+   "hash": "0347f7b14b2fffcf11eef87dce610c57cde01735",
+   "name": "plane2_vint"
+  },
+  {
+   "hash": "be51cb9b28e33b90de06075dad962eeca2774ef5",
+   "name": "plane2_green"
+  },
+  {
+   "hash": "4e2677b6810e9e6682fb14c90c654fb6b208cf40",
+   "name": "plane2_sand"
+  },
+  {
+   "hash": "30acdfcc59ea144ec1ea4dfd29721a25b74e9ce4",
+   "name": "plane2_winter"
+  },
+  {
+   "hash": "26a809182a8a47da620af4b6bd0c97bee60d1697",
+   "name": "plane2_red"
+  },
+  {
+   "hash": "5765c406f87b57217cf4ab85f97a6aa56ec40664",
+   "name": "plane2_black"
+  },
+  {
+   "hash": "1a9882fbb047bc4f7993d6a3437da523fdfbfda3",
+   "name": "plane_spacecutter"
+  },
+  {
+   "hash": "17507c0fad3cce803c4aec6ae2d51efa1129dc0c",
+   "name": "plane_spacecutter_black"
+  },
+  {
+   "hash": "d06c11551eab1f86cfeb010428d8087baba8a09b",
+   "name": "plane_f15_menu"
+  },
+  {
+   "hash": "4699500cdc88bb63d5b3a70a776cc48a640b7f0f",
+   "name": "plane2_green_menu"
+  },
+  {
+   "hash": "a1dc090afa8fbf7dbe2439b1a7d1139c8029d92b",
+   "name": "p_expl1"
+  },
+  {
+   "hash": "9ce8135a6dcc213410d3906863f4a21ac7a6cc42",
+   "name": "p_expl_wave"
+  },
+  {
+   "hash": "e4171562535221eeb6e3aba714ddd2950a533083",
+   "name": "p_speedup"
+  },
+  {
+   "hash": "340a2ffefd88f39dbc4bde1d6ce4c86f4f2f83d3",
+   "name": "p_speeddown"
+  },
+  {
+   "hash": "758ad7a20577056cdbd8d665cc194001bb0f143b",
+   "name": "p_apache_moln"
+  },
+  {
+   "hash": "c7a32ce291e4463521df8986be70a53aec1651b0",
+   "name": "p_apache_shield"
+  },
+  {
+   "hash": "e7468d237e3c1548e5d8c4414f478d472c90c5c6",
+   "name": "p_apache_rshield"
+  },
+  {
+   "hash": "caceac3fd8819721469f0b114f124f3040c377c2",
+   "name": "p_apache_kabina"
+  },
+  {
+   "hash": "9336bed22d389a1b816c5d41d801234f3d57ef8d",
+   "name": "p_apache"
+  },
+  {
+   "hash": "bd8daab2de6e3023fbeb1ae0effbe511b8788b3e",
+   "name": "p_apache_vint"
+  },
+  {
+   "hash": "595fb2f86b3d10e7d06cb184cffa84a49cf3bae0",
+   "name": "p_apache_vint_small"
+  },
+  {
+   "hash": "c4b72e3d4a68a8222a091673fcd1246b3e1e0a3d",
+   "name": "p_apache_impala_kabina"
+  },
+  {
+   "hash": "2ca30bf8c8b6c76154df42975dcb4df400785fe3",
+   "name": "p_apache_impala"
+  },
+  {
+   "hash": "0180f5382917367d799cda302b74f81e578e661d",
+   "name": "p_apache_brown_kabina"
+  },
+  {
+   "hash": "458e39386cfaa9981225e1add253467dc75345f7",
+   "name": "p_apache_blue_vint"
+  },
+  {
+   "hash": "20196a8c97811e7417df4c20edb4222452a6e9cc",
+   "name": "p_apache_blue_vint_i"
+  },
+  {
+   "hash": "059c83bc8844f8c554690a5fc2cac9016ce6fdc3",
+   "name": "p_apache_blue"
+  },
+  {
+   "hash": "27014f3afa4c476bbce91a5107588c57981ec199",
+   "name": "p_apache_white"
+  },
+  {
+   "hash": "c249fd00939d3077864fbd1df8e919eb562889e8",
+   "name": "p_moln"
+  },
+  {
+   "hash": "272aa5e6ccb849d089ad8e176493bd74904e3eec",
+   "name": "p_shield"
+  },
+  {
+   "hash": "4df4224fee4bc769cedc0318acfa4d67a3b2cad0",
+   "name": "p_rshield"
+  },
+  {
+   "hash": "f198e41037c709580cd4e599f3b106f6f500e076",
+   "name": "p_comanche_kabina"
+  },
+  {
+   "hash": "ca23a85b6335da823b31221f316900d17f035689",
+   "name": "p_comanche"
+  },
+  {
+   "hash": "ca653a5a205c065d407563ddb86584bfd3c6fffd",
+   "name": "p_comanche_vint"
+  },
+  {
+   "hash": "b406a539aa9c3a6655521e3389f7c0c98f29f74b",
+   "name": "p_comanche_orange_vint"
+  },
+  {
+   "hash": "3968b728c14806ba0d071588ed012f254fbd36ef",
+   "name": "p_comanche_vint_small"
+  },
+  {
+   "hash": "9b6a0db8448ab46852ebd6f3bb9b9cf71cd3dcc4",
+   "name": "p_comanche_green"
+  },
+  {
+   "hash": "f882c18adcbd897f0515f7e3a3e6974b70458951",
+   "name": "p_comanche_blue"
+  },
+  {
+   "hash": "723720617d32412de26c69263325214904110efe",
+   "name": "p_comanche_blue_kabina"
+  },
+  {
+   "hash": "26c29391522be7a3241fc1fb74f182a68df5f6f7",
+   "name": "p_comanche_brown_kabina"
+  },
+  {
+   "hash": "12885d54cebd36c7c667132d5bca9a6ac423b923",
+   "name": "p_comanche_sand"
+  },
+  {
+   "hash": "f904c14280170f3fdc1d920a33004f176482e609",
+   "name": "p_comanche_white"
+  },
+  {
+   "hash": "3a420b97ebc45dd4bad4eaa9fdd7486ad3aa9111",
+   "name": "p_comanche_lava"
+  },
+  {
+   "hash": "f82aa57cb8b7776cc69d9a95dd39f968263f12c2",
+   "name": "svet_redflasher"
+  },
+  {
+   "hash": "050a0a2a32a5220eabe8e6e92abd8927656940cb",
+   "name": "rocketlauncher_green_flasher"
+  },
+  {
+   "hash": "6fae99a2a8610d073a193ca655ab7b659e99b979",
+   "name": "rocketlauncher_green_rocketblock"
+  },
+  {
+   "hash": "f045409d4bd27a746d29146f7a9616b611e516be",
+   "name": "rocketlauncher_green_rocketsholders"
+  },
+  {
+   "hash": "2dfb3da9c5759ed4c76e72b573cbe7bdae3cb52f",
+   "name": "rocketlauncher_green_rocketbase"
+  },
+  {
+   "hash": "1c18da0e07856a0f6b59e1a643aed155b14c572a",
+   "name": "rocketlauncher_mobile_green"
+  },
+  {
+   "hash": "a008c828adfcdcf155f8cd048ca249d7f778880a",
+   "name": "rocketlauncher_lgreen_flasher"
+  },
+  {
+   "hash": "6fa6a12b6e9a15315629a5e6af2b8256b2dd6a2d",
+   "name": "rocketlauncher_lgreen_rocketblock"
+  },
+  {
+   "hash": "a1ee310fdd0d11b7eaef15fb7435a03beee997fd",
+   "name": "rocketlauncher_lgreen_rocketsholders"
+  },
+  {
+   "hash": "85f55addbb03bc84ecdb7fafc325d29ee242780b",
+   "name": "rocketlauncher_lgreen_rocketbase"
+  },
+  {
+   "hash": "07685aeb6e2107daaf8ada316466ac0bb528d247",
+   "name": "rocketlauncher_mobile_lgreen"
+  },
+  {
+   "hash": "7de2caf19c4782d2ba148cbc6d9b351cf16a95b2",
+   "name": "rocketlauncher_winter_flasher"
+  },
+  {
+   "hash": "523ec482270d1af5c0e637552c87afe9ae6a684f",
+   "name": "rocketlauncher_winter_rocketblock"
+  },
+  {
+   "hash": "949bdc14a4e69ef986f244d808a46ab9f6a547a7",
+   "name": "rocketlauncher_winter_rocketsholders"
+  },
+  {
+   "hash": "9b8ce062e433ed9f472e5610978226287af1b746",
+   "name": "rocketlauncher_winter_rocketbase"
+  },
+  {
+   "hash": "4a2be38ca96ec3a185bcbdc04b0e0edc11e9d230",
+   "name": "rocketlauncher_mobile_winter"
+  },
+  {
+   "hash": "f6a8128884529e3f3dd642536ddfb8421015acc7",
+   "name": "barricad_old1"
+  },
+  {
+   "hash": "eaf67af5d77d651528b34a2bb51a8b02ac24adfb",
+   "name": "barricad_old2"
+  },
+  {
+   "hash": "356e2e70205a21a63f7190c9c2e8d495ecdcddce",
+   "name": "barricad_old3"
+  },
+  {
+   "hash": "d021e2c2c3385e700a397360026f4094f00f9e56",
+   "name": "vishka_old"
+  },
+  {
+   "hash": "9519f20deec63100079abbaabd18771bafa351dc",
+   "name": "ruins1"
+  },
+  {
+   "hash": "c2dc3e58fd65c1ca1683f90283220d9be7ddbe61",
+   "name": "ruins2"
+  },
+  {
+   "hash": "44723ff4029058863b6f5dae22af33aac17da577",
+   "name": "ruins3"
+  },
+  {
+   "hash": "46ffb03288b80e14e263f485208ae6b122436241",
+   "name": "ruins5"
+  },
+  {
+   "hash": "d6d4885167a3f252cb982b5569d65d61326e810c",
+   "name": "ruins6"
+  },
+  {
+   "hash": "6310342c62957d16a8a34cce1e3005e971161a62",
+   "name": "ruins7"
+  },
+  {
+   "hash": "292f21b793375e764f46764a20df800dc02146ae",
+   "name": "ruins9"
+  },
+  {
+   "hash": "e6db7ce79b98ea72c14ea6fa748cb78fc329d596",
+   "name": "ruins_small"
+  },
+  {
+   "hash": "6a3dda1bb5b3e78cbb74f30e6469d5ec69e5ca77",
+   "name": "ruins_big"
+  },
+  {
+   "hash": "5c32efdff378547ff4f1fa9a44fdb498bddc34b8",
+   "name": "ship_destroyer_guns"
+  },
+  {
+   "hash": "1bcbf43813a2b1ca4a91ed919953d8a9224a0ae3",
+   "name": "ship_destroyer_cannon"
+  },
+  {
+   "hash": "06d287610229ecbca539831a7360f355fe81ffe5",
+   "name": "ship_destroyer_radar"
+  },
+  {
+   "hash": "89dbb2bf6215f2f006a160baa5e91a14308266e6",
+   "name": "ship_destroyer"
+  },
+  {
+   "hash": "32af75f4b01d5eb1c451482df488ed3a52d05617",
+   "name": "ship_destroyer_black_guns"
+  },
+  {
+   "hash": "1d8a57dbdd187d72778c533983717cf03e977e98",
+   "name": "ship_destroyer_black_cannon"
+  },
+  {
+   "hash": "4eb02bb4a6d829a364d0109c607dc60ba72e47bf",
+   "name": "ship_destroyer_black_radar"
+  },
+  {
+   "hash": "0741bc70b03b430712a62582db15304effb402f4",
+   "name": "ship_destroyer_black"
+  },
+  {
+   "hash": "ab1abb6f2619e3ae4dc202a86398a316a03a8b88",
+   "name": "ship_destroyer_green_guns"
+  },
+  {
+   "hash": "ff18464b21a4bedff7a9fd2da43b9513e61d756d",
+   "name": "ship_destroyer_green_cannon"
+  },
+  {
+   "hash": "bfc0ca66e61206715fa8c848a652c2aae4ba1491",
+   "name": "ship_destroyer_green_radar"
+  },
+  {
+   "hash": "c76e9a74935f74996057dc024b59a9aa6536fdde",
+   "name": "ship_destroyer_green"
+  },
+  {
+   "hash": "35543f6e85194854f48d28d934cc36cdf9616a2e",
+   "name": "cutter_cannon"
+  },
+  {
+   "hash": "d60d390a0dc6d5971bdc2c18d82b93fd6191f2ef",
+   "name": "cutter"
+  },
+  {
+   "hash": "d640d92df9f4cc4688f744c39b4769fba61acc3b",
+   "name": "cutter_green_cannon"
+  },
+  {
+   "hash": "bc19d2e1a75a3c1c67aa78fa12f35df80aba5c42",
+   "name": "cutter_green"
+  },
+  {
+   "hash": "5c03fa380a645163744dafa277e6a0abd930df16",
+   "name": "ship_dead"
+  },
+  {
+   "hash": "894bd23c6595415a89cf53db4e408ea23bc7b0b1",
+   "name": "tank_small_green_guns"
+  },
+  {
+   "hash": "7f474b71fe95a9b3feab903dcf3e34a08ca83096",
+   "name": "tank_small_green_cannon"
+  },
+  {
+   "hash": "faf9f54ce3b5d30014981aa660da9db2c1c81897",
+   "name": "tank_small_green"
+  },
+  {
+   "hash": "2d2fdce56dc950084d392c0afb0601e07f92f730",
+   "name": "tank_dead"
+  },
+  {
+   "hash": "fb29b427732b63029e8ca44ff8ad923bf6b5016a",
+   "name": "tank_dead2"
+  },
+  {
+   "hash": "c4c974d8366f1774ef8a076561891f5dc6fae922",
+   "name": "tank_small_brown_guns"
+  },
+  {
+   "hash": "cab26e4c79e28b124edc1cd99ef36933679657fb",
+   "name": "tank_small_brown_cannon"
+  },
+  {
+   "hash": "5caeb5890376fd37a568f8c8d283e9e4f3005771",
+   "name": "tank_small_brown"
+  },
+  {
+   "hash": "1d62f7ffa7f9e8b0a45c736954327696037bcc81",
+   "name": "tank_small_blue_guns"
+  },
+  {
+   "hash": "25f615d153202ae40da0b222fe517392742bdfcc",
+   "name": "tank_small_blue_cannon"
+  },
+  {
+   "hash": "f24385e7bcdd72ed49ff6e875162776f791a1d58",
+   "name": "tank_small_blue"
+  },
+  {
+   "hash": "3250f9aac335f9c09cb259174ccb5f425a4d4a6a",
+   "name": "tank_medium_green_guns"
+  },
+  {
+   "hash": "7a42d6465ad443effafe7188f3339d86df258564",
+   "name": "tank_medium_green_cannon"
+  },
+  {
+   "hash": "397970fc5ebd834124055558448bd4a1884f10b4",
+   "name": "tank_medium_green"
+  },
+  {
+   "hash": "39b644de25b3512a209616cd60cd2b9e070c340d",
+   "name": "tank_dead"
+  },
+  {
+   "hash": "23668ac28a423e94c6bab2f1c297e8ee042a840e",
+   "name": "tank_medium_black_guns"
+  },
+  {
+   "hash": "9126f8a5ceaa784d1f4f8181fd7baf977330a851",
+   "name": "tank_medium_black_cannon"
+  },
+  {
+   "hash": "5fbdecb0cf8801fc1227c9b7acb8f709b1b3af81",
+   "name": "tank_medium_black"
+  },
+  {
+   "hash": "3ad0cb26fd26322cbb1e1290ba14fb202092ff70",
+   "name": "tank_medium_blue_guns"
+  },
+  {
+   "hash": "8e0aa86d07a59424979f3d816cf266b78e9c0765",
+   "name": "tank_medium_blue_cannon"
+  },
+  {
+   "hash": "410b96aa2b2be34d404feab4e5a73522cfc44be1",
+   "name": "tank_medium_blue"
+  },
+  {
+   "hash": "7837cea9616058d0ad3d591e6b6fb8f615ecbf07",
+   "name": "tank_mini_green_gun"
+  },
+  {
+   "hash": "663eef1256420482a97d7896a466cf9a27cc026e",
+   "name": "tank_mini_green_cannon"
+  },
+  {
+   "hash": "5a0d46f7c967ee280a7cf902b0c2999edbf67eab",
+   "name": "tank_mini_green"
+  },
+  {
+   "hash": "f4e5e1158e4bcb3837ce0a243e388b2052a2e9e2",
+   "name": "tank_mini_brown_gun"
+  },
+  {
+   "hash": "d0689450c118b779dcaa2a43bf476d6915ccdd52",
+   "name": "tank_mini_brown_cannon"
+  },
+  {
+   "hash": "7f5bb0c5f4274ceb43b1d6594d86169c38f8844b",
+   "name": "tank_mini_brown"
+  },
+  {
+   "hash": "2970b7290912f5292b93a800c0119943f1e41819",
+   "name": "tank_mini_white_gun"
+  },
+  {
+   "hash": "1a226c38281f38525e280fe2cfb9c56d689fee95",
+   "name": "tank_mini_white_cannon"
+  },
+  {
+   "hash": "9caff53c4a3afb7871f44a6b4e4d5e28143b40ff",
+   "name": "tank_mini_white"
+  },
+  {
+   "hash": "9c0e3e8f9c81eac105352445f6061f39cf2eec8d",
+   "name": "tank_flame_cannon"
+  },
+  {
+   "hash": "4cf743c0767b57ea01815a3ca0f2ab3bf85d8e3e",
+   "name": "tank_flame"
+  },
+  {
+   "hash": "4ca0d90772993f6f9ec1b7bed77fe9236fb6f0d9",
+   "name": "tank_big_guns"
+  },
+  {
+   "hash": "0d3215375613700baae2f8fcca03e30dd4868562",
+   "name": "tank_big_cannon"
+  },
+  {
+   "hash": "ed10f11ca3b5934b37413d2c20e41be2d4fee704",
+   "name": "tank_big"
+  },
+  {
+   "hash": "a348e76577317ee294f8ddf40162a2f6bea31286",
+   "name": "tank_big_almostdead"
+  },
+  {
+   "hash": "c19867d17bfe46aa39c678f4acdc33f4cc05ff85",
+   "name": "train_flare"
+  },
+  {
+   "hash": "037d84ea4fb748e45b9f30b960d9b929e38348fd",
+   "name": "train_dead"
+  },
+  {
+   "hash": "9fc114588b22e5af172b2c415f29de1b82e5483a",
+   "name": "train_wood"
+  },
+  {
+   "hash": "5b594e57332c39a219f1fe143f060a36981a6cb8",
+   "name": "train_oil"
+  },
+  {
+   "hash": "72fc34859d8c92b876d7cdc751e6535762db797e",
+   "name": "train_barrels"
+  },
+  {
+   "hash": "c2a463376991022f5ad4405e1e99f84e99f22f1d",
+   "name": "train_main"
+  },
+  {
+   "hash": "82ef43baf3299b3e6ed1bcf048ea9c522a61a518",
+   "name": "svet_orangeflasher"
+  },
+  {
+   "hash": "c9c2b0ce5dda005263585c553d92e779fc231240",
+   "name": "gruzovik_flasher"
+  },
+  {
+   "hash": "0be7550f04532707f0b61bed4f29f28c247a8dab",
+   "name": "gruzovik"
+  },
+  {
+   "hash": "c6ffe96c66419779cd97447a3dba22322565c9c2",
+   "name": "gruzovik_oil"
+  },
+  {
+   "hash": "ff68550f3962b0e809b8e7fb754cac5f7362ea56",
+   "name": "gruzovik_dead"
+  },
+  {
+   "hash": "7de7996cebd682b640f70750ddba824dca082b59",
+   "name": "mgun_proj"
+  },
+  {
+   "hash": "122c748bfbbcce2d08caf0635cdeccc4c54e58a3",
+   "name": "mgun_flash"
+  },
+  {
+   "hash": "1c1859be340f48b69994413541a98aa1feda3a6a",
+   "name": "mgun_flare"
+  },
+  {
+   "hash": "8433e744c97c583c7b39969e2ab7782105b3eeb6",
+   "name": "mgun_hit"
+  },
+  {
+   "hash": "1c769ad6a5d62a3f2cf59c54ce282b24dfeb8a3c",
+   "name": "impulse_flare"
+  },
+  {
+   "hash": "7f995ac6b3d988109666764f6948a8643b87aa7a",
+   "name": "impulse_proj"
+  },
+  {
+   "hash": "ed4a9fb90e475d7fead9f2659edad24a15634348",
+   "name": "impulse_flash"
+  },
+  {
+   "hash": "3e59b271054b56bc15f9fab503557ce038fad202",
+   "name": "impulse_hit"
+  },
+  {
+   "hash": "08d66a53e3af401e6516ede850fcc4859713c6ff",
+   "name": "plasmagun_proj"
+  },
+  {
+   "hash": "6607aba2ca726a8c23a2e82be067ffe46a68f769",
+   "name": "plasmagun_flash"
+  },
+  {
+   "hash": "004290b75ea82919a8d69bb4f0b8c15d45f46b31",
+   "name": "plasmagun_hit"
+  },
+  {
+   "hash": "a431559192aa5341add45f3362d272ce4127aa4b",
+   "name": "bpg_proj"
+  },
+  {
+   "hash": "ad8f185a328b976bb947d7b3281ed74ddd5a8444",
+   "name": "bpg_flash"
+  },
+  {
+   "hash": "5664668e0365eb95f2fdb496ab165b1f07cefb23",
+   "name": "bpg_hit_flare"
+  },
+  {
+   "hash": "c0796c29b5c96eee1861a5d110884131a615d4c3",
+   "name": "bpg_hit"
+  },
+  {
+   "hash": "320538cc9fee6e42242c4cc4b76cb3fcde50bd54",
+   "name": "meteorite_proj"
+  },
+  {
+   "hash": "a64a911119794bf4ed8d46487b4c7c735c4f6e6a",
+   "name": "meteorite_flash"
+  },
+  {
+   "hash": "1cbaef4fef2e6084c8e73756c6d731251818e41f",
+   "name": "meteorite_hit"
+  },
+  {
+   "hash": "f2bff122749f89182c0531678db76e57f37baa86",
+   "name": "laser_flare"
+  },
+  {
+   "hash": "baf8881d0eef0024b675fead593cc1162984c327",
+   "name": "laser_proj"
+  },
+  {
+   "hash": "6491214947f938eb1af9e251bea8394481589437",
+   "name": "laser_flash"
+  },
+  {
+   "hash": "b52e9241759835fd4715f16f18e2086ee56f9341",
+   "name": "laser_orange_hit"
+  },
+  {
+   "hash": "e10f3af4bf7867cf7cbfac52872767beca1b3584",
+   "name": "biglaser_proj"
+  },
+  {
+   "hash": "592838624a032f67f024a03535555d9c6f14caf0",
+   "name": "biglaser2_proj"
+  },
+  {
+   "hash": "8dd27deb7b6a01208fc9206e49a3e8d85d9bf2a9",
+   "name": "biglaser3_proj"
+  },
+  {
+   "hash": "cc61accdbfaa37183e47a7e4336b9b1c94b73634",
+   "name": "biglaser_flash"
+  },
+  {
+   "hash": "e08a601ffe2fba9ab00e49d9fc0e134a03eab89e",
+   "name": "biglaser_hit"
+  },
+  {
+   "hash": "48eef42d03c371ff65645fb506f2cfe91a7108b6",
+   "name": "gorox_proj"
+  },
+  {
+   "hash": "290c6717f00a7e73e5d2f37240e2919d0282324f",
+   "name": "gorox_flash"
+  },
+  {
+   "hash": "73dbaf5a861bc11daecfabba079c143ef66f2784",
+   "name": "flamefrower_proj"
+  },
+  {
+   "hash": "7aab899c83b676fbebb75738ca113fa0faaecb65",
+   "name": "flamefrower2_proj"
+  },
+  {
+   "hash": "90e21b74f4a3b40369dc32e86fc8229f8c8db833",
+   "name": "flamefrower3_proj"
+  },
+  {
+   "hash": "e4b6c43d07ce4783850a5945615eddabf1817ade",
+   "name": "wavegun_flare"
+  },
+  {
+   "hash": "fa55bf8d55d7c9460516f980fbac0c2df78d6202",
+   "name": "wavegun_proj"
+  },
+  {
+   "hash": "5badcc080c29f8b6382d65d1ea1722bc3f4fe5e1",
+   "name": "wavegun_small1_proj"
+  },
+  {
+   "hash": "9f7a3e072c5b5b7f256387fdf6fdc542b0167b03",
+   "name": "wavegun_small2_proj"
+  },
+  {
+   "hash": "0c74a9841a400cd09361c8ae2ac50c9c27fdccf4",
+   "name": "wavegun_flash"
+  },
+  {
+   "hash": "ee7aa84256dd350095972cf2f8982f71f8f0f946",
+   "name": "wavegun_hit"
+  },
+  {
+   "hash": "965b9e9fd593dbd144c173baccd4bcdcd81edff8",
+   "name": "lball_flare"
+  },
+  {
+   "hash": "4a4d1044f95b0f8fe3424990e62357238b40a107",
+   "name": "lball_plane"
+  },
+  {
+   "hash": "6da5683663267d2d9d44ce94326dd157b206d3db",
+   "name": "lightingbomb_proj"
+  },
+  {
+   "hash": "4f0eed0012f36883bed9013409e23d7e1b2e31f5",
+   "name": "lbomb_hit"
+  },
+  {
+   "hash": "345034bf1939b6b711f27e7892f8123b7c3448df",
+   "name": "clusterbomb_proj"
+  },
+  {
+   "hash": "535c7921e40e349d2b05ec04c84016317449fa08",
+   "name": "clustb_small"
+  },
+  {
+   "hash": "2c5eca610a0eb144327a4d5425f904134d6e861f",
+   "name": "rocketbomb_proj"
+  },
+  {
+   "hash": "015f98b5982e93b68427429ae23f2dc0f0014c6b",
+   "name": "abomb_proj"
+  },
+  {
+   "hash": "ae918364c5ea191015d7d8efc44a2436c3740647",
+   "name": "satellite_vint"
+  },
+  {
+   "hash": "1d9db0b29ac4c2e1e7b91be3d544b7797540a18c",
+   "name": "satellite_proj"
+  },
+  {
+   "hash": "cce850b586167a493e13c183858f1b2ec76b98bb",
+   "name": "satellite_hit"
+  },
+  {
+   "hash": "7ce4e06a9a5f1a05efe51ec87b5178142a5f4cff",
+   "name": "satellite"
+  },
+  {
+   "hash": "09990b946b15eec392614038588ed6ae8a52522a",
+   "name": "satellite2"
+  },
+  {
+   "hash": "d873eca773c4dece3de7f38abe427ba99a5fa4ff",
+   "name": "satellite_laser_proj"
+  },
+  {
+   "hash": "2c7457beea068ab72a98a01b6f2e2493eb99f60a",
+   "name": "satellite_laser"
+  },
+  {
+   "hash": "a0526161fc7bd6665a05b83065255af129bd5bde",
+   "name": "satellite_laser2"
+  },
+  {
+   "hash": "32331ae58c33c3ba41e4bfd0bb46861db3f6f3ae",
+   "name": "missile_flare"
+  },
+  {
+   "hash": "83009b89f01288b5c28c7fde7509011b640413e9",
+   "name": "missile_flare_red"
+  },
+  {
+   "hash": "1e91164c2a30d1190c574dfc9870d5a2ea482b4d",
+   "name": "missile_flare_small"
+  },
+  {
+   "hash": "51a028b68bb234c43702bd611d8de13a26119ba3",
+   "name": "missile_flare_red_small"
+  },
+  {
+   "hash": "87cd46631038acd52bf8090d2f3f40f8a6fe1f60",
+   "name": "missile_hvost"
+  },
+  {
+   "hash": "b378fc19b3102365a60b372d9ab04cd542ccc299",
+   "name": "missile_hvost_big"
+  },
+  {
+   "hash": "cfdeb123ed6baa92f63acdc7a90e0b24e71a8515",
+   "name": "missile_hvost_bh"
+  },
+  {
+   "hash": "d9f0e6b2d808e71d15d22215254c1a5d53583c14",
+   "name": "missile_hvost_mad"
+  },
+  {
+   "hash": "43a788f02d5202f0efc7346527d507f3b1ff2457",
+   "name": "missile"
+  },
+  {
+   "hash": "99d96135da5726d95082a9159e8a5c31eb16b25b",
+   "name": "missile_heat"
+  },
+  {
+   "hash": "a291d11d5238661babd7290ee4fef923d491e9e7",
+   "name": "missile_big"
+  },
+  {
+   "hash": "eb1debce558890ac1a62c10b1d4fb380f7cc8afa",
+   "name": "missile_heat_big"
+  },
+  {
+   "hash": "1a09e2b8e26918af06bccf955e695f72b12eb932",
+   "name": "missile_mad"
+  },
+  {
+   "hash": "41b3a34bba1f564e35378d3a0412633f220245e6",
+   "name": "missile_smoke"
+  },
+  {
+   "hash": "201eae62e26d1ea59ae9fe1ef74315db030bf189",
+   "name": "missile_smoke_small"
+  },
+  {
+   "hash": "9276287c995f1b970dc0f4137002257ca4f7bf08",
+   "name": "light_magenta2"
+  },
+  {
+   "hash": "9d5f00b3527ea914ef817ad48e3c0553ec5d0a72",
+   "name": "e_mgun_proj"
+  },
+  {
+   "hash": "c5aa4bc16c60be055969a8d862af6fb7a91151ff",
+   "name": "e_mgun_blue_proj"
+  },
+  {
+   "hash": "1ec8b265cbdb6f9a68a56f4d62f62ee99218e5d4",
+   "name": "e_mgun_flash"
+  },
+  {
+   "hash": "c5bef2d9ef22eec14dce27d318e635c2d5c093fa",
+   "name": "e_mgun2_flash"
+  },
+  {
+   "hash": "d673060ab73ba197577bd1111c6b62d3d1223114",
+   "name": "e_mgun_blue_flash"
+  },
+  {
+   "hash": "016f9b8def9f56d58125ece4f95594ac0636bd8c",
+   "name": "e_mgun_hit"
+  },
+  {
+   "hash": "dad78be5966ca8744a12a72628d402a07385cbc8",
+   "name": "e_mgun_blue_hit"
+  },
+  {
+   "hash": "d6de6d63ba1d5ff0daa4779df0a7ca77d38ff3cf",
+   "name": "e_impulse_flare"
+  },
+  {
+   "hash": "814a333eb5707e97e6cf64ced37c9079c0746781",
+   "name": "e_impulse_proj"
+  },
+  {
+   "hash": "be5cd87b3d5dca44f2d310cb8fb64d5e709c39db",
+   "name": "e_impulse_flash"
+  },
+  {
+   "hash": "5721c23d2735a689fcd240d0d1fe16b860315e93",
+   "name": "e_impulse_hit"
+  },
+  {
+   "hash": "cb4b71d0c5b2db2198e4e7be2ffa8a6bdc08ce02",
+   "name": "e_laser_orange_small_proj"
+  },
+  {
+   "hash": "2010388e913f7bebd67ea1a9f8bad9df4e867cc0",
+   "name": "e_laser_orange_small_flash"
+  },
+  {
+   "hash": "e3be92e68de54ce04186ce5bc90899aa8b9b070b",
+   "name": "e_laser_orange_small_hit"
+  },
+  {
+   "hash": "6aa5ebcd3a69f630d52a945163e888de46084feb",
+   "name": "e_laser_blue_small_proj"
+  },
+  {
+   "hash": "43579f4362eed0df1cbf1284db560010e2027f64",
+   "name": "e_laser_blue_small_flash"
+  },
+  {
+   "hash": "ce4278399d8f91e3eaa3df68771ecc8e3e81a7ba",
+   "name": "e_laser_blue_small_hit"
+  },
+  {
+   "hash": "db917dcd0ea0150d319e089d47cbb2d47f1b03ab",
+   "name": "e_laser_blue_proj"
+  },
+  {
+   "hash": "ad6fa67e515c959fd47635c2714c25eba3908b0d",
+   "name": "e_laser_blue_flash"
+  },
+  {
+   "hash": "d9bb35c28f32a73de4fad19ac3474551b8b2777a",
+   "name": "e_laser_red_proj"
+  },
+  {
+   "hash": "a15beeeed6dc01bb8fbfc2cf4ce83e76f3ff7965",
+   "name": "e_laser_red_flash"
+  },
+  {
+   "hash": "1a8a274ad6bcbbbe0972e95cfa6269bb307492d8",
+   "name": "e_laser_red_flash2"
+  },
+  {
+   "hash": "4b97b429fb9444c96dd5a738ecd2749fb72898b3",
+   "name": "e_laser_red_hit"
+  },
+  {
+   "hash": "53d3d442ed21cf59a193e8019143d2b068a5af29",
+   "name": "e_laser_green_proj"
+  },
+  {
+   "hash": "8a0bf32215f3ee377662e64d4e7102c23ad9b2e2",
+   "name": "e_laser_green_flash"
+  },
+  {
+   "hash": "ee338bbc0772d6d8fc5ceb3e4488b6292c5f4f63",
+   "name": "e_laser_green_hit"
+  },
+  {
+   "hash": "aff2f584d0031ef7e1fc154d9bb5df8efc29fccb",
+   "name": "e_laser_long_proj"
+  },
+  {
+   "hash": "6d0e3cae7abca133d071703ec64c334bf2549a53",
+   "name": "e_laser_long_flash"
+  },
+  {
+   "hash": "fcfcedc5b9a4d75efbb7f18905319130892f1f58",
+   "name": "e_fball_proj"
+  },
+  {
+   "hash": "596d5780b2ec72071cc0e3b8df775b4a2826d42f",
+   "name": "e_fball_flash"
+  },
+  {
+   "hash": "0e81269cc6989e3e6a8204769bc52b9d6186d069",
+   "name": "e_fball_hit"
+  },
+  {
+   "hash": "bb72bf3576119499651012befaeb4ec2685fc919",
+   "name": "e_fball_blue_small_proj"
+  },
+  {
+   "hash": "6263c4c15ef0ffb2cb537f12766ebf62c22c348e",
+   "name": "e_fball_blue_small_flash"
+  },
+  {
+   "hash": "dd013ac44b0765043c19927f42b5398a2c639e53",
+   "name": "e_fball_blue_small_hit"
+  },
+  {
+   "hash": "9ea62dec23626455451d4310c2a9c7955d0050b9",
+   "name": "e_fball_red_proj"
+  },
+  {
+   "hash": "3940dc04e87efdae831bb2d93fdeab49dad1b071",
+   "name": "e_fball_red_gr_proj"
+  },
+  {
+   "hash": "e14cc391ff92f22c7d252b7326604be327de226a",
+   "name": "e_fball_red_flash"
+  },
+  {
+   "hash": "0ea7b06da55c9d8f4527beb278050348b3eb4972",
+   "name": "e_fball_red_hit"
+  },
+  {
+   "hash": "d6fc107ed412782185adf15f7f1da4695618548f",
+   "name": "e_fball_green_proj"
+  },
+  {
+   "hash": "df3ed8048436d8b2037e3352eaba80c6516e846e",
+   "name": "e_fball_green_flash"
+  },
+  {
+   "hash": "7f6df9490d1198f98ef5df7f114899d53d0ce1d4",
+   "name": "e_fball_green_hit"
+  },
+  {
+   "hash": "91a8d42241374009391b600015b18d9e342db334",
+   "name": "e_fball_green_small_proj"
+  },
+  {
+   "hash": "75def2a13f072f8c3cfa0d79c3a40d92207c9480",
+   "name": "e_fball_mag_proj"
+  },
+  {
+   "hash": "64f267bbf944f20e570e40957970c315095416ad",
+   "name": "e_fball_mag_flash"
+  },
+  {
+   "hash": "7a80af492a7f786f895e8f419a4ccae25b17dc83",
+   "name": "e_fball_mag_hit"
+  },
+  {
+   "hash": "2d40949109efde5a959c6b1cd49fb1f117f48372",
+   "name": "e_fball_red_small_proj"
+  },
+  {
+   "hash": "8e5258fc4d6e0ef79403893cf6e7a027b8bfa765",
+   "name": "e_fball_red_small2_proj"
+  },
+  {
+   "hash": "86e73630fa7bd4d62eb00d1b0acc216ec0b1d24e",
+   "name": "e_fball_red_small_flash"
+  },
+  {
+   "hash": "e8cc07c5f68d3dda315cb3f72dbe1255f166ff89",
+   "name": "e_fball_red_small_hit"
+  },
+  {
+   "hash": "9195201c33e81586bbc588cf50deab104c8b15b7",
+   "name": "mortyr_magenta_small"
+  },
+  {
+   "hash": "cbae5bc6aeebaf160af890814597c0b2031a6a7d",
+   "name": "mortyr_magenta_small_hit"
+  },
+  {
+   "hash": "8923f6ec9d050903057b25434924aa335ab38cdd",
+   "name": "mortyr_orange_small"
+  },
+  {
+   "hash": "22eb198a4e1fb628fdc5b466aa105158b107ba09",
+   "name": "mortyr_orange_small_hit"
+  },
+  {
+   "hash": "9c5c741051f3163e3fc358cdc2994ec3d5770176",
+   "name": "lball_flare2"
+  },
+  {
+   "hash": "6c14e6493060fb7718f82fa313700bdf64204be4",
+   "name": "lball_plane2"
+  },
+  {
+   "hash": "0046c40191c5d5fcc76c4408544c4c90fba062af",
+   "name": "lightingbomb_proj2"
+  },
+  {
+   "hash": "fe37f8b92c4e9b9e34233339a0544ec55f571f31",
+   "name": "lightingbomb_proj2_flash"
+  },
+  {
+   "hash": "d7de662f42d6d4875fc1b4958b67a4fc1ff66f54",
+   "name": "fball_big1_flare"
+  },
+  {
+   "hash": "775e117869a71651c280275e0e10ea0472b1be80",
+   "name": "e_fball_big1_proj"
+  },
+  {
+   "hash": "08d0a88b0108fcbeba0d57dee52f42a6b9c27da5",
+   "name": "e_fball_big1_flash"
+  },
+  {
+   "hash": "6f5cfdf1af4297fb5dec60ea99f7d3b11a2613b3",
+   "name": "e_fball_big1_hit"
+  },
+  {
+   "hash": "fbbd70a927276eb963026c7697a7064510df24bc",
+   "name": "e_fball_big2_proj"
+  },
+  {
+   "hash": "bd99178ae59565a6d487a77a2078ce3d99141e58",
+   "name": "e_fball_big2_hit"
+  },
+  {
+   "hash": "6a7ba80810f2ef6f82bb7fffc841ab19d5b74a40",
+   "name": "e_fball_big33_proj"
+  },
+  {
+   "hash": "fac0c788913b576b8e83b1975d3df05d8e4c988a",
+   "name": "e_fball_big3_proj"
+  },
+  {
+   "hash": "04a84dee47d92fe5ddd6e75f3f7e3a8410110d0f",
+   "name": "e_fball_big3_hit"
+  },
+  {
+   "hash": "9992d5c39c281095eb2126f66750504725dedd0f",
+   "name": "e_missile_flare_small"
+  },
+  {
+   "hash": "822418704597eaaa00235d1545485fd0a4ad1b47",
+   "name": "e_missile_flare_small2"
+  },
+  {
+   "hash": "0ce974b3bbf183a021f7b4844fb0edac4b326d20",
+   "name": "e_missile_small_hvost"
+  },
+  {
+   "hash": "e1b544b012fb52a4dbaa3a349bf0286d93e9cf13",
+   "name": "e_missile_small"
+  },
+  {
+   "hash": "20857904d450989a4e2e34336114946854fd1bed",
+   "name": "e_missile_small_hvost2"
+  },
+  {
+   "hash": "40b333a2f08e83b28968ff187d8d43833c4148ae",
+   "name": "e_missile_small2"
+  },
+  {
+   "hash": "a1b4d27e20d8c30b06aa6f9853992773b1412020",
+   "name": "e_missile_heat_small"
+  },
+  {
+   "hash": "42df65eeb96a3d68270da305d6f7f65f0d01cdf0",
+   "name": "e_missile_hvost"
+  },
+  {
+   "hash": "59e8cb639e9d882cb011c5f1e7848092b1dcddfe",
+   "name": "e_missile_heat"
+  },
+  {
+   "hash": "ad93b1b6ad1752cad04dc392221ed5e58bd842d9",
+   "name": "e_missile"
+  },
+  {
+   "hash": "4e45d46a4a4f9b2bd2edf5a8f9a0d99195bf0c36",
+   "name": "e_missile_big"
+  },
+  {
+   "hash": "cae3e2ff038124ee0ed6940d0c7c3fa64358938b",
+   "name": "enem_missile_heat_big_ground"
+  },
+  {
+   "hash": "eade40150e8b24b42b26cbc26f4982d2af0ee464",
+   "name": "yellowflare"
+  },
+  {
+   "hash": "f0ce1120fd57c935d290c5eef18bb7cb4d33b8a7",
+   "name": "zabor_metal"
+  },
+  {
+   "hash": "8f7234a62010ea7f04e88616ec18b8bbfad55952",
+   "name": "zabor_cement"
+  },
+  {
+   "hash": "b65befefbb4f41793cce9951d23bb4c8399e450e",
+   "name": "zabor_cement_rotate"
+  },
+  {
+   "hash": "191599aaa00cba2590507fdec44ee067245474a5",
+   "name": "zabor_bricks"
+  },
+  {
+   "hash": "0b295eec2d5b6723d753e12e0f2920863d961d67",
+   "name": "zabor_bricks_rotate"
+  },
+  {
+   "hash": "c456239fc57dfb3b9f85659c3bb912ead1ad90c3",
+   "name": "zabor_wood"
+  },
+  {
+   "hash": "60d5983743798d6e45828bf4ebea1a06bec7b12f",
+   "name": "zabor_wood2"
+  },
+  {
+   "hash": "fd2f4c989bdc5745c763c33bdfd5683797f4a911",
+   "name": "zabor_wood3"
+  },
+  {
+   "hash": "02746b89cd5dda33dd35624a6782a2f177cd47ef",
+   "name": "zabor_wood_white"
+  }
+ ],
+ "particle_systems": [
+  {
+   "hash": "b840d6474848efed78436d6af4daf63871b1e541",
+   "name": "PS_EXPLOSION_SPARKS"
+  },
+  {
+   "hash": "b18ebe702e193b9a6c731f2a0435f148ee6565a5",
+   "name": "PS_EXPLOSION_SPARKS_MEDIUM"
+  },
+  {
+   "hash": "fdfc2fbd34cb018769adad7a9898c8d9fa4a5e1e",
+   "name": "PS_EXPLOSION_SPARKS_SMALL"
+  },
+  {
+   "hash": "20fa0ca117b3e12f2eee5b705471b3097c6d18b8",
+   "name": "PS_EXPLOSION_SPARKS_RED"
+  },
+  {
+   "hash": "250db7489d8ae04a777ddc5eaee6603ab2ea62a4",
+   "name": "PS_EXPLOSION_SPARKS_BLUE"
+  },
+  {
+   "hash": "5a8f8e139307462aab12947eb9d69fb0e8c08b45",
+   "name": "PS_EXPLOSION_SPARKS_BLUE_SMALL"
+  },
+  {
+   "hash": "3e488b10e3ac457fbd5da61d5aec5efe961806b1",
+   "name": "PS_EXPLOSION_SPARKS_RED_YEL_SMALL"
+  },
+  {
+   "hash": "250b4379cfec1036200cceaf55dcfa5b44d80dae",
+   "name": "PS_EXPLOSION_FIRE_FLASH"
+  },
+  {
+   "hash": "a252f861471caed8064121e2b1e786cd84ced2c6",
+   "name": "PS_SMALL_EXPLOSION_FIRE_FLASH"
+  },
+  {
+   "hash": "f2a58ad82b0b29aa70e9bdd611bd4cd55daa241f",
+   "name": "PS_BIG_EXPLOSION_FIRE_FLASH"
+  },
+  {
+   "hash": "7b979a0566a6aa60187f73c9c12b7b9d369502c9",
+   "name": "PS_EXPLOSION_BARREL_FIRE_FLASH"
+  },
+  {
+   "hash": "27f988a506019ae0b6114571548d374ac1bb716b",
+   "name": "PS_EXPLOSION_FIRE"
+  },
+  {
+   "hash": "7c5646fd6b0a7cc4ec2f28495d1faf464edd2eb2",
+   "name": "PS_EXPLOSION_FIRE_SMALL"
+  },
+  {
+   "hash": "bbbfd14c2e8e57c941e0aaa1f1ec77816b4abf67",
+   "name": "PS_GIBTRAIL"
+  },
+  {
+   "hash": "9c81064233f8e4db7d5f2676b8c6e37664ab940e",
+   "name": "PS_GIBTRAIL_AIR"
+  },
+  {
+   "hash": "dd53eda51e4042ee4860bff138c6293c71660bc4",
+   "name": "PS_JEEP_SMOKE"
+  },
+  {
+   "hash": "346124e2c5508980ab915d7229532344dd4bae2d",
+   "name": "PS_BARRELTRAIL"
+  },
+  {
+   "hash": "9442c93c7a7fc5a6698d89097d33bb277d301d71",
+   "name": "PS_BARREL_FIRE"
+  },
+  {
+   "hash": "eac695cdc6c58390a3e9c86a811d95632879f740",
+   "name": "PS_VULKAN_SMOKE"
+  },
+  {
+   "hash": "fc1f6fe29dd9984717b54b45fa245a7ebbf0694a",
+   "name": "PS_GEYSER"
+  },
+  {
+   "hash": "812560243f3c05a6602a85ba6d4465af6ed0d372",
+   "name": "PS_FLAMEFROWER"
+  },
+  {
+   "hash": "0e86d687be5d0aab3e3f9e222ed853428dac00ac",
+   "name": "PS_FLAMEFROWER_BLUE"
+  },
+  {
+   "hash": "a95f81eeba3ffe304d585ecb51a7247be7116f06",
+   "name": "PS_KOSTER_FIRE"
+  },
+  {
+   "hash": "2f2a87e555e61e7d19b9136c28cb6c67547ff904",
+   "name": "PS_BALON_GAZ"
+  },
+  {
+   "hash": "529633eee6817b3813ddf428c624767c3ebe604e",
+   "name": "PS_ITEM_TAKEN"
+  },
+  {
+   "hash": "ebc57ea7dc9de61743416ac5291bbcae7d1c37e8",
+   "name": "PS_BONUS"
+  },
+  {
+   "hash": "0f205c4835189cc1f25e14a985c75685847cc306",
+   "name": "PS_F15"
+  },
+  {
+   "hash": "cca615e21190604238bff80a7204550c05fcb4a3",
+   "name": "PS_CAMPFIRE_OLD"
+  },
+  {
+   "hash": "df39384bd8181448e66fcc42e95a1bc55d3550ed",
+   "name": "PS_MORTYR"
+  },
+  {
+   "hash": "f32984c00d12c4606b9c24d7c24087d4440c640c",
+   "name": "PS_MISTRAIL"
+  },
+  {
+   "hash": "81d227d4cdc78a56da9e1723d2766cddca39c4d9",
+   "name": "PS_MISTRAIL_BLACK"
+  },
+  {
+   "hash": "020382e183525b090a0f91c481a49ad449e9f15a",
+   "name": "PS_MISTRAIL_BLACK2"
+  },
+  {
+   "hash": "fa44f9701127a82e45cc6b62da828ebc833c38ff",
+   "name": "PS_MISTRAIL_GREEN"
+  },
+  {
+   "hash": "31024eefc2b85a9de74e2120e021421d887618ec",
+   "name": "PS_MISTRAIL_GRAY"
+  },
+  {
+   "hash": "0afb1f5080beca4b6ff19759a8b274d5ee2a3a20",
+   "name": "PS_BIG_FLAME"
+  },
+  {
+   "hash": "7efd05aeb6d0056f48263c13395b60ac11c3f193",
+   "name": "PS_CAMPFIRE"
+  },
+  {
+   "hash": "b50ece4ff8f2cb132d15ca41c092769f3947027e",
+   "name": "PS_CAMPFIRE_SMALL"
+  },
+  {
+   "hash": "5bb2ae8f5863da7e347c1cfe59f3a2688e1f7e45",
+   "name": "PS_CAMPFIRE_ALMOSTDEAD"
+  },
+  {
+   "hash": "475c430883724891d0789e6399c135af55303f2e",
+   "name": "PS_CAMPFIRE_HELIC_ALMOSTDEAD"
+  },
+  {
+   "hash": "47a4d8bd53bce52c85b89f3be6c6f58d661f42e0",
+   "name": "PS_CAMPFIRE_HELIC_ALMOSTDEAD_LARGE"
+  },
+  {
+   "hash": "96c42731125f941880c1346ab3656a91bb43ad9f",
+   "name": "PS_BOSS1_SMOKE"
+  },
+  {
+   "hash": "cba149f658ba192c8b61d875376255173ecb2905",
+   "name": "PS_DOMSMOKE"
+  },
+  {
+   "hash": "126543e8ff92271e5941f796ae851066666bb4d2",
+   "name": "PS_CAMPFIRE_SMALL2"
+  },
+  {
+   "hash": "71c60f5c84b237f4f43704cbcb70421833414987",
+   "name": "PS_SPLASH_SHIP"
+  },
+  {
+   "hash": "da30cdbcbcf61b17d0d87b74cdd86fcaa4384d17",
+   "name": "PS_SATELLITE"
+  },
+  {
+   "hash": "40ac364f24038bc10e3fe5dfe4b84769b890917c",
+   "name": "PS_GUNSMOKE"
+  },
+  {
+   "hash": "ca3b1ec1a3941526f6b1bc033f593d89a0bfc6b7",
+   "name": "PS_GUNSMOKE_SMALL"
+  },
+  {
+   "hash": "2f73612c68be8f2e0de632f46738b3bbb4e59393",
+   "name": "PS_SHIP_SPLASHES"
+  },
+  {
+   "hash": "c1424e054808f0a85b9c5262797579346b54f7a7",
+   "name": "PS_LASER_ISKRA"
+  },
+  {
+   "hash": "4de819182a9964072674b44093e7c9281316e13b",
+   "name": "PS_LASER_NAKOPL"
+  },
+  {
+   "hash": "9b733d0f3164c51331fafec487543183e0454672",
+   "name": "PS_LASER_GREEN_ISKRA"
+  },
+  {
+   "hash": "22ee5adb7fc5d4e279f220f57835bb6caacfc78a",
+   "name": "PS_LASER_SPIRAL"
+  },
+  {
+   "hash": "44a0fc17921290ecd42e0360ed8b077eaad8598f",
+   "name": "PS_METEORITE"
+  },
+  {
+   "hash": "478ab1ad35f6a0236da34ea40b3b155ceaa1e30a",
+   "name": "PS_BFG"
+  },
+  {
+   "hash": "f61c974490e70ed6a4cf98ec75363c1104dd69e7",
+   "name": "PS_WAVEGUN"
+  },
+  {
+   "hash": "fc9c97791ccda63940c47d0d573df279cfa7d7ec",
+   "name": "PS_FLAMEFROWER_HOR"
+  },
+  {
+   "hash": "282474798b810c8728c14adcd8e1ce37f87b7a10",
+   "name": "PS_FLAMEFROWER_BLUE_HOR"
+  },
+  {
+   "hash": "329562543ef2cfedb78333687331eb17546f77a5",
+   "name": "PS_FLAMEFROWER_HOR2"
+  },
+  {
+   "hash": "b2afd2025e2b5cdd4994092eee231c58a3440665",
+   "name": "PS_FLAMEFROWER_BLUE_HOR2"
+  },
+  {
+   "hash": "04f51145ff2a7ad952386af3a14eceb1865c42ae",
+   "name": "PS_FLAMEFROWER_HOR3"
+  },
+  {
+   "hash": "b045b71e8b764eeb629fc557a5a068d44a204e65",
+   "name": "PS_FLAMEFROWER_BLUE_HOR3"
+  },
+  {
+   "hash": "75632c50ac5718ef411fed2c99422be1de6bb889",
+   "name": "PS_ISKORKA"
+  },
+  {
+   "hash": "ac32701f8813aad388a8a22bc02a745425db5e69",
+   "name": "PS_BIGLASER_HIT"
+  },
+  {
+   "hash": "39f9135d52f0b4624720588b40ac2dcf7dd35f5c",
+   "name": "PS_MISSILE_EXPLOSION_FIRE_FLASH"
+  },
+  {
+   "hash": "0f2d0f48a1ced546f957c1cafbea6b60f8fdcb10",
+   "name": "PS_MISSILE_BIG_EXPLOSION_FIRE_FLASH"
+  },
+  {
+   "hash": "5b2fb612ba78ea40bed6a7a06e79f7992b1f5083",
+   "name": "PS_MISSILE_EXPLOSION_FIRE_FLASH2"
+  },
+  {
+   "hash": "b3589a2babdb8f0537636dbe7075eb68374ed811",
+   "name": "PS_MISSILE_BIG_EXPLOSION_FIRE_FLASH2"
+  },
+  {
+   "hash": "c5f9fdf0f7ba2d042fd768442587154d9bb627bd",
+   "name": "PS_FLAMEFROWER_DIAG"
+  },
+  {
+   "hash": "a558d98088fe7381165afeb3bd0eaf0f99f165c0",
+   "name": "PS_FLAMEFROWER_BLUE_DIAG"
+  },
+  {
+   "hash": "864ce9fa2d62ba3a3f9c5449d315b62f34a2f35a",
+   "name": "PS_EXPLOSION_ABOMB_FIRE_FLASH"
+  },
+  {
+   "hash": "d25fe13c6027168f744eb7b60a29562ca6300d2c",
+   "name": "PS_LBOMB_HIT"
+  },
+  {
+   "hash": "0eae712f59447e9207b4627eebdd2086c0b10265",
+   "name": "PS_E_METEORITE"
+  },
+  {
+   "hash": "b0c31dbea2ed211593ec55062e647406901ae2cf",
+   "name": "PS_FBALL_BIG_RED"
+  },
+  {
+   "hash": "e09b68c174e5eb468b98aba43b147ee5b8f70344",
+   "name": "PS_FBALL_BIG_BLUE"
+  },
+  {
+   "hash": "a0efc32d80872651b2b86eb23452027d6c73f38c",
+   "name": "PS_FBALL_BIG2"
+  },
+  {
+   "hash": "b9115b5c69272e1e6a61ff45d7022d1f01a97447",
+   "name": "PS_BOSS_PLASMA"
+  },
+  {
+   "hash": "8d31b9a8b2ae9ff02e61cdd4846ad31c2addb87e",
+   "name": "PS_SNOW"
+  },
+  {
+   "hash": "39e085bc480bc59d2db4a4a0326625077b34dd42",
+   "name": "PS_RAIN"
+  },
+  {
+   "hash": "d32d1b941361a3f2863866d4d0ac249f38e5537d",
+   "name": "PS_SPICE_STORM"
+  },
+  {
+   "hash": "311dc1190604ea939e95e7dc5c7aaf486ae57c29",
+   "name": "PS_SPICE_STORM2"
+  }
+ ],
+ "summary": {
+  "distinct_object_names": 863,
+  "duplicate_object_names": [
+   "tank_dead"
+  ],
+  "total_levels": 24,
+  "total_load_warnings": 0,
+  "total_objects": 864,
+  "total_particle_systems": 80,
+  "total_weapons": 63
+ },
+ "unresolved_references": [
+  "object 'boss3_l2proj': model 'models\\bosses\\boss3\\boss3_laser2.mdl' not found",
+  "object 'boss3_l2proj': skin 'models\\bosses\\boss3\\boss3_gun.tga' not found",
+  "object 'boss_tank_expl1': script 'scripts\\effects\\boss_tank_expl1.scr' not found",
+  "object 'cannon4_green': script 'scripts\\cannonbase.scr' not found",
+  "object 'cannon4_gun': script 'scripts\\cannon.scr' not found",
+  "object 'expl1_hit': skin 'gfx\\expl3.tga' not found",
+  "object 'expl_wave': skin 'models\\misc\\hlanno2.tga' not found",
+  "object 'expl_wave_big': skin 'models\\misc\\hlanno2.tga' not found",
+  "object 'item_help': script 'scripts\\items\\i_help.scr' not found",
+  "object 'p_expl_wave': skin 'models\\misc\\hlanno2.tga' not found",
+  "object 'satellite_hit': attach target 'PS_LASER_HIT' at line 779 does not resolve to any object or particle system",
+  "object 'ship_destroyer_radar': script 'scripts\\j_cannon.scr' not found",
+  "object 'tank_dead': skin 'models/bigjeep/dead.tga' not found"
+ ],
+ "weapons": [
+  {
+   "hash": "ce2b5f379578ac6c470bfa23b53cc5c40634f526",
+   "name": "b2_wpn_missile"
+  },
+  {
+   "hash": "e49ab927e763234d804928e484657e8f411f7dc8",
+   "name": "b2_wpn_rapidgun"
+  },
+  {
+   "hash": "9757a2d98bb918079dd00a27ac48bae717f4469a",
+   "name": "b2_wpn_photon_cannon"
+  },
+  {
+   "hash": "b24bd479b78e169b4ebf727eb62ae072beb4ac13",
+   "name": "b3_wpn_laser_red"
+  },
+  {
+   "hash": "683c879aca3572b3000d76e591ccc47f6ab15c72",
+   "name": "b3_wpn_laser2"
+  },
+  {
+   "hash": "2a215ba7f60a913d624f250bec4fe6329cbc2d1f",
+   "name": "b3_wpn_mgun"
+  },
+  {
+   "hash": "75e206c7506057bebed86fac2f7497d4f86ddf14",
+   "name": "wpn_missile_small"
+  },
+  {
+   "hash": "45107acc04982ced2f513c05a01383adf5f3bf68",
+   "name": "wpn_missile_small2"
+  },
+  {
+   "hash": "a625051b830a9073fce1f4117e0d4bba5f1118a8",
+   "name": "wpn_missile_heat_small"
+  },
+  {
+   "hash": "da67da92a75774be5b41bf9c55bda2865b6b5024",
+   "name": "wpn_missile"
+  },
+  {
+   "hash": "9072f1bc03536941f6fea8240f3e53b9821f7c53",
+   "name": "wpn_missile_fast"
+  },
+  {
+   "hash": "d27e6c382dbd52ff2c7327dd640d68fdeb8f1f5a",
+   "name": "wpn_missile_big"
+  },
+  {
+   "hash": "50a38cc64dec92390202778733b27d3b4b4979a7",
+   "name": "wpn_missile_heat"
+  },
+  {
+   "hash": "f37b99fdf6dc991e9e35f9bdf099763d1d38541c",
+   "name": "e_wpn_machinegun"
+  },
+  {
+   "hash": "07eb8a28b241cf42d49df447cc32e755d0adc5f0",
+   "name": "e_wpn_machinegun_blue"
+  },
+  {
+   "hash": "a9a7b1893ac72a221de0725d96888cf01afacfc9",
+   "name": "e_wpn_machinegun2"
+  },
+  {
+   "hash": "9f306a291c85275205110a101c4f8b478202432e",
+   "name": "e_wpn_impulsegun"
+  },
+  {
+   "hash": "484ff530112e79a79808245ecbf21e3ff6cecd5a",
+   "name": "e_wpn_laser_orange_small"
+  },
+  {
+   "hash": "31ac4229a0e4db27d6e7f22f1fec75dba8c78c6c",
+   "name": "e_wpn_laser_blue_small"
+  },
+  {
+   "hash": "143188a1f05c9494509b963c5d0b12b8cb8d5d21",
+   "name": "e_wpn_laser_blue"
+  },
+  {
+   "hash": "fe2385494d604970be058233032b91cc5b30b1d2",
+   "name": "e_wpn_laser_red"
+  },
+  {
+   "hash": "274eb28d441b548bd7403f5ae7547623275a27cd",
+   "name": "e_wpn_laser_red2"
+  },
+  {
+   "hash": "512f0fc3f3405b47bb635051f019dc64e5e570a7",
+   "name": "e_wpn_laser_green"
+  },
+  {
+   "hash": "b7312cba3808bdf6395729482e84b9b8b9ae92a6",
+   "name": "e_wpn_laser_long"
+  },
+  {
+   "hash": "77ca3e2feb001c8e6c25f424f9b4c716bd3fd6d4",
+   "name": "e_wpn_fball"
+  },
+  {
+   "hash": "2aa1b55d6062993cb66954724a6a35f1145baf16",
+   "name": "e_wpn_fball_blue_small"
+  },
+  {
+   "hash": "2b588347976a7d69b5835f0079a6dae766f50ca1",
+   "name": "e_wpn_fball_red"
+  },
+  {
+   "hash": "64513a6e7e9a80b09f123ef9f119830055539a1a",
+   "name": "e_wpn_fball_red_green"
+  },
+  {
+   "hash": "3eb498e65f91fd0500ddbf3e719bfdcc9bc5d338",
+   "name": "e_wpn_fball_green"
+  },
+  {
+   "hash": "ab991e8dcd623e5c6e5cef54d7305f70cf8251b8",
+   "name": "e_wpn_fball_green_small"
+  },
+  {
+   "hash": "22f82d6e8d324d467dfba21ce71ded2deaf4dd5c",
+   "name": "e_wpn_fball_mag"
+  },
+  {
+   "hash": "5be2de8c11c620c30d6a9d1105ebfe621210098c",
+   "name": "e_wpn_fball_red_small"
+  },
+  {
+   "hash": "8b2b57dab66b66447385f7b571d919ecdc0ad861",
+   "name": "e_wpn_fball_red_small2"
+  },
+  {
+   "hash": "cfff6920c37abca1400201a5dd57769c12b618e5",
+   "name": "e_wpn_fball_big1"
+  },
+  {
+   "hash": "2f5b53227c8b2de3cce974a3e43708225b84e278",
+   "name": "e_wpn_fball_big2"
+  },
+  {
+   "hash": "8f0a33283aee23b4030c7c8ed8ca2f95facba140",
+   "name": "e_wpn_fball_big3"
+  },
+  {
+   "hash": "9fa722ea889776bdd9c15592ce131c8a82461a5c",
+   "name": "e_wpn_mortyr_magenta_small"
+  },
+  {
+   "hash": "d65113187b6c0e3efdc7bb979ff84f7fa482c88d",
+   "name": "e_wpn_mortyr_orange_small"
+  },
+  {
+   "hash": "7c9334d5b58564ff891fe5220845823c5e2dc919",
+   "name": "e_bfg"
+  },
+  {
+   "hash": "a4a370efa7e29ca5dae3b095587e150c12af07d5",
+   "name": "wpn_e_machinegun"
+  },
+  {
+   "hash": "fff7b85a1b45292aa4243c07532001ff23d3ad35",
+   "name": "p_wpn_machinegun"
+  },
+  {
+   "hash": "06aea288499fa140a2cf17c4c67ee1ceef07da16",
+   "name": "p_wpn_impulsegun"
+  },
+  {
+   "hash": "4cb4749bc917c27876919bb0436aaa06372923e1",
+   "name": "p_wpn_laser"
+  },
+  {
+   "hash": "89c20f721f4260762a0c74b632165f631bb5693b",
+   "name": "p_wpn_plasmagun"
+  },
+  {
+   "hash": "04030eaf9f10509e270c22e073d4eaf6e51535cc",
+   "name": "p_wpn_wavegun"
+  },
+  {
+   "hash": "8c1595c4355db4146a59504bc5b344fa93e757e2",
+   "name": "p_wpn_meteorite"
+  },
+  {
+   "hash": "23967ba2ebcf747e8ea0914decb479083dab19b0",
+   "name": "p_wpn_gorox"
+  },
+  {
+   "hash": "42fba8bfa9baa9cd42a60a18b1670032217614d9",
+   "name": "p_wpn_biglaser"
+  },
+  {
+   "hash": "5c8279ec9f560654e8d020eda663deb54b9ae032",
+   "name": "p_wpn_biglaser2"
+  },
+  {
+   "hash": "908d1768626cf51792533298dd6703c2279e8f0c",
+   "name": "p_wpn_biglaser3"
+  },
+  {
+   "hash": "195d1d22250ba57328167a4355bcb484df72d903",
+   "name": "p_wpn_flamefrower"
+  },
+  {
+   "hash": "304dae5f818fb6a0a02a93960e5691ddec1f3b88",
+   "name": "p_wpn_bpg"
+  },
+  {
+   "hash": "c3f19466a77575ea0faee892203844832a583b4c",
+   "name": "p_wpn2_missile"
+  },
+  {
+   "hash": "ec1c8c44c600a561f2b9c0857db6e3168d680859",
+   "name": "p_wpn2_missile_big"
+  },
+  {
+   "hash": "e93194bbed9f2423d887495442a446a3a55da390",
+   "name": "p_wpn2_heatmis"
+  },
+  {
+   "hash": "9b4b26d93354bef4fdfb7dd8aaedd90557a7ec3d",
+   "name": "p_wpn2_heatmis_big"
+  },
+  {
+   "hash": "928aad87ca5d72b46558c5a74a2506ef81e534a0",
+   "name": "p_wpn2_mis_mad"
+  },
+  {
+   "hash": "eac1d22e7c656daa3ec2b4ef16ee351526af4ed3",
+   "name": "p_bonus_lightingb"
+  },
+  {
+   "hash": "ef99232305a8d1ba6152abe5948cb4b029f623f5",
+   "name": "p_bonus_clusterbomb"
+  },
+  {
+   "hash": "19452abefa82dd2ce63789955e3ddd577a19cedc",
+   "name": "p_bonus_abomb"
+  },
+  {
+   "hash": "a8dbfb758786fd5adc117dd32aed4d94f5482226",
+   "name": "p_bonus_rocketbomb"
+  },
+  {
+   "hash": "cbc043e58d2351909b38235debd004d1ad3f8aaf",
+   "name": "satellite_gun"
+  },
+  {
+   "hash": "40516645ed61efddcaacdb91499fcd91e9c05d8b",
+   "name": "satellite_laser_gun"
+  }
+ ]
+}
