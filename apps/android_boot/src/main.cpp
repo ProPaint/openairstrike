@@ -1,11 +1,14 @@
-// apps/android_boot: WP-18 bring-up program.
+// apps/android_boot: WP-18 bring-up program, now also exercising the WP-1A
+// audio module (see docs/audio.md).
 //
 // Proves the Android toolchain end to end: SDL2 window + GLES 3.0 context,
-// reads the original pak archives (through the TEMPORARY reader in
-// pak_boot.h -- see that file's header comment), and draws a rotating
-// triangle. Also builds and runs on desktop Linux as a quick check (reads
-// the paks from $AS3D_DATA_ROOT/third_party_local/original/data/ instead of
-// APK assets).
+// reads the original pak archives through the real as3d::Vfs / makePakSource
+// (via an SDL_RWops-backed as3d::IStream, sdl_stream.h/.cpp, so it also
+// works from APK assets on Android), draws a rotating triangle, and runs a
+// short audio self-test (init the audio device, start a music track and a
+// sound effect from the paks). Also builds and runs on desktop Linux as a
+// quick check (reads the paks from
+// $AS3D_DATA_ROOT/third_party_local/original/data/ instead of APK assets).
 #include <SDL.h>
 #include <GLES3/gl3.h>
 
@@ -14,8 +17,10 @@
 #include <cstring>
 #include <string>
 
+#include "as3d/audio.h"
 #include "as3d/core.h"
-#include "pak_boot.h"
+#include "as3d/vfs.h"
+#include "sdl_stream.h"
 
 namespace {
 
@@ -96,36 +101,102 @@ const char* kFragmentShaderSrc =
     "    fragColor = vec4(vColor, 1.0);\n"
     "}\n";
 
-// Opens the three original pak archives, logs AS3D_BOOT_OK with the summed
-// entry count, and returns the decrypted maps\levels.txt blob (from pak0)
-// through `levelsTxt`, if found.
-bool bootPaks(as3d::Blob& levelsTxt) {
-    as3d_boot::PakArchive paks[3];
+// Returns the value of the first `name "..."` field in a decrypted
+// maps\levels.txt blob, or "" if none is found. levels.txt has no committed
+// spec yet (only pak.md exists), so this is a minimal, deliberately
+// tolerant text scan: the first line whose trimmed content starts with the
+// token "name" followed by whitespace and a double-quoted string.
+std::string firstMissionName(const as3d::Blob& levelsTxt) {
+    std::string text(reinterpret_cast<const char*>(levelsTxt.data()), levelsTxt.size());
+    std::size_t pos = 0;
+    while (pos < text.size()) {
+        std::size_t eol = text.find('\n', pos);
+        if (eol == std::string::npos) eol = text.size();
+        std::size_t start = pos;
+        while (start < eol && (text[start] == ' ' || text[start] == '\t' || text[start] == '\r')) {
+            ++start;
+        }
+        static const std::string kToken = "name";
+        if (eol - start > kToken.size() && text.compare(start, kToken.size(), kToken) == 0 &&
+            (text[start + kToken.size()] == ' ' || text[start + kToken.size()] == '\t')) {
+            std::size_t q1 = text.find('"', start + kToken.size());
+            if (q1 != std::string::npos && q1 < eol) {
+                std::size_t q2 = text.find('"', q1 + 1);
+                if (q2 != std::string::npos && q2 <= eol) {
+                    return text.substr(q1 + 1, q2 - q1 - 1);
+                }
+            }
+        }
+        pos = eol + 1;
+    }
+    return "";
+}
+
+// Mounts the three original pak archives into `vfs` through the real
+// as3d_vfs module (an SDL_RWops-backed as3d::IStream so this also works
+// from APK assets on Android), logs AS3D_BOOT_OK with the summed entry
+// count (matching each archive's own file count, the same semantics the
+// now-removed temporary pak_boot.cpp reader used), and returns the
+// decrypted maps\levels.txt blob through `levelsTxt`, if found.
+bool bootPaks(as3d::Vfs& vfs, as3d::Blob& levelsTxt) {
     std::size_t total = 0;
-    bool allOpened = true;
     for (int i = 0; i < 3; ++i) {
 #if defined(__ANDROID__)
         std::string path = pakAssetName(i);
 #else
         std::string path = pakPath(i);
 #endif
-        if (!paks[i].open(path)) {
+        auto stream = as3d_boot::makeSdlStream(path);
+        if (!stream) {
             AS3D_ERROR("bootPaks: failed to open pak%d ('%s')", i, path.c_str());
-            allOpened = false;
-            continue;
+            return false;
         }
-        total += paks[i].fileCount();
+        auto source = as3d::makePakSource(std::move(stream));
+        if (!source) {
+            AS3D_ERROR("bootPaks: '%s' is not a valid pak", path.c_str());
+            return false;
+        }
+        std::vector<std::string> names;
+        source->list(names);
+        total += names.size();
+        vfs.mount(std::move(source));
     }
-    if (!allOpened) return false;
 
     AS3D_INFO("AS3D_BOOT_OK files=%zu", total);
 
-    if (paks[0].read(as3d::normalizePath("maps\\levels.txt"), levelsTxt)) {
-        std::string mission = as3d_boot::firstMissionName(levelsTxt);
+    if (vfs.read(as3d::normalizePath("maps\\levels.txt"), levelsTxt)) {
+        std::string mission = firstMissionName(levelsTxt);
         AS3D_INFO("AS3D_FIRST_MISSION %s", mission.c_str());
     } else {
-        AS3D_WARN("bootPaks: maps\\levels.txt not found in pak0");
+        AS3D_WARN("bootPaks: maps\\levels.txt not found in any mounted pak");
     }
+    return true;
+}
+
+// Audio self-test: initialises the real audio device, starts a music track
+// and a sound effect from the paks just mounted, and logs a single
+// machine-parseable result line that tools/android_smoke.sh checks for.
+// `audio` is kept alive by the caller for the lifetime of the program so
+// the music keeps playing during the render loop.
+bool audioSelfTest(as3d::Vfs& vfs, as3d::Audio& audio) {
+    if (!audio.init(vfs, as3d::AudioBackend::Sdl, 44100)) {
+        AS3D_ERROR("AS3D_AUDIO_FAIL device init failed");
+        return false;
+    }
+    as3d::SoundId sfx = audio.loadSound("sounds\\laser.wav");
+    int sfxCount = sfx != as3d::kInvalidSoundId ? 1 : 0;
+    if (sfxCount == 0) {
+        AS3D_ERROR("AS3D_AUDIO_FAIL failed to load sounds\\laser.wav");
+        return false;
+    }
+    if (!audio.playMusic("music\\track05.mo3", /*loop=*/true)) {
+        AS3D_ERROR("AS3D_AUDIO_FAIL failed to load music\\track05.mo3");
+        return false;
+    }
+    audio.play(sfx, as3d::PlayParams{});
+    std::string music = audio.musicTitle();
+    if (music.empty()) music = "music\\track05.mo3";
+    AS3D_INFO("AS3D_AUDIO_OK rate=%d music=%s sfx=%d", audio.deviceRate(), music.c_str(), sfxCount);
     return true;
 }
 
@@ -133,10 +204,15 @@ bool bootPaks(as3d::Blob& levelsTxt) {
 
 int main(int argc, char* argv[]) {
     long desktopFrameLimit = -1;
+    // On by default (Android and desktop); see docs/audio.md. `--no-audio-test`
+    // lets a caller skip it (e.g. if run on a machine with no audio at all).
+    bool audioTestEnabled = true;
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--frames") == 0 && i + 1 < argc) {
             desktopFrameLimit = std::strtol(argv[i + 1], nullptr, 10);
             ++i;
+        } else if (std::strcmp(argv[i], "--no-audio-test") == 0) {
+            audioTestEnabled = false;
         }
     }
 
@@ -176,8 +252,12 @@ int main(int argc, char* argv[]) {
     AS3D_INFO("GL_RENDERER: %s", reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
     AS3D_INFO("GL_VERSION: %s", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
 
+    as3d::Vfs vfs;
     as3d::Blob levelsTxt;
-    bootPaks(levelsTxt);
+    bootPaks(vfs, levelsTxt);
+
+    as3d::Audio audio;  // kept alive for the whole run so music keeps playing
+    if (audioTestEnabled) audioSelfTest(vfs, audio);
 
     GLuint vs = compileShader(GL_VERTEX_SHADER, kVertexShaderSrc);
     GLuint fs = compileShader(GL_FRAGMENT_SHADER, kFragmentShaderSrc);
@@ -265,6 +345,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    audio.shutdown();
     if (vbo) glDeleteBuffers(1, &vbo);
     if (vao) glDeleteVertexArrays(1, &vao);
     if (program) glDeleteProgram(program);

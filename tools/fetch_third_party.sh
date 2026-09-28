@@ -50,3 +50,45 @@ else
 fi
 
 echo "fetch_third_party: AS3D_SDL2_DIR=${SDL_DIR}"
+
+# --- libopenmpt (tracker/MO3 music decoding; see docs/audio.md) ---
+# The "+release.makefile" source flavour (as opposed to "+release.autotools")
+# bundles the small vendored decoders under include/ (stb_vorbis, minimp3,
+# miniz) that the autotools tarball expects to find on the system instead.
+# We only use the bundled stb_vorbis.c fallback (no system libvorbis dev
+# headers are installed on the reference host); engine/src/audio/module.cmake
+# builds libopenmpt from this source tree itself (see that file for the
+# exact source list and defines), it is not built by this script.
+OPENMPT_VERSION="0.8.9"
+OPENMPT_TARBALL="libopenmpt-${OPENMPT_VERSION}+release.makefile.tar.gz"
+OPENMPT_URL="https://lib.openmpt.org/files/libopenmpt/src/${OPENMPT_TARBALL}"
+# Verified by this script against the file downloaded from the URL above on
+# 2026-09-28; see docs/audio.md.
+OPENMPT_SHA256="9273b88b67973cc69e54d748ab1b749399d6d07695f1c37d0c59f88b4106074f"
+OPENMPT_DIR="${TPL_DIR}/libopenmpt-${OPENMPT_VERSION}+release"
+
+if [ -f "${OPENMPT_DIR}/libopenmpt/libopenmpt.h" ]; then
+    echo "fetch_third_party: libopenmpt ${OPENMPT_VERSION} already present at ${OPENMPT_DIR}"
+else
+    TARBALL_PATH="${DL_DIR}/${OPENMPT_TARBALL}"
+    if [ ! -f "${TARBALL_PATH}" ]; then
+        echo "fetch_third_party: downloading ${OPENMPT_URL}"
+        curl -fL --retry 3 -o "${TARBALL_PATH}.part" "${OPENMPT_URL}"
+        mv "${TARBALL_PATH}.part" "${TARBALL_PATH}"
+    fi
+
+    echo "fetch_third_party: verifying sha256"
+    ACTUAL_SHA256="$(sha256sum "${TARBALL_PATH}" | awk '{print $1}')"
+    if [ "${ACTUAL_SHA256}" != "${OPENMPT_SHA256}" ]; then
+        echo "fetch_third_party: SHA-256 mismatch for ${TARBALL_PATH}" >&2
+        echo "  expected: ${OPENMPT_SHA256}" >&2
+        echo "  actual:   ${ACTUAL_SHA256}" >&2
+        rm -f "${TARBALL_PATH}"
+        exit 1
+    fi
+
+    echo "fetch_third_party: unpacking to ${TPL_DIR}"
+    tar xzf "${TARBALL_PATH}" -C "${TPL_DIR}"
+fi
+
+echo "fetch_third_party: AS3D_OPENMPT_DIR=${OPENMPT_DIR}"
