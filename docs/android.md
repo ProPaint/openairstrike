@@ -180,3 +180,25 @@ asked for arm64-v8a and x86_64).
   SDL on X11/EGL/Mesa; on a host without a GLES-capable EGL backend (e.g. no
   GPU driver, no Mesa llvmpipe) it may fail to create a context. It was
   verified working on this machine (Mesa/Intel).
+- On a genuinely cold `atticpad-test` AVD boot, the very first launch of
+  `GameActivity` was observed once to recreate itself a few seconds in
+  (visible as a second `GL_VENDOR/GL_RENDERER/GL_VERSION` + `AS3D_BOOT_OK`
+  sequence in logcat, with no crash), and the resulting run then stalled
+  without reaching `AS3D_FRAME 300` inside the 120 s window — most likely two
+  overlapping SDL/EGL contexts in the same process racing on SwiftShader
+  while the emulator's display metrics were still settling right after
+  `sys.boot_completed=1`. It did not reproduce on an already-booted/warm
+  emulator. `tools/android_smoke.sh` mitigates this with an 8 s settle delay
+  after boot and a single force-stop-and-relaunch retry if the first attempt
+  times out without a crash signature; this was sufficient in testing (the
+  retry was not even needed on the run this was verified with). If it
+  reproduces on a slower machine, the same technique should still recover
+  the app since it comes up cleanly on relaunch.
+- The `out/android_smoke.png` screenshot from the emulator run looks
+  portrait-shaped despite the manifest's `android:screenOrientation="landscape"`;
+  the triangle renders correctly but is stretched by the window's aspect
+  ratio (the shader does no aspect correction, out of scope for this
+  bring-up milestone). Whether this is the AVD's headless
+  (`-no-window`) mode not rotating its virtual display, or something else,
+  was not root-caused; worth checking on a physical device or a windowed
+  emulator run.
