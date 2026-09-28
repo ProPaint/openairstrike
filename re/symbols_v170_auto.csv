@@ -1,0 +1,87 @@
+address,name,evidence_string,confidence
+0042aea0,Brightness,Brightness:,renamed
+0042aea0,Camera,Camera:,also_matches(function already renamed to 'Brightness')
+004218b0,ChoosePixelFormat,"ChoosePixelFormat(): failed.
+",renamed
+0040b850,CryptText,"CryptText: Failed.
+",renamed
+0042b710,Difficulty,Difficulty:,renamed
+004062c0,ERROR,"ERROR: Unknown level identifier '%s'.
+",ambiguous(4 candidates)
+00409860,ERROR,"ERROR: Unknown level identifier '%s'.
+",ambiguous(4 candidates)
+00409ba0,ERROR,"ERROR: Unknown level identifier '%s'.
+",ambiguous(4 candidates)
+0040c990,ERROR,"ERROR: Unknown level identifier '%s'.
+",ambiguous(4 candidates)
+0040e0d0,Enteties,Enteties: ,renamed
+00420b80,F_Init,"F_Init: No data files were found.
+
+",renamed
+00420a60,F_LoadPackFile,"F_LoadPackFile: Too many paks.
+",renamed
+0042aea0,Fullscreen,Fullscreen:,also_matches(function already renamed to 'Brightness')
+00412220,GL_Init,"GL_Init: No hardware acceleration detected.
+",renamed
+00401050,G_LoadBin,"G_LoadBin: Illegal '%s' version. 
+",renamed
+00406880,G_LoadLevelList,G_LoadLevelList: Couldn't open '\maps\levels.txt',renamed
+0040afc0,G_LoadObjects,"G_LoadObjects: Couldn't find object files.
+",renamed
+0040b850,HttpOpenRequest,"HttpOpenRequest: Failed.
+",also_matches(function already renamed to 'CryptText')
+0040b850,InternetAttemptConnect,"InternetAttemptConnect: Failed.
+",also_matches(function already renamed to 'CryptText')
+0040b850,InternetConnect,"InternetConnect: Failed.
+",also_matches(function already renamed to 'CryptText')
+0040b850,InternetOpen,"InternetOpen: Failed.
+",also_matches(function already renamed to 'CryptText')
+00422670,Joy_Init,"Joy_Init: Joystick disabled by user.
+
+",renamed
+00428320,MISSILES,MISSILES (Page 1 of 2),ambiguous(2 candidates)
+00428580,MISSILES,MISSILES (Page 1 of 2),ambiguous(2 candidates)
+004219f0,MW_CreateWindow,"MW_CreateWindow: Couldn't register window class.
+",renamed
+00421bd0,MW_Init,MW_Init: Couldn't get OS info,renamed
+0040e0d0,Marks,Marks: ,also_matches(function already renamed to 'Enteties')
+0040e0d0,Models,Models: ,also_matches(function already renamed to 'Enteties')
+00428c00,Page,Page:,renamed
+0040a160,ParseObject,"ParseObject: Too many objects in object files.
+",renamed
+0040b850,PostScore,"PostScore: Succeeded.
+",also_matches(function already renamed to 'CryptText')
+004116f0,R_LoadModel,"R_LoadModel: Couldn't open model file '%s'.
+",renamed
+00407080,R_RegisterModel,"R_RegisterModel: Too many registered models.
+",ambiguous(2 candidates)
+00411e70,R_RegisterModel,"R_RegisterModel: Too many registered models.
+",ambiguous(2 candidates)
+00415640,R_RegisterShadow,"R_RegisterShadow: Too many shadowmaps.
+",renamed
+00418a20,RegisterTexture,"RegisterTexture: Too many registered textures.
+",renamed
+0042aea0,Resolution,Resolution:,also_matches(function already renamed to 'Brightness')
+0041c680,SL_GetExternFunc,"SL_GetExternFunc: Built-in function '%s' not supported.
+",renamed
+0041fa60,S_Init,"S_Init: Illegal BASS version.
+",renamed
+0041ff90,S_RegisterSound,"S_RegisterSound: Too many registered samples.
+",renamed
+004218b0,SetPixelFormat,"SetPixelFormat(): failed.
+",also_matches(function already renamed to 'ChoosePixelFormat')
+0040e0d0,Sprites,Sprites: ,also_matches(function already renamed to 'Enteties')
+0040e0d0,TexBinds,TexBinds: ,also_matches(function already renamed to 'Enteties')
+0040e0d0,Triangles,Triangles: ,also_matches(function already renamed to 'Enteties')
+00429360,UI_PopMenu,"UI_PopMenu: Menu stack underflow.
+",ambiguous(2 candidates)
+0042a260,UI_PopMenu,"UI_PopMenu: Menu stack underflow.
+",ambiguous(2 candidates)
+0040be90,UI_PushMenu,"UI_PushMenu: Menu stack overflowm
+",ambiguous(3 candidates)
+004292f0,UI_PushMenu,"UI_PushMenu: Menu stack overflowm
+",ambiguous(3 candidates)
+0042c000,UI_PushMenu,"UI_PushMenu: Menu stack overflowm
+",ambiguous(3 candidates)
+00421bd0,wglMakeCurrent,"wglMakeCurrent: failed.
+",also_matches(function already renamed to 'MW_Init')
