@@ -1,0 +1,497 @@
+address,name,subsystem,description,confidence,evidence
+00401000,G_XorSavePayload,save,XOR 0x63A payload with key[i&255],high,G_LoadBin/Save callers
+00401050,G_LoadBin,save,load game.bin,high,strings
+004011b0,G_SaveBin,save,write game.bin (random key; CRC-16/CCITT),high,fopen game.bin
+00401330,HUD_DrawMessage,hud,3 s fading centre message (cheats),high,0x458c70 timer 3.0
+004014c0,G_CheatInput,cheat,rolling 32-char buffer cheat matcher,high,cheat strings
+00401aa0,HUD_LoadMedia,hud,register HUD textures and type.wav,high,tga names
+00401b30,M_DrawBanner3D,menu,render rotating 3D banner object in the main menu,medium,string banner; caller 0x429c20
+00401c60,HUD_DrawLevelName,hud,typewriter level name at level start,high,level+0x10 and type sound
+00401ed0,HUD_Draw1P,hud,one-player HUD,high,mainbar layout
+00402a90,HUD_Draw2P,hud,two-player HUD,medium,called when 0x1fdb2c7
+004041b0,HUD_Frame,hud,HUD dispatcher (name/HUD/message/mouse cursor),high,callees
+00404230,SCR_DrawLoading,hud,loading screen with progress bar,high,menu\loading.tga
+00404370,SCR_DrawFade,render2d,full-screen fade overlay (inert: its timer is never set),medium,no writer of 0x458cbc
+00404410,G_RemoveEntity,game,mark entity and children removed (deferred); stop emitter; drop attach refcount,high,bit 1 set recursively; called by builtin remove
+004044b0,G_FreeEntityTree,game,free malloc'd child tree and threads,high,free of +0x57/+0x1df recursive
+00404530,G_AllocEntity,game,pop pool free list; zero; link as newest,high,free list 0x458cc4; count 0x1fdb2c8
+00404590,G_FreeEntity,game,unlink and return entity to pool; free thread/path/children,high,called from G_RunEntities
+00404680,G_GetOrigin,game,copy entity origin to vector,medium,reads +0x8f..0x97
+004046a0,G_GetTagWorldPos,game,world position of a model tag on entity (scale field 32),medium,0x410380 + axis multiply
+00404850,G_AttachToTag,game,compute child base origin/axis from parent tag,high,tag lookup and axis math
+00404a40,G_ActivateEntity,game,set script-active bit 4 recursively; enable emitter,high,builtin activate
+00404a90,G_DeactivateEntity,game,clear bit 4 recursively; disable emitter,high,builtin deactivate
+00404ae0,G_Damage,game,apply damage; run damage handler; death/kill/drop/score,high,subtracts +0x103; runs entry 11
+00404cb0,G_ParticleDamage,game,damage players or first enemy under a projected particle,high,called from particle update 0x414600
+00404e30,G_DrawHealthBar,game,enemy health bar with hbar_full/hbar_empty,high,strings
+00404fa0,G_RunInitHandler,game,run init entry on entity and children (propagates +0x77),high,entry point 9
+004050b0,G_InActivationArea,game,sphere vs activation band map_pos+16..+800; x 0..1280; z>=hmin,high,constants 80/200/1280
+00405140,G_InVisibleTerrainBox,game,sphere vs bbox of visible terrain,medium,box written by 0x415730
+004051d0,G_TouchEntity,game,screen-space touch tests vs players/enemies and touch dispatch,high,sets other; entry 12
+004055d0,G_RunCollisions,game,touch pass for root entities plus two-player push-apart,high,calls 0x4051d0; 2000 push constant
+004057c0,G_SetupTransform,game,ground/water snap; axis from angles or terrain normal; render copies,high,0x416470/0x4165f0/0x41e390
+00405930,G_ComputeScreenBounds,game,project bbox/point to screen rect and set collidable bit 8,high,0x419630/0x419540
+00405a60,G_ThinkEntity,game,per-entity update: timers; script main; transforms; render submit; children,high,call graph
+00405c70,G_SetStateRecursive,game,set +0x1a state on entity and children,high,body
+00405cc0,G_RunEntities,game,free removed; state machine; think all; collisions,high,called from G_Frame
+00405dd0,G_EvalPath,game,Bezier path position/yaw at arc parameter,high,cubic with 3.0 weights
+00405fe0,G_MoveAlongPath,game,advance along waypoint path (MoveToNextWP),high,called by 0x41ba60
+00406110,G_RotateToPath,game,turn yaw toward path direction (RotateToNextWP),high,called by 0x41ba90
+004062c0,G_FindLevel,game,find level record by id,high,ERROR Unknown level identifier
+00406340,G_ParseLevel,level,parse one levels.txt block,high,keys
+00406880,G_LoadLevelList,level,load maps\levels.txt,high,string
+00406910,G_PathSegmentYaw,level,yaw between two path points (deg),medium,atan*57.29578
+004069a0,G_BuildPath,level,sample bezier waypoint path every 8 units,medium,cubic with tangents
+00406f60,P_LoadParticleFiles,particles,parse particles/*.ps with progress,high,string particles
+00407080,G_StartLevel,level,load level assets; reset pools; spawn players; music,high,callees
+004074b0,G_FreeLevel,level,free entities/models/textures/sounds,high,callees
+00407570,PF_EndLevel,script-builtin,EndLevel: freeze world and run mission complete,high,builtin table 0x456f70
+00407590,G_ActivateMapObjects,level,activate placed objects entering the activation window,high,0x4d1ab0 cursor
+004078b0,IntroPage_dtor,intro,destructor,low,vtable
+004078e0,Intro_IsDivoGames,intro,compare name with DivoGames,high,string
+00407970,std_logic_error_ctor,crt,exception ctor,low,vftable
+004079e0,Intro_nop,intro,stub,low,size 14
+004079f0,IntroPage_dtor2,intro,destructor,low,vtable
+00407a30,IntroPage_dtor3,intro,destructor,low,vtable
+00407a80,std_exception_copy,crt,exception helper,low,exception
+00407b00,IntroImage_Begin,intro,load image; t=-0.5,high,vtable slot 1
+00407b30,IntroImage_Done,intro,true when t>=6,high,vtable
+00407b50,IntroImage_Draw,intro,centred image with 1 s fades,high,vtable
+00407cb0,IntroDivo_Begin,intro,load gfx\logo.tga,high,string
+00407ce0,IntroDivo_Done,intro,true when t>=8,high,vtable
+00407d00,IntroDivo_Draw,intro,animated DivoGames logo,high,vtable
+00407f90,Intro_Shutdown,intro,free page list,medium,_free
+00407ff0,Intro_ClearPages,intro,delete intro pages,high,callers
+00408070,G_StartIntros,intro,build intro pages from Settings.xml,high,vtables
+00408220,IntroList_free,intro,helper,low,_free
+00408260,G_IntroFrame,intro,advance/draw intro pages then start the attract level,high,caller G_Frame
+00408460,std_string_assign,crt,std helper,low,
+004084a0,std_string_dtor,crt,std helper,low,
+004084d0,Intro_NameIsDivo,intro,compare,medium,string DivoGames
+00408530,std_helper1,crt,std helper,low,
+00408550,std_helper2,crt,std helper,low,
+00408590,std_string_assign_sub,crt,std helper,low,
+00408670,std_string_assign_n,crt,std helper,low,
+00408740,std_string_append,crt,std helper,low,
+004087d0,std_list_check,crt,list too long check,low,string
+00408890,std_list_helper,crt,std helper,low,
+0040890a,Catch_All_list,crt,EH catch funclet,low,Ghidra name
+00408932,std_list_copy,crt,std helper,low,free/memcpy_s
+0040899b,Catch_All_list2,crt,EH catch funclet,low,Ghidra name
+004089d0,std_alloc_throw,crt,std helper,low,
+00408a50,G_InitActionBits,input,assign p_action bits to the binding slots,high,constants
+00408b10,G_SetPause,game,set pause flag; clear actions on resume,high,0x458eab
+00408b30,G_BeginLevel,game,apply difficulty factors; reset per-level player state; load level,high,table 0x4577d0
+00408c40,G_NewCampaign,game,reset banked score and rank; lives at level start = 2 (code without Ghidra function),high,disasm
+00408c80,G_GameOver,game,game-over state and menu,high,callees
+00408cc0,G_Init,game,boot game: data; menus; attract level; intros,high,callees
+00408dd0,G_Shutdown,game,free level and scripts; save game.bin,high,callees
+00408df0,G_Frame,game,per-frame game step,high,called by WinMain loop
+00408ec0,G_CharEvent,input,WM_CHAR to edit field or cheats,high,caller WndProc
+00408f10,G_KeyEvent,input,key press/release: hotkeys; menus; action bits,high,caller WndProc
+004091c0,IN_MouseMove,input,window to virtual mouse position,high,0x4d52f1 scale
+004091f0,G_LoadMap,level,load map (HMAP) and place objects,high,strings
+00409860,G_FindObject,game,object definition index by name (first match wins),high,ERROR Unknown object
+004098d0,G_PrecacheObject,game,register model/skin/envmap/script/attaches of a definition,high,recursion over attaches
+004099a0,G_AllocEmitterEntity,game,malloc entity holding a particle emitter,medium,malloc 0x1e3 + 0x413820
+004099f0,G_SetupTempRenderEntity,game,fill a temporary render record from a definition by name,medium,used for health bar
+00409ba0,G_InitObject,game,create entity from definition incl. attach children,high,error string G_InitObject
+0040a080,G_SpawnObject,game,G_InitObject(pooled) + ground/water snap,high,callers spawn/create/drop
+0040a160,ParseObject,game,parse one object definition block,high,auto name
+0040afc0,G_LoadObjects,game,load all objects/*.obj,high,auto name
+0040b0d0,G_NextPowerUp,player,cycle power-up selection,high,decomp
+0040b150,G_UsePowerUpSlot,player,consume power-up,high,decomp
+0040b1b0,G_NextMissile,player,cycle missile selection,high,decomp
+0040b220,G_UseMissileSlot,player,consume missile,high,decomp
+0040b280,G_NextWeapon,player,cycle to next owned weapon,high,decomp
+0040b2f0,G_SpawnPlayer,player,spawn player helicopter (RespawnPlayer),high,p_apache table
+0040b440,G_PlayerFrame,player,switch-bit edges; game-over check; mouse-control bits,high,decomp
+0040b6e0,G_BuildScoreString,net,score posting payload,medium,caller CryptText
+0040b850,G_PostScore,net,HTTP score post (auto-named CryptText),high,strings
+0040bb20,G_AwardScore,game,add score and spawn floating digits,high,score_num
+0040bd10,G_BankScore,game,bank score; update rank; lives checkpoint,high,callers
+0040bda0,G_RankIndex,game,rank value to 0..6,high,thresholds 0x457d48
+0040bde0,G_CheckHighScore,game,open name entry if qualifying,high,callers
+0040be90,G_InsertHighScore,game,insert name/score/rank into table,high,strings
+0040c020,G_FindLockTarget,weapons,nearest valid enemy ahead of the player (dy>=0.3); sets runtime bit 0x100,high,sole caller PF_LockTarget
+0040c150,V_UpdateQuake,camera,CameraQuake decay: yaw/roll/fov wobble exp(-2t),high,writes 0x1ebe604/608/62c
+0040c260,V_UpdateCamera,camera,scroll g_map_pos; follow player +-48 deadzone; clamp x 578..702; fill refdef,high,writes g_map_pos 0x4d52d8
+0040c660,V_ResetCamera,camera,level-start camera/scroll init from mode table,high,constants 32/640/42/832
+0040c770,G_ParseWeapon,weapons,parse .wpn block,high,strings
+0040c8d0,G_LoadWeapons,weapons,load weapons/*.wpn,high,strings
+0040c990,G_FindWeapon,weapons,weapon by name,high,string
+0040ca10,G_SegmentHitsRect,math,2D segment vs rect clip test,high,used for point collision and traces
+0040ccd0,R_UnpackColor,render2d,packed ABGR to float4,high,/255
+0040cd30,R_SetDrawColor,render2d,set current 2D colour,high,0x1ec1268
+0040cdb0,R_DrawStretchPic,render2d,queue textured 2D quad with s/t,high,2D list max 4096
+0040ce50,R_DrawPic,render2d,queue pic at natural texture size,high,texture size table 0x1f5bc68
+0040cee0,R_Draw2DItem,render2d,draw one 2D item (quad/fill/line/outline),high,glBegin QUADS/LINES
+0040d1c0,R_DrawFill,render2d,queue untextured filled rect,medium,tex 0
+0040d230,R_DrawOutline,render2d,queue rect with tex=-2 (line/outline),low,tex -2
+0040d2a0,R_SetFog,render,linear fog from level params; clear colour,high,glFogi LINEAR
+0040d370,R_DrawSprite,render,draw sprite/hsprite/vsprite quad,medium,types 1/3/4
+0040d7a0,R_DrawSprites,render,draw sprite list with view axes,high,loop over 0x1f38994
+0040d860,R_DrawMarks,render,decal display lists with polygon offset,high,glCallList
+0040d920,R_DrawPlanarShadow,render,flat shadow quad at terrain height,medium,shadow kind 4
+0040db20,R_DrawShadows,render,shadow pass for opaque+trans entities,high,kinds 1/4/7
+0040dd00,R_AddDynamicLight,render,add dynamic light (max 32),high,decomp
+0040dd80,R_AddSpotLight,render,add directional/spot dlight,medium,cos cone
+0040de50,R_AddEntity,render,sort refentity into bucket lists,high,512/128/256/512/128
+0040df90,R_Set2DMode,render2d,ortho 800x600 alpha blend,high,glOrtho
+0040e070,R_Render2DOnly,render,draw only 2D list (refdef NULL),high,callers
+0040e0d0,R_RenderView,render,main 3D render (auto-named Enteties),high,gluPerspective near 4
+0040e690,R_BeginFrame,render,clear buffers reset counters,high,glClear
+0040e6f0,R_EndFrame,render,brightness quad + SwapBuffers,high,SwapBuffers
+0040e840,R_ClipShadowToTerrain,render,emit baked shadow tris,low,callee of shadow build
+0040f070,R_BuildProjectedShadow,render,build shadow display list on terrain,medium,glNewList
+0040f2a0,R_BakeEntityShadow,render,bake static PROJECTED shadow at spawn,medium,callers spawn/create
+0040f300,R_ProjectShadowTris,render,per-frame shadow tris,low,callee
+0040f8c0,R_DrawProjectedShadowDyn,render,per-frame projected shadow,medium,kind 7
+0040fde0,R_DrawDynamicShadow,render,bind shadow tex and draw kind 7,medium,glBindTexture
+0040fe60,R_DrawLightning,render,lightning bolt (rflag 0x1000),medium,gfx\lightning2.tga
+00410270,R_DrawBeam,render,line beam (rflag 0x4000),low,glBegin
+00410380,R_GetTag,model,tag lookup by name ('origin' special),high,Tag '%s' not found
+00410510,R_ModelDefaultSkin,model,model +0x80 texture,medium,size 29
+00410530,R_LightEntity,render,ambient-cube + dlight software lighting,high,0.7/0.3
+00410ac0,R_DrawEntityModel,render,draw model with rflags/blend/env,high,glMultMatrixf
+004114c0,R_FindModel,model,find registered model by name,high,callers
+00411520,R_BuildModelNormals,model,normals for smooth models,low,called by R_LoadModel
+004116f0,R_LoadModel,model,load MDL file (versions 2 and 3),high,error strings (auto name)
+00411d70,R_ModelRadius,model,max corner distance of bbox,medium,8 corners
+00411e20,R_ModelBounds,model,return model bbox min/max,high,+0x84..0x98
+00411e70,R_RegisterModel,model,register model (max 1024),high,string
+00411ed0,R_FreeModels,model,free all models,high,_free
+00411fc0,GL_IsSoftwareRenderer,gl,detect 'gdi generic',medium,string
+00412050,GL_InitExtensions,gl,multitexture/vertex arrays/env add/combine/swap control,high,strings
+00412220,GL_Init,gl,OpenGL state defaults and extension check,high,error strings (auto name)
+00412530,R_ScreenShot,render,write screenshots/*,high,string
+00412720,GL_SetDetailTexture,gl,unit1 detail texture combine,medium,glTexEnvf
+004127e0,GL_SetEnvMode,gl,ENV_GLITTER/CHROME/QUAD texture setup,high,texgen sphere map
+00412b70,GL_ResetTexGen,gl,disable texgen on both units,high,glDisable
+00412be0,GL_SetBlend,gl,BLEND mode state cache,high,glBlendFunc
+00412cc0,GL_DisableBlend,gl,blend off + fog colour restore,high,glDisable
+00412d10,P_FindSystem,particles,find particle def by name,high,stride 0x138
+00412d80,P_ParseSystem,particles,parse .ps block (max 256),high,keywords
+00413780,P_ClearEmitters,particles,init emitter pool 256,high,0x6000
+004137d0,P_AllocEmitter,particles,alloc emitter from free list,high,memset
+00413820,P_SpawnEmitter,particles,create emitter and particle array,high,malloc
+004139e0,P_SetEmitterOrigin,particles,update emitter origin/axis from entity,high,caller entity think
+00413a50,P_DrawEmitter,particles,draw particles of an emitter,high,glBegin
+00414290,P_InitParticle,particles,spawn one particle,high,rand
+00414600,P_UpdateEmitter,particles,emit/integrate/fade,high,caller frame
+004149c0,P_DrawEmitters,particles,draw all emitters depthmask off,high,glDepthMask
+00414a10,P_FreeEmitters,particles,free all emitters,high,_free
+00414a70,R_BuildShadowTexture,render,render silhouette to _shadow%i texture,medium,string
+00415640,R_RegisterShadow,render,register shadow (max 4096),high,string
+004156f0,R_FreeShadows,render,free shadows,high,_free
+00415730,R_DrawTerrainNode,terrain,recursive terrain quadtree draw,medium,recursion
+00416020,R_DrawTerrain,terrain,terrain pass setup,medium,glShadeModel
+004160d0,R_DrawWater,render,animated water strips,high,1280 wide
+00416470,R_TerrainHeight,terrain,bilinear height at x;y (0 outside),high,40-unit grid
+004165f0,G_AlignToTerrain,terrain,orient entity to terrain normal,medium,caller 0x4057c0
+004167f0,R_BuildTerrainTextures,terrain,mapTexture%i generation,medium,string
+00416ba0,R_BuildTerrainQuadtree,terrain,recursive node build,low,malloc
+00416d00,R_LoadTerrainTiles,terrain,tiles\tiles%i.tga,medium,string
+00416f70,R_FreeTerrain,terrain,free terrain arrays,high,_free
+00416fd0,R_LoadTerrain,terrain,build terrain mesh/textures/detail,medium,%s\detail.tga
+004184b0,GL_Bind,gl,bind texture with cache,high,0x1f5bbe4
+004184e0,R_BlurImage,image,blur shadow image,low,callee
+004185b0,R_ResampleImage,image,image resample,low,callee
+004187e0,R_LoadTGA,image,load TGA from pak,medium,malloc/fclose
+004189d0,R_LoadImage,image,load image file,medium,callee
+00418a20,RegisterTexture,image,upload texture (max 2048),high,string
+00418c80,R_FindTexture,image,find texture by name,high,callers
+00418cf0,R_RegisterPic,image,find or load+register texture,high,26 callers
+00418d60,R_RegisterPicUI,image,variant used by UI/HUD,low,9 callers
+00418dd0,R_FreeTextures,image,delete textures,medium,glDeleteTextures
+00418e30,Matrix4x4Multiply,math,double 4x4 multiply,high,loop
+00419040,R_SetupFrustum,render,read GL matrices; extract planes,high,glGetDoublev
+00419540,R_ProjectPoint,render,world to screen pixels,high,viewport math
+00419630,R_ProjectEntityBounds,render,project 8 bbox corners to a screen rect,high,8 corners
+004198d0,R_PointOnScreen,render,point inside viewport,medium,compare
+00419920,R_RectOnScreen,render,rect inside viewport,medium,compare
+00419970,R_CullSphere,render,sphere vs 6 frustum planes,high,planes
+004199c0,R_CullBox,render,terrain node cull,medium,planes
+00419b10,V_ClampToFrustumX,camera,clamp x inside side planes with margin,high,caller V_UpdateCamera
+00419b90,SL_Error,script,fatal script error,high,decomp
+00419be0,SL_Execute,script,interpreter,high,rcsl-opcodes-v0.md
+0041a200,SL_RunEvent,script,resume main or run event handler,high,decomp
+0041a350,PF_debug,script-builtin,debug (no-op),high,builtin table 0x456f70
+0041a360,PF_random,script-builtin,random in [0;1],high,builtin table 0x456f70
+0041a380,PF_crandom,script-builtin,random in [-1;1],high,builtin table 0x456f70
+0041a3b0,PF_sin,script-builtin,sin of degrees,high,builtin table 0x456f70
+0041a3d0,PF_cos,script-builtin,cos of degrees,high,builtin table 0x456f70
+0041a3f0,PF_tan,script-builtin,tan of degrees,high,builtin table 0x456f70
+0041a410,PF_atan,script-builtin,atan (input converted from degrees; returns radians),medium,builtin table 0x456f70
+0041a430,PF_abs,script-builtin,abs,high,builtin table 0x456f70
+0041a460,PF_min,script-builtin,min,high,builtin table 0x456f70
+0041a4a0,PF_max,script-builtin,max,high,builtin table 0x456f70
+0041a4e0,PF_lerp,script-builtin,lerp(t;a;b)=a+(b-a)t,high,builtin table 0x456f70
+0041a500,PF_vec_copy,script-builtin,vec_copy(src;dst),high,builtin table 0x456f70
+0041a520,PF_vec_add,script-builtin,vec_add(a;b;out),high,builtin table 0x456f70
+0041a550,PF_vec_sub,script-builtin,vec_sub(a;b;out)=a-b,high,builtin table 0x456f70
+0041a580,PF_vec_ma,script-builtin,vec_ma(a;s;b;out)=a+s*b,high,builtin table 0x456f70
+0041a5e0,PF_vec_length,script-builtin,vector length,high,builtin table 0x456f70
+0041a630,PF_vec_norm,script-builtin,normalize in place; returns length,high,builtin table 0x456f70
+0041a650,PF_vec_scale,script-builtin,scale in place,high,builtin table 0x456f70
+0041a680,PF_vec_setlen,script-builtin,set vector length,high,builtin table 0x456f70
+0041a6a0,PF_vec_toyaw,script-builtin,direction to yaw degrees minus 90,high,builtin table 0x456f70
+0041a730,PF_vec_toangles,script-builtin,direction to angles,high,builtin table 0x456f70
+0041a750,PF_ClearAxis,script-builtin,reset axis to identity,high,builtin table 0x456f70
+0041a780,PF_AnglesToAxis,script-builtin,axis from angles,high,builtin table 0x456f70
+0041a7a0,PF_create,script-builtin,create(name;pos*): spawn object; copy angles and player index; init; one think,high,builtin table 0x456f70
+0041a980,PF_remove,script-builtin,remove entity (deferred),high,builtin table 0x456f70
+0041a9a0,PF_activate,script-builtin,activate entity,high,builtin table 0x456f70
+0041a9c0,PF_deactivate,script-builtin,deactivate entity,high,builtin table 0x456f70
+0041a9e0,PF_getentity,script-builtin,raw entity pointer to handle (+0x7B),high,builtin table 0x456f70
+0041aa00,PF_setskin,script-builtin,set entity skin,high,builtin table 0x456f70
+0041aa30,PF_AttachEntity,script-builtin,attach entity to parent tag,high,builtin table 0x456f70
+0041aa90,PF_AttachActivate,script-builtin,activate direct child by id,high,builtin table 0x456f70
+0041ab50,PF_AttachDeactivate,script-builtin,deactivate direct child by id,high,builtin table 0x456f70
+0041ac10,PF_AttachCallback,script-builtin,run callback on child by id,high,builtin table 0x456f70
+0041ada0,PF_ParentCallback,script-builtin,run callback on parent,high,builtin table 0x456f70
+0041ae80,PF_callback,script-builtin,run callback on entity,high,builtin table 0x456f70
+0041af60,PF_move,script-builtin,origin += v*frametime,high,builtin table 0x456f70
+0041afb0,PF_movex,script-builtin,origin.x += v*frametime,high,builtin table 0x456f70
+0041afd0,PF_movey,script-builtin,origin.y += v*frametime,high,builtin table 0x456f70
+0041aff0,PF_movez,script-builtin,origin.z += v*frametime,high,builtin table 0x456f70
+0041b010,PF_rotate,script-builtin,angles += v*frametime,high,builtin table 0x456f70
+0041b060,PF_rotatex,script-builtin,angle x += v*frametime,high,builtin table 0x456f70
+0041b080,PF_rotatey,script-builtin,angle y += v*frametime,high,builtin table 0x456f70
+0041b0a0,PF_rotatez,script-builtin,angle z += v*frametime,high,builtin table 0x456f70
+0041b0c0,PF_sleep,script-builtin,latent wait (ends by timeout),high,builtin table 0x456f70
+0041b0d0,PF_Shoot,script-builtin,Shoot(weapon;tag;dir*): spawn projectile and flash,high,builtin table 0x456f70
+0041b550,PF_Damage,script-builtin,Damage(h;amount*g_damage_factor),high,builtin table 0x456f70
+0041b5d0,PF_RadialDamage,script-builtin,per-frame radial damage to enemies (grows with distance),high,builtin table 0x456f70
+0041b750,PF_RotateTo,script-builtin,turn yaw/pitch toward a point (latent),high,builtin table 0x456f70
+0041b9c0,PF_RotateToClamp,script-builtin,RotateTo with clamp,high,builtin table 0x456f70
+0041ba60,PF_MoveToNextWP,script-builtin,latent path move,high,builtin table 0x456f70
+0041ba90,PF_RotateToNextWP,script-builtin,latent path rotate,high,builtin table 0x456f70
+0041bab0,PF_GetWaypointDelay,script-builtin,delay of waypoint i mod n,high,builtin table 0x456f70
+0041baf0,PF_TerrainHeight,script-builtin,terrain height at x;y,high,builtin table 0x456f70
+0041bb20,PF_PlaceLight,script-builtin,add dynamic light for this frame,high,builtin table 0x456f70
+0041bb40,PF_LockTarget,script-builtin,lock nearest enemy ahead,high,builtin table 0x456f70
+0041bb60,PF_IsValidTarget,script-builtin,entity alive test,high,builtin table 0x456f70
+0041bb90,PF_CameraQuake,script-builtin,start camera quake for 3 s,high,builtin table 0x456f70
+0041bbc0,SL_FindCachedSound,script,CASH kind-3 lookup,high,decomp
+0041bc50,PF_StartSound,script-builtin,play sound on self,high,builtin table 0x456f70
+0041bca0,PF_StopLoopingSound,script-builtin,stop self looping channel,high,builtin table 0x456f70
+0041bcd0,PF_StartLoopingSound,script-builtin,start looping sound on self,high,builtin table 0x456f70
+0041bd40,PF_TraceLine,script-builtin,screen-space segment trace returning first hit,high,builtin table 0x456f70
+0041bea0,PF_TraceLineDamage,script-builtin,screen-space segment damage,high,builtin table 0x456f70
+0041c000,PF_Lightning,script-builtin,beam damage to enemies within 500,high,builtin table 0x456f70
+0041c170,PF_PushPlayer,script-builtin,push player velocity away from self,high,builtin table 0x456f70
+0041c210,PF_G_AddPowerUp,script-builtin,add power-ups (max 99),high,builtin table 0x456f70
+0041c2b0,PF_G_GetPowerUp,script-builtin,current power-up or -1,high,builtin table 0x456f70
+0041c2d0,PF_G_UsePowerUp,script-builtin,consume current power-up,high,builtin table 0x456f70
+0041c2f0,PF_G_AddMissiles,script-builtin,add missiles (max 99),high,builtin table 0x456f70
+0041c390,PF_G_GetMissiles,script-builtin,current missile type or -1,high,builtin table 0x456f70
+0041c3b0,PF_G_UseMissile,script-builtin,consume current missile,high,builtin table 0x456f70
+0041c3d0,PF_G_GetUpgrade,script-builtin,weapon upgrade level (i<20),high,builtin table 0x456f70
+0041c440,PF_G_SetUpgrade,script-builtin,set weapon upgrade level (i<20),high,builtin table 0x456f70
+0041c4c0,PF_ShowTutorialHint,script-builtin,message box with STRG text (thunk to 0x42c000),high,builtin table 0x456f70
+0041c4e0,PF_PlayerFreezeHealth,script-builtin,nesting invulnerability counter per player,high,builtin table 0x456f70
+0041c530,PF_FreezeHealth,script-builtin,set/clear entity runtime bit 0x10,high,builtin table 0x456f70
+0041c560,PF_PlayerDisableAction,script-builtin,disable player input and clear p_action,high,builtin table 0x456f70
+0041c5b0,PF_SetFlag,script-builtin,returns a|b,high,builtin table 0x456f70
+0041c5e0,PF_ClearFlag,script-builtin,returns a&~b,high,builtin table 0x456f70
+0041c610,PF_SetModel,script-builtin,change entity model,high,builtin table 0x456f70
+0041c640,PF_RespawnPlayer,script-builtin,respawn player helicopter,high,builtin table 0x456f70
+0041c680,SL_GetExternFunc,script,builtin table lookup,high,string
+0041c6e0,SL_FindGlobal,script,globals table lookup,high,decomp
+0041c730,SL_FreeScripts,script,free loaded scripts,medium,decomp
+0041c7d0,SL_CreateThread,script,thread and frame allocation,high,rcsl-container.md
+0041c8f0,SL_PrecacheScript,script,resolve CASH entries,high,decomp
+0041c980,SL_LoadScript,script,RCSL loader,high,magic RCSL
+0041cdc0,CFG_SetResolution,config,video mode to width/height,high,string
+0041cef0,CFG_Read,config,read config.ini,high,strings
+0041d810,CFG_Write,config,write config.ini,high,strings
+0041dd60,CFG_Init,config,locate/read config; setup dialog,high,-setup
+0041de40,Setup_InitDialog,config,fill setup dialog controls,medium,SendDlgItemMessage
+0041df40,Setup_ReadDialog,config,read setup dialog,medium,SendDlgItemMessage
+0041e070,Sys_Crc16,save,CRC helper for G_LoadBin,low,caller
+0041e0b0,Com_Printf,sys,log to game.log,high,string game.log
+0041e130,PerpendicularVector,math,perpendicular vector,medium,math
+0041e220,VectorNormalize,math,normalize vector,high,17 callers
+0041e2a0,VectorSetLength,math,scale vector to length,high,math
+0041e320,AngleMod360,math,wrap angle,high,math
+0041e390,AnglesToAxis,math,angles (degrees) to 3x3 axis,high,sin/cos
+0041e4f0,VectorToAngles,math,direction to angles,medium,atan
+0041e600,Matrix3_TransformVector,math,3x3 times vector,medium,math
+0041e650,Matrix3_Multiply,math,3x3 multiply,high,math
+0041e730,Matrix3_Inverse,math,3x3 inverse/transpose,high,math
+0041e810,Sys_InitSineTable,math,450 floats at 0x1fa92a0,medium,caller Sys_Init
+0041e850,COM_ParseError,parse,fatal parse error,high,string
+0041e880,COM_ParseToken,parse,next token,high,strings
+0041ea50,COM_OpenTextFile,parse,open text file for the tokenizer,high,malloc
+0041eb30,Settings_Init,settings,init settings strings,medium,
+0041ec10,Settings_Free,settings,free settings,medium,_free
+0041ed70,Settings_FreeLists,settings,free settings lists,low,_free
+0041eee0,Settings_Load,settings,load Settings.xml,high,string
+0041f010,Settings_Parse,settings,parse XML tags,high,strings
+0041f550,std_string_from_cstr,crt,std helper,low,
+0041f570,std_string_helper,crt,std helper,low,
+0041f610,thunk_std_list_free,crt,thunk to 0x41f740,low,thunk
+0041f620,std_string_find,crt,std helper,low,
+0041f720,std_list_new,crt,std helper,low,operator_new
+0041f740,std_list_free,crt,std helper,low,_free
+0041f790,std_list_check2,crt,list too long check,low,string
+0041f830,COM_StripExtension,util,strip extension,high,
+0041f880,S_PlayMusic,sound,start module at order,high,BASS_ChannelPlay
+0041f8d0,S_PlayChannel2D,sound,play sample 2D,high,BASS
+0041f940,S_PlayChannel3D,sound,play sample 3D,high,BASS
+0041f9c0,S_SetVolumes,sound,sample/stream/music volume,high,BASS_SetConfig
+0041fa60,S_Init,sound,BASS initialisation (22050 Hz; 3D factors),high,error strings (auto name)
+0041fb90,S_FreeAll,sound,free samples and music,high,BASS_SampleFree
+0041fc00,S_StopAll,sound,BASS_Stop and clear channels,high,BASS_Stop
+0041fc30,S_Update,sound,listener + channel positions each frame,high,BASS_Apply3D
+0041fd20,S_ChangeMusic,sound,load/jump music (order 35 on game over),high,BASS_MusicLoad
+0041fdf0,S_StartSound,sound,play sample attached to entity,high,BASS_ChannelPlay
+0041fef0,S_StartLocalSound,sound,play UI sample 2D,high,BASS_ChannelPlay
+0041ff30,S_FindSound,sound,find registered sample,high,callee
+0041ff90,S_RegisterSound,sound,register sample (max 511),high,string
+00420100,UI_LoadSkinImages,ui,load image list from Settings.xml,low,std::list
+004202c0,UI_FreeSkinImages,ui,free list,low,_free
+00420340,UI_DrawSkinImages,ui,draw list as 2D pics,low,callee
+00420410,UI_ListNewNode,ui,list node alloc,low,operator_new
+00420450,UI_ListInsert,ui,list insert,low,list<T> too long
+004204f0,Sys_Error,sys,fatal error: message box and shutdown,high,MessageBoxA
+004205a0,Sys_CheckParm,sys,look up a command-line argument,high,callers
+00420600,Sys_OpenURL,sys,ShellExecute,high,ShellExecuteA
+00420620,Sys_Init,sys,subsystem initialisation,high,callees
+004206c0,Sys_RestartVideo,sys,restart window/sound after option change,high,callees
+00420750,Sys_Quit,sys,shutdown; save config; exit,high,callees
+004207d0,Sys_PostClose,sys,SendMessage WM_CLOSE,high,SendMessageA
+004207f0,WinMain,sys,entry and main loop,high,timeGetTime loop
+00420a20,F_Decrypt,fs,XOR with 1024-byte key,medium,
+00420a60,F_LoadPackFile,fs,load pak directory,high,string
+00420b80,F_Init,fs,file system init,high,string
+00420d30,F_Shutdown,fs,close paks,medium,_fclose
+00420d70,F_OpenFile,fs,open from pak or data\,high,string data\%s
+00420f60,F_GetFileLocation,fs,locate file for BASS,medium,string data\%s
+00421120,F_Read,fs,read,high,_fread
+004211b0,F_FileLength,fs,file length,medium,_ftell
+00421210,F_Seek,fs,seek,medium,_fseek
+004212a0,F_FindFirst,fs,find first file,high,FindFirstFileA
+00421400,F_FindNext,fs,find next file,high,FindNextFileA
+00421500,MW_EnumDisplayModes,window,enumerate display modes,high,EnumDisplaySettingsA
+004216c0,MW_SetDisplayMode,window,change display mode,high,ChangeDisplaySettingsA
+004218b0,MW_SetPixelFormat,window,choose/set pixel format,high,ChoosePixelFormat
+00421980,MW_CenterWindow,window,center window,medium,SetWindowPos
+004219f0,MW_CreateWindow,window,register class and create window,high,string
+00421bd0,MW_Init,window,window and GL context init,high,string
+00421d70,MW_Shutdown,window,destroy window and context,high,DestroyWindow
+00421df0,MW_PumpMessages,window,Peek/Get/Dispatch message loop,high,GetMessageA
+00421e60,MW_DisableSysKeys,window,hotkeys and screensaver off,medium,RegisterHotKey
+00421ea0,MW_EnableSysKeys,window,restore system keys,medium,UnregisterHotKey
+00421ee0,MW_WndProc,window,window procedure (code without Ghidra function; address stored by MW_CreateWindow),high,RegisterClassA
+00422292,UI_ListClick_case4,ui,switch case fragment of the list widget,low,Ghidra name caseD_4
+00422670,Joy_Init,input,joystick init,high,string
+00422830,Joy_POV,input,hat to key events,high,decomp
+004229c0,Joy_Axes,input,stick to key events,high,decomp
+00422bd0,Joy_Frame,input,poll joystick buttons each frame,high,decomp
+00422da0,In_KeyName,input,key code to name,high,strings
+00422f10,M_DrawKeyBinding,menu,binding row text,medium,string or %s
+00423520,M_ControlsMenu,menu,key configuration menu,high,strings
+00423740,UI_DrawTextItem,ui,draw text item,medium,
+00423780,UI_InitKeyItem,ui,init key-binding item,medium,
+004237f0,UI_KeyItemCapture,ui,capture key for binding,medium,
+00423a20,UI_DrawKeyItem,ui,draw key-binding item,medium,
+00423c90,UI_InitListItem,ui,init list item,medium,
+00423d00,UI_ListHelper,ui,list helper,low,
+00423d30,UI_ListClick,ui,list click,medium,
+00424030,UI_DrawList,ui,draw list item,medium,
+004244d0,UI_InitSpinner,ui,init spinner item,medium,
+004246e0,UI_DrawSpinner,ui,draw spinner item,high,
+004247c0,UI_InitHeliGrid,ui,init helicopter grid,high,
+00424900,UI_HeliGridClick,ui,helicopter grid click,high,
+004249f0,UI_DrawHeliGrid,ui,draw helicopter grid,medium,
+00425240,UI_EditHelper,ui,edit field helper,low,
+00425290,UI_DrawString,ui,text draw,high,24 callers
+00425750,UI_DrawStringCentered,ui,centred text,medium,flag 0x4000
+004258f0,HUD_DrawNumber,hud,8x16 grid digit font,high,
+00425a10,UI_DrawMenu,ui,draw items and tooltip,high,
+004260b0,UI_EditChar,ui,edit field character input,medium,_memmove
+00426190,UI_DrawEdit,ui,draw edit field,medium,
+00426360,M_DrawMissionComplete,menu,stats and rank,high,strings
+004267a0,M_MissionCompleteMenu,menu,build mission complete menu,high,strings
+004269b0,G_MissionComplete,game,unlock helicopter/mission and choose screen,high,callers
+00426c90,M_ExitConfirmMenu,menu,exit yes/no menu,high,strings
+00426df0,M_GameCompleteAction,menu,game complete button,high,
+00426e40,M_GameCompleteKey,menu,game complete key,medium,
+00426e70,M_DrawCongrats,menu,congratulations text,high,strings
+004270a0,M_DrawGameComplete,menu,final stats,high,strings
+004274f0,M_GameCompleteMenu,menu,build game complete menu,high,strings
+00427670,M_DrawGameOver,menu,draw game over,medium,
+004278a0,M_GameOverMenu,menu,build game-over menu,high,strings
+00427aa0,M_PageStory1,menu,info page,high,strings
+00427b70,M_PageStory2,menu,info page,high,strings
+00427c20,M_PageOverview,menu,info page,high,strings
+00427ce0,M_PageWeapons1,menu,info page,high,strings
+00427f40,M_PageWeapons2,menu,info page,high,strings
+004281b0,M_PageWeapons3,menu,info page,high,strings
+00428320,M_PageMissiles1,menu,info page,high,strings
+00428580,M_PageMissiles2,menu,info page,high,strings
+00428680,M_PageItems,menu,info page,high,strings
+004288e0,M_PageCredits,menu,info page,high,strings
+00428c00,M_InfoPage,menu,info page frame,medium,string Page:
+00428d00,M_InfoMenu,menu,information menu,high,strings
+00428fa0,M_InGameMenu,menu,Esc menu,high,strings
+00429190,UI_KeyEvent,ui,key to current menu,high,
+00429200,UI_UpdateHover,ui,hover update,high,
+004292f0,UI_PushMenu,ui,push menu,high,string
+00429360,UI_PopMenu,ui,pop menu,high,string
+004293d0,UI_ItemAtCursor,ui,hit test,high,
+00429420,UI_InitItemRect,ui,item rectangle,medium,
+00429490,UI_AddItem,ui,add item to menu,high,13 callers
+00429560,UI_SelectNext,ui,next selectable item,medium,
+004295e0,UI_EnablePost,ui,post button enable,low,
+00429630,UI_MenuKey,ui,menu keyboard navigation,high,
+004298c0,UI_LoadMedia,ui,font and menu textures and sounds,high,strings
+004299f0,UI_Frame,ui,menu frame and cursor,high,
+00429b20,M_MainMenuAction,menu,main menu buttons,high,
+00429bf0,M_MainMenuKey,menu,main menu key,high,
+00429c20,M_DrawMainMenu,menu,draw main menu,high,
+00429f60,M_BuildMainMenu,menu,build main menu,high,strings
+0042a260,M_ShowMainMenu,menu,pop all and push main,high,string
+0042a580,M_NameEntryMenu,menu,high score name entry,medium,strings
+0042a680,M_FillResolutions,menu,resolution list,medium,string %d Hz
+0042a710,M_OptionsHelper,menu,options helper,low,
+0042a8e0,M_OptionsApply,menu,options apply,low,
+0042a9f0,M_SetBinding,menu,assign key,medium,decomp
+0042aea0,M_OptionsMenu,menu,options menu,high,strings
+0042b710,M_StartGameMenu,menu,start game menu (difficulty/mission/heli),high,strings
+0042beb0,M_MessageBoxBuild,menu,message box build,high,strings
+0042c000,UI_MessageBox,ui,ShowTutorialHint/credits box,high,string
+0042c1d0,M_DrawTopScores,menu,draw top scores,high,strings
+0042c660,M_TopScoresMenu,menu,top scores menu,high,strings
+0042c7f0,XML_FreeString,settings,XML helper,low,_free
+0042c800,XML_Parse,settings,XML parse,medium,
+0042c900,XML_FreeTree,settings,XML helper,low,callee 0x42ccf0
+0042c920,XML_ParseNode,settings,XML node,low,
+0042cc70,XML_FreeNode,settings,XML helper,low,_free
+0042cc90,XML_NewNode,settings,XML helper,low,operator_new
+0042ccf0,XML_FreeChildren,settings,recursive XML free,low,recursion
+0042cda0,XML_Stub1,settings,4-byte stub,low,size
+0042cdb0,XML_Stub2,settings,4-byte stub,low,size
+0042cdc0,XML_Stub3,settings,4-byte stub,low,size
+0042cdd0,XML_Helper,settings,XML helper,low,
+0042ce30,XML_AddAttribute,settings,XML helper,low,operator_new
+0042cee0,XML_GetAttribute,settings,attribute lookup,low,callee 0x42d0e0
+0042cf10,XML_GetAttributeInt,settings,attribute as int,low,_atol
+0042cf40,XML_GetAttributeFloat,settings,attribute as float,low,_atof
+0042cf80,XML_SetAttribute,settings,XML helper,low,operator_new
+0042d030,XML_SetAttributeInt,settings,int to attribute,low,__itoa
+0042d080,XML_SetAttributeFloat,settings,float to attribute,low,_sprintf
+0042d0e0,XML_FindAttribute,settings,attribute search,low,5 callers
+0042d130,XML_IsNameChar,settings,identifier character test,low,_isalpha
+0042d190,XML_NewString,settings,XML helper,low,operator_new
+0042d1e0,XML_Free1,settings,XML helper,low,_free
+0042d1f0,XML_Free2,settings,XML helper,low,_free
+0042d200,XML_Tokenize,settings,XML tokenizer,low,isalpha
+0042d3f0,XML_Helper2,settings,XML helper,low,
+0042d400,XML_CopyString,settings,XML helper,low,memcpy
+00440870,_ftol2,crt,float to int truncation,high,x87 conversion
+00440960,sin,crt,sin,high,builtin sin calls it
+00440a50,sqrt,crt,square root,medium,called for vector length
+00440b70,cos,crt,cos,high,builtin cos calls it
