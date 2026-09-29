@@ -157,6 +157,7 @@ void World::step(const PlayerInput& input) {
     activateMapObjects();
     if (!intermission_ && !gameOver_) playerFrame();
     runEntities();
+    updateParticles();
     renderPass();
     ++frame_;
 }

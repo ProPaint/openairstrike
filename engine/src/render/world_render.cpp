@@ -285,7 +285,6 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     im.memory.assign(static_cast<size_t>(kMaxEntitySlots), SlotMemory());
     im.marks.clear();
     im.lastMarkDescs.clear();
-    particles_.reset(1);
     const Terrain* t = world.terrain();
     if (!t) return true; // an empty test level: nothing to build
     std::unique_ptr<TerrainRenderer> tr(new TerrainRenderer());
@@ -616,7 +615,7 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
     setCull(CullMode::Back);
     // Pass 10: particles.
     if (options.particles) {
-        particles_.collect(im.emitters);
+        world.particles().collect(im.emitters);
         ParticleViewParams pv;
         pv.view = wv.view;
         pv.projection = wv.projection;

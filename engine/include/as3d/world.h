@@ -29,6 +29,7 @@ class DefDatabase;
 class Vfs;
 class GameScriptHost;
 class GamePath;
+class WorldParticles;
 
 // ---------------------------------------------------------------------------------------
 // Limits and layouts.
@@ -387,6 +388,10 @@ public:
     void dismissHint();
     script::u64 hintsShown() const { return hintsShown_; }
 
+    // --- particles (world_particles.cpp): the particle-system instances of the emitter
+    // holders, simulated at step 7 of the frame (engine-behaviour.md 2); read by the renderer.
+    const WorldParticles& particles() const { return *particles_; }
+
     // --- paths (world_path.cpp) ---------------------------------------------------
     const GamePath* pathOfPlacement(size_t placementIndex) const;
 
@@ -470,6 +475,7 @@ private:
     void activateMapObjects();
     void playerFrame();
     void runEntities();
+    void updateParticles(); // step 7, not while paused
     void freeRemoved();
     bool inActivationArea(const Entity& e) const;
     void renderPass(); // computes the matrices the next frame's collision uses
@@ -483,6 +489,7 @@ private:
     WorldConfig config_;
     Rng rng_{1};
     std::unique_ptr<GameScriptHost> host_;
+    std::unique_ptr<WorldParticles> particles_;
     script::BuiltinReport report_;
     WorldStats stats_;
 

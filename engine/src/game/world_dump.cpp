@@ -7,6 +7,7 @@
 #include <string>
 
 #include "as3d/world.h"
+#include "as3d/world_particles.h"
 #include "world_internal.h"
 
 namespace as3d {
@@ -52,7 +53,12 @@ std::string World::dumpStateJson() const {
             static_cast<unsigned long long>(stats_.scriptErrors), static_cast<unsigned long long>(stats_.stalls),
             static_cast<unsigned long long>(stats_.spawnRefused), static_cast<unsigned long long>(stats_.entitiesCreated),
             static_cast<unsigned long long>(stats_.entitiesFreed), stats_.maxListEntities, stats_.maxSlotsInUse);
-    appendf(s, "  \"globals\": {\"self\": \"%08x\", \"other\": \"%08x\", \"cb\": [\"%08x\", \"%08x\", \"%08x\"]},\n",
+    appendf(s,
+            "  \"particles\": {\"emitters\": %d, \"live\": %d, \"refused\": %llu, \"hash\": \"%08x\", "
+            "\"damage_players\": \"%08x\", \"damage_enemies\": \"%08x\"},\n",
+            particles_->emitterCount(), particles_->liveParticles(), static_cast<unsigned long long>(particles_->refused()),
+            particles_->stateHash(), fbits(particles_->damageToPlayers()), fbits(particles_->damageToEnemies()));
+    appendf(s, "  \"globals\":{\"self\": \"%08x\", \"other\": \"%08x\", \"cb\": [\"%08x\", \"%08x\", \"%08x\"]},\n",
             selfBits, otherBits, cbMsgBits, cbParm1Bits, cbParm2Bits);
     s += "  \"camera\": [";
     for (int k = 0; k < kCameraFieldCount; ++k) appendf(s, "%s\"%08x\"", k ? ", " : "", fbits(camera_.field[k]));

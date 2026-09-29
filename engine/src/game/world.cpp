@@ -9,6 +9,7 @@
 #include "as3d/model.h"
 #include "as3d/script_host.h"
 #include "as3d/vfs.h"
+#include "as3d/world_particles.h"
 #include "world_internal.h"
 #include "world_path.h"
 
@@ -47,7 +48,8 @@ constexpr DifficultyRow kDifficulty[5] = {
 } // namespace
 
 World::World()
-    : ents_(static_cast<size_t>(kMaxEntitySlots)),
+    : particles_(new WorldParticles()),
+      ents_(static_cast<size_t>(kMaxEntitySlots)),
       tombs_(static_cast<size_t>(kMaxEntitySlots), std::vector<u32>(static_cast<size_t>(kEntityFieldCount), 0u)) {}
 
 World::~World() {
@@ -667,6 +669,14 @@ void World::resetLevelState() {
     time_ = 0.0f;
     levelClock_ = 0.0f;
     selfBits = otherBits = cbMsgBits = cbParm1Bits = cbParm2Bits = 0;
+    // The particle instances have their own random stream, restarted with every level so a
+    // level's particles do not depend on what ran before (seed never 0 for xorshift).
+    particles_->reset(config_.seed * 2654435761u + 1u);
+}
+
+void World::updateParticles() {
+    if (paused_) return;
+    particles_->update(*this, frametime_);
 }
 
 void World::resetPlayersForLevel() {

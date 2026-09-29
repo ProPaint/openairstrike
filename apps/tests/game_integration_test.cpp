@@ -414,7 +414,7 @@ TEST_CASE("mission 1 with the bot renders sensible frames") {
     CHECK(maxEmitters > 0);
     CHECK(maxParticles > 0);
     CHECK(rotorChanges > 1000); // spinning nearly every frame
-    CHECK(view.renderer().particles().emitterCount() > 0);
+    CHECK(s.world().particles().emitterCount() > 0);
 }
 
 TEST_CASE("rendering does not perturb the simulation") {
@@ -457,11 +457,8 @@ TEST_CASE("particles are deterministic") {
         GameSession s;
         std::string err;
         REQUIRE_MESSAGE(s.init(level1Options(), &err), err);
-        WorldParticles particles;
-        for (u32 f = 0; f < 600; ++f) {
-            s.step(botInput(f));
-            if (!s.world().paused()) particles.update(s.world(), s.world().config().dt);
-        }
+        for (u32 f = 0; f < 600; ++f) s.step(botInput(f));
+        const WorldParticles& particles = s.world().particles();
         CHECK(particles.emitterCount() > 0);
         CHECK(particles.liveParticles() > 0);
         hash[run] = particles.stateHash();
