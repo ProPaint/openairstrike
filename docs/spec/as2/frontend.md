@@ -1065,3 +1065,170 @@ A menu, not part of the HUD: 3.15.
 6. Typewriter and messages: as the base.
 7. Weapon level: shown (new pips); stars and boss bar: not shown.
 8. Two-player layout: 4.3.
+
+## 5. Mission flow and progression
+
+Relation to the base §5: **changed**: a campaign checkpoint written at every mission end and
+resumed from the menu, a weapon loadout per mission, portrait dialogues before the
+mission-complete screen, a helicopter selection screen, 18 missions and 6 helicopters. The game
+rules are in [engine-behaviour.delta.md](engine-behaviour.delta.md) 7, 8.2 and 10; this section
+says what the front end does to them, and lists where the two documents disagree (5.12).
+
+### 5.1 Starting a game (`G_NewGame` as2@0x410dc0, VERIFIED-CODE)
+
+Only the helicopter selection's Start/Continue button (id 1) starts a game: it frees the level,
+pops every menu, looks up the selected mission's level record and runs `G_NewGame`:
+
+1. If the selected mission index is 0, or differs from the **checkpoint mission**
+   (as2@0x49ddf4), the checkpoint is reset: mission −1 and, in both player records, checkpoint
+   lives 2, score 0, rank 0.
+2. For both records: lives at level start = checkpoint lives, banked score = checkpoint score,
+   rank accumulator = checkpoint rank.
+3. With `-god` on the command line, god mode.
+4. The mission's weapon loadout (engine-behaviour.delta.md 8.2) is applied to both players.
+5. `G_BeginLevel` (level start, 5.2).
+
+So picking the mission that follows the last completed one resumes the campaign ("Continue" on the
+button) with its lives, score and rank; any other choice starts fresh with three helicopters.
+The check is repeatable: the checkpoint is kept, so Continue can be chosen again after a Quit.
+Mission index 0 (the tutorial) can never be a Continue.
+
+### 5.2 Level start
+
+As engine-behaviour.delta.md 7.4 and 10.2: per player, `p_lives` = lives at level start,
+`p_scores`, `p_stars`, kills = 0, `p_counter3` = 1, `p_action` = 0; weapon upgrades untouched (set
+by the loadout on a new game and on both restarts, carried over by Next); missiles and power-ups
+cleared at every spawn. The loading comic (3.16) is shown while the level loads; on missions with
+a start dialogue the dialogue opens right after (3.19), with the game paused.
+
+### 5.3 End of mission (`EndLevel` as2@0x40e730 → `M_ShowPortraitDialog` → `G_MissionComplete` as2@0x427f40)
+
+1. `EndLevel` writes the checkpoint for the next mission (mission index + 1; for both records:
+   lives = ftol(`p_lives`), score = ftol(banked + `p_scores`), rank = accumulator + stars ratio +
+   0.5 × score ratio), hides the HUD, shows the end dialogue if the mission has one (3.19), and
+   pauses.
+2. When the dialogue has faded out (or at once, without a dialogue), `G_MissionComplete`: unlocks
+   the helicopter named by the level's `enableHelic` when 0..5, unlocks mission (index + 1) mod 18,
+   and pushes Game Complete after mission 18, otherwise Mission Complete.
+
+So the unlocks happen after the end dialogue, and the checkpoint before it. Nothing is banked at
+this point (the checkpoint already holds what banking would give).
+
+### 5.4 Banking (`G_BankScore` as2@0x414540, same code as the base)
+
+Banked score += `p_scores`; rank accumulator += stars ratio + 0.5 × score ratio; lives at level
+start = `p_lives`, for each of the player count's records. Called by Mission Complete → Next,
+Game Complete → Continue, Game Over → Quit. Not by Mission Complete → Quit or Restart, Game Over →
+Restart, the in-game menu's Restart or Quit.
+
+What each button does (VERIFIED-CODE as2@0x427a20, 0x428ac0, 0x428140, 0x42a8c0, 0x428fb0):
+
+| Button | Lives | Score | Rank accumulator | Weapon upgrades | Checkpoint | High-score check |
+|---|---|---|---|---|---|---|
+| Mission complete: Next | lives at start = `p_lives` | banked | banked | kept | unchanged | no |
+| Mission complete: Restart | as the mission began | mission score discarded | unchanged | mission loadout | unchanged | no |
+| Mission complete: Choose Helicopter, then Accept or Esc | – | – | – | – | – | – (only the helicopter index changes, at each arrow click) |
+| Mission complete: Quit | – | not banked | not banked | – | still the finished mission's | no |
+| Game over: Restart | as the mission began | mission score discarded | unchanged | mission loadout | unchanged | no |
+| Game over: Quit | banked | banked | banked | – | unchanged | yes |
+| In-game menu: Restart | as the mission began | discarded | unchanged | mission loadout | unchanged | no |
+| In-game menu: Quit | – | lost | lost | – | unchanged | no |
+| Game complete: Continue | banked | banked | banked | – | mission 18 (never offered) | yes |
+
+Consequence: Mission Complete → Quit loses nothing of the finished mission, because Start Game
+then preselects the next mission and its button reads Continue (VERIFIED-CODE chain
+as2@0x40e730, 0x42d8b0, 0x429530, 0x410dc0). After mission 18 the checkpoint is 18, outside the
+preselection range 1..17, so a finished campaign is never offered as Continue.
+
+### 5.5 Score, maximum score, stars, kills
+
+As the base §5.5 and engine-behaviour.delta.md 6.1, 10.2, 10.4 (kills capped at the enemy total;
+the objects spawned while loading are not counted in the totals, issue 211). The meaning of the
+fields is confirmed by the screens that read them (answer to rcsl-builtins-semantics.delta.md
+open question 1): record +0x140 banked score (compared by the high-score check, restored by
+`G_NewGame`), +0x144 rank accumulator (the rank line), +0x148 kills (the "Enemies destroyed" line),
++0x158/+0x15C/+0x160 checkpoint lives/score/rank (restored by `G_NewGame`); as2@0x5432c4 maximum
+level score and as2@0x543294 star total (the denominators of the rank line and of "Stars
+collected"), as2@0x5432c0 enemy total, as2@0x49ddf4 the checkpoint mission (not "the highest level
+unlocked"). VERIFIED-CODE as2@0x427b60, 0x410dc0, 0x414610.
+
+### 5.6 Lives and continues
+
+As the base §5.6 with engine-behaviour.delta.md 7.4: a fresh game gives two spare helicopters;
+extra lives from the 1-Up item; up to 10 icons on the HUD; game over when `p_lives` < 0 (one
+player) or both < 0 (two players); Restart replays the mission with the lives it began with, any
+number of times. The checkpoint (5.1) is the new form of "continue" across sessions: it is saved
+in `game.bin` (6.1) unless a cheat was used.
+
+### 5.7 Unlocking
+
+- Missions: the Start Game list shows all 18; locked ones are disabled. Missions 1 and 2 are
+  unlocked in a fresh save; completing mission i unlocks mission i + 1 (mission 18 unlocks mission
+  1, which is always unlocked). VERIFIED-CODE as2@0x427f40.
+- Helicopters: entry 0 is unlocked in a fresh save; missions 4, 7, 10, 13 and 16 unlock entries 1
+  to 5 through `enableHelic` (VERIFIED-DATA, `levels.txt`). Mission Complete then shows "New
+  helicopter is available." The selection screen shows every helicopter; a locked one is drawn as
+  the grey silhouette with "NOT AVAILABLE" and cannot be started with (3.18).
+- Unlocks are global to the save, never re-locked.
+
+### 5.8 The six helicopters
+
+Table as2@0x49ddf8 order (engine-behaviour.delta.md 7.6), display names (table as2@0x49cbec,
+texts in section 7), and the two bars of the selection screen, from the definitions in
+`objects\player.obj` (VERIFIED-DATA):
+
+| Index | Object | Display name | Health (Armor bar = health / 800) | `speed` (Speed bar = speed / 1.5) | Unlocked by |
+|---|---|---|---|---|---|
+| 0 | `player_1` | Green Viper | 500 | 1.0 | – |
+| 1 | `player_2` | Sky Keeper | 400 | 1.25 | mission 4 |
+| 2 | `player_4` | Steel Falcon | 600 | 0.85 | mission 7 |
+| 3 | `player_6` | Venomous Thorn | 600 | 1.2 | mission 10 |
+| 4 | `player_5` | DG 17-F | 800 | 0.7 | mission 13 |
+| 5 | `player_3` | Lava Hammer | 300 | 1.4 | mission 16 |
+
+Unlike the first game, the helicopters differ in play: health and the `speed` factor
+(engine-behaviour.delta.md 7.3, 7.4). At boot both players' index is 0; the choice is not saved.
+
+### 5.9 Two-player rules in the menus
+
+- Chosen with Start Game's "Game mode" spinner ("Single Player" / "Cooperative"), which sets the
+  flag at once; Next sets the player count.
+- The selection screen gets a "Player:" spinner; each player picks with the arrows; Start needs
+  both choices unlocked; the panel is 20 px taller.
+- Mission Complete hides the statistics (VERIFIED-CODE as2@0x427b60 tests the flag) but still
+  shows the new-helicopter line; there is no high-score check; banking covers both records; the
+  checkpoint and `G_NewGame` always treat both records.
+- Game over only when both are out (engine-behaviour.delta.md 7.5).
+
+### 5.10 Difficulty
+
+Chosen per game in Start Game (Very Easy … Nightmare, reset to Normal at each opening); the factor
+table and its use are unchanged (engine-behaviour.delta.md 6.3). A Continue uses the difficulty
+chosen now, not the one of the checkpoint (the checkpoint does not store it; VERIFIED-CODE
+as2@0x406c70, 0x410dc0). The rank factor applied by Mission Complete is read from as2@0x49dee4
+(GUESS: the fourth factor of the current difficulty, copied there at level start next to the
+damage factor as2@0x49ded8).
+
+### 5.11 Rank
+
+Same as the base §5.11 (thresholds 3, 7.5, 14, 22, 30 at as2@0x49e654; names at as2@0x49cba4;
+Cheater when a cheat was used; `G_RankIndex` as2@0x4145d0 identical). Mission Complete shows the
+rank of (stars ratio + 0.5 × score ratio + accumulator) × rank factor; the high-score entry stores
+the rank of the accumulator × rank factor after banking.
+
+### 5.12 Special missions and disagreements with engine-behaviour.delta.md
+
+- Tutorial (mission 1), bonus missions (7, 13), boss missions (6, 12, 18): no front-end code treats
+  them specially (VERIFIED-CODE, the screens of this section read); their dialogues are ordinary
+  table entries. Missions 7 and 13 have neither a start nor an end dialogue.
+
+Disagreements (this document wins for the front end; the delta is not edited):
+
+| Delta | Says | This spec | Evidence |
+|---|---|---|---|
+| 1.3 state 4 | the selection menu "replaces the Start Game grid" | the start is two screens: Start Game (mission, difficulty, game mode, Next) then the helicopter selection | as2@0x42d7b0 |
+| 1.3 state 4, open question 7 | " Accept " when opened from mission complete; case 1 of the action starts a game | " Accept " has id 8 and only pops back to Mission Complete; the helicopter is written by the arrows; case 1 is Start/Continue only | as2@0x428fb0, 0x4295e8 |
+| 1.3 state 7 | in-game menu "same as v1.70" | text buttons and a fourth button, Restart, which re-applies the loadout | as2@0x42aa20, 0x42a8c0 |
+| 8.2 | the loadout is applied by `G_NewGame` and the two restarts | also by the in-game menu's Restart | as2@0x42a8c0 |
+| 10.3 step 2 | `G_MissionComplete` unlocks | yes, after the end dialogue has faded out, not at `EndLevel` | as2@0x4231b0 |
+| open question 4 | how the end dialogue hands over | answered: 3.19 and 5.3 | as2@0x4231b0, 0x4234b0 |
