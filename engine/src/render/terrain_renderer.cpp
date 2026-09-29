@@ -122,7 +122,7 @@ void generateBaseTextureRgb(const LevelData& level, const Image textures[4], int
     }
 }
 
-void tileCornerUvs(int atlasWidth, int atlasHeight, int tileIndex, int rotation, Vec2 out[4]) {
+void tileCornerUvs(int atlasWidth, int atlasHeight, int tileIndex, int rotation, Vec2 out[4], bool halfTexelInset) {
     int perRow = std::max(1, atlasWidth / 64);
     int perCol = std::max(1, atlasHeight / 64);
     float du = 1.0f / static_cast<float>(perRow);
@@ -132,6 +132,13 @@ void tileCornerUvs(int atlasWidth, int atlasHeight, int tileIndex, int rotation,
     int row = (idx / perRow) % perCol; // indices past the atlas wrap (GL_REPEAT in the original)
     float u0 = du * static_cast<float>(col), u1 = u0 + du;
     float vTop = dv * static_cast<float>(row), vBot = vTop + dv; // v = 0 at the image top
+    if (halfTexelInset && atlasWidth > 0 && atlasHeight > 0) {
+        const float iu = 0.5f / static_cast<float>(atlasWidth), iv = 0.5f / static_cast<float>(atlasHeight);
+        u0 += iu;
+        u1 -= iu;
+        vTop += iv;
+        vBot -= iv;
+    }
     // Spec corners A=(u0,v0) B=(u1,v0) C=(u1,v1) D=(u0,v1) with v0 the lower edge in GL
     // bottom-up terms: A = bottom-left, B = bottom-right, C = top-right, D = top-left.
     Vec2 A{u0, vBot}, B{u1, vBot}, C{u1, vTop}, D{u0, vTop};
@@ -140,6 +147,46 @@ void tileCornerUvs(int atlasWidth, int atlasHeight, int tileIndex, int rotation,
         case 6: out[0] = C; out[1] = D; out[2] = A; out[3] = B; break;
         case 9: out[0] = B; out[1] = C; out[2] = D; out[3] = A; break;
         default: out[0] = A; out[1] = B; out[2] = C; out[3] = D; break;
+    }
+}
+
+void centralDifferenceNormals(const TerrainGridView& grid, std::vector<Vec3>& out) {
+    out.clear();
+    if (!grid.valid()) return;
+    const int vw = grid.vertsWide(), vh = grid.vertsHigh();
+    out.resize(static_cast<size_t>(vw) * static_cast<size_t>(vh));
+    for (int r = 0; r < vh; ++r) {
+        for (int c = 0; c < vw; ++c) {
+            float sx = 0.0f, sy = 0.0f;
+            if (c > 0 && c < vw - 1) sx = (grid.at(c + 1, r).z - grid.at(c - 1, r).z) / (2.0f * kHmapCellSize);
+            if (r > 0 && r < vh - 1) sy = (grid.at(c, r + 1).z - grid.at(c, r - 1).z) / (2.0f * kHmapCellSize);
+            out[static_cast<size_t>(r) * vw + c] = normalize(normalize(Vec3{-sx, 0.0f, 1.0f}) + normalize(Vec3{0.0f, -sy, 1.0f}));
+        }
+    }
+}
+
+void sequelTerrainColours(const TerrainGridView& grid, const std::vector<Vec3>& normals, const TerrainStyle& st,
+                          std::vector<TerrainVertexColor>& out) {
+    out.clear();
+    if (!grid.valid() || normals.size() != static_cast<size_t>(grid.vertsWide()) * grid.vertsHigh()) return;
+    const float sun[3] = {st.sun[0], st.sun[1], st.sun[2]};
+    const float amb[3] = {st.sun[6], st.sun[7], st.sun[8]};
+    Vec3 L{st.sun[3], st.sun[4], st.sun[5]};
+    L = length(L) > 0.0f ? normalize(L) : Vec3{0.0f, 0.0f, 1.0f};
+    out.resize(normals.size());
+    for (size_t i = 0; i < normals.size(); ++i) {
+        const float z = grid.positions[i].z;
+        float f = 1.0f;
+        if (st.hasWater && z < st.waterLevel) {
+            const float denom = st.waterLevel - st.hmin;
+            f = std::fabs(denom) > 1e-9f ? (z - st.hmin) / denom : 0.0f;
+        }
+        const float d = std::min(1.0f, std::max(0.0f, dot(normals[i], L)));
+        float rgb[3];
+        for (int k = 0; k < 3; ++k) rgb[k] = std::min(255.0f, std::max(0.0f, (sun[k] * d + amb[k]) * f * 255.0f));
+        out[i].r = static_cast<u8>(static_cast<int>(rgb[0]));
+        out[i].g = static_cast<u8>(static_cast<int>(rgb[1]));
+        out[i].b = static_cast<u8>(static_cast<int>(rgb[2]));
     }
 }
 
@@ -157,6 +204,13 @@ struct TerrainRenderer::Impl {
     std::vector<Texture2D> baseTextures;
     Texture2D detail;
     std::vector<std::unique_ptr<TileBatch>> tiles;
+    // CPU copies for update(): the chunk vertices as uploaded (chunk k's first vertex is
+    // chunkFirst[k], (rows + 1) x (W + 1) of them) and, per tile batch, its vertices and the
+    // cell of every 6-vertex quad.
+    std::vector<Vertex> cpu;
+    std::vector<size_t> chunkFirst;
+    std::vector<std::vector<Vertex>> tileCpu;
+    std::vector<std::vector<std::pair<u16, u16>>> tileCells;
 };
 
 TerrainRenderer::TerrainRenderer() : impl_(new Impl) {}
@@ -164,10 +218,18 @@ TerrainRenderer::~TerrainRenderer() = default;
 
 int TerrainRenderer::chunkCount() const { return static_cast<int>(impl_->chunks.size()); }
 
-bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error) {
+bool TerrainRenderer::chunkRows(int k, int& rowStart, int& rows) const {
+    if (k < 0 || k >= chunkCount()) return false;
+    rowStart = impl_->chunks[static_cast<size_t>(k)].rowStart;
+    rows = impl_->chunks[static_cast<size_t>(k)].rows;
+    return true;
+}
+
+bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error, const RenderRules& rules) {
     Impl& im = *impl_;
     im = Impl{};
     missing_ = 0;
+    lastUpdated_ = 0;
     if (!terrain.level() || terrain.positions().empty()) {
         if (error) *error = "terrain not built";
         return false;
@@ -215,14 +277,25 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
     std::vector<u16> tri, wire;
     im.chunks.resize(static_cast<size_t>(nChunks));
     const auto& pos = terrain.positions();
-    const auto& col = terrain.colors();
-    const auto& nrm = terrain.normals();
+    // Normals and static colours: the terrain's own (the first game's rules), or the sequels'
+    // central differences with their colour formula (delta 12.2), from the heights at build.
+    std::vector<Vec3> seqNormals;
+    std::vector<TerrainVertexColor> seqColours;
+    if (rules.terrainCentralNormals) {
+        const TerrainGridView grid = TerrainGridView::of(terrain);
+        centralDifferenceNormals(grid, seqNormals);
+        sequelTerrainColours(grid, seqNormals, def, seqColours);
+    }
+    const auto& col = rules.terrainCentralNormals ? seqColours : terrain.colors();
+    const auto& nrm = rules.terrainCentralNormals ? seqNormals : terrain.normals();
+    im.chunkFirst.resize(static_cast<size_t>(nChunks));
     for (int k = 0; k < nChunks; k++) {
         Chunk& ch = im.chunks[static_cast<size_t>(k)];
         ch.rowStart = k * kChunkRows;
         ch.rows = std::min(kChunkRows, H - ch.rowStart);
         ch.block = ch.rowStart / kBaseTextureRows;
         size_t base = verts.size();
+        im.chunkFirst[static_cast<size_t>(k)] = base;
         ch.bmin = {1e30f, 1e30f, 1e30f};
         ch.bmax = {-1e30f, -1e30f, -1e30f};
         for (int lr = 0; lr <= ch.rows; lr++) {
@@ -267,10 +340,11 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
     im.wireIbo.upload(wire.data(), wire.size() * sizeof(u16), IndexType::U16);
     im.triVao.create(im.vbo, terrainLayout(), &im.triIbo);
     im.wireVao.create(im.vbo, terrainLayout(), &im.wireIbo);
+    im.cpu = verts;
 
     // Tile overlays, one batch per atlas.
-    std::map<int, TileBatch*> bySet;
     std::map<int, std::vector<Vertex>> tileVerts;
+    std::map<int, std::vector<std::pair<u16, u16>>> tileCellsOf;
     std::map<int, std::vector<std::pair<int, int>>> tileRanges;
     std::map<int, std::pair<int, int>> atlasSize;
     for (const LevelCell& c : level.cells) {
@@ -295,7 +369,9 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
                     const LevelCell& cell = level.cellAt(c, r);
                     if (cell.tileSet != set) continue;
                     Vec2 uv[4];
-                    tileCornerUvs(kv.second.first, kv.second.second, cell.tileIndex, cell.tileRotation, uv);
+                    tileCornerUvs(kv.second.first, kv.second.second, cell.tileIndex, cell.tileRotation, uv,
+                                  rules.tileHalfTexelInset);
+                    tileCellsOf[set].push_back({static_cast<u16>(c), static_cast<u16>(r)});
                     size_t g[4] = {static_cast<size_t>(r) * vw + c, static_cast<size_t>(r) * vw + c + 1,
                                    static_cast<size_t>(r + 1) * vw + c + 1, static_cast<size_t>(r + 1) * vw + c};
                     Vertex q[4];
@@ -329,8 +405,68 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
         }
         batch->ranges = tileRanges[kv.first];
         im.tiles.push_back(std::move(batch));
+        im.tileCpu.push_back(std::move(tv));
+        im.tileCells.push_back(std::move(tileCellsOf[kv.first]));
     }
     return true;
+}
+
+void TerrainRenderer::update(const VertexRect* rects, size_t count, const TerrainGridView& grid) {
+    Impl& im = *impl_;
+    lastUpdated_ = 0;
+    if (!im.terrain || !grid.valid() || grid.width != im.terrain->width() || grid.height != im.terrain->height()) return;
+    const int W = grid.width, vw = grid.vertsWide();
+    // Tile quads: corners v00, v11, v01, v00, v10, v11 (the order build() writes).
+    static const int kCornerDc[6] = {0, 1, 0, 0, 1, 1}, kCornerDr[6] = {0, 1, 1, 0, 0, 1};
+    for (size_t k = 0; k < im.chunks.size(); ++k) {
+        Chunk& ch = im.chunks[k];
+        const int r0 = ch.rowStart, r1 = ch.rowStart + ch.rows;
+        bool touched = false;
+        for (size_t i = 0; i < count && !touched; ++i) {
+            const VertexRect& rc = rects[i];
+            touched = !rc.empty() && rc.r0 <= r1 && rc.r1 >= r0 && rc.c0 <= W && rc.c1 >= 0;
+        }
+        if (!touched) continue;
+        // The chunk's own vertices, positions only.
+        const size_t first = im.chunkFirst[k];
+        const size_t n = static_cast<size_t>(ch.rows + 1) * static_cast<size_t>(vw);
+        for (int lr = 0; lr <= ch.rows; ++lr) {
+            for (int c = 0; c <= W; ++c) {
+                const Vec3& p = grid.at(c, r0 + lr);
+                Vertex& v = im.cpu[first + static_cast<size_t>(lr) * vw + c];
+                v.pos[0] = p.x;
+                v.pos[1] = p.y;
+                v.pos[2] = p.z;
+                ch.bmin.z = std::min(ch.bmin.z, p.z);
+                ch.bmax.z = std::max(ch.bmax.z, p.z);
+            }
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, im.vbo.id());
+        glBufferSubData(GL_ARRAY_BUFFER, static_cast<GLintptr>(first * sizeof(Vertex)),
+                        static_cast<GLsizeiptr>(n * sizeof(Vertex)), &im.cpu[first]);
+        // Its tile overlays.
+        for (size_t b = 0; b < im.tiles.size(); ++b) {
+            const auto range = im.tiles[b]->ranges[k];
+            if (range.second <= 0 || !im.tiles[b]->vbo.valid()) continue;
+            std::vector<Vertex>& tv = im.tileCpu[b];
+            for (int q = 0; q < range.second / 6; ++q) {
+                const size_t quad = static_cast<size_t>(range.first / 6 + q);
+                const auto cell = im.tileCells[b][quad];
+                for (int j = 0; j < 6; ++j) {
+                    const Vec3& p = grid.at(cell.first + kCornerDc[j], cell.second + kCornerDr[j]);
+                    Vertex& v = tv[quad * 6 + static_cast<size_t>(j)];
+                    v.pos[0] = p.x;
+                    v.pos[1] = p.y;
+                    v.pos[2] = p.z;
+                }
+            }
+            glBindBuffer(GL_ARRAY_BUFFER, im.tiles[b]->vbo.id());
+            glBufferSubData(GL_ARRAY_BUFFER, static_cast<GLintptr>(static_cast<size_t>(range.first) * sizeof(Vertex)),
+                            static_cast<GLsizeiptr>(static_cast<size_t>(range.second) * sizeof(Vertex)),
+                            &tv[static_cast<size_t>(range.first)]);
+        }
+        ++lastUpdated_;
+    }
 }
 
 namespace {
