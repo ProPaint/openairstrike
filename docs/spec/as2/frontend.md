@@ -1389,3 +1389,123 @@ file for AS2 is `texts_as2.txt` (`tools/games.json`).
 Not listed (dropped with their features): the nag-screen and end-of-demo texts (3.21), the "Post
 Scores" caption, the debug statistics labels, the key names of the controls screen (identical to
 the first game's table, which the engine already has).
+
+## 8. Touch adaptation notes
+
+Relation to the base §7: **changed** per screen; the input model is the same (every activation
+happens on the button press, the item under the pointer at that moment is hit-tested; focus
+follows the pointer; there is no hover on touch and no right button). Facts only: what each screen
+of the original depends on, and what a landscape device without keyboard or mouse lacks. The
+touch additions of issue 090 (spinner back zone, slider drag, on-screen keyboard, Clear/Cancel on
+the controls screen) address the same gaps as in the first game.
+
+| Screen | Inputs used by the original | Missing on touch-only |
+|---|---|---|
+| Logo pages, intro comic | any key or button ×4 speed per press, no skip | none (a tap speeds up); the comic lasts 45 s at speed 1 |
+| Main menu | six text buttons (246×30); Esc ignored | none |
+| Exit confirmation | YES / NO are plain text labels with 50×16 and 40×16 hit rectangles; Esc = NO | small targets; Esc |
+| Start Game | list (20-px rows, 15-px scroll boxes), two spinners (a click cycles forward only), Back / Next buttons | reverse spinner cycling; list scrolling by keys; small scroll boxes |
+| Helicopter selection | two arrow pictures (16×40 and 20×44), Player spinner (forward only), Start/Accept, Back | none essential (the arrows cycle both ways); small arrows |
+| Options | spinners, sliders, text buttons | reverse cycling; slider drag depends on hover, as the base |
+| Configure controls | a key or button press to bind; Backspace/Delete; Esc | the whole screen needs a keyboard or gamepad |
+| Information | page spinner (forward only), PgUp/PgDn/Left/Right, Back | going back a page; the drawn "PgUp/PgDown" hints refer to keys |
+| Credits, Top Scores | Back | none |
+| Name entry | typing; Ok or Enter; Esc swallowed | a text input method |
+| Portrait dialogue | Enter, Esc, Space, left or right button: complete or skip a page | none (a tap is the left button) |
+| Tutorial hint | Ok button, Enter, Esc, Space | none |
+| In-game menu | opened by Esc; four buttons | a way to open it (the touch overlay's pause control, issue 130 §3) |
+| Pause | P / Pause | a pause control |
+| Mission complete, game over, game complete | text buttons; Esc swallowed | none |
+| Playing | ten actions as in the base; mouse control **on by default**: player 1 steers by the mouse's motion relative to the window centre (the cursor is re-centred every frame), and the default bindings put fire, missile and power-up on the three mouse buttons (6.2) | touch controls for the ten actions (issue 100); relative mouse steering has no finger equivalent without a drag model; the three mouse-button defaults need other controls |
+| Hotkeys, cheats | F5–F9, typed words | as the base |
+| Two players | two binding sets | as the base |
+
+Other facts: the text buttons slide in from the bottom edge (0.25 s) while their hit rectangles
+are already in place (2.5); the 3D helicopter preview needs a viewport inside the 4:3 area
+(3.18).
+
+## 9. Reuse assessment for the implementer
+
+Relation: **new** (no base section). Our front end (`engine/src/ui`, headers
+`engine/include/as3d/{menu,frontend,ui}.h`, progression in `as3d/profile.h`, game rules in
+`as3d/game_profile.h`) against what AS2 needs. "Data" means reusable once per-game tables
+(positions, colours, atlas pieces, texture paths) are passed in; "new" means code that does not
+exist in any form.
+
+| Module | What it does today | For AS2 | Verdict |
+|---|---|---|---|
+| `menu.cpp` (MenuSystem: stack, focus, hover, generic keys, sounds) | the base §2.1–2.4 | same logic; add the menu open value f (0.125 s; widgets of types text, edit, list, spinner, slider hidden until f = 1) and let items keep the no-hover-sound flag the AS2 initialisers set | reusable, small addition |
+| `menu_widgets.cpp` (widget logic and drawing, `widgets::letterbox/header/panel/text`) | the base §2.5, 3.1 | widget logic the same; drawing needs a per-game style: colours (green / orange / grey), list outline and scroll bar pieces from `interface.tga`, spinner without box, slider pieces; the text button (2.5) is a new widget with its slide-in (our `addTextButton` is a different, touch-only look); the picture item (type 2); `widgets::panel` must become the AS2 panel (3.1) and `widgets::header` the title logo; the letterbox is not used | logic reusable; style data; text button, picture, panel, title logo new |
+| `renderer2d.cpp` (quad list, GL batches) | ALPHA, ADD (ONE, ONE), FILTER, opaque; lines, outlines | the title logo needs a **rotated quad** and a quad with a **second texture combined by ADD** with its own UVs (3.1, render-pipeline.delta.md 8.2); ADD already ignores alpha, as the HUD pips need | reusable; two primitives new |
+| `font.cpp` | additive, alpha and number fonts; measuring skips braces (issue 091) | identical fonts and advance table; AS2 measures without braces too | reusable as is |
+| `assets.cpp` (`UiAssets`) | loads the first game's HUD and menu textures | AS2 set: `gfx\ui\interface.tga`, `snow.tga`, `mainbar2.tga`, `portraits2.tga`, `grid.tga`, `helicna.tga`, `gfx\logo\*.tga`, the comic tiles (`texture()` can load those on demand) | data (per-game list) |
+| `hud.cpp` (`drawHud`, typewriter, message, hint layout) | the base §4 | typewriter, message line and number drawing reusable; the one- and two-player layouts, bar, pips, timers, 10 lives are new art and positions (4.2, 4.3); `HudPlayer` needs maximum health, upgrade levels of 9 slots (already there as `upgrades`) and the selected-power-up rules | helpers reusable; layouts new |
+| `screens_main.cpp` (main menu, exit, credits-less information) | the base S1, S2, S8 | new main menu (six text buttons, title logo, no banner), exit panel, Information with 8 pages and explicit icons, a Credits screen | new builders on the shared system |
+| `screens_start.cpp` (Start Game with grid) | the base S3 | Start Game without grid, then a new helicopter selection screen with a 3D preview (needs a new `GameHost` call to draw a helicopter object in a viewport, like `drawBanner`) | new |
+| `screens_options.cpp` (Options, Controls) | the base S6, S7 | same items and logic, new positions (+40 / +30 px), panel, text buttons | data (layout) + panel |
+| `screens_scores.cpp` (Top Scores, name entry) | the base S4, S5 | same logic, new layout and panel | data (layout) + panel |
+| `screens_game.cpp` (in-game menu, hint, game over, mission complete, game complete) | the base S12–S16 | in-game menu gains Restart; hint box: panel and H = 18n + 60; game over, mission complete and game complete are new layouts (comic tiles, panel, Choose Helicopter, 11-line typewriter) | new builders; hint logic reusable |
+| `frontend.cpp` (state machine, `GameHost`, intro pages, loading screen) | the base §1, §5 | same skeleton; new: comic intro pages after the logo pages; portrait dialogues (start: paused with HUD; end: then mission complete); `EndLevel` → dialogue → `G_MissionComplete`; Start → selection → `G_NewGame` with the checkpoint; Restart applies the loadout; comic loading screen (`drawLoadingScreen` per game) | reusable skeleton; flow additions new |
+| `frontend_texts.cpp` (`Texts`, Settings.xml) | keys and defaults of the first game | the AS2 keys (section 7) are mostly the same names; add defaults for the new short labels; the extraction tool must read `tools/exe_texts/as2.json` (addresses, kinds, `text_ml`, `u32`) instead of its hard-coded v1.70 table | reusable; tool generalised |
+| `profile.h` / save (`Progress`, `Campaign`, `Settings`) | high scores, unlocks, settings | add the checkpoint (mission, per player lives, score, rank) and its "none when a cheat was used" rule; `Progress::defaults` must follow the game (AS2: only helicopter 0 unlocked, 18 missions); `Settings.mouseControl` default from `GameRules::mouseControlDefault` (1); AS2 fire-key defaults on the mouse buttons (6.2) | reusable with per-game data |
+| `game_profile.h` (`GameRules`, `FrontendStyle`) | per-game rules; `FrontendStyle::SequelMenus` reserved | already has `campaignCheckpoint`, `missionLoadout`, `lifeIconsMax`, `healthBarScaleFromMax`, `statsOnlyOnePlayer`, `mouseControlDefault`; missing: the dialogue table source (texts file), the loading-comic ranges (missions 1–7, 8–13, 14–18), the helicopter display order, which is in `heliObjects` | small additions |
+
+## 10. Open questions and corrections to other specs
+
+Relation: **new** content (the base §8 and §9 are the template).
+
+### 10.1 Open questions
+
+Ordered by impact on a playable game.
+
+1. **Two-player menus and HUD not seen running** (medium): layouts were read and emulated, not
+   played (the player spinner's stale value, 3.18; the HUD's second column, 4.3).
+2. **Helicopter selection backdrop UVs** (low): the original passes zero divisors to the tiling
+   helper (as2@0x4290c0), so what it shows is undefined by the code; GUESS one tile of texels
+   0..120 per 120-px square.
+3. **Rank factor global** as2@0x49dee4 (low): GUESS the current difficulty's rank factor (5.10).
+4. **Continue before it is drawn** (low): whether Game Complete's Continue can be clicked during its
+   first 4 s (the hit rectangle exists; the button is drawn from mt = 4). GUESS yes.
+5. **Music** (low): none started by the logo page (GUESS silent), none by Game Complete (GUESS the
+   mission's music keeps playing).
+6. **List thumb travel** (low): the scroll thumb's position formula was not traced (2.5).
+7. **Text-button item field +0x24** (low): 0xFFFFFF on every button, reader not found.
+8. **3D preview constants** (low): the two values −100 and 100 stored by as2@0x4079c0 (GUESS near
+   and far planes of the preview).
+
+Quirks of the original and the choices this spec recommends are in
+[issue 240](issues/240-frontend-quirks-and-choices.md).
+
+### 10.2 Answers to questions handed to this package
+
+- engine-behaviour.delta.md open question 4 (hand-over from the end dialogue): 3.19 and 5.3.
+- engine-behaviour.delta.md open question 7 (" Accept "): it only pops back to Mission Complete;
+  the choice was stored by the arrows (3.18, 5.12).
+- rcsl-builtins-semantics.delta.md open question 1 (record +0x140, +0x144, +0x158..+0x160;
+  as2@0x5432c4, as2@0x543294): confirmed by the screens that read them (5.5).
+- rcsl-builtins-semantics.delta.md open question 2 (what as2@0x4234b0 and the game-over menu
+  show): the portrait dialogue (3.19) or, without one, the mission-complete screen at once; the
+  game-over screen is 3.10.
+
+### 10.3 Corrections to other specs
+
+Other specs are not edited by this package; this document wins where they differ.
+
+| Spec, place | Says | Correct | Evidence |
+|---|---|---|---|
+| engine-behaviour.delta.md 1.3 state 4 | the selection menu replaces the Start Game grid; " Accept " when opened from mission complete, case 1 starts a game | Start Game (mission, difficulty, game mode) then the selection; Accept (id 8) only pops | as2@0x42d7b0, 0x428fb0, 0x4295e8 |
+| engine-behaviour.delta.md 1.3 state 7, 8.2 | in-game menu same as v1.70; loadout on new game and the two restarts | the in-game menu has a fourth button, Restart, which also applies the loadout | as2@0x42aa20, 0x42a8c0 |
+| engine-behaviour.delta.md 10.3 | unlocks by `G_MissionComplete` (timing unstated) | after the end dialogue has faded out | as2@0x4231b0 |
+| engine-behaviour.delta.md 10.1 | the loading comic sets by mission index 0..6, 7..12, 13..17 | confirmed (3.16) | as2@0x40acc0 |
+| rcsl-builtins-semantics.delta.md, `EndLevel` step 1 | as2@0x49ddf4 GUESS "the highest level unlocked" | the checkpoint mission, read by `G_NewGame` and the Continue caption | as2@0x410dc0, 0x4295e8 |
+| rcsl-builtins-semantics.delta.md, `GameOver` | the music routine stops the module and, GUESS, starts a game-over tune | the current module jumps to pattern order 35, as in v1.70 | as2@0x410e75..0x410e8b |
+| render-pipeline.delta.md 8.2 | the second texture "used by the new menu drawers (header gradient as2@0x417a90, frames as2@0x417b60)" | as2@0x417a90 is used once, by the title logo (logo + clouds, ADD); as2@0x417b60 draws texel rectangles at texel size with one texture (no second texture); the rotation is used by the title logo's emblem | as2@0x42b610, 0x417b60 |
+| symbol-map.md "Removed" | `M_DrawCongrats` v170@0x426e70 removed; `Sys_RestartVideo` v170@0x4206c0 removed | both exist as code outside export functions: the typewriter at as2@0x4281c0, the video restart at as2@0x405b40 | immediates of the congratulation strings; jump from as2@0x42c54d |
+| symbol-map.md "New functions" and `re/symbols_as2.csv` | 0x4290c0 `M_DrawHeliStats`; 0x428fb0 "starts 'mission1'"; 0x42c560 `M_OptionsApply`; 0x42c690 unnamed; 0x4245a0/0x424300/0x424370 "key item"; 0x40b260 subsystem 2d | the grid backdrop; starts the selected mission; the per-frame Options update (Apply is as2@0x42c4a0); `M_SetBinding`; the slider; `G_RootAddRef` (only caller `Shoot`) | `re/symbols_as2_frontend.csv` |
+| `re/symbols_as2_data.csv` | the missile icon table has no mapping | as2@0x49e278 (5 × 4 floats), weapon icon table as2@0x49e1e8, weapon maximum levels as2@0x49e1c4 | 4.4 |
+| ../frontend.md §6.1 (v1.70) | `game.bin` is written at program exit "(Exit → Yes, window close)" | not on window close: only Exit → Yes, the video restart, the fatal-error box and a dormant purchase action call `G_SaveBin` (callers of v170@0x4011b0: v170@0x408dd0 reached only from v170@0x429bc7, 0x4204f0, 0x4206c0, and the exit action); confidence medium for v1.70 (the window-close path was read in AS2 only) | callers listed |
+| ../frontend.md §3.14 and §8 question 5 (v1.70) | which icon each Information paragraph shows is a GUESS | for AS2 the pages place each icon explicitly next to its heading (3.14); the first game's pages were not re-read | as2@0x429950..0x42a550 |
+
+## Changelog
+
+- 1.0 (B7): first version.
