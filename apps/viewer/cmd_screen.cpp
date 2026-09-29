@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-#include "as3d/textblock.h"
+#include "as3d/defs.h"
 #include "as3d/frontend.h"
 #include "as3d/image.h"
 #include "as3d/ui.h"
@@ -57,19 +57,15 @@ FrontendContent loadContent() {
     FrontendContent c;
     as3d::Vfs vfs;
     viewer::mountGameData(vfs);
-    as3d::Blob levels;
-    if (vfs.read("maps\\levels.txt", levels)) {
-        // Blocks with a `name` are the missions, in table order (levels-txt.md).
-        as3d::TextFile tf = as3d::parseTextBlocks(levels.data(), levels.size());
-        int i = 0;
-        for (const as3d::TextBlock& b : tf.blocks) {
-            const as3d::TextStatement* n = b.find("name");
-            if (!n || n->args.empty() || i >= as3d::kMissionCount) continue;
-            c.missionNames[i] = n->args[0].text;
-            const as3d::TextStatement* e = b.find("enableHelic");
-            c.enableHelic[i] = e && !e->args.empty() ? e->args[0].asInt() : -1;
-            i++;
-        }
+    as3d::DefDatabase db;
+    db.load(vfs);
+    // Levels with a `name` are the missions, in table order (levels-txt.md).
+    int i = 0;
+    for (const as3d::LevelDef& d : db.levels()) {
+        if (d.name.empty() || i >= as3d::kMissionCount) continue;
+        c.missionNames[i] = d.name;
+        c.enableHelic[i] = d.enableHelic;
+        i++;
     }
     std::string xml;
     if (readFile(viewer::dataRoot() + "/third_party_local/original/data/Settings.xml", xml)) parseSettingsXml(xml, c);

@@ -17,9 +17,7 @@
 #include "common.h"
 #include "registry.h"
 
-#define BlendMode AS3D_DEFS_BlendMode
 #include "as3d/defs.h"
-#undef BlendMode
 
 namespace {
 

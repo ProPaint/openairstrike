@@ -13,9 +13,7 @@
 #include "as3d/sprite_render.h"
 #include "as3d/terrain.h"
 
-#define BlendMode AS3D_DEFS_BlendMode
 #include "as3d/defs.h"
-#undef BlendMode
 
 #include <algorithm>
 #include <cmath>

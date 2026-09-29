@@ -1,13 +1,10 @@
 // Particle tests: simulation on synthetic definitions and on every shipped system, plus a
-// headless render of a shipped explosion. Both as3d/gfx.h and as3d/defs.h declare a
-// BlendMode, hence the macro guard around defs.h (see viewer_scene.h).
+// headless render of a shipped explosion.
 #include "doctest.h"
 
 #include "as3d/particle_render.h"
 
-#define BlendMode AS3D_DEFS_BlendMode
 #include "as3d/defs.h"
-#undef BlendMode
 
 #include <cmath>
 #include <cstdio>

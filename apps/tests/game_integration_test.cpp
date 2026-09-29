@@ -20,12 +20,9 @@
 #include "as3d/world.h"
 #include "as3d/world_render.h"
 
-// as3d/defs.h (pulled in by game_session.cpp) and as3d/gfx.h both define as3d::BlendMode.
-#define BlendMode AS3D_DEFS_BlendMode
 #include "../game/audio_bridge.cpp"
 #include "../game/game_session.cpp"
 #include "../game/game_view.cpp"
-#undef BlendMode
 #include "test_data.h"
 
 using namespace as3d;

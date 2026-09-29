@@ -25,8 +25,11 @@ if(AS3D_SANITIZE)
   add_link_options(-fsanitize=address,undefined)
 endif()
 
-# Root of the repository, used by tests to locate the (gitignored) game data.
-add_compile_definitions(AS3D_REPO_ROOT="${CMAKE_SOURCE_DIR}")
+# Root of the repository. Use this, never CMAKE_SOURCE_DIR, for paths inside the repository:
+# the Android build adds this directory from android/app/src/main/cpp, where CMAKE_SOURCE_DIR
+# is that directory. Tests also use it to locate the (gitignored) game data.
+set(AS3D_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}")
+add_compile_definitions(AS3D_REPO_ROOT="${AS3D_REPO_ROOT}")
 
 add_subdirectory(engine)
 if(NOT ANDROID)

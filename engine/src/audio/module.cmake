@@ -8,10 +8,6 @@
 
 target_link_libraries(as3d_audio PUBLIC as3d_core as3d_vfs)
 
-if(NOT DEFINED AS3D_REPO_ROOT)
-  set(AS3D_REPO_ROOT "${CMAKE_SOURCE_DIR}")
-endif()
-
 if(DEFINED ENV{AS3D_DATA_ROOT} AND NOT "$ENV{AS3D_DATA_ROOT}" STREQUAL "")
   set(AS3D_AUDIO_DATA_ROOT "$ENV{AS3D_DATA_ROOT}")
 else()

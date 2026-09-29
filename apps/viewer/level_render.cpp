@@ -13,9 +13,7 @@
 #include "as3d/sprite_render.h"
 #include "as3d/terrain_render.h"
 
-#define BlendMode AS3D_DEFS_BlendMode
 #include "as3d/defs.h"
-#undef BlendMode
 
 namespace viewer {
 
@@ -63,11 +61,11 @@ Mat4 tiltAround(const Vec3& pivot, const Vec3& normal) {
     return translation(pivot) * r * translation(pivot * -1.0f);
 }
 
-DecalBlend toDecalBlend(AS3D_DEFS_BlendMode b) {
+DecalBlend toDecalBlend(BlendMode b) {
     switch (b) {
-        case AS3D_DEFS_BlendMode::Alpha: return DecalBlend::Alpha;
-        case AS3D_DEFS_BlendMode::Add: return DecalBlend::Add;
-        case AS3D_DEFS_BlendMode::Filter: return DecalBlend::Filter;
+        case BlendMode::Alpha: return DecalBlend::Alpha;
+        case BlendMode::Add: return DecalBlend::Add;
+        case BlendMode::Filter: return DecalBlend::Filter;
         default: return DecalBlend::None;
     }
 }

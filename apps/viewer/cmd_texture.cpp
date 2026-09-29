@@ -127,12 +127,12 @@ int run(int argc, char** argv) {
         scene->program.use();
         scene->program.setInt("uTex", 0);
 
-        as3d::setBlend(as3d::BlendMode::Off);
+        as3d::setBlend(as3d::GlBlend::Off);
         scene->checkerTex.bind(0);
         scene->bgVao.bind();
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        as3d::setBlend(as3d::BlendMode::AlphaBlend);
+        as3d::setBlend(as3d::GlBlend::AlphaBlend);
         scene->loadedTex.bind(0);
         scene->fgVao.bind();
         glDrawArrays(GL_TRIANGLES, 0, 6);

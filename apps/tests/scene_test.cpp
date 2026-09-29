@@ -3,17 +3,11 @@
 // where none is available every TEST_CASE prints a loud SKIPPED message and passes, but
 // on this development machine (and in CI) a context is always created and these tests
 // actually run.
-//
-// This file needs both as3d/scene.h (-> as3d/gfx.h) and as3d/defs.h (for the real-data
-// smoke test) in one translation unit; see engine/src/render/material.cpp's top comment
-// for why that needs the BlendMode macro guard below.
 #include "doctest.h"
 
 #include "as3d/scene.h"
 
-#define BlendMode AS3D_DEFS_BlendMode
 #include "as3d/defs.h"
-#undef BlendMode
 
 #include <GLES3/gl3.h>
 
@@ -155,7 +149,7 @@ TEST_CASE("Material::fromObjectDef maps blend/rflag/sort per docs/spec/obj.md") 
     ResourceCache cache(vfs);
 
     ObjectDef def;
-    def.blend = AS3D_DEFS_BlendMode::Add;
+    def.blend = BlendMode::Add;
     def.rflag = RF_NOLIGHTING | RF_NOCULLING | RF_NODEPTHTEST | RF_NODEPTHWRITE;
     def.sort = SortMode::Trans;
 

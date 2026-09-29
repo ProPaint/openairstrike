@@ -152,7 +152,7 @@ TEST_CASE("triangle renders with correct colours and orientation, read back top-
     setViewport(0, 0, 256, 256);
     setDepth(false, false);
     setCull(CullMode::Off);
-    setBlend(BlendMode::Off);
+    setBlend(GlBlend::Off);
     clear(background, /*depth=*/false);
     program.use();
     vao.bind();
@@ -248,7 +248,7 @@ TEST_CASE("Texture2D orientation: a 2x2 synthetic image lands in the expected on
     setViewport(0, 0, 64, 64);
     setDepth(false, false);
     setCull(CullMode::Off);
-    setBlend(BlendMode::Off);
+    setBlend(GlBlend::Off);
     clear({0, 0, 0, 1}, false);
     program.use();
     program.setInt("uTex", 0);

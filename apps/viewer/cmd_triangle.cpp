@@ -73,7 +73,7 @@ int run(int argc, char** argv) {
         as3d::setViewport(0, 0, width, height);
         as3d::setDepth(false, false);
         as3d::setCull(as3d::CullMode::Off);
-        as3d::setBlend(as3d::BlendMode::Off);
+        as3d::setBlend(as3d::GlBlend::Off);
         as3d::clear({0.05f, 0.05f, 0.08f, 1.0f}, /*depth=*/false);
         scene->program.use();
         scene->vao.bind();

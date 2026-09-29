@@ -7,9 +7,7 @@
 #include "as3d/platform.h"
 #include "as3d/scene.h"
 
-#define BlendMode AS3D_DEFS_BlendMode
 #include "as3d/defs.h"
-#undef BlendMode
 
 #include <cstdio>
 #include <cstdlib>

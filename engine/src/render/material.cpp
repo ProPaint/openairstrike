@@ -1,35 +1,19 @@
 // Implements as3d::Material::fromObjectDef (as3d/scene.h) from docs/spec/obj.md's
 // blend/envmode/rflag/sort statement tables.
-//
-// This file is the one place in the engine that must see BOTH as3d/scene.h (for
-// Material/ResourceCache/Texture2D, i.e. as3d/gfx.h) and as3d/defs.h (for the real
-// ObjectDef) in the same translation unit. Both public headers declare an unrelated
-// `enum class as3d::BlendMode` with different enumerators (scene.h: obj.md's own
-// None/Alpha/Add/Filter; gfx.h: a GL blend-state helper's Off/AlphaBlend/Additive) --
-// #including both normally is a straight redefinition error. Neither public header may
-// be edited by this package (WP-30/33's file list), so this file works around the
-// conflict locally and only here: `BlendMode` is #define'd to a private name for the
-// duration of the as3d/defs.h #include, so the preprocessor transparently renames
-// defs.h's own enum (and ObjectDef::blend's field type) before the compiler ever parses
-// the real identifier. This is a narrowly-scoped, single-file, mechanical workaround --
-// see the WP-30/33 final report for the proposed real fix (rename one of the two
-// enums so a file like this one is never needed again).
 #include "as3d/scene.h"
 
-#define BlendMode AS3D_DEFS_BlendMode
 #include "as3d/defs.h"
-#undef BlendMode
 
 namespace as3d {
 
 namespace {
 
-MaterialBlend toMaterialBlend(AS3D_DEFS_BlendMode b) {
+MaterialBlend toMaterialBlend(BlendMode b) {
     switch (b) {
-        case AS3D_DEFS_BlendMode::None: return MaterialBlend::Opaque;
-        case AS3D_DEFS_BlendMode::Alpha: return MaterialBlend::Alpha;
-        case AS3D_DEFS_BlendMode::Add: return MaterialBlend::Add;
-        case AS3D_DEFS_BlendMode::Filter: return MaterialBlend::Filter;
+        case BlendMode::None: return MaterialBlend::Opaque;
+        case BlendMode::Alpha: return MaterialBlend::Alpha;
+        case BlendMode::Add: return MaterialBlend::Add;
+        case BlendMode::Filter: return MaterialBlend::Filter;
     }
     return MaterialBlend::Opaque;
 }

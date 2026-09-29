@@ -27,7 +27,8 @@ enum class ObjectType { Model = 0, Sprite = 1, Mark = 2, HSprite = 3, VSprite = 
 // in the shipped data.
 enum class ObjectKind { None = 0, Player = 1, Enemy = 2, Item = 3 };
 
-// obj "blend" and ps "blend_mode" share these numeric values (VERIFIED-CODE).
+// obj "blend" and ps "blend_mode" share these numeric values (VERIFIED-CODE). The GL blend
+// state helper of as3d/gfx.h is a different enum, as3d::GlBlend.
 enum class BlendMode { None = 0, Alpha = 1, Add = 2, Filter = 3 };
 
 // obj "envmode". VERIFIED-CODE.
