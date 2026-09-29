@@ -314,6 +314,9 @@ TEST_CASE("builtin create: copies angles and player index, returns the reference
     CHECK(t.r.e(c).f(F_ANGLES + 2) == 3.0f);
     CHECK(t.r.e(c).f(F_ORIGIN + 1) == 400.0f);
     CHECK(t.r.e(c).f(F_AGE) == 0.0f); // its immediate think ran with frametime 0 (no step yet)
+    // Projected-shadow key: int(yaw in degrees), used as 30 degree steps (render-pipeline.md 5.3).
+    CHECK(t.r.e(c).hasShadowKey);
+    CHECK(t.r.e(c).shadowKey == 3);
 
     BT u; // unknown name: 0.0
     u.setup([](Asm& a) {

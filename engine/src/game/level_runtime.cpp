@@ -308,6 +308,8 @@ void World::spawnPlacement(const Placement& pl) {
     setPlayerIndexRecursive(idx, pidx);
     // 5. Yaw, path.
     e.setF(F_ANGLES + 2, pl.yawDegrees());
+    e.shadowKey = pl.rotationSteps;
+    e.hasShadowKey = true;
     size_t pi = static_cast<size_t>(&pl - level_->data.placements.data());
     if (const GamePath* path = pathOfPlacement(pi)) {
         e.path = path;

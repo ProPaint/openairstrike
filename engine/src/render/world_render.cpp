@@ -483,11 +483,16 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
             mem.seen = true;
             mem.generation = e.generation;
             mem.spawnOrigin = e.v3(F_BASE_ORIGIN);
-            // Projected shadow key: the root's yaw in 30 degree steps (a map object's
-            // placement byte; docs/spec/issues/050).
+            // Projected shadow key (render-pipeline.md 5.3): the root's spawn key (placement
+            // byte, or int(yaw) for `create`); other spawns: the root's yaw in 30 degree
+            // steps when first seen (docs/spec/issues/050, 112).
             int r = rootOfEntity(world, i);
-            float yaw = world.validIndex(r) ? world.entity(r).f(F_ANGLES + 2) : 0.0f;
-            mem.shadowSteps = (yaw > -1.0e6f && yaw < 1.0e6f) ? wrapSteps(static_cast<int>(std::lround(yaw / 30.0f))) : 0;
+            if (world.validIndex(r) && world.entity(r).hasShadowKey) {
+                mem.shadowSteps = wrapSteps(world.entity(r).shadowKey);
+            } else {
+                float yaw = world.validIndex(r) ? world.entity(r).f(F_ANGLES + 2) : 0.0f;
+                mem.shadowSteps = (yaw > -1.0e6f && yaw < 1.0e6f) ? wrapSteps(static_cast<int>(std::lround(yaw / 30.0f))) : 0;
+            }
         }
         const Vec4 colour{e.f(F_COLOR), e.f(F_COLOR + 1), e.f(F_COLOR + 2), e.f(F_COLOR + 3)};
         const Vec3 origin = e.v3(F_BASE_ORIGIN);

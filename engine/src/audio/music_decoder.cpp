@@ -75,6 +75,14 @@ double MusicDecoder::durationSeconds() const {
 
 int MusicDecoder::numChannels() const { return impl_->mod ? openmpt_module_get_num_channels(impl_->mod) : 0; }
 int MusicDecoder::numOrders() const { return impl_->mod ? openmpt_module_get_num_orders(impl_->mod) : 0; }
+bool MusicDecoder::setOrder(int order) {
+    if (!impl_->mod || order < 0 || order >= numOrders()) return false;
+    openmpt_module_set_position_order_row(impl_->mod, order, 0);
+    return true;
+}
+
+int MusicDecoder::currentOrder() const { return impl_->mod ? openmpt_module_get_current_order(impl_->mod) : -1; }
+
 int MusicDecoder::numPatterns() const { return impl_->mod ? openmpt_module_get_num_patterns(impl_->mod) : 0; }
 
 std::string MusicDecoder::title() const {

@@ -34,6 +34,9 @@ public:
     int numChannels() const;
     int numOrders() const;
     int numPatterns() const;
+    // Jumps to the start (row 0) of pattern order `order`; false if out of range.
+    bool setOrder(int order);
+    int currentOrder() const;
 
 private:
     struct Impl;

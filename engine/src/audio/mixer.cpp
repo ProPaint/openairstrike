@@ -108,6 +108,18 @@ void Mixer::clearMusic() {
     music_ = nullptr;
 }
 
+bool Mixer::jumpMusicToOrder(int order) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!music_) return false;
+    if (order < 0 || order >= music_->numOrders()) order = 0;
+    return music_->setOrder(order);
+}
+
+int Mixer::musicOrder() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return music_ ? music_->currentOrder() : -1;
+}
+
 bool Mixer::hasMusic() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return music_ != nullptr;

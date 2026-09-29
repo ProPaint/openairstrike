@@ -201,6 +201,12 @@ struct Entity {
     Vec3 boundsMin, boundsMax;               // model (or sprite) box, model space
     float radius = 0.0f;                     // +0x1BF
 
+    // Rotation key of a projected shadow, in 30 degree steps (render-pipeline.md 5.3), fixed
+    // at spawn: the placement byte for map objects, int(yaw in degrees) for `create` (the
+    // original's quirk); not set for other spawns (the renderer then uses the yaw it first
+    // sees).
+    bool hasShadowKey = false;
+    int shadowKey = 0;
     ScreenRect rect;                         // +0x1C3
     bool hasPrevPoint = false;
     float prevPoint[3] = {0, 0, 0};

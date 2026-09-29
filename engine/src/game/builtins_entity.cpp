@@ -29,6 +29,12 @@ void bCreate(BuiltinArgs& a, void*) {
         return;
     }
     int idx = w.spawnForCreate(def, Vec3{pos[0], pos[1], pos[2]}, selfOf(w));
+    // The projected shadow's rotation key is int(yaw in degrees), which the generator
+    // multiplies by 30 degrees (render-pipeline.md 5.3; yaw copied from the creator).
+    if (idx >= 0) {
+        w.entity(idx).shadowKey = ftol(w.entity(idx).f(F_ANGLES + 2));
+        w.entity(idx).hasShadowKey = true;
+    }
     a.setReturnBits(idx >= 0 ? w.refOf(idx) : 0u);
     if (idx >= 0) w.finishCreate(idx, true);
 }
