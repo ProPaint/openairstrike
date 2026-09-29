@@ -146,11 +146,11 @@ void itemFace(ui::Renderer2D& r, const ui::UiAssets* as, const Box& box, float x
     Blend blend = Blend::Alpha;
     if (as) {
         switch (kind) {
-            case ItemKind::Weapon: tex = &as->weapons; uv = ui::weaponIconUv(idx); blend = Blend::Add; break;
-            case ItemKind::Missile: tex = &as->missiles; uv = ui::missileIconUv(idx); break;
+            case ItemKind::Weapon: tex = &as->weapons; uv = ui::weaponIconUv(idx, as->game); blend = Blend::Add; break;
+            case ItemKind::Missile: tex = &as->missiles; uv = ui::missileIconUv(idx, as->game); break;
             case ItemKind::Powerup:
                 tex = &as->items;
-                uv = idx < ui::kPowerupIconKinds ? ui::powerupIconUv(idx) : ui::SpecUv{};
+                uv = ui::powerupIconUv(idx, as->game);
                 if (idx == 0) blend = Blend::Add;
                 break;
         }
