@@ -98,6 +98,7 @@ struct MenuDrawContext {
     float mt;        // menu time
     bool touchMode;
     long long ms;    // wall-clock milliseconds for blinking cursors
+    bool plain = false; // MenuSystem::plain: draw without the first game's menu textures
 };
 
 using ItemDrawFn = std::function<void(MenuDrawContext&, MenuItem&, bool focused)>;
@@ -142,6 +143,7 @@ struct MenuItem {
     // Custom
     ItemDrawFn draw;
     ItemKeyFn onKey;
+    float textScale = 1; // text buttons: font scale of the caption
 
     bool disabled() const { return (flags & itemflag::Disabled) != 0; }
     bool hidden() const { return (flags & itemflag::Hidden) != 0; }
@@ -186,7 +188,8 @@ struct Menu {
 };
 
 // Draws a text button as addTextButton makes them (for screens that draw their own).
-void drawTextButton(MenuDrawContext& c, const RectF& hit, std::string_view label, bool focused, bool disabled);
+void drawTextButton(MenuDrawContext& c, const RectF& hit, std::string_view label, bool focused, bool disabled,
+                    float textScale = 1);
 
 class MenuSystem {
 public:
@@ -195,6 +198,10 @@ public:
     bool touchMode = false;      // see the file comment
     bool showHints = false;      // ShowHints: tooltips
     bool drawCursor = true;      // false with UseSystemMouse or on touch devices
+    // Ours (docs/spec/as2/issues/260): the plain front end of the sequels draws the list and
+    // slider widgets and the letterbox frame with rectangles and lines, so that it needs none
+    // of the first game's menu textures (a sequel ships only menu\\cursor_1.tga and cursor_2.tga).
+    bool plain = false;
 
     // Pushes a menu (built right before, frontend.md 2.1). Resets the menu time, clears the new
     // menu's focus and re-runs the hover test. Beyond 16 menus the push is refused.
@@ -270,8 +277,14 @@ void sliderClick(MenuItem& s, float px);
 // Two-player-aware click on the helicopter grid; returns true if a choice changed.
 bool gridClick(MenuItem& g, float px, float py);
 int gridCellAt(const MenuItem& g, float px, float py); // -1 outside the cells
-// Letterbox bars and rules shared by most screens (frontend.md 3.1).
+// Letterbox bars and rules shared by most screens (frontend.md 3.1). Plain: the same bars with
+// two drawn rules in place of the corner ornament.
 void letterbox(MenuDrawContext& c);
+// Plain screens: a title in the top bar (scaled game font, orange, black shadow), centred.
+void plainTitle(MenuDrawContext& c, std::string_view title, float scale = 2.0f);
+// Plain screens: text with the black shadow of the original's alpha font.
+void shadowedText(MenuDrawContext& c, float x, float y, std::string_view s, Color col, Align al = Align::Left,
+                  float scale = 1.0f);
 // Three-layer header `<base>_2` ALPHA, `_0` ADD, `_1` ALPHA over the same rectangle.
 void header(MenuDrawContext& c, std::string_view base, float x, float y, float w, float h);
 // Panel fill 0x50000000, blend ALPHA.

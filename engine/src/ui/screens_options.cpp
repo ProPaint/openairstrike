@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include "as3d/frontend.h"
+#include "plain_layout.h"
 
 namespace as3d::ui {
 
@@ -73,10 +74,17 @@ Menu Frontend::buildOptions() {
         // the camera.
         if (!content_.videoOptions) m.addSpinner(kShowFps, 400, 320, texts_.get("opt.showfps"), {off, on}, s.showFps ? 1 : 0);
     }
-    m.addButton(kConfKeys, 230, 430, 340, 32, "menu\\confkeys_1.tga", "menu\\confkeys_2.tga");
-    m.addButton(kBack, 50, 450, 128, 64, "menu\\back_1.tga", "menu\\back_2.tga");
-    m.addButton(kApply, 600, 450, 160, 64, "menu\\apply_ok_1.tga", "menu\\apply_ok_2.tga", {0, 0, 0.625f, 1},
-                itemflag::Disabled | itemflag::Hidden);
+    if (plain()) {
+        m.addTextButton(kConfKeys, {230, 434, 340, 32}, texts_.get("plain.configure_controls"));
+        m.addTextButton(kBack, kPlainLeft, texts_.get("plain.back")).textScale = kPlainButtonScale;
+        m.addTextButton(kApply, kPlainRight, texts_.get("plain.apply"), itemflag::Disabled | itemflag::Hidden).textScale =
+            kPlainButtonScale;
+    } else {
+        m.addButton(kConfKeys, 230, 430, 340, 32, "menu\\confkeys_1.tga", "menu\\confkeys_2.tga");
+        m.addButton(kBack, 50, 450, 128, 64, "menu\\back_1.tga", "menu\\back_2.tga");
+        m.addButton(kApply, 600, 450, 160, 64, "menu\\apply_ok_1.tga", "menu\\apply_ok_2.tga", {0, 0, 0.625f, 1},
+                    itemflag::Disabled | itemflag::Hidden);
+    }
 
     if (!content_.mouseControlOption) m.find(kMouse)->setShown(false);
     // Video items: disabled during a mission, absent where there is no video mode to choose.
@@ -150,9 +158,10 @@ Menu Frontend::buildOptions() {
         }
         refresh(menu);
     };
-    m.drawBack = [](MenuDrawContext& c) {
+    m.drawBack = [this](MenuDrawContext& c) {
         widgets::letterbox(c);
-        widgets::header(c, "menu\\optionsh", 272, 63, 256, 64);
+        if (c.plain) widgets::plainTitle(c, texts_.get("plain.title.options"));
+        else widgets::header(c, "menu\\optionsh", 272, 63, 256, 64);
         widgets::panel(c, 210, 140, 380, 290);
     };
     return m;
@@ -186,7 +195,8 @@ Menu Frontend::buildControls() {
             }
         });
     }
-    m.addButton(1, 50, 450, 128, 64, "menu\\back_1.tga", "menu\\back_2.tga");
+    if (plain()) m.addTextButton(1, kPlainLeft, texts_.get("plain.back")).textScale = kPlainButtonScale;
+    else m.addButton(1, 50, 450, 128, 64, "menu\\back_1.tga", "menu\\back_2.tga");
     // Touch mode: while a row waits for a key, buttons for Backspace (Clear) and Esc (Cancel).
     m.addTextButton(kTouchClear, kClearButton, texts_.get("touch.clear"), itemflag::Disabled | itemflag::Hidden);
     m.addTextButton(kTouchCancel, kCancelButton, texts_.get("touch.cancel"), itemflag::Disabled | itemflag::Hidden);
@@ -256,9 +266,10 @@ Menu Frontend::buildControls() {
             if (it.id == 1 && it.disabled() != (captureRow_ >= 0)) rowsMatch = false;
         if (!rowsMatch) setCapture(menu, captureRow_);
     };
-    m.drawBack = [](MenuDrawContext& c) {
+    m.drawBack = [this](MenuDrawContext& c) {
         widgets::letterbox(c);
-        widgets::header(c, "menu\\controlsh", 242, 63, 316, 64);
+        if (c.plain) widgets::plainTitle(c, texts_.get("plain.title.controls"));
+        else widgets::header(c, "menu\\controlsh", 242, 63, 316, 64);
         widgets::panel(c, 210, 165, 380, 280);
     };
     return m;

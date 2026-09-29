@@ -74,7 +74,10 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     config_ = config;
     // Profile: progress and settings (frontend.md 6).
     profile_ = Profile();
-    profile_.progress = Progress::defaults(session_.rules()); // counts of the game; a saved file must match
+    // Counts of the game, which a saved file must match; the plain front end's games start with
+    // helicopter 0 only (issue 260).
+    const bool plainGame = session_.game() && session_.game()->frontend == FrontendStyle::PlainList;
+    profile_.progress = Progress::defaults(session_.rules(), plainGame ? 1 : 2);
     std::string why;
     // The platform's default path is the first game's old location; the save now lives in a
     // directory per game (docs/spec/issues/160). An explicit path (--profile, tests) is used as is.
@@ -103,6 +106,18 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     // Content from the data: mission names and unlocks (levels.txt), Settings.xml, texts.
     ui::FrontendContent content;
     content.game = session_.game();
+    if (plainGame) {
+        // What the helicopters' definitions say, for the plain front end's list (issue 260).
+        for (int h = 0; h < session_.rules().helicopterCount && session_.rules().heliObjects; ++h) {
+            const ObjectDef* d = session_.db().findObject(session_.rules().heliObjects[h]);
+            if (!d) continue;
+            content.heli[h].known = true;
+            content.heli[h].health = d->health;
+            content.heli[h].hasSpeed = d->hasSpeed;
+            content.heli[h].speed = d->speed;
+        }
+        content.twoPlayerMode = false;
+    }
     int i = 0;
     for (const LevelDef& d : session_.db().levels()) {
         if (d.name.empty() || i >= session_.rules().missionCount) continue;
@@ -123,7 +138,7 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     // Video modes, refresh rate, colour depth, fullscreen and 3D sound are not offered: the
     // window is sized from the command line and sound is always 2D (issue 130).
     content.videoOptions = false;
-    content.twoPlayerMode = config_.twoPlayerMode;
+    content.twoPlayerMode = config_.twoPlayerMode && !plainGame;
     content.mouseControlOption = config_.mouseControlOption;
     content.touchMenuButton = config_.touchMenuButton;
     content.screenOption = config_.screenOptionAlways;
@@ -221,6 +236,15 @@ void GameFlow::doStartMission(const ui::MissionStart& ms) {
         AS3D_ERROR("cannot start mission %d: %s", s.mission, err.c_str());
         return;
     }
+    if (ms.carryUpgrades) {
+        // "Next" in a game whose upgrades carry over (as2 engine-behaviour.delta.md 8.2): the
+        // upgrades of the last mission in place of the loadout the level start gave.
+        World& w = session_.world();
+        for (int p = 0; p < 2; ++p) {
+            for (int k = 0; k < kMaxWeaponSlots; ++k) w.player(p).upgrades[k] = ms.upgrades[p][k];
+            w.player(p).weapon = static_cast<float>(ms.weapon[p]);
+        }
+    }
     levelLoaded(false);
 }
 
@@ -288,6 +312,11 @@ ui::MissionReport GameFlow::report() const {
     r.totals.maxScore = w.maxLevelScore();
     r.totals.enemyTotal = w.enemiesInLevel();
     r.cheatUsed = false; // no cheat codes yet
+    r.hasUpgrades = true;
+    for (int p = 0; p < 2; ++p) {
+        r.weapon[p] = static_cast<int>(w.player(p).weapon);
+        for (int k = 0; k < kMaxWeaponSlots; ++k) r.upgrades[p][k] = w.player(p).upgrades[k];
+    }
     return r;
 }
 

@@ -88,6 +88,16 @@ struct FrontendContent {
     bool screenOption = false;
     bool handOption = false;
 
+    // Ours, for the plain front end (docs/spec/as2/issues/260): what the object definitions
+    // named by GameRules::heliObjects say about each helicopter, for its list entry.
+    struct HeliInfo {
+        bool known = false;
+        int health = 0;
+        bool hasSpeed = false;
+        float speed = 0;
+    };
+    HeliInfo heli[kMaxHelicopters];
+
     FrontendContent() {
         for (int& e : enableHelic) e = -1;
     }
@@ -112,6 +122,13 @@ struct MissionStart {
     int lives[2] = {kCampaignStartLives, kCampaignStartLives}; // p_lives at level start
     std::int64_t banked[2] = {0, 0}; // for the HUD score: ftol(p_scores) + banked
     bool restart = false;   // same mission again (Restart)
+    // GameRules::upgradesCarryToNextMission: "Next" starts the following mission with the
+    // upgrades the player had at the end of the last (as2 engine-behaviour.delta.md 8.2); the
+    // host applies `upgrades` and `weapon` in place of the mission's loadout. False on a new
+    // game and on Restart (the game applies its loadout table) and always for the first game.
+    bool carryUpgrades = false;
+    int upgrades[2][kMaxWeaponSlots] = {};
+    int weapon[2] = {0, 0};
 };
 
 // What the game reports at EndLevel and at game over (frontend.md 5.3 to 5.5).
@@ -119,6 +136,11 @@ struct MissionReport {
     LevelPlayerResult players[2];
     LevelTotals totals;
     bool cheatUsed = false; // the session's "cheat used" flag
+    // Upgrade levels and current weapon at the end (a host that does not report them leaves
+    // hasUpgrades false and nothing is carried).
+    bool hasUpgrades = false;
+    int upgrades[2][kMaxWeaponSlots] = {};
+    int weapon[2] = {0, 0};
 };
 
 class GameHost {
@@ -239,12 +261,27 @@ private:
     Menu buildGameOver();
     Menu buildMissionComplete();
     Menu buildGameComplete();
+    // The plain front end of a PlainList game (engine/src/ui/screens_plain.cpp). Screens not
+    // listed (top scores, name entry, options, controls) are the same builders with plain
+    // widgets, see plain().
+    Menu buildPlainMain();
+    Menu buildPlainExit();
+    Menu buildPlainStartGame();
+    Menu buildPlainInGame();
+    Menu buildPlainHint();
+    Menu buildPlainGameOver();
+    Menu buildPlainMissionComplete();
+    Menu buildPlainGameComplete();
+    // Rows of the helicopter list (id kPlainHeliBase + n) with the number, health and speed
+    // of each helicopter; a click or Enter on an unlocked row chooses it for player 1.
+    void addPlainHeliRows(Menu& m, float x, float y, float w, float rowH);
+    std::string missionLabel(int mission) const;
 
     // Flow helpers (frontend.cpp).
     void showMainMenu();               // replaces the stack
     void quitToMainMenu(bool bank, bool highScoreCheck);
     void startCampaign(int mission, int difficulty, int players);
-    void startLevel(bool restart);     // G_BeginLevel on campaign_.mission
+    void startLevel(bool restart, bool carryUpgrades = false); // G_BeginLevel on campaign_.mission
     void continueCampaign();
     void highScoreCheck();
     void setPausedFlag(bool on);
@@ -256,6 +293,12 @@ private:
     bool handlePlayingInput(const UiInput& input);
     void drawStats(MenuDrawContext& c, float boxY);
     void refreshLocks();
+public:
+    // True for a game whose front end is FrontendStyle::PlainList: the plain screens, drawn
+    // with our own rectangles and text and none of the first game's menu pictures.
+    bool plain() const { return content_.game && content_.game->frontend == FrontendStyle::PlainList; }
+
+private:
     const GameRules& rules() const { return content_.game ? content_.game->rules : defaultGameRules(); }
 
     GameHost& host_;
@@ -283,6 +326,9 @@ private:
     int captureRow_ = -1;
     int infoPage_ = 0;
     int typedChars_ = 0;               // Game Complete typing sound state
+    int carriedUpgrades_[2][kMaxWeaponSlots] = {};
+    int carriedWeapon_[2] = {0, 0};
+    bool haveCarried_ = false;
     float playPointerX_ = 0, playPointerY_ = 0;
 };
 
