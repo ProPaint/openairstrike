@@ -120,6 +120,15 @@ global table is not). Runs found at a non-zero phase are dropped when they overl
 already found. As a result `data_tables.json` of v1.70 lists a few more `unknown` tables
 than exports made before this change; functions, strings and SUMMARY.md counts are unchanged.
 
+## Third-party toolkit (naming aid, study only)
+
+`third_party_local/toolkit/airstrike3d-tools/` is a shallow clone of
+`[third-party toolkit, link removed]` (about 400 MB, gitignored). It bundles
+copyrighted game files and third-party decompilations: read it to find names and meanings,
+never copy anything from it into this repository. Its `src/2_51/` and `src/2_71/`
+executables are byte-identical to ours (same SHA-256). Fetch with
+`git clone --depth 1 [third-party toolkit, link removed] third_party_local/toolkit/airstrike3d-tools`.
+
 ### Timing
 
 On this machine (8 cores, 15 GB RAM, `MAXMEM` capped at a few GB, `-max-cpu 4`): a full clean
