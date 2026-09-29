@@ -65,7 +65,7 @@ int run(int argc, char** argv) {
         else if (a == "--no-lights") o.dataLights = false;
         else if (a == "--no-envmap") o.envmaps = false;
         else if (a == "--plain") { o.shadows = o.sprites = o.marks = o.dataLights = o.envmaps = false; }
-        else if (a == "--marks") { if (!(v = val("--marks"))) return 1; o.extraMarks = v; }
+        else if (a == "--marks") { if (!(v = val("--marks"))) return 1; o.extraMarks = v; o.marks = true; }
         else if (a == "--lights") {
             if (!(v = val("--lights"))) return 1;
             if (!parseLights(v, o.extraLights)) { std::fprintf(stderr, "error: bad --lights '%s' (x,y,z,r,g,b,radius;...)\n", v); return 1; }
