@@ -82,4 +82,6 @@ Every claim carries one of:
 | Rendering | `engine/src/render`, `apps/viewer` | meshes, terrain, water, particles, shadows, ground marks, sprites, dynamic lights, environment maps; choices in issue 070; not yet driven by the live world |
 | 2D layer, font, HUD | `engine/src/ui` | done against the early spec; being corrected to frontend.md |
 | Audio | `engine/src/audio` | mixer and music decoder; not yet driven by the world's sound queue |
-| Game app, HUD, menus, Android gameplay | | not started |
+| Game app | `apps/game`, `engine/src/input`, `engine/src/render/world_render*` | mission 1 plays on desktop and completes under the bot (M6); choices in issue 050; missing: lightning bolts, enemy health bars, particle damage, menus |
+| Menus, progression, save | | in progress |
+| Android gameplay | `android`, `apps/android_boot` | boot test only |
