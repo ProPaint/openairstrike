@@ -22,6 +22,9 @@
 #include "as3d/core.h"
 #include "as3d/math.h"
 #include "as3d/particles.h"
+#include "as3d/render_rules.h"
+#include "as3d/skid_render.h"
+#include "as3d/terrain_grid.h"
 #include "as3d/world.h"
 #include "as3d/world_particles.h"
 
@@ -78,6 +81,8 @@ struct WorldRenderStats {
     int emitters = 0;
     int particles = 0;
     int bolts = 0;        // lightning bolts (render-pipeline.md 7.1)
+    int skidTrails = 0;   // skid trails drawn (the sequels, pass 5)
+    int waterChunks = 0;
     int healthBars = 0;   // enemy health bars (engine-behaviour.md 6.5)
     int terrainChunks = 0;
 };
@@ -110,6 +115,21 @@ public:
     // Pass 14, after the 2D layer: dst * b + b * dst over the whole framebuffer
     // (render-pipeline.md 1.5; config.ini Brightness, 0.5 neutral, default 0.6).
     void drawBrightness(int width, int height, float brightness);
+
+    // Terrain heights changed inside these vertex rectangles (TerraMorph): the terrain and
+    // water meshes re-upload the touched chunks from the world's terrain (whose positions()
+    // must already hold the new heights). TODO(orchestrator): World has no accessor for its
+    // terrain changes yet (C5 package); once it has one (for example a list of VertexRect
+    // written by TerraMorph and cleared each frame), render() should consume it itself and
+    // callers stop calling this.
+    void terrainChanged(const VertexRect* rects, size_t count);
+    // The skid trails to draw in pass 5 of the sequels' frame (as3d/skid_render.h), kept by
+    // pointer until replaced: the caller keeps them alive. TODO(orchestrator): World has no
+    // accessor for its trails yet (the trail simulation is another package); once it has,
+    // render() should read them from the world.
+    void setSkidTrails(const SkidTrail* trails, size_t count);
+    // The game's render rules chosen at beginLevel from world.rules() (as3d/render_rules.h).
+    const RenderRules& rules() const;
 
     const WorldRenderStats& lastStats() const { return stats_; }
     // Shadow silhouettes held, and how many were generated after the level load (entities
