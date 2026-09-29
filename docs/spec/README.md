@@ -79,6 +79,7 @@ Every claim carries one of:
 | Formats, VFS, definitions | `engine/src/{vfs,formats,game}` | all shipped files load |
 | Script VM | `engine/src/script` | reproduces the reference trace of all 339 scripts |
 | World, builtins, collision, level runtime | `engine/src/game`, `apps/sim_tool` | all 85 builtins bound; 3 approximate (`Lightning`, `EndLevel`, `ShowTutorialHint`) pending render and UI; headless bot finishes mission 1 |
-| Rendering | `engine/src/render`, `apps/viewer` | meshes, terrain, water, particles; no shadows, ground marks, sprites, dynamic lights, environment maps |
+| Rendering | `engine/src/render`, `apps/viewer` | meshes, terrain, water, particles, shadows, ground marks, sprites, dynamic lights, environment maps; choices in issue 070; not yet driven by the live world |
+| 2D layer, font, HUD | `engine/src/ui` | done against the early spec; being corrected to frontend.md |
 | Audio | `engine/src/audio` | mixer and music decoder; not yet driven by the world's sound queue |
 | Game app, HUD, menus, Android gameplay | | not started |
