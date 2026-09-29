@@ -154,7 +154,7 @@ void SpriteRenderer::draw(const SpriteInstance* sprites, size_t count, const Spr
     im.program.setFloat("uFogEnd", params.fogEnd);
     im.program.setInt("uTex", 0);
     im.vao.bind();
-    setCull(CullMode::Back);
+    setCull(params.cullBackFaces ? CullMode::Back : CullMode::Off); // as2 delta 3.3: the sequels draw sprites unculled
     for (size_t i = 0; i < count; i++) {
         const SpriteInstance& sp = sprites[i];
         if (!sp.texture) continue;

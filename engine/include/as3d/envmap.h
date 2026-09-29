@@ -28,6 +28,11 @@ Mat3 envNormalMatrix(const Mat4& view, const Mat4& model);
 // normal `eyeNormal` (the eye is at the origin).
 Vec2 sphereMapUv(const Vec3& eyePosition, const Vec3& eyeNormal);
 
+// The sequels' coordinates (as2/render-pipeline.delta.md 4.3): the folded normal through the
+// model's world matrix (scale included, not renormalised) and the view, then
+// (0.5 + 0.5·n.x, 0.5 + 0.5·n.y), used as a v-down coordinate (this engine's convention).
+Vec2 viewNormalEnvUv(const Mat4& view, const Mat4& model, const Vec3& modelNormal);
+
 // ENV_QUAD: the texture matrix rotates the sphere-map coordinates by time * 30 degrees about
 // the texture origin (0, 0).
 constexpr float kEnvQuadDegreesPerSecond = 30.0f;

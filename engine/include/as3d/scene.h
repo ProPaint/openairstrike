@@ -66,8 +66,19 @@ public:
 
     const std::vector<std::string>& warnings() const { return warnings_; }
 
+    // The sequels draw an object whose texture is missing untextured (white × vertex colour,
+    // as2/render-pipeline.delta.md 3.2 and 9.1, RenderRules::missingTextureWhite): texture()
+    // then returns a white texture instead of the magenta checker for every path that fails
+    // to load from now on. Set before the textures of a level load.
+    void setMissingTextureWhite(bool on) { missingWhite_ = on; }
+    // True when `texture` is one of the placeholders returned for a missing file.
+    bool isPlaceholder(const Texture2D* texture) const;
+
 private:
     Vfs& vfs_;
+    bool missingWhite_ = false;
+    std::unique_ptr<Texture2D> whiteTexture_;
+    const Texture2D& whiteTexture();
     std::unordered_map<std::string, std::unique_ptr<Texture2D>> textures_;
     std::unordered_map<std::string, bool> textureAlpha_;
     std::unordered_map<std::string, std::unique_ptr<GpuMesh>> meshes_;
@@ -207,6 +218,9 @@ public:
     void setDynamicLights(const DynamicLight* lights, size_t count);
     // Game time in seconds; drives the ENV_QUAD texture rotation.
     void setTime(float seconds) { time_ = seconds; }
+    // The sequels' environment coordinates and ENV_GLITTER alpha (as2/render-pipeline.delta.md
+    // 4.3, RenderRules::envViewNormal; as3d/envmap.h viewNormalEnvUv). Off: the GL sphere map.
+    void setEnvViewNormal(bool on) { envViewNormal_ = on; }
     // Sorts (SORT_OPAQUE, then SORT_TRANS back-to-front by distance to the camera, then
     // SORT_EFFECT) and issues the draw calls.
     void end();
@@ -227,6 +241,7 @@ private:
     std::vector<DrawItem> items_;
     std::vector<DynamicLight> lights_;
     float time_ = 0.0f;
+    bool envViewNormal_ = false;
 
     void draw(const DrawItem& item);
 };

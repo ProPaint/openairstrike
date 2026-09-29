@@ -21,6 +21,11 @@ Mat3 envNormalMatrix(const Mat4& view, const Mat4& model) {
     return transpose(inverse(mat3FromMat4(mv)));
 }
 
+Vec2 viewNormalEnvUv(const Mat4& view, const Mat4& model, const Vec3& modelNormal) {
+    Vec3 n = transformDirection(view, transformDirection(model, foldEnvNormal(modelNormal)));
+    return {0.5f + 0.5f * n.x, 0.5f + 0.5f * n.y};
+}
+
 Vec2 sphereMapUv(const Vec3& eyePosition, const Vec3& eyeNormal) {
     Vec3 u = normalize(eyePosition);
     Vec3 r = u - eyeNormal * (2.0f * dot(eyeNormal, u));
