@@ -4,17 +4,14 @@
 // meshes, ground marks, shadows, particles, sprites) fed from the entity fields; the
 // renderer only reads the world, so rendering can never change the simulation.
 //
-// Particle emitters: the world keeps emitter *holders* (entities whose `emitter` is set)
-// but does not simulate particles. WorldParticles mirrors every holder with one
-// ParticleEmitter, moved to the holder's attachment every frame and advanced at the fixed
-// step (render-pipeline.md 6.3, 6.4). Its random numbers come from its own as3d::Rng, never
-// from the world's.
+// Particles are part of the simulation (World::particles(), as3d/world_particles.h): the
+// renderer draws the world's particle-system instances and simulates nothing itself.
 //
 // Passes: terrain (with dynamic lights), ground marks, shadows, the opaque list, water, the
 // transparent and effect lists (lit, dynamic lights, environment maps), particles, sprites,
-// and the brightness overlay after the 2D layer. Not drawn yet: lightning bolts (7.1).
+// lightning bolts (7.1) after the effect list, and the brightness overlay after the 2D layer.
 //
-// Needs a current GLES 3.0 context for everything except WorldParticles.
+// Needs a current GLES 3.0 context for everything except worldViewOf and worldRenderOrder.
 #pragma once
 
 #include <cstdint>
@@ -26,6 +23,7 @@
 #include "as3d/math.h"
 #include "as3d/particles.h"
 #include "as3d/world.h"
+#include "as3d/world_particles.h"
 
 namespace as3d {
 
@@ -58,49 +56,6 @@ WorldView worldViewOf(const World& world, float aspect);
 void worldRenderOrder(const World& world, std::vector<int>& order, std::vector<char>& visited);
 
 // ---------------------------------------------------------------------------------------
-// Particles (GL free).
-// ---------------------------------------------------------------------------------------
-
-constexpr int kMaxWorldEmitters = 256; // particle-system instance pool (render-pipeline.md 6.1)
-
-class WorldParticles {
-public:
-    WorldParticles();
-    ~WorldParticles();
-    WorldParticles(const WorldParticles&) = delete;
-    WorldParticles& operator=(const WorldParticles&) = delete;
-
-    // Drops every emitter and reseeds (call at level start).
-    void reset(u32 seed = 1);
-    // One fixed step after world.step(): picks up new holders, moves every emitter to its
-    // holder, stops emitters whose holder was deactivated or removed (they finish their
-    // live particles), then advances all of them by `dt`. Do not call while the world is
-    // paused (particles freeze with it).
-    void update(const World& world, float dt);
-
-    // Live instances, most recently created first (the original's draw order).
-    void collect(std::vector<const ParticleEmitter*>& out) const;
-    int emitterCount() const;
-    int liveParticles() const;
-    // Instances that could not be created because the pool was full.
-    std::uint64_t refused() const { return refused_; }
-    // Hash of the state of every emitter, for determinism tests.
-    u32 stateHash() const;
-
-private:
-    struct Instance;
-    const ParticleDesc* descOf(const ParticleSystemDef* def);
-
-    std::vector<std::unique_ptr<Instance>> instances_; // creation order
-    std::vector<std::pair<const ParticleSystemDef*, std::unique_ptr<ParticleDesc>>> descs_;
-    // Per entity slot: the instance mirroring its holder (checked against the generation).
-    std::vector<Instance*> bySlot_;
-    std::vector<u32> refusedGen_; // per slot: holder generation + 1 whose creation was refused
-    Rng rng_{1};
-    std::uint64_t refused_ = 0;
-};
-
-// ---------------------------------------------------------------------------------------
 // The renderer.
 // ---------------------------------------------------------------------------------------
 
@@ -122,6 +77,8 @@ struct WorldRenderStats {
     int lights = 0;
     int emitters = 0;
     int particles = 0;
+    int bolts = 0;        // lightning bolts (render-pipeline.md 7.1)
+    int healthBars = 0;   // enemy health bars (engine-behaviour.md 6.5)
     int terrainChunks = 0;
 };
 
@@ -135,12 +92,13 @@ public:
     // Compiles shaders. `vfs` and `db` must outlive the renderer.
     bool init(Vfs& vfs, const DefDatabase& db, std::string* error);
     // Builds the terrain and water of the world's current level, generates the shadow
-    // silhouettes of the placed objects and resets the particles. Call after every
+    // silhouettes of the placed objects. Call after every
     // World::loadLevel.
     bool beginLevel(const World& world, std::string* error);
 
-    // Advances the particles by one fixed step (see WorldParticles::update).
-    void step(const World& world, float dt) { particles_.update(world, dt); }
+    // Nothing to do: the world advances its own particles (kept for callers written when
+    // the renderer simulated them).
+    void step(const World&, float) {}
 
     // Draws the world (3D passes 0 to 12 of render-pipeline.md 1.1) into the currently bound
     // framebuffer with viewport (0, 0, width, height). Leaves depth test on, blending off.
@@ -150,7 +108,6 @@ public:
     void drawBrightness(int width, int height, float brightness);
 
     const WorldRenderStats& lastStats() const { return stats_; }
-    const WorldParticles& particles() const { return particles_; }
     // Shadow silhouettes held, and how many were generated after the level load (entities
     // created by scripts whose model no placement uses).
     int shadowMapCount() const;
@@ -159,7 +116,6 @@ public:
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
-    WorldParticles particles_;
     WorldRenderStats stats_;
 };
 

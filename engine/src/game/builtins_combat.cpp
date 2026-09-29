@@ -178,8 +178,9 @@ void bTraceLineDamage(BuiltinArgs& a, void*) {
     }
 }
 
-// Lightning() (68): damage part (the bolt is a render record, not simulated). Reads no
-// arguments. The removed bit is not tested.
+// Lightning() (68): queues a bolt record from self to every live on-screen enemy within 500
+// units and damages it (the World keeps the bolts for the renderer, render-pipeline.md 7.1).
+// Reads no arguments. The removed bit is not tested.
 void bLightning(BuiltinArgs& a, void*) {
     World& w = worldOf(a);
     int s = selfOf(w);
@@ -189,6 +190,7 @@ void bLightning(BuiltinArgs& a, void*) {
         const Entity& e = w.entity(i);
         if (e.f(F_DEAD) != 0.0f || !(e.rt & RT_COLLIDABLE) || e.f(F_CLASS) != kClassEnemy) continue;
         if (!(length(e.v3(F_ORIGIN) - o) <= 500.0f)) continue;
+        w.queueLightning(o, e.v3(F_ORIGIN));
         w.damageEntity(i, w.entity(s).f(F_DAMAGE) * ft(w) * w.damageFactor(), -1);
     }
 }
@@ -252,7 +254,7 @@ const BuiltinDesc kTable[] = {
     {"RadialDamage", 3, bRadialDamage, nullptr, BuiltinStatus::Implemented},
     {"TraceLine", 3, bTraceLine, nullptr, BuiltinStatus::Implemented},
     {"TraceLineDamage", 3, bTraceLineDamage, nullptr, BuiltinStatus::Implemented},
-    {"Lightning", 0, bLightning, nullptr, BuiltinStatus::Approximate},
+    {"Lightning", 0, bLightning, nullptr, BuiltinStatus::Implemented},
     {"LockTarget", 0, bLockTarget, nullptr, BuiltinStatus::Implemented},
     {"PushPlayer", 0, bPushPlayer, nullptr, BuiltinStatus::Implemented},
 };

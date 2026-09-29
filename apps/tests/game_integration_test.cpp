@@ -230,11 +230,26 @@ TEST_CASE("input mapper: default controls of the shipped config") {
 }
 
 TEST_CASE("bot input matches the as3d_sim pilot") {
-    FrameInput a = botInput(0), b = botInput(150), c = botInput(300), d = botInput(45);
+    FrameInput a = botInput(0), b = botInput(150), c = botInput(300), d = botInput(45), e = botInput(200),
+               f = botInput(270), g = botInput(330);
     CHECK(a.held[0] == (ACT_FIRE | ACT_RIGHT));
     CHECK(b.held[0] == (ACT_FIRE | ACT_LEFT | ACT_MISSILE));
-    CHECK(c.held[0] == (ACT_FIRE | ACT_RIGHT | ACT_POWERUP));
+    CHECK(c.held[0] == (ACT_FIRE | ACT_POWERUP));
     CHECK(d.held[0] == (ACT_FIRE | ACT_RIGHT | ACT_MISSILE));
+    CHECK(e.held[0] == (ACT_FIRE | ACT_RIGHT));
+    CHECK(f.held[0] == (ACT_FIRE | ACT_FORWARD | ACT_MISSILE));
+    CHECK(g.held[0] == (ACT_FIRE | ACT_BACKWARD | ACT_MISSILE));
+    // The weave is symmetric: as long right as left in every 8 s cycle, as long forward as back.
+    int right = 0, left = 0, fwd = 0, back = 0;
+    for (u32 k = 0; k < 480; ++k) {
+        u32 h = botInput(k).held[0];
+        right += (h & ACT_RIGHT) ? 1 : 0;
+        left += (h & ACT_LEFT) ? 1 : 0;
+        fwd += (h & ACT_FORWARD) ? 1 : 0;
+        back += (h & ACT_BACKWARD) ? 1 : 0;
+    }
+    CHECK(right == left);
+    CHECK(fwd == back);
     CHECK(a.held[1] == a.held[0]);
     CHECK(a.confirm);
 }
@@ -414,7 +429,7 @@ TEST_CASE("mission 1 with the bot renders sensible frames") {
     CHECK(maxEmitters > 0);
     CHECK(maxParticles > 0);
     CHECK(rotorChanges > 1000); // spinning nearly every frame
-    CHECK(view.renderer().particles().emitterCount() > 0);
+    CHECK(s.world().particles().emitterCount() > 0);
 }
 
 TEST_CASE("rendering does not perturb the simulation") {
@@ -457,11 +472,8 @@ TEST_CASE("particles are deterministic") {
         GameSession s;
         std::string err;
         REQUIRE_MESSAGE(s.init(level1Options(), &err), err);
-        WorldParticles particles;
-        for (u32 f = 0; f < 600; ++f) {
-            s.step(botInput(f));
-            if (!s.world().paused()) particles.update(s.world(), s.world().config().dt);
-        }
+        for (u32 f = 0; f < 600; ++f) s.step(botInput(f));
+        const WorldParticles& particles = s.world().particles();
         CHECK(particles.emitterCount() > 0);
         CHECK(particles.liveParticles() > 0);
         hash[run] = particles.stateHash();

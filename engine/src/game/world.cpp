@@ -9,6 +9,7 @@
 #include "as3d/model.h"
 #include "as3d/script_host.h"
 #include "as3d/vfs.h"
+#include "as3d/world_particles.h"
 #include "world_internal.h"
 #include "world_path.h"
 
@@ -47,7 +48,8 @@ constexpr DifficultyRow kDifficulty[5] = {
 } // namespace
 
 World::World()
-    : ents_(static_cast<size_t>(kMaxEntitySlots)),
+    : particles_(new WorldParticles()),
+      ents_(static_cast<size_t>(kMaxEntitySlots)),
       tombs_(static_cast<size_t>(kMaxEntitySlots), std::vector<u32>(static_cast<size_t>(kEntityFieldCount), 0u)) {}
 
 World::~World() {
@@ -65,6 +67,7 @@ void World::init(Vfs& vfs, const DefDatabase& db, const WorldConfig& config) {
     if (!(config_.dt > 0.0f) || config_.dt > 0.1f) config_.dt = 1.0f / 60.0f;
     for (int p = 0; p < kMaxPlayers; ++p) config_.heli[p] = std::min(std::max(config_.heli[p], 0), 9);
     rng_ = Rng(config_.seed);
+    retreg_ = 0;
     for (Entity& e : ents_) e.thread.reset();
     host_.reset(new GameScriptHost(*this));
     report_ = script::BuiltinReport();
@@ -272,6 +275,7 @@ void World::attachScript(int idx, const std::string& path) {
     if (!prog) return;
     e.program = prog;
     e.thread.reset(new script::ScriptThread(*prog, *host_, &report_, nullptr, e.scriptPath.c_str()));
+    e.thread->setSharedReturnRegister(&retreg_); // one engine global (docs/spec/issues/032)
     if (!e.thread->valid()) {
         AS3D_WARN("script '%s': bind failed: %s", e.scriptPath.c_str(), e.thread->bindError().c_str());
         e.thread.reset();
@@ -405,6 +409,12 @@ int World::spawnRoot(const ObjectDef* def, const Vec3& pos, bool snap) {
 }
 
 int World::createEntity(const ObjectDef* def, const Vec3& pos, int creator, bool thinkNow) {
+    int idx = spawnForCreate(def, pos, creator);
+    if (idx >= 0) finishCreate(idx, thinkNow);
+    return idx;
+}
+
+int World::spawnForCreate(const ObjectDef* def, const Vec3& pos, int creator) {
     int idx = spawnRoot(def, pos);
     if (idx < 0) return -1;
     Entity& e = ents_[static_cast<size_t>(idx)];
@@ -413,10 +423,15 @@ int World::createEntity(const ObjectDef* def, const Vec3& pos, int creator, bool
         for (int k = 0; k < 3; ++k) e.fields[F_ANGLES + k] = c.fields[F_ANGLES + k];
         setPlayerIndexRecursive(idx, c.playerIndex);
     }
+    return idx;
+}
+
+void World::finishCreate(int idx, bool thinkNow) {
+    if (!validIndex(idx)) return;
     runInit(idx);
+    Entity& e = ents_[static_cast<size_t>(idx)];
     if (e.f(F_CLASS) == kClassEnemy && !(e.flagBits() & FL_NONTARGET)) ++enemiesInLevel_;
     if (thinkNow) think(idx);
-    return idx;
 }
 
 void World::attachEntity(int child, int parent, const std::string& tag, bool absolute) {
@@ -603,6 +618,11 @@ void World::placeLight(const Vec3& pos, const Vec3& color, float radius) {
     lights_.push_back({pos, color, radius});
 }
 
+void World::queueLightning(const Vec3& start, const Vec3& end) {
+    if (bolts_.size() >= kMaxLightningBolts) return;
+    bolts_.push_back({start, end});
+}
+
 void World::queueSound(SoundEvent::Kind kind, int idx, const std::string& sample) {
     if (sounds_.size() >= 1024) sounds_.erase(sounds_.begin()); // nobody drains it headless
     SoundEvent ev;
@@ -662,11 +682,20 @@ void World::resetLevelState() {
     hintShowing_ = false;
     hintText_.clear();
     lights_.clear();
+    bolts_.clear();
     sounds_.clear();
     frame_ = 0;
     time_ = 0.0f;
     levelClock_ = 0.0f;
     selfBits = otherBits = cbMsgBits = cbParm1Bits = cbParm2Bits = 0;
+    // The particle instances have their own random stream, restarted with every level so a
+    // level's particles do not depend on what ran before (seed never 0 for xorshift).
+    particles_->reset(config_.seed * 2654435761u + 1u);
+}
+
+void World::updateParticles() {
+    if (paused_) return;
+    particles_->update(*this, frametime_);
 }
 
 void World::resetPlayersForLevel() {

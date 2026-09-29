@@ -20,5 +20,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 
 add_executable(as3d_sim main.cpp)
-# Headless: only the simulation modules, no render/platform/audio.
-target_link_libraries(as3d_sim PRIVATE as3d_game as3d_script as3d_formats as3d_vfs as3d_core)
+# Headless: only the simulation modules and the input layer (the shared test pilot and input
+# scripts), no render/platform/audio.
+target_link_libraries(as3d_sim PRIVATE as3d_input as3d_game as3d_script as3d_formats as3d_vfs as3d_core)

@@ -29,6 +29,7 @@ class DefDatabase;
 class Vfs;
 class GameScriptHost;
 class GamePath;
+class WorldParticles;
 
 // ---------------------------------------------------------------------------------------
 // Limits and layouts.
@@ -200,6 +201,12 @@ struct Entity {
     Vec3 boundsMin, boundsMax;               // model (or sprite) box, model space
     float radius = 0.0f;                     // +0x1BF
 
+    // Rotation key of a projected shadow, in 30 degree steps (render-pipeline.md 5.3), fixed
+    // at spawn: the placement byte for map objects, int(yaw in degrees) for `create` (the
+    // original's quirk); not set for other spawns (the renderer then uses the yaw it first
+    // sees).
+    bool hasShadowKey = false;
+    int shadowKey = 0;
     ScreenRect rect;                         // +0x1C3
     bool hasPrevPoint = false;
     float prevPoint[3] = {0, 0, 0};
@@ -250,6 +257,15 @@ struct QueuedLight {
     Vec3 color;
     float radius = 0.0f;
 };
+
+// A lightning bolt queued by the Lightning builtin for this frame (render-pipeline.md 7.1: a
+// record in the effect list from the caller's origin to a struck enemy's origin). Cleared
+// at the start of every frame, like the render lists; bounded by kMaxLightningBolts.
+struct LightningBolt {
+    Vec3 start;
+    Vec3 end;
+};
+constexpr size_t kMaxLightningBolts = 256;
 
 // A sound request for the audio layer (StartSound / StartLoopingSound /
 // StopLoopingSound); drained by whoever plays sounds. Bounded.
@@ -312,6 +328,11 @@ public:
     // `create` semantics (engine-behaviour.md 3.4): -1 on failure.
     int createEntity(const ObjectDef* def, const Vec3& pos, int creator, bool thinkNow = true);
     int createEntity(const std::string& defName, const Vec3& pos, int creator = -1);
+    // The two halves of createEntity, for the `create` builtin, which writes the new
+    // reference into the return register between them (rcsl-vm.md quirk 9): the spawn with
+    // the creator's angles and player index, then init, the enemy count and the first think.
+    int spawnForCreate(const ObjectDef* def, const Vec3& pos, int creator);
+    void finishCreate(int idx, bool thinkNow);
     // Builds a pool entity at `pos` (ground/water snapping, state active) without
     // running init or a think: the common first half of create, Shoot and the spawners.
     int spawnRoot(const ObjectDef* def, const Vec3& pos, bool snap = true);
@@ -362,6 +383,10 @@ public:
     bool sphereInFrustum(const Vec3& c, float r) const;
     void computeScreenBounds(int idx);
     static bool rectsOverlap(const ScreenRect& a, const ScreenRect& b);
+    // The on-screen bit (0x08) tests of docs/spec/issues/120: a model's rectangle touches
+    // the 800x600 window (max >= 0, min < size); a point collider is inside [0, size).
+    static bool rectTouchesViewport(const ScreenRect& r);
+    static bool pointOnViewport(const float p[3]);
     static bool pointInRect(const float p[3], const ScreenRect& r);
     static bool segmentHitsRect(const float a[3], const float b[3], const ScreenRect& r);
     bool isPointCollider(const Entity& e) const;
@@ -379,6 +404,8 @@ public:
     // --- effects, sound, hints -----------------------------------------------------
     const std::vector<QueuedLight>& lights() const { return lights_; }
     void placeLight(const Vec3& pos, const Vec3& color, float radius);
+    const std::vector<LightningBolt>& lightningBolts() const { return bolts_; }
+    void queueLightning(const Vec3& start, const Vec3& end);
     std::vector<SoundEvent>& soundEvents() { return sounds_; }
     void queueSound(SoundEvent::Kind kind, int idx, const std::string& sample);
     const std::string& hintText() const { return hintText_; }
@@ -386,6 +413,10 @@ public:
     void showHint(const std::string& text);
     void dismissHint();
     script::u64 hintsShown() const { return hintsShown_; }
+
+    // --- particles (world_particles.cpp): the particle-system instances of the emitter
+    // holders, simulated at step 7 of the frame (engine-behaviour.md 2); read by the renderer.
+    const WorldParticles& particles() const { return *particles_; }
 
     // --- paths (world_path.cpp) ---------------------------------------------------
     const GamePath* pathOfPlacement(size_t placementIndex) const;
@@ -427,6 +458,9 @@ public:
     GameScriptHost& host() { return *host_; }
     script::BuiltinReport& report() { return report_; }
     const WorldStats& stats() const { return stats_; }
+
+    // The return register shared by every script thread (rcsl-vm.md "Thread state").
+    u32 returnRegister() const { return retreg_; }
 
     // Script globals (the host reads/writes them; rcsl-vm.md "Globals").
     u32 selfBits = 0, otherBits = 0, cbMsgBits = 0, cbParm1Bits = 0, cbParm2Bits = 0;
@@ -470,6 +504,7 @@ private:
     void activateMapObjects();
     void playerFrame();
     void runEntities();
+    void updateParticles(); // step 7, not while paused
     void freeRemoved();
     bool inActivationArea(const Entity& e) const;
     void renderPass(); // computes the matrices the next frame's collision uses
@@ -483,6 +518,8 @@ private:
     WorldConfig config_;
     Rng rng_{1};
     std::unique_ptr<GameScriptHost> host_;
+    std::unique_ptr<WorldParticles> particles_;
+    u32 retreg_ = 0; // the shared return register (0x1fa7dfc)
     script::BuiltinReport report_;
     WorldStats stats_;
 
@@ -533,6 +570,7 @@ private:
 
     std::vector<std::vector<u32>> tombs_;  // per slot: fields at free time, dead = 1
     std::vector<QueuedLight> lights_;
+    std::vector<LightningBolt> bolts_;
     std::vector<SoundEvent> sounds_;
     std::string hintText_;
     bool hintShowing_ = false;

@@ -18,6 +18,8 @@
 
 #include "as3d/dynamic_lights.h"
 #include "as3d/ground_marks.h"
+#include "as3d/health_bar.h"
+#include "as3d/lightning_render.h"
 #include "as3d/particle_render.h"
 #include "as3d/scene.h"
 #include "as3d/shadow_render.h"
@@ -184,6 +186,7 @@ struct WorldRenderer::Impl {
     SpriteRenderer sprites;
     GroundMarkRenderer marks;
     ShadowRenderer shadows;
+    LightningRenderer lightning;
     BrightnessPass brightness;
     std::unique_ptr<TerrainRenderer> terrain;
     std::unique_ptr<WaterRenderer> water;
@@ -200,6 +203,10 @@ struct WorldRenderer::Impl {
     std::vector<ShadowInstance> shadowList;
     std::vector<SpriteInstance> spriteList;
     std::vector<const ParticleEmitter*> emitters;
+    std::vector<Vec3> boltStarts, boltEnds;
+    // Enemy health bars (engine-behaviour.md 6.5): hbar_empty / hbar_full.
+    HealthBarSpriteDef hbarEmpty, hbarFull;
+    bool hbarReady = false;
     std::vector<int> order;
     std::vector<char> visited;
     DynamicLightList lights;
@@ -271,6 +278,30 @@ bool WorldRenderer::init(Vfs& vfs, const DefDatabase& db, std::string* error) {
     if (!im.sprites.init(error)) return false;
     if (!im.marks.init(error)) return false;
     if (!im.shadows.init(error)) return false;
+    if (!im.lightning.init(error)) return false;
+    const ObjectDef* he = db.findObject("hbar_empty");
+    const ObjectDef* hf = db.findObject("hbar_full");
+    im.hbarReady = he && hf && he->hasBbox && hf->hasBbox;
+    if (im.hbarReady) {
+        HealthBarSpriteDef* outs[2] = {&im.hbarEmpty, &im.hbarFull};
+        const ObjectDef* defs[2] = {he, hf};
+        for (int k = 0; k < 2; ++k) {
+            const ObjectDef& d = *defs[k];
+            HealthBarSpriteDef& o = *outs[k];
+            o.minX = d.bboxMin[0];
+            o.minY = d.bboxMin[1];
+            o.minS = d.bboxMin[2];
+            o.minT = d.bboxMin[3];
+            o.maxX = d.bboxMax[0];
+            o.maxY = d.bboxMax[1];
+            o.maxS = d.bboxMax[2];
+            o.maxT = d.bboxMax[3];
+            o.texture = d.skin.empty() ? nullptr : im.cache->texture(d.skin).texture;
+            o.blend = decalBlendOf(d.blend);
+            o.noDepthTest = (d.rflag & RF_NODEPTHTEST) != 0;
+            o.noDepthWrite = (d.rflag & RF_NODEPTHWRITE) != 0;
+        }
+    }
     if (!im.brightness.init(error)) return false;
     return true;
 }
@@ -285,7 +316,6 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     im.memory.assign(static_cast<size_t>(kMaxEntitySlots), SlotMemory());
     im.marks.clear();
     im.lastMarkDescs.clear();
-    particles_.reset(1);
     const Terrain* t = world.terrain();
     if (!t) return true; // an empty test level: nothing to build
     std::unique_ptr<TerrainRenderer> tr(new TerrainRenderer());
@@ -426,20 +456,43 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
     im.markDescs.clear();
     im.dropped = 0;
     worldRenderOrder(world, im.order, im.visited);
+    // The health bar follows the entity's own records (engine-behaviour.md 2, 6.5); the
+    // think draws it whether or not the entity itself is drawn.
+    auto addHealthBar = [&](const Entity& e) {
+        if (!options.sprites || !im.hbarReady) return;
+        SpriteInstance bar[2];
+        int n = buildHealthBar(e, im.hbarEmpty, im.hbarFull, bar);
+        for (int k = 0; k < n; ++k) {
+            if (im.spriteList.size() >= kMaxSprites) {
+                ++im.dropped;
+                break;
+            }
+            im.spriteList.push_back(bar[k]);
+        }
+        stats_.healthBars += n > 0 ? 1 : 0;
+    };
     for (int i : im.order) {
         const Entity& e = world.entity(i);
-        if (!e.def || (e.flagBits() & FL_NODRAW)) continue;
+        if (!e.def || (e.flagBits() & FL_NODRAW)) {
+            addHealthBar(e);
+            continue;
+        }
         const ObjectDef& def = *e.def;
         SlotMemory& mem = im.memory[static_cast<size_t>(i)];
         if (!mem.seen || mem.generation != e.generation) {
             mem.seen = true;
             mem.generation = e.generation;
             mem.spawnOrigin = e.v3(F_BASE_ORIGIN);
-            // Projected shadow key: the root's yaw in 30 degree steps (a map object's
-            // placement byte; docs/spec/issues/050).
+            // Projected shadow key (render-pipeline.md 5.3): the root's spawn key (placement
+            // byte, or int(yaw) for `create`); other spawns: the root's yaw in 30 degree
+            // steps when first seen (docs/spec/issues/050, 112).
             int r = rootOfEntity(world, i);
-            float yaw = world.validIndex(r) ? world.entity(r).f(F_ANGLES + 2) : 0.0f;
-            mem.shadowSteps = (yaw > -1.0e6f && yaw < 1.0e6f) ? wrapSteps(static_cast<int>(std::lround(yaw / 30.0f))) : 0;
+            if (world.validIndex(r) && world.entity(r).hasShadowKey) {
+                mem.shadowSteps = wrapSteps(world.entity(r).shadowKey);
+            } else {
+                float yaw = world.validIndex(r) ? world.entity(r).f(F_ANGLES + 2) : 0.0f;
+                mem.shadowSteps = (yaw > -1.0e6f && yaw < 1.0e6f) ? wrapSteps(static_cast<int>(std::lround(yaw / 30.0f))) : 0;
+            }
         }
         const Vec4 colour{e.f(F_COLOR), e.f(F_COLOR + 1), e.f(F_COLOR + 2), e.f(F_COLOR + 3)};
         const Vec3 origin = e.v3(F_BASE_ORIGIN);
@@ -554,6 +607,7 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
                 break;
             }
         }
+        addHealthBar(e);
     }
 
     TerrainViewParams tv;
@@ -614,9 +668,29 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
     glDisable(GL_BLEND);
     setDepth(true, true);
     setCull(CullMode::Back);
+    // Lightning bolts: effect-list records (sort 3) submitted by the Lightning builtin during
+    // the entity pass (7.1); drawn after the effect models.
+    const std::vector<LightningBolt>& bolts = world.lightningBolts();
+    if (!bolts.empty()) {
+        im.boltStarts.clear();
+        im.boltEnds.clear();
+        for (const LightningBolt& b : bolts) {
+            im.boltStarts.push_back(b.start);
+            im.boltEnds.push_back(b.end);
+        }
+        LightningViewParams lv;
+        lv.view = wv.view;
+        lv.projection = wv.projection;
+        lv.fogStart = light.fogStart;
+        lv.fogEnd = light.fogEnd;
+        lv.time = world.time();
+        im.lightning.draw(im.boltStarts.data(), im.boltEnds.data(), bolts.size(),
+                          im.cache->texture("gfx\\lightning2.tga").texture, lv);
+        stats_.bolts = im.lightning.lastBoltCount();
+    }
     // Pass 10: particles.
     if (options.particles) {
-        particles_.collect(im.emitters);
+        world.particles().collect(im.emitters);
         ParticleViewParams pv;
         pv.view = wv.view;
         pv.projection = wv.projection;

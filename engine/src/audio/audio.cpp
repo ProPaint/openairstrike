@@ -122,6 +122,8 @@ void Audio::stopMusic() {
 }
 
 bool Audio::isMusicPlaying() const { return impl_->mixer.hasMusic(); }
+bool Audio::jumpMusicToOrder(int order) { return impl_->mixer.jumpMusicToOrder(order); }
+int Audio::musicOrder() const { return impl_->mixer.musicOrder(); }
 std::string Audio::musicTitle() const { return impl_->musicTitle; }
 
 void Audio::setSfxVolume(float linear) { impl_->mixer.setSfxVolume(linear); }

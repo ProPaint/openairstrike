@@ -29,6 +29,8 @@ using SoundId = u32;
 using VoiceId = u32;
 constexpr SoundId kInvalidSoundId = 0;
 constexpr VoiceId kInvalidVoiceId = 0;
+// Pattern order of the game-over section of every music module (engine-behaviour.md 12).
+constexpr int kGameOverMusicOrder = 35;
 
 enum class AudioBackend {
     Null,  // No real device; pull mixed audio manually with Audio::render().
@@ -97,6 +99,12 @@ public:
     void stopMusic();
     bool isMusicPlaying() const;
     std::string musicTitle() const;
+    // Jumps the playing module to the start of pattern order `order`, or to order 0 when the
+    // module has fewer orders. On game over the game jumps to kGameOverMusicOrder
+    // (engine-behaviour.md 12, frontend.md 3.10). False without music.
+    bool jumpMusicToOrder(int order);
+    // Current pattern order of the music, -1 without music.
+    int musicOrder() const;
 
     void setSfxVolume(float linear);
     void setMusicVolume(float linear);

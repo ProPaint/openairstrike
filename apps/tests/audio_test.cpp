@@ -481,3 +481,31 @@ TEST_CASE("music: title metadata is readable") {
     REQUIRE(audio.playMusic("music\\track01.mo3", false));
     CHECK(audio.musicTitle().size() > 0);
 }
+
+TEST_CASE("music: the game-over jump to pattern order 35 (or 0 for a shorter module)") {
+    AS3D_REQUIRE_DATA();
+    as3d::Vfs vfs = makeGameVfs();
+    as3d::Audio audio;
+    REQUIRE(audio.init(vfs, as3d::AudioBackend::Null, 44100));
+    CHECK_FALSE(audio.jumpMusicToOrder(as3d::kGameOverMusicOrder)); // no music yet
+    CHECK(audio.musicOrder() == -1);
+    int jumped35 = 0;
+    for (int i = 1; i <= 5; ++i) {
+        char path[64];
+        std::snprintf(path, sizeof(path), "music\\track%02d.mo3", i);
+        CAPTURE(path);
+        REQUIRE(audio.playMusic(path, true));
+        std::vector<float> out(2 * 4410);
+        audio.render(out.data(), 4410);
+        CHECK(audio.musicOrder() == 0);
+        REQUIRE(audio.jumpMusicToOrder(as3d::kGameOverMusicOrder));
+        int o = audio.musicOrder();
+        CHECK((o == 35 || o == 0));
+        jumped35 += o == 35 ? 1 : 0;
+        audio.render(out.data(), 4410); // keeps playing from there
+        CHECK(audio.isMusicPlaying());
+        CHECK(audio.jumpMusicToOrder(100000)); // out of range: order 0
+        CHECK(audio.musicOrder() == 0);
+    }
+    MESSAGE("modules with a game-over section at order 35: " << jumped35 << " of 5");
+}

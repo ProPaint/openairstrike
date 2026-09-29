@@ -63,10 +63,17 @@ struct FrameInput {
     bool operator!=(const FrameInput& o) const { return !(*this == o); }
 };
 
-// The deterministic test pilot of `as3d_sim --bot`: fire held, missiles pulsed every
-// half second, a power-up every 10 s, weaving left and right every 2 s, hint boxes
-// confirmed. Both tools must produce the same input for the same frame.
+// The deterministic test pilot of `as3d_sim --bot` and `as3d_game --bot`: fire held,
+// missiles pulsed every half second, a power-up every 10 s, a weave symmetric about the start
+// position (right 1 s, left 2 s, right 1 s, forward and back), hint boxes confirmed. A pure
+// function of the frame, so both tools produce the same input.
 FrameInput botInput(u32 frame);
+
+// A pilot that looks at the world (`as3d_sim --pilot`): the same fire, missile and power-up
+// pattern, flying the lower middle of the play-field with a gentle weave, over the nearest
+// pick-up ahead, and sideways out of the path of enemy fire and rammers. Deterministic (a
+// pure function of the world state and the frame); it reads the world, never writes it.
+FrameInput botInput(const World& world, u32 frame);
 
 // ---------------------------------------------------------------------------------------
 // Keyboard and mouse.

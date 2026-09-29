@@ -15,11 +15,9 @@ namespace {
 
 // create(name, pos) (rcsl-builtins-semantics.md 25): spawns the definition at pos with
 // self's angles and player index, runs its init (recursive) and one think, returns the
-// reference (0.0 on failure).
-// Not reproduced: the original writes the reference into the (engine-global) return
-// register *before* the new entity's init runs, so a RET in that init changes what the
-// caller receives (rcsl-vm.md quirk 9). Our VM keeps one return register per thread; see
-// the WP-42a report.
+// reference (0.0 on failure). Like the original, the reference goes into the shared return
+// register *before* the new entity's init runs, so a RET or a value-returning builtin in
+// that init or first main changes what the caller receives (rcsl-vm.md quirk 9).
 void bCreate(BuiltinArgs& a, void*) {
     World& w = worldOf(a);
     float pos[3];
@@ -30,8 +28,15 @@ void bCreate(BuiltinArgs& a, void*) {
         a.setReturnBits(0);
         return;
     }
-    int idx = w.createEntity(def, Vec3{pos[0], pos[1], pos[2]}, selfOf(w), true);
+    int idx = w.spawnForCreate(def, Vec3{pos[0], pos[1], pos[2]}, selfOf(w));
+    // The projected shadow's rotation key is int(yaw in degrees), which the generator
+    // multiplies by 30 degrees (render-pipeline.md 5.3; yaw copied from the creator).
+    if (idx >= 0) {
+        w.entity(idx).shadowKey = ftol(w.entity(idx).f(F_ANGLES + 2));
+        w.entity(idx).hasShadowKey = true;
+    }
     a.setReturnBits(idx >= 0 ? w.refOf(idx) : 0u);
+    if (idx >= 0) w.finishCreate(idx, true);
 }
 
 void bRemove(BuiltinArgs& a, void*) {

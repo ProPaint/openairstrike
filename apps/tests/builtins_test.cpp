@@ -314,6 +314,9 @@ TEST_CASE("builtin create: copies angles and player index, returns the reference
     CHECK(t.r.e(c).f(F_ANGLES + 2) == 3.0f);
     CHECK(t.r.e(c).f(F_ORIGIN + 1) == 400.0f);
     CHECK(t.r.e(c).f(F_AGE) == 0.0f); // its immediate think ran with frametime 0 (no step yet)
+    // Projected-shadow key: int(yaw in degrees), used as 30 degree steps (render-pipeline.md 5.3).
+    CHECK(t.r.e(c).hasShadowKey);
+    CHECK(t.r.e(c).shadowKey == 3);
 
     BT u; // unknown name: 0.0
     u.setup([](Asm& a) {
@@ -324,6 +327,36 @@ TEST_CASE("builtin create: copies angles and player index, returns the reference
     u.e().setF(26, 9.0f);
     u.run();
     CHECK(u.e().fields[26] == 0u);
+}
+
+TEST_CASE("builtin create: a RET in the new entity's init replaces the result (shared return register)") {
+    // rcsl-vm.md quirk 9: the reference goes into the one engine-global return register
+    // before the child's init runs; the child's `RET 7` then replaces it.
+    for (int withRet = 0; withRet < 2; ++withRet) {
+        BT t;
+        Asm child;
+        child.entry(EntryPoint::Init);
+        if (withRet) child.emit(OP_RET, M_IMM1, imm(7.0f));
+        else child.end();
+        t.r.script("scripts\\child.scr", child);
+        t.setup(
+            [](Asm& a) {
+                a.movStr(0, "t_child");
+                a.leaGlobal(1, "self", 5);
+                callStore(a, "create");
+            },
+            "t_child {\n flag FL_TEMPORARY\n script \"scripts\\child.scr\"\n}\n");
+        int before = t.r.world.listCount();
+        t.run();
+        CHECK(t.r.world.listCount() == before + 1); // created either way
+        INFO("with RET " << withRet);
+        if (withRet) {
+            CHECK(t.f(26) == 7.0f);
+            CHECK(t.r.world.returnRegister() == fb(7.0f));
+        } else {
+            CHECK(t.r.world.liveIndexFromRef(t.e().fields[26]) >= 0);
+        }
+    }
 }
 
 TEST_CASE("builtin remove: deferred, script keeps running") {
@@ -893,6 +926,14 @@ TEST_CASE("builtin Lightning: on-screen living enemies within 500") {
     int en = onScreenEnemy(t, {640, 400, 0});
     t.run();
     CHECK(near(t.r.e(en).f(F_HEALTH), 100.0f - 20.0f * kFt * 0.8f));
+    // One bolt record per struck enemy, from self to the enemy (render-pipeline.md 7.1).
+    const std::vector<LightningBolt>& bolts = t.r.world.lightningBolts();
+    REQUIRE(bolts.size() == 1);
+    CHECK(bolts[0].start.y == 300.0f);
+    CHECK(bolts[0].end.y == 400.0f);
+    // The records live for one frame, like every render record.
+    t.r.step();
+    CHECK(t.r.world.lightningBolts().empty());
 }
 
 TEST_CASE("builtin LockTarget: nearest enemy ahead of the player") {

@@ -59,6 +59,9 @@ public:
     void setMusic(MusicDecoder* decoder);
     void clearMusic();
     bool hasMusic() const;
+    // Under the lock: jumps the music to `order`, or to order 0 when the module is shorter.
+    bool jumpMusicToOrder(int order);
+    int musicOrder() const;
 
     void setSfxVolume(float v);
     void setMusicVolume(float v);
