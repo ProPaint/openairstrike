@@ -2,14 +2,16 @@
 //
 //   as3d_sim --level 1 --frames 3600 [--seed S] [--difficulty D] [--players N]
 //            [--dump-state state.json] [--builtin-report report.json] [--data ROOT]
-//            [--bot | --input-script FILE] [--god] [--trace-player FILE]
+//            [--bot | --pilot | --input-script FILE] [--record FILE] [--god] [--trace-player FILE]
 //
 // Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT.
 // Prints a summary: entity counts, script errors, and the builtin call counts sorted by
 // count, stubs marked.
 //
 // --bot flies the scripted test pilot of as3d/input.h (the same input as `as3d_game --bot`);
-// --input-script plays an input script (as3d/input.h format; pause edges toggle the pause
+// --pilot the pilot that looks at the world (stays in the lower middle, dodges, collects);
+// --record saves the input of the run as an input script, which `as3d_game --input-script`
+// replays identically; --input-script plays an input script (as3d/input.h format; pause edges toggle the pause
 // like the game does). --god turns on god mode (the `iwannabe` cheat of engine-behaviour.md
 // 14). --trace-player writes one line per frame with player 1's position, its projected
 // screen rectangle on the 800x600 collision viewport and its on-screen bit 0x08.
@@ -51,7 +53,8 @@ int usage() {
     std::fprintf(stderr,
                  "usage: as3d_sim --level N --frames N [--seed S] [--difficulty 0..4] [--players 1|2]\n"
                  "                [--dump-state FILE] [--builtin-report FILE] [--data ROOT]\n"
-                 "                [--bot | --input-script FILE] [--god] [--trace-player FILE]\n");
+                 "                [--bot | --pilot | --input-script FILE] [--record FILE] [--god]\n"
+                 "                [--trace-player FILE]\n");
     return 2;
 }
 
@@ -76,9 +79,9 @@ void tracePlayer(std::FILE* f, const World& w) {
 } // namespace
 
 int main(int argc, char** argv) {
-    std::string level = "1", dumpPath, reportPath, dataRoot, inputPath, tracePath;
+    std::string level = "1", dumpPath, reportPath, dataRoot, inputPath, tracePath, recordPath;
     long frames = 600;
-    bool bot = false;
+    bool bot = false, pilot = false;
     WorldConfig cfg;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -98,12 +101,14 @@ int main(int argc, char** argv) {
         else if (a == "--data" && next(v)) dataRoot = v;
         else if (a == "--input-script" && next(v)) inputPath = v;
         else if (a == "--trace-player" && next(v)) tracePath = v;
+        else if (a == "--record" && next(v)) recordPath = v;
         else if (a == "--bot") bot = true;
+        else if (a == "--pilot") pilot = true;
         else if (a == "--god") cfg.godMode = true;
         else return usage();
     }
     if (frames < 0 || frames > 10'000'000) return usage();
-    if (bot && !inputPath.empty()) return usage();
+    if ((bot ? 1 : 0) + (pilot ? 1 : 0) + (inputPath.empty() ? 0 : 1) > 1) return usage();
     InputScript script;
     if (!inputPath.empty()) {
         std::string err;
@@ -143,10 +148,13 @@ int main(int argc, char** argv) {
         return 1;
     }
     PlayerInput input;
+    InputRecorder recorder;
     int maxList = world.listCount();
     for (long f = 0; f < frames; ++f) {
-        if (bot) {
-            input = botInput(static_cast<u32>(f)).toPlayerInput();
+        if (bot || pilot) {
+            FrameInput in = bot ? botInput(static_cast<u32>(f)) : botInput(world, static_cast<u32>(f));
+            recorder.record(static_cast<u32>(f), in);
+            input = in.toPlayerInput();
         } else if (!inputPath.empty()) {
             FrameInput in = scriptPlayer.frame(static_cast<u32>(f));
             // The P key (as3d_game's session): ignored while a hint box or a level end
@@ -158,13 +166,20 @@ int main(int argc, char** argv) {
                     for (int p = 0; p < kMaxPlayers; ++p) world.player(p).action = 0.0f;
                 }
             }
+            recorder.record(static_cast<u32>(f), in);
             input = in.toPlayerInput();
+        } else {
+            recorder.record(static_cast<u32>(f), FrameInput());
         }
         world.step(input);
         if (trace) tracePlayer(trace, world);
         maxList = std::max(maxList, world.listCount());
     }
     if (trace) std::fclose(trace);
+    if (!recordPath.empty() && !recorder.script().save(recordPath)) {
+        std::fprintf(stderr, "as3d_sim: cannot write %s\n", recordPath.c_str());
+        return 1;
+    }
 
     const WorldStats& st = world.stats();
     std::printf("level %s: %ld frames, map_pos %.1f, list entities %d (max %d), slots %d (max %d)\n", level.c_str(),
