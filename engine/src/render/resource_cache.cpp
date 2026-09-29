@@ -56,13 +56,28 @@ const Texture2D& ResourceCache::placeholderTexture() {
     return *placeholderTexture_;
 }
 
+const Texture2D& ResourceCache::whiteTexture() {
+    if (!whiteTexture_) {
+        Image px;
+        px.width = px.height = 1;
+        px.rgba = {255, 255, 255, 255};
+        whiteTexture_ = std::make_unique<Texture2D>();
+        whiteTexture_->create(px, TextureOptions());
+    }
+    return *whiteTexture_;
+}
+
+bool ResourceCache::isPlaceholder(const Texture2D* texture) const {
+    return texture && (texture == placeholderTexture_.get() || texture == whiteTexture_.get());
+}
+
 ResourceCache::LoadedTexture ResourceCache::texture(const std::string& gamePath, bool mipmaps) {
     if (gamePath.empty()) {
         // No skin/texture was ever declared (e.g. a light/mark/anchor ObjectDef with no
         // "skin" statement, see docs/spec/obj.md "type") -- not a load failure, so no
         // warning, just the placeholder.
         LoadedTexture loaded;
-        loaded.texture = &placeholderTexture();
+        loaded.texture = missingWhite_ ? &whiteTexture() : &placeholderTexture();
         loaded.hasAlpha = false;
         return loaded;
     }
@@ -82,7 +97,7 @@ ResourceCache::LoadedTexture ResourceCache::texture(const std::string& gamePath,
     if (!ok) {
         warnOnce(key, "ResourceCache: texture '" + gamePath + "' could not be loaded, using placeholder");
         LoadedTexture loaded;
-        loaded.texture = &placeholderTexture();
+        loaded.texture = missingWhite_ ? &whiteTexture() : &placeholderTexture();
         loaded.hasAlpha = false;
         return loaded;
     }

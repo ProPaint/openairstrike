@@ -191,6 +191,11 @@ struct WorldRenderer::Impl {
     std::unique_ptr<TerrainRenderer> terrain;
     std::unique_ptr<WaterRenderer> water;
     const Terrain* terrainOf = nullptr;
+    RenderRules rules = renderRules(GameId::AirStrike3D);
+    SkidTrailRenderer skids;
+    bool skidsReady = false;
+    const SkidTrail* skidTrails = nullptr;
+    size_t skidTrailCount = 0;
     Vec3 towardsSun{0.0f, 0.0f, 1.0f};
     // Materials by (definition, model, skin); unique_ptr keeps addresses stable.
     std::map<std::pair<const ObjectDef*, std::string>, std::unique_ptr<Material>> materials;
@@ -315,6 +320,15 @@ bool WorldRenderer::init(Vfs& vfs, const DefDatabase& db, std::string* error) {
 bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     Impl& im = *impl_;
     im.resolveHealthBar(world.rules());
+    // The game's render rules (as3d/render_rules.h), from the world's game rules.
+    im.rules = renderRulesFor(world.rules());
+    im.cache->setMissingTextureWhite(im.rules.missingTextureWhite);
+    im.meshes.setEnvViewNormal(im.rules.envViewNormal);
+    im.shadows.setRules(im.rules);
+    if (im.rules.skidMarkPass && !im.skidsReady) {
+        if (!im.skids.init(*im.cache, skidTrailParams(world.rules()), error)) return false;
+        im.skidsReady = true;
+    }
     im.terrain.reset();
     im.water.reset();
     im.terrainOf = nullptr;
@@ -327,8 +341,17 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     if (!t) return true; // an empty test level: nothing to build
     std::unique_ptr<TerrainRenderer> tr(new TerrainRenderer());
     std::unique_ptr<WaterRenderer> wr(new WaterRenderer());
-    if (!tr->build(*t, *im.vfs, error)) return false;
-    if (!wr->build(*t, *im.vfs, error)) return false;
+    if (!tr->build(*t, *im.vfs, error, im.rules)) return false;
+    if (im.rules.water == WaterStyle::WaveGrid) {
+        // The shine texture is not in TerrainStyle: the level's definition has it.
+        std::string shine;
+        for (const LevelDef& d : im.db->levels())
+            if (d.id == t->style().id) shine = d.waterShine;
+        const WaterSurface surface = buildWaterSurface(*t, true, shine);
+        if (!wr->build(*t, surface, TerrainGridView::of(*t), *im.vfs, error)) return false;
+    } else if (!wr->build(*t, *im.vfs, error)) {
+        return false;
+    }
     im.terrain = std::move(tr);
     im.water = std::move(wr);
     im.terrainOf = t;
@@ -344,6 +367,21 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     }
     return true;
 }
+
+void WorldRenderer::terrainChanged(const VertexRect* rects, size_t count) {
+    Impl& im = *impl_;
+    if (!im.terrainOf || count == 0) return;
+    const TerrainGridView grid = TerrainGridView::of(*im.terrainOf);
+    if (im.terrain) im.terrain->update(rects, count, grid);
+    if (im.water) im.water->update(rects, count, grid);
+}
+
+void WorldRenderer::setSkidTrails(const SkidTrail* trails, size_t count) {
+    impl_->skidTrails = trails;
+    impl_->skidTrailCount = trails ? count : 0;
+}
+
+const RenderRules& WorldRenderer::rules() const { return impl_->rules; }
 
 int WorldRenderer::shadowMapCount() const { return static_cast<int>(impl_->shadowMaps.size()); }
 int WorldRenderer::lateShadowMaps() const { return impl_->lateShadowMaps; }
@@ -403,7 +441,7 @@ bool sameMarks(const std::vector<std::pair<GroundMarkDesc, std::uint64_t>>& a, c
     if (a.size() != b.size()) return false;
     for (size_t i = 0; i < a.size(); ++i) {
         if (a[i].second != b[i].second || colourKey(a[i].first.colour) != colourKey(b[i].first.colour) ||
-            a[i].first.texture != b[i].first.texture)
+            a[i].first.alpha != b[i].first.alpha || a[i].first.texture != b[i].first.texture)
             return false;
     }
     return true;
@@ -575,6 +613,8 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
                 d.texture = im.cache->texture(skin).texture;
                 d.blend = decalBlendOf(def.blend);
                 d.colour = Vec3{colour.x, colour.y, colour.z};
+                d.alpha = im.rules.markEntityAlpha ? colour.w : 1.0f;
+                d.unflippedTexture = im.rules.markTextureUnflipped;
                 im.markDescs.push_back({d, (static_cast<std::uint64_t>(i) << 32) | e.generation});
                 break;
             }
@@ -669,6 +709,11 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
             im.lastMarkDescs = im.markDescs;
         }
         if (!im.markDescs.empty()) im.marks.draw(dv);
+        // The sequels' skid marks, between the marks and the shadows (as2 delta 1.1 pass 5).
+        if (im.rules.skidMarkPass && im.skidsReady && options.sprites && im.skidTrailCount > 0) {
+            im.skids.draw(im.skidTrails, im.skidTrailCount, TerrainGridView::of(*terrain), dv);
+            stats_.skidTrails = im.skids.lastTrailCount();
+        }
         // Pass 5: shadows.
         if (!im.shadowList.empty()) im.shadows.draw(*terrain, im.shadowList.data(), im.shadowList.size(), dv);
     }
@@ -677,7 +722,10 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
     for (const MeshRecord& r : im.opaque) im.meshes.submit(*r.mesh, *r.material, r.model, r.colour);
     im.meshes.end();
     // Pass 7: water.
-    if (options.terrain && haveTerrain && im.water) im.water->render(tv);
+    if (options.terrain && haveTerrain && im.water) {
+        im.water->render(tv);
+        stats_.waterChunks = im.water->lastVisibleChunks();
+    }
     // Passes 8 and 9: transparent then effect list.
     im.meshes.begin(cam, light);
     for (const MeshRecord& r : im.trans) im.meshes.submit(*r.mesh, *r.material, r.model, r.colour);
@@ -726,6 +774,7 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
     sv.fogColour = light.fogColor;
     sv.fogStart = light.fogStart;
     sv.fogEnd = light.fogEnd;
+    sv.cullBackFaces = im.rules.spriteCulling;
     if (!im.spriteList.empty()) im.sprites.draw(im.spriteList.data(), im.spriteList.size(), sv);
     glDisable(GL_BLEND);
     setDepth(true, true);

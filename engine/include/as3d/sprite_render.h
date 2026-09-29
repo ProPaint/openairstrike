@@ -61,6 +61,9 @@ struct SpriteViewParams {
     Vec3 fogColour;
     float fogStart = 1.0e9f; // linear fog; set fogEnd <= fogStart to disable
     float fogEnd = 1.0e9f;
+    // The first game culls back faces in the sprite pass; the sequels draw it unculled
+    // (as2/render-pipeline.delta.md 3.3, RenderRules::spriteCulling).
+    bool cullBackFaces = true;
 };
 
 class SpriteRenderer {
@@ -72,8 +75,8 @@ public:
 
     bool init(std::string* error);
 
-    // Draws the sprites in the given order (no sorting). Face culling stays on, like the
-    // original; the corner order faces the viewer.
+    // Draws the sprites in the given order (no sorting). Face culling as params.cullBackFaces
+    // says; the corner order faces the viewer.
     void draw(const SpriteInstance* sprites, size_t count, const SpriteViewParams& params);
     int lastSpriteCount() const { return lastSprites_; }
 

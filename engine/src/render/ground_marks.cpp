@@ -91,7 +91,11 @@ void emitClipped(const GroundRect& rect, P3 a, P3 b, P3 c, std::vector<DecalVert
 } // namespace
 
 void buildTerrainDecal(const Terrain& terrain, const GroundRect& rect, std::vector<DecalVertex>& out) {
-    if (terrain.positions().empty() || rect.sizeX <= 0.0f || rect.sizeY <= 0.0f) return;
+    buildTerrainDecal(TerrainGridView::of(terrain), rect, out);
+}
+
+void buildTerrainDecal(const TerrainGridView& terrain, const GroundRect& rect, std::vector<DecalVertex>& out) {
+    if (!terrain.valid() || rect.sizeX <= 0.0f || rect.sizeY <= 0.0f) return;
     Vec2 corners[4] = {rect.origin,
                        rect.origin + rect.axisX * rect.sizeX,
                        rect.origin + rect.axisX * rect.sizeX + rect.axisY * rect.sizeY,
@@ -101,13 +105,13 @@ void buildTerrainDecal(const Terrain& terrain, const GroundRect& rect, std::vect
         minX = std::min(minX, corners[i].x); maxX = std::max(maxX, corners[i].x);
         minY = std::min(minY, corners[i].y); maxY = std::max(maxY, corners[i].y);
     }
-    int W = terrain.width(), H = terrain.height();
+    int W = terrain.width, H = terrain.height;
     int c0 = std::max(0, static_cast<int>(std::floor(minX / kHmapCellSize)));
     int c1 = std::min(W - 1, static_cast<int>(std::floor(maxX / kHmapCellSize)));
     int r0 = std::max(0, static_cast<int>(std::floor(minY / kHmapCellSize)));
     int r1 = std::min(H - 1, static_cast<int>(std::floor(maxY / kHmapCellSize)));
     int vw = terrain.vertsWide();
-    const auto& pos = terrain.positions();
+    const Vec3* pos = terrain.positions;
     for (int r = r0; r <= r1; r++) {
         for (int c = c0; c <= c1; c++) {
             const Vec3& v00 = pos[static_cast<size_t>(r) * vw + c];
@@ -148,14 +152,17 @@ in vec2 vUv;
 in float vDepth;
 uniform sampler2D uTex;
 uniform vec3 uColour;
-uniform int uShadow;       // 1: (0, 0, 0, texture alpha), the shadow look
+uniform float uAlpha;
+uniform int uShadow;       // 1: (0, 0, 0, texture alpha); 2: grey 1 − texture alpha (multiplied)
 uniform vec3 uFogColor;
 uniform float uFogStart;
 uniform float uFogEnd;
 out vec4 fragColor;
 void main() {
     vec4 t = texture(uTex, vUv);
-    vec4 c = uShadow != 0 ? vec4(0.0, 0.0, 0.0, t.a) : vec4(t.rgb * uColour, t.a);
+    vec4 c = uShadow == 1 ? vec4(0.0, 0.0, 0.0, t.a)
+           : uShadow == 2 ? vec4(vec3(1.0 - t.a), 1.0)
+           : vec4(t.rgb * uColour, t.a * uAlpha);
     float f = clamp((uFogEnd - vDepth) / max(uFogEnd - uFogStart, 1e-3), 0.0, 1.0);
     fragColor = vec4(mix(uFogColor, c.rgb, f), c.a);
 }
@@ -177,7 +184,7 @@ bool DecalDrawer::init(std::string* error) {
 }
 
 void DecalDrawer::draw(const DecalViewParams& params, const std::vector<DecalVertex>& vertices,
-                       const std::vector<DecalBatch>& batches, bool shadowMode) {
+                       const std::vector<DecalBatch>& batches, DecalLook look) {
     if (!program_.valid() || vertices.empty() || batches.empty()) return;
     vbo_.upload(vertices.data(), vertices.size() * sizeof(DecalVertex), true);
     program_.use();
@@ -186,7 +193,7 @@ void DecalDrawer::draw(const DecalViewParams& params, const std::vector<DecalVer
     program_.setFloat("uFogStart", params.fogStart);
     program_.setFloat("uFogEnd", params.fogEnd);
     program_.setInt("uTex", 0);
-    program_.setInt("uShadow", shadowMode ? 1 : 0);
+    program_.setInt("uShadow", look == DecalLook::ShadowAlpha ? 1 : look == DecalLook::ShadowMultiply ? 2 : 0);
     vao_.bind();
 
     setDepth(true, false);
@@ -204,6 +211,7 @@ void DecalDrawer::draw(const DecalViewParams& params, const std::vector<DecalVer
         }
         program_.setVec3("uFogColor", fog);
         program_.setVec3("uColour", b.colour);
+        program_.setFloat("uAlpha", b.alpha);
         b.texture->bind(0);
         glDrawArrays(GL_TRIANGLES, static_cast<GLint>(b.first), static_cast<GLsizei>(b.count));
     }
@@ -222,6 +230,7 @@ struct GroundMarkRenderer::Impl {
         const Texture2D* texture = nullptr;
         DecalBlend blend = DecalBlend::Filter;
         Vec3 colour;
+        float alpha = 1.0f;
     };
     DecalDrawer drawer;
     std::vector<Mark> marks;
@@ -233,6 +242,10 @@ GroundMarkRenderer::~GroundMarkRenderer() = default;
 bool GroundMarkRenderer::init(std::string* error) { return impl_->drawer.init(error); }
 
 int GroundMarkRenderer::addMark(const Terrain& terrain, const GroundMarkDesc& desc) {
+    return addMark(TerrainGridView::of(terrain), desc);
+}
+
+int GroundMarkRenderer::addMark(const TerrainGridView& terrain, const GroundMarkDesc& desc) {
     if (impl_->marks.size() >= kMaxMarks) return -1;
     Impl::Mark m;
     // The rectangle stays axis aligned in the world and never rotates (spec 3.4).
@@ -240,9 +253,13 @@ int GroundMarkRenderer::addMark(const Terrain& terrain, const GroundMarkDesc& de
                                               desc.origin.x + desc.maxX, desc.origin.y + desc.maxY);
     buildTerrainDecal(terrain, rect, m.vertices);
     if (m.vertices.empty()) return -1;
+    if (desc.unflippedTexture) {
+        for (DecalVertex& v : m.vertices) v.v = 1.0f - v.v; // v = t (as2 delta 3.4)
+    }
     m.texture = desc.texture;
     m.blend = desc.blend;
     m.colour = desc.colour;
+    m.alpha = desc.alpha;
     impl_->marks.push_back(std::move(m));
     return static_cast<int>(impl_->marks.size()) - 1;
 }
@@ -264,10 +281,11 @@ void GroundMarkRenderer::draw(const DecalViewParams& params) {
         b.texture = m.texture;
         b.blend = m.blend;
         b.colour = m.colour;
+        b.alpha = m.alpha;
         verts.insert(verts.end(), m.vertices.begin(), m.vertices.end());
         batches.push_back(b);
     }
-    impl_->drawer.draw(params, verts, batches, false);
+    impl_->drawer.draw(params, verts, batches, DecalLook::Mark);
 }
 
 } // namespace as3d

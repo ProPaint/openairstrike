@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "as3d/dynamic_lights.h"
+#include "as3d/game_profile.h"
 #include "as3d/image.h"
 #include "as3d/scene.h"
 #include "as3d/vfs.h"
@@ -37,6 +38,19 @@ struct LevelRenderOptions {
     // "x,y[,object];..." or "demo"; the object defaults to "mark").
     std::vector<as3d::DynamicLight> extraLights;
     std::string extraMarks;
+    // The game whose render rules and game rules apply (as3d/render_rules.h,
+    // as3d/game_profile.h): water, shadows, sprites, environment maps, skid marks.
+    as3d::GameId game = as3d::GameId::AirStrike3D;
+    float time = 0.0f;  // game time T in seconds: water scroll and waves
+    // --morph "x,y,stamp;...": TerraMorph stamps (morphmaps/<stamp>.tga, 8-bit grey) applied to
+    // the heights before rendering, with the builtin's placement, skip and height rules
+    // (as2/rcsl-builtins-semantics.delta.md entry 95); the renderers then re-upload only the
+    // touched chunks. The viewer keeps its own copy of the heights (Terrain is not mutable).
+    std::string morphs;
+    // --skid "x0,y0,x1,y1,width,texture;...": a skid trail laid from (x0,y0) to (x1,y1), newest
+    // section at (x1,y1), one section every 25 units (5/12 s at 60 units/s), ages from that
+    // speed; `texture` a path or a name in gfx/marks (jeepmark1, tankmark1).
+    std::string skids;
 };
 
 struct LevelRenderStats {
@@ -51,6 +65,13 @@ struct LevelRenderStats {
     int lightsUsed = 0;      // dynamic lights in the frame's list (max 32)
     int envParts = 0;        // drawn object parts with an environment map
     std::string levelId;
+    bool waterGrid = false;  // the sequels' water grid
+    int wetCells = 0;
+    int waterChunks = 0;     // water chunks (grid) or quads (plane) drawn
+    int morphStamps = 0;     // stamps applied (a stamp that failed to load is not counted)
+    int terrainChunksUpdated = 0;
+    int waterChunksUpdated = 0;
+    int skidTrails = 0;      // trails drawn
 };
 
 // `db` must be the loaded definition database of `vfs`. Returns false with `error` set on

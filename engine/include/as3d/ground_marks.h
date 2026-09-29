@@ -12,6 +12,7 @@
 #include "as3d/gfx.h"
 #include "as3d/math.h"
 #include "as3d/terrain.h"
+#include "as3d/terrain_grid.h"
 
 namespace as3d {
 
@@ -44,6 +45,8 @@ struct DecalVertex {
 // v = 1 - t. The cells use the terrain renderer's triangulation, so the decal lies exactly on
 // the drawn ground (draw it with a polygon offset).
 void buildTerrainDecal(const Terrain& terrain, const GroundRect& rect, std::vector<DecalVertex>& out);
+// Same over any vertex grid (heights changed after the Terrain was built, as3d/terrain_grid.h).
+void buildTerrainDecal(const TerrainGridView& grid, const GroundRect& rect, std::vector<DecalVertex>& out);
 
 enum class DecalBlend { None, Alpha, Add, Filter };
 
@@ -61,7 +64,12 @@ struct GroundMarkDesc {
     float minX = -50.0f, minY = -50.0f, maxX = 50.0f, maxY = 50.0f;
     const Texture2D* texture = nullptr; // null draws nothing
     DecalBlend blend = DecalBlend::Filter;
-    Vec3 colour{1.0f, 1.0f, 1.0f};      // entity RGB, alpha is always 1
+    Vec3 colour{1.0f, 1.0f, 1.0f};      // entity RGB
+    // The sequels (as2/render-pipeline.delta.md 3.4, RenderRules::markEntityAlpha and
+    // markTextureUnflipped): the entity alpha reaches the vertex colour (the first game: 1),
+    // and the decal's t is used unflipped (v = t instead of 1 − t: mirrored along world y).
+    float alpha = 1.0f;
+    bool unflippedTexture = false;
 };
 
 // TYPE_MARK draw pass (pass 4): depth test on, depth write off, polygon offset (-1, -1).
@@ -80,6 +88,7 @@ public:
     // Builds the mark's geometry now (like the original's display list at spawn). Returns the
     // mark's index, or -1 when the list is full or the rectangle touches no terrain.
     int addMark(const Terrain& terrain, const GroundMarkDesc& desc);
+    int addMark(const TerrainGridView& grid, const GroundMarkDesc& desc);
     void clear();
     size_t size() const;
     // Triangle count of one mark (for tests); 0 for a bad index.

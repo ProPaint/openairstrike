@@ -92,6 +92,16 @@ struct Quad {
     QuadShape shape = QuadShape::Rect;     // Ellipse: only the inscribed ellipse is drawn
     float inner = 0;                       // Ellipse: hole radius as a fraction of the radius (a ring)
     float feather = 0;                     // Ellipse: extra edge softness, fraction of the radius
+    // The sequels' 2D list (as2/render-pipeline.delta.md 8.2), unused by the first game:
+    // a rotation in degrees about the quad's centre (positive turns clockwise on screen, y
+    // being down: GUESS, the delta gives no sign), and a second texture with its own
+    // coordinates combined with the first stage (texture × colour) by `combine2`:
+    // 1 blend by the second texture's alpha, 2 add, 3 modulate, any other value replaces.
+    // No second texture when texture2 is null.
+    float rotation = 0;
+    const Texture2D* texture2 = nullptr;
+    float s0b = 0, t0b = 0, s1b = 1, t1b = 1; // second texture, (s0b, t0b) at the top-left
+    int combine2 = 0;
 };
 
 class Renderer2D {
@@ -134,6 +144,15 @@ public:
     const std::vector<Quad>& quads() const { return quads_; }
     int dropped() const { return dropped_; }
 
+    // The sequels shift every quad by -0.5 virtual pixel in x and y before drawing (Direct3D
+    // pixel centres, as2/render-pipeline.delta.md 8.2; invisible at 800x600). Off by default:
+    // the first game's layer is unchanged.
+    void setHalfPixelShift(bool on) { halfPixelShift_ = on; }
+    bool halfPixelShift() const { return halfPixelShift_; }
+    // Framebuffer corners of a quad as flush() draws it, in the order top-left, bottom-left,
+    // bottom-right, top-right (lines: the segment's two sides); for tests.
+    void quadCorners(const Quad& q, float px[4], float py[4]) const;
+
     // Draws the list into the currently bound framebuffer (viewport = whole framebuffer).
     // Returns the number of draw calls (batches of equal texture and blend mode).
     int flush();
@@ -144,6 +163,7 @@ private:
     Mapping mapping_;
     std::vector<Quad> quads_;
     int dropped_ = 0;
+    bool halfPixelShift_ = false;
 };
 
 // ---------------------------------------------------------------------------

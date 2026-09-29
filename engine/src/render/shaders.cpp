@@ -25,6 +25,7 @@ uniform vec3 uDynCube[6];  // dynamic lights folded into the ambient cube (CPU, 
 uniform int uEnvMode;      // 0 none, 1 glitter, 2 chrome, 3 quad (sphere-mapped env texture)
 uniform mat3 uNormalMat;   // inverse transpose of the modelview rotation, not renormalised
 uniform float uEnvAngle;   // ENV_QUAD texture rotation, radians
+uniform bool uEnvView;     // the sequels' coordinates: 0.5 + 0.5 view-space |normal| (as2 delta 4.3)
 
 out vec3 vLight;
 out vec2 vUv;
@@ -63,12 +64,20 @@ void main() {
 
     vEnvUv = vec2(0.0);
     if (uEnvMode != 0) {
-        // GL_SPHERE_MAP on the folded normal |n| (render-pipeline.md 4.3).
-        vec3 u = normalize(eyePos.xyz);
-        vec3 ne = uNormalMat * abs(aNormal);
-        vec3 r = u - 2.0 * ne * dot(ne, u);
-        float m = 2.0 * sqrt(r.x * r.x + r.y * r.y + (r.z + 1.0) * (r.z + 1.0));
-        vec2 st = r.xy / max(m, 1e-6) + 0.5;
+        vec2 st;
+        if (uEnvView) {
+            // The folded normal through the world matrix (with its scale) and the view,
+            // (0.5 + 0.5 n.x, 0.5 + 0.5 n.y) used as a v-down coordinate.
+            vec3 nv = mat3(uView) * (mat3(uModel) * abs(aNormal));
+            st = 0.5 + 0.5 * nv.xy;
+        } else {
+            // GL_SPHERE_MAP on the folded normal |n| (render-pipeline.md 4.3).
+            vec3 u = normalize(eyePos.xyz);
+            vec3 ne = uNormalMat * abs(aNormal);
+            vec3 r = u - 2.0 * ne * dot(ne, u);
+            float m = 2.0 * sqrt(r.x * r.x + r.y * r.y + (r.z + 1.0) * (r.z + 1.0));
+            st = r.xy / max(m, 1e-6) + 0.5;
+        }
         if (uEnvMode == 3) {
             float ca = cos(uEnvAngle), sa = sin(uEnvAngle);
             st = vec2(ca * st.x - sa * st.y, sa * st.x + ca * st.y);
@@ -95,6 +104,7 @@ uniform float uFogStart;
 uniform float uFogEnd;
 uniform vec4 uColor;       // entity colour, used only when uNoLighting
 uniform bool uNoLighting;  // RF_NOLIGHTING
+uniform bool uEnvView;     // the sequels: ENV_GLITTER alpha without the env alpha (as2 delta 4.3)
 
 out vec4 fragColor;
 
@@ -106,7 +116,7 @@ void main() {
     vec4 color;
     if (uEnvMode == 1) {          // ENV_GLITTER: skin * colour + env
         vec4 e = texture(uEnv, vEnvUv);
-        color = vec4(skin.rgb * c.rgb + e.rgb, skin.a * c.a * e.a);
+        color = vec4(skin.rgb * c.rgb + e.rgb, uEnvView ? skin.a * c.a : skin.a * c.a * e.a);
     } else if (uEnvMode == 2) {   // ENV_CHROME: skin over lit env by skin alpha
         vec4 e = texture(uEnv, vEnvUv);
         color = vec4(skin.rgb * skin.a + e.rgb * c.rgb * (1.0 - skin.a), e.a * c.a);

@@ -51,30 +51,43 @@ layout(location = 1) in vec2 aUv;
 layout(location = 2) in vec4 aColor;
 layout(location = 3) in vec2 aLocal;
 layout(location = 4) in vec4 aShape;
+layout(location = 5) in vec3 aUv2; // second texture coordinates, combine mode (0 = none)
 uniform vec2 uInvHalfSize;
 out vec2 vUv;
 out vec4 vColor;
 out vec2 vLocal;
 out vec4 vShape;
+out vec3 vUv2;
 void main() {
     gl_Position = vec4(aPos.x * uInvHalfSize.x - 1.0, 1.0 - aPos.y * uInvHalfSize.y, 0.0, 1.0);
     vUv = aUv;
     vColor = aColor;
     vLocal = aLocal;
     vShape = aShape;
+    vUv2 = aUv2;
 }
 )";
 
 const char* kFragmentSrc = R"(#version 300 es
 precision mediump float;
 uniform sampler2D uTex;
+uniform sampler2D uTex2;
 in vec2 vUv;
 in vec4 vColor;
 in highp vec2 vLocal;
 in vec4 vShape; // ellipse flag, hole radius, feather (fractions of the radius), scale rgb too
+in vec3 vUv2;
 out vec4 oColor;
 void main() {
     vec4 c = texture(uTex, vUv) * vColor;
+    if (vUv2.z > 0.5) {
+        // Second stage of the sequels' 2D list (as2 render-pipeline.delta.md 8.2).
+        vec4 t2 = texture(uTex2, vUv2.xy);
+        if (vUv2.z < 1.5) c.rgb = mix(c.rgb, t2.rgb, t2.a);
+        else if (vUv2.z < 2.5) c.rgb = c.rgb + t2.rgb;
+        else if (vUv2.z < 3.5) c = c * t2;
+        else c = t2;
+    }
     if (vShape.x > 0.5) {
         // Distance from the centre in radii; one pixel of anti-aliasing plus the feather.
         highp float d = length(vLocal);
@@ -92,6 +105,7 @@ struct Vertex {
     float x, y, s, t, r, g, b, a;
     float lx, ly;                            // position in the inscribed ellipse, in radii
     float kind, inner, feather, scaleRgb;    // aShape
+    float s2, t2, mode2;                     // aUv2
 };
 
 // Colour actually sent to the GPU: additive quads use alpha as intensity, filter quads fade
@@ -139,7 +153,8 @@ bool Renderer2D::init(std::string* error) {
     im.vbo.upload(dummy, sizeof dummy, true);
     VertexLayout layout;
     layout.strideBytes = sizeof(Vertex);
-    layout.attribs = {{0, 2, 0, false}, {1, 2, 8, false}, {2, 4, 16, false}, {3, 2, 32, false}, {4, 4, 40, false}};
+    layout.attribs = {{0, 2, 0, false}, {1, 2, 8, false}, {2, 4, 16, false}, {3, 2, 32, false}, {4, 4, 40, false},
+                     {5, 3, 56, false}};
     im.vao.create(im.vbo, layout);
     return true;
 }
@@ -230,6 +245,46 @@ bool Renderer2D::fullscreen(Color c, Blend blend) {
                 mapping_.bottom() - mapping_.top(), c, blend);
 }
 
+void Renderer2D::quadCorners(const Quad& q, float px[4], float py[4]) const {
+    const Mapping& m = mapping_;
+    // Virtual corners: top-left, bottom-left, bottom-right, top-right (a line: its two ends
+    // in slots 0 and 2).
+    float vx[4] = {q.x, q.x, q.x + q.w, q.x + q.w};
+    float vy[4] = {q.y, q.y + q.h, q.y + q.h, q.y};
+    if (!q.line && q.rotation != 0.0f) {
+        const float a = q.rotation * 3.14159265f / 180.0f;
+        const float ca = std::cos(a), sa = std::sin(a);
+        const float cx = q.x + q.w * 0.5f, cy = q.y + q.h * 0.5f;
+        for (int i = 0; i < 4; i++) {
+            const float dx = vx[i] - cx, dy = vy[i] - cy;
+            vx[i] = cx + dx * ca - dy * sa;
+            vy[i] = cy + dx * sa + dy * ca;
+        }
+    }
+    if (halfPixelShift_) {
+        for (int i = 0; i < 4; i++) {
+            vx[i] -= 0.5f;
+            vy[i] -= 0.5f;
+        }
+    }
+    if (q.line) {
+        float x0 = m.toFbX(vx[0]), y0 = m.toFbY(vy[0]), x1 = m.toFbX(vx[2]), y1 = m.toFbY(vy[2]);
+        float dx = x1 - x0, dy = y1 - y0;
+        float len = std::sqrt(dx * dx + dy * dy);
+        float nx = 0, ny = 0;
+        if (len > 0) { nx = -dy / len * 0.5f; ny = dx / len * 0.5f; }
+        px[0] = x0 + nx; py[0] = y0 + ny;
+        px[1] = x0 - nx; py[1] = y0 - ny;
+        px[2] = x1 - nx; py[2] = y1 - ny;
+        px[3] = x1 + nx; py[3] = y1 + ny;
+        return;
+    }
+    for (int i = 0; i < 4; i++) {
+        px[i] = m.toFbX(vx[i]);
+        py[i] = m.toFbY(vy[i]);
+    }
+}
+
 int Renderer2D::flush() {
     Impl& im = *impl_;
     if (quads_.empty() || !im.program.valid()) return 0;
@@ -243,28 +298,22 @@ int Renderer2D::flush() {
         static const float kLx[4] = {-1, -1, 1, 1}, kLy[4] = {-1, 1, 1, -1};
         const float kind = q.shape == QuadShape::Ellipse ? 1.0f : 0.0f;
         const float scaleRgb = q.blend == Blend::Add ? 1.0f : 0.0f;
+        quadCorners(q, px, py);
         if (q.line) {
-            float x0 = m.toFbX(q.x), y0 = m.toFbY(q.y), x1 = m.toFbX(q.x + q.w), y1 = m.toFbY(q.y + q.h);
-            float dx = x1 - x0, dy = y1 - y0;
-            float len = std::sqrt(dx * dx + dy * dy);
-            float nx = 0, ny = 0;
-            if (len > 0) { nx = -dy / len * 0.5f; ny = dx / len * 0.5f; }
-            px[0] = x0 + nx; py[0] = y0 + ny;
-            px[1] = x0 - nx; py[1] = y0 - ny;
-            px[2] = x1 - nx; py[2] = y1 - ny;
-            px[3] = x1 + nx; py[3] = y1 + ny;
             for (int i = 0; i < 4; i++) ps[i] = pt[i] = 0.5f;
         } else {
-            float x0 = m.toFbX(q.x), y0 = m.toFbY(q.y), x1 = m.toFbX(q.x + q.w), y1 = m.toFbY(q.y + q.h);
-            px[0] = x0; py[0] = y0; ps[0] = q.s0; pt[0] = q.t0;
-            px[1] = x0; py[1] = y1; ps[1] = q.s0; pt[1] = q.t1;
-            px[2] = x1; py[2] = y1; ps[2] = q.s1; pt[2] = q.t1;
-            px[3] = x1; py[3] = y0; ps[3] = q.s1; pt[3] = q.t0;
+            ps[0] = q.s0; pt[0] = q.t0;
+            ps[1] = q.s0; pt[1] = q.t1;
+            ps[2] = q.s1; pt[2] = q.t1;
+            ps[3] = q.s1; pt[3] = q.t0;
         }
+        const float ps2[4] = {q.s0b, q.s0b, q.s1b, q.s1b}, pt2[4] = {q.t0b, q.t1b, q.t1b, q.t0b};
+        float mode2 = 0.0f;
+        if (q.texture2 && q.combine2 != 0) mode2 = (q.combine2 >= 1 && q.combine2 <= 3) ? static_cast<float>(q.combine2) : 4.0f;
         static const int order[6] = {0, 1, 2, 0, 2, 3};
         for (int k : order)
             im.verts.push_back({px[k], py[k], ps[k], pt[k], c.r, c.g, c.b, c.a, kLx[k], kLy[k], kind, q.inner,
-                                q.feather, scaleRgb});
+                                q.feather, scaleRgb, ps2[k], pt2[k], mode2});
     }
     im.vbo.upload(im.verts.data(), im.verts.size() * sizeof(Vertex), true);
 
@@ -277,6 +326,7 @@ int Renderer2D::flush() {
     im.program.use();
     im.program.setVec2("uInvHalfSize", {2.0f / static_cast<float>(m.fbWidth), 2.0f / static_cast<float>(m.fbHeight)});
     im.program.setInt("uTex", 0);
+    im.program.setInt("uTex2", 1);
     im.vao.bind();
 
     int calls = 0;
@@ -284,9 +334,11 @@ int Renderer2D::flush() {
     while (i < quads_.size()) {
         size_t j = i + 1;
         const Texture2D* tex = quads_[i].texture ? quads_[i].texture : &im.white;
+        const Texture2D* tex2 = quads_[i].texture2 ? quads_[i].texture2 : &im.white;
         const Blend blend = quads_[i].blend;
         while (j < quads_.size() && quads_[j].blend == blend &&
-               (quads_[j].texture ? quads_[j].texture : &im.white) == tex)
+               (quads_[j].texture ? quads_[j].texture : &im.white) == tex &&
+               (quads_[j].texture2 ? quads_[j].texture2 : &im.white) == tex2)
             j++;
         switch (blend) {
             case Blend::Alpha:
@@ -304,6 +356,7 @@ int Renderer2D::flush() {
         }
         // Lines and untextured quads use the white texture; a texture that failed to load is
         // skipped by callers (they pass null only for untextured quads).
+        tex2->bind(1);
         tex->bind(0);
         glDrawArrays(GL_TRIANGLES, static_cast<GLint>(i * 6), static_cast<GLsizei>((j - i) * 6));
         calls++;

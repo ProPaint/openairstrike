@@ -6,6 +6,8 @@ extern const char* const kTerrainVertexSrc;
 extern const char* const kTerrainFragmentSrc;
 extern const char* const kWaterVertexSrc;
 extern const char* const kWaterFragmentSrc;
+extern const char* const kWaterGridVertexSrc;
+extern const char* const kWaterGridFragmentSrc;
 
 const char* const kTerrainVertexSrc = R"(#version 300 es
 layout(location = 0) in vec3 aPos;
@@ -115,6 +117,60 @@ void main() {
     float f = clamp((uFogEnd - vDepth) / max(uFogEnd - uFogStart, 1e-3), 0.0, 1.0);
     rgb = mix(uFogColor, rgb, f);
     fragColor = vec4(rgb, uAlpha);
+}
+)";
+
+// The sequels' water grid (as2/render-pipeline.delta.md 12.5, as3d/water.h): the wave of the
+// deep vertices, alpha = weight × opacity, two scrolled layers blended by the shine alpha,
+// unlit, fogged.
+const char* const kWaterGridVertexSrc = R"(#version 300 es
+precision highp float;
+layout(location = 0) in vec4 aGrid; // column, row, terrain height, depth weight
+uniform mat4 uView;
+uniform mat4 uProj;
+uniform float uLevel;
+uniform float uOpacity;
+uniform float uTime;      // game time T
+uniform float uLastRow;   // H: the first and last map rows are not animated
+uniform vec2 uBaseOffset;
+uniform vec2 uShineOffset;
+out vec2 vUvBase;
+out vec2 vUvShine;
+out float vAlpha;
+out float vDepth;
+void main() {
+    float c = aGrid.x, r = aGrid.y, w = aGrid.w;
+    float z = aGrid.z;
+    if (w >= 0.0001 && r > 0.5 && r < uLastRow - 0.5)
+        z = uLevel + 16.0 * w * 0.5 * (sin(0.75 * r + uTime) + sin(c + uTime));
+    vec4 eye = uView * vec4(c * 40.0, r * 40.0, z, 1.0);
+    vDepth = -eye.z;
+    vec2 cr = vec2(c, r) * 0.25;
+    vUvBase = 2.0 * cr + uBaseOffset;
+    vUvShine = 1.5 * cr + uShineOffset;
+    vAlpha = w * uOpacity;
+    gl_Position = uProj * eye;
+}
+)";
+
+const char* const kWaterGridFragmentSrc = R"(#version 300 es
+precision highp float;
+in vec2 vUvBase;
+in vec2 vUvShine;
+in float vAlpha;
+in float vDepth;
+uniform sampler2D uBase;
+uniform sampler2D uShine;
+uniform vec3 uFogColor;
+uniform float uFogStart;
+uniform float uFogEnd;
+out vec4 fragColor;
+void main() {
+    vec4 b = texture(uBase, vUvBase);
+    vec4 s = texture(uShine, vUvShine);
+    vec3 rgb = mix(b.rgb, s.rgb, s.a);
+    float f = clamp((uFogEnd - vDepth) / max(uFogEnd - uFogStart, 1e-3), 0.0, 1.0);
+    fragColor = vec4(mix(uFogColor, rgb, f), vAlpha);
 }
 )";
 

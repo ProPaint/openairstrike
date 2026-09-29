@@ -60,6 +60,7 @@ void MeshRenderer::end() {
     program_.setFloat("uFogEnd", lighting_.fogEnd);
     program_.setInt("uTex", 0);
     program_.setInt("uEnv", 1);
+    program_.setInt("uEnvView", envViewNormal_ ? 1 : 0);
 
     for (const DrawItem& item : items_) draw(item);
 }

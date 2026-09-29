@@ -17,7 +17,9 @@
 #include "as3d/ground_marks.h"
 #include "as3d/math.h"
 #include "as3d/model.h"
+#include "as3d/render_rules.h"
 #include "as3d/terrain.h"
+#include "as3d/terrain_grid.h"
 
 namespace as3d {
 
@@ -39,7 +41,11 @@ constexpr float kShadowRotationStepDegrees = 30.0f;
 ShadowBounds computeShadowBounds(const ModelData& model, ShadowKind kind, const Vec3& towardsSun, int rotationSteps);
 
 // Spec 5.2 step 2: texture size W x H for a bounding rectangle (before the 2x supersampling).
+// The first game's limits; with `rules`, the game's (as2 delta 5.2: height up to 256, each
+// side halved after LOW/HIGH until at most 256).
 void shadowTextureSize(const ShadowBounds& bounds, ShadowQuality quality, int& width, int& height);
+void shadowTextureSize(const ShadowBounds& bounds, ShadowQuality quality, int& width, int& height,
+                       const RenderRules& rules);
 
 // Peak shadow alpha: coverage 1 gives 0.4, i.e. the ground darkens by at most 40 percent.
 constexpr float kShadowMaxAlpha = 0.4f;
@@ -72,6 +78,9 @@ public:
     ShadowRenderer& operator=(const ShadowRenderer&) = delete;
 
     bool init(std::string* error);
+    // The game's shadow rules (as3d/render_rules.h: size limits, ground erase, mipmaps, the
+    // multiplied look). Set before generate(); the first game's by default.
+    void setRules(const RenderRules& rules);
 
     // Renders the silhouette texture (spec 5.2, into an FBO of 2W x 2H, 2x2 box filtered) and
     // stores it in `out`. `skin` supplies texel alpha (null: opaque). Restores the caller's
@@ -79,8 +88,11 @@ public:
     bool generate(const ModelData& model, const Texture2D* skin, ShadowKind kind, const Vec3& towardsSun,
                   int rotationSteps, ShadowQuality quality, ShadowMap& out);
 
-    // Pass 5: depth test on, depth write off, polygon offset (-1, -1), alpha blend, black.
+    // Pass 5: depth test on, depth write off, polygon offset (-1, -1), alpha blend, black; with
+    // the sequels' rules the ground is multiplied by the grey silhouette (1 − alpha) and fogged
+    // shadows fade to no change (as2 delta 5.3).
     void draw(const Terrain& terrain, const ShadowInstance* instances, size_t count, const DecalViewParams& params);
+    void draw(const TerrainGridView& grid, const ShadowInstance* instances, size_t count, const DecalViewParams& params);
 
     // Triangles of the last draw() call.
     size_t lastTriangleCount() const { return lastTriangles_; }

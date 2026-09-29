@@ -14,16 +14,21 @@ struct DecalBatch {
     const Texture2D* texture = nullptr;
     DecalBlend blend = DecalBlend::Alpha;
     Vec3 colour{1.0f, 1.0f, 1.0f};
+    float alpha = 1.0f; // marks: multiplies the texture alpha (the sequels' entity alpha)
+};
+
+enum class DecalLook {
+    Mark,           // texture × (colour, alpha), the batch's blend
+    ShadowAlpha,    // (0, 0, 0, texture alpha) alpha-blended: the first game's shadow (5.3)
+    ShadowMultiply, // destination × (1 − texture alpha), fog towards white: the sequels' (delta 5.3)
 };
 
 class DecalDrawer {
 public:
     bool init(std::string* error);
     bool valid() const { return program_.valid(); }
-    // shadowMode: fragments output (0, 0, 0, texture alpha), the shadow look of section 5.3;
-    // otherwise texture * colour (marks).
     void draw(const DecalViewParams& params, const std::vector<DecalVertex>& vertices,
-              const std::vector<DecalBatch>& batches, bool shadowMode);
+              const std::vector<DecalBatch>& batches, DecalLook look);
 
 private:
     ShaderProgram program_;
