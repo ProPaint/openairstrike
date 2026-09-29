@@ -59,17 +59,17 @@ WaterGridFrame computeWaterGridFrame(float timeSeconds) {
     WaterGridFrame f;
     const float t = timeSeconds * kPi * 0.1f;
     f.waveTime = timeSeconds;
-    f.baseOffset = {0.4f * std::sin(t * 0.5f) + 0.2f, -0.2f * std::sin(t * 0.25f) - 0.3f};
-    f.shineOffset = {0.4f * std::sin(t), 0.4f * std::sin(t * 0.5f)};
+    f.baseOffset = {0.4f * std::sin(t), 0.4f * std::sin(t * 0.5f)};
+    f.shineOffset = {0.4f * std::sin(t * 0.5f) + 0.2f, -0.2f * std::sin(t * 0.25f) - 0.3f};
     return f;
 }
 
 Vec2 waterBaseUv(int col, int row, const WaterGridFrame& f) {
-    return {2.0f * static_cast<float>(col) * 0.25f + f.baseOffset.x, 2.0f * static_cast<float>(row) * 0.25f + f.baseOffset.y};
+    return {1.5f * static_cast<float>(col) * 0.25f + f.baseOffset.x, 1.5f * static_cast<float>(row) * 0.25f + f.baseOffset.y};
 }
 
 Vec2 waterShineUv(int col, int row, const WaterGridFrame& f) {
-    return {1.5f * static_cast<float>(col) * 0.25f + f.shineOffset.x, 1.5f * static_cast<float>(row) * 0.25f + f.shineOffset.y};
+    return {2.0f * static_cast<float>(col) * 0.25f + f.shineOffset.x, 2.0f * static_cast<float>(row) * 0.25f + f.shineOffset.y};
 }
 
 namespace {
@@ -190,10 +190,10 @@ bool WaterRenderer::build(const Terrain& terrain, const WaterSurface& surface, c
     if (!surface.shineTexture.empty()) {
         im.shine.create(loadWaterTexture(vfs, surface.shineTexture, &missing_), to);
     } else {
-        Image clear; // no shine layer: alpha 0 keeps the base
+        Image clear; // no shine layer: black under the base (seen only where the base alpha < 1)
         clear.width = clear.height = 1;
         clear.hasAlpha = true;
-        clear.rgba = {0, 0, 0, 0};
+        clear.rgba = {0, 0, 0, 255};
         im.shine.create(clear, to);
     }
 

@@ -336,18 +336,18 @@ TEST_CASE("water: grid chunk geometry and the two texture layers") {
     CHECK(idx[1] == 10);
     CHECK(idx[2] == 33 + 10);
     CHECK(idx[5] == 33 + 9);
-    // Layers at T = 5 (t = π/2): base 2·(c/4, r/4) + (0.4 sin(π/4) + 0.2, −0.2 sin(π/8) − 0.3),
-    // shine 1.5·(c/4, r/4) + (0.4, 0.4 sin(π/4)).
+    // Layers at T = 5 (t = π/2), as2/render-corrections.md C1: base 1.5·(c/4, r/4) + (0.4,
+    // 0.4 sin(π/4)), shine 2·(c/4, r/4) + (0.4 sin(π/4) + 0.2, −0.2 sin(π/8) − 0.3).
     WaterGridFrame f = computeWaterGridFrame(5.0f);
-    CHECK(f.baseOffset.x == doctest::Approx(0.48284271f));
-    CHECK(f.baseOffset.y == doctest::Approx(-0.37653669f));
-    CHECK(f.shineOffset.x == doctest::Approx(0.4f));
-    CHECK(f.shineOffset.y == doctest::Approx(0.28284271f));
+    CHECK(f.shineOffset.x == doctest::Approx(0.48284271f));
+    CHECK(f.shineOffset.y == doctest::Approx(-0.37653669f));
+    CHECK(f.baseOffset.x == doctest::Approx(0.4f));
+    CHECK(f.baseOffset.y == doctest::Approx(0.28284271f));
     Vec2 b = waterBaseUv(4, 8, f), sh = waterShineUv(4, 8, f);
-    CHECK(b.x == doctest::Approx(2.0f + 0.48284271f));
-    CHECK(b.y == doctest::Approx(4.0f - 0.37653669f));
-    CHECK(sh.x == doctest::Approx(1.5f + 0.4f));
-    CHECK(sh.y == doctest::Approx(3.0f + 0.28284271f));
+    CHECK(sh.x == doctest::Approx(2.0f + 0.48284271f));
+    CHECK(sh.y == doctest::Approx(4.0f - 0.37653669f));
+    CHECK(b.x == doctest::Approx(1.5f + 0.4f));
+    CHECK(b.y == doctest::Approx(3.0f + 0.28284271f));
 }
 
 // ---------------------------------------------------------------------------------------
@@ -734,10 +734,15 @@ TEST_CASE("AirStrike 2 levels render with visible water, no black lake bed and n
     std::string error;
     REQUIRE(renderer.init(&error));
 
-    struct Case { const char* level; float scroll; float minBlue; };
+    struct Case { const char* level; float scroll; float minBlue; float minRed; float maxBlack; };
     // Mission 3's lake (the delta's "lake beds render black" case), mission 4's desert water,
-    // and mission 1 without water (all three daytime levels).
-    const Case cases[] = {{"3", 6300.0f, 0.15f}, {"4", 1500.0f, -1.0f}, {"1", 2000.0f, -1.0f}};
+    // and mission 1 without water (all three daytime levels); mission 15's lava lake at night
+    // (the original shows the red lava texture almost unchanged: as2/render-corrections.md C1;
+    // with the shine layer on top it was blue-grey, with no red-dominant pixel).
+    const Case cases[] = {{"3", 6300.0f, 0.15f, -1.0f, 0.02f},
+                          {"4", 1500.0f, -1.0f, -1.0f, 0.02f},
+                          {"1", 2000.0f, -1.0f, -1.0f, 0.02f},
+                          {"15", 1411.0f, -1.0f, 0.08f, 0.06f}};
     for (const Case& c : cases) {
         INFO("as2 level ", c.level, " scroll ", c.scroll);
         viewer::LevelRenderOptions o;
@@ -751,17 +756,22 @@ TEST_CASE("AirStrike 2 levels render with visible water, no black lake bed and n
         viewer::LevelRenderStats stats;
         REQUIRE(viewer::renderLevel(vfs, db, cache, renderer, c.level, o, img, &stats, error));
         glContext()->makeCurrent();
-        int blue = 0, black = 0, magenta = 0;
+        int blue = 0, red = 0, black = 0, magenta = 0;
         const int n = img.width * img.height;
         for (int i = 0; i < n; i++) {
             const int r = img.rgba[i * 4], g = img.rgba[i * 4 + 1], b = img.rgba[i * 4 + 2];
             if (b > r + 12 && b >= g) blue++;
+            if (r > 40 && r > 2 * g && r > 2 * b) red++;
             if (r < 10 && g < 10 && b < 10) black++;
             if (r > 225 && g < 40 && b > 225) magenta++;
         }
         CHECK(stats.missingTextures == 0);
         CHECK(magenta == 0);
-        CHECK(black < n / 50);
+        CHECK(static_cast<float>(black) < c.maxBlack * static_cast<float>(n));
+        if (c.minRed > 0.0f) {
+            CHECK(stats.waterGrid);
+            CHECK(static_cast<float>(red) / static_cast<float>(n) > c.minRed);
+        }
         if (c.minBlue > 0.0f) {
             CHECK(stats.waterGrid);
             CHECK(stats.wetCells > 100);

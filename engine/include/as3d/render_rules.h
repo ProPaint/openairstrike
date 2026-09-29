@@ -19,7 +19,8 @@ enum class WaterStyle : u8 {
     // (hmap.md "Water", render-pipeline.md pass 7).
     FlatPlane,
     // A grid on the terrain vertices of the wet cells: depth-faded alpha, vertex waves, two
-    // scrolled layers blended by the shine texture's alpha, unlit (delta 12.5).
+    // scrolled layers, the base over the shine by the base texture's alpha, unlit (delta 12.5,
+    // render-corrections.md C1).
     WaveGrid,
 };
 

@@ -97,3 +97,30 @@ further (the X server would have to be the NVIDIA one).
 - Wine's window frame is drawn around the game window; `--shot` crops to the client area using
   the window geometry from xdotool (the window class is the exe name).
 - The display is 1024x768 so that the whole 800x600 client plus frame fits.
+
+## Aligned comparisons with our renderer
+
+To compare a place of the original with ours by numbers (as in
+`docs/spec/as2/render-corrections.md`):
+
+1. Start the mission in the original and leave the player alone (no arrow keys, and park the
+   mouse: with `MouseControl=1` the helicopter follows the pointer, so after the last menu
+   click the player drifts towards it; in the sequels the Start/Continue button is at the
+   bottom right, and the drift is small). Take `--shot`s every 3 s; `p` pauses for an exact
+   frame. The level holds its scroll while the start dialogue is shown.
+2. Render the same mission with our game headless, one frame every 10 ticks (7 map units):
+   `as3d_game --game as2 --headless --level N --god --frames 2400 --screenshot-every 10
+   --out-dir DIR --size 800x600 --no-audio`, inside `ulimit -v 4000000` and `timeout`.
+   Or sweep the viewer: `as3d_viewer --game as2 level N --scroll S --camx X --time T` (the
+   `level` command applies the game's brightness overlay, 0.6 by default).
+3. `python3 tools/compare_reference.py ORIGINAL.png --region x0,y0,x1,y1 --shift 40 --best-of
+   DIR/frame_*.png` picks the best frame (correlation of blurred luma over static scenery, with
+   a vertical shift search); 0.9 and above is a clean match.
+4. `python3 tools/compare_reference.py ORIGINAL.png OURS.png --region ...,name --side pair.png
+   --diff diff.png [--hist]` prints mean colour, deviation, luma and ratios per region.
+
+Menu details found on the way (as2): the mission list's down arrow (599, 332) moves the
+selection by one mission (the list scrolls with it), the up arrow is at (599, 211); the list
+opens on mission 4 after a fresh start; on the helicopter screen the right arrow (605, 297)
+selects the second helicopter (Sky Keeper, the one our game uses by default) and the button
+then reads Continue (680, 534). A third `Escape` at start skips the intro comic reliably.
