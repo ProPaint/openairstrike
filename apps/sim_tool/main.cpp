@@ -2,10 +2,17 @@
 //
 //   as3d_sim --level 1 --frames 3600 [--seed S] [--difficulty D] [--players N]
 //            [--dump-state state.json] [--builtin-report report.json] [--data ROOT]
+//            [--bot | --input-script FILE] [--god] [--trace-player FILE]
 //
 // Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT.
 // Prints a summary: entity counts, script errors, and the builtin call counts sorted by
 // count, stubs marked.
+//
+// --bot flies the scripted test pilot of as3d/input.h (the same input as `as3d_game --bot`);
+// --input-script plays an input script (as3d/input.h format; pause edges toggle the pause
+// like the game does). --god turns on god mode (the `iwannabe` cheat of engine-behaviour.md
+// 14). --trace-player writes one line per frame with player 1's position, its projected
+// screen rectangle on the 800x600 collision viewport and its on-screen bit 0x08.
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -15,6 +22,7 @@
 
 #include "as3d/core.h"
 #include "as3d/defs.h"
+#include "as3d/input.h"
 #include "as3d/script.h"
 #include "as3d/vfs.h"
 #include "as3d/world.h"
@@ -42,14 +50,33 @@ bool writeFile(const std::string& path, const std::string& text) {
 int usage() {
     std::fprintf(stderr,
                  "usage: as3d_sim --level N --frames N [--seed S] [--difficulty 0..4] [--players 1|2]\n"
-                 "                [--dump-state FILE] [--builtin-report FILE] [--data ROOT]\n");
+                 "                [--dump-state FILE] [--builtin-report FILE] [--data ROOT]\n"
+                 "                [--bot | --input-script FILE] [--god] [--trace-player FILE]\n");
     return 2;
+}
+
+// One line per frame for player 1 (see the header comment).
+void tracePlayer(std::FILE* f, const World& w) {
+    int pi = w.playerEntityIndex(0);
+    if (pi < 0) {
+        std::fprintf(f, "%u %.3f none\n", w.frame(), static_cast<double>(w.mapPos()));
+        return;
+    }
+    const Entity& e = w.entity(pi);
+    const ScreenRect& r = e.rect;
+    std::fprintf(f, "%u %.3f %.3f %.3f %.3f %d %d %.3f %.3f %.5f %.3f %.3f %.5f %.1f\n", w.frame(),
+                 static_cast<double>(w.mapPos()), static_cast<double>(e.f(F_ORIGIN)),
+                 static_cast<double>(e.f(F_ORIGIN + 1)), static_cast<double>(e.f(F_ORIGIN + 2)),
+                 (e.rt & RT_COLLIDABLE) ? 1 : 0, w.sphereInFrustum(e.v3(F_BASE_ORIGIN), e.radius) ? 1 : 0,
+                 static_cast<double>(r.min[0]), static_cast<double>(r.min[1]), static_cast<double>(r.min[2]),
+                 static_cast<double>(r.max[0]), static_cast<double>(r.max[1]), static_cast<double>(r.max[2]),
+                 static_cast<double>(e.f(F_HEALTH)));
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
-    std::string level = "1", dumpPath, reportPath, dataRoot;
+    std::string level = "1", dumpPath, reportPath, dataRoot, inputPath, tracePath;
     long frames = 600;
     bool bot = false;
     WorldConfig cfg;
@@ -69,10 +96,33 @@ int main(int argc, char** argv) {
         else if (a == "--dump-state" && next(v)) dumpPath = v;
         else if (a == "--builtin-report" && next(v)) reportPath = v;
         else if (a == "--data" && next(v)) dataRoot = v;
+        else if (a == "--input-script" && next(v)) inputPath = v;
+        else if (a == "--trace-player" && next(v)) tracePath = v;
         else if (a == "--bot") bot = true;
+        else if (a == "--god") cfg.godMode = true;
         else return usage();
     }
     if (frames < 0 || frames > 10'000'000) return usage();
+    if (bot && !inputPath.empty()) return usage();
+    InputScript script;
+    if (!inputPath.empty()) {
+        std::string err;
+        if (!script.load(inputPath, &err)) {
+            std::fprintf(stderr, "as3d_sim: %s: %s\n", inputPath.c_str(), err.c_str());
+            return 1;
+        }
+    }
+    InputScriptPlayer scriptPlayer(script);
+    std::FILE* trace = nullptr;
+    if (!tracePath.empty()) {
+        trace = std::fopen(tracePath.c_str(), "w");
+        if (!trace) {
+            std::fprintf(stderr, "as3d_sim: cannot write %s\n", tracePath.c_str());
+            return 1;
+        }
+        std::fprintf(trace, "# frame map_pos x y z onscreen08 sphere_in_frustum rect_min_x rect_min_y rect_min_z "
+                            "rect_max_x rect_max_y rect_max_z health (800x600, y up)\n");
+    }
     if (dataRoot.empty()) {
         const char* env = std::getenv("AS3D_DATA_ROOT");
         dataRoot = env && *env ? env : ".";
@@ -96,19 +146,25 @@ int main(int argc, char** argv) {
     int maxList = world.listCount();
     for (long f = 0; f < frames; ++f) {
         if (bot) {
-            // A deterministic test pilot: fire held, missiles and power-ups pulsed, weaving
-            // left and right every 2 s, hint boxes confirmed.
-            u32 a = ACT_FIRE;
-            if ((f / 120) % 2) a |= ACT_LEFT;
-            else a |= ACT_RIGHT;
-            if ((f / 30) % 2) a |= ACT_MISSILE;
-            if (f % 600 == 300) a |= ACT_POWERUP;
-            input.action[0] = input.action[1] = a;
-            input.confirm = true;
+            input = botInput(static_cast<u32>(f)).toPlayerInput();
+        } else if (!inputPath.empty()) {
+            FrameInput in = scriptPlayer.frame(static_cast<u32>(f));
+            // The P key (as3d_game's session): ignored while a hint box or a level end
+            // holds the pause; unpausing clears p_action.
+            if (in.pausePressed && !world.hintShowing() && !world.levelComplete() && !world.gameOver()) {
+                bool nowPaused = !world.paused();
+                world.setPaused(nowPaused);
+                if (!nowPaused) {
+                    for (int p = 0; p < kMaxPlayers; ++p) world.player(p).action = 0.0f;
+                }
+            }
+            input = in.toPlayerInput();
         }
         world.step(input);
+        if (trace) tracePlayer(trace, world);
         maxList = std::max(maxList, world.listCount());
     }
+    if (trace) std::fclose(trace);
 
     const WorldStats& st = world.stats();
     std::printf("level %s: %ld frames, map_pos %.1f, list entities %d (max %d), slots %d (max %d)\n", level.c_str(),

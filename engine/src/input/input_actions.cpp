@@ -52,7 +52,7 @@ PlayerInput FrameInput::toPlayerInput() const {
 }
 
 FrameInput botInput(u32 frame) {
-    // Must stay identical to the pilot of apps/sim_tool/main.cpp (--bot).
+    // as3d_sim --bot and as3d_game --bot both call this.
     FrameInput in;
     u32 a = ACT_FIRE;
     if ((frame / 120) % 2) a |= ACT_LEFT;
