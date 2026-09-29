@@ -58,6 +58,7 @@ loose files (`gfx`, `menu`, `models`, `morphmaps`, `textures`, `tiles`, `Setting
 
 | Spec | Status | Package | Notes |
 |---|---|---|---|
+| [symbol-map.md](symbol-map.md) | 522 of 529 named v1.70 functions mapped or marked removed | B1 | overview of what changed in the engine; `re/symbols_as2.csv`, `re/symbols_as2_data.csv`; matching tools in `re/tools/` |
 | [rcsl-container.delta.md](rcsl-container.delta.md) | verified from code | B2 | effectively the same; a script without a CODE section is valid |
 | [rcsl-opcodes.delta.md](rcsl-opcodes.delta.md) | verified from code | B2 | all handlers the same; 7 opcode/mode pairs new to the corpus need no new code |
 | [rcsl-vm.delta.md](rcsl-vm.delta.md) | verified from code | B2 | script-visible entity fields 0 to 87 unchanged; 28 globals; `create` returns the new entity; touch modes are a bit set |
