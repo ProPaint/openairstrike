@@ -18,6 +18,7 @@
 
 #include "as3d/dynamic_lights.h"
 #include "as3d/ground_marks.h"
+#include "as3d/health_bar.h"
 #include "as3d/lightning_render.h"
 #include "as3d/particle_render.h"
 #include "as3d/scene.h"
@@ -203,6 +204,9 @@ struct WorldRenderer::Impl {
     std::vector<SpriteInstance> spriteList;
     std::vector<const ParticleEmitter*> emitters;
     std::vector<Vec3> boltStarts, boltEnds;
+    // Enemy health bars (engine-behaviour.md 6.5): hbar_empty / hbar_full.
+    HealthBarSpriteDef hbarEmpty, hbarFull;
+    bool hbarReady = false;
     std::vector<int> order;
     std::vector<char> visited;
     DynamicLightList lights;
@@ -275,6 +279,29 @@ bool WorldRenderer::init(Vfs& vfs, const DefDatabase& db, std::string* error) {
     if (!im.marks.init(error)) return false;
     if (!im.shadows.init(error)) return false;
     if (!im.lightning.init(error)) return false;
+    const ObjectDef* he = db.findObject("hbar_empty");
+    const ObjectDef* hf = db.findObject("hbar_full");
+    im.hbarReady = he && hf && he->hasBbox && hf->hasBbox;
+    if (im.hbarReady) {
+        HealthBarSpriteDef* outs[2] = {&im.hbarEmpty, &im.hbarFull};
+        const ObjectDef* defs[2] = {he, hf};
+        for (int k = 0; k < 2; ++k) {
+            const ObjectDef& d = *defs[k];
+            HealthBarSpriteDef& o = *outs[k];
+            o.minX = d.bboxMin[0];
+            o.minY = d.bboxMin[1];
+            o.minS = d.bboxMin[2];
+            o.minT = d.bboxMin[3];
+            o.maxX = d.bboxMax[0];
+            o.maxY = d.bboxMax[1];
+            o.maxS = d.bboxMax[2];
+            o.maxT = d.bboxMax[3];
+            o.texture = d.skin.empty() ? nullptr : im.cache->texture(d.skin).texture;
+            o.blend = decalBlendOf(d.blend);
+            o.noDepthTest = (d.rflag & RF_NODEPTHTEST) != 0;
+            o.noDepthWrite = (d.rflag & RF_NODEPTHWRITE) != 0;
+        }
+    }
     if (!im.brightness.init(error)) return false;
     return true;
 }
@@ -429,9 +456,27 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
     im.markDescs.clear();
     im.dropped = 0;
     worldRenderOrder(world, im.order, im.visited);
+    // The health bar follows the entity's own records (engine-behaviour.md 2, 6.5); the
+    // think draws it whether or not the entity itself is drawn.
+    auto addHealthBar = [&](const Entity& e) {
+        if (!options.sprites || !im.hbarReady) return;
+        SpriteInstance bar[2];
+        int n = buildHealthBar(e, im.hbarEmpty, im.hbarFull, bar);
+        for (int k = 0; k < n; ++k) {
+            if (im.spriteList.size() >= kMaxSprites) {
+                ++im.dropped;
+                break;
+            }
+            im.spriteList.push_back(bar[k]);
+        }
+        stats_.healthBars += n > 0 ? 1 : 0;
+    };
     for (int i : im.order) {
         const Entity& e = world.entity(i);
-        if (!e.def || (e.flagBits() & FL_NODRAW)) continue;
+        if (!e.def || (e.flagBits() & FL_NODRAW)) {
+            addHealthBar(e);
+            continue;
+        }
         const ObjectDef& def = *e.def;
         SlotMemory& mem = im.memory[static_cast<size_t>(i)];
         if (!mem.seen || mem.generation != e.generation) {
@@ -557,6 +602,7 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
                 break;
             }
         }
+        addHealthBar(e);
     }
 
     TerrainViewParams tv;

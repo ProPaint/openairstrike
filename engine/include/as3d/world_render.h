@@ -78,6 +78,7 @@ struct WorldRenderStats {
     int emitters = 0;
     int particles = 0;
     int bolts = 0;        // lightning bolts (render-pipeline.md 7.1)
+    int healthBars = 0;   // enemy health bars (engine-behaviour.md 6.5)
     int terrainChunks = 0;
 };
 
