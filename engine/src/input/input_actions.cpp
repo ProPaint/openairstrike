@@ -136,7 +136,10 @@ FrameInput botInput(const World& w, u32 frame) {
         }
     }
 
-    // Pick-ups ahead and not far to the side: fly over the nearest.
+    // Pick-ups ahead and not far to the side: fly over the nearest. The sequels (package C6)
+    // skip the ones beyond the pilot's own reach (mapPos + 170 below): on a boss level the
+    // scroll stops and a pick-up parked there would hold the pilot under it for good.
+    const bool sequel = w.game() != GameId::AirStrike3D;
     float best = 1.0e9f;
     const std::vector<int> list = w.listEntities();
     for (int i : list) {
@@ -144,6 +147,7 @@ FrameInput botInput(const World& w, u32 frame) {
         if ((e.rt & RT_REMOVED) || e.parent >= 0 || e.touchMode != 2 || !isPickupName(e.name)) continue;
         Vec3 r = e.v3(F_ORIGIN) - o;
         if (r.y < -30.0f || r.y > 260.0f || std::fabs(e.f(F_ORIGIN) - cx) > 170.0f) continue;
+        if (sequel && e.f(F_ORIGIN + 1) > mp + 190.0f) continue;
         float d = std::sqrt(r.x * r.x + r.y * r.y);
         if (d < best) {
             best = d;
@@ -153,11 +157,18 @@ FrameInput botInput(const World& w, u32 frame) {
     }
 
     // Dodge: enemy fire and rammers whose path passes near the player in the next 0.6 s.
+    // The sequels (package C6): touch modes are bit sets (a falling meteorite is 6), and the
+    // pilot dodges only below half its health: their bosses fire without pause, and a pilot
+    // that always dodges never lines up under them (health 300 to 800 and god mode make the
+    // hits affordable). The first game's pilot is unchanged.
+    const bool dodging = !sequel || p.f(F_HEALTH) < 0.5f * p.maxHealth;
     float threatDx = 0.0f, closest = 45.0f;
     bool threat = false;
     for (int i : list) {
+        if (!dodging) break;
         const Entity& e = w.entity(i);
-        if ((e.rt & RT_REMOVED) || e.touchMode != 2 || isPickupName(e.name)) continue;
+        const bool hitsPlayer = sequel ? (e.touchMode & TOUCH_BIT_PLAYER) != 0 : e.touchMode == 2;
+        if ((e.rt & RT_REMOVED) || !hitsPlayer || isPickupName(e.name)) continue;
         if (e.f(F_CLASS) != kClassProjectile && e.f(F_CLASS) != kClassEnemy) continue;
         if (e.f(F_DEAD) != 0.0f) continue;
         Vec3 r = e.v3(F_ORIGIN) - o;
