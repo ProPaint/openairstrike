@@ -30,6 +30,7 @@
 #include "as3d/platform.h"
 #include "as3d/input.h"
 #include "as3d/script.h"
+#include "as3d/script_host.h"
 #include "as3d/vfs.h"
 #include "as3d/world.h"
 
@@ -234,6 +235,18 @@ int main(int argc, char** argv) {
     std::printf("paused %d, game over %d, level complete %d, p_lives %.0f, p_scores %.0f\n", world.paused() ? 1 : 0,
                 world.gameOver() ? 1 : 0, world.levelComplete() ? 1 : 0, static_cast<double>(world.player(0).lives),
                 static_cast<double>(world.player(0).scores));
+    {
+        int pe = world.playerEntityIndex(0);
+        std::printf("game %s: kills %d of %d enemies, player origin (%.1f, %.1f), health %.0f, stamps %d\n",
+                    gameProfile(world.game()).key, world.player(0).kills, world.enemiesInLevel(),
+                    pe >= 0 ? static_cast<double>(world.entity(pe).f(F_ORIGIN)) : 0.0,
+                    pe >= 0 ? static_cast<double>(world.entity(pe).f(F_ORIGIN + 1)) : 0.0,
+                    pe >= 0 ? static_cast<double>(world.entity(pe).f(F_HEALTH)) : 0.0, world.terraMorphStampCount());
+    }
+    const std::vector<GameScriptHost::UnknownGlobal>& unknownGlobals = world.host().unknownGlobals();
+    for (const auto& u : unknownGlobals) {
+        std::printf("  unknown global: %s (%llu binds)\n", u.name.c_str(), static_cast<unsigned long long>(u.binds));
+    }
 
     std::vector<script::BuiltinReport::Row> rows = world.report().rows();
     std::stable_sort(rows.begin(), rows.end(), [](const script::BuiltinReport::Row& a, const script::BuiltinReport::Row& b) {
@@ -250,7 +263,12 @@ int main(int argc, char** argv) {
             j += "    {\"name\": \"" + rows[i].name + "\", \"calls\": " + std::to_string(rows[i].calls) +
                  ", \"status\": \"" + statusName(rows[i].status) + "\"}" + (i + 1 < rows.size() ? ",\n" : "\n");
         }
-        j += "  ]\n}\n";
+        j += "  ],\n  \"game\": \"" + std::string(gameProfile(world.game()).key) + "\",\n";
+        j += "  \"script_errors\": " + std::to_string(st.scriptErrors) + ",\n  \"stalls\": " + std::to_string(st.stalls) + ",\n";
+        j += "  \"score\": " + std::to_string(static_cast<long long>(world.player(0).scores)) +
+             ", \"kills\": " + std::to_string(world.player(0).kills) + ",\n  \"unknown_globals\": [";
+        for (size_t i = 0; i < unknownGlobals.size(); ++i) j += (i ? ", \"" : "\"") + unknownGlobals[i].name + "\"";
+        j += "]\n}\n";
         if (!writeFile(reportPath, j)) {
             std::fprintf(stderr, "as3d_sim: cannot write %s\n", reportPath.c_str());
             return 1;
