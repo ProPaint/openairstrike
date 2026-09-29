@@ -123,6 +123,7 @@ private:
     bool initGl(std::string* err);
     void rebuildGl(const char* why);
     void presentLoading(float progress);
+    void warmUp();
     bool loadLevelView();
     void handleEvent(const SDL_Event& e);
     void pauseGame(const char* reason);
@@ -158,6 +159,14 @@ private:
     int shots_ = 0;
     double lastPresent_ = -1;
     int layoutW_ = -1, layoutH_ = -1;
+    double stepAvg_ = -1, drawAvg_ = -1; // running averages (seconds) for AS3D_HITCH
+    // A step or draw over 50 ms and over 3 times its running average: a stall, not a device
+    // that is merely slow everywhere.
+    bool isHitch(double t, double& avg) const {
+        bool hitch = o_.markers && avg >= 0 && t > 0.05 && t > 3.0 * avg;
+        avg = avg < 0 ? t : avg * 0.95 + t * 0.05;
+        return hitch;
+    }
     SafeInsets layoutInsets_;
 };
 
@@ -200,11 +209,25 @@ bool GameWindow::initGl(std::string* err) {
 
 void GameWindow::presentLoading(float progress) {
     if (!overlay_) return;
+    // Both buffers of the swap chain, so the bar stays up however long the next step takes.
+    for (int i = 0; i < 2; ++i) {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        overlay_->begin(fbWidth(), fbHeight());
+        drawLoadingScreen(*overlay_, progress);
+        overlay_->flush();
+        gl_->swapBuffers();
+    }
+}
+
+// Draws the world once, unseen, behind the loading screen: the renderer loads the models
+// and textures of everything in view on first draw, which would otherwise stall the first
+// frames of play (seconds on a software GPU).
+void GameWindow::warmUp() {
+    if (!view_) return;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    overlay_->begin(fbWidth(), fbHeight());
-    drawLoadingScreen(*overlay_, progress);
-    overlay_->flush();
-    gl_->swapBuffers();
+    view_->draw(session_, fbWidth(), fbHeight());
+    glFinish();
+    presentLoading(1.0f);
 }
 
 bool GameWindow::loadLevelView() {
@@ -213,6 +236,7 @@ bool GameWindow::loadLevelView() {
     std::string err;
     bool ok = view_->beginLevel(session_, &err);
     if (!ok) std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
+    else warmUp();
     if (o_.markers) AS3D_INFO("AS3D_LEVEL_LOADED mission=%d ms=%.0f shadow_maps=%d", session_.mission(), 1000.0 * (nowSeconds() - t0),
               view_->renderer().shadowMapCount());
     lastPresent_ = -1; // the load is not a frame time
@@ -238,6 +262,7 @@ void GameWindow::rebuildGl(const char* why) {
         running_ = false;
         return;
     }
+    warmUp();
     if (o_.markers) AS3D_INFO("AS3D_GL_REBUILD reason=%s ms=%.0f", why, 1000.0 * (nowSeconds() - t0));
     lastPresent_ = -1;
     redraw_ = true;
@@ -380,7 +405,7 @@ void GameWindow::simulate(int steps) {
         double t0 = nowSeconds();
         int ev = session_.step(in);
         double ts = nowSeconds() - t0;
-        if (ts > 0.05 && o_.markers) AS3D_INFO("AS3D_HITCH part=step frame=%ld ms=%.0f", frame_, 1000.0 * ts);
+        if (isHitch(ts, stepAvg_)) AS3D_INFO("AS3D_HITCH part=step frame=%ld ms=%.0f", frame_, 1000.0 * ts);
         if (ev & GameSession::kLevelStarted) {
             loadLevelView();
             if (!o_.noAudio) audio_.startLevel(session_.musicPath());
@@ -475,6 +500,7 @@ int GameWindow::run() {
         AS3D_ERROR("FATAL: renderer: %s", err.c_str());
         return 1;
     }
+    warmUp();
     if (!o_.noAudio) {
         audio_.init(session_.vfs(), false);
         audio_.startLevel(session_.musicPath());
@@ -534,7 +560,7 @@ int GameWindow::run() {
         double td = nowSeconds();
         draw();
         td = nowSeconds() - td;
-        if (td > 0.05 && o_.markers) AS3D_INFO("AS3D_HITCH part=draw frame=%ld ms=%.0f", frame_, 1000.0 * td);
+        if (isHitch(td, drawAvg_)) AS3D_INFO("AS3D_HITCH part=draw frame=%ld ms=%.0f", frame_, 1000.0 * td);
         if (screenshot_) saveScreenshot();
         double work = nowSeconds() - work0;
         gl_->swapBuffers();

@@ -18,6 +18,8 @@
 # Boots the `atticpad-test` AVD headless if no device is online (it belongs to another
 # project: never wiped or reconfigured; only shut down again if this script started it),
 # with at most 2048 MB guest memory and only when at least 5 GB of host memory is available.
+# AS3D_EMU_GPU picks the emulator's GPU mode (default swiftshader_indirect, a CPU renderer;
+# "host" uses the host GPU when one is reachable).
 #
 #   tools/android_smoke.sh
 set -uo pipefail
@@ -96,10 +98,10 @@ else
     else
         echo "android_smoke: WARNING /dev/kvm not accessible, the emulator will be very slow"
     fi
-    echo "android_smoke: booting '${AVD_NAME}' headless (2048 MB, SwiftShader GLES; ${AVAIL_MB} MB host memory available)"
+    echo "android_smoke: booting '${AVD_NAME}' headless (2048 MB, -gpu ${AS3D_EMU_GPU:-swiftshader_indirect}; ${AVAIL_MB} MB host memory available)"
     "${ANDROID_HOME}/emulator/emulator" -avd "${AVD_NAME}" \
         -no-window -no-audio -no-boot-anim -no-snapshot-save -memory 2048 \
-        -gpu swiftshader_indirect \
+        -gpu "${AS3D_EMU_GPU:-swiftshader_indirect}" \
         >"${OUT_DIR}/emulator.log" 2>&1 &
     EMULATOR_PID=$!
     STARTED_EMULATOR=1
@@ -126,6 +128,8 @@ else
 fi
 adb -s "${SERIAL}" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
 adb -s "${SERIAL}" shell wm dismiss-keyguard >/dev/null 2>&1 || true
+# The one-time "Viewing full screen" hint would sit over the game and swallow the taps.
+adb -s "${SERIAL}" shell settings put secure immersive_mode_confirmations confirmed >/dev/null 2>&1 || true
 
 echo "== install =="
 adb -s "${SERIAL}" uninstall "${APP_ID}" >/dev/null 2>&1 || true

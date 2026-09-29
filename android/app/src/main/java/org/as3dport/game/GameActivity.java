@@ -5,6 +5,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.DisplayCutout;
+import android.view.KeyEvent;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
@@ -83,6 +86,20 @@ public class GameActivity extends SDLActivity {
         super.onCreate(savedInstanceState);
         if (mBrokenLibraries) return;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        // With targetSdk 36 the system handles Back through OnBackInvokedDispatcher
+        // (predictive back): no KEYCODE_BACK or onBackPressed reaches the app. Forward it to
+        // SDL as the Back key, which pauses the game.
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT, new OnBackInvokedCallback() {
+                    @Override
+                    public void onBackInvoked() {
+                        Log.i(TAG, "AS3D_BACK");
+                        SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_BACK);
+                        SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_BACK);
+                    }
+                });
+        }
         View decor = getWindow().getDecorView();
         decor.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
             @Override
