@@ -221,6 +221,12 @@ public:
     // the cursor, spawning placements with near/40 <= y <= far/40, permanently dropping
     // ones with y < near/40, and stopping (for this call) at the first y > far/40.
     Result update(float mapPos);
+    // The same with far = mapPos + farOffset: the sequels' first call during the level load
+    // uses the reset camera's edge, mapPos + 800 (as2/engine-behaviour.delta.md 9.7).
+    Result update(float mapPos, float farOffset);
+    // Every placement not handed out yet, whatever its row: the sequels' intermission levels
+    // skip the window test (as2/engine-behaviour.delta.md 3.4).
+    Result takeAll();
 
 private:
     std::vector<const Placement*> sorted_;

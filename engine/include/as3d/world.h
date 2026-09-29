@@ -602,7 +602,9 @@ private:
     // Frame phases.
     void applyInput(const PlayerInput& input);
     void updateCamera();
-    void activateMapObjects();
+    void activateMapObjects(bool loading = false);
+    void loadTimeWorldPass(); // the sequels: spawner, entity pass and render inside the load
+    static constexpr float kLoadSpawnEdge = 800.0f; // V_ResetCamera: front edge mapPos + 800
     void playerFrame();
     void runEntities();
     void updateParticles(); // step 7, not while paused

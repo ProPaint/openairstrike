@@ -132,6 +132,7 @@ bool World::startLevel(std::unique_ptr<LoadedLevel> lvl, int mission) {
     lWater = hasWater_ ? 1.0f : 0.0f;
     lWaterLevel = waterLevel_;
     levelClock_ = 0.0f;
+    if (rules_->spawnDuringLoad) loadTimeWorldPass();
     // G_BeginLevel step 5.
     enemiesInLevel_ = 0;
     maxLevelScore_ = 0.0f;
@@ -328,10 +329,30 @@ void World::renderPass() {
 // Map spawner (3.4).
 // ---------------------------------------------------------------------------------------
 
-void World::activateMapObjects() {
+void World::activateMapObjects(bool loading) {
     if (!level_) return;
-    SpawnCursor::Result r = cursor_.update(mapPos_);
+    SpawnCursor::Result r;
+    if (intermission_ && rules_->spawnAllOnIntermission) r = cursor_.takeAll(); // as2 3.4, 9.6
+    else if (loading) r = cursor_.update(mapPos_, kLoadSpawnEdge);             // as2 9.7
+    else r = cursor_.update(mapPos_);
     for (const Placement* p : r.toSpawn) spawnPlacement(*p);
+}
+
+// G_StartLevel's last steps in the sequels (as2/engine-behaviour.delta.md 2 and 10.2, issue
+// as2/211, reproduced as the original does it): one spawner call with the reset camera's
+// front edge (rows 0 to 20; every placement on an intermission level), one entity pass
+// (init already ran; one think, collisions and touches) and one render. The caller then
+// resets the enemy total and the maximum score, so the objects spawned here are not counted
+// in them (their kills still count, up to the total). The collision pass uses the reset
+// camera's matrices (ours: the original's are those of its last rendered frame), and
+// frametime is the fixed step, the value the frame that started the load had.
+void World::loadTimeWorldPass() {
+    renderPass();
+    frametime_ = config_.dt;
+    frametimeGlobal = frametime_;
+    activateMapObjects(true);
+    runEntities();
+    renderPass();
 }
 
 void World::spawnPlacement(const Placement& pl) {
