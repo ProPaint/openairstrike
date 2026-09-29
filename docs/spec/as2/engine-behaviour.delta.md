@@ -676,6 +676,286 @@ v170@0x41c530 and v170@0x41c4e0 (freeze counter now at record +0xB8). The spawn 
 
 ---
 
+## 7. The player
+
+### 7.1 Player records: changed
+
+Two records of **0x164** bytes at as2@0x20c5ad0 (player 1) and as2@0x20c5c34 (player 2); v1.70
+0x171 bytes at v170@0x1ebe308. VERIFIED-CODE: every absolute access into both records in the
+export was listed by offset and function, and the fields were identified from those functions
+(`G_BeginLevel`, `G_NewGame`, `G_SpawnPlayer`, `G_PlayerFrame`, the item builtins, `G_BankScore`,
+`PF_EndLevel`, `G_SaveBin`, the cheats, the HUD).
+
+| as2 | v1.70 | Content |
+|---|---|---|
+| +0x00 | +0x00 | player entity pointer |
+| +0x04..+0x87 | +0x04 | 11 key bindings {key1, key2, action bit} (same table, `G_InitActionBits` as2@0x410bf0, identical shape) |
+| +0x88 | +0x88 | helicopter index 0..5 |
+| +0x8C | +0x8C | `p_action` |
+| +0x90 | – | `p_maxHealth` (new global; no code reads or writes it, rcsl-vm.delta.md) |
+| +0x94 | +0x90 | `p_scores` |
+| +0x98 | +0x94 | lives at level start (float) |
+| +0x9C | +0x98 | `p_lives` |
+| +0xA0 | +0x9C | `p_stars` |
+| +0xA4 / +0xA8 / +0xAC | +0xA0 / +0xA4 / +0xA8 | `p_counter1..3` (`p_counter3` = 1.0 at level start) |
+| +0xB0 | +0xAC | `p_speedfactor` |
+| +0xB4 | +0xB0 | `p_weapon` |
+| +0xB8 | +0xB4 | freeze-health counter |
+| +0xBC | +0xB8 | u8 actions disabled (padded to 4 bytes) |
+| +0xC0 | +0xB9 | 16 power-up counts |
+| +0x100 | +0xF9 | current power-up (−1 none) |
+| +0x104 | +0xFD | 5 missile counts |
+| +0x118 | +0x111 | current missile type (−1 none) |
+| +0x11C | +0x115 | **9** weapon upgrade levels (v1.70: 20) |
+| +0x140 | +0x165 | banked campaign score (int) |
+| +0x144 | +0x169 | rank accumulator (float) |
+| +0x148 | +0x16D | kills this level |
+| +0x14C..+0x154 | – | **new**: acceleration vector x, y, z (7.3), written by `G_PlayerFrame`, read by `GetPlayerAccel` |
+| +0x158 | – | **new**: checkpoint lives (int, 10.3) |
+| +0x15C | – | **new**: checkpoint banked score (int) |
+| +0x160 | – | **new**: checkpoint rank accumulator (float) |
+
+The `p_*` globals map into these records by the running entity's player index (+0x80), as in
+v1.70.
+
+### 7.2 Input to `p_action`: changed (mouse)
+
+Same action bits and bindings (`G_InitActionBits` identical shape; `G_KeyEvent` as2@0x4110f0
+against v170@0x408f10, ratio 0.970): a key ORs its bit into every non-disabled player that
+binds it, a release clears it; `[Controls]` and `[Controls2]`; the one-shot edges 0x100, 0x200,
+0x400 consumed by `G_PlayerFrame`; `PlayerDisableAction` as2@0x421960 same code. The only key
+difference: F12 and PrintScreen no longer take a screenshot (the screenshot writer is gone).
+
+`G_PlayerFrame` as2@0x413c50 (the symbol-map match, marked low, is confirmed: same edge
+handling for 0x200, 0x100, 0x400 through `G_NextPowerUp` as2@0x413680, `G_NextMissile`
+as2@0x413780, `G_NextWeapon` as2@0x413870, then the same game-over test). After the game-over
+test it now **returns while paused** (as2@0x413d5e), and then, VERIFIED-CODE
+as2@0x413d6b..0x413efa:
+
+1. **Acceleration vector**, for each player: (ax, ay, az) = 0; unless the player's actions are
+   disabled: right (0x80) ax += 1, forward (0x10) ay += 1, left (0x40) ax −= 1, backward (0x20)
+   ay −= 1; when both ax and ay are non-zero the vector is scaled to length 1. So it is (0, 0),
+   an axis unit vector or a unit diagonal.
+2. **Mouse control** (`[System] MouseControl`, config default now **1**, as2@0x401b90; v1.70
+   default 0): for player 1 only, when its actions are not disabled and its keyboard vector is
+   (0, 0): read the cursor, take (cursor.x − window centre x, window centre y − cursor.y) as
+   (ax, ay), scale it to length **2.0** (as2@0x48f1c0) when non-zero. Then (in every unpaused
+   frame, mouse control or not) the cursor is put back at the window centre.
+
+So AS2 mouse control steers by mouse **motion** (a relative device, twice the keyboard's
+acceleration), not by the cursor position relative to the helicopter as v1.70 did
+(v170@0x40b550); the v1.70 cursor sprite is gone from `HUD_Frame`. No direction bits are
+synthesised any more.
+
+### 7.3 Movement: changed
+
+Movement is still script-side; the six `as2` player scripts (`scripts\player\player1..6\*.scr`)
+share one routine (VERIFIED-DATA, same constants in all six; example `player1.scr`
+pc 1382..1552):
+
+1. a = `GetPlayerAccel()` (the record's vector, 7.2; `GetPlayerAccel` as2@0x421b40 copies
+   record +0x14C..+0x154 of the calling helicopter's player).
+2. velocity.xy += a.xy × 1000 × frametime.
+3. Friction along the velocity: let d = velocity / |velocity|; each component is moved toward 0
+   by 330 × frametime × |d.component|, not past 0. (v1.70: per axis, only while no key of that
+   axis was held.) Friction now also acts while accelerating.
+4. Each component clamped to ±150.
+5. origin += velocity × frametime × `p_speedfactor` × **field 23** (the definition's `speed`).
+6. origin.y += camera field 7 (scroll speed) × frametime (`movey`).
+7. y clamped to [g_map_pos + 35, g_map_pos + 320].
+8. Tilt: angles[14] = 30 × vy / 150, angles[15] = −25 × vx / 150.
+
+`speed` therefore scales the **displacement**: top speed = 150 × speed units/s and the
+effective acceleration and friction scale with it too (velocity is bounded at ±150 before the
+factor). With the mouse the acceleration input is 2, i.e. twice as fast to build up.
+
+The x clamp is native and unchanged: `V_UpdateCamera` as2@0x414e90 calls
+`V_ClampToFrustumX` as2@0x41d4b0 (identical shape to v170@0x419b10) with margin 10.0 on player
+1, or on every player with p_lives ≥ 0 in two-player mode. Issue 120 rule 8 applies.
+
+Spawn fly-in (script, VERIFIED-DATA): start at (640, g_map_pos − 50, 100), `p_action` cleared,
+vy = 120 and input ignored until y ≥ g_map_pos + 60; `p_speedfactor` = 1.0; spawn shield
+`playerN_rshield` for 7 s.
+
+### 7.4 Spawn, lives and respawn: changed
+
+**Level start** (`G_BeginLevel` as2@0x410cd0; v170@0x408b30), for each player: p_lives = lives
+at level start, p_scores = 0, p_stars = 0, kills = 0, p_counter3 = 1, `p_action` = 0 (VERIFIED-
+CODE, loop as2@0x410d4d..0x410d61). **Weapon upgrades are not touched at level start** (v1.70 cleared
+them and gave the machine gun): they are set by the mission loadout table on a new game and on
+a restart, and carried over on "Next" (8.2).
+
+**Lives.** A new game gives lives at level start = 2 (three helicopters) unless the mission is
+the checkpoint mission (10.3). Banking copies p_lives to lives at level start (`G_BankScore`
+as2@0x414540, same code as v170@0x40bd10). Restart reuses the lives at level start. Extra lives:
+`i_life.scr` adds 1 to `p_lives` (VERIFIED-DATA); the cheat sets 99. The one-player HUD draws
+min(p_lives, **10**) life icons at y = 555 (as2@0x407d20..0x407da0; v1.70: 5).
+
+**`G_SpawnPlayer`** as2@0x413b20 (v170@0x40b2f0; the symbol-map match is confirmed):
+1. removes the old entity;
+2. **no p_lives test any more**: v1.70 marked the old entity dead and stopped when p_lives < 0;
+   `as2` always builds a new helicopter. The player scripts test it themselves: on death they
+   decrement `p_lives` and, when it is below 0, `deactivate` the wreck instead of calling
+   `RespawnPlayer` (VERIFIED-DATA, `player1.scr` pc 1771..1777);
+3. clears the missile and power-up counts and selections of **both** players (as v1.70);
+4. builds the helicopter named by the table entry (index at record +0x88, table as2@0x49ddf8,
+   7.6) with `G_InitObject`, sets the player index, the `player` global, clears the freeze
+   counter and the actions-disabled byte, runs `init`;
+5. two players: x −100 for player 1, +100 for player 2.
+
+`RespawnPlayer` as2@0x421a50: same code (spawns the caller's player if the caller is a player
+entity).
+
+**Health** comes from the helicopter definition: `player_1` 500, `player_2` 400, `player_3`
+300, `player_4` 600, `player_5` 800, `player_6` 600 (VERIFIED-DATA), never scaled by the
+difficulty. The maximum health (+0x70) is the same value. **Every frame the HUD clamps the
+player's health to its maximum** (`HUD_Draw1P` as2@0x407d20 at as2@0x407e67..0x407e7c for
+player 1; `HUD_Draw2P` as2@0x408b00 for both players), so `i_armor100.scr` (health = 1000) is a
+full repair and `i_armor50.scr` (+200) cannot overheal (VERIFIED-DATA for the scripts). The
+clamp happens only while the HUD is drawn (not on intermission levels, not while the HUD is
+hidden). An implementation should clamp in the game logic at the same point of the frame.
+
+**Death** (script): no weapon level is lost (the six scripts never call `G_SetUpgrade`;
+VERIFIED-DATA). v1.70's `player.scr` downgraded every weapon above level 1.
+
+### 7.5 Two-player mode ("Cooperative"): changed in details
+
+What the code shows (VERIFIED-CODE unless marked; co-op was not played):
+
+- Selected in the player-selection menu (player count as2@0x49ded0, flag as2@0x2219145);
+  "Cooperative" is the label.
+- Separate records, bindings, lives, scores, weapons, missiles and power-ups per player; the
+  missiles and power-ups of **both** are cleared whenever either respawns (7.4 step 3).
+- Spawn: player 1 then player 2 (`G_StartLevel` as2@0x40e4e8..0x40e4fd), x ∓ 100.
+- Camera follows the mean x of the players with p_lives ≥ 0 (same code as v1.70, 9.3); each
+  such player is clamped to the frustum.
+- Map objects: player index chosen by `rand` between the living players (same as v1.70).
+  Projectiles carry the shooter's index and owner bits (8.1).
+- Push-apart 2000 u/s² (5.4, same).
+- Game over when both p_lives < 0 (same).
+- No friendly fire through touch: player projectiles only have `TOUCH_ENEMIES`. Players can be
+  hurt by `RadialDamagePlayer` (explosions, meteorites), whoever caused them; whether a
+  player's own A-bomb uses it is a script question (GUESS: `expl_abomb.scr` calls it twice).
+- Mission statistics are **not drawn** in two-player mode (`M_DrawMissionComplete`
+  as2@0x427b60 tests the flag); high scores are only checked in one-player mode (same code).
+- New builtins for scripts: `IsMultiplayer`, `IsPlayerInGame(i)` (1 when player i has an
+  entity), `GetPlayersDistance` (the y distance from the other player when both have
+  p_lives ≥ 0, else −1), the globals `player1` and `player2` (rcsl-vm.delta.md). No shipped
+  script uses them.
+- The two-player HUD (as2@0x408b00) is not decoded here (frontend package).
+- Not verified: joining or leaving during a game, the camera when one player is dead for long,
+  the checkpoint with two players (both records are saved, 10.5).
+
+### 7.6 Helicopter choice: changed
+
+Table as2@0x49ddf8 (v1.70 v170@0x457660, which the data map calls `g_missionUnlockTable`; see
+"Corrections"), **6** records of 33 bytes {u8 unlocked, name[32]}, in this order (VERIFIED-CODE,
+read from the executable):
+
+| Index | Object | Unlocked by default | Unlocked by |
+|---|---|---|---|
+| 0 | `player_1` | yes | – |
+| 1 | `player_2` | no | mission 4 (`enableHelic 1`) |
+| 2 | `player_4` | no | mission 7 (`enableHelic 2`) |
+| 3 | `player_6` | no | mission 10 (`enableHelic 3`) |
+| 4 | `player_5` | no | mission 13 (`enableHelic 4`) |
+| 5 | `player_3` | no | mission 16 (`enableHelic 5`) |
+
+`G_MissionComplete` as2@0x427f40 unlocks entry `enableHelic` when 0 ≤ value < **6**
+(v170@0x4269b0: < 10). The selection menu cycles the index modulo 6 (`M_HeliSelectAction`
+as2@0x428fb0 cases 6 and 7). `G_Init` sets both players to index 0. The unlock flags are saved
+in `game.bin`. The mission-complete screen shows "New helicopter is available." when the level
+has an `enableHelic` value in 0..5 (as2@0x427d23..0x427d50), and offers "Choose Helicopter".
+
+---
+
+## 8. Weapons and items
+
+### 8.1 Weapon definitions and `Shoot`: changed (one test)
+
+`.wpn` parsing (`G_ParseWeapon` as2@0x415410, unique string "Too many weapons.", 256 records):
+same. `Shoot` as2@0x420190 against v170@0x41b0d0 (ratio 0.904; the other differences are moved
+offsets and the root reference count done by a helper): step 1 now also returns when the
+shooter is **dead** (field 4 ≠ 0, as2@0x4201af..0x4201bc), so a destroyed enemy or a crashing
+helicopter cannot fire any more. The corrections of rcsl-builtins-semantics.md for `Shoot`
+(no return value, order of init and damage scaling) are the other agent's to re-check.
+
+### 8.2 Weapon upgrades: changed
+
+- **9 slots** (record +0x11C). `G_GetUpgrade(i)` returns 0 for i > 8 (as2@0x4217c0),
+  `G_SetUpgrade(i, v)` stores for i < 9 (as2@0x421830); both truncate (rcsl-builtins-semantics
+  correction). v1.70: 20 slots.
+- Weapon ids (VERIFIED-DATA, `items\ammo\*.scr` and the player scripts; maximum level from the
+  pick-up's cap): 0 machine gun (4), 1 impulse gun (5), 2 plasma gun (7), 3 laser (8), 4 big
+  laser (5), 5 lightning gun (5), 6 wave gun (4), 7 missile gun (5), 8 flamethrower (3). A
+  pick-up raises the level by 1 up to the cap and sends `callback(player, 2, id, 0)` the first
+  time.
+- `G_NextWeapon` as2@0x413870: cycles `p_weapon` to the next owned slot modulo **9**.
+- **Mission loadout table** (as2@0x48b3a8, 18 rows × 9 ints, read from the executable), applied
+  by `G_SetMissionLoadout` as2@0x4138f0 (the symbol map's `G_ResetPlayers`) to **both** players:
+  every slot is set to the row's value and `p_weapon` becomes the highest slot with a non-zero
+  value. The row index is the mission index clamped to 0..17. It is applied by `G_NewGame`
+  (every start from the menu), the mission-complete **Restart** and the game-over **Restart**
+  (VERIFIED-CODE as2@0x410dc0, as2@0x427a20 case 2, as2@0x428ac0), **not** by "Next" (as2@0x427a20
+  case 3 banks and starts the next mission with the upgrades collected so far).
+
+| Mission | 0 MG | 1 impulse | 2 plasma | 3 laser | 4 big laser | 5 lightning | 6 wave | 7 missile | 8 flame |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1 | | | | | | | | |
+| 2 | 4 | 3 | | | | | | | |
+| 3 | 4 | 5 | | | | | | | |
+| 4 | 4 | 5 | 3 | | | | | | |
+| 5 | | 5 | 7 | | | | | | |
+| 6 | | 5 | 7 | 3 | | | | | |
+| 7, 8 | | | 7 | 3 | | | | 5 | |
+| 9 | | | 7 | 5 | | | | 5 | |
+| 10 | | | 7 | 8 | | | 3 | 5 | |
+| 11 | | | 7 | 8 | | | 4 | 5 | |
+| 12 | | | 7 | 8 | | 5 | 4 | 5 | |
+| 13 | | | 7 | 8 | 3 | 5 | 4 | 5 | |
+| 14 | | | 7 | 8 | 5 | 5 | 4 | 5 | |
+| 15 to 18 | | | 7 | 8 | 5 | 5 | 4 | 5 | 3 |
+
+(Empty = 0, not owned. The rows for missions 15 to 18 are identical.)
+
+### 8.3 Missiles and power-ups: changed (kinds, cycling)
+
+Same builtins and caps (`G_AddMissiles` as2@0x4216c0: type < 5, count capped at 99, selects the
+type if none; `G_AddPowerUp` as2@0x421550: type < 16, cap 99; `G_UseMissile` / `G_UsePowerUp`
+through as2@0x413800 / as2@0x413710 with the corrected v1.70 rule of rcsl-builtins-semantics.md;
+new `G_SetPowerUpCount` as2@0x421650 sets a count directly, its index unchecked). Slot counts:
+**5 missile types, 16 power-up slots** (as v1.70). Changes:
+
+- **Power-up cycling** (`G_NextPowerUp` as2@0x413680 against v170@0x40b0d0) skips the slot
+  numbers 6, 7 and 9 (as2@0x4136a4..0x4136ae); otherwise the next owned slot modulo 16 as before.
+- Missile cycling (`G_NextMissile` as2@0x413780): same (modulo 5).
+- Kinds used by the data (VERIFIED-DATA, pick-up scripts):
+
+| Missile type | Pick-up | | Power-up slot | Name (pick-up script) | Pick-up |
+|---|---|---|---|---|---|
+| 0 | +20 | | 0 | lightning bomb (`i_lightingb`) | +2 |
+| 1 | +12 | | 1 | A-bomb (`i_abomb`) | +1 |
+| 2 | +20 | | 2 | rocket bomb (`i_rocketbomb`) | +4 |
+| 3 | +15 | | 3 | cluster bomb (`i_clustbomb`) | +4 |
+| 4 | +12 | | 4 | annihilator (`i_annihilator`) | +500, capped at 99 |
+| | | | 5 | satellite strike (`i_satellitestrike`) | +2 |
+| | | | 8 | air support bomber (`i_bomber`) | +1 |
+
+The missile kinds keep their v1.70 pick-up counts. Cheat "glitteringprizes" fills slots 0..5
+and 8, matching the kinds in use.
+
+What resets and what carries over: missiles and power-ups are cleared at every spawn (level
+start and each respawn) for both players; weapon upgrades carry over except where the loadout
+table is applied (8.2); lives carry over through banking or the checkpoint (10.3).
+
+### 8.4 Targeting: same
+
+`LockTarget` through as2@0x414c50 (identical shape to v170@0x40c020) with the corrections of
+rcsl-builtins-semantics.md: class 2.0 only, so civilians are never locked. `IsValidTarget`,
+`PushPlayer` as2@0x4214a0 (identical shape, 4000 u/s²): same.
+
+---
+
 ## Changelog
 
 - 1.0 (B4): first version.
