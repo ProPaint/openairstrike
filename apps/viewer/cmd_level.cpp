@@ -1,15 +1,18 @@
 // `as3d_viewer level <level number | levels.txt id | maps\x.hsc> --out file.png [--scroll y]
 // [--size WxH] [--overview [--span y]] [--camera 0..3] [--camx x] [--no-objects]
 // [--shadows|--no-shadows] [--marks "x,y[,object];..."|demo|--no-marks] [--lights "x,y,z,r,g,b,radius;..."]
-// [--no-lights] [--no-sprites] [--no-envmap] [--plain]`: renders a
-// level of the original game headless, as the game would show it at scroll position `y`
-// (g_map_pos), or, with --overview, from high above.
+// [--no-lights] [--no-sprites] [--no-envmap] [--plain] [--time T] [--morph "x,y,stamp;..."]
+// [--skid "x0,y0,x1,y1,width,texture;..."]`: renders a level of the selected game (--game)
+// headless, as the game would show it at scroll position `y` (g_map_pos), or, with
+// --overview, from high above. --time sets the game time of the water animation; --morph
+// applies TerraMorph stamps first; --skid lays skid trails (see level_render.h).
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 #include "as3d/gfx.h"
+#include "common.h"
 #include "level_render.h"
 #include "registry.h"
 #include "viewer_scene.h"
@@ -66,6 +69,9 @@ int run(int argc, char** argv) {
         else if (a == "--no-envmap") o.envmaps = false;
         else if (a == "--plain") { o.shadows = o.sprites = o.marks = o.dataLights = o.envmaps = false; }
         else if (a == "--marks") { if (!(v = val("--marks"))) return 1; o.extraMarks = v; o.marks = true; }
+        else if (a == "--time") { if (!(v = val("--time"))) return 1; o.time = static_cast<float>(std::atof(v)); }
+        else if (a == "--morph") { if (!(v = val("--morph"))) return 1; o.morphs = v; }
+        else if (a == "--skid") { if (!(v = val("--skid"))) return 1; o.skids = v; }
         else if (a == "--lights") {
             if (!(v = val("--lights"))) return 1;
             if (!parseLights(v, o.extraLights)) { std::fprintf(stderr, "error: bad --lights '%s' (x,y,z,r,g,b,radius;...)\n", v); return 1; }
@@ -76,9 +82,11 @@ int run(int argc, char** argv) {
     if (level.empty() || out.empty()) {
         std::fprintf(stderr, "usage: as3d_viewer level <level number|id|maps\\x.hsc> --out file.png [--scroll y] [--size WxH] "
                              "[--overview [--span y]] [--camera 0..3] [--camx x] [--no-objects] [--no-shadows] [--marks \"x,y;...\"|demo] "
-                             "[--lights \"x,y,z,r,g,b,radius;...\"] [--no-lights] [--no-sprites] [--no-envmap] [--plain]\n");
+                             "[--lights \"x,y,z,r,g,b,radius;...\"] [--no-lights] [--no-sprites] [--no-envmap] [--plain] "
+                             "[--time T] [--morph \"x,y,stamp;...\"] [--skid \"x0,y0,x1,y1,width,texture;...\"]\n");
         return 1;
     }
+    if (const as3d::GameData* g = viewer::selectedGame()) o.game = g->game->id;
     if (o.overview && !sizeGiven) {
         // The map is 1280 wide and up to 10240 long: default to a tall image of the same shape.
         o.width = 400;
@@ -101,6 +109,11 @@ int run(int argc, char** argv) {
                 stats.visibleChunks, stats.hasWater ? "yes" : "no", stats.missingTextures);
     std::printf("  shadows %d, sprites %d, marks %d, lights %d, env-mapped parts %d\n", stats.shadowsDrawn,
                 stats.spritesDrawn, stats.marksDrawn, stats.lightsUsed, stats.envParts);
+    if (stats.waterGrid || stats.morphStamps || stats.skidTrails)
+        std::printf("  water grid %s, %d wet cells, %d water chunks drawn; morph stamps %d (terrain chunks %d, water "
+                    "chunks %d re-uploaded); skid trails %d\n",
+                    stats.waterGrid ? "yes" : "no", stats.wetCells, stats.waterChunks, stats.morphStamps,
+                    stats.terrainChunksUpdated, stats.waterChunksUpdated, stats.skidTrails);
     return 0;
 }
 
