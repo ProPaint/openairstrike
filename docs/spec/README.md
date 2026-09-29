@@ -85,6 +85,7 @@ Every claim carries one of:
 | Audio | `engine/src/audio` | mixer and music decoder; not yet driven by the world's sound queue |
 | Game app | `apps/game`, `engine/src/input`, `engine/src/render/world_render*` | full flow on desktop: intro, menus, all 20 missions, mission complete, game over, high scores, options, two players, saved profile; all missions reach the end under the pilot in god mode (`docs/missions-status.md`); no cheat codes; video options and 3D sound hidden |
 | Menus, progression, save | `engine/src/ui`, `engine/src/game/profile*`, `apps/game/game_flow.*`, `tools/extract_exe_texts.py` | wired into the game on both targets |
+| Web | `apps/web`, `tools/web_build.sh`, `tools/web_serve.sh`, `docs/web.md` | the whole game in the browser (WebAssembly, WebGL 2), one player; verified in headless Chromium and by the owner on Android Chrome and Edge; Safari, iPhone and Firefox untested |
 | Android gameplay | `android`, `apps/game`, `engine/src/input/touch_mapper.cpp`, `docs/android.md` | menus and play with touch controls pass the emulator smoke test; never run on a real phone; choices in issues 100 and 130 |
 | [050](issues/050-game-integration-choices.md) | game integration choices: draw order, controls, audio |
 | [070](issues/070-render-extras-choices.md) | shadows, lights and environment map choices |
@@ -100,3 +101,4 @@ Every claim carries one of:
 | [130](issues/130-frontend-game-integration.md) | front end integration choices |
 | [140](issues/140-android-polish.md) | launcher icon, Wide / 4:3 setting, touch overlay, touch speed (drag gain only; the helicopter's own speed is untouched), FPS counter |
 | [141](issues/141-next-item-preview.md) | next buttons preview the item they select, from the game's own cycling rule (`as3d/player_select.h`) |
+| [150](issues/150-web-version.md) | web version: full screen, touch detection, storage, web key bindings, bundled and bring-your-own builds |
