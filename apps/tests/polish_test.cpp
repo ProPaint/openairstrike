@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "../game/game_session.h"
+#include "../game/fps_counter.h"
 #include "../game/game_view.h"
 #include "as3d/defs.h"
 #include "as3d/gfx.h"
@@ -502,4 +503,42 @@ TEST_CASE("touch speed: a fast swipe on the real helicopter goes further and arr
     }
     CHECK(r[kTouchSpeedSteps - 1].framesTo150 < r[0].framesTo150);
     for (const SwipeResult& x : r) CHECK(x.topSpeed < 9.0f);
+}
+
+TEST_CASE("fps counter: frames per second over each second, worst frame, dropped steps") {
+    as3d_game::FpsCounter c;
+    CHECK_FALSE(c.valid());
+    // 59 frames of 1/60 s: not a full second yet.
+    for (int i = 0; i < 59; ++i) c.frame(1.0 / 60.0);
+    CHECK_FALSE(c.valid());
+    c.frame(1.0 / 60.0 + 1e-9);
+    REQUIRE(c.valid());
+    CHECK(c.fps() == doctest::Approx(60.0).epsilon(0.001));
+    CHECK(c.worstMs() == doctest::Approx(1000.0 / 60.0).epsilon(0.001));
+    CHECK(c.dropped() == 0);
+    // The next second: 27 frames of 1/30 s, then a stall of 110 ms that dropped 3 steps.
+    for (int i = 0; i < 27; ++i) c.frame(1.0 / 30.0);
+    CHECK(c.fps() == doctest::Approx(60.0).epsilon(0.001)); // shown values change once a second
+    c.frame(0.11, 3);
+    CHECK(c.fps() == doctest::Approx(28.0 / (27.0 / 30.0 + 0.11)).epsilon(0.001));
+    CHECK(c.worstMs() == doctest::Approx(110.0));
+    CHECK(c.dropped() == 3);
+    // A long gap (a level load, the background) is not a frame: it starts a new second.
+    for (int i = 0; i < 30; ++i) c.frame(1.0 / 60.0);
+    c.frame(12.0);
+    for (int i = 0; i < 59; ++i) c.frame(1.0 / 60.0);
+    CHECK(c.worstMs() == doctest::Approx(110.0)); // unchanged: no full second since the gap
+    c.frame(1.0 / 60.0 + 1e-9);
+    CHECK(c.worstMs() < 17.0);
+    CHECK(c.dropped() == 0);
+}
+
+TEST_CASE("fps counter: Show FPS round-trips in the profile") {
+    Profile p;
+    CHECK_FALSE(p.settings.showFps); // off by default
+    p.settings.showFps = true;
+    const std::vector<u8> bytes = serializeProfile(p);
+    Profile q;
+    REQUIRE(deserializeProfile(bytes.data(), bytes.size(), q));
+    CHECK(q.settings.showFps);
 }

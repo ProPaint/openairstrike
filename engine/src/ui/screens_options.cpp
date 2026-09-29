@@ -10,7 +10,7 @@ namespace as3d::ui {
 namespace {
 
 enum OptionId { kBack = 1, kConfKeys = 2, kApply = 3, kResolution = 20, kRefresh, kDepth, kFullscreen, kBrightness,
-                kSfx, kMusic, kSound3D, kCamera, kMouse, kScreenMode = 40, kHand, kTouchSpeed };
+                kSfx, kMusic, kSound3D, kCamera, kMouse, kScreenMode = 40, kHand, kTouchSpeed, kShowFps };
 
 bool videoDiffers(const Settings& a, const Settings& b) {
     return a.videoMode != b.videoMode || a.refreshRate != b.refreshRate || a.colorDepth != b.colorDepth ||
@@ -69,6 +69,9 @@ Menu Frontend::buildOptions() {
             m.addSpinner(kTouchSpeed, 400, y, texts_.get("opt.touchspeed"), speeds, s.touchSpeed);
             y += 20;
         }
+        // Show FPS in the row of 3D Sound (not offered by the port), between the volumes and
+        // the camera.
+        if (!content_.videoOptions) m.addSpinner(kShowFps, 400, 320, texts_.get("opt.showfps"), {off, on}, s.showFps ? 1 : 0);
     }
     m.addButton(kConfKeys, 230, 430, 340, 32, "menu\\confkeys_1.tga", "menu\\confkeys_2.tga");
     m.addButton(kBack, 50, 450, 128, 64, "menu\\back_1.tga", "menu\\back_2.tga");
@@ -111,6 +114,7 @@ Menu Frontend::buildOptions() {
             case kScreenMode: live.screenMode = it.index == 1 ? kScreen4x3 : kScreenWide; settingsChanged(); break;
             case kHand: live.leftHanded = it.index == 1; settingsChanged(); break;
             case kTouchSpeed: live.touchSpeed = it.index; settingsChanged(); break;
+            case kShowFps: live.showFps = it.index == 1; settingsChanged(); break;
             case kMouse:
                 live.mouseControl = it.index == 1;
                 live.applyMouseControlBindings();

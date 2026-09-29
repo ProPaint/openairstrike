@@ -5,6 +5,7 @@
 
 #include "as3d/input.h"
 #include "as3d/ui.h"
+#include "fps_counter.h"
 
 namespace as3d_game {
 
@@ -18,6 +19,13 @@ struct TouchOverlayState {
 };
 
 void drawTouchControls(as3d::ui::Renderer2D& r, const as3d::TouchMapper& touch, const TouchOverlayState& state = {});
+// The frame counter (Show FPS): "NN FPS" and, smaller, the worst frame time and the dropped
+// simulation steps of the last second, in the game font on a dark backing, in a free top
+// corner: the one opposite the touch pause button (inside the insets), beside the pause
+// button when that sits at the top centre, else the screen's top right corner (wider than
+// 4:3) or the top centre between the HUD's bars. `touch` may be null (no touch controls).
+void drawFpsCounter(as3d::ui::Renderer2D& r, const as3d::ui::UiAssets& assets, const FpsCounter& fps,
+                    const as3d::TouchLayout* touch, const as3d::SafeInsets& insets);
 // Dims the screen and draws a large "play" symbol.
 void drawPauseOverlay(as3d::ui::Renderer2D& r, bool touch);
 // Black screen with a progress bar, `progress` in 0..1.

@@ -147,6 +147,25 @@ only let one swipe carry the helicopter further.
   bot and the keyboard under opposite Touch speed, Screen and Controls settings and compares
   the state dumps).
 
+## 5. Show FPS
+
+* "Show FPS: Off / On" in Options on both targets (the row of 3D Sound, which the port never
+  offers), stored as the original's own `ShowFps` setting (`Settings::showFps`, profile key
+  `showFps`, default Off), applied live; desktop `--fps` turns it on for the session.
+* `FpsCounter` (`apps/game/fps_counter.h`) takes each presented frame's interval and the
+  simulation steps dropped since the last one (the numbers `AS3D_PERF` already uses) and
+  publishes, once per whole second, the frames per second over that second, its worst frame
+  time and its dropped steps. An interval over 5 s (a level load, the background) starts a new
+  second instead of counting.
+* Drawn last, in the game font on a dark backing: "NN FPS", and below, smaller, "worst N ms
+  drop N". Where: the top corner opposite the touch pause button (inside the cutout insets),
+  beside the pause button when that sits at the top centre (4:3 tablets), else the screen's
+  top right corner outside the field (wide desktop windows) or the top centre between the
+  HUD's health and score bars. During play and in menus.
+* Headless screenshots show it only with `--fps` (the counter then measures the headless
+  loop's own wall-clock rate), so existing pixel tests are unaffected by a profile with Show
+  FPS on.
+
 ## Open
 
 * The data-derived icon is dark (the Comanche's dark green-grey body) on a dark background; it is

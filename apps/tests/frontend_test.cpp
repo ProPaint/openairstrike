@@ -610,6 +610,11 @@ TEST_CASE("frontend options (ours, issue 140): Screen and Controls rows, operabl
     CHECK(speed->index == kDefaultTouchSpeed);
     tap(speed->x + 40, speed->y + 5);
     CHECK(profile.settings.touchSpeed == kDefaultTouchSpeed + 1);
+    MenuItem* fps = m->find(43);
+    REQUIRE(fps != nullptr);
+    CHECK(fps->y == 320.0f); // the port's free 3D Sound row, below Music Volume
+    tap(fps->x + 40, fps->y + 5);
+    CHECK(profile.settings.showFps);
     // A tap on the "<" goes back.
     tap(screen->x - 10, screen->y + 5);
     CHECK(profile.settings.screenMode == kScreenWide);
@@ -623,4 +628,5 @@ TEST_CASE("frontend options (ours, issue 140): Screen and Controls rows, operabl
     CHECK(desk.menus().top()->find(40) != nullptr);
     CHECK(desk.menus().top()->find(41) == nullptr);
     CHECK(desk.menus().top()->find(42) == nullptr);
+    CHECK(desk.menus().top()->find(43) != nullptr); // Show FPS on both targets
 }

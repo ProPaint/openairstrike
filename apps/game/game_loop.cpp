@@ -162,6 +162,8 @@ private:
     int layoutScreen_ = -1, layoutHand_ = -1;
     TouchFade fade_;
     double lastDraw_ = -1;
+    FpsCounter fps_;
+    int droppedNow_ = 0; // simulation steps dropped since the last presented frame
     double stepAvg_ = -1, drawAvg_ = -1; // running averages (seconds) for AS3D_HITCH
     // A step or draw over 50 ms and over 3 times its running average: a stall, not a device
     // that is merely slow everywhere.
@@ -705,23 +707,26 @@ void GameWindow::draw() {
     }
     if (view_ && view_->hudAvailable()) ts.assets = &view_->assets();
     ts.alpha = fade_.alpha(touch_.layout().alpha);
+    const bool showFps = (o_.fps || (flow_ && flow_->profile().settings.showFps)) && ts.assets;
     if (flow_) {
         flow_->draw(w, h);
-        if (o_.touch && flow_->playing()) {
+        const bool controls = o_.touch && flow_->playing();
+        if (!controls) fade_.reset(); // full opacity again when play (re)starts
+        if (controls || showFps) {
             overlay_->begin(w, h);
-            drawTouchControls(*overlay_, touch_, ts);
+            if (controls) drawTouchControls(*overlay_, touch_, ts);
+            if (showFps) drawFpsCounter(*overlay_, *ts.assets, fps_, o_.touch ? &touch_.layout() : nullptr, layoutInsets_);
             overlay_->flush();
-        } else {
-            fade_.reset(); // full opacity again when play (re)starts
         }
         return;
     }
     view_->draw(session_, w, h);
     bool paused = pausedByPlayer(session_.world());
-    if (o_.touch || paused) {
+    if (o_.touch || paused || showFps) {
         overlay_->begin(w, h);
         if (paused) drawPauseOverlay(*overlay_, o_.touch);
         if (o_.touch) drawTouchControls(*overlay_, touch_, ts);
+        if (showFps) drawFpsCounter(*overlay_, *ts.assets, fps_, o_.touch ? &touch_.layout() : nullptr, layoutInsets_);
         overlay_->flush();
     }
 }
@@ -840,6 +845,7 @@ int GameWindow::run() {
         }
         if (acc >= dt) {
             perf_.dropped(static_cast<int>(acc / dt));
+            droppedNow_ += static_cast<int>(acc / dt);
             acc = 0; // bounded catch-up: a long stall is not replayed
         }
         double work0 = nowSeconds();
@@ -862,6 +868,8 @@ int GameWindow::run() {
         ++rendered_;
         double t = nowSeconds();
         if (lastPresent_ >= 0) perf_.presented(t - lastPresent_, work);
+        fps_.frame(lastPresent_ >= 0 ? t - lastPresent_ : -1.0, droppedNow_);
+        droppedNow_ = 0;
         lastPresent_ = t;
         perf_.maybeLog(t, o_.perfLog);
     }

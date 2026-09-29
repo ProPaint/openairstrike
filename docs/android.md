@@ -167,6 +167,9 @@ clear of the HUD. They stay clear of display cutouts. The design and the reasons
   a given finger movement (the drag gain, and how far ahead of the helicopter a fast swipe
   may reach). Original is the feel of the first Android build. The helicopter's own top speed
   is the original game's and is not changed. Touch mode only.
+- **Show FPS: Off / On**: a small frame counter in a free top corner (frames per second over
+  the last second; below it the worst frame time and the simulation steps dropped in that
+  second). Both targets; desktop `--fps` too.
 
 On desktop, `as3d_game --touch` draws the same controls and makes the left mouse button one
 finger (drag with the mouse; the window is resizable to try other aspect ratios). The

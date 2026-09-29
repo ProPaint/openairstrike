@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <string>
 
 namespace as3d_game {
@@ -19,14 +20,6 @@ struct Box {
     float py(float v) const { return y + v * h; }
 };
 
-Box toVirtual(const ui::Renderer2D& r, const TouchRect& t) {
-    const ui::Mapping& m = r.mapping();
-    float x0 = m.toVirtX(t.x * static_cast<float>(m.fbWidth));
-    float y0 = m.toVirtY(t.y * static_cast<float>(m.fbHeight));
-    float x1 = m.toVirtX((t.x + t.w) * static_cast<float>(m.fbWidth));
-    float y1 = m.toVirtY((t.y + t.h) * static_cast<float>(m.fbHeight));
-    return {x0, y0, x1 - x0, y1 - y0};
-}
 
 // Fills a convex polygon (unit-square coordinates of `b`) with horizontal strips.
 void fillConvex(ui::Renderer2D& r, const Box& b, const float* uv, int n, Color c) {
@@ -213,6 +206,67 @@ void drawTouchControls(ui::Renderer2D& r, const TouchMapper& touch, const TouchO
         float x = touch.targetX(), y = touch.targetY();
         r.ring(x, y, 9.0f, 1.6f, Color{1, 1, 1, 0.45f});
         r.circle(x, y, 1.8f, Color{1, 1, 1, 0.45f});
+    }
+}
+
+void drawFpsCounter(ui::Renderer2D& r, const ui::UiAssets& a, const FpsCounter& fps, const TouchLayout* touch,
+                    const SafeInsets& in) {
+    if (!a.fontLoaded) return;
+    const ui::Mapping& m = r.mapping();
+    const float fw = static_cast<float>(m.fbWidth);
+    char line1[32], line2[48];
+    if (fps.valid()) {
+        std::snprintf(line1, sizeof line1, "%d FPS", static_cast<int>(fps.fps() + 0.5));
+        std::snprintf(line2, sizeof line2, "worst %d ms  drop %d", static_cast<int>(fps.worstMs() + 0.5), fps.dropped());
+    } else {
+        std::snprintf(line1, sizeof line1, "-- FPS");
+        line2[0] = 0;
+    }
+    const float s1 = 0.7f, s2 = 0.5f;            // text scales (virtual pixels)
+    const float h1 = 15.0f * s1, h2 = 15.0f * s2;
+    const ui::FontMetrics& fm = ui::FontMetrics::original();
+    const float w = std::max(ui::measureText(fm, line1, s1), ui::measureText(fm, line2, s2));
+    const float pad = 3.0f;
+    const float margin = 6.0f;
+    // Anchor: a top corner in virtual pixels, text right- or left-aligned from it.
+    float x = 0, y = 0;
+    ui::Align align = ui::Align::Right;
+    const float topInset = m.toVirtY(static_cast<float>(in.top)) - m.toVirtY(0);
+    if (touch && touch->outside) {
+        const TouchCircle& p = touch->circles[static_cast<int>(TouchButton::Pause)];
+        const bool pauseLeft = p.x < fw * 0.5f;
+        y = m.top() + topInset + margin;
+        if (pauseLeft) {
+            x = m.toVirtX(fw - static_cast<float>(in.right)) - margin;
+        } else {
+            x = m.toVirtX(static_cast<float>(in.left)) + margin;
+            align = ui::Align::Left;
+        }
+    } else if (touch) {
+        // Beside the pause button at the top centre of the field.
+        const TouchCircle& p = touch->circles[static_cast<int>(TouchButton::Pause)];
+        x = m.toVirtX(p.x + p.r) + margin;
+        y = m.toVirtY(p.y - p.r);
+        align = ui::Align::Left;
+    } else if (m.left() < -margin * 2) {
+        x = m.right() - margin; // the screen's top right corner, outside the field
+        y = m.top() + margin;
+    } else {
+        x = 400.0f + w * 0.5f; // top centre, between the health and score bars
+        y = 3.0f;
+    }
+    const float bx = align == ui::Align::Right ? x - w - pad : x - pad;
+    const float bh = h1 + (line2[0] ? h2 + 2.0f : 0.0f) + 2 * pad;
+    r.rect(bx, y - pad, w + 2 * pad, bh, Color{0, 0, 0, 0.45f});
+    ui::TextStyle st;
+    st.scale = s1;
+    st.align = align;
+    st.color = Color{1.0f, 0.63f, 0.0f, 1.0f};
+    ui::drawText(r, a.uiFont(), x, y, line1, st);
+    if (line2[0]) {
+        st.scale = s2;
+        st.color = Color{0.75f, 0.75f, 0.78f, 1.0f};
+        ui::drawText(r, a.uiFont(), x, y + h1 + 2.0f, line2, st);
     }
 }
 

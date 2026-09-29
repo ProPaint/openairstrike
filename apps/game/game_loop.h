@@ -65,6 +65,7 @@ struct LoopOptions {
     int screenMode = -1;
     bool leftHanded = false;
     int touchSpeed = as3d::kDefaultTouchSpeed; // Settings::touchSpeed without the front end
+    bool fps = false;                        // the frame counter regardless of Settings::showFps (--fps)
     // The front end (menus); game.startLevel must then be false.
     bool frontend = false;
     FlowConfig flow;
