@@ -154,7 +154,7 @@ Menu Frontend::buildControls() {
             }
             widgets::text(c, 392, y, texts_.get("ctl.row." + std::to_string(row)), col, Align::Right);
             if (captureRow_ == row) {
-                if ((c.ms / 250) % 2 == 1) widgets::text(c, 400, y, "=", orange(), Align::Center);
+                if ((c.ms / 250) % 2 == 1) widgets::text(c, 403, y, "=", orange());
             } else {
                 widgets::text(c, 408, y, keysText, col);
             }

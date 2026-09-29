@@ -31,9 +31,9 @@ void mainMenuFrame(MenuDrawContext& c) {
     c.r.quadSpec(672, 97, 128, 16, 0.99f, 0.97f, 0, 0, t, Color{}, Blend::Alpha);
     c.r.quadSpec(l, 97, 672 - l, 16, 0.99f, 0.97f, 0.97f, 0, t, Color{}, Blend::Alpha);
     if (rr > 800) // the rotated corner ends at 800; continue its rule to the right edge
-        c.r.quadSpec(800, 97, rr - 800, 16, 0.99f, 0.97f, 0.97f, 0, t, Color{}, Blend::Alpha);
+        c.r.quadSpec(800, 97, rr - 800, 16, 0.01f, 0.97f, 0.0f, 0, t, Color{}, Blend::Alpha);
     if (l < 0)
-        c.r.quadSpec(l, 487, -l, 16, 0.97f, 0, 0.99f, 0.97f, t, Color{}, Blend::Alpha);
+        c.r.quadSpec(l, 487, -l, 16, 0.0f, 0, 0.01f, 0.97f, t, Color{}, Blend::Alpha);
 }
 
 } // namespace

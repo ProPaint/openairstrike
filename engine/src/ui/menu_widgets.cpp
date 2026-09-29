@@ -324,7 +324,7 @@ void drawSpinner(MenuDrawContext& c, MenuItem& it, bool focused) {
     widgets::text(c, it.x + 10, it.y, v, col);
     if (c.touchMode && !it.disabled()) {
         // Touch: arrows show where a tap cycles backwards and forwards.
-        widgets::text(c, it.x - 6, it.y, "<", col);
+        widgets::text(c, it.x - 3, it.y, "<", col);
         widgets::text(c, it.x + 16 + measureText(fm(), v), it.y, ">", col);
     }
 }
