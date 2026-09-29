@@ -40,26 +40,39 @@ the platform module.
 
 ## What is bundled
 
-`tools/android_build.sh` copies `pak0.apk`, `pak1.apk`, `pak2.apk` (the original archives;
-the `.apk` extension is the original game's naming) from
-`$AS3D_DATA_ROOT/third_party_local/original/data/` into the APK's assets. `build.gradle`
-keeps them stored uncompressed (`noCompress "apk"`), so the engine's pak reader
-(`docs/spec/pak.md`) mounts them straight from the APK through the asset manager, seeking to
-the offsets of the pak's file table: nothing is extracted to storage. They are mounted in
-name order (later paks override earlier ones). About 25 MB of data; the APK with both ABIs
-is about 45 MB.
+`tools/android_build.sh` bundles the games named in `AS3D_ANDROID_GAMES` (comma-separated keys
+of `tools/games.json`: `as3d`, `as2`, `gulf`; default `as3d`, it becomes all three when the
+sequels play). Each game's files go under `assets/<key>/` of the APK, and the first game is
+under `as3d/` too (one layout; the flat layout of older builds is gone, the build script
+removes it from the assets directory): the game's paks (`pak0.apk`, `pak1.apk`, `pak2.apk`,
+plus `pak4.apk` for `gulf`; the `.apk` extension is the original game's naming) from
+`$AS3D_DATA_ROOT/third_party_local/original/data/` (`as3d`) or
+`third_party_local/games/<key>/data/`. `build.gradle` keeps them stored uncompressed
+(`noCompress "apk"`), so the engine's pak reader (`docs/spec/pak.md`) mounts them straight
+from the APK through the asset manager (`SDL_RWFromFile("as3d/pak0.apk")`,
+`engine/src/platform/rw_stream.cpp`), seeking to the offsets of the pak's file table: nothing
+is extracted to storage. They are mounted in the profile's order (later paks override
+earlier ones). About 25 MB of data for `as3d`; the APK with both ABIs is 37.9 MB for `as3d`
+alone and 129 MB with `as3d,as2,gulf`.
 
-It also copies, when the data has them, the front end's loose files: `Settings.xml` and
-`gfx/logo2s.tga` from the same directory (intro pages, version line, the main menu's logo) and
-`$AS3D_DATA_ROOT/assets_extracted/texts_v170.txt` (the texts imported from the original
-executable by `tools/extract_exe_texts.py`, issue 080: Information pages, rank names). Without
-them the menus still work. Everything in `android/app/src/main/assets/` is gitignored there.
+It also copies, when the data has them, the front end's loose files of each game:
+`Settings.xml` and `gfx/logo2s.tga` from the same directory (intro pages, version line, the
+main menu's logo) and the game's texts file (`texts` in `tools/games.json`: `texts_v170.txt`
+from `$AS3D_DATA_ROOT/assets_extracted/`, `texts_as2.txt` / `texts_gulf.txt` from
+`assets_extracted_games/<key>/`; the texts imported from the original executable by
+`tools/extract_exe_texts.py`, issue 080: Information pages, rank names). Without them the
+menus still work. Everything in `android/app/src/main/assets/` is gitignored there, and the
+build script refuses to build if any file of any game (or anything but the `.gitignore`)
+under it is tracked by git. The native side (`apps/game/android_main.cpp`) reads from
+`<key>/` for the game chosen by the `game` extra (`docs/spec/issues/162-packaging-by-game.md`).
 
 The profile (unlocks, high scores, settings) is `<game key>/profile.bin` (`as3d/profile.bin`
 for this game) in the app's internal files directory, one save per game; a save of an earlier
 release, `profile.bin` beside it, is moved there on the first start and kept as
 `profile.v1.bak` (docs/spec/issues/160). It is written after a mission, a high score or a settings change and whenever the
-app goes to the background. Uninstalling the app removes it.
+app goes to the background. Uninstalling the app removes it. Updating the app over the old one
+(`adb install -r`, or installing a new APK over it on the phone) keeps it: see
+`AS3D_SMOKE_MIGRATION=1` below.
 
 ## Building
 
@@ -71,7 +84,9 @@ This fetches SDL2 and libopenmpt sources into `$AS3D_DATA_ROOT/third_party_local
 needed, copies the paks, writes `android/local.properties` (gitignored) and runs
 `./gradlew assembleDebug` with the Gradle JVM capped at 1.5 GB and 2 workers. Native code is
 built `RelWithDebInfo` even in the debug APK. `AS3D_ANDROID_ABIS=x86_64` builds only the
-emulator ABI (faster); `AS3D_NATIVE_JOBS` sets the parallel compile jobs (default 4).
+emulator ABI (faster); `AS3D_NATIVE_JOBS` sets the parallel compile jobs (default 4);
+`AS3D_ANDROID_GAMES=as3d,as2,gulf` bundles the sequels too (they are refused at run time
+without `--ez allow_unfinished true`, `apps/game/android_main.cpp`).
 Output: `android/app/build/outputs/apk/debug/app-debug.apk`. Stop the Gradle daemon
 afterwards on a shared machine: `(cd android && ./gradlew --stop)`.
 
@@ -114,9 +129,11 @@ Any arm64 phone with Android 8.0 or later and OpenGL ES 3.0 should run it. To re
 |---|---|
 | (none) | the front end: intro pages, then the main menu |
 | `--ez bot true` | no menus: the scripted test pilot plays (same as `as3d_game --bot`); touch still works |
-| `--ei level N` | no menus: start in mission N, 1..20 |
+| `--ei level N` | no menus: start in mission N (1 up to the chosen game's mission count: 20 for `as3d`) |
+| `--es game KEY` | the game: `as3d` (default), `as2`, `gulf`; its files are read from `assets/<key>/` |
+| `--ez allow_unfinished true` | run a game that does not play yet (`as2`, `gulf`); without it they are refused |
 | `--ei frames N` | quit after N simulation frames |
-| `--ei difficulty D` | 0..4 |
+| `--ei difficulty D` | 0 up to the game's difficulty count minus one (0..4 for `as3d`); a value outside is ignored |
 | `--ez no_audio true` | no sound |
 | `--ez rebuild_on_resume true` | test hook: rebuild every GL resource after each resume |
 
@@ -228,8 +245,18 @@ through it by the `AS3D_SCREEN` markers: main menu, Start Game, Start, 600 frame
 1, the pause button (in-game menu), Resume, pause again, Quit to the main menu, Back (exit
 confirmation), No; screenshots `menu_*.png`. It fails on a `FATAL` marker, a Java exception or a native
 crash, and on timeouts. Screenshots and the logcat capture go to
-`$AS3D_DATA_ROOT/out/m8/` (gitignored). `adb shell input` has no multi-touch, so
-multi-touch is covered by the unit tests only.
+`$AS3D_DATA_ROOT/out/m8/` (gitignored; `AS3D_SMOKE_OUT` changes it). `adb shell input` has no
+multi-touch, so multi-touch is covered by the unit tests only.
+
+`AS3D_SMOKE_MIGRATION=1` adds a first stage that proves the save of the previous app build
+survives the update: it installs the old APK (`AS3D_SMOKE_OLD_APK`, or one built from
+`AS3D_SMOKE_OLD_COMMIT`, default `7753c66`, in a scratch git worktree under the output
+directory), starts it on the front end, sets Screen to 4:3 in Options and leaves Options (the
+profile is written), stops it, keeps a copy of `files/profile.bin`, installs the new APK over
+it (`adb install -r`), starts it, and checks with `run-as`: `files/profile.bin` is gone,
+`files/profile.v1.bak` has the old file's bytes, `files/as3d/profile.bin` is a version 2 file
+with the key `as3d`, the app logged no profile problem and comes up with Screen still 4:3
+(`AS3D_LAYOUT ... screen=4x3`). The normal walk then goes on from the updated app.
 
 ## Known limits
 

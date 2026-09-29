@@ -2,9 +2,12 @@
 # Builds the AirStrike 3D game APK (apps/game with touch controls, docs/android.md).
 #   tools/android_build.sh
 # Env:
-#   AS3D_DATA_ROOT     where third_party_local/ (SDL2, libopenmpt, the original game data)
-#                      lives (default: this repo's root; set it from a worktree to point at
+#   AS3D_DATA_ROOT     where third_party_local/ (SDL2, libopenmpt, the original game data of
+#                      every bundled game) lives (default: this repo's root; set it from a worktree to point at
 #                      the main checkout).
+#   AS3D_ANDROID_GAMES comma-separated game keys to bundle (as3d, as2, gulf; default as3d, to
+#                      become all three when the sequels play). Each game's paks, Settings.xml,
+#                      logo and texts file go under assets/<key>/ (tools/games.json lists them).
 #   AS3D_ANDROID_ABIS  comma-separated ABIs (default arm64-v8a,x86_64).
 #   AS3D_NATIVE_JOBS   parallel native compile jobs (default 4).
 #   AS3D_ICON_FROM_DATA  1 (default): launcher icon foreground rendered from the game data
@@ -31,45 +34,89 @@ echo "== fetch_third_party =="
 SDL_VERSION="2.30.12"
 export AS3D_SDL2_DIR="${AS3D_SDL2_DIR:-${AS3D_DATA_ROOT}/third_party_local/SDL2-${SDL_VERSION}}"
 
-DATA_DIR="${AS3D_DATA_ROOT}/third_party_local/original/data"
 ASSETS_DIR="${REPO_ROOT}/android/app/src/main/assets"
+GAMES_JSON="${SCRIPT_DIR}/games.json"
 
-echo "== copying the original pak archives into assets (stored uncompressed, read in place) =="
+# The games bundled in the APK: their keys, comma separated (as3d, as2, gulf).
+GAMES="${AS3D_ANDROID_GAMES:-as3d}"
+IFS=',' read -r -a GAME_KEYS <<< "${GAMES}"
+
+# One line per game from tools/games.json: key|paks (space separated)|texts file.
+game_line() {
+    python3 - "${GAMES_JSON}" "$1" <<'PY'
+import json, sys
+for g in json.load(open(sys.argv[1]))["games"]:
+    if g["key"] == sys.argv[2]:
+        print(g["key"] + "|" + " ".join(g["paks"]) + "|" + g["texts"])
+        break
+else:
+    sys.exit(1)
+PY
+}
+# Where a game's install data and extracted files are (docs/spec/README.md, data layout).
+game_data_dir() { if [ "$1" = as3d ]; then echo "${AS3D_DATA_ROOT}/third_party_local/original/data"; else echo "${AS3D_DATA_ROOT}/third_party_local/games/$1/data"; fi; }
+game_extracted_dir() { if [ "$1" = as3d ]; then echo "${AS3D_DATA_ROOT}/assets_extracted"; else echo "${AS3D_DATA_ROOT}/assets_extracted_games/$1"; fi; }
+
+echo "== copying the paks and front-end files of: ${GAMES} into assets/<key>/ (paks stored uncompressed, read in place) =="
 mkdir -p "${ASSETS_DIR}"
-for pak in pak0.apk pak1.apk pak2.apk; do
-    SRC="${DATA_DIR}/${pak}"
-    if [ ! -f "${SRC}" ]; then
-        echo "android_build: missing game data file ${SRC}" >&2
-        echo "  Set AS3D_DATA_ROOT to a checkout that has third_party_local/original/data/." >&2
-        exit 1
-    fi
-    # Only copy when changed, so Gradle does not repackage 25 MB for nothing.
-    if ! cmp -s "${SRC}" "${ASSETS_DIR}/${pak}"; then cp -f "${SRC}" "${ASSETS_DIR}/${pak}"; fi
+# Only what is asked for stays: drop other games' directories and the flat layout of older builds.
+for entry in "${ASSETS_DIR}"/* ; do
+    [ -e "${entry}" ] || continue
+    keep=0
+    for key in "${GAME_KEYS[@]}"; do [ "${entry}" = "${ASSETS_DIR}/${key}" ] && keep=1; done
+    [ "${keep}" = 1 ] || rm -rf "${entry}"
 done
 
-echo "== copying the front end's files (Settings.xml, the menu logo, the texts imported from the exe) =="
+# Only copy when changed, so Gradle does not repackage 25 MB for nothing.
+copy_if_changed() {
+    if ! cmp -s "$1" "$2"; then cp -f "$1" "$2"; fi
+}
 # Optional: without them the menus still work (no intro pages or logo; Information pages show
 # a notice). assets/.gitignore keeps all of it out of git.
 copy_optional() {
     if [ -f "$1" ]; then
-        if ! cmp -s "$1" "${ASSETS_DIR}/$2"; then cp -f "$1" "${ASSETS_DIR}/$2"; fi
+        copy_if_changed "$1" "$2"
     else
         echo "android_build: note: $1 not found, the APK goes without it"
-        rm -f "${ASSETS_DIR}/$2"
+        rm -f "$2"
     fi
 }
-copy_optional "${DATA_DIR}/Settings.xml" Settings.xml
-copy_optional "${DATA_DIR}/gfx/logo2s.tga" logo2s.tga
-copy_optional "${AS3D_DATA_ROOT}/assets_extracted/texts_v170.txt" texts_v170.txt
-ls -la "${ASSETS_DIR}"
 
-# Safety net: nothing copyrighted may be tracked by git.
-for f in pak0.apk pak1.apk pak2.apk Settings.xml logo2s.tga texts_v170.txt; do
+TRACKED=()
+for key in "${GAME_KEYS[@]}"; do
+    line="$(game_line "${key}")" || { echo "android_build: unknown game '${key}' in AS3D_ANDROID_GAMES (see tools/games.json)" >&2; exit 1; }
+    IFS='|' read -r _ paks texts <<< "${line}"
+    DATA_DIR="$(game_data_dir "${key}")"
+    OUT="${ASSETS_DIR}/${key}"
+    mkdir -p "${OUT}"
+    for pak in ${paks}; do
+        if [ ! -f "${DATA_DIR}/${pak}" ]; then
+            echo "android_build: missing game data file ${DATA_DIR}/${pak}" >&2
+            echo "  Set AS3D_DATA_ROOT to a checkout that has the data of '${key}' (tools/setup_data.sh)." >&2
+            exit 1
+        fi
+        copy_if_changed "${DATA_DIR}/${pak}" "${OUT}/${pak}"
+        TRACKED+=("${key}/${pak}")
+    done
+    copy_optional "${DATA_DIR}/Settings.xml" "${OUT}/Settings.xml"
+    copy_optional "${DATA_DIR}/gfx/logo2s.tga" "${OUT}/logo2s.tga"
+    copy_optional "$(game_extracted_dir "${key}")/${texts}" "${OUT}/${texts}"
+    TRACKED+=("${key}/Settings.xml" "${key}/logo2s.tga" "${key}/${texts}")
+done
+ls -laR "${ASSETS_DIR}"
+
+# Safety net: nothing copyrighted may be tracked by git (every file of every game, and
+# anything else under assets/ except its .gitignore).
+for f in "${TRACKED[@]}"; do
     if git -C "${REPO_ROOT}" ls-files --error-unmatch "android/app/src/main/assets/${f}" >/dev/null 2>&1; then
         echo "android_build: android/app/src/main/assets/${f} is tracked by git; remove it from the index first" >&2
         exit 1
     fi
 done
+if [ -n "$(git -C "${REPO_ROOT}" ls-files android/app/src/main/assets | grep -v '^android/app/src/main/assets/\.gitignore$' || true)" ]; then
+    echo "android_build: files other than .gitignore are tracked under android/app/src/main/assets; remove them from the index first" >&2
+    exit 1
+fi
 
 echo "== launcher icon =="
 # Our own vector icon (android/app/src/main/res) is always there. With AS3D_ICON_FROM_DATA=1
@@ -199,6 +246,6 @@ if [ ! -f "${APK}" ]; then
 fi
 SIZE="$(du -h "${APK}" | awk '{print $1}')"
 echo "== APK contents (paks must be stored, not deflated) =="
-unzip -lv "${APK}" | grep -E "pak[0-2]\.apk|libmain\.so|libSDL2\.so" || true
+unzip -lv "${APK}" | grep -E "assets/.*(pak[0-9]\.apk|Settings\.xml|logo2s\.tga|texts_)|libmain\.so|libSDL2\.so" || true
 echo "== done =="
 echo "APK: ${APK} (${SIZE})"
