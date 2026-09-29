@@ -1,5 +1,7 @@
-// Font metrics, text measurement and drawing (render-pipeline.md 8.3).
+// Font metrics, text measurement and the three text routines (render-pipeline.md 8.3,
+// frontend.md 2.8).
 #include <algorithm>
+#include <cmath>
 
 #include "as3d/ui.h"
 
@@ -68,57 +70,79 @@ float measureText(const FontMetrics& m, std::string_view text, float scale, bool
 }
 
 int drawText(Renderer2D& r, const Font& font, float x, float y, std::string_view text, const TextStyle& style) {
-    if (!font.metrics || !font.texture || !font.texture->valid()) return 0;
+    const bool alphaFont = style.kind == FontKind::Alpha;
+    const Texture2D* tex = alphaFont ? font.alphaTexture : font.texture;
+    if (!font.metrics || !tex || !tex->valid()) return 0;
     const FontMetrics& m = *font.metrics;
     const float s = style.scale;
+    const bool markup = style.markup && !alphaFont;
     if (style.align != Align::Left) {
-        float w = measureText(m, text, s, style.markup);
+        float w = measureText(m, text, s, markup);
         x -= style.align == Align::Center ? w * 0.5f : w;
     }
+    const Blend blend = alphaFont ? Blend::Alpha : Blend::Add;
     Color base = style.color;
     Color col = base;
     int n = 0;
     for (char ch : text) {
         unsigned char c = static_cast<unsigned char>(ch);
-        if (style.markup && c == '{') { col = {1, 1, 1, base.a}; continue; }
-        if (style.markup && c == '}') { col = base; continue; }
+        if (markup && c == '{') { col = {1, 1, 1, base.a}; continue; }
+        if (markup && c == '}') { col = base; continue; }
         if (glyphDrawable(m, c)) {
             GlyphUv uv = glyphUv(m, c);
-            if (r.quad(x, y, m.glyphW * s, m.glyphH * s, uv.s0, uv.t0, uv.s1, uv.t1, font.texture, col, Blend::Add))
+            if (r.quad(x, y, m.glyphW * s, m.glyphH * s, uv.s0, uv.t0, uv.s1, uv.t1, tex, col, blend))
                 n++;
+        } else if (c >= m.drawableLimit && !alphaFont) {
+            // The original registers the missing font_rus.tga as handle 0, which draws an
+            // untextured filled rectangle (frontend.md 4.9 point 10).
+            if (r.rect(x, y, m.glyphW * s, m.glyphH * s, col, Blend::Add)) n++;
         }
         x += static_cast<float>(m.advance[c]) * s;
     }
     return n;
 }
 
-std::vector<std::string> wrapText(const FontMetrics& m, std::string_view text, float maxWidth, float scale) {
-    std::vector<std::string> lines;
-    std::string cur;
-    size_t i = 0;
-    while (i < text.size()) {
-        size_t j = text.find(' ', i);
-        if (j == std::string_view::npos) j = text.size();
-        std::string word(text.substr(i, j - i));
-        // A word wider than a whole line is broken between characters.
-        while (measureText(m, word, scale) > maxWidth && word.size() > 1) {
-            size_t k = 1;
-            while (k < word.size() && measureText(m, word.substr(0, k + 1), scale) <= maxWidth) k++;
-            if (!cur.empty()) { lines.push_back(cur); cur.clear(); }
-            lines.push_back(word.substr(0, k));
-            word.erase(0, k);
-        }
-        std::string trial = cur.empty() ? word : cur + " " + word;
-        if (!cur.empty() && measureText(m, trial, scale) > maxWidth) {
-            lines.push_back(cur);
-            cur = word;
-        } else {
-            cur = trial;
-        }
-        i = j + 1;
+int drawTextShadowed(Renderer2D& r, const Font& font, float x, float y, std::string_view text,
+                     const TextStyle& style, float shadowAlpha) {
+    TextStyle sh = style;
+    sh.kind = FontKind::Alpha;
+    sh.markup = false;
+    sh.color = {0, 0, 0, shadowAlpha};
+    std::string plain;
+    std::string_view shadowText = text;
+    if (style.markup) {
+        // Braces are not drawn by the main text; keep the shadow aligned with it.
+        for (char ch : text)
+            if (ch != '{' && ch != '}') plain += ch;
+        shadowText = plain;
     }
-    lines.push_back(cur);
-    return lines;
+    int n = drawText(r, font, x + 2, y + 2, shadowText, sh);
+    return n + drawText(r, font, x, y, text, style);
+}
+
+int drawNumber(Renderer2D& r, const Font& font, float x, float y, std::string_view digits, float scale, Color c) {
+    if (!font.metrics || !font.texture || !font.texture->valid()) return 0;
+    const FontMetrics& m = *font.metrics;
+    int n = 0;
+    for (char ch : digits) {
+        unsigned char code = static_cast<unsigned char>(ch);
+        if (code < m.drawableLimit && code != ' ') {
+            int col = code % m.columns, row = code / m.columns;
+            float s0 = static_cast<float>(col) * m.cellW / m.atlasSize;
+            float t0 = static_cast<float>(row) * m.cellH / m.atlasSize;
+            if (r.quad(x, y, m.cellW * scale, m.cellH * scale, s0, t0, s0 + m.cellW / m.atlasSize,
+                       t0 + m.cellH / m.atlasSize, font.texture, c, Blend::Add))
+                n++;
+        }
+        x = std::trunc(x + 14.0f * scale);
+    }
+    return n;
+}
+
+float numberWidth(std::string_view digits, float scale) {
+    float x = 0;
+    for (size_t i = 0; i < digits.size(); i++) x = std::trunc(x + 14.0f * scale);
+    return x;
 }
 
 } // namespace as3d::ui
