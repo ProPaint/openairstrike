@@ -36,7 +36,7 @@ struct Opts {
     unsigned seed = 1;
     float yaw = 0.0f;
     float pitch = 30.0f;
-    float dist = 1.0f;
+    float dist = 0.6f;
     float targetZ = 25.0f;
 };
 
@@ -141,7 +141,7 @@ int run(int argc, char** argv) {
             now += dt;
         }
         target.bind();
-        as3d::clear({0.10f, 0.11f, 0.14f, 1.0f}, true);
+        as3d::clear({0.32f, 0.38f, 0.28f, 1.0f}, true);
         renderer.draw(emitter, vp);
         as3d::Image cell;
         if (!target.readPixels(cell)) { std::fprintf(stderr, "error: readback failed\n"); return 1; }
