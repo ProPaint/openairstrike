@@ -1,4 +1,5 @@
 // Loading of the 2D textures. See as3d/ui.h.
+#include "as3d/hud_layout.h"
 #include "as3d/image.h"
 #include "as3d/ui.h"
 
@@ -6,7 +7,7 @@ namespace as3d::ui {
 
 namespace {
 
-bool loadOne(Vfs& vfs, const std::string& path, Texture2D& out, std::string* error) {
+bool loadOne(Vfs& vfs, const std::string& path, Texture2D& out, std::string* error, Wrap wrap = Wrap::ClampToEdge) {
     Blob blob;
     Image image;
     if (!vfs.read(path, blob) || !decodeTga(blob.data(), blob.size(), image)) {
@@ -15,30 +16,42 @@ bool loadOne(Vfs& vfs, const std::string& path, Texture2D& out, std::string* err
     }
     TextureOptions o;
     o.minFilter = o.magFilter = Filter::Linear;
-    o.wrapS = o.wrapT = Wrap::ClampToEdge;
+    o.wrapS = o.wrapT = wrap;
     out.create(image, o);
     return true;
 }
 
 } // namespace
 
-bool UiAssets::load(Vfs& vfs, std::string* error) {
+bool UiAssets::load(Vfs& vfs, std::string* error, GameId g) {
     vfs_ = &vfs;
+    game = g;
     missing = 0;
     fontLoaded = loadOne(vfs, "gfx\\ui\\font.tga", font, error);
     if (!fontLoaded) return false;
-    struct Item { const char* path; Texture2D* tex; };
+    // The HUD's atlases as the game's layout names them (a layout without one: not loaded).
+    const HudLayout& L = hudLayout();
+    struct Item { const char* path; Texture2D* tex; Wrap wrap; };
     const Item items_[] = {
-        {"gfx\\ui\\font_alpha.tga", &fontAlpha}, {"gfx\\ui\\mainbar.tga", &mainbar},
-        {"gfx\\ui\\life.tga", &life},             {"gfx\\ui\\weapons.tga", &weapons},
-        {"gfx\\ui\\missiles.tga", &missiles},     {"gfx\\ui\\items.tga", &items},
-        {"menu\\cursor_1.tga", &cursor1},         {"menu\\cursor_2.tga", &cursor2},
-        {"gfx\\mc_cur.tga", &mcCursor},
+        {"gfx\\ui\\font_alpha.tga", &fontAlpha, Wrap::ClampToEdge},
+        {L.barAtlas, &mainbar, Wrap::ClampToEdge},
+        {L.lifeTexture, &life, Wrap::ClampToEdge},
+        {L.weaponsAtlas, &weapons, Wrap::ClampToEdge},
+        {L.missilesAtlas, &missiles, Wrap::ClampToEdge},
+        {L.itemsAtlas, &items, Wrap::ClampToEdge},
+        {"menu\\cursor_1.tga", &cursor1, Wrap::ClampToEdge},
+        {"menu\\cursor_2.tga", &cursor2, Wrap::ClampToEdge},
+        {L.mouseCursor, &mcCursor, Wrap::ClampToEdge},
+        {L.hint == HintStyle::SequelPanel ? L.panelAtlas : nullptr, &panel, Wrap::ClampToEdge},
+        // The panel's static fill samples it at random offsets over more than one width.
+        {L.hint == HintStyle::SequelPanel ? L.panelNoise : nullptr, &panelNoise, Wrap::Repeat},
     };
     for (const Item& it : items_)
-        if (!loadOne(vfs, it.path, *it.tex, error)) missing++;
+        if (it.path && !loadOne(vfs, it.path, *it.tex, error, it.wrap)) missing++;
     return true;
 }
+
+const HudLayout& UiAssets::hudLayout() const { return ui::hudLayout(game); }
 
 Font UiAssets::uiFont() const {
     Font f;
