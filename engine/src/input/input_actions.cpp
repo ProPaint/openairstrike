@@ -106,7 +106,7 @@ FrameInput botInput(const World& w, u32 frame) {
         if (d < best) {
             best = d;
             tx = e.f(F_ORIGIN);
-            ty = std::max(mp + 40.0f, std::min(e.f(F_ORIGIN + 1), mp + 250.0f));
+            ty = std::max(mp + 40.0f, std::min(e.f(F_ORIGIN + 1), mp + 170.0f));
         }
     }
 
