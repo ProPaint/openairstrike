@@ -31,6 +31,7 @@ HudLayout makeV170() {
     L.game = GameId::AirStrike3D;
     L.name = "as3d";
     L.barAtlas = "gfx\\ui\\mainbar.tga";
+    L.barAtlasW = 256; L.barAtlasH = 128;
     L.lifeTexture = "gfx\\ui\\life.tga";
     L.weaponsAtlas = "gfx\\ui\\weapons.tga";
     L.missilesAtlas = "gfx\\ui\\missiles.tga";
@@ -176,13 +177,12 @@ HudLayout makeAs2() {
     };
     L.weaponLevelMax = {4, 5, 7, 8, 5, 5, 4, 5, 3}; // table as2@0x49e1c4
     L.missiles = missileIcons();
-    // Power-ups (switch as2@0x408838); slots 10..15 have no icon. Slots 2 and 3 as the
-    // original shows them (issue 280: the spec's texels of these two are exchanged).
+    // Power-ups (switch as2@0x408838); slots 10..15 have no icon.
     L.powerups = {
         {icon(0, 35, 66, 35), Blend::Add, false},    // 0 lightning bomb (alpha 0: ADD)
         {icon(198, 0, 57, 35), Blend::Alpha, false}, // 1 nuclear bomb
-        {icon(132, 0, 66, 35), Blend::Alpha, false}, // 2 rocket strike (the cross-hair)
-        {icon(66, 0, 66, 35), Blend::Alpha, false},  // 3 cluster bomb (the canister)
+        {icon(66, 0, 66, 35), Blend::Alpha, false},  // 2 rocket strike (the cross-hair)
+        {icon(132, 0, 66, 35), Blend::Alpha, false}, // 3 cluster bomb (the canister)
         {icon(66, 35, 66, 35), Blend::Alpha, false}, // 4 annihilator
         {icon(132, 35, 66, 35), Blend::Alpha, false}, // 5 satellite strike
         {icon(0, 0, 66, 35), Blend::Alpha, true},    // 6 speed-up (timer)
