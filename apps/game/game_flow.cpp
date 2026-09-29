@@ -99,6 +99,7 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     Blob b;
     if (!config_.settingsXml.empty() && readPlatformFile(config_.settingsXml, b)) {
         if (!ui::parseSettingsXml(textOf(b), content)) AS3D_WARN("cannot parse %s", config_.settingsXml.c_str());
+        ui::removeRereleaseBranding(content);
     } else if (!config_.settingsXml.empty()) {
         AS3D_WARN("no %s: no intro pages, version line or logo", config_.settingsXml.c_str());
     }

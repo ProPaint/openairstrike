@@ -95,6 +95,11 @@ struct FrontendContent {
 // Reads <Info>, <Intros> and <Logotypes> of the original Settings.xml (frontend.md 3.2, 3.3).
 bool parseSettingsXml(std::string_view xml, FrontendContent& out);
 
+// Ours: removes what the 2010 re-release added to the main menu, the GameTonic.com portal's
+// name in the copyright line and its logo picture (`logo2*.tga`), and any intro page showing
+// that logo. The DivoGames intro page and the rest of the copyright line stay.
+void removeRereleaseBranding(FrontendContent& content);
+
 // ---------------------------------------------------------------------------
 // Interface to the game
 // ---------------------------------------------------------------------------

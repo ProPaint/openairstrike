@@ -68,7 +68,10 @@ FrontendContent loadContent() {
         i++;
     }
     std::string xml;
-    if (readFile(viewer::dataRoot() + "/third_party_local/original/data/Settings.xml", xml)) parseSettingsXml(xml, c);
+    if (readFile(viewer::dataRoot() + "/third_party_local/original/data/Settings.xml", xml)) {
+        parseSettingsXml(xml, c);
+        removeRereleaseBranding(c);
+    }
     return c;
 }
 

@@ -5,6 +5,8 @@
 
 #include "as3d/frontend.h"
 
+#include <cctype>
+
 namespace as3d::ui {
 
 namespace {
@@ -214,6 +216,47 @@ bool parseSettingsXml(std::string_view xml, FrontendContent& out) {
         }
     }
     return any;
+}
+
+namespace {
+
+std::string lowered(std::string_view in) {
+    std::string out(in);
+    for (char& ch : out) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    return out;
+}
+
+// The portal's logo files: gfx\logo2.tga (intro page) and gfx\logo2s.tga (main menu).
+bool isPortalLogo(const std::string& path) {
+    std::string p = lowered(path);
+    size_t slash = p.find_last_of("\\/");
+    std::string file = slash == std::string::npos ? p : p.substr(slash + 1);
+    return file.compare(0, 5, "logo2") == 0 || p.find("gametonic") != std::string::npos;
+}
+
+} // namespace
+
+void removeRereleaseBranding(FrontendContent& content) {
+    // "Copyright 2010 GameTonic.com, DivoGames Ltd." -> "Copyright 2010 DivoGames Ltd."
+    std::string& c = content.copyright;
+    for (;;) {
+        size_t at = lowered(c).find("gametonic");
+        if (at == std::string::npos) break;
+        size_t end = at;
+        while (end < c.size() && c[end] != ' ' && c[end] != ',') ++end;
+        while (end < c.size() && (c[end] == ' ' || c[end] == ',')) ++end;
+        c.erase(at, end - at);
+    }
+    while (!c.empty() && (c.back() == ' ' || c.back() == ',')) c.pop_back();
+
+    std::vector<LogoImage> logos;
+    for (const LogoImage& l : content.logos)
+        if (!isPortalLogo(l.path)) logos.push_back(l);
+    content.logos.swap(logos);
+    std::vector<IntroPage> intros;
+    for (const IntroPage& p : content.intros)
+        if (p.divoGames || !isPortalLogo(p.image)) intros.push_back(p);
+    content.intros.swap(intros);
 }
 
 } // namespace as3d::ui

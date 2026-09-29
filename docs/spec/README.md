@@ -57,6 +57,7 @@ Every claim carries one of:
 | Texts compiled into the executable (Information pages, congratulations, rank names, labels) | in the exe | a data setup tool reads them from the user's own exe into a gitignored text file that ships with the game data; short generic labels have built-in English defaults so the game runs without it (issue 080) |
 | Right-click on the tutorial hint box | closes the box, game stays paused | closes the box and resumes |
 | Wide screens | everything stretched | 4:3 play-field and 2D layer centred, bars at the sides |
+| Main menu branding of the 2010 re-release | "GameTonic.com" in the copyright line and the portal's logo | removed on the owner's request (`removeRereleaseBranding`); the DivoGames intro page and copyright stay |
 | Online high scores, CD check | present | dropped |
 
 ## Open spec issues

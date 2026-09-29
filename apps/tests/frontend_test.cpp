@@ -569,6 +569,33 @@ TEST_CASE("frontend Settings.xml: info, intros, logotypes") {
     CHECK(c.logos[0].invertY);
 }
 
+TEST_CASE("frontend Settings.xml: the re-release's portal branding is removed") {
+    const char* xml =
+        "<Settings>\n"
+        "<Info version=\"v 1.70\" copyright=\"Copyright 2010 GameTonic.com, DivoGames Ltd.\" />\n"
+        "<Intros>\n<Image name=\"Gfx\\logo2.tga\"><BackColor r=\"1\" g=\"2\" b=\"3\" /></Image>\n"
+        "<Image name=\"Gfx\\other.tga\"><BackColor r=\"1\" g=\"2\" b=\"3\" /></Image>\n"
+        "<BuiltIn name=\"DivoGames\" />\n</Intros>\n"
+        "<Logotypes><Image x=\"10\" y=\"20\" name=\"Gfx\\logo2s.tga\" />"
+        "<Image x=\"1\" y=\"2\" name=\"gfx\\keep.tga\" /></Logotypes>\n"
+        "</Settings>\n";
+    FrontendContent c;
+    REQUIRE(parseSettingsXml(xml, c));
+    removeRereleaseBranding(c);
+    CHECK(c.version == "v 1.70");
+    CHECK(c.copyright == "Copyright 2010 DivoGames Ltd.");
+    REQUIRE(c.logos.size() == 1);
+    CHECK(c.logos[0].path == "gfx\\keep.tga");
+    REQUIRE(c.intros.size() == 2);
+    CHECK(c.intros[0].image == "Gfx\\other.tga");
+    CHECK(c.intros[1].divoGames);
+
+    FrontendContent plain;
+    plain.copyright = "(c) someone";
+    removeRereleaseBranding(plain);
+    CHECK(plain.copyright == "(c) someone");
+}
+
 TEST_CASE("frontend options (ours, issue 140): Screen and Controls rows, operable by taps") {
     FakeGame game;
     Profile profile;
