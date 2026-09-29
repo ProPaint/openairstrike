@@ -70,8 +70,9 @@ HUD-hidden, game over, intermission level, two players.
 There is no mission briefing, no shop or upgrade screen, no separate difficulty screen, no
 helicopter-selection screen other than the grid inside Start Game and Mission Complete, no
 separate credits screen (credits are page 10 of Information, and the `givemecredit` cheat),
-and no save/load slot screen. VERIFIED-CODE (every menu builder is listed above; the menu
-builders were enumerated through `UI_AddItem` 0x429490's callers).
+and no save/load slot screen. VERIFIED-CODE (the menu builders were enumerated through the callers
+of `UI_AddItem` 0x429490, plus 0x4274f0 and 0x42beb0, which reach it by a tail jump; every
+one is in the table).
 
 ### 1.3 Transitions
 
@@ -401,7 +402,8 @@ Drawing order:
    `models\banner\banner.mdl`, skin `banner2.tga`) rendered alone in a viewport covering
    the top 200 virtual pixels (0, 0, 800, 200), FOV 60, no terrain, depth buffer cleared
    first. Entity at (−34, 7, −30), angles (95 + 7 sin mt, 3 sin(0.7 mt + 0.5), 0) degrees
-   with mt in seconds used as radians inside sin. It is the game's title logo.
+   with mt in seconds used as radians inside sin. It is the game's title logo (GUESS from
+   the object name and placement). VERIFIED-CODE 0x401b30 for the rest.
 6. The buttons.
 
 Actions: Start Game builds and pushes S3; Top Scores pushes S4; Options pushes S6 (after
@@ -1183,11 +1185,85 @@ Other facts relevant to touch:
 
 ## 8. Open questions
 
-<!-- SECTION-8 -->
+Ordered by impact on a playable game.
+
+1. **Texts compiled into the executable** (high, a decision rather than an unknown). The
+   Information pages (§3.14), the Game Complete congratulations (§3.9), the rank names, the
+   menu labels and the cheat messages are strings inside `AirStrike3D.exe`, not in the data
+   paks. Our engine loads the original data but not the executable, so it needs either its
+   own texts or an import step reading them from the user's executable (addresses given in
+   §3.14 and §3.9). Button captions are pictures in the `menu\*.tga` textures and need
+   nothing.
+2. **Main-menu button captions** (low): the mapping id → atlas row in §3.3 is certain; the
+   caption names are inferred from the order and the manual (GUESS). A look at
+   `menu\mmenu_1.tga` settles it.
+3. **Wide screens** (medium, design): the original stretches 800×600 non-uniformly. The HUD
+   implementation keeps 4:3 centred (issue 060). Menus with full-width letterbox bars and
+   rules (§3.1) would then leave side bands; decide whether bars extend to the screen edges.
+4. **Brace width in centred text** (low): the original counts `{` and `}` (6 px each) when
+   centring, so highlighted lines sit a few pixels left of centre. Reproduce or fix.
+5. **Info page icons** (low): which atlas and which cell each paragraph icon uses was not
+   traced per paragraph (GUESS: the HUD atlas and index of the item described, in paragraph
+   order).
+6. **Music during the intro and during pause** (low): no code starting music for the intro
+   pages or pausing it for the pause key was found; GUESS that the intro is silent and that
+   music keeps playing while paused.
+7. **Edit-field cursor glyph** (low): drawn with the number routine; the character was not
+   identified (GUESS `_`).
+8. **0x41c730**, called before game.bin is written on exit and on video restart (low): not
+   identified (GUESS: script or sound shutdown); it does not affect what is saved.
+9. **Menu-button hit rectangles with align flags** (low): all shipped image buttons use no
+   align flag, so their hit rectangle is exactly (x, y, w, h).
 
 ## 9. Corrections to other specs
 
-<!-- SECTION-9 -->
+Other specs are not edited by this package; these are the differences found, with evidence.
+This document wins where they differ.
+
+**engine-behaviour.md**
+
+| § | Says | Correct | Evidence |
+|---|---|---|---|
+| 1.3 state 4 | Start Game mission list shows unlocked missions only | all 20 missions are listed; locked ones are greyed and cannot be selected | 0x42b710 builds 20 entries with their unlocked byte; list keys 0x423d30 step back over disabled entries |
+| 1.3 state 9, 11.4 | Mission complete offers Quit, Restart, Continue | also a helicopter grid to choose the next helicopter | type-7 item added by 0x4267a0 at (224, 304) |
+| 10.5 | game.bin is written only at program exit | also before the Options → Apply video restart and before the fatal-error box | 0x4206c0, 0x4204f0 |
+| 11.2 | missile count colour (0.5, 0.125, 0) when not selected | (0.502, 0.031, 0); selected (0.816, 0.251, 0) | constant 0x44b8dc, 0x401ed0 |
+| 11.2 | missile icons (blend not stated, HUD pictures additive) | missile icons ALPHA; power-up icon 0 ADD, 1–3 ALPHA | 0x401ed0 |
+| 11.2 | score number at (630, 12) | left-aligned there; value ftol(p_scores) + banked | 0x401ed0 |
+| 11.2 | power-ups at (720, 32 + 41k), "owned kinds 0–3" | frames for every owned slot 0–15 (mirrored); icons only for kinds 0–3; count only when > 1 | 0x401ed0 |
+| 11.2 | number font glyph 32 × 16 × scale | quad 32·s × 16·s, but the pen advances 14·s | 0x4258f0 |
+| 11.2 | level name "y ≈ 500" | main text y = 500, shadow (x + 2, 502); fade uses τ = level clock − 1 | 0x401c60 |
+| 11.3 | hint lines are justified | lines are centred; the justification factors are computed but unused | 0x42c000, 0x42bd40 |
+| 11.3 | box width max(360, widest + 40) | same, plus: opening animation 0.3 s, no HUD hiding, OK at (350, top + H − 60) | 0x42c000 |
+| 11.4 | Top Scores "with Post" | Post only when posting is allowed (dropped) | 0x42c660 |
+| 12 | "On game over and on quit, the current module jumps to order 35" | only on game over; Quit loads the attract level, which starts its own music | 0x408c80, 0x428d40 |
+| 7.2 | built-in default bindings | same as §6.2 here; note the manual (Z/X/C) and the shipped config.ini disagree with them | 0x41cef0 |
+| 14 | F5/F6 effects volume −/+ | confirmed; the manual has F5 as "up" (manual is wrong about the code) | 0x408f10 |
+
+**rcsl-builtins-semantics.md**
+
+- `ShowTutorialHint`: "Braces `{…}` … GUESS: drawn in another colour; the formatter was not
+  traced" → the text is drawn orange (0xFF00A0FF) and `{…}` spans white; braces are not
+  drawn (VERIFIED-CODE 0x42bd40 with the markup flag of 0x425290). The box does not hide the
+  HUD. Right-click closes it without unpausing (original bug, §3.15).
+- `EndLevel`: add that Continue, not EndLevel, banks the score (§5.3, §5.4).
+
+**render-pipeline.md §8.3**
+
+- The glyph width used for centring and right-alignment includes the `{` and `}` characters
+  when markup is on (6 px each). VERIFIED-CODE 0x425290.
+- There is a second text routine, 0x425750, with `font_alpha.tga` and alpha blending that
+  honours the colour's alpha (§2.8).
+- Bytes ≥ 0x80 draw untextured additive rectangles because the failed `font_rus.tga`
+  registration returns handle 0 (0x418d60); already stated there, now with the cause.
+
+**re/symbols_v170.csv** (names corrected by appended rows, see that file):
+
+- 0x425750 is the alpha-font string routine, not a "centred" routine.
+- 0x423780, 0x4237f0, 0x423a20 are the slider widget (init, input, draw), not key-binding
+  items.
+- 0x42b3b0 (not a Ghidra function) is the shared Start Game callback (Back, Start, game
+  mode).
 
 ## Changelog
 
