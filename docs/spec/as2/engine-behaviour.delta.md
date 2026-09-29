@@ -1148,6 +1148,216 @@ Completing mission i unlocks mission (i + 1) mod 18 and the helicopter entry nam
 
 ---
 
+## 11. HUD and menus
+
+### 11.1 Coordinates: same
+
+Virtual 800×600, 2D queue of 4096 quads (the `< 0x1000` checks in `HUD_Draw1P` as2@0x407d20).
+
+### 11.2 One-player HUD: changed (art; rules noted here)
+
+The drawing is new (frontend package; `HUD_Draw1P` as2@0x407d20 against v170@0x401ed0). The
+game rules it carries, VERIFIED-CODE:
+
+- health clamped to the maximum health every frame (7.4), for both players in two-player mode
+  (`HUD_Draw2P` as2@0x408b00);
+- the health bar's fill is health / maximum health (as2@0x407e88..0x407e8e), not health / 400;
+- up to 10 life icons (7.4);
+- score = ftol(p_scores) + banked score;
+- the level-name typewriter (`HUD_DrawLevelName` as2@0x407ab0, ratio 0.978 against
+  v170@0x401c60) and the 3 s cheat message (`HUD_DrawMessage` as2@0x406f80, ratio 0.965 against
+  v170@0x401330): not re-checked beyond the shape;
+- no mouse-control cursor (7.2).
+
+### 11.3 Tutorial hints: same
+
+`ShowTutorialHint` as2@0x4218b0 is the same code as v170@0x41c4c0 (rcsl-builtins-table.delta.md).
+
+### 11.4 Menu tree: changed
+
+New screens and flow (player selection with helicopter preview, portrait dialogues, comics,
+options with a resolution list, second items page, credits); frontend package. The game-rule
+parts are in 1.3 and 10.3.
+
+---
+
+## 12. Sound: not checked
+
+Symbol-map verdict: 10 of 13 sound functions identical to v1.70, same BASS imports. Checked
+here only: F5/F6 and F7/F8 still change the effects and music volume by 0.1 (as2@0x4110f0),
+and game over still jumps the music (`S_ChangeMusic` as2@0x422880 from `G_GameOver` and
+`G_PlayerFrame`). The level music is loaded and looped by `G_StartLevel` as before.
+
+---
+
+## 13. Rendering order and material state: not checked
+
+Renderer package. For the game rules only: `R_RenderView` as2@0x430a20 draws the terrain, sets
+the frustum, draws the decals (TYPE_MARK, as2@0x42ff70), **then the skid trails**
+(as2@0x430280), the shadows, the opaque list, the water, the TRANS and EFFECT lists, the
+particles, the sprites and the 2D list; the debug counters moved to `R_DrawStats` (§2). Near and
+far planes: 9.3.
+
+---
+
+## 14. Cheats and debug features: changed
+
+`G_CheatInput` as2@0x407110 (v170@0x4014c0), called from the character handler as2@0x4110a0
+only outside intermission levels (same rule). Same mechanism: a rolling 32-character lower-case
+buffer; on a match the buffer is cleared, the cheat-used flag is set (rank Cheater, and the
+campaign checkpoint is not saved, 10.5) and `sounds\cheat.wav` plays. **All code words are new**
+(VERIFIED-CODE, strings in the function):
+
+| Code | Effect | Message |
+|---|---|---|
+| `invulnerability` | toggles god mode (player damage ignored in `G_Damage`) | "God Mode: Enabled" / "God Mode: Disabled" |
+| `igonnaliveforever` | p_lives = 99 for both players | "All Lives: Enabled" |
+| `showmetheweapons` | every weapon slot 0..8 at level 0 becomes level 1, both players | "All Weapons: Enabled" |
+| `moremoreweapons` | +99 (cap 99) of every missile type 0..4, both players; selects type 0 if none | "All Missiles: Enabled" |
+| `glitteringprizes` | +99 (cap 99) of power-up slots 0..5 and 8, both players; selects slot 0 if none | "All Power-Ups: Enabled" |
+| `deadlineisnear` | `EndLevel` (10.3) | none |
+| `diediediemydarling` | `GameOver` | none |
+
+There is no credits cheat any more.
+
+Keys: P or Pause pauses, Esc opens the in-game menu, F5..F8 volumes, F9 next camera mode; **no
+screenshot key**. Command-line debug switches `-god`, `-obj`, `-campos N`, `-notex` (1.1). Config
+`[Debug]` still has `ShowFPS`, `ShowTris`, `ShowTexBinds`, `ShowCounters` (read by
+as2@0x401b90), drawn by `R_DrawStats`.
+
+---
+
+## 15. Constants and limits
+
+Values for `as2`; "same" means equal to the base table (VERIFIED-CODE unless marked).
+
+| Item | as2 | Evidence |
+|---|---|---|
+| Maximum frame delta | 100 ms (same) | as2@0x405ca0 |
+| Entity pool | 1024 × **0x1F4** bytes; no overflow check | as2@0x40e1e0, as2@0x40b4b0 |
+| Object definitions | 2048 (same) | as2@0x4125d0 |
+| Attaches per definition | 64 (same) | as2@0x41311f |
+| Skid marks per definition | 8 (record area; not checked by the parser) | 3.1.2 |
+| Skid-trail pool / drawn per frame | **64 / 64** (new) | as2@0x40e474, as2@0x414850 |
+| Skid node interval / nodes / life / fade start / height | **5/12 s / 23 / 10 s / 5 s / terrain + 2** | as2@0x414850, as2@0x4300e0 |
+| Map objects | 16384 (same) | "Too many map objects", as2@0x4113c0 |
+| Levels | 32 (same) | as2@0x40d490 |
+| Missions / helicopters / high scores | **18 / 6** / 15 | as2@0x427f40, as2@0x49ddf8, as2@0x406c70 |
+| Weapons (.wpn blocks) | 256 (same) | "Too many weapons.", as2@0x415410 |
+| Weapon upgrade slots | **9** | as2@0x4217c0 |
+| Missile types / power-up slots | 5 / 16, counts capped at 99 (same) | as2@0x4216c0, as2@0x421550 |
+| Power-up slots skipped by cycling | **6, 7, 9** | as2@0x4136a4 |
+| Scroll speed / start g_map_pos | 42 × factor / 32 (same) | as2@0x414e90, as2@0x415290 |
+| Camera x range, dead zone, start | 578..702, ±48, 640 (same) | as2@0x414e90 |
+| Camera modes | same table | as2@0x49db28 |
+| Near / far plane | 4 / 2000 (fog end, at least 1000) (same) | as2@0x430a20 |
+| Frustum x margin for players | 10 (same) | as2@0x414e90 |
+| Map object instantiation / reset edge | g_map_pos + 1000 / + 800, back edge − 64 (same values) | as2@0x414f7e, as2@0x415290 |
+| First spawner call | **during level load**, rows 0..20 | as2@0x40e577 |
+| Script activation band | g_map_pos + 16 … + 800 (same) | as2@0x40c000 |
+| Player speed | max 150 × `speed`, acceleration 1000, friction 330 along the velocity | player scripts (VERIFIED-DATA) |
+| Player acceleration input | unit vector (keys), length 2.0 (mouse) | as2@0x413d6b.., as2@0x48f1c0 |
+| Player y band | g_map_pos + 35 … + 320 (same) | player scripts (VERIFIED-DATA) |
+| Player health | **300..800 from the definition, clamped to it every frame** | 7.4 |
+| Lives | 2 spare at a fresh start (same), or the checkpoint | as2@0x410dd6 |
+| Life icons | **10** | as2@0x407d20 |
+| Spawn shield | 7 s (same) | `p_rshield.scr` |
+| Mouse control | **default on, relative motion** | as2@0x401b90, 7.2 |
+| Two-player push / spawn offset | 2000 / ±100 (same) | as2@0x40c5a8.., as2@0x413b20 |
+| PushPlayer | 4000 (same) | as2@0x4214a0 |
+| Lightning range | **argument** (500 and 200 in the data) | rcsl-builtins-table.delta.md |
+| Lightning hit-effect interval | **0.2 s per target**, timer capped at 5 s | as2@0x42144e, as2@0x40cb82 |
+| Lock-on cone | d.y ≥ 0.3 (same) | as2@0x414c50 |
+| Score cap / digit spacing | 10⁹ / 12 units, z + 8 (same) | as2@0x414350 |
+| Health bar | maximum health > 150, 1 s after a hit (same) | as2@0x40bd70 |
+| CameraQuake | 3 s, same shape | as2@0x414d80 |
+| Intermission sway | pitch 0.5·sin(0.5 t), roll 1.4·sin(0.75 t) (same) | as2@0x414e90 |
+| Difficulty table | same | as2@0x49dee8 |
+| Rank thresholds and names | same | as2@0x49e654, as2@0x49cba4 |
+| 3D sound | not checked | – |
+
+---
+
+## Values for GameRules
+
+For every field of `GameRules` (`engine/include/as3d/game_profile.h`), the `as2` value and its
+evidence. "Changes the profile" marks a value that differs from what
+`engine/src/game/game_profiles.cpp` holds today.
+
+| Field | as2 value | Evidence | Changes the profile |
+|---|---|---|---|
+| `missionCount` | 18 | mission table as2@0x49df60 (18 records); unlock modulo 0x12 in as2@0x427f40 and as2@0x427a20 | no |
+| `attractCount` | 2 | `G_Init` as2@0x410eb0 picks `intro1` or `intro2` | no |
+| `helicopterCount` | 6 | table as2@0x49ddf8; modulo 6 in as2@0x428fb0; unlock bound < 6 in as2@0x427f40 | no |
+| `heliObjects` | `player_1, player_2, player_4, player_6, player_5, player_3` | table as2@0x49ddf8, read from the executable | **yes**: the profile lists `player_1..player_6` in numeric order; `enableHelic n` unlocks entry n of the table order |
+| `difficultyCount` | 5 | clamp to 4 in `G_BeginLevel` as2@0x410cd0 | no |
+| `defaultDifficulty` | 2 | initial value of as2@0x49ded4 | no |
+| `difficulty[0..4]` | {0.3, 0.5, 0.6, 0.7}, {0.5, 0.7, 0.8, 0.85}, {0.75, 0.8, 1.0, 1.07}, {1.5, 1.25, 1.2, 1.2}, {2.0, 1.4, 1.4, 1.3} | as2@0x49dee8 | no |
+| `startLives` | 2 | `G_NewGame` as2@0x410dd6 (without a checkpoint) | no |
+| `bonusMissions` | 7, 13 | `levels.txt` names and maps (VERIFIED-DATA); no native role | no |
+| `bossMissions` | 6, 12, 18 | `levels.txt` maps `level_boss1..3` (VERIFIED-DATA); no native role | no |
+| `scrollSpeed` | 42 | as2@0x48f430, `V_UpdateCamera` as2@0x414e90 | no |
+| `startMapPos` | 32 | `V_ResetCamera` as2@0x415290 | no |
+| `startCameraX` | 640 | `V_ResetCamera` as2@0x415290 | no |
+| `cameraMinX`, `cameraMaxX` | 578, 702 | `V_UpdateCamera` as2@0x414e90 | no |
+| `cameraFollow` | 48 | `V_UpdateCamera` as2@0x414e90 | no |
+| `playerClampMargin` | 10 | argument of `V_ClampToFrustumX` in as2@0x414e90 | no |
+| `cameraModeCount` | 4 | clamp 0..3 in as2@0x415290; F9 modulo 4 in as2@0x4110f0 | no |
+| `defaultCameraMode` | 1 | `[System] Camera` default "1" (as2@0x401b90); initial as2@0x49db68 | no |
+| `cameraModes[0..3]` | same four presets | as2@0x49db28 | no |
+| `scoreDigitObject` | `score_num` | as2@0x410eb0 | no |
+| `starItemObject` | `item_star` | `G_LoadMap` as2@0x4113c0 | no |
+| `healthBarEmptyObject`, `healthBarFullObject` | `hbar_empty`, `hbar_full` | `G_DrawHealthBar` as2@0x40bd70 | no |
+| `terraMorph` | true | `TerraMorph` builtin, `R_TerrainMorph` as2@0x41a670 | no |
+| `civilians` | true | 3.1.1 | no |
+| `skidMarks` | true | 3.1.2 | no |
+| `waterFlags` | true | 3.1.4, 4.2 | no |
+| `coop` | true | "Cooperative" label; 7.5 | no |
+
+### AS2 rule constants without a field
+
+Values that differ from v1.70 (or are new) and have no field yet, for the orchestrator to add.
+v1.70 value in the last column.
+
+| Proposed field | as2 value | Section | v1.70 |
+|---|---|---|---|
+| `weaponSlots` | 9 | 8.2 | 20 |
+| `missionLoadout[18][9]` | the table of 8.2 (as2@0x48b3a8) | 8.2 | none: level start clears upgrades and gives slot 0 level 1 |
+| `loadoutOnNext` | false (upgrades carry over on "Next") | 8.2 | upgrades cleared at every level start |
+| `powerUpCycleSkip` | {6, 7, 9} | 8.3 | none |
+| `killCapAtEnemyTotal` | true | 6.1 | false |
+| `campaignCheckpoint` | true (checkpoint saved unless a cheat was used) | 10.3, 10.5 | false |
+| `spawnAllOnIntermission` | true | 3.4, 9.6 | false |
+| `spawnDuringLoad` | true (one spawner call, entity pass and render inside level start; counters reset after) | §2, 10.2 | false |
+| `missionCompleteViaDialogue` | end dialogue table (missions with an end dialogue) then the mission-complete screen | 10.3 | `EndLevel` shows the screen at once |
+| `startDialogueMissions` | 1, 2, 3, 5, 6, 8, 11, 12, 14, 15, 17, 18 | 10.2 | none |
+| `lifeIconsMax` | 10 | 7.4 | 5 |
+| `clampPlayerHealthToMax` | true | 7.4 | false |
+| `healthBarScaleFromMax` | true (HUD fill = health / max) | 11.2 | fill = health / 400 |
+| `accelInput` | true (native unit vector for `GetPlayerAccel`) | 7.2 | none |
+| `mouseAccel` | 2.0, relative mouse motion | 7.2 | absolute cursor steering, 20 px dead zone |
+| `mouseControlDefault` | 1 | 7.2 | 0 |
+| `respawnChecksLives` | false (`G_SpawnPlayer` always spawns) | 7.4 | true |
+| `deadShootersBlocked` | true | 8.1 | false |
+| `touchModeBits` | true (bit set; `TOUCH_ALL` = 0xF; dead candidates skipped) | 5.2 | modes 1, 2, 3 |
+| `waterFollowsWaves` | true (`FL_ONWATER` uses the animated surface) | 4.2 | flat level |
+| `skidTrailPool`, `skidTrailsDrawn` | 64, 64 | 3.1.2 | none |
+| `skidNodeInterval`, `skidMaxNodes`, `skidLife`, `skidFadeStart`, `skidHeightOffset` | 5/12 s, 23, 10 s, 5 s, 2 | 3.1.2 | none |
+| `lightningEffectObject`, `lightningEffectInterval`, `lightningTimerCap` | `wavegun_hit`, 0.2 s, 5 s | 3.2 | none |
+| `statsOnlyOnePlayer` | true | 10.4 | false |
+| `newHeliMessage` | "New helicopter is available." | 10.4 | none |
+| `cheatCodes` | the table of 14 | 14 | the v1.70 table |
+| `screenshotKey` | none | 7.2, 14 | F12, PrintScreen |
+
+v1.70 constants the first port left as literals, checked for `as2`: **all unchanged** — quake
+shape (3 s, e^(−2t), 24/12/18 Hz terms), intermission sway (0.5·sin 0.5t, 1.4·sin 0.75t, FOV 60),
+view window −64 / +1000 and +800 at reset, score digit spacing 12 and z + 8, two-player spawn
+offset ±100, near 4 and far 2000 / fog end ≥ 1000, push-apart 2000, `PushPlayer` 4000, health bar
+threshold 150 and 1 s, lock-on 0.3, activation band +16 / +800 with the 80 and 200 insets,
+100 ms frame cap, 16384 map objects, 2048 definitions, 256 weapons, 32 levels.
+
+---
+
 ## Changelog
 
 - 1.0 (B4): first version.
