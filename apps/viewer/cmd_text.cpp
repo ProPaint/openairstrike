@@ -25,7 +25,9 @@ bool renderUiHeadless(int w, int h, as3d::ui::Color bg,
                       as3d::Image& out) {
     as3d::Vfs vfs;
     // Loose files of the install (gfx\logo2s.tga of the main menu) under the paks.
-    if (auto dir = as3d::makeDirSource(dataRoot() + "/third_party_local/original/data")) vfs.mount(std::move(dir));
+    // (of the selected game: locateGameData, --game).
+    if (const as3d::GameData* game = selectedGame())
+        if (auto dir = as3d::makeDirSource(game->dataDir)) vfs.mount(std::move(dir));
     if (!mountGameData(vfs)) { std::fprintf(stderr, "error: no game data (set AS3D_DATA_ROOT)\n"); return false; }
     as3d::GraphicsConfig cfg;
     cfg.headless = true;

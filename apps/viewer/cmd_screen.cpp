@@ -68,7 +68,8 @@ FrontendContent loadContent() {
         i++;
     }
     std::string xml;
-    if (readFile(viewer::dataRoot() + "/third_party_local/original/data/Settings.xml", xml)) {
+    const as3d::GameData* game = viewer::selectedGame();
+    if (game && !game->settingsXml.empty() && readFile(game->settingsXml, xml)) {
         parseSettingsXml(xml, c);
         removeRereleaseBranding(c);
     }
@@ -110,7 +111,8 @@ int run(int argc, char** argv) {
 
     Texts texts;
     std::string textFile;
-    if (!noTexts && readFile(viewer::dataRoot() + "/assets_extracted/texts_v170.txt", textFile)) texts.parse(textFile);
+    const as3d::GameData* game = viewer::selectedGame();
+    if (!noTexts && game && !game->textsFile.empty() && readFile(game->textsFile, textFile)) texts.parse(textFile);
     NullHost host;
     as3d::Profile profile;
     FrontendContent content = loadContent();
