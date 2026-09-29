@@ -1,0 +1,97 @@
+address,name,subsystem,description,confidence,evidence
+0x00412220,GL_Init,gl,baseline GL state (depth LEQUAL; CCW front; cull back; flat; REPEAT; MODULATE),VERIFIED-CODE,string "OpenGL Initializing"; glFrontFace/glCullFace/glDepthFunc calls
+0x00412050,GL_InitExtensions,gl,probe ARB_multitexture/EXT_vertex_array/texture_env_add/combine/WGL_EXT_swap_control,VERIFIED-CODE,extension name strings and wglGetProcAddress
+0x00411fc0,GL_IsHardwareRenderer,gl,compares GL_RENDERER with "gdi generic",VERIFIED-CODE,string "gdi generic"
+0x00412be0,GL_SetBlendMode,gl,blend state cache: 1 alpha / 2 add (fog black) / 3 filter (fog white) / 4 2x modulate,VERIFIED-CODE,glBlendFunc and glFogfv(GL_FOG_COLOR) per mode
+0x00412cc0,GL_DisableBlend,gl,blend mode 0 and fog colour restore,VERIFIED-CODE,glDisable(GL_BLEND)
+0x004184b0,GL_Bind,gl,bind texture index through the one-slot cache,VERIFIED-CODE,glBindTexture + cache 0x1f5bbe4
+0x00412720,GL_EnableDetailTexture,terrain,unit 1 detail texture with ADD_SIGNED combine (terrain),VERIFIED-CODE,GL_COMBINE_RGB=0x8574
+0x004127e0,GL_SetupEnvMap,material,sphere-map texgen and combine per ENV_GLITTER/CHROME/QUAD,VERIFIED-CODE,glTexGeni(GL_SPHERE_MAP) and combine enums
+0x00412b70,GL_DisableEnvMap,material,disable texgen and unit 1 and reset texture matrices,VERIFIED-CODE,glActiveTextureARB + glDisable(GL_TEXTURE_GEN_S/T)
+0x0040e0d0,R_RenderView,frame,scene render: projection/view; terrain; marks; shadows; lists; particles; sprites; 2D,VERIFIED-CODE,gluPerspective; list walks; debug strings (Ghidra named it Enteties)
+0x0040e690,R_BeginFrame,frame,swap interval from WaitVSync then clear depth and colour,VERIFIED-CODE,wglSwapIntervalEXT pointer and glClear
+0x0040e6f0,R_EndFrame,frame,brightness quad (DST_COLOR/SRC_COLOR) then SwapBuffers,VERIFIED-CODE,glColor3f(Brightness) and SwapBuffers
+0x0040df90,R_Set2DMode,2d,ortho 0..800 x 600..0; depth test off; default alpha blend,VERIFIED-CODE,glOrtho doubles 800/600
+0x0040e070,R_Draw2DList,2d,no-view path: 2D mode then draw the 2D queue,VERIFIED-CODE,calls 0x40cee0 in a loop
+0x0040d2a0,R_SetupFog,frame,linear fog colour/start/end and clear colour,VERIFIED-CODE,glFogi(GL_FOG_MODE GL_LINEAR)
+0x0040de50,R_AddEntityToScene,frame,copy render record into opaque/trans/effect/sprite/mark list,VERIFIED-CODE,capacities 0x200/0x80/0x100/0x200/0x80
+0x0040dd00,R_AddPointLight,light,add dynamic point light (max 32 per frame),VERIFIED-CODE,array 0x1f286a8 count 0x1efe6a4
+0x0040dd80,R_AddSpotLight,light,add spot light with cos(0.5*angle) outer and cos(0.4*angle) inner,VERIFIED-CODE,cos calls with 0.5/0.4 * pi/180
+0x00410ac0,R_DrawModel,model,draw TYPE_MODEL record with rflag state; lighting; env map,VERIFIED-CODE,glBegin(GL_TRIANGLES) over model faces
+0x00410530,R_LightModel,light,six-slot ambient cube from sun plus dynamic lights; per-normal weights,VERIFIED-CODE,reads sun globals 0x1f5b97c.. and light array
+0x00411520,R_BuildNormalWeights,model,slot indices and acos weights per normal; folds normals to absolute values,VERIFIED-CODE,acos calls divided by pi/2
+0x0040d7a0,R_DrawSprites,sprite,build billboard matrix from view axes and draw sprite list,VERIFIED-CODE,copies 0x1ef9278 axes and loops 0x40d370
+0x0040d370,R_DrawSprite,sprite,SPRITE billboard / HSPRITE XY quad / VSPRITE XZ quad with frame grid,VERIFIED-CODE,type switch 1/3/4
+0x0040d860,R_DrawMarks,decal,draw mark display lists with polygon offset and no depth write,VERIFIED-CODE,glCallList + glPolygonOffset(-1 -1)
+0x0040db20,R_DrawShadows,shadow,shadow pass over opaque and trans lists,VERIFIED-CODE,glColor3f(0 0 0) + type 4/7/list dispatch
+0x0040d920,R_DrawBlobShadow,shadow,type 4 flat quad at terrain height (unreachable from data),VERIFIED-CODE,quad at z=0 with terrain height origin
+0x0040fde0,R_DrawPlanarShadow,shadow,type 7 bind shadow texture and drape rotated rectangle,VERIFIED-CODE,calls 0x40f8c0 with record yaw
+0x0040f8c0,R_DrapeRotatedRect,shadow,clip terrain cells against a rotated rectangle and emit decal triangles,VERIFIED-CODE,edge equations and /40 cell range
+0x0040f300,R_ClipTriangleToRotatedRect,shadow,Sutherland-Hodgman against four edge lines with texcoords,VERIFIED-CODE,called twice per cell by 0x40f8c0
+0x0040f070,R_BuildDecalList,decal,display list of terrain triangles clipped to an axis-aligned rectangle,VERIFIED-CODE,glNewList/glGenLists
+0x0040e840,R_ClipTriangleToRect,decal,clip one terrain triangle to a rectangle and emit it with s/t,VERIFIED-CODE,glTexCoord2fv/glVertex3fv
+0x0040f2a0,R_BuildProjectedShadowList,shadow,static shadow display list at spawn for projected shadows,VERIFIED-CODE,calls 0x40f070 with shadow bbox
+0x0040a080,G_SpawnDecal,decal,spawn helper that builds the mark display list for TYPE_MARK,GUESS,calls 0x40f070 when record type == 2
+0x0040fe60,R_DrawLightning,effect,two crossed additive quads with gfx\lightning2.tga,VERIFIED-CODE,string gfx\lightning2.tga
+0x00410270,R_DrawDebugLine,effect,additive white GL_LINES for render flag 0x4000 (no setter found),VERIFIED-CODE,glBegin(GL_LINES)
+0x00415640,R_RegisterShadow,shadow,cache shadow texture per model/skin/rotation,VERIFIED-CODE,string "R_RegisterShadow: Too many shadowmaps."
+0x00414a70,R_GenerateShadowMap,shadow,render silhouette; add 0.6; read back; box filter; RGBA(114;255-R),VERIFIED-CODE,string "_shadow%i"; glReadPixels
+0x004156f0,R_FreeShadows,shadow,free all shadow records,VERIFIED-CODE,frees 0x1f562c0 array
+0x004149c0,R_DrawParticles,particle,depth mask off and draw every live instance,VERIFIED-CODE,glDepthMask(0) + loop over 0x1f3ca58 list
+0x00413a50,R_DrawParticleSystem,particle,one quad per live particle; coords modes; draw modes; frame cell,VERIFIED-CODE,sin table lookups and camera axes
+0x00414600,PS_Update,particle,emission ring; integration; linear fade; linear anim; auto free,VERIFIED-CODE,reads descriptor 0x1f3cab8 fields
+0x00414290,PS_SpawnParticle,particle,initial position/velocity/colour/angle/size/frame,VERIFIED-CODE,rand()*1/32767 patterns
+0x00413820,PS_CreateInstance,particle,allocate instance and particle pool; EMIT_ONCE burst,VERIFIED-CODE,pool = rate*life+4
+0x004137d0,PS_AllocInstance,particle,take an instance from the free list and append it,VERIFIED-CODE,memset 0x60
+0x00413780,PS_ClearInstances,particle,reset the 256-instance pool,VERIFIED-CODE,memset 0x6000
+0x00414a10,PS_FreeAllInstances,particle,unlink all instances and free their particles,VERIFIED-CODE,walks 0x1f3ca5c list
+0x004139e0,PS_SetOrigin,particle,copy attachment origin and axis into the instance,VERIFIED-CODE,called from entity update 0x405a60
+0x00412d80,PS_ParseDescriptor,particle,parse one particles\*.ps block into a 0x138-byte descriptor,VERIFIED-CODE,keyword strings blend_mode emit_rate ...
+0x00412d10,PS_FindDescriptor,particle,name lookup of particle descriptors,VERIFIED-CODE,obj.md
+0x0041e810,InitSinTable,math,450-entry integer-degree sine table (cos = +90 entries),VERIFIED-CODE,sin(i*pi/180) into 0x1fa92a0
+0x0041e390,AnglesToAxis,math,axis rows from three angles (rows of Rx*Ry*Rz(-a2)),VERIFIED-CODE,sin/cos of angles*pi/180
+0x0041e130,PerpendicularVector,math,Quake-style perpendicular vector,VERIFIED-CODE,smallest-component axis then orthogonalise
+0x0041e220,VectorNormalize,math,normalise in place and return length,VERIFIED-CODE,sqrt then scale
+0x0041e600,VectorRotateByAxis,math,d.x*a0 + d.y*a1 + d.z*a2,VERIFIED-CODE,matrix-vector products
+0x00419040,R_SetFrustum,cull,read back modelview/projection/viewport; store P*V and six planes,VERIFIED-CODE,glGetDoublev + glGetIntegerv
+0x00418e30,MatrixMultiply4d,math,4x4 double matrix product,VERIFIED-CODE,16 dot products
+0x00419540,R_WorldToScreen,cull,project a world point to GL window pixels (y up) with eye depth,VERIFIED-CODE,uses 0x1fa7c68 and viewport
+0x00419630,R_ProjectEntityBounds,cull,project 8 bbox corners (scaled by bbox_scale about the origin) to a window rectangle,VERIFIED-CODE,model +0x84..0x98 bounds
+0x00419970,R_CullSphere,cull,sphere against the six frustum planes,VERIFIED-CODE,plane loop 0x1fa7d68..0x1fa7dc8
+0x004198d0,R_PointOnScreen,cull,point strictly inside the video size,VERIFIED-CODE,compares with 0x1fa9210/0x1fa9214
+0x00419920,R_RectOnScreen,cull,rectangle inside the video size,VERIFIED-CODE,compares with 0x1fa9210/0x1fa9214
+0x00418a20,GL_UploadTexture,texture,registry insert and upload (mipmaps and TextureFilter),VERIFIED-CODE,string "RegisterTexture: Too many registered textures."
+0x00418cf0,R_RegisterTexture,texture,find or load a mipmapped texture,VERIFIED-CODE,MOV BL 1 before 0x418a20
+0x00418d60,R_RegisterPic,texture,find or load a texture without mipmaps (GL_LINEAR),VERIFIED-CODE,XOR BL BL before 0x418a20
+0x00418c80,R_FindTexture,texture,case-sensitive name lookup in the texture registry,VERIFIED-CODE,strcmp loop over 0x1f5bbe8
+0x004189d0,R_LoadTextureFile,texture,copy name; replace extension by .tga; load,VERIFIED-CODE,writes ".tga"
+0x004187e0,LoadTGA,texture,TGA types 1/2/3 to RGB/RGBA/grey without flip,VERIFIED-CODE,header parsing and BGR swap
+0x004184e0,R_Downsample2x,texture,2x2 integer box filter of an 8-bit image,VERIFIED-CODE,(a+b+c+d)>>2
+0x004185b0,R_ResampleBilinear8,texture,bilinear resample of an 8-bit image (terrain loader),VERIFIED-CODE,16.16 fixed-point interpolation
+0x00418dd0,R_FreeTextures,texture,delete all GL textures and clear the registry,VERIFIED-CODE,glDeleteTextures(0x800)
+0x00411e70,R_RegisterModel,model,allocate and load a model slot (max 1024),VERIFIED-CODE,string "R_RegisterModel: Too many registered models."
+0x004114c0,R_FindModel,model,case-sensitive model name lookup,VERIFIED-CODE,strcmp over 0x1f3ba08
+0x00410510,R_ModelDefaultSkin,model,texture index embedded with the model,VERIFIED-CODE,returns model +0x80
+0x00411ed0,R_FreeModels,model,free all model arrays,VERIFIED-CODE,frees +0xa8 +0xb0 +0xb8 +0xc0 +0xc4
+0x0040cee0,R_Draw2DQuad,2d,draw one 2D queue entry (textured / fill / line / outline),VERIFIED-CODE,texture value >0 / 0 / -1 / -2
+0x0040cdb0,R_Add2DQuad,2d,append a 2D quad with the current colour (max 4096),VERIFIED-CODE,array 0x1ec1278 stride 0x38
+0x0040ce50,R_Add2DPic,2d,append a picture at texel size with full texture,VERIFIED-CODE,reads texture width/height
+0x0040d1c0,R_Add2DFill,2d,append an untextured filled rectangle,VERIFIED-CODE,texture 0
+0x0040d230,R_Add2DOutline,2d,append a rectangle outline,VERIFIED-CODE,texture -2
+0x0040ccd0,ColorUnpackABGR,2d,unpack 0xAABBGGRR to float RGBA,VERIFIED-CODE,shifts and /255
+0x0040cd30,R_Set2DColor,2d,set the current 2D colour (optionally force alpha 1),VERIFIED-CODE,writes 0x1ec1268..
+0x0040ca10,G_SegmentHitsRect,cull,clip a 2D segment against a rectangle (collision),VERIFIED-CODE,called by touch and trace code (engine-behaviour.md)
+0x00425290,UI_DrawString,2d,font glyph quads (additive) with width table 0x456598,VERIFIED-CODE,0.125/0.0625 grid constants
+0x004298c0,UI_LoadAssets,2d,register font; menu textures and UI sounds,VERIFIED-CODE,strings gfx\ui\font*.tga
+0x004299f0,UI_Frame,2d,menus; mouse cursor pics; then flush the 2D list,VERIFIED-CODE,cursor_1 alpha + cursor_2 additive
+0x00401aa0,CL_LoadHudAssets,2d,register cursors and HUD textures as pics,VERIFIED-CODE,strings menu\cursor_1.tga gfx\ui\mainbar.tga
+0x00404370,R_DrawScreenFade,2d,full-screen alpha rectangle with fade value,VERIFIED-CODE,0..800x0..600 fill with alpha*255
+0x00401b30,R_RenderMenuModel,frame,noworld view of one object record (menu preview),VERIFIED-CODE,view byte 0x34 = 1 and glClear(DEPTH)
+0x004057c0,G_SyncRenderRecord,entity,copy colour/scale/frame/yaw/origin into the render record,VERIFIED-CODE,writes entity +0x113.. record
+0x00416020,R_DrawTerrainPass,terrain,terrain pass wrapper (boundary: hmap.md),VERIFIED-CODE,calls 0x415730 with smooth shading
+0x00415730,R_DrawTerrain,terrain,terrain draw incl. per-vertex dynamic lights (boundary: hmap.md),VERIFIED-CODE,glDrawElements + light loop
+0x004160d0,R_DrawWater,terrain,water quad (boundary: hmap.md),VERIFIED-CODE,glColor4f with water alpha
+0x00416fd0,R_LoadTerrain,terrain,level terrain load; copies sun values (boundary: hmap.md),VERIFIED-CODE,writes 0x1f5b97c..0x1f5b99c
+0x00407080,G_BeginLevel,frame,level start: fog; precache models/skins/shadows; reset particles,GUESS,calls 0x40d2a0 and R_RegisterShadow loop
+0x0040c150,CL_CameraQuake,camera,quake perturbation of view angles and fov,VERIFIED-CODE,exp and sin of quake time
+0x004218b0,GL_ChoosePixelFormat,gl,choose and log the pixel format,VERIFIED-CODE,string "...using pixel format %i"
