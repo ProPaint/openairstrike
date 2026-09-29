@@ -9,7 +9,7 @@
 //
 // Passes: terrain (with dynamic lights), ground marks, shadows, the opaque list, water, the
 // transparent and effect lists (lit, dynamic lights, environment maps), particles, sprites,
-// and the brightness overlay after the 2D layer. Not drawn yet: lightning bolts (7.1).
+// lightning bolts (7.1) after the effect list, and the brightness overlay after the 2D layer.
 //
 // Needs a current GLES 3.0 context for everything except worldViewOf and worldRenderOrder.
 #pragma once
@@ -77,6 +77,7 @@ struct WorldRenderStats {
     int lights = 0;
     int emitters = 0;
     int particles = 0;
+    int bolts = 0;        // lightning bolts (render-pipeline.md 7.1)
     int terrainChunks = 0;
 };
 

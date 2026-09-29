@@ -605,6 +605,11 @@ void World::placeLight(const Vec3& pos, const Vec3& color, float radius) {
     lights_.push_back({pos, color, radius});
 }
 
+void World::queueLightning(const Vec3& start, const Vec3& end) {
+    if (bolts_.size() >= kMaxLightningBolts) return;
+    bolts_.push_back({start, end});
+}
+
 void World::queueSound(SoundEvent::Kind kind, int idx, const std::string& sample) {
     if (sounds_.size() >= 1024) sounds_.erase(sounds_.begin()); // nobody drains it headless
     SoundEvent ev;
@@ -664,6 +669,7 @@ void World::resetLevelState() {
     hintShowing_ = false;
     hintText_.clear();
     lights_.clear();
+    bolts_.clear();
     sounds_.clear();
     frame_ = 0;
     time_ = 0.0f;

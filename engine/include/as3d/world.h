@@ -252,6 +252,15 @@ struct QueuedLight {
     float radius = 0.0f;
 };
 
+// A lightning bolt queued by the Lightning builtin for this frame (render-pipeline.md 7.1: a
+// record in the effect list from the caller's origin to a struck enemy's origin). Cleared
+// at the start of every frame, like the render lists; bounded by kMaxLightningBolts.
+struct LightningBolt {
+    Vec3 start;
+    Vec3 end;
+};
+constexpr size_t kMaxLightningBolts = 256;
+
 // A sound request for the audio layer (StartSound / StartLoopingSound /
 // StopLoopingSound); drained by whoever plays sounds. Bounded.
 struct SoundEvent {
@@ -380,6 +389,8 @@ public:
     // --- effects, sound, hints -----------------------------------------------------
     const std::vector<QueuedLight>& lights() const { return lights_; }
     void placeLight(const Vec3& pos, const Vec3& color, float radius);
+    const std::vector<LightningBolt>& lightningBolts() const { return bolts_; }
+    void queueLightning(const Vec3& start, const Vec3& end);
     std::vector<SoundEvent>& soundEvents() { return sounds_; }
     void queueSound(SoundEvent::Kind kind, int idx, const std::string& sample);
     const std::string& hintText() const { return hintText_; }
@@ -540,6 +551,7 @@ private:
 
     std::vector<std::vector<u32>> tombs_;  // per slot: fields at free time, dead = 1
     std::vector<QueuedLight> lights_;
+    std::vector<LightningBolt> bolts_;
     std::vector<SoundEvent> sounds_;
     std::string hintText_;
     bool hintShowing_ = false;

@@ -893,6 +893,14 @@ TEST_CASE("builtin Lightning: on-screen living enemies within 500") {
     int en = onScreenEnemy(t, {640, 400, 0});
     t.run();
     CHECK(near(t.r.e(en).f(F_HEALTH), 100.0f - 20.0f * kFt * 0.8f));
+    // One bolt record per struck enemy, from self to the enemy (render-pipeline.md 7.1).
+    const std::vector<LightningBolt>& bolts = t.r.world.lightningBolts();
+    REQUIRE(bolts.size() == 1);
+    CHECK(bolts[0].start.y == 300.0f);
+    CHECK(bolts[0].end.y == 400.0f);
+    // The records live for one frame, like every render record.
+    t.r.step();
+    CHECK(t.r.world.lightningBolts().empty());
 }
 
 TEST_CASE("builtin LockTarget: nearest enemy ahead of the player") {

@@ -18,6 +18,7 @@
 
 #include "as3d/dynamic_lights.h"
 #include "as3d/ground_marks.h"
+#include "as3d/lightning_render.h"
 #include "as3d/particle_render.h"
 #include "as3d/scene.h"
 #include "as3d/shadow_render.h"
@@ -184,6 +185,7 @@ struct WorldRenderer::Impl {
     SpriteRenderer sprites;
     GroundMarkRenderer marks;
     ShadowRenderer shadows;
+    LightningRenderer lightning;
     BrightnessPass brightness;
     std::unique_ptr<TerrainRenderer> terrain;
     std::unique_ptr<WaterRenderer> water;
@@ -200,6 +202,7 @@ struct WorldRenderer::Impl {
     std::vector<ShadowInstance> shadowList;
     std::vector<SpriteInstance> spriteList;
     std::vector<const ParticleEmitter*> emitters;
+    std::vector<Vec3> boltStarts, boltEnds;
     std::vector<int> order;
     std::vector<char> visited;
     DynamicLightList lights;
@@ -271,6 +274,7 @@ bool WorldRenderer::init(Vfs& vfs, const DefDatabase& db, std::string* error) {
     if (!im.sprites.init(error)) return false;
     if (!im.marks.init(error)) return false;
     if (!im.shadows.init(error)) return false;
+    if (!im.lightning.init(error)) return false;
     if (!im.brightness.init(error)) return false;
     return true;
 }
@@ -613,6 +617,26 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
     glDisable(GL_BLEND);
     setDepth(true, true);
     setCull(CullMode::Back);
+    // Lightning bolts: effect-list records (sort 3) submitted by the Lightning builtin during
+    // the entity pass (7.1); drawn after the effect models.
+    const std::vector<LightningBolt>& bolts = world.lightningBolts();
+    if (!bolts.empty()) {
+        im.boltStarts.clear();
+        im.boltEnds.clear();
+        for (const LightningBolt& b : bolts) {
+            im.boltStarts.push_back(b.start);
+            im.boltEnds.push_back(b.end);
+        }
+        LightningViewParams lv;
+        lv.view = wv.view;
+        lv.projection = wv.projection;
+        lv.fogStart = light.fogStart;
+        lv.fogEnd = light.fogEnd;
+        lv.time = world.time();
+        im.lightning.draw(im.boltStarts.data(), im.boltEnds.data(), bolts.size(),
+                          im.cache->texture("gfx\\lightning2.tga").texture, lv);
+        stats_.bolts = im.lightning.lastBoltCount();
+    }
     // Pass 10: particles.
     if (options.particles) {
         world.particles().collect(im.emitters);

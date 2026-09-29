@@ -143,6 +143,7 @@ void World::startEmptyLevel(bool spawnPlayers) {
 void World::step(const PlayerInput& input) {
     if (input.confirm && hintShowing_) dismissHint(); // the hint box's OK button
     lights_.clear(); // R_BeginFrame clears the dynamic light list
+    bolts_.clear();  // and the render lists
     frametime_ = config_.dt;
     frametimeGlobal = frametime_;
     time_ += frametime_;
