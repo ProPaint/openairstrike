@@ -1,0 +1,120 @@
+address,name,subsystem,description,confidence,evidence,v170_address
+00401040,PF_debug,script-builtin,debug() -> none,high,builtin table 0x49d5d0 index 0,0041a350
+00405750,Sys_Error,sys,fatal error: message box and shutdown,high,called with Script stall detected.,004204f0
+0040b9e0,G_Damage,game,apply damage; run damage handler; kill accounting,high,health at entity+0x10c; runs the damage entry,00404ae0
+0040bee0,G_RunInitHandler,game,run init entry on entity and children (propagates player index +0x80),high,diff vs v1.70,00404fa0
+0040c120,G_TouchEntity,game,touch tests and touch dispatch; collision mode is a bit set,high,sets other 0x2106314; diff vs v1.70,004051d0
+0040cb30,G_ThinkEntity,game,"per-entity update: timers, main, placement, children",high,calls SL_RunEvent kind 0,00405a60
+0040cdc0,G_RunEntities,game,entity pass,medium,caller of G_ThinkEntity,00405cc0
+0040e730,PF_EndLevel,script-builtin,EndLevel() -> none,high,builtin table 0x49d5d0 index 2,00407570
+00410cd0,G_StartLevelState,game,difficulty factors from table 0x49dee8; resets player record fields,medium,writes g_damage_factor/g_health_factor,
+00410e70,PF_GameOver,script-builtin,GameOver() -> none,high,builtin table 0x49d5d0 index 3,
+00411e90,G_InitObject,game,create entity (0x1f4 bytes) from a definition,high,PUSH 0x1f4; diff vs v1.70,00409ba0
+00413b20,G_SpawnPlayer,game,"spawn player entity, store reference in player globals 0x2106308+4i",medium,called by PF_RespawnPlayer,0040b2f0
+00414350,G_AwardScore,game,add score after a kill,medium,called by G_Damage; diff vs v1.70,0040bb20
+00414e90,V_UpdateCamera,camera,scroll g_map_pos by camera[7] = camera[9] * 42; fills camera 0x20df0a8,medium,writes g_map_pos 0x54329c,0040c260
+004156b0,Com_Printf,sys,log to game.log,medium,called with SL_GetExternFunc message,0041e0b0
+0041eac0,SL_Error,script,fatal script error (stack overflow/underflow),high,strings Thread stack overflow/underflow,00419b90
+0041eb10,SL_Execute,script,interpreter; handler for handler identical to v1.70,high,string Script stall detected.; jump table 0x41f0b0,00419be0
+0041f130,SL_RunEvent,script,resume main or run an event handler; thread at entity+0x5c; self = entity+0x84,high,only caller pattern of SL_Execute; diff vs v1.70,0041a200
+0041f290,PF_random,script-builtin,random() -> float,high,builtin table 0x49d5d0 index 4,0041a360
+0041f2b0,PF_crandom,script-builtin,crandom() -> float,high,builtin table 0x49d5d0 index 5,0041a380
+0041f2e0,PF_sin,script-builtin,sin(deg:float) -> float,high,builtin table 0x49d5d0 index 6,0041a3b0
+0041f300,PF_cos,script-builtin,cos(deg:float) -> float,high,builtin table 0x49d5d0 index 7,0041a3d0
+0041f320,PF_tan,script-builtin,tan(deg:float) -> float,high,builtin table 0x49d5d0 index 8,0041a3f0
+0041f340,PF_atan,script-builtin,atan(x:float) -> float,high,builtin table 0x49d5d0 index 9,0041a410
+0041f370,PF_atan2,script-builtin,"atan2(y:float, x:float) -> float",high,builtin table 0x49d5d0 index 10,
+0041f3b0,PF_abs,script-builtin,abs(x:float) -> float,high,builtin table 0x49d5d0 index 11,0041a430
+0041f3e0,PF_min,script-builtin,"min(a:float, b:float) -> float",high,builtin table 0x49d5d0 index 12,0041a460
+0041f420,PF_max,script-builtin,"max(a:float, b:float) -> float",high,builtin table 0x49d5d0 index 13,0041a4a0
+0041f460,PF_lerp,script-builtin,"lerp(t:float, a:float, b:float) -> float",high,builtin table 0x49d5d0 index 14,0041a4e0
+0041f480,PF_copysign,script-builtin,"copysign(x:float, sign:float) -> float",high,builtin table 0x49d5d0 index 15,
+0041f4b0,PF_floor,script-builtin,floor(x:float) -> float,high,builtin table 0x49d5d0 index 16,
+0041f4e0,PF_floor2,script-builtin,"floor2(x:float, step:float) -> float",high,builtin table 0x49d5d0 index 17,
+0041f510,PF_fmod,script-builtin,"fmod(x:float, y:float) -> float",high,builtin table 0x49d5d0 index 18,
+0041f530,PF_vec_copy,script-builtin,"vec_copy(src:vec, dst:vec_out) -> none",high,builtin table 0x49d5d0 index 19,0041a500
+0041f550,PF_vec_add,script-builtin,"vec_add(a:vec, b:vec, out:vec_out) -> none",high,builtin table 0x49d5d0 index 20,0041a520
+0041f580,PF_vec_sub,script-builtin,"vec_sub(a:vec, b:vec, out:vec_out) -> none",high,builtin table 0x49d5d0 index 21,0041a550
+0041f5b0,PF_vec_ma,script-builtin,"vec_ma(a:vec, s:float, b:vec, out:vec_out) -> none",high,builtin table 0x49d5d0 index 22,0041a580
+0041f610,PF_vec_length,script-builtin,vec_length(v:vec) -> float,high,builtin table 0x49d5d0 index 23,0041a5e0
+0041f660,PF_vec_norm,script-builtin,vec_norm(v:vec_out) -> float,high,builtin table 0x49d5d0 index 24,0041a630
+0041f680,PF_vec_scale,script-builtin,"vec_scale(v:vec_out, s:float) -> none",high,builtin table 0x49d5d0 index 25,0041a650
+0041f6b0,PF_vec_setlen,script-builtin,"vec_setlen(v:vec_out, len:float) -> none",high,builtin table 0x49d5d0 index 26,0041a680
+0041f6d0,PF_vec_toyaw,script-builtin,vec_toyaw(v:vec) -> float,high,builtin table 0x49d5d0 index 27,0041a6a0
+0041f760,PF_vec_toangles,script-builtin,"vec_toangles(v:vec, out:vec_out) -> none",high,builtin table 0x49d5d0 index 28,0041a730
+0041f780,PF_ClearAxis,script-builtin,ClearAxis(axis:raw) -> none,high,builtin table 0x49d5d0 index 29,0041a750
+0041f7b0,PF_AnglesToAxis,script-builtin,"AnglesToAxis(angles:vec, axis:raw) -> none",high,builtin table 0x49d5d0 index 30,0041a780
+0041f7d0,PF_create,script-builtin,"create(name:string, pos:vec) -> entity",high,builtin table 0x49d5d0 index 31,0041a7a0
+0041f9c0,PF_remove,script-builtin,remove(ent:entity) -> none,high,builtin table 0x49d5d0 index 32,0041a980
+0041f9e0,PF_activate,script-builtin,activate(ent:entity) -> none,high,builtin table 0x49d5d0 index 33,0041a9a0
+0041fa00,PF_deactivate,script-builtin,deactivate(ent:entity) -> none,high,builtin table 0x49d5d0 index 34,0041a9c0
+0041fa20,PF_getentity,script-builtin,getentity(ptr:raw) -> entity,high,builtin table 0x49d5d0 index 35,0041a9e0
+0041fa40,PF_setskin,script-builtin,"setskin(ent:entity, name:string) -> none",high,builtin table 0x49d5d0 index 36,0041aa00
+0041fa70,PF_AttachEntity,script-builtin,"AttachEntity(child:entity, parent:entity, tag:string, flag:int) -> none",high,builtin table 0x49d5d0 index 38,0041aa30
+0041fae0,PF_DetachEntity,script-builtin,DetachEntity(ent:entity) -> none,high,builtin table 0x49d5d0 index 39,
+0041fb50,PF_AttachActivate,script-builtin,AttachActivate(name:string) -> none,high,builtin table 0x49d5d0 index 40,0041aa90
+0041fc10,PF_AttachDeactivate,script-builtin,AttachDeactivate(name:string) -> none,high,builtin table 0x49d5d0 index 41,0041ab50
+0041fcd0,PF_AttachCallback,script-builtin,"AttachCallback(name:string, msg:float, parm1:float, parm2:float) -> none",high,builtin table 0x49d5d0 index 42,0041ac10
+0041fe60,PF_ParentCallback,script-builtin,"ParentCallback(msg:float, parm1:float, parm2:float) -> none",high,builtin table 0x49d5d0 index 43,0041ada0
+0041ff40,PF_callback,script-builtin,"callback(ent:entity, msg:float, parm1:float, parm2:float) -> none",high,builtin table 0x49d5d0 index 37,0041ae80
+00420020,PF_move,script-builtin,move(vel:vec) -> none,high,builtin table 0x49d5d0 index 44,0041af60
+00420070,PF_movex,script-builtin,movex(speed:float) -> none,high,builtin table 0x49d5d0 index 45,0041afb0
+00420090,PF_movey,script-builtin,movey(speed:float) -> none,high,builtin table 0x49d5d0 index 46,0041afd0
+004200b0,PF_movez,script-builtin,movez(speed:float) -> none,high,builtin table 0x49d5d0 index 47,0041aff0
+004200d0,PF_rotate,script-builtin,rotate(rate:vec) -> none,high,builtin table 0x49d5d0 index 48,0041b010
+00420120,PF_rotatex,script-builtin,rotatex(rate:float) -> none,high,builtin table 0x49d5d0 index 49,0041b060
+00420140,PF_rotatey,script-builtin,rotatey(rate:float) -> none,high,builtin table 0x49d5d0 index 50,0041b080
+00420160,PF_rotatez,script-builtin,rotatez(rate:float) -> none,high,builtin table 0x49d5d0 index 51,0041b0a0
+00420180,PF_sleep,script-builtin,sleep() -> none,high,builtin table 0x49d5d0 index 52,0041b0c0
+00420190,PF_Shoot,script-builtin,"Shoot(weapon:string, point:string, dir:vec) -> none",high,builtin table 0x49d5d0 index 53,0041b0d0
+00420630,PF_Damage,script-builtin,"Damage(target:entity, amount:float) -> none",high,builtin table 0x49d5d0 index 54,0041b550
+004206b0,PF_RadialDamage,script-builtin,"RadialDamage(center:vec, radius:float, damage:float) -> none",high,builtin table 0x49d5d0 index 55,0041b5d0
+00420840,PF_RadialDamagePlayer,script-builtin,"RadialDamagePlayer(center:vec, radius:float, damage:float) -> none",high,builtin table 0x49d5d0 index 56,
+004209b0,PF_RotateTo,script-builtin,"RotateTo/lRotateTo(target:entity, axes:int) -> none",high,builtin table 0x49d5d0 index 57,0041b750
+00420c20,PF_RotateToClamp,script-builtin,"RotateToClamp/lRotateToClamp(target:entity, axes:int, max:float, min:float) -> none",high,builtin table 0x49d5d0 index 59,0041b9c0
+00420cc0,PF_MoveToNextWP,script-builtin,MoveToNextWP/lMoveToNextWP(align:int) -> none,high,builtin table 0x49d5d0 index 61,0041ba60
+00420cf0,PF_RotateToNextWP,script-builtin,RotateToNextWP/lRotateToNextWP() -> none,high,builtin table 0x49d5d0 index 63,0041ba90
+00420d10,PF_GetWaypointDelay,script-builtin,GetWaypointDelay(index:int) -> float,high,builtin table 0x49d5d0 index 65,0041bab0
+00420d50,PF_TerrainHeight,script-builtin,"TerrainHeight(x:float, y:float) -> float",high,builtin table 0x49d5d0 index 66,0041baf0
+00420d80,PF_WaterHeight,script-builtin,"WaterHeight(x:float, y:float) -> float",high,builtin table 0x49d5d0 index 67,
+00420db0,PF_PlaceLight,script-builtin,"PlaceLight(pos:vec, color:vec, radius:float) -> none",high,builtin table 0x49d5d0 index 68,0041bb20
+00420dd0,PF_LockTarget,script-builtin,LockTarget() -> entity,high,builtin table 0x49d5d0 index 70,0041bb40
+00420df0,PF_IsValidTarget,script-builtin,IsValidTarget(ent:entity) -> int_as_float,high,builtin table 0x49d5d0 index 71,0041bb60
+00420e20,PF_CameraQuake,script-builtin,CameraQuake(amount:float) -> none,high,builtin table 0x49d5d0 index 69,0041bb90
+00420ee0,PF_StartSound,script-builtin,StartSound(file:string) -> none,high,builtin table 0x49d5d0 index 72,0041bc50
+00420f30,PF_StopLoopingSound,script-builtin,StopLoopingSound() -> none,high,builtin table 0x49d5d0 index 74,0041bca0
+00420f60,PF_StartLoopingSound,script-builtin,StartLoopingSound(file:string) -> none,high,builtin table 0x49d5d0 index 73,0041bcd0
+00420fd0,PF_TraceLine,script-builtin,"TraceLine(from:vec, to:vec, mask:int) -> entity",high,builtin table 0x49d5d0 index 75,0041bd40
+00421180,PF_TraceLineDamage,script-builtin,"TraceLineDamage(from:vec, to:vec, damage:float) -> none",high,builtin table 0x49d5d0 index 76,0041bea0
+00421310,PF_Lightning,script-builtin,Lightning(radius:float) -> none,high,builtin table 0x49d5d0 index 77,0041c000
+004214a0,PF_PushPlayer,script-builtin,PushPlayer() -> none,high,builtin table 0x49d5d0 index 78,0041c170
+00421550,PF_G_AddPowerUp,script-builtin,"G_AddPowerUp(type:int, count:int) -> none",high,builtin table 0x49d5d0 index 79,0041c210
+00421600,PF_G_GetPowerUp,script-builtin,G_GetPowerUp() -> int_as_float,high,builtin table 0x49d5d0 index 81,0041c2b0
+00421620,PF_G_UsePowerUp,script-builtin,G_UsePowerUp() -> int_as_float,high,builtin table 0x49d5d0 index 80,0041c2d0
+00421650,PF_G_SetPowerUpCount,script-builtin,"G_SetPowerUpCount(type:int, count:int) -> none",high,builtin table 0x49d5d0 index 82,
+004216c0,PF_G_AddMissiles,script-builtin,"G_AddMissiles(type:int, count:int) -> none",high,builtin table 0x49d5d0 index 83,0041c2f0
+00421770,PF_G_GetMissiles,script-builtin,G_GetMissiles() -> int_as_float,high,builtin table 0x49d5d0 index 85,0041c390
+00421790,PF_G_UseMissile,script-builtin,G_UseMissile() -> int_as_float,high,builtin table 0x49d5d0 index 84,0041c3b0
+004217c0,PF_G_GetUpgrade,script-builtin,G_GetUpgrade(index:int) -> int_as_float,high,builtin table 0x49d5d0 index 86,0041c3d0
+00421830,PF_G_SetUpgrade,script-builtin,"G_SetUpgrade(index:int, value:int) -> none",high,builtin table 0x49d5d0 index 87,0041c440
+004218b0,PF_ShowTutorialHint,script-builtin,ShowTutorialHint(text:string) -> none,high,builtin table 0x49d5d0 index 88,0041c4c0
+004218d0,PF_PlayerFreezeHealth,script-builtin,PlayerFreezeHealth(on:float) -> none,high,builtin table 0x49d5d0 index 89,0041c4e0
+00421930,PF_FreezeHealth,script-builtin,"FreezeHealth(ent:entity, on:float) -> none",high,builtin table 0x49d5d0 index 91,0041c530
+00421960,PF_PlayerDisableAction,script-builtin,PlayerDisableAction(on:float) -> none,high,builtin table 0x49d5d0 index 90,0041c560
+004219c0,PF_SetFlag,script-builtin,"SetFlag(flags:int, bit:int) -> int_as_float",high,builtin table 0x49d5d0 index 92,0041c5b0
+004219f0,PF_ClearFlag,script-builtin,"ClearFlag(flags:int, bit:int) -> int_as_float",high,builtin table 0x49d5d0 index 93,0041c5e0
+00421a20,PF_SetModel,script-builtin,SetModel(name:string) -> none,high,builtin table 0x49d5d0 index 94,0041c610
+00421a50,PF_RespawnPlayer,script-builtin,RespawnPlayer() -> none,high,builtin table 0x49d5d0 index 1,0041c640
+00421a90,PF_TerraMorph,script-builtin,"TerraMorph(pos:vec, name:string) -> none",high,builtin table 0x49d5d0 index 95,
+00421ab0,PF_IsMultiplayer,script-builtin,IsMultiplayer() -> int_as_float,high,builtin table 0x49d5d0 index 96,
+00421ae0,PF_IsPlayerInGame,script-builtin,IsPlayerInGame(index:int) -> int_as_float,high,builtin table 0x49d5d0 index 97,
+00421b20,PF_GetMapPosOfs,script-builtin,GetMapPosOfs() -> float,high,builtin table 0x49d5d0 index 98,
+00421b40,PF_GetPlayerAccel,script-builtin,GetPlayerAccel(out:vec_out) -> none,high,builtin table 0x49d5d0 index 99,
+00421ba0,PF_GetPlayersDistance,script-builtin,GetPlayersDistance() -> float,high,builtin table 0x49d5d0 index 100,
+00421c30,SL_GetExternFunc,script,builtin table lookup (table 0x49d5d0),high,string SL_GetExternFunc,0041c680
+00421c90,SL_FindGlobal,script,script global table lookup (table 0x49d908),high,reads table 0x49d908,0041c6e0
+00421ce0,SL_FreeScripts,script,free loaded scripts; also frees DATA table and the script object,medium,diff vs v1.70,0041c730
+00421db0,SL_CreateThread,script,"thread (0x824 bytes) and frame allocation, DATA applied",high,diff vs v1.70: addresses only,0041c7d0
+00421ed0,SL_PrecacheScript,script,resolve CASH entries,medium,callee pairing with v1.70,0041c8f0
+00421f60,SL_LoadScript,script,RCSL loader; skips allocation of empty DATA/STRG,high,magic RCSL compare at 0x422049,0041c980
+0047cbb0,_ftol2,crt,float to int truncation,high,called by the interpreter where v1.70 calls 0x440870,00440870
