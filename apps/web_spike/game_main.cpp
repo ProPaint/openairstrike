@@ -18,6 +18,7 @@ int main(int argc, char* argv[]) {
     o.perfLog = true;
     o.frameMarkerEvery = 600;
     o.quiet = true;
+    o.logTouches = true;
     o.game.paks = {"/data/pak0.apk", "/data/pak1.apk", "/data/pak2.apk"};
     for (int i = 1; i < argc; ++i) {
         const char* s = argv[i];

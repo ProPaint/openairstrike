@@ -26,7 +26,30 @@ RAF_HOOK = """
     cb(ts);
     window.__raf.push([a, performance.now()]);
   });
+  // Taps whatever is connected to an audio destination, to see that sound comes out.
+  window.__rms = [];
+  const connect = AudioNode.prototype.connect;
+  AudioNode.prototype.connect = function (dst, ...rest) {
+    if (dst instanceof AudioDestinationNode && !window.__analyser) {
+      window.__analyser = this.context.createAnalyser();
+      window.__analyser.fftSize = 2048;
+      connect.call(this, window.__analyser);
+    }
+    return connect.call(this, dst, ...rest);
+  };
 })();
+"""
+
+RMS = """
+(() => {
+  const a = window.__analyser;
+  if (!a) return null;
+  const buf = new Float32Array(a.fftSize);
+  a.getFloatTimeDomainData(buf);
+  let s = 0;
+  for (const v of buf) s += v * v;
+  return Math.sqrt(s / buf.length);
+})()
 """
 
 GL_PROBE = """
@@ -85,7 +108,9 @@ def main():
     flags += ["--autoplay-policy=user-gesture-required"]
     result = {"query": a.query, "gl_mode": a.gl, "flags": flags, "console": []}
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=flags)
+        # Playwright allows autoplay by default; keep the browser's real rule instead.
+        browser = p.chromium.launch(headless=True, args=flags,
+                                    ignore_default_args=["--autoplay-policy=no-user-gesture-required"])
         ctx = browser.new_context(viewport={"width": 900, "height": 760}, has_touch=a.touch)
         page = ctx.new_page()
         t_start = time.time()
@@ -117,12 +142,15 @@ def main():
                             " transfer: r.transferSize, decoded: r.decodedBodySize, dur: r.duration, end: r.responseEnd}))")
         result["resources"] = res
         canvas = page.locator("#canvas")
+        result["audio_state_before_input"] = page.evaluate(
+            "(typeof Module !== 'undefined' && Module.SDL2 && Module.SDL2.audioContext) ? Module.SDL2.audioContext.state : 'none'")
         if a.click:
             canvas.click()
         page.evaluate("window.__raf = []")
         t_measure = time.time()
         shots = 0
         mem = []
+        audio_rms = []
         next_shot = 0.0
         cdp = ctx.new_cdp_session(page)
         box = canvas.bounding_box()
@@ -141,6 +169,7 @@ def main():
                 page.keyboard.up("ArrowRight")
                 if int(el) % 5 == 0:
                     page.keyboard.press("Shift")
+                page.keyboard.press("Enter")  # confirms a tutorial hint box
             elif a.touch:
                 x0, y0 = box["x"] + box["width"] * 0.5, box["y"] + box["height"] * 0.7
                 pts = [{"x": x0, "y": y0, "id": 1}]
@@ -153,6 +182,9 @@ def main():
                 page.wait_for_timeout(300)
             else:
                 page.wait_for_timeout(1000)
+            rms = page.evaluate(RMS)
+            if rms is not None:
+                audio_rms.append(rms)
             if not mem or el - mem[-1]["t"] >= 5:
                 heap = page.evaluate("(typeof Module !== 'undefined' && Module.HEAPU8) ? Module.HEAPU8.length : null")
                 jsheap = page.evaluate("performance.memory ? performance.memory.usedJSHeapSize : null")
@@ -177,6 +209,8 @@ def main():
                         "p50": pct(work, 50), "p95": pct(work, 95), "max": max(work) if work else None},
     }
     result["memory"] = mem
+    result["audio_rms"] = {"samples": len(audio_rms), "max": max(audio_rms) if audio_rms else None,
+                           "nonsilent": sum(1 for v in audio_rms if v > 1e-3)}
     result["responses"] = responses
     with open(a.out + ".json", "w") as f:
         json.dump(result, f, indent=1)
@@ -185,7 +219,8 @@ def main():
             or "ERROR" in c["text"] or "ABORT" in c["text"]]
     print(json.dumps({"gl": result["gl"], "first_raf_end_ms": result["first_raf_end_ms"],
                       "runtime_ready_ms": result["runtime_ready_ms"], "frames": result["frames"],
-                      "audio": result["audio_state"], "memory_last": mem[-1] if mem else None}, indent=1))
+                      "audio_before_input": result["audio_state_before_input"], "audio": result["audio_state"], "memory_last": mem[-1] if mem else None,
+                      "audio_rms": result["audio_rms"]}, indent=1))
     print("perf lines:", *perf[-4:], sep="\n  ")
     print("errors:", *errs[:15], sep="\n  ")
 
