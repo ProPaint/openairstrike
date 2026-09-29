@@ -3,7 +3,7 @@
 //   as3d_game [--level N] [--difficulty 0..4] [--seed S] [--data ROOT] [--size WxH]
 //             [--input-script FILE] [--record FILE] [--bot] [--frames N] [--no-audio]
 //             [--screenshot-every K] [--out-dir DIR] [--dump-state FILE]
-//             [--touch] [--perf] [--fullscreen] [--paks DIR]
+//             [--touch] [--perf] [--fullscreen] [--paks DIR] [--game as3d|as2|gulf] [--list-games]
 //             [--profile FILE] [--attract 1..4] [--no-logo]
 //             [--screen wide|4x3] [--left-handed] [--dpi N] [--fps]
 //   as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]
@@ -17,9 +17,13 @@
 // move on by themselves, as before the menus existed.
 //
 // Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT, or with
-// --paks from the original DIR/pak0.apk, pak1.apk, pak2.apk (as the Android app reads them).
-// The front end also reads ROOT/third_party_local/original/data/Settings.xml (and the logo
-// beside it) and ROOT/assets_extracted/texts_v170.txt (tools/extract_exe_texts.py).
+// --paks from the original DIR/pak0.apk, pak1.apk, ... (the game's own list, as the Android
+// app reads them). --game as3d|as2|gulf (default $AS3D_GAME, then as3d if present, then the
+// first game found; --paks alone identifies the game from the paks) picks the game, whose
+// files are under ROOT/assets_extracted_games/<key> and ROOT/third_party_local/games/<key>
+// (as3d/game_data.h); --list-games prints the games found. The sequels do not play yet.
+// The front end also reads the install's data/Settings.xml (and the logo beside it) and the
+// game's texts file in the extracted directory (tools/extract_exe_texts.py).
 // The windowed loop is shared with the Android app (game_loop.h). --touch draws the touch
 // controls, makes the left mouse button one finger and puts the menus in touch mode
 // (docs/android.md); --perf logs frame statistics and the AS3D_* markers every 5 s.
@@ -53,6 +57,7 @@
 #include "as3d/platform.h"
 #include "as3d/world.h"
 #include "audio_bridge.h"
+#include "as3d/game_data.h"
 #include "game_loop.h"
 #include "game_flow.h"
 #include "game_session.h"
@@ -84,13 +89,16 @@ struct Args {
     bool leftHanded = false;
     float dpi = 0;
     bool fps = false;
+    std::string gameKey, paksDir;
+    bool listGames = false, errorShown = false;
+    GameData data; // where the chosen game's files are
 };
 
 int usage() {
     std::fprintf(stderr,
                  "usage: as3d_game [--level N] [--difficulty 0..4] [--seed S] [--data ROOT] [--size WxH]\n"
                  "                 [--input-script FILE] [--record FILE] [--bot] [--god] [--frames N] [--no-audio]\n"
-                 "                 [--touch] [--perf] [--fullscreen] [--paks DIR]\n"
+                 "                 [--touch] [--perf] [--fullscreen] [--paks DIR] [--game as3d|as2|gulf] [--list-games]\n"
                  "                 [--profile FILE] [--attract 1..4] [--no-logo]\n"
                  "                 [--screen wide|4x3] [--left-handed] [--dpi N] [--fps]\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
@@ -127,6 +135,8 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--difficulty" && next()) a.game.world.difficulty = std::atoi(v);
         else if (s == "--seed" && next()) a.game.world.seed = static_cast<u32>(std::strtoul(v, nullptr, 10));
         else if (s == "--data" && next()) a.game.dataRoot = v;
+        else if (s == "--game" && next()) a.gameKey = v;
+        else if (s == "--list-games") a.listGames = true;
         else if (s == "--frames" && next()) a.frames = std::strtol(v, nullptr, 10);
         else if (s == "--input-script" && next()) a.inputScript = v;
         else if (s == "--record" && next()) a.recordPath = v;
@@ -143,21 +153,30 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--touch") a.touch = true;
         else if (s == "--perf") a.perf = true;
         else if (s == "--fullscreen") a.fullscreen = true;
-        else if (s == "--paks" && next()) {
-            std::string dir = v;
-            for (int k = 0; k < 3; ++k) a.game.paks.push_back(dir + "/pak" + std::to_string(k) + ".apk");
-        }
+        else if (s == "--paks" && next()) a.paksDir = v;
         else return false;
     }
+    if (a.game.dataRoot.empty()) {
+        const char* env = std::getenv("AS3D_DATA_ROOT");
+        a.game.dataRoot = env && *env ? env : ".";
+    }
+    if (a.listGames) return true;
+    std::string gerr;
+    if (!chooseGameData(a.game.dataRoot, a.gameKey, a.paksDir, &a.data, &gerr)) {
+        std::fprintf(stderr, "as3d_game: %s\n", gerr.c_str());
+        a.errorShown = true;
+        return false;
+    }
+    a.game.game = a.data.game;
+    a.game.extractedDir = a.data.extractedDir;
+    // Extracted files unless --paks was given (or there are none): what the tests and the
+    // regression baseline read.
+    if (!a.paksDir.empty() || !a.data.hasExtracted) a.game.paks = a.data.paks;
     if (a.game.mission < 1 || a.game.mission > a.game.rules().missionCount) return false;
     if (a.width < 16 || a.height < 16 || a.width > 8192 || a.height > 8192) return false;
     if (a.frames > 100'000'000 || a.screenshotEvery < 0) return false;
     if (a.headless && a.frames < 0 && a.uiScript.empty()) return false;
     if (a.attract < 0 || a.attract > a.game.rules().attractCount) return false;
-    if (a.game.dataRoot.empty()) {
-        const char* env = std::getenv("AS3D_DATA_ROOT");
-        a.game.dataRoot = env && *env ? env : ".";
-    }
     return true;
 }
 
@@ -266,15 +285,9 @@ FlowConfig desktopFlow(Args& a, bool headless) {
     f.mouseControlOption = !a.touch;
     // With --touch the touch overlay's pause button opens the in-game menu (one pause control).
     f.touchMenuButton = false;
-    const std::string root = a.game.dataRoot;
-    std::string install = root + "/third_party_local/original/data";
-    if (!a.game.paks.empty()) {
-        const std::string& p = a.game.paks.front();
-        size_t slash = p.find_last_of('/');
-        install = slash == std::string::npos ? "." : p.substr(0, slash);
-    }
+    const std::string install = a.data.dataDir;
     f.settingsXml = install + "/Settings.xml";
-    f.textsPath = root + "/assets_extracted/texts_v170.txt";
+    f.textsPath = a.data.extractedDir + "/" + a.data.game->textsFile;
     a.game.extraFiles.push_back({"gfx\\logo2s.tga", install + "/gfx/logo2s.tga"});
     // Headless runs never touch the user's own profile unless asked to.
     f.profilePath = !a.profilePath.empty() ? a.profilePath : headless ? std::string() : defaultProfilePath();
@@ -463,7 +476,11 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
 
 int main(int argc, char** argv) {
     Args a;
-    if (!parseArgs(argc, argv, a)) return usage();
+    if (!parseArgs(argc, argv, a)) return a.errorShown ? 2 : usage();
+    if (a.listGames) {
+        std::fputs(describeGames(a.game.dataRoot).c_str(), stdout);
+        return 0;
+    }
     InputScript script;
     bool haveScript = false;
     if (!a.inputScript.empty()) {

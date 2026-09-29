@@ -27,10 +27,14 @@ struct LevelDef;
 namespace as3d_game {
 
 struct GameOptions {
-    std::string dataRoot;          // directory holding assets_extracted/
-    // When not empty: the original pak archives to mount instead of assets_extracted/, in
+    std::string dataRoot;          // the data root (assets_extracted/ or assets_extracted_games/<key>/)
+    // The extracted files of the game; empty = the game's directory under dataRoot
+    // (as3d::locateGameData).
+    std::string extractedDir;
+    // When not empty: the original pak archives to mount instead of the extracted files, in
     // this order (later paks override earlier ones, docs/spec/pak.md), opened through
-    // as3d::openPlatformStream (file paths on desktop, APK assets on Android).
+    // as3d::openPlatformStream (file paths on desktop, APK assets on Android). The game's own
+    // list is GameProfile::paks; as3d::GameData::paks on desktop.
     std::vector<std::string> paks;
     const as3d::GameProfile* game = nullptr; // nullptr = the first game (AirStrike 3D)
     int mission = 1;               // 1..the game's mission count

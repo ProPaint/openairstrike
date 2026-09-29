@@ -6,7 +6,11 @@
 // describes the controls, the intent extras and the log markers the smoke test waits for.
 //
 // Arguments come from GameActivity.getArguments(), built from the launching intent's
-// extras: --bot, --level N, --frames N, --difficulty D, --no-audio, --rebuild-on-resume.
+// extras: --bot, --level N, --frames N, --difficulty D, --no-audio, --rebuild-on-resume,
+// --game KEY (extra `game`: as3d, as2 or gulf; default as3d), --allow-unfinished (extra
+// `allow_unfinished`). A game that does not play yet is refused without the latter, so that
+// nothing half-working reaches a phone by accident. The paks are read from the APK's assets
+// under the names of the game's profile.
 #include <SDL.h>
 #include <jni.h>
 
@@ -16,6 +20,7 @@
 #include <string>
 
 #include "as3d/core.h"
+#include "as3d/game_data.h"
 #include "game_loop.h"
 
 namespace {
@@ -54,12 +59,22 @@ int main(int argc, char* argv[]) {
     o.frameMarkerEvery = 600;
     o.logTouches = true;
     o.quiet = true;
-    o.game.paks = {"pak0.apk", "pak1.apk", "pak2.apk"};
     o.safeInsets = currentInsets;
+    const as3d::GameProfile* profile = &as3d::gameProfile(as3d::GameId::AirStrike3D);
+    bool allowUnfinished = false, badGame = false;
     for (int i = 1; i < argc; ++i) {
         const char* s = argv[i];
         const char* v = i + 1 < argc ? argv[i + 1] : nullptr;
-        if (!std::strcmp(s, "--bot")) {
+        if (!std::strcmp(s, "--game") && v) {
+            profile = as3d::findGameProfile(v);
+            if (!profile) {
+                AS3D_ERROR("unknown game '%s' (as3d, as2, gulf)", v);
+                badGame = true;
+                profile = &as3d::gameProfile(as3d::GameId::AirStrike3D);
+            }
+            ++i;
+        } else if (!std::strcmp(s, "--allow-unfinished")) allowUnfinished = true;
+        else if (!std::strcmp(s, "--bot")) {
             o.bot = true;
             direct = true;
         }
@@ -82,6 +97,17 @@ int main(int argc, char* argv[]) {
             AS3D_WARN("unknown argument '%s' ignored", s);
         }
     }
+    if (badGame) return 1;
+    if (!as3d::gameIsPlayable(*profile) && !allowUnfinished) {
+        AS3D_ERROR("game '%s' (%s) is not playable yet; pass the extra allow_unfinished to run it anyway", profile->key,
+                   profile->title);
+        return 1;
+    }
+    o.game.game = profile;
+    for (const char* const* p = profile->paks; *p; ++p) o.game.paks.push_back(*p);
+    // The level range depends on the game: check what was read before it was known.
+    if (o.game.mission > profile->rules.missionCount) o.game.mission = 1;
+    if (o.game.world.difficulty >= profile->rules.difficultyCount) o.game.world.difficulty = profile->rules.defaultDifficulty;
     if (!direct) {
         // The front end in touch mode (docs/spec/issues/090, 130): no two-player mode, no
         // mouse control, no video options; the touch overlay's pause button opens the
@@ -96,7 +122,7 @@ int main(int argc, char* argv[]) {
         o.flow.mouseControlOption = false;
         o.flow.touchMenuButton = false;
         o.flow.settingsXml = "Settings.xml";
-        o.flow.textsPath = "texts_v170.txt";
+        o.flow.textsPath = profile->textsFile;
         o.flow.screenOptionAlways = true; // Options offers Screen (Wide / 4:3) on every device
     }
     AS3D_INFO("AS3D_ARGS bot=%d mission=%d frames=%ld audio=%d rebuild_on_resume=%d menus=%d", o.bot ? 1 : 0,
