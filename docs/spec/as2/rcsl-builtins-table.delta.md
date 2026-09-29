@@ -268,7 +268,7 @@ variable's pointer; `RadialDamagePlayer` gets `&self[5]`, a float and `#2000.0`;
 
 ## JSON schema
 
-Same schema as the base (`testdata/golden/rcsl_builtins.json`), 101 entries in engine table
+Same schema as the base (`testdata/golden/as3d/rcsl_builtins.json`), 101 entries in engine table
 order, `index` 0..100. Additions, all optional for readers of the base schema:
 
 ```

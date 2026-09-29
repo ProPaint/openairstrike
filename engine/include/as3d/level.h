@@ -1,7 +1,7 @@
 // Level map (`maps\*.hsc`, magic "HMAP") loader. See docs/spec/hmap.md for the file
 // format and for everything the engine builds from it (terrain, texturing, water,
 // waypoints, spawning). Reference implementation: tools/ref/hmap.py, exercised on every
-// shipped file by apps/tests/hmap_test.cpp against testdata/golden/hmap_summary.json.
+// shipped file by apps/tests/hmap_test.cpp against testdata/golden/as3d/hmap_summary.json.
 //
 // This header only covers the file itself: the raw grid and placement/waypoint records,
 // kept in the units the file stores them in (cell units, 1-based placement row, etc.),

@@ -60,3 +60,4 @@ the texture of the same name from an earlier pak); 1921 entries, 1920 files afte
 
 | Spec | Status | Package | Notes |
 |---|---|---|---|
+| [pak](pak.delta.md), [tga](tga.delta.md), [mdl](mdl.delta.md), [hmap](hmap.delta.md), [obj](obj.delta.md), [levels-txt](levels-txt.delta.md) deltas | verified on all shipped files | B6 | where Gulf Thunder's data differs from AirStrike 2's; goldens and expected counts in `testdata/golden/gulf/` |
