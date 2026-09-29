@@ -60,3 +60,19 @@ Every claim carries one of:
 |---|---|
 | [001](issues/001-lcall-nan-timeout.md) | NaN timeout in LCALL; resolved in rcsl-vm.md 1.1 |
 | [010](issues/010-particle-prev-origin.md) | particle emitter previous origin and yaw of oriented emitters; check once emitters move in game |
+| [030](issues/030-collision-segment-details.md) | collision segment end point; points behind the eye |
+| [031](issues/031-entity-pass-details.md) | entity pass details: think bit, leaving test, dormant entities, two-player assignment |
+| [032](issues/032-shared-return-register.md) | return register is per thread in our VM, shared in the original; no shipped script seen to depend on it |
+| [033](issues/033-held-input-bits.md) | accepted: held input bits are re-applied every frame, for keys, mouse buttons and touch alike |
+| [034](issues/034-entity-geometry-guesses.md) | bounding radius formula, ground-normal axis, missing tag on a definition child |
+
+## Implementation status
+
+| Area | Where | State |
+|---|---|---|
+| Formats, VFS, definitions | `engine/src/{vfs,formats,game}` | all shipped files load |
+| Script VM | `engine/src/script` | reproduces the reference trace of all 339 scripts |
+| World, builtins, collision, level runtime | `engine/src/game`, `apps/sim_tool` | all 85 builtins bound; 3 approximate (`Lightning`, `EndLevel`, `ShowTutorialHint`) pending render and UI; headless bot finishes mission 1 |
+| Rendering | `engine/src/render`, `apps/viewer` | meshes, terrain, water, particles; no shadows, ground marks, sprites, dynamic lights, environment maps |
+| Audio | `engine/src/audio` | mixer and music decoder; not yet driven by the world's sound queue |
+| Game app, HUD, menus, Android gameplay | | not started |

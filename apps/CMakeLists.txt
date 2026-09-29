@@ -1,7 +1,7 @@
 get_property(AS3D_MODULES GLOBAL PROPERTY AS3D_MODULES)
 
 # Each app directory may carry its own CMakeLists.txt.
-foreach(app game viewer rcsl_tool)
+foreach(app game viewer rcsl_tool sim_tool)
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${app}/CMakeLists.txt)
     add_subdirectory(${app})
   endif()
