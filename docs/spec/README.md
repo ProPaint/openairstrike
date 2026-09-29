@@ -65,6 +65,7 @@ Every claim carries one of:
 | [032](issues/032-shared-return-register.md) | return register is per thread in our VM, shared in the original; no shipped script seen to depend on it |
 | [033](issues/033-held-input-bits.md) | accepted: held input bits are re-applied every frame, for keys, mouse buttons and touch alike |
 | [034](issues/034-entity-geometry-guesses.md) | bounding radius formula, ground-normal axis, missing tag on a definition child |
+| [060](issues/060-hud-gaps.md) | HUD facts the specs do not give: weapon icon table, two-player layout, stars, upgrades, boss bar, blend modes |
 
 ## Implementation status
 
