@@ -76,12 +76,24 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     profile_ = Profile();
     profile_.progress = Progress::defaults(session_.rules()); // counts of the game; a saved file must match
     std::string why;
-    Blob probe;
-    const bool exists = !config_.profilePath.empty() && readPlatformFile(config_.profilePath, probe);
-    if (exists) {
-        if (!loadProfileFile(config_.profilePath, profile_, &why))
-            AS3D_WARN("profile %s: %s; using the defaults", config_.profilePath.c_str(), why.c_str());
-    } else {
+    // The platform's default path is the first game's old location; the save now lives in a
+    // directory per game (docs/spec/issues/160). An explicit path (--profile, tests) is used as is.
+    std::string legacyPath;
+    const char* key = profileGameKey(session_.game());
+    if (!config_.profilePath.empty() && config_.profilePath.size() >= 12 &&
+        config_.profilePath.compare(config_.profilePath.size() - 12, 12, "/profile.bin") == 0 &&
+        config_.profilePath == defaultProfilePath()) {
+        legacyPath = config_.profilePath;
+        const std::string dir = gameDataDir(key);
+        config_.profilePath = dir.empty() ? std::string() : dir + "profile.bin";
+    }
+    ProfileLoad loaded = ProfileLoad::Fresh;
+    if (!config_.profilePath.empty())
+        loaded = loadProfileForGame(config_.profilePath, legacyPath, key, profile_, &why);
+    if (loaded == ProfileLoad::Unusable)
+        AS3D_WARN("profile %s: %s; using the defaults", config_.profilePath.c_str(), why.c_str());
+    if (loaded == ProfileLoad::Migrated && config_.profileSaved) config_.profileSaved(); // web: sync the new tree
+    if (loaded == ProfileLoad::Fresh) {
         if (config_.twoPlayerMode) applyDesktopPlayer2Keys(profile_.settings);
         if (config_.webKeys) applyWebKeyBindings(profile_.settings);
     }
@@ -256,7 +268,7 @@ void GameFlow::setScreenSize(int width, int height) {
 void GameFlow::saveProfile(const Profile& p) {
     if (config_.profilePath.empty()) return;
     std::string why;
-    if (!saveProfileFile(config_.profilePath, p, &why)) AS3D_ERROR("cannot save the profile: %s", why.c_str());
+    if (!saveProfileFile(config_.profilePath, p, &why, profileGameKey(session_.game()))) AS3D_ERROR("cannot save the profile: %s", why.c_str());
     else if (config_.profileSaved) config_.profileSaved();
 }
 

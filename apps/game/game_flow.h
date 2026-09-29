@@ -156,7 +156,9 @@ private:
 // rectangle of the last step. False when there is no visible player helicopter.
 bool playerScreenCentre(const as3d::World& w, int player, float& vx, float& vy);
 
-// Profile path of the platform: <userDataDir()>/profile.bin, "" if there is none.
+// Profile path of the platform: <userDataDir()>/profile.bin, "" if there is none. It is the
+// first game's location before the saves went into a directory per game: GameFlow::init turns
+// it into <userDataDir()>/<game key>/profile.bin and migrates the old file (issue 160).
 std::string defaultProfilePath();
 
 // Fresh-profile key bindings of player 2 on a desktop keyboard (issue 130): the spec's

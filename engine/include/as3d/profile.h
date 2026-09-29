@@ -192,22 +192,47 @@ struct Profile {
     Settings settings = Settings::defaults();
 };
 
-// File format (little-endian), version 1:
-//   "AS3DPROF" | u32 version | u32 payload size | u32 CRC-32 of the payload | payload
+// File format (little-endian), version 2:
+//   "AS3DPROF" | u32 version | u32 payload size | u32 CRC-32 of key + payload |
+//   u8 key length (1..15) | game key (a-z, 0-9, _; "as3d", "as2", "gulf") | payload
 //   payload = chunks { char tag[4] | u32 size | data }, unknown tags skipped:
-//     "PROG": u8 count (15) of { u8 name length (<= 31), name, i64 score, u8 rank };
-//             u8 count (10) of u8 helicopter flags; u8 count (20) of u8 mission flags
+//     "PROG": u8 count (<= 15) of { u8 name length (<= 31), name, i64 score, u8 rank };
+//             u8 count (<= kMaxHelicopters) of u8 helicopter flags;
+//             u8 count (<= kMaxMissions) of u8 mission flags
 //     "SETT": u16 count of { u8 key length, key, i32 value }  (floats stored x 1000)
+// A file is accepted when its key is the expected one; entries beyond the game's counts are
+// ignored, entries the file lacks keep the game's defaults. Version 1 (no key, the header
+// ends after the CRC, counts must equal the game's) is read as the first game's ("as3d") only.
 // Every length and count is checked against what remains before anything is allocated; a bad
 // header or CRC gives the defaults, a bad chunk gives that chunk's defaults.
-std::vector<u8> serializeProfile(const Profile& p);
+// The game's counts are those of `out.progress` (Progress::defaults(rules)) when reading.
+std::vector<u8> serializeProfile(const Profile& p, const char* gameKey = "as3d");
 // Returns false (and leaves `out` = defaults for whatever could not be read) on any problem;
 // `why` says what.
-bool deserializeProfile(const u8* data, size_t size, Profile& out, std::string* why = nullptr);
+bool deserializeProfile(const u8* data, size_t size, Profile& out, std::string* why = nullptr,
+                        const char* gameKey = "as3d");
 
 // File helpers. The path is supplied by the platform layer (the user data directory). Saving
 // writes `<path>.tmp` and renames it over `path`, so a crash never leaves a half-written file.
-bool loadProfileFile(const std::string& path, Profile& out, std::string* why = nullptr);
-bool saveProfileFile(const std::string& path, const Profile& p, std::string* why = nullptr);
+bool loadProfileFile(const std::string& path, Profile& out, std::string* why = nullptr, const char* gameKey = "as3d");
+bool saveProfileFile(const std::string& path, const Profile& p, std::string* why = nullptr,
+                     const char* gameKey = "as3d");
+
+// Key of a game for file names and headers (nullptr = the first game).
+inline const char* profileGameKey(const GameProfile* game) { return game ? game->key : "as3d"; }
+
+enum class ProfileLoad {
+    Fresh,        // no file: `out` holds the defaults
+    Loaded,       // `path` was read
+    Unusable,     // a file exists but could not be read: defaults (why says what)
+    Migrated,     // the first game's old file was loaded, written to `path`, renamed profile.v1.bak
+    LoadedLegacy, // the old file was loaded but the new one could not be written: it stays in use
+};
+// Loads the save of the game `gameKey` from `path` (`<user data>/<key>/profile.bin`). When that
+// file does not exist, the first game's save at `legacyPath` (`<user data>/profile.bin`, "" =
+// none) is migrated as described above; a sequel never looks there. `out.progress` must carry
+// the game's counts.
+ProfileLoad loadProfileForGame(const std::string& path, const std::string& legacyPath, const char* gameKey,
+                               Profile& out, std::string* why = nullptr);
 
 } // namespace as3d
