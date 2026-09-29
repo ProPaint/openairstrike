@@ -418,7 +418,7 @@ TEST_CASE("sequel TerraMorph: additive heights, 128 neutral, placement by trunca
     m.r.src->add("morphmaps/t.tga", greyTga(3, 2, {128, 138, 118, 128, 128, 228}));
     const float z0 = m.base();
     CHECK(m.z(3, 3) == z0);
-    m.r.world.takeTerrainChanges();
+    const u32 rev0 = m.r.world.terrainRevision();
     // pos (4.5 * 40, 3.9 * 40): c0 = trunc(4.5 - 1) = 3, r0 = trunc(3.9 - 1) = 2.
     REQUIRE(m.r.world.terraMorph(180.0f, 156.0f, "morphmaps/t.tga"));
     CHECK(m.z(3, 2) == z0);          // pixel (0, 0) = 128: neutral
@@ -429,13 +429,19 @@ TEST_CASE("sequel TerraMorph: additive heights, 128 neutral, placement by trunca
     // The height query sees the new ground at once.
     CHECK(near(m.r.world.terrainHeight(160.0f, 80.0f), z0 + 10.0f));
     // Dirty rectangle: the vertices written.
-    std::vector<TerrainChange> ch = m.r.world.takeTerrainChanges();
+    std::vector<TerrainChange> ch;
+    CHECK(m.r.world.terrainRevision() == rev0 + 1);
+    REQUIRE(m.r.world.terrainChangesSince(rev0, ch));
     REQUIRE(ch.size() == 1);
     CHECK(ch[0].c0 == 3);
     CHECK(ch[0].r0 == 2);
     CHECK(ch[0].c1 == 5);
     CHECK(ch[0].r1 == 3);
-    CHECK(m.r.world.takeTerrainChanges().empty());
+    // Reading changes nothing; a reader up to date gets nothing.
+    REQUIRE(m.r.world.terrainChangesSince(rev0, ch));
+    CHECK(ch.size() == 1);
+    REQUIRE(m.r.world.terrainChangesSince(rev0 + 1, ch));
+    CHECK(ch.empty());
     // Accumulation, and the stamp is loaded once.
     REQUIRE(m.r.world.terraMorph(180.0f, 156.0f, "morphmaps/t.tga"));
     CHECK(near(m.z(4, 2), z0 + 20.0f));
@@ -466,9 +472,9 @@ TEST_CASE("sequel TerraMorph: edges, a stamp bigger than the terrain, truncation
     REQUIRE(n.r.world.terraMorph(-20.0f, -20.0f, "morphmaps/one.tga"));
     CHECK(near(n.z(0, 0), n.base() + 2.0f));
     // Far outside: nothing written, no change recorded.
-    n.r.world.takeTerrainChanges();
+    const u32 rev = n.r.world.terrainRevision();
     CHECK(n.r.world.terraMorph(10000.0f, 10000.0f, "morphmaps/one.tga"));
-    CHECK(n.r.world.takeTerrainChanges().empty());
+    CHECK(n.r.world.terrainRevision() == rev);
 }
 
 TEST_CASE("sequel TerraMorph: underwater vertices never change") {
@@ -526,11 +532,17 @@ TEST_CASE("sequel TerraMorph builtin: through a script, ground entities follow")
     CHECK(near(m.r.e(g).f(F_ORIGIN + 2), m.base() + 50.0f));
 }
 
-TEST_CASE("sequel WaterHeight: terrain without water, water level over flooded vertices") {
+TEST_CASE("sequel WaterHeight: terrain without water, the animated surface over flooded vertices") {
     MorphRig dry;
     CHECK(near(dry.r.world.waterHeight(100.0f, 100.0f), dry.base()));
-    MorphRig wet(true, 50.0f); // base ~28.5 is under 50
-    CHECK(near(wet.r.world.waterHeight(100.0f, 100.0f), 50.0f));
+    MorphRig wet(true, 50.0f); // base ~28.5 is under 50: every vertex has weight 1
+    const World& w = wet.r.world;
+    // The wave term of as3d/water.h at the world's clock (0 at the level start).
+    const WaterSample s = waterHeightAt(w.waterSurface(), *w.terrain(), 100.0f, 100.0f, w.time());
+    CHECK(w.waterHeight(100.0f, 100.0f) == s.height);
+    // Vertex (2, 2) at T = 0: 50 + 16 * 0.5 * (sin(1.5) + sin(2)).
+    CHECK(near(w.waterHeight(80.0f, 80.0f), 50.0f + 8.0f * (std::sin(1.5f) + std::sin(2.0f))));
+    CHECK(std::fabs(w.waterHeight(100.0f, 100.0f) - 50.0f) <= 16.0f);
     // The builtin.
     BT t;
     t.setup([](Asm& a) {

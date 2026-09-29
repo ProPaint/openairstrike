@@ -1,7 +1,7 @@
 // The terrain as the sequels' game rules change it: TerraMorph stamps and the water height
 // (docs/spec/as2/rcsl-builtins-semantics.delta.md 95 and 67, engine-behaviour.delta.md 4.2
 // and 4.7, docs/spec/as2/issues/200). Simulation side only: the renderer mirrors the
-// changed vertices through World::takeTerrainChanges.
+// changed vertices through World::terrainChangesSince.
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -122,24 +122,37 @@ bool World::terraMorph(float x, float y, const char* name) {
 }
 
 void World::noteTerrainChange(const TerrainChange& c) {
-    if (terrainChanges_.size() < kMaxTerrainChanges) {
-        terrainChanges_.push_back(c);
-        return;
-    }
-    TerrainChange& all = terrainChanges_.back();
-    all.c0 = std::min(all.c0, c.c0);
-    all.r0 = std::min(all.r0, c.r0);
-    all.c1 = std::max(all.c1, c.c1);
-    all.r1 = std::max(all.r1, c.r1);
+    if (terrainLog_.size() != kMaxTerrainChanges) terrainLog_.assign(kMaxTerrainChanges, TerrainChange());
+    terrainLog_[terrainRevision_ % kMaxTerrainChanges] = c;
+    ++terrainRevision_;
 }
 
-std::vector<TerrainChange> World::takeTerrainChanges() {
-    std::vector<TerrainChange> out;
-    out.swap(terrainChanges_);
-    return out;
+bool World::terrainChangesSince(u32 rev, std::vector<TerrainChange>& out) const {
+    out.clear();
+    const u32 behind = terrainRevision_ - rev; // unsigned: wraps like the counter
+    if (behind == 0) return true;
+    if (behind <= kMaxTerrainChanges && terrainLog_.size() == kMaxTerrainChanges) {
+        for (u32 r = rev; r != terrainRevision_; ++r) out.push_back(terrainLog_[r % kMaxTerrainChanges]);
+        return true;
+    }
+    if (terrainValid_) {
+        TerrainChange all;
+        all.c1 = terrain_.width();
+        all.r1 = terrain_.height();
+        out.push_back(all);
+    }
+    return false;
+}
+
+WaterSample World::waterSample(float x, float y) const {
+    if (!terrainValid_) return WaterSample();
+    return waterHeightAt(water_, terrain_, x, y, time_);
 }
 
 float World::waterHeight(float x, float y) const {
+    // The sequels: the animated surface at the simulation's clock, the same function and
+    // time the water renderer draws (as3d/water.h).
+    if (rules_->waterFollowsWaves) return terrainValid_ ? waterSample(x, y).height : 0.0f;
     if (!hasWater_ || !terrainValid_) return terrainHeight(x, y);
     // The water grid: a flooded vertex holds the water level, any other one the terrain,
     // the first and last rows too; bilinear in between, clamped to the map like

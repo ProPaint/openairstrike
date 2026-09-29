@@ -59,6 +59,14 @@ struct LevelSetup {
     int lives[2] = {2, 2};         // lives at level start
     long long banked[2] = {0, 0};  // banked score (the HUD shows p_scores + banked)
     int camera = 1;
+    // Weapons at the start (as2 engine-behaviour.delta.md 8.2). false: the game's own rule
+    // (the sequels' mission loadout table, the first game's level-start reset): a new game and
+    // a Restart. true: "Next" in a game whose upgrades carry over (GameRules::
+    // upgradesCarryToNextMission): these upgrades and this weapon instead of the loadout.
+    bool carryUpgrades = false;
+    int upgrades[2][as3d::kMaxWeaponSlots] = {};
+    int weapon[2] = {0, 0};
+    double rankAccumulator[2] = {0.0, 0.0}; // the campaign's, for EndLevel's checkpoint rank
 };
 
 class GameSession {

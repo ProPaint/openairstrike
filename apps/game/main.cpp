@@ -371,6 +371,7 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
             ts.player = &hud;
             ts.assets = &view->assets();
             ts.alpha = fade.alpha(touch.layout().alpha);
+            ts.rules = &session.rules();
             view->overlay().begin(a.width, a.height);
             drawTouchControls(view->overlay(), touch, ts);
             view->overlay().flush();

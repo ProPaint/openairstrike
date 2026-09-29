@@ -97,6 +97,12 @@ public:
     // True while the gameplay controls are live (touch controls drawn, keys reach the world).
     bool playing() const;
     bool mouseControl() const { return profile_.settings.mouseControl; }
+    // The sequels' mouse control (GameRules::accelInput, mouseAccel; issue as2/272): the
+    // helicopter steers by relative mouse motion (the window loop captures the pointer and
+    // puts the motion into FrameInput::mouseDx/Dy) instead of the first game's cursor. True
+    // while it is live: playing, MouseControl on, not in touch mode.
+    bool relativeMouseRules() const { return session_.rules().accelInput && session_.rules().mouseAccel > 0.0f; }
+    bool relativeMouseActive() const { return playing() && mouseControl() && !config_.touch && relativeMouseRules(); }
     // The screen mode in use: the session's override until the player changes the setting.
     int screenMode() const { return screenOverride_ >= 0 ? screenOverride_ : profile_.settings.screenMode; }
     // The framebuffer size, for the Options screen (the Screen row on wide windows).
@@ -155,6 +161,10 @@ private:
 // The player's helicopter centre in the virtual 800x600 screen (y down), from its collision
 // rectangle of the last step. False when there is no visible player helicopter.
 bool playerScreenCentre(const as3d::World& w, int player, float& vx, float& vy);
+
+// The campaign checkpoint of a completed level into a mission report (hasCheckpoint false
+// for a game without it, before EndLevel and for a level that is not a mission).
+void fillCheckpoint(const as3d::World& w, as3d::ui::MissionReport& r);
 
 // Profile path of the platform: <userDataDir()>/profile.bin, "" if there is none. It is the
 // first game's location before the saves went into a directory per game: GameFlow::init turns

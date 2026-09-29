@@ -186,7 +186,7 @@ struct Shot {
 
 // Renders the overlay of `p` over a flat ground colour into a 2400x1080 target.
 bool renderOverlay(const ui::UiAssets& assets, ui::Renderer2D& r, const ui::HudPlayer* p, bool mode4x3, bool left,
-                   bool pressed, Shot& out) {
+                   bool pressed, Shot& out, const GameRules* rules = nullptr) {
     RenderTarget target;
     if (!target.create(2400, 1080, 0)) return false;
     target.bind();
@@ -208,6 +208,7 @@ bool renderOverlay(const ui::UiAssets& assets, ui::Renderer2D& r, const ui::HudP
     as3d_game::TouchOverlayState st;
     st.assets = &assets;
     st.player = p;
+    st.rules = rules;
     r.begin(2400, 1080);
     as3d_game::drawTouchControls(r, touch, st);
     r.flush();
@@ -313,4 +314,54 @@ TEST_CASE("next item: the next buttons show different pixels when the next item 
         REQUIRE(renderOverlay(assets, r, &dis, false, false, false, s));
         CHECK(writePng((std::string(dir) + "/next_wide_right_disabled.png").c_str(), s.img));
     }
+}
+
+TEST_CASE("next item: the buttons preview by the game's rules (AirStrike 2: 9 weapon slots, power-up skip mask)") {
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_GLES();
+    Vfs vfs;
+    REQUIRE(uitest::mountPaks(vfs));
+    ui::UiAssets assets;
+    std::string err;
+    REQUIRE_MESSAGE(assets.load(vfs, &err), err);
+    ui::Renderer2D r;
+    REQUIRE_MESSAGE(r.init(&err), err);
+    const GameRules& as2 = gameProfile(GameId::AirStrike2).rules;
+    const GameRules& as3d = gameProfile(GameId::AirStrike3D).rules;
+    const auto idx = [](TouchButton b) { return static_cast<int>(b); };
+
+    // Weapon 8 of slots 0, 8 and 12: the first game's next is 12, the sequel's (9 slots) 0.
+    // Power-up 5 of 5, 6 and 10: the first game's next is 6, the sequel's (6, 7, 9 skipped) 10.
+    ui::HudPlayer p;
+    p.weapon = 8;
+    p.upgrades[0] = 1;
+    p.upgrades[8] = 1;
+    p.upgrades[12] = 1;
+    p.powerupSelected = 5;
+    p.powerups[5] = 1;
+    p.powerups[6] = 2;
+    p.powerups[10] = 3;
+    CHECK(nextWeaponIndex(as2, p.upgrades, p.weapon) == 0);
+    CHECK(nextWeaponIndex(as3d, p.upgrades, p.weapon) == 12);
+    CHECK(nextPowerupSlot(as2, p.powerups, p.powerupSelected) == 10);
+    CHECK(nextPowerupSlot(as3d, p.powerups, p.powerupSelected) == 6);
+    // The same player without the items the sequel cannot select: the first game's rule then
+    // previews what the sequel's rule previews with them.
+    ui::HudPlayer q = p;
+    q.upgrades[12] = 0;
+    q.powerups[6] = 0;
+    Shot sequel, first, reduced;
+    REQUIRE(renderOverlay(assets, r, &p, false, false, false, sequel, &as2));
+    REQUIRE(renderOverlay(assets, r, &p, false, false, false, first, &as3d));
+    REQUIRE(renderOverlay(assets, r, &q, false, false, false, reduced, &as3d));
+    for (TouchButton b : {TouchButton::NextWeapon, TouchButton::NextPowerUp}) {
+        INFO("button " << idx(b));
+        const TouchCircle& c = sequel.layout.circles[idx(b)];
+        CHECK(diffIn(sequel.img, reduced.img, c) == 0);
+        CHECK(diffIn(sequel.img, first.img, c) > 30);
+    }
+    // No rules: the first game's.
+    Shot none;
+    REQUIRE(renderOverlay(assets, r, &p, false, false, false, none));
+    CHECK(diffIn(none.img, first.img, first.layout.circles[idx(TouchButton::NextWeapon)]) == 0);
 }

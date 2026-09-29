@@ -54,6 +54,12 @@ struct FrameInput {
     u32 held[kMaxPlayers] = {0, 0}; // held p_action bits per player
     bool confirm = false;           // held
     bool pausePressed = false;      // edge: toggle the pause this frame
+    // The sequels' mouse control (as2/engine-behaviour.delta.md 7.2, issue as2/272): player
+    // 1's relative mouse motion during this step (x right, y up) while MouseControl is on.
+    // Not part of input scripts (neither recorded nor compared): a recorded run with mouse
+    // steering does not replay.
+    bool mouseSteer = false;
+    float mouseDx = 0.0f, mouseDy = 0.0f;
 
     PlayerInput toPlayerInput() const;
     bool operator==(const FrameInput& o) const {

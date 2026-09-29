@@ -129,6 +129,10 @@ struct MissionStart {
     bool carryUpgrades = false;
     int upgrades[2][kMaxWeaponSlots] = {};
     int weapon[2] = {0, 0};
+    // The campaign's rank accumulator at the start (Campaign's, profile.h), so that the
+    // checkpoint EndLevel writes (MissionReport::checkpointRank, as2 10.3) holds the whole
+    // campaign's rank as the original's does. 0 = only this mission's part.
+    double rankAccumulator[2] = {0.0, 0.0};
 };
 
 // What the game reports at EndLevel and at game over (frontend.md 5.3 to 5.5).
@@ -141,6 +145,18 @@ struct MissionReport {
     bool hasUpgrades = false;
     int upgrades[2][kMaxWeaponSlots] = {};
     int weapon[2] = {0, 0};
+    // The campaign checkpoint EndLevel wrote (GameRules::campaignCheckpoint, as2
+    // engine-behaviour.delta.md 10.3): the mission it resumes (0-based, the one after the
+    // completed mission, as MissionStart::mission; the mission count after the last one,
+    // which no start matches) and per player the lives, total score
+    // (banked + this mission's) and rank accumulator to start it with. Starting that mission
+    // again ("Continue") takes them; any other start begins afresh. False for a game without
+    // the checkpoint and at game over.
+    bool hasCheckpoint = false;
+    int checkpointMission = -1;
+    int checkpointLives[2] = {0, 0};
+    std::int64_t checkpointScore[2] = {0, 0};
+    float checkpointRank[2] = {0.0f, 0.0f};
 };
 
 class GameHost {

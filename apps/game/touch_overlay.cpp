@@ -188,6 +188,8 @@ void drawTouchControls(ui::Renderer2D& r, const TouchMapper& touch, const TouchO
     const ui::Mapping& m = r.mapping();
     const ui::HudPlayer* p = st.player;
     const ui::UiAssets* as = st.assets;
+    // The game's own cycling rules: the sequels' 9 weapon slots and power-up skip mask.
+    const GameRules& rules = st.rules ? *st.rules : defaultGameRules();
     for (int i = 0; i < kTouchButtonCount; ++i) {
         const TouchButton id = static_cast<TouchButton>(i);
         const bool held = touch.buttonHeld(id);
@@ -231,7 +233,7 @@ void drawTouchControls(ui::Renderer2D& r, const TouchMapper& touch, const TouchO
             case TouchButton::NextWeapon:
                 if (p) {
                     // The big icon is the weapon one press selects; no count (a weapon is a level).
-                    const int nw = nextWeaponIndex(p->upgrades, p->weapon);
+                    const int nw = nextWeaponIndex(rules, p->upgrades, p->weapon);
                     itemFace(r, as, box, x, y, rad, a, ItemKind::Weapon, nw, 0, false, true, nw != p->weapon);
                 } else {
                     bulletsIcon(r, box, 0.22f, 0.2f, 0.78f, 0.6f, light);
@@ -249,7 +251,7 @@ void drawTouchControls(ui::Renderer2D& r, const TouchMapper& touch, const TouchO
                 break;
             case TouchButton::NextPowerUp:
                 if (p) {
-                    const int nk = nextPowerupSlot(p->powerups, p->powerupSelected);
+                    const int nk = nextPowerupSlot(rules, p->powerups, p->powerupSelected);
                     itemFace(r, as, box, x, y, rad, a, ItemKind::Powerup, nk, p->powerups[nk], true, true,
                              nk != p->powerupSelected);
                 } else {

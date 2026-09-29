@@ -110,6 +110,16 @@ void World::setupTransform(int idx) {
         Vec3 fwd = cross(left, n);
         float m[9] = {fwd.x, fwd.y, fwd.z, left.x, left.y, left.z, n.x, n.y, n.z};
         std::copy(m, m + 9, axis);
+    } else if (root && rules_->waterFlags && (fl & kFlOnWaterTiltBit) && terrainValid_) {
+        // FL_ONWATER_NORMAL (as2 G_AlignToWater, engine-behaviour.delta.md 4.2): the same
+        // construction on the plane through the water surface at the same three points.
+        const Vec3 n = waterSample(e.f(F_ORIGIN), e.f(F_ORIGIN + 1)).normal;
+        float yaw = e.f(F_ANGLES + 2) * kDegToRad;
+        Vec3 f0{std::cos(yaw), std::sin(yaw), 0.0f};
+        Vec3 left = normalize(cross(n, f0));
+        Vec3 fwd = cross(left, n);
+        float m[9] = {fwd.x, fwd.y, fwd.z, left.x, left.y, left.z, n.x, n.y, n.z};
+        std::copy(m, m + 9, axis);
     } else {
         anglesToAxisRows(e.f(F_ANGLES), e.f(F_ANGLES + 1), e.f(F_ANGLES + 2), axis);
     }

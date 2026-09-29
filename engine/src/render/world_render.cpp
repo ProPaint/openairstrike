@@ -194,8 +194,15 @@ struct WorldRenderer::Impl {
     RenderRules rules = renderRules(GameId::AirStrike3D);
     SkidTrailRenderer skids;
     bool skidsReady = false;
-    const SkidTrail* skidTrails = nullptr;
+    std::vector<SkidTrail> skidTrails; // the world's trails of this frame, as the pass takes them
     size_t skidTrailCount = 0;
+    // The world's terrain revision whose heights the meshes hold (World::terrainChangesSince).
+    u32 terrainRevision = 0;
+    std::vector<TerrainChange> changeScratch;
+    std::vector<VertexRect> rectScratch;
+
+    void followTerrainChanges(const World& world);
+    void collectSkidTrails(const World& world);
     Vec3 towardsSun{0.0f, 0.0f, 1.0f};
     // Materials by (definition, model, skin); unique_ptr keeps addresses stable.
     std::map<std::pair<const ObjectDef*, std::string>, std::unique_ptr<Material>> materials;
@@ -337,6 +344,8 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     im.memory.assign(static_cast<size_t>(kMaxEntitySlots), SlotMemory());
     im.marks.clear();
     im.lastMarkDescs.clear();
+    // The meshes are built from the heights as they are now (craters of the load included).
+    im.terrainRevision = world.terrainRevision();
     const Terrain* t = world.terrain();
     if (!t) return true; // an empty test level: nothing to build
     std::unique_ptr<TerrainRenderer> tr(new TerrainRenderer());
@@ -368,17 +377,47 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     return true;
 }
 
-void WorldRenderer::terrainChanged(const VertexRect* rects, size_t count) {
-    Impl& im = *impl_;
-    if (!im.terrainOf || count == 0) return;
-    const TerrainGridView grid = TerrainGridView::of(*im.terrainOf);
-    if (im.terrain) im.terrain->update(rects, count, grid);
-    if (im.water) im.water->update(rects, count, grid);
+void WorldRenderer::Impl::followTerrainChanges(const World& world) {
+    if (!terrainOf || world.terrain() != terrainOf) return;
+    const u32 rev = world.terrainRevision();
+    if (rev == terrainRevision) return;
+    world.terrainChangesSince(terrainRevision, changeScratch);
+    terrainRevision = rev;
+    rectScratch.clear();
+    for (const TerrainChange& c : changeScratch) {
+        VertexRect v;
+        v.c0 = c.c0;
+        v.r0 = c.r0;
+        v.c1 = c.c1;
+        v.r1 = c.r1;
+        if (!v.empty()) rectScratch.push_back(v);
+    }
+    if (rectScratch.empty()) return;
+    const TerrainGridView grid = TerrainGridView::of(*terrainOf);
+    if (terrain) terrain->update(rectScratch.data(), rectScratch.size(), grid);
+    if (water) water->update(rectScratch.data(), rectScratch.size(), grid);
 }
 
-void WorldRenderer::setSkidTrails(const SkidTrail* trails, size_t count) {
-    impl_->skidTrails = trails;
-    impl_->skidTrailCount = trails ? count : 0;
+void WorldRenderer::Impl::collectSkidTrails(const World& world) {
+    const size_t n = world.liveSkidTrailCount();
+    if (skidTrails.size() < n) skidTrails.resize(n);
+    skidTrailCount = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const WorldSkidTrail& src = world.liveSkidTrail(i);
+        if (src.nodeCount < 2) continue; // a strip needs two sections
+        SkidTrail& t = skidTrails[skidTrailCount++];
+        t.texture = src.texture ? *src.texture : std::string();
+        t.nodes.resize(static_cast<size_t>(src.nodeCount));
+        for (int k = 0; k < src.nodeCount; ++k) {
+            const WorldSkidNode& a = src.nodes[static_cast<size_t>(k)];
+            SkidNode& b = t.nodes[static_cast<size_t>(k)];
+            b.position = a.position;
+            b.direction = a.direction;
+            b.width = src.width;
+            b.age = a.age;
+            b.distance = a.distance;
+        }
+    }
 }
 
 const RenderRules& WorldRenderer::rules() const { return impl_->rules; }
@@ -467,6 +506,8 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
     const WorldView wv = worldViewOf(world, aspect);
     const Terrain* terrain = world.terrain();
     const bool haveTerrain = terrain && im.terrain && im.terrainOf == terrain;
+    // Craters since the last frame: the meshes follow the world's heights (read only).
+    im.followTerrainChanges(world);
 
     // Lighting and fog from the level (render-pipeline.md 2.2, 2.3).
     SceneLighting light;
@@ -710,8 +751,10 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
         }
         if (!im.markDescs.empty()) im.marks.draw(dv);
         // The sequels' skid marks, between the marks and the shadows (as2 delta 1.1 pass 5).
-        if (im.rules.skidMarkPass && im.skidsReady && options.sprites && im.skidTrailCount > 0) {
-            im.skids.draw(im.skidTrails, im.skidTrailCount, TerrainGridView::of(*terrain), dv);
+        if (im.rules.skidMarkPass && im.skidsReady && options.sprites) im.collectSkidTrails(world);
+        else im.skidTrailCount = 0;
+        if (im.skidTrailCount > 0) {
+            im.skids.draw(im.skidTrails.data(), im.skidTrailCount, TerrainGridView::of(*terrain), dv);
             stats_.skidTrails = im.skids.lastTrailCount();
         }
         // Pass 5: shadows.

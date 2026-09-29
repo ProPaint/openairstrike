@@ -17,10 +17,18 @@ void SpawnCursor::build(const std::vector<Placement>& placements) {
 
 void SpawnCursor::reset() { cursor_ = 0; }
 
-SpawnCursor::Result SpawnCursor::update(float mapPos) {
+SpawnCursor::Result SpawnCursor::update(float mapPos) { return update(mapPos, 1000.0f); }
+
+SpawnCursor::Result SpawnCursor::takeAll() {
+    Result r;
+    while (cursor_ < sorted_.size()) r.toSpawn.push_back(sorted_[cursor_++]);
+    return r;
+}
+
+SpawnCursor::Result SpawnCursor::update(float mapPos, float farOffset) {
     Result r;
     float nearRow = (mapPos - 64.0f) / kHmapCellSize;
-    float farRow = (mapPos + 1000.0f) / kHmapCellSize;
+    float farRow = (mapPos + farOffset) / kHmapCellSize;
     while (cursor_ < sorted_.size()) {
         const Placement* p = sorted_[cursor_];
         float y = static_cast<float>(p->y);

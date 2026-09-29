@@ -116,18 +116,13 @@ public:
     // (render-pipeline.md 1.5; config.ini Brightness, 0.5 neutral, default 0.6).
     void drawBrightness(int width, int height, float brightness);
 
-    // Terrain heights changed inside these vertex rectangles (TerraMorph): the terrain and
-    // water meshes re-upload the touched chunks from the world's terrain (whose positions()
-    // must already hold the new heights). TODO(orchestrator): World has no accessor for its
-    // terrain changes yet (C5 package); once it has one (for example a list of VertexRect
-    // written by TerraMorph and cleared each frame), render() should consume it itself and
-    // callers stop calling this.
-    void terrainChanged(const VertexRect* rects, size_t count);
-    // The skid trails to draw in pass 5 of the sequels' frame (as3d/skid_render.h), kept by
-    // pointer until replaced: the caller keeps them alive. TODO(orchestrator): World has no
-    // accessor for its trails yet (the trail simulation is another package); once it has,
-    // render() should read them from the world.
-    void setSkidTrails(const SkidTrail* trails, size_t count);
+    // Terrain heights changed (TerraMorph): at every render() the renderer reads the world's
+    // changes after the revision it saw last (World::terrainChangesSince) and the terrain and
+    // water meshes re-upload the touched chunks from the world's terrain; ground marks cut
+    // afterwards and skid trails lie on the new heights. The world is only read.
+    //
+    // Skid trails (pass 5 of the sequels' frame): render() draws the world's live trails
+    // (World::liveSkidTrail, as3d/world_skid.h) through SkidTrailRenderer.
     // The game's render rules chosen at beginLevel from world.rules() (as3d/render_rules.h).
     const RenderRules& rules() const;
 

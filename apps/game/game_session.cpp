@@ -105,6 +105,17 @@ bool GameSession::startMission(const LevelSetup& s, std::string* error) {
         PlayerRecord& pr = world_->player(p);
         pr.livesAtStart = s.lives[p];
         pr.banked = static_cast<int>(std::max(-2000000000LL, std::min(2000000000LL, s.banked[p])));
+        pr.rankAccumulator = static_cast<float>(s.rankAccumulator[p]);
+    }
+    // Weapons (as2 engine-behaviour.delta.md 8.2): the level start applies the mission's
+    // loadout (new game, Restart) unless the upgrades of the last mission carry over (Next).
+    if (s.carryUpgrades && rules().upgradesCarryToNextMission) {
+        for (int p = 0; p < kMaxPlayers; ++p) {
+            PlayerRecord& pr = world_->player(p);
+            for (int k = 0; k < kMaxWeaponSlots; ++k) pr.upgrades[k] = s.upgrades[p][k];
+            pr.weapon = static_cast<float>(s.weapon[p]);
+        }
+        world_->carryUpgradesToNextLevel();
     }
     mission_ = std::min(std::max(s.mission, 1), rules().missionCount);
     resetFlow();
@@ -198,8 +209,12 @@ int GameSession::step(const FrameInput& input) {
                 // campaign starts over (the congratulations screen is not implemented).
                 bankScores();
                 next = mission_ >= rules().missionCount ? 1 : mission_ + 1;
+                // "Next" keeps the upgrades collected so far where they carry over (as2 8.2);
+                // the campaign's start over after the last mission is a new game.
+                if (rules().upgradesCarryToNextMission && next != 1) w.carryUpgradesToNextLevel();
             }
-            // Game over: Restart reloads the mission with the lives it started with.
+            // Game over: Restart reloads the mission with the lives it started with (and, in
+            // the sequels, the mission's loadout).
             if (!startMission(next, &err)) {
                 AS3D_ERROR("cannot start mission %d: %s", next, err.c_str());
             } else {

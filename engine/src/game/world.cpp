@@ -11,6 +11,7 @@
 #include "as3d/script_host.h"
 #include "as3d/vfs.h"
 #include "as3d/world_particles.h"
+#include "defs_enums.h"
 #include "world_internal.h"
 #include "world_path.h"
 
@@ -42,11 +43,11 @@ float defClass(const ObjectDef& def) {
     return static_cast<float>(static_cast<int>(def.kind));
 }
 
-// The sequels' touch mode, a bit set (3.1): TOUCH_ALL is 0xF, TOUCH_CIVILIAN adds 0x4. The
-// loader keeps the last TOUCH_ENEMIES / TOUCH_PLAYER / TOUCH_ALL statement and the civilian
-// bit apart; the shipped definitions have at most one of the former (combinations 1, 2, 4,
-// 5, 6), so this equals the original's OR (docs/spec/as2/issues/233).
+// The sequels' touch mode, a bit set (3.1): the OR of every `touch` statement of the
+// definition, TOUCH_ALL setting 0xF (docs/spec/as2/issues/233). A definition built without
+// its text (tests) combines the loader's fields the same way.
 int sequelTouchMode(const ObjectDef& def) {
+    if (def.source) return defs_detail::sequelTouchModeOf(*def.source);
     int mode = def.touch == TouchMode::All ? 0xF : static_cast<int>(def.touch);
     if (def.sequelTouch & SEQ_TOUCH_CIVILIAN) mode |= TOUCH_BIT_CIVILIAN;
     return mode;
@@ -126,6 +127,7 @@ void World::resetPools() {
     slotsInUse_ = 0;
     current_ = -1;
     dispatchDepth_ = 0;
+    resetSkidTrails(); // rebuilt with the entity pool (as2@0x40e474)
 }
 
 int World::allocSlot() {
@@ -152,6 +154,7 @@ void World::freeSlot(int idx) {
     std::vector<u32>& tomb = tombs_[static_cast<size_t>(idx)];
     std::copy(e.fields, e.fields + kEntityFieldCount, tomb.begin());
     tomb[F_DEAD] = fbits(1.0f);
+    releaseSkidTrails(e);
     e.thread.reset();
     e.program = nullptr;
     e.children.clear();
@@ -314,7 +317,13 @@ void World::applyDef(int idx, const ObjectDef* def) {
     e.def = def;
     e.name = def->name;
     e.setF(F_CLASS, defClass(*def));
-    e.setF(F_FLAGS, static_cast<float>(def->flags));
+    u32 flags = def->flags;
+    if (rules_->waterFlags) {
+        // The executable's values of the two sequel keywords (3.1): 0xC and 0x204.
+        if (def->sequelFlags & SEQ_FL_ONWATER_NORMAL) flags |= FL_ONWATER | kFlOnWaterTiltBit;
+        if (def->sequelFlags & SEQ_FL_ONWATER_FLAT) flags |= FL_ONWATER | kFlOnWaterFlatBit;
+    }
+    e.setF(F_FLAGS, static_cast<float>(flags));
     e.setF(F_HEALTH, static_cast<float>(def->health));
     e.setF(F_DAMAGE, static_cast<float>(def->damage));
     e.setF(F_SCORE, static_cast<float>(def->score));
@@ -361,6 +370,7 @@ int World::buildEntity(const ObjectDef* def, int depth) {
         return -1;
     }
     applyDef(idx, def);
+    attachSkidTrails(idx);
     if (depth >= kMaxAttachDepth) return idx;
     for (const AttachDef& at : def->attachments) {
         if (at.nightOnly && !night_) continue;
@@ -415,10 +425,16 @@ void World::setActive(int idx, bool on) {
 
 float World::terrainHeight(float x, float y) const { return terrainValid_ ? terrain_.heightAt(x, y) : 0.0f; }
 
-void World::snapToGround(Entity& e) {
+void World::snapToGround(Entity& e, bool spawn) {
     int fl = e.flagBits();
-    if (fl & FL_ONGROUND) e.setF(F_ORIGIN + 2, terrainHeight(e.f(F_ORIGIN), e.f(F_ORIGIN + 1)));
-    else if (fl & FL_ONWATER) e.setF(F_ORIGIN + 2, waterLevel_);
+    if (fl & FL_ONGROUND) {
+        e.setF(F_ORIGIN + 2, terrainHeight(e.f(F_ORIGIN), e.f(F_ORIGIN + 1)));
+    } else if (fl & FL_ONWATER) {
+        // The sequels (as2/engine-behaviour.delta.md 4.2): the animated surface, except for
+        // FL_ONWATER_FLAT and at spawn; the first game: always the flat level.
+        const bool flat = spawn || !rules_->waterFollowsWaves || (rules_->waterFlags && (fl & kFlOnWaterFlatBit));
+        e.setF(F_ORIGIN + 2, flat ? waterLevel_ : waterHeight(e.f(F_ORIGIN), e.f(F_ORIGIN + 1)));
+    }
 }
 
 int World::createEntity(const std::string& defName, const Vec3& pos, int creator) {
@@ -438,7 +454,7 @@ int World::spawnRoot(const ObjectDef* def, const Vec3& pos, bool snap) {
     Entity& e = ents_[static_cast<size_t>(idx)];
     setStateRecursive(idx, ES_ACTIVE);
     e.setV3(F_ORIGIN, pos);
-    if (snap) snapToGround(e);
+    if (snap) snapToGround(e, true);
     return idx;
 }
 

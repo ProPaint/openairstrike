@@ -20,6 +20,8 @@
 #include "as3d/math.h"
 #include "as3d/script.h"
 #include "as3d/terrain.h"
+#include "as3d/water.h"
+#include "as3d/world_skid.h"
 
 namespace as3d {
 
@@ -104,6 +106,11 @@ constexpr float kClassCivilian = 5.0f; // as2/engine-behaviour.delta.md 3.1.1 (`
 // Touch mode bits of the sequels (as2/engine-behaviour.delta.md 5.2): the first game's
 // modes 1, 2 and 3 read as a bit set, plus civilians.
 enum TouchBit : int { TOUCH_BIT_ENEMIES = 0x1, TOUCH_BIT_PLAYER = 0x2, TOUCH_BIT_CIVILIAN = 0x4 };
+
+// Flag bits the sequels' parser adds to field 3 (as2/engine-behaviour.delta.md 3.1):
+// FL_ONWATER_NORMAL is 0xC (FL_ONWATER + 0x8), FL_ONWATER_FLAT 0x204 (FL_ONWATER + 0x200).
+constexpr int kFlOnWaterTiltBit = 0x8;
+constexpr int kFlOnWaterFlatBit = 0x200;
 
 // p_action bits (engine-behaviour.md 7.2).
 enum ActionBit : u32 {
@@ -221,6 +228,12 @@ struct Entity {
     bool hasPrevPoint = false;
     float prevPoint[3] = {0, 0, 0};
 
+    // as2 fields 88 and 89 (engine-behaviour.delta.md 3.2): the skid trails this entity
+    // lays, one per skid_mark record of its definition (pool index, -1 when the pool was
+    // empty).
+    int skidTrailCount = 0;
+    int skidTrails[kMaxEntitySkidTrails] = {-1, -1, -1, -1, -1, -1, -1, -1};
+
     u32 fields[kEntityFieldCount] = {};
 
     float f(int k) const;
@@ -262,12 +275,14 @@ struct PlayerRecord {
 };
 
 // A rectangle of terrain vertices whose heights changed (TerraMorph), inclusive, in vertex
-// columns (x) and rows (y). World::takeTerrainChanges hands them to whoever mirrors the
-// heights (the terrain renderer) and clears the list.
+// columns (x) and rows (y). The world keeps the last kMaxTerrainChanges of them numbered by
+// a revision count (World::terrainRevision, terrainChangesSince): whoever mirrors the heights
+// (the terrain renderer) remembers the revision it has seen and reads what came after, so
+// nobody takes anything from the world and a reader never changes the simulation.
 struct TerrainChange {
     int c0 = 0, r0 = 0, c1 = -1, r1 = -1;
 };
-constexpr size_t kMaxTerrainChanges = 64; // more in one frame merge into their bounding box
+constexpr size_t kMaxTerrainChanges = 64; // kept; a reader further behind refreshes everything
 constexpr int kMaxTerraMorphStamps = 64;  // distinct stamps per level (as2 TerraMorph step 1)
 
 // Programmatic input (a test or a bot fills it in): the held action bits per player.
@@ -275,6 +290,11 @@ constexpr int kMaxTerraMorphStamps = 64;  // distinct stamps per level (as2 Terr
 struct PlayerInput {
     u32 action[kMaxPlayers] = {0, 0};
     bool confirm = false; // the OK button of a tutorial hint box
+    // The sequels' mouse control (as2/engine-behaviour.delta.md 7.2 step 2): player 1's mouse
+    // motion this step (x right, y up; any unit, only the direction is used) while the
+    // MouseControl setting is on. Read only with GameRules::accelInput and mouseAccel > 0.
+    bool mouseSteer = false;
+    float mouse[2] = {0.0f, 0.0f};
 };
 
 // A dynamic light queued by PlaceLight for this frame (at most 32, cleared each frame).
@@ -435,17 +455,27 @@ public:
 
     // --- movement helpers used by builtins ---------------------------------------
     float terrainHeight(float x, float y) const;
-    // G_WaterHeight (as2/engine-behaviour.delta.md 4.2): the terrain height without water;
-    // with water, the water level over flooded vertices (no wave term: that animation
-    // belongs to the renderer), the terrain elsewhere.
+    // G_WaterHeight (as2/engine-behaviour.delta.md 4.2, rcsl-builtins-semantics.delta.md
+    // 67): with GameRules::waterFollowsWaves the animated surface of as3d/water.h at the
+    // world's clock time() (waterHeightAt: the terrain height without water); otherwise the
+    // still surface (the water level over flooded vertices, the terrain elsewhere).
     float waterHeight(float x, float y) const;
+    // The level's water surface (weights and wet cells fixed at level start, as the
+    // renderer's) and its sample at (x, y) now: height and the normal G_AlignToWater tilts
+    // FL_ONWATER_NORMAL entities to. The renderer draws the waves at the same time().
+    const WaterSurface& waterSurface() const { return water_; }
+    WaterSample waterSample(float x, float y) const;
     // TerraMorph (as2/rcsl-builtins-semantics.delta.md 95): adds the stamp `name` (an 8-bit
     // greyscale TGA, 128 neutral) to the vertex heights around (x, y). False if nothing
     // could be applied (no terrain, stamp missing or not 8-bit, 64 stamps already loaded).
     bool terraMorph(float x, float y, const char* name);
-    // Vertex rectangles changed since the last call, oldest first; clears the list.
-    std::vector<TerrainChange> takeTerrainChanges();
-    const std::vector<TerrainChange>& terrainChanges() const { return terrainChanges_; }
+    // Number of terrain changes since the world was initialised (never goes back, also not
+    // at a level start). A reader that has seen revision `rev` gets the rectangles changed
+    // after it, oldest first, from terrainChangesSince; false when more than
+    // kMaxTerrainChanges came after it (then the whole grid must be refreshed; `out` holds
+    // the grid's full rectangle when a terrain exists). Const: reading changes nothing.
+    u32 terrainRevision() const { return terrainRevision_; }
+    bool terrainChangesSince(u32 rev, std::vector<TerrainChange>& out) const;
     int terraMorphStampCount() const { return static_cast<int>(stamps_.size()); }
     void setupTransform(int idx);
     void attachToTag(int idx);
@@ -465,6 +495,13 @@ public:
     void showHint(const std::string& text);
     void dismissHint();
     script::u64 hintsShown() const { return hintsShown_; }
+
+    // --- skid trails (world_skid.cpp, as3d/world_skid.h) ----------------------------
+    // The live trails in the original's list order (newest first), the order they are drawn;
+    // at most GameRules::skidTrailPool. Updated after the entity pass of every frame.
+    size_t liveSkidTrailCount() const { return skidLive_.size(); }
+    const WorldSkidTrail& liveSkidTrail(size_t i) const { return skidPool_[static_cast<size_t>(skidLive_[i])]; }
+    int freeSkidTrailCount() const { return static_cast<int>(skidFree_.size()); }
 
     // --- particles (world_particles.cpp): the particle-system instances of the emitter
     // holders, simulated at step 7 of the frame (engine-behaviour.md 2); read by the renderer.
@@ -561,14 +598,18 @@ private:
     void attachScript(int idx, const std::string& path);
     void setStateRecursive(int idx, int state);
     void setPlayerIndexRecursive(int idx, int p);
-    void snapToGround(Entity& e);
+    // FL_ONGROUND / FL_ONWATER placement; `spawn`: G_SpawnObject's, which puts every
+    // FL_ONWATER object at the flat level (the first think moves it onto the waves).
+    void snapToGround(Entity& e, bool spawn = false);
     int rootOf(int idx) const;
     void markRemoved(int idx);
 
     // Frame phases.
     void applyInput(const PlayerInput& input);
     void updateCamera();
-    void activateMapObjects();
+    void activateMapObjects(bool loading = false);
+    void loadTimeWorldPass(); // the sequels: spawner, entity pass and render inside the load
+    static constexpr float kLoadSpawnEdge = 800.0f; // V_ResetCamera: front edge mapPos + 800
     void playerFrame();
     void runEntities();
     void updateParticles(); // step 7, not while paused
@@ -582,6 +623,10 @@ private:
     void computeAccel();          // as2 G_PlayerFrame step 1 (GameRules::accelInput)
     void clampPlayerHealth();     // as2 HUD clamp (GameRules::clampPlayerHealthToMax)
     void noteTerrainChange(const TerrainChange& c);
+    void resetSkidTrails();                  // the level start rebuilds the pool
+    void attachSkidTrails(int idx);          // G_InitObject: one trail per skid_mark record
+    void releaseSkidTrails(Entity& e);       // G_FreeEntity: the trails lose their owner
+    void updateSkidTrails();                 // G_UpdateSkidTrails, every frame, also paused
 
     Vfs* vfs_ = nullptr;
     const DefDatabase* db_ = nullptr;
@@ -605,6 +650,8 @@ private:
 
     PlayerRecord players_[kMaxPlayers];
     CameraState camera_;
+    bool mouseSteer_ = false;          // this step's PlayerInput mouse control
+    float mouseMotion_[2] = {0, 0};
 
     // Level.
     std::unique_ptr<LoadedLevel> level_;
@@ -615,6 +662,7 @@ private:
     float hmin_ = -1.0e9f;
     float waterLevel_ = 0.0f;
     bool hasWater_ = false;
+    WaterSurface water_;
     bool night_ = false;
     bool intermission_ = false;
     float intermissionCam_[6] = {};
@@ -629,7 +677,15 @@ private:
         std::vector<u8> pixels; // w * h, row j of the file at j * w
     };
     std::vector<Stamp> stamps_;
-    std::vector<TerrainChange> terrainChanges_;
+    // The last kMaxTerrainChanges changes, a ring: revision r (1-based) at (r - 1) % size.
+    std::vector<TerrainChange> terrainLog_;
+    u32 terrainRevision_ = 0;
+
+    // Skid trails: the pool (sized from the rules at each level start), its free list (LIFO)
+    // and the live list, newest first.
+    std::vector<WorldSkidTrail> skidPool_;
+    std::vector<int> skidFree_;
+    std::vector<int> skidLive_;
 
     float mapPos_ = 32.0f;
     float frametime_ = 0.0f;

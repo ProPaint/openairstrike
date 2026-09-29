@@ -101,9 +101,11 @@ bool World::startLevel(std::unique_ptr<LoadedLevel> lvl, int mission) {
     for (int k = 0; k < 6; ++k) intermissionCam_[k] = st.intermission[k];
     hmin_ = st.hmin;
     stamps_.clear(); // the level loader empties the TerraMorph stamp table
-    terrainChanges_.clear();
     hasWater_ = st.hasWater;
     waterLevel_ = st.waterLevel;
+    // The sequels' animated water: weights and wet cells from the heights at load (issue
+    // as2/220 choice 3); the shine texture does not matter to the simulation.
+    water_ = terrainValid_ ? buildWaterSurface(terrain_, rules_->waterFollowsWaves, std::string()) : WaterSurface();
     night_ = st.night;
 
     const std::vector<Placement>& pls = level_->data.placements;
@@ -130,6 +132,7 @@ bool World::startLevel(std::unique_ptr<LoadedLevel> lvl, int mission) {
     lWater = hasWater_ ? 1.0f : 0.0f;
     lWaterLevel = waterLevel_;
     levelClock_ = 0.0f;
+    if (rules_->spawnDuringLoad) loadTimeWorldPass();
     // G_BeginLevel step 5.
     enemiesInLevel_ = 0;
     maxLevelScore_ = 0.0f;
@@ -148,7 +151,6 @@ void World::startEmptyLevel(bool spawnPlayers) {
     level_.reset();
     terrainValid_ = false;
     stamps_.clear();
-    terrainChanges_.clear();
     gamePaths_.clear();
     static const std::vector<Placement> kNone;
     cursor_.build(kNone);
@@ -156,6 +158,7 @@ void World::startEmptyLevel(bool spawnPlayers) {
     hmin_ = -1000.0f;
     hasWater_ = false;
     waterLevel_ = 0.0f;
+    water_ = WaterSurface();
     night_ = false;
     resetPools();
     resetCamera();
@@ -189,6 +192,7 @@ void World::step(const PlayerInput& input) {
     activateMapObjects();
     if (!intermission_ && !gameOver_) playerFrame();
     runEntities();
+    updateSkidTrails(); // after the entity pass, also while paused (as2 delta 2 step 7)
     updateParticles();
     renderPass();
     clampPlayerHealth();
@@ -209,6 +213,9 @@ void World::clampPlayerHealth() {
 }
 
 void World::applyInput(const PlayerInput& input) {
+    mouseSteer_ = input.mouseSteer;
+    mouseMotion_[0] = input.mouse[0];
+    mouseMotion_[1] = input.mouse[1];
     for (int p = 0; p < config_.players; ++p) {
         PlayerRecord& pr = players_[p];
         u32 now = input.action[p];
@@ -325,10 +332,30 @@ void World::renderPass() {
 // Map spawner (3.4).
 // ---------------------------------------------------------------------------------------
 
-void World::activateMapObjects() {
+void World::activateMapObjects(bool loading) {
     if (!level_) return;
-    SpawnCursor::Result r = cursor_.update(mapPos_);
+    SpawnCursor::Result r;
+    if (intermission_ && rules_->spawnAllOnIntermission) r = cursor_.takeAll(); // as2 3.4, 9.6
+    else if (loading) r = cursor_.update(mapPos_, kLoadSpawnEdge);             // as2 9.7
+    else r = cursor_.update(mapPos_);
     for (const Placement* p : r.toSpawn) spawnPlacement(*p);
+}
+
+// G_StartLevel's last steps in the sequels (as2/engine-behaviour.delta.md 2 and 10.2, issue
+// as2/211, reproduced as the original does it): one spawner call with the reset camera's
+// front edge (rows 0 to 20; every placement on an intermission level), one entity pass
+// (init already ran; one think, collisions and touches) and one render. The caller then
+// resets the enemy total and the maximum score, so the objects spawned here are not counted
+// in them (their kills still count, up to the total). The collision pass uses the reset
+// camera's matrices (ours: the original's are those of its last rendered frame), and
+// frametime is the fixed step, the value the frame that started the load had.
+void World::loadTimeWorldPass() {
+    renderPass();
+    frametime_ = config_.dt;
+    frametimeGlobal = frametime_;
+    activateMapObjects(true);
+    runEntities();
+    renderPass();
 }
 
 void World::spawnPlacement(const Placement& pl) {
@@ -346,7 +373,7 @@ void World::spawnPlacement(const Placement& pl) {
     setStateRecursive(idx, ES_ACTIVE);
     // 1. Position and snapping.
     e.setV3(F_ORIGIN, pl.spawnPosition());
-    snapToGround(e);
+    snapToGround(e, true);
     // 2. Script override.
     if (!pl.scriptOverride.empty()) attachScript(idx, pl.scriptOverride);
     // 3. Player index.
@@ -425,8 +452,9 @@ void World::playerFrame() {
 
 // as2/engine-behaviour.delta.md 7.2 step 1 (VERIFIED-CODE as2@0x413d6b): per player, (0, 0,
 // 0) and, unless the player's actions are disabled, +x right, +y forward, -x left, -y back;
-// a diagonal is scaled to length 1. Mouse control (step 2) is not wired: keys, touch and
-// the bot all produce direction bits.
+// a diagonal is scaled to length 1. Step 2, mouse control: for player 1 only, when its
+// actions are not disabled and the keys gave (0, 0), the mouse motion of this step scaled
+// to length GameRules::mouseAccel (2.0) when it is not zero (issue as2/272).
 void World::computeAccel() {
     for (int p = 0; p < kMaxPlayers; ++p) {
         PlayerRecord& pr = players_[p];
@@ -441,6 +469,14 @@ void World::computeAccel() {
                 float len = std::sqrt(ax * ax + ay * ay);
                 ax /= len;
                 ay /= len;
+            }
+            if (p == 0 && mouseSteer_ && rules_->mouseAccel > 0.0f && ax == 0.0f && ay == 0.0f) {
+                const float mx = mouseMotion_[0], my = mouseMotion_[1];
+                const float len = std::sqrt(mx * mx + my * my);
+                if (len > 0.0f) {
+                    ax = mx / len * rules_->mouseAccel;
+                    ay = my / len * rules_->mouseAccel;
+                }
             }
         }
         pr.accel[0] = ax;
