@@ -1,10 +1,8 @@
-// Windowed backend: an SDL2 window with a GLES 3.0 context. Desktop only; requires a
-// reachable display (X11/Wayland). This is expected to fail gracefully (return null)
-// in a headless CI shell with no DISPLAY -- that is normal, not a bug: use the
-// headless EGL backend (egl_headless.cpp) for automated testing.
-//
-// Desktop only. On Android this file is excluded from the build (see module.cmake);
-// android_stub.cpp stands in for it there.
+// Windowed backend: an SDL2 window with a GLES 3.0 context. On desktop it requires a
+// reachable display (X11/Wayland) and is expected to fail gracefully (return null) in a
+// headless CI shell with no DISPLAY -- use the headless EGL backend (egl_headless.cpp)
+// for automated testing. On Android it is the only backend: a full-screen window on the
+// activity's surface (SDL makes it immersive and keeps the EGL context across pauses).
 #include "backends.h"
 
 #include <SDL.h>
@@ -28,6 +26,10 @@ public:
     }
 
     bool makeCurrent() override { return SDL_GL_MakeCurrent(window_, glContext_) == 0; }
+    void adoptCurrentContext() override {
+        SDL_GLContext cur = SDL_GL_GetCurrentContext();
+        if (cur) glContext_ = cur;
+    }
     void swapBuffers() override { SDL_GL_SwapWindow(window_); }
 
     int width() const override {
@@ -76,6 +78,12 @@ std::unique_ptr<GraphicsContext> createWindowContext(const GraphicsConfig& confi
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
     Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI;
+#ifdef __ANDROID__
+    flags |= SDL_WINDOW_FULLSCREEN;
+#else
+    if (config.fullscreen) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+    if (config.resizable) flags |= SDL_WINDOW_RESIZABLE;
+#endif
     SDL_Window* window = SDL_CreateWindow(config.title ? config.title : "as3d", SDL_WINDOWPOS_CENTERED,
                                            SDL_WINDOWPOS_CENTERED, config.width, config.height, flags);
     if (!window) {
@@ -86,8 +94,17 @@ std::unique_ptr<GraphicsContext> createWindowContext(const GraphicsConfig& confi
 
     SDL_GLContext glContext = SDL_GL_CreateContext(window);
     if (!glContext) {
-        AS3D_ERROR("windowed SDL: SDL_GL_CreateContext failed: %s", SDL_GetError());
+        // Some mobile GPUs offer no 24-bit depth buffer with this configuration.
+        AS3D_WARN("windowed SDL: no context with a 24-bit depth buffer (%s), trying 16", SDL_GetError());
         SDL_DestroyWindow(window);
+        SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
+        window = SDL_CreateWindow(config.title ? config.title : "as3d", SDL_WINDOWPOS_CENTERED,
+                                  SDL_WINDOWPOS_CENTERED, config.width, config.height, flags);
+        glContext = window ? SDL_GL_CreateContext(window) : nullptr;
+    }
+    if (!glContext) {
+        AS3D_ERROR("windowed SDL: SDL_GL_CreateContext failed: %s", SDL_GetError());
+        if (window) SDL_DestroyWindow(window);
         SDL_QuitSubSystem(SDL_INIT_VIDEO);
         return nullptr;
     }

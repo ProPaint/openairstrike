@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "as3d/defs.h"
+#include "as3d/platform.h"
 
 namespace as3d_game {
 
@@ -17,10 +18,24 @@ GameSession::~GameSession() {
 bool GameSession::init(const GameOptions& options, std::string* error) {
     options_ = options;
     std::string root = options.dataRoot.empty() ? "." : options.dataRoot;
-    vfs_.mount(makeDirSource(root + "/assets_extracted"));
+    std::string where = root + "/assets_extracted";
+    if (options.paks.empty()) {
+        vfs_.mount(makeDirSource(where));
+    } else {
+        where = "the pak archives";
+        for (const std::string& pak : options.paks) {
+            std::unique_ptr<IStream> stream = openPlatformStream(pak);
+            std::unique_ptr<IFileSource> source = stream ? makePakSource(std::move(stream)) : nullptr;
+            if (!source) {
+                if (error) *error = "cannot mount " + pak;
+                return false;
+            }
+            vfs_.mount(std::move(source));
+        }
+    }
     db_.reset(new DefDatabase());
     if (!db_->load(vfs_)) {
-        if (error) *error = "cannot load definitions from " + root + "/assets_extracted";
+        if (error) *error = "cannot load definitions from " + where;
         return false;
     }
     world_.reset(new World());

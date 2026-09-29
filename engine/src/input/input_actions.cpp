@@ -56,6 +56,14 @@ PlayerInput FrameInput::toPlayerInput() const {
     return p;
 }
 
+FrameInput mergeFrameInput(const FrameInput& a, const FrameInput& b) {
+    FrameInput out;
+    for (int k = 0; k < kMaxPlayers; ++k) out.held[k] = a.held[k] | b.held[k];
+    out.confirm = a.confirm || b.confirm;
+    out.pausePressed = a.pausePressed || b.pausePressed;
+    return out;
+}
+
 namespace {
 
 bool isPickupName(const std::string& n) {

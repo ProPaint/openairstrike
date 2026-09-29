@@ -1,4 +1,5 @@
-// AirStrike 3D Android bring-up app (WP-18). See docs/android.md.
+// AirStrike 3D for Android: the game (apps/game) with touch controls. See docs/android.md.
+// The APK bundles the original game data (copyrighted): for the owner's personal use only.
 plugins {
     id "com.android.application"
 }
@@ -11,6 +12,11 @@ def repoRoot = rootDir.parentFile
 // build scripts can point at a machine-specific location.
 def dataRoot = System.getenv("AS3D_DATA_ROOT") ?: repoRoot.absolutePath
 def sdl2Dir = System.getenv("AS3D_SDL2_DIR") ?: "${dataRoot}/third_party_local/SDL2-2.30.12"
+// ABIs to build: arm64-v8a for phones, x86_64 for the emulator. AS3D_ANDROID_ABIS narrows it
+// (comma-separated) to save build time.
+def abiList = (System.getenv("AS3D_ANDROID_ABIS") ?: "arm64-v8a,x86_64").split(",").collect { it.trim() }
+// Parallel native compile jobs (the build machine is shared).
+def nativeJobs = System.getenv("AS3D_NATIVE_JOBS") ?: "4"
 
 if (!new File(sdl2Dir, "include/SDL.h").exists()) {
     // Not fatal here: Gradle configures every included project (this one)
@@ -35,18 +41,22 @@ android {
         minSdk 26
         targetSdk 36
         versionCode 1
-        versionName "0.1.0-wp18"
+        versionName "0.2.0-wp48"
 
         ndk {
-            abiFilters "arm64-v8a", "x86_64"
+            abiFilters(*abiList)
         }
 
         externalNativeBuild {
             cmake {
                 arguments "-DAS3D_SDL2_SOURCE_DIR=${sdl2Dir}",
                           "-DAS3D_REPO_ROOT=${repoRoot.absolutePath}",
-                          "-DANDROID_STL=c++_shared"
-                abiFilters "arm64-v8a", "x86_64"
+                          "-DANDROID_STL=c++_shared",
+                          "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+                          "-DCMAKE_JOB_POOLS=compile=${nativeJobs};link=1",
+                          "-DCMAKE_JOB_POOL_COMPILE=compile",
+                          "-DCMAKE_JOB_POOL_LINK=link"
+                abiFilters(*abiList)
             }
         }
     }
@@ -68,8 +78,9 @@ android {
 
     buildTypes {
         debug {
-            // Debug signing (default debug keystore) is fine: this APK embeds
-            // copyrighted game data and is for personal use/testing only.
+            // Debug signing (default debug keystore, never committed) is fine: this APK
+            // embeds copyrighted game data and is for personal use/testing only. The native
+            // code is optimised all the same (RelWithDebInfo above).
             jniDebuggable true
         }
         release {

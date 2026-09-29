@@ -3,10 +3,15 @@
 //   as3d_game [--level N] [--difficulty 0..4] [--seed S] [--data ROOT] [--size WxH]
 //             [--input-script FILE] [--record FILE] [--bot] [--frames N] [--no-audio]
 //             [--screenshot-every K] [--out-dir DIR] [--dump-state FILE]
+//             [--touch] [--perf] [--fullscreen] [--paks DIR]
 //   as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]
 //             [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet] ...
 //
-// Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT.
+// Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT, or with
+// --paks from the original DIR/pak0.apk, pak1.apk, pak2.apk (as the Android app reads them).
+// The windowed loop is shared with the Android app (game_loop.h). --touch draws the touch
+// controls and makes the left mouse button one finger (docs/android.md); --perf logs frame
+// statistics and the AS3D_* markers every 5 s.
 // The simulation runs at a fixed 60 Hz step. Headless mode has no window and no audio
 // device (the mixer runs on the null device) and renders through EGL into an offscreen
 // target only on screenshot frames; `--dump-state` writes the same JSON as as3d_sim.
@@ -14,7 +19,6 @@
 // Keys: arrows move, Ctrl / left mouse fire, Shift / right mouse missile, Space / middle
 // mouse power-up, 1 / 2 / 3 cycle missiles / weapons / power-ups, Return confirms a hint,
 // P pauses, F12 saves a screenshot, Escape quits.
-#include <SDL.h>
 #include <GLES3/gl3.h>
 
 #include <algorithm>
@@ -29,6 +33,7 @@
 #include "as3d/platform.h"
 #include "as3d/world.h"
 #include "audio_bridge.h"
+#include "game_loop.h"
 #include "game_session.h"
 #include "game_view.h"
 
@@ -47,12 +52,14 @@ struct Args {
     bool quiet = false;
     bool noAudio = false;
     int width = 800, height = 600;
+    bool touch = false, perf = false, fullscreen = false;
 };
 
 int usage() {
     std::fprintf(stderr,
                  "usage: as3d_game [--level N] [--difficulty 0..4] [--seed S] [--data ROOT] [--size WxH]\n"
                  "                 [--input-script FILE] [--record FILE] [--bot] [--frames N] [--no-audio]\n"
+                 "                 [--touch] [--perf] [--fullscreen] [--paks DIR]\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
                  "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n");
     return 2;
@@ -83,6 +90,13 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--bot") a.bot = true;
         else if (s == "--quiet") a.quiet = true;
         else if (s == "--no-audio") a.noAudio = true;
+        else if (s == "--touch") a.touch = true;
+        else if (s == "--perf") a.perf = true;
+        else if (s == "--fullscreen") a.fullscreen = true;
+        else if (s == "--paks" && next()) {
+            std::string dir = v;
+            for (int k = 0; k < 3; ++k) a.game.paks.push_back(dir + "/pak" + std::to_string(k) + ".apk");
+        }
         else return false;
     }
     if (a.game.mission < 1 || a.game.mission > kMissionCount) return false;
@@ -95,64 +109,6 @@ bool parseArgs(int argc, char** argv, Args& a) {
     }
     return true;
 }
-
-bool writeFile(const std::string& path, const std::string& text) {
-    std::FILE* f = std::fopen(path.c_str(), "wb");
-    if (!f) return false;
-    bool ok = std::fwrite(text.data(), 1, text.size(), f) == text.size();
-    return std::fclose(f) == 0 && ok;
-}
-
-// Where the input of each frame comes from.
-class InputSource {
-public:
-    InputSource(const Args& a, const InputScript* script) : bot_(a.bot) {
-        if (script) player_.reset(new InputScriptPlayer(*script));
-    }
-    bool external() const { return bot_ || player_; }
-    FrameInput next(u32 frame, InputMapper* mapper) {
-        if (bot_) return botInput(frame);
-        if (player_) return player_->frame(frame);
-        return mapper ? mapper->takeFrame() : FrameInput();
-    }
-
-private:
-    bool bot_;
-    std::unique_ptr<InputScriptPlayer> player_;
-};
-
-// Console status until the HUD exists: one line when score, lives or mission change (at
-// most once a second), plus level events and hint texts.
-class ConsoleStatus {
-public:
-    explicit ConsoleStatus(bool quiet) : quiet_(quiet) {}
-    void update(const GameSession& s, int events) {
-        if (quiet_) return;
-        const World& w = s.world();
-        if (events & GameSession::kLevelStarted) std::printf("mission %d: %s\n", s.mission(), s.levelName().c_str());
-        if (events & GameSession::kHintShown) std::printf("hint: %s\n", w.hintText().c_str());
-        if (events & GameSession::kLevelComplete) std::printf("mission %d complete at frame %u\n", s.mission(), s.totalFrames());
-        if (events & GameSession::kGameOver) std::printf("game over at frame %u\n", s.totalFrames());
-        long long score = s.displayScore(0);
-        int lives = static_cast<int>(w.player(0).lives);
-        bool changed = score != score_ || lives != lives_ || s.mission() != mission_;
-        if (changed && s.totalFrames() >= lastPrint_ + 60) {
-            std::printf("frame %u  mission %d  score %lld  lives %d\n", s.totalFrames(), s.mission(), score, lives);
-            std::fflush(stdout);
-            score_ = score;
-            lives_ = lives;
-            mission_ = s.mission();
-            lastPrint_ = s.totalFrames();
-        }
-    }
-
-private:
-    bool quiet_;
-    long long score_ = -1;
-    int lives_ = -100;
-    int mission_ = -1;
-    u32 lastPrint_ = 0;
-};
 
 bool saveFrame(RenderTarget& target, const std::string& path) {
     Image img;
@@ -191,13 +147,13 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
         audio.init(session.vfs(), true);
         audio.startLevel(session.musicPath());
     }
-    InputSource source(a, script);
+    InputSource source(a.bot, script);
     InputRecorder recorder;
     ConsoleStatus status(a.quiet);
     status.update(session, GameSession::kLevelStarted);
     const int samplesPerStep = 44100 / 60;
     for (long f = 0; f < a.frames; ++f) {
-        FrameInput in = source.next(static_cast<u32>(f), nullptr);
+        FrameInput in = source.next(static_cast<u32>(f), FrameInput());
         recorder.record(static_cast<u32>(f), in);
         int ev = session.step(in);
         if (ev & GameSession::kLevelStarted) {
@@ -242,139 +198,10 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
         std::fprintf(stderr, "as3d_game: cannot write %s\n", a.recordPath.c_str());
         return 1;
     }
-    if (!a.dumpPath.empty() && !writeFile(a.dumpPath, session.world().dumpStateJson())) {
+    if (!a.dumpPath.empty() && !writeTextFile(a.dumpPath, session.world().dumpStateJson())) {
         std::fprintf(stderr, "as3d_game: cannot write %s\n", a.dumpPath.c_str());
         return 1;
     }
-    return 0;
-}
-
-int runWindowed(const Args& a, GameSession& session, const InputScript* script) {
-    GraphicsConfig gc;
-    gc.headless = false;
-    gc.width = a.width;
-    gc.height = a.height;
-    gc.vsync = true;
-    gc.title = "AirStrike 3D";
-    std::unique_ptr<GraphicsContext> gl = createGraphicsContext(gc);
-    if (!gl) {
-        std::fprintf(stderr, "as3d_game: cannot open a window (try --headless)\n");
-        return 3;
-    }
-    gl->makeCurrent();
-    std::string err;
-    GameView view;
-    if (!view.init(session, &err)) {
-        std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
-        return 1;
-    }
-    AudioBridge audio;
-    if (!a.noAudio) {
-        audio.init(session.vfs(), false);
-        audio.startLevel(session.musicPath());
-    }
-    InputMapper mapper;
-    InputSource source(a, script);
-    InputRecorder recorder;
-    ConsoleStatus status(a.quiet);
-    status.update(session, GameSession::kLevelStarted);
-    const double dt = session.world().config().dt;
-    const Uint64 freq = SDL_GetPerformanceFrequency();
-    Uint64 last = SDL_GetPerformanceCounter();
-    double acc = 0.0;
-    long frame = 0;
-    int shots = 0;
-    long rendered = 0;
-    bool running = true;
-    bool redraw = true;
-    while (running) {
-        bool screenshot = false;
-        SDL_Event e;
-        while (SDL_PollEvent(&e)) {
-            switch (e.type) {
-                case SDL_QUIT: running = false; break;
-                case SDL_KEYDOWN:
-                case SDL_KEYUP: {
-                    Hotkey h = mapper.keyEvent(e.key.keysym.scancode, e.type == SDL_KEYDOWN, e.key.repeat != 0);
-                    if (h == Hotkey::Quit) running = false;
-                    if (h == Hotkey::Screenshot) screenshot = true;
-                    break;
-                }
-                case SDL_MOUSEBUTTONDOWN:
-                case SDL_MOUSEBUTTONUP: mapper.mouseButtonEvent(e.button.button, e.type == SDL_MOUSEBUTTONDOWN); break;
-                case SDL_WINDOWEVENT:
-                    if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) mapper.releaseAll();
-                    if (e.window.event == SDL_WINDOWEVENT_CLOSE) running = false;
-                    redraw = true; // exposed, resized, ...
-                    break;
-                default: break;
-            }
-        }
-        Uint64 now = SDL_GetPerformanceCounter();
-        acc += std::min(0.25, static_cast<double>(now - last) / static_cast<double>(freq));
-        last = now;
-        // Wall-clock time only decides how many fixed steps to run; the simulation itself
-        // never sees it.
-        int steps = 0;
-        while (acc >= dt && steps < 8 && running) {
-            acc -= dt;
-            ++steps;
-            FrameInput in = source.next(static_cast<u32>(frame), &mapper);
-            if (source.external()) mapper.takeFrame(); // keep the mapper's edges from piling up
-            recorder.record(static_cast<u32>(frame), in);
-            int ev = session.step(in);
-            if (ev & GameSession::kLevelStarted) {
-                if (!view.beginLevel(session, &err)) std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
-                audio.startLevel(session.musicPath());
-            } else {
-                view.step(session);
-            }
-            audio.drain(session.world());
-            status.update(session, ev);
-            ++frame;
-            if (a.screenshotEvery > 0 && frame % a.screenshotEvery == 0) screenshot = true;
-            if (a.frames >= 0 && frame >= a.frames) running = false;
-        }
-        // Without interpolation a frame only changes when the simulation stepped.
-        if (steps == 0 && !redraw && !screenshot) {
-            SDL_Delay(1);
-            continue;
-        }
-        redraw = false;
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        view.draw(session, gl->width(), gl->height());
-        if (screenshot) {
-            // Reads the back buffer before the swap.
-            Image img;
-            img.width = gl->width();
-            img.height = gl->height();
-            img.hasAlpha = false;
-            img.rgba.resize(static_cast<size_t>(img.width) * img.height * 4);
-            glReadPixels(0, 0, img.width, img.height, GL_RGBA, GL_UNSIGNED_BYTE, img.rgba.data());
-            // Flip to top-down rows.
-            size_t row = static_cast<size_t>(img.width) * 4;
-            std::vector<u8> tmp(row);
-            for (int y = 0; y < img.height / 2; ++y) {
-                u8* a0 = &img.rgba[static_cast<size_t>(y) * row];
-                u8* b0 = &img.rgba[static_cast<size_t>(img.height - 1 - y) * row];
-                std::memcpy(tmp.data(), a0, row);
-                std::memcpy(a0, b0, row);
-                std::memcpy(b0, tmp.data(), row);
-            }
-            char name[64];
-            std::snprintf(name, sizeof name, "/screenshot_%03d.png", shots++);
-            std::string path = a.outDir + name;
-            if (writePng(path.c_str(), img)) std::printf("wrote %s\n", path.c_str());
-        }
-        gl->swapBuffers();
-        ++rendered;
-    }
-    if (!a.recordPath.empty() && !recorder.script().save(a.recordPath))
-        std::fprintf(stderr, "as3d_game: cannot write %s\n", a.recordPath.c_str());
-    if (!a.dumpPath.empty() && !writeFile(a.dumpPath, session.world().dumpStateJson()))
-        std::fprintf(stderr, "as3d_game: cannot write %s\n", a.dumpPath.c_str());
-    std::printf("quit after %ld frames (%ld rendered): mission %d, score %lld\n", frame, rendered, session.mission(),
-                session.displayScore(0));
     return 0;
 }
 
@@ -393,12 +220,34 @@ int main(int argc, char** argv) {
         }
         haveScript = true;
     }
+    if (!a.headless) {
+        LoopOptions o;
+        o.game = a.game;
+        o.frames = a.frames;
+        o.script = haveScript ? &script : nullptr;
+        o.recordPath = a.recordPath;
+        o.dumpPath = a.dumpPath;
+        o.outDir = a.outDir;
+        o.bot = a.bot;
+        o.screenshotEvery = a.screenshotEvery;
+        o.quiet = a.quiet;
+        o.noAudio = a.noAudio;
+        o.width = a.width;
+        o.height = a.height;
+        o.fullscreen = a.fullscreen;
+        o.resizable = a.touch; // try other aspect ratios with the touch layout
+        o.touch = a.touch;
+        o.perfLog = a.perf;
+        o.markers = a.perf;
+        o.frameMarkerEvery = a.perf ? 600 : 0;
+        o.logTouches = a.perf;
+        return runGameWindow(o);
+    }
     GameSession session;
     std::string err;
     if (!session.init(a.game, &err)) {
         std::fprintf(stderr, "as3d_game: %s\n", err.c_str());
         return 1;
     }
-    return a.headless ? runHeadless(a, session, haveScript ? &script : nullptr)
-                      : runWindowed(a, session, haveScript ? &script : nullptr);
+    return runHeadless(a, session, haveScript ? &script : nullptr);
 }
