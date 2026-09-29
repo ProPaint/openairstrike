@@ -155,7 +155,7 @@ struct Menu {
     int hovered = -1;
     float hoverTime = 0;
     bool swallowBack = false; // Esc and right click do nothing (main menu, end screens, name entry)
-    int backKeyAction = 0;    // unused by the system; free for screens
+    int tag = -1;             // free for the owner (the front end stores its Screen here)
 
     std::function<void(MenuDrawContext&)> drawBack;   // before the items (frames, texts)
     std::function<void(MenuDrawContext&)> drawFront;  // after the items
