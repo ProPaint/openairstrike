@@ -11,6 +11,7 @@
 #include "as3d/script_host.h"
 #include "as3d/vfs.h"
 #include "as3d/world_particles.h"
+#include "defs_enums.h"
 #include "world_internal.h"
 #include "world_path.h"
 
@@ -42,11 +43,11 @@ float defClass(const ObjectDef& def) {
     return static_cast<float>(static_cast<int>(def.kind));
 }
 
-// The sequels' touch mode, a bit set (3.1): TOUCH_ALL is 0xF, TOUCH_CIVILIAN adds 0x4. The
-// loader keeps the last TOUCH_ENEMIES / TOUCH_PLAYER / TOUCH_ALL statement and the civilian
-// bit apart; the shipped definitions have at most one of the former (combinations 1, 2, 4,
-// 5, 6), so this equals the original's OR (docs/spec/as2/issues/233).
+// The sequels' touch mode, a bit set (3.1): the OR of every `touch` statement of the
+// definition, TOUCH_ALL setting 0xF (docs/spec/as2/issues/233). A definition built without
+// its text (tests) combines the loader's fields the same way.
 int sequelTouchMode(const ObjectDef& def) {
+    if (def.source) return defs_detail::sequelTouchModeOf(*def.source);
     int mode = def.touch == TouchMode::All ? 0xF : static_cast<int>(def.touch);
     if (def.sequelTouch & SEQ_TOUCH_CIVILIAN) mode |= TOUCH_BIT_CIVILIAN;
     return mode;

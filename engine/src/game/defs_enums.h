@@ -3,6 +3,7 @@
 // See docs/spec/obj.md, docs/spec/ps.md.
 #pragma once
 
+#include <cctype>
 #include <cstring>
 
 #include "as3d/defs.h"
@@ -102,6 +103,28 @@ inline u32 parseSequelFlag(const std::string& s) {
 inline u32 parseSequelTouch(const std::string& s) {
     if (eq(s, "TOUCH_CIVILIAN")) return SEQ_TOUCH_CIVILIAN;
     return 0;
+}
+
+// The sequels' touch mode of an object block, as their parser builds it
+// (as2/engine-behaviour.delta.md 3.1, docs/spec/as2/issues/233): every "touch" statement ORs
+// its bit into the mode (TOUCH_ENEMIES 0x1, TOUCH_PLAYER 0x2, TOUCH_CIVILIAN 0x4) and
+// TOUCH_ALL sets 0xF; another spelling changes nothing. ObjectDef::touch keeps the first
+// game's rule (the last statement wins) and the canonical serialization is unchanged: the
+// world asks for this mode when GameRules::touchModeBits is set.
+inline int sequelTouchModeOf(const TextBlock& b) {
+    int mode = 0;
+    for (const TextStatement& s : b.statements) {
+        if (s.args.empty() || s.key.size() != 5) continue;
+        bool key = true;
+        for (size_t i = 0; i < 5; ++i) key = key && std::tolower(static_cast<unsigned char>(s.key[i])) == "touch"[i];
+        if (!key) continue;
+        const std::string& v = s.args[0].text;
+        if (eq(v, "TOUCH_ENEMIES")) mode |= 0x1;
+        else if (eq(v, "TOUCH_PLAYER")) mode |= 0x2;
+        else if (eq(v, "TOUCH_CIVILIAN")) mode |= 0x4;
+        else if (eq(v, "TOUCH_ALL")) mode = 0xF;
+    }
+    return mode;
 }
 
 inline CoordMode parseCoordMode(const std::string& s) {
