@@ -1,5 +1,7 @@
 <!doctype html>
-<!-- AirStrike 3D, web version (docs/web.md). URL parameters (tests and tuning):
+<!-- AirStrike, web version (docs/web.md). URL parameters (tests and tuning):
+       game=as3d|as2        that game, no choice (default: the start screen offers the playable
+                            games the page has, docs/spec/issues/163)
        level=N, bot=1       straight into mission N / the bot plays (no menus)
        bot=1&menus=1        the menus, the bot plays the missions started from them
        touch=1 / touch=0    touch controls now / never (default: automatic)
@@ -24,7 +26,7 @@
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<title>AirStrike 3D</title>
+<title>AirStrike</title>
 <link rel="stylesheet" href="style.css?v=__BUILD__">
 </head>
 <body>
@@ -37,13 +39,19 @@
 <div id="start" class="overlay">
   <div class="panel">
     <img class="logo" src="icons/icon.svg" alt="" width="72" height="72">
-    <h1>AirStrike 3D</h1>
-    <p class="sub">v1.70 on a new engine</p>
+    <h1>AirStrike</h1>
+    <p class="sub">AirStrike 3D and AirStrike 2 on a new engine</p>
+
+    <section id="games" hidden>
+      <p>Choose a game:</p>
+      <div id="game-list" class="row"></div>
+      <label class="small" id="choose-full-label"><input type="checkbox" id="choose-full"> full screen</label>
+    </section>
 
     <section id="files" hidden>
       <p id="files-intro">This page holds only the game engine. To play, give it the files of your own copy of
-        AirStrike 3D v1.70. They stay in this browser; nothing is uploaded. The files of AirStrike 2 and of
-        AirStrike II: Gulf Thunder are recognised too and kept, but those games do not play yet.</p>
+        AirStrike 3D v1.70 or AirStrike 2 v2.51 (or both). They stay in this browser; nothing is uploaded. The
+        files of AirStrike II: Gulf Thunder are recognised too and kept, but that game does not play yet.</p>
       <ul id="files-list"></ul>
       <div id="drop" tabindex="0">
         <p><strong>Drop the game folder or its files here</strong>, or</p>
@@ -51,8 +59,8 @@
           <label class="button secondary">Choose files<input id="pick-files" type="file" multiple hidden></label>
           <label class="button secondary" id="pick-dir-label">Choose the game folder<input id="pick-dir" type="file" webkitdirectory multiple hidden></label>
         </div>
-        <p class="small">Needed: <code>pak0.apk</code>, <code>pak1.apk</code>, <code>pak2.apk</code> (in the game's
-          <code>data</code> folder). Optional: <code>Settings.xml</code> (intro pages, version line),
+        <p class="small">Needed: <code>pak0.apk</code>, <code>pak1.apk</code>, <code>pak2.apk</code> (in each game's
+          <code>data</code> folder; drop the files of both games to be offered both). Optional: <code>Settings.xml</code> (intro pages, version line),
           <code>gfx/logo2s.tga</code> (menu logo), <code>AirStrike3D.exe</code> or <code>texts_v170.txt</code>
           (Information pages, Game Complete text, rank names; only the texts are kept).</p>
       </div>
@@ -80,7 +88,7 @@
 </div>
 
 <div id="ended" class="overlay" hidden>
-  <div class="panel"><h1>AirStrike 3D</h1><p>Thanks for playing.</p>
+  <div class="panel"><h1>AirStrike</h1><p>Thanks for playing.</p>
     <div class="row"><button id="again" type="button" class="play">Play again</button></div></div>
 </div>
 

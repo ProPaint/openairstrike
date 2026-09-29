@@ -10,9 +10,14 @@
 //   --level N, --bot            straight into a mission, no menus (tests); --bot --menus: the
 //                               menus, and the bot plays the missions started from them
 //   --god, --no-audio, --frames N, --difficulty D, --fps
-//   --game KEY, --unfinished    the game (?game=as3d|as2|gulf, default as3d, its files in
-//                               /data/<key>/ under the names of its profile); a game that does not play yet
-//                               is refused unless ?unfinished=1
+//   --game KEY, --unfinished    the game (?game=as3d|as2|gulf, or the one chosen on the page's
+//                               start screen; default as3d; its files in /data/<key>/ under the
+//                               names of its profile); a game that does not play yet is refused
+//                               unless ?unfinished=1
+//   --change-game               the page offers more than one game: the main menu has "Change
+//                               game", which saves and hands back to the page's start screen
+//                               (docs/spec/issues/163: on the web the page, not the engine, chooses
+//                               the game, so that only the chosen game's data is downloaded)
 //
 // Calls from the page (exported, see site/app.js):
 //   as3d_web_set_insets(l, t, r, b)  safe-area insets in framebuffer pixels
@@ -22,7 +27,7 @@
 //   as3d_web_back()                  the browser's back navigation (the game's Back key)
 //   as3d_web_context_lost(), as3d_web_context_restored()   WebGL context loss
 // Calls to the page: window.as3dPage.{onScreen, onLayout, onTouchMode, onFirstFrame,
-// onFinished, onProfileSaved}.
+// onFinished, onProfileSaved, onChangeGame}.
 #include <SDL.h>
 #include <emscripten.h>
 #include <emscripten/html5.h>
@@ -108,7 +113,7 @@ int main(int argc, char* argv[]) {
     o.quiet = true;
     o.logTouches = true;
     const as3d::GameProfile* profile = &as3d::gameProfile(as3d::GameId::AirStrike3D);
-    bool allowUnfinished = false, badGame = false;
+    bool allowUnfinished = false, badGame = false, changeGame = false;
     int levelArg = 0, difficulty = -1; // as given; checked against the game's rules once it is known
     for (int i = 1; i < argc; ++i) {
         const char* s = argv[i];
@@ -122,6 +127,7 @@ int main(int argc, char* argv[]) {
             }
             ++i;
         } else if (!std::strcmp(s, "--unfinished")) allowUnfinished = true;
+        else if (!std::strcmp(s, "--change-game")) changeGame = true;
         else if (!std::strcmp(s, "--bot")) {
             o.bot = true;
             direct = true;
@@ -197,6 +203,7 @@ int main(int argc, char* argv[]) {
         o.flow.deferLoads = true;
         o.flow.profileSaved = [] { callPage("onProfileSaved"); };
         o.flow.profilePath = defaultProfilePath();
+        if (changeGame) o.changeGame = [] { callPage("onChangeGame"); };
     }
     AS3D_INFO("AS3D_ARGS bot=%d mission=%d frames=%ld audio=%d touch=%d auto_touch=%d menus=%d dpi=%.0f", o.bot ? 1 : 0,
               o.game.mission, o.frames, o.noAudio ? 0 : 1, o.touch ? 1 : 0, o.autoTouch ? 1 : 0, o.frontend ? 1 : 0,

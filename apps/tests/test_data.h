@@ -90,7 +90,7 @@ inline bool available() {
     return readExtracted("maps\\levels.txt", b);
 }
 
-// Whether the game under test plays (expected.json, "playable"); defined in expected.h.
+// Whether the game under test plays (as3d::gameIsPlayable); defined in expected.h.
 inline bool playable();
 
 } // namespace testdata
@@ -107,11 +107,21 @@ inline bool playable();
     }
 
 // Put at the top of a TEST_CASE that plays the game (simulation, front end, integration): it
-// is skipped, loudly, for a game whose expected.json says "playable": false. Combine with
+// is skipped, loudly, for a game that is not playable (as3d::gameIsPlayable). Combine with
 // AS3D_REQUIRE_DATA() when the test also needs the game's files.
 #define AS3D_REQUIRE_PLAYABLE()                                                                   \
     if (!testdata::playable()) {                                                                  \
         std::fprintf(stderr, "SKIPPED (game '%s' is not playable yet): %s\n",                     \
                      testdata::gameKey().c_str(), __FILE__);                                      \
+        return;                                                                                   \
+    }
+
+// Put at the top of a TEST_CASE that assumes the first game's menus or content (its mission
+// scripts, objects, front-end pictures, recorded numbers): skipped, loudly, for any other game,
+// with the reason. Such a test runs in the as3d pass of tools/ci.sh.
+#define AS3D_REQUIRE_FIRST_GAME(why)                                                              \
+    if (testdata::game().id != as3d::GameId::AirStrike3D) {                                       \
+        std::fprintf(stderr, "SKIPPED (game '%s': the test assumes the first game's %s): %s\n",   \
+                     testdata::gameKey().c_str(), why, __FILE__);                                 \
         return;                                                                                   \
     }

@@ -138,6 +138,13 @@ struct Harness {
 };
 
 bool haveData() {
+    if (testdata::game().id != GameId::AirStrike3D) {
+        // These drive the first game's menus (its screens, pictures and taps). The plain front
+        // end of the sequels has its own flow tests in plain_frontend_test.cpp.
+        std::fprintf(stderr, "SKIPPED (game '%s': the flow tests drive the first game's menus): %s\n",
+                     testdata::gameKey().c_str(), __FILE__);
+        return false;
+    }
     if (testdata::available() && testdata::playable()) return true;
     std::fprintf(stderr, "SKIPPED (no game data): %s\n", __FILE__);
     return false;

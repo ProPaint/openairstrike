@@ -16,7 +16,9 @@
 #
 # Env:
 #   AS3D_WEB_GAMES     comma-separated game keys the bundled build contains (as3d, as2, gulf;
-#                      default as3d, to become all three when the sequels play).
+#                      default as3d,as2, the playable games). data/games.txt lists them: with
+#                      more than one the page's start screen offers a choice and downloads only
+#                      the chosen game's files (docs/spec/issues/163); ?game= forces one.
 #   AS3D_WEB_SITE      where the site is assembled (see below).
 #
 # Emscripten: $EMSDK if set, else ~/tools/emsdk. Output (all gitignored):
@@ -60,7 +62,7 @@ else:
     sys.exit(1)
 PY
 }
-GAMES="${AS3D_WEB_GAMES:-as3d}"
+GAMES="${AS3D_WEB_GAMES:-as3d,as2}"
 IFS=',' read -r -a GAME_KEYS <<< "$GAMES"
 
 if [ "$MODE" = bundled ]; then
@@ -127,6 +129,7 @@ if [ "$MODE" = bundled ]; then
     [ -f "$inst/data/gfx/logo2s.tga" ] && cp "$inst/data/gfx/logo2s.tga" "$out/logo2s.tga"
     [ -f "$(extracted_dir "$key")/$texts" ] && cp "$(extracted_dir "$key")/$texts" "$out/$texts"
     ls "$out" > "$out/index.txt"
+    echo "$key" >> "$NEW/data/games.txt"
   done
 else
   # Bring your own: nothing of the game may be in the site. Every file must be one the build

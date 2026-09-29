@@ -18,20 +18,24 @@ import java.util.List;
 import org.libsdl.app.SDLActivity;
 
 /**
- * The AirStrike 3D game activity. Everything runs in native code (apps/game, entry point
+ * The game activity of the AirStrike games (AirStrike 3D, AirStrike 2: the game selector,
+ * docs/spec/issues/163). Everything runs in native code (apps/game, entry point
  * apps/game/android_main.cpp); this class names the native libraries, turns the launching
  * intent's extras into program arguments, lays the surface out under display cutouts and
  * reports the cutout insets so the touch controls stay clear of them.
  *
  * Intent extras (all optional), e.g.
  *   adb shell am start -n org.as3dport.game/.GameActivity --ez bot true --ei level 2
- *   bot (boolean)      the scripted test pilot plays (as3d_game --bot)
+ *   bot (boolean)      the scripted test pilot plays (as3d_game --bot); straight into a mission
+ *   menus (boolean)    with bot: the selector and menus as usual, the pilot plays the missions
+ *                      started from them (tools/android_smoke.sh)
  *   level (int)        first mission, 1..20 (default 1)
  *   frames (int)       quit after this many simulation frames
  *   difficulty (int)   0..4
  *   no_audio (boolean)
  *   rebuild_on_resume (boolean)  test hook: rebuild every GL resource after a resume
- *   game (string)      which game: as3d (default), as2, gulf
+ *   game (string)      which game: as3d, as2, gulf; without it the selector when the APK holds
+ *                      more than one playable game
  *   allow_unfinished (boolean)  start a game that is not playable yet (development only)
  */
 public class GameActivity extends SDLActivity {
@@ -50,6 +54,7 @@ public class GameActivity extends SDLActivity {
         Intent intent = getIntent();
         if (intent != null) {
             if (intent.getBooleanExtra("bot", false)) args.add("--bot");
+            if (intent.getBooleanExtra("menus", false)) args.add("--menus");
             if (intent.getBooleanExtra("no_audio", false)) args.add("--no-audio");
             if (intent.getBooleanExtra("rebuild_on_resume", false)) args.add("--rebuild-on-resume");
             if (intent.getBooleanExtra("allow_unfinished", false)) args.add("--allow-unfinished");

@@ -16,7 +16,14 @@
 #      menu, the back key (exit confirmation), No; screenshots menu_*.png;
 #   6. opens Options, switches Screen to 4:3 (waits for the AS3D_LAYOUT line with screen=4x3,
 #      screenshot), and back to Wide;
-#   7. checks the launcher label and icon (dumpsys package, aapt2 dump badging) and takes a
+#   6b. the game selector (docs/spec/issues/163): the first game forced (extra game=as3d) writes
+#      its save, which is kept; without extras the selector opens and the first game's card is
+#      tapped (steps 5 and 6 run on that game); then with bot and menus the pilot plays mission
+#      1 of AirStrike 3D and of AirStrike 2 to frame 1800 each, chosen by taps on their cards,
+#      "Change game" (item 60 of AS3D_MENU) returning to the selector in between; the first
+#      game's save must be byte for byte unchanged by AirStrike 2, files/as2/profile.bin (key
+#      as2) and files/launcher.bin must exist;
+#   7. checks the launcher label ("AirStrike") and icon (dumpsys package, aapt2 dump badging) and takes a
 #      screenshot of the launcher's app list when the emulator's launcher shows one;
 #   8. prints the AS3D_PERF lines.
 #
@@ -271,6 +278,48 @@ vtap() {
     # shellcheck disable=SC2086
     tap ${p}
 }
+# select_game KEY: taps the card of KEY on the game selector, from its last AS3D_SELECTOR line
+# (cards=key@x,y,w,h;..., virtual 800x600).
+select_game() {
+    local sel rect x y w h
+    sel="$(grep -E "AS3D_SELECTOR" "${LOG_FILE}" | tail -n1)"
+    rect="$(echo "${sel}" | sed -nE "s/.*[=;]$1@([0-9.-]+,[0-9.-]+,[0-9.-]+,[0-9.-]+).*/\1/p")"
+    [ -n "${rect}" ] || fail "no card of $1 on the selector (${sel})"
+    IFS=, read -r x y w h <<<"${rect}"
+    vtap "$((x + w / 2))" "$((y + h / 2))"
+}
+# tap_item ID: taps the item ID of the top menu, from its last AS3D_MENU line (id@x,y,w,h).
+tap_item() {
+    local menu rect x y w h
+    menu="$(grep -E "AS3D_MENU " "${LOG_FILE}" | tail -n1)"
+    rect="$(echo "${menu}" | sed -nE "s/.* $1@([0-9.-]+,[0-9.-]+,[0-9.-]+,[0-9.-]+).*/\1/p")"
+    [ -n "${rect}" ] || fail "no item $1 on the menu (${menu})"
+    IFS=, read -r x y w h <<<"${rect}"
+    vtap "$((x + w / 2))" "$((y + h / 2))"
+}
+# play_bot_mission KEY: the pilot plays mission 1 of the running game (started from its menus)
+# for 1800 frames, then the pause button and Quit bring back its main menu.
+play_bot_mission() {
+    local from line last deadline
+    from="$(grep -E "AS3D_SCREEN name=playing" "${LOG_FILE}" | tail -n1 | sed -nE 's/.* frame=([0-9]+).*/\1/p')"
+    line="$(grep -nE "AS3D_SCREEN name=playing" "${LOG_FILE}" | tail -n1 | cut -d: -f1)"
+    echo "android_smoke: $1 mission 1 started at frame ${from}"
+    deadline=$((SECONDS + 600))
+    while :; do
+        check_crash
+        last="$(tail -n +"${line}" "${LOG_FILE}" | grep -E "AS3D_GAME_FRAME n=[0-9]+ mission=1 " | tail -n1 | sed -nE 's/.*AS3D_GAME_FRAME n=([0-9]+).*/\1/p')"
+        if [ -n "${last}" ] && [ "${last}" -ge "$((from + 1800))" ]; then break; fi
+        [ "${SECONDS}" -lt "${deadline}" ] || fail "$1: mission 1 did not run 1800 frames under the pilot"
+        sleep 2
+    done
+    shot "bot_$1_frame1800"
+    LAYOUT="$(grep -E "AS3D_LAYOUT" "${LOG_FILE}" | tail -n1)"
+    read -r PAUSE_X PAUSE_Y <<<"$(pos pause)"
+    try_until "AS3D_SCREEN name=ingame" 6 tap "${PAUSE_X}" "${PAUSE_Y}"
+    sleep 2
+    shot "bot_$1_ingame"
+    try_until "AS3D_SCREEN name=main" 3 tap_item "$2" # Quit
+}
 
 # ---------------------------------------------------------------------------------------
 # Stage 0 (AS3D_SMOKE_MIGRATION=1): the previous build's save moves to the new location.
@@ -307,6 +356,13 @@ if [ -n "${OLD_APK}" ]; then
     adb -s "${SERIAL}" logcat -v time >"${LOG_FILE}" 2>/dev/null &
     LOGCAT_PID=$!
     adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" || fail "am start (new app) failed"
+    # With more than one game in the APK the new app opens on the selector.
+    wait_for "AS3D_SCREEN name=(selector|main)" "${START_TIMEOUT}"
+    if grep -qE "AS3D_SCREEN name=selector" "${LOG_FILE}"; then
+        read_view
+        sleep 2
+        select_game as3d
+    fi
     wait_for "AS3D_SCREEN name=main" "${START_TIMEOUT}"
     wait_for "AS3D_LAYOUT .*screen=4x3" 30
     sleep 3
@@ -407,14 +463,41 @@ shot 07_frame3600
 check_crash
 
 # ---------------------------------------------------------------------------------------
-echo "== menus: main menu, Start Game, Start, play, pause, in-game menu, quit =="
+echo "== the first game forced (extra game=as3d, as the app before the selector): its save =="
 adb -s "${SERIAL}" shell am force-stop "${APP_ID}"
 sleep 2
 BEFORE="$(count "AS3D_SCREEN name=main")"
+adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" --es game as3d || fail "am start (game as3d) failed"
+wait_more "AS3D_SCREEN name=main" "${BEFORE}" "${START_TIMEOUT}"
+grep -qE "AS3D_GAMES .*selector=0 game=as3d" "${LOG_FILE}" || fail "game=as3d did not start the first game directly"
+read_view
+sleep 3
+# Options, Back: the save is written (files/as3d/profile.bin), as the owner's app has one.
+try_until "AS3D_SCREEN name=options" 3 vtap 400 335
+sleep 1
+try_until "AS3D_SCREEN name=main" 3 vtap 114 482
+sleep 2
+adb -s "${SERIAL}" shell am force-stop "${APP_ID}"
+sleep 2
+run_as cat files/as3d/profile.bin > "${OUT_DIR}/as3d_save_before.bin" 2>/dev/null
+[ -s "${OUT_DIR}/as3d_save_before.bin" ] || fail "no files/as3d/profile.bin after the first game's front end"
+run_as ls files/as2/profile.bin >/dev/null 2>&1 && fail "files/as2/profile.bin exists before AirStrike 2 ever ran"
+echo "android_smoke: files/as3d/profile.bin: $(stat -c %s "${OUT_DIR}/as3d_save_before.bin") bytes, kept for the comparison"
+
+echo "== selector: shown at start, the first game chosen by a tap =="
+BEFORE="$(count "AS3D_SCREEN name=selector")"
 adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" || fail "am start (menus) failed"
+wait_more "AS3D_SCREEN name=selector" "${BEFORE}" "${START_TIMEOUT}"
+grep -qE "AS3D_ARGS .*menus=1" "${LOG_FILE}" || fail "the app did not start on the front end"
+grep -qE "AS3D_GAMES present=2 selector=1" "${LOG_FILE}" || fail "the APK does not offer two games"
+read_view
+sleep 3
+shot selector_01
+BEFORE="$(count "AS3D_SCREEN name=main")"
+select_game as3d
 # Intro pages (about 16 s), then the attract level loads.
 wait_more "AS3D_SCREEN name=main" "${BEFORE}" "${START_TIMEOUT}"
-grep -qE "AS3D_ARGS .*menus=1" "${LOG_FILE}" || fail "the app did not start on the front end"
+grep -qE "AS3D_GAME_CHOSEN game=as3d" "${LOG_FILE}" || fail "no AS3D_GAME_CHOSEN game=as3d"
 read_view
 sleep 3
 shot menu_01_main
@@ -466,11 +549,77 @@ try_until "AS3D_LAYOUT .*screen=wide" 3 vtap 440 168
 try_until "AS3D_SCREEN name=main" 3 vtap 114 482        # Back
 check_crash
 
+echo "== the pilot plays mission 1 of each game from the menus; Change game between them =="
+adb -s "${SERIAL}" shell am force-stop "${APP_ID}"
+sleep 2
+BEFORE="$(count "AS3D_SCREEN name=selector")"
+adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" --ez bot true --ez menus true || fail "am start (bot, menus) failed"
+wait_more "AS3D_SCREEN name=selector" "${BEFORE}" "${START_TIMEOUT}"
+read_view
+sleep 3
+grep -E "AS3D_SELECTOR" "${LOG_FILE}" | tail -n1 | grep -qE "current=as3d" || fail "the last choice (as3d) is not preselected"
+BEFORE="$(count "AS3D_SCREEN name=main")"
+select_game as3d
+wait_more "AS3D_SCREEN name=main" "${BEFORE}" "${START_TIMEOUT}"
+read_view
+sleep 3
+shot bot_as3d_main
+try_until "AS3D_SCREEN name=start" 3 tap_item 1         # Start Game
+sleep 2
+try_until "AS3D_SCREEN name=playing" 3 tap_item 2       # Start
+play_bot_mission as3d 3
+sleep 2
+shot bot_as3d_main_after
+BEFORE="$(count "AS3D_SCREEN name=selector")"
+try_until "AS3D_SCREEN name=selector" 3 tap_item 60     # Change game
+grep -qE "AS3D_GAME_CHANGE game=as3d" "${LOG_FILE}" || fail "no AS3D_GAME_CHANGE game=as3d"
+sleep 3
+shot selector_02_back
+run_as cat files/as3d/profile.bin > "${OUT_DIR}/as3d_save_after_as3d.bin" 2>/dev/null
+[ -s "${OUT_DIR}/as3d_save_after_as3d.bin" ] || fail "no files/as3d/profile.bin"
+if cmp -s "${OUT_DIR}/as3d_save_before.bin" "${OUT_DIR}/as3d_save_after_as3d.bin"; then
+    echo "android_smoke: the first game's save: same bytes after its own mission and the switch"
+else
+    echo "android_smoke: note: the first game's save changed during its own session"
+fi
+read_view
+BEFORE="$(count "AS3D_SCREEN name=main")"
+select_game as2
+wait_more "AS3D_SCREEN name=main" "${BEFORE}" "${START_TIMEOUT}"
+grep -qE "AS3D_GAME_START .*game=as2" "${LOG_FILE}" || fail "AirStrike 2 did not start"
+read_view
+sleep 3
+shot bot_as2_main
+try_until "AS3D_SCREEN name=start" 3 tap_item 1         # Start Game
+sleep 2
+shot bot_as2_start
+try_until "AS3D_SCREEN name=playing" 3 tap_item 2       # Start
+play_bot_mission as2 3
+sleep 2
+try_until "AS3D_SCREEN name=selector" 3 tap_item 60     # Change game
+grep -qE "AS3D_GAME_CHANGE game=as2" "${LOG_FILE}" || fail "no AS3D_GAME_CHANGE game=as2"
+sleep 3
+shot selector_03_after_as2
+adb -s "${SERIAL}" shell am force-stop "${APP_ID}"
+sleep 2
+echo "-- files --"
+run_as ls -la files files/as3d files/as2 | tee "${OUT_DIR}/files_after_switch.txt"
+run_as cat files/as3d/profile.bin > "${OUT_DIR}/as3d_save_after_as2.bin" 2>/dev/null
+cmp -s "${OUT_DIR}/as3d_save_after_as3d.bin" "${OUT_DIR}/as3d_save_after_as2.bin" \
+    || fail "AirStrike 2 changed the first game's save (files/as3d/profile.bin)"
+run_as cat files/as2/profile.bin > "${OUT_DIR}/as2_save.bin" 2>/dev/null
+[ -s "${OUT_DIR}/as2_save.bin" ] || fail "AirStrike 2 wrote no files/as2/profile.bin"
+KEYLEN="$(od -An -tu1 -j20 -N1 "${OUT_DIR}/as2_save.bin" | tr -d ' ')"
+KEY="$(dd if="${OUT_DIR}/as2_save.bin" bs=1 skip=21 count="${KEYLEN}" 2>/dev/null)"
+[ "${KEY}" = "as2" ] || fail "files/as2/profile.bin has the key '${KEY}'"
+run_as ls files/launcher.bin >/dev/null 2>&1 || fail "no files/launcher.bin"
+echo "android_smoke: switch OK: each game played mission 1 to frame 1800 under the pilot, Change game returned to the selector, files/as3d/profile.bin untouched by AirStrike 2, files/as2/profile.bin written"
+
 echo "== launcher: label and icon =="
 adb -s "${SERIAL}" shell dumpsys package "${APP_ID}" | grep -E "versionName|icon|label" | head -n 6 || true
 BADGING="$("${ANDROID_HOME}/build-tools/$(ls -1 "${ANDROID_HOME}/build-tools" | sort -V | tail -n1)/aapt2" dump badging "${APK}" 2>/dev/null | grep -E "^application:|application-icon-160")"
 echo "${BADGING}"
-echo "${BADGING}" | grep -q "label='AirStrike 3D'" || fail "the app label is not AirStrike 3D"
+echo "${BADGING}" | grep -q "label='AirStrike'" || fail "the app label is not AirStrike"
 echo "${BADGING}" | grep -q "icon='res/mipmap-anydpi-v26/ic_launcher.xml'" || fail "no adaptive launcher icon"
 adb -s "${SERIAL}" shell am force-stop "${APP_ID}"
 adb -s "${SERIAL}" shell input keyevent KEYCODE_HOME

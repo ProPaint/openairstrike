@@ -270,6 +270,7 @@ TEST_CASE("ui hud: state to quads, typewriter and hint layout") {
 
 TEST_CASE("ui headless: text and HUD render non-empty, upright, in the right places") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("HUD pictures and layout");
     GraphicsContext* ctx = uiContext();
     if (!ctx) {
         std::fprintf(stderr, "SKIPPED (no headless GLES context available): %s\n", __FILE__);

@@ -5,10 +5,18 @@
 //             [--screenshot-every K] [--out-dir DIR] [--dump-state FILE]
 //             [--touch] [--perf] [--fullscreen] [--paks DIR] [--game as3d|as2|gulf] [--list-games]
 //             [--profile FILE] [--attract 1..4] [--no-logo]
-//             [--screen wide|4x3] [--left-handed] [--dpi N] [--fps]
+//             [--screen wide|4x3] [--left-handed] [--dpi N] [--fps] [--allow-unfinished]
 //   as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]
 //             [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet] ...
 //   as3d_game --headless --ui-script FILE [--frames N] [--size WxH] [--touch] ...
+//   as3d_game --headless --selector-shot FILE.png [--selector-games as3d,as2] [--size WxH] [--touch]
+//
+// With the front end, no --game, no $AS3D_GAME and no --paks, the window opens on the game
+// selector when the data of more than one playable game is present (docs/spec/issues/163;
+// --allow-unfinished lists the games that are not playable yet too); each game's main menu
+// then offers "Change game". The last choice is kept in <user data dir>/launcher.bin and only
+// preselected. Headless runs and --level never show it: they take the game as before.
+// --selector-shot draws the selector once into a PNG (the games present, or those named).
 //
 // Without --level, --bot or --input-script the window opens on the front end: intro pages,
 // main menu over the attract level, and the whole mission flow (docs/spec/frontend.md; the
@@ -58,6 +66,7 @@
 #include "as3d/world.h"
 #include "audio_bridge.h"
 #include "as3d/game_data.h"
+#include "as3d/launcher.h"
 #include "game_loop.h"
 #include "game_flow.h"
 #include "game_session.h"
@@ -91,6 +100,10 @@ struct Args {
     bool fps = false;
     std::string gameKey, paksDir;
     bool listGames = false, errorShown = false;
+    bool allowUnfinished = false;
+    std::string selectorShot, selectorGames;
+    int selectorFocus = -1;
+    SafeInsets insets; // --insets, for the selector shot
     GameData data; // where the chosen game's files are
 };
 
@@ -103,7 +116,8 @@ int usage() {
                  "                 [--screen wide|4x3] [--left-handed] [--dpi N] [--fps]\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
                  "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n"
-                 "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n");
+                 "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n"
+                 "       as3d_game --headless --selector-shot FILE.png [--selector-games K1,K2] [--size WxH] [--touch]\n");
     return 2;
 }
 
@@ -154,13 +168,21 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--perf") a.perf = true;
         else if (s == "--fullscreen") a.fullscreen = true;
         else if (s == "--paks" && next()) a.paksDir = v;
+        else if (s == "--allow-unfinished") a.allowUnfinished = true;
+        else if (s == "--selector-shot" && next()) a.selectorShot = v;
+        else if (s == "--selector-games" && next()) a.selectorGames = v;
+        else if (s == "--selector-focus" && next()) a.selectorFocus = std::atoi(v);
+        else if (s == "--insets" && next()) {
+            if (std::sscanf(v, "%d,%d,%d,%d", &a.insets.left, &a.insets.top, &a.insets.right, &a.insets.bottom) != 4)
+                return false;
+        }
         else return false;
     }
     if (a.game.dataRoot.empty()) {
         const char* env = std::getenv("AS3D_DATA_ROOT");
         a.game.dataRoot = env && *env ? env : ".";
     }
-    if (a.listGames) return true;
+    if (a.listGames || !a.selectorShot.empty()) return true;
     std::string gerr;
     if (!chooseGameData(a.game.dataRoot, a.gameKey, a.paksDir, &a.data, &gerr)) {
         std::fprintf(stderr, "as3d_game: %s\n", gerr.c_str());
@@ -296,6 +318,127 @@ FlowConfig desktopFlow(Args& a, bool headless) {
     f.showLogo = !a.noLogo;
     f.screenOverride = a.screen;
     return f;
+}
+
+// A game's files and front-end files on the desktop, as desktopFlow sets them for the game
+// chosen at start: extracted files unless --paks was given or there are none, the install's
+// Settings.xml and menu logo, the texts file beside the extracted files.
+void configureDesktopGame(const GameData& d, bool usePaks, GameOptions& g, FlowConfig& f) {
+    g.game = d.game;
+    g.extractedDir = d.extractedDir;
+    g.paks.clear();
+    if (usePaks || !d.hasExtracted) g.paks = d.paks;
+    g.extraFiles.clear();
+    g.extraFiles.push_back({"gfx\\logo2s.tga", d.dataDir + "/gfx/logo2s.tga"});
+    f.settingsXml = d.dataDir + "/Settings.xml";
+    f.textsPath = d.extractedDir + "/" + d.game->textsFile;
+}
+
+// The selector's entries on this machine (docs/spec/issues/163): `games` with their files
+// under the data root and their saves in the user data directory.
+std::vector<LauncherEntry> desktopLauncherEntries(const Args& a, const std::vector<GameData>& found,
+                                                  const std::vector<const GameProfile*>& games) {
+    const std::string dir = userDataDir();
+    std::vector<LauncherEntry> out;
+    for (const GameProfile* g : games)
+        for (const GameData& d : found) {
+            if (d.game != g) continue;
+            LauncherEntry e;
+            e.game = g;
+            e.files.dataRoot = a.game.dataRoot;
+            FlowConfig unused;
+            configureDesktopGame(d, false, e.files, unused);
+            if (!dir.empty()) {
+                e.savePath = dir + g->key + "/profile.bin";
+                if (g->id == GameId::AirStrike3D) e.legacySavePath = dir + "profile.bin";
+            }
+            out.push_back(e);
+        }
+    return out;
+}
+
+// Whether the interactive start shows the selector, and with which games: the playable games
+// found under the data root (with --allow-unfinished all of them) when there are more than one
+// and none is forced.
+void planDesktopLauncher(const Args& a, LoopOptions& o) {
+    const char* env = std::getenv("AS3D_GAME");
+    if (!a.gameKey.empty() || (env && *env) || !a.paksDir.empty()) return; // a game is forced
+    const std::vector<GameData> found = detectGames(a.game.dataRoot);
+    std::vector<const GameProfile*> present;
+    for (const GameData& d : found) present.push_back(d.game);
+    const std::string dir = userDataDir();
+    const std::string choice = dir.empty() ? std::string() : dir + "launcher.bin";
+    std::string last;
+    readLauncherChoice(choice, &last);
+    const LaunchPlan plan = planLaunch(present, "", last, a.allowUnfinished);
+    if (!plan.showSelector) return;
+    o.launcher.games = desktopLauncherEntries(a, found, plan.offered);
+    o.launcher.preselected = plan.preselected;
+    o.launcher.atStart = true;
+    o.launcher.choicePath = choice;
+    o.launcher.configure = [found](const GameProfile& g, GameOptions& go, FlowConfig& f) {
+        for (const GameData& d : found)
+            if (d.game == &g) configureDesktopGame(d, false, go, f);
+    };
+}
+
+// --selector-shot: the selector drawn once, headless (the games present, or --selector-games).
+int runSelectorShot(const Args& a) {
+    const std::vector<GameData> found = detectGames(a.game.dataRoot);
+    std::vector<const GameProfile*> games;
+    if (!a.selectorGames.empty()) {
+        const std::string list = a.selectorGames + ",";
+        for (size_t p = 0, q; (q = list.find(',', p)) != std::string::npos; p = q + 1) {
+            const GameProfile* g = findGameProfile(list.substr(p, q - p));
+            if (!g) return usage();
+            games.push_back(g);
+        }
+    } else {
+        std::vector<const GameProfile*> present;
+        for (const GameData& d : found) present.push_back(d.game);
+        games = planLaunch(present, "", "", a.allowUnfinished).offered;
+        if (games.empty())
+            for (const GameData& d : found) games.push_back(d.game);
+    }
+    GraphicsConfig gc;
+    gc.headless = true;
+    gc.width = a.width;
+    gc.height = a.height;
+    std::unique_ptr<GraphicsContext> gl = createGraphicsContext(gc);
+    if (!gl) {
+        std::fprintf(stderr, "as3d_game: no headless GLES 3.0 context\n");
+        return 3;
+    }
+    gl->makeCurrent();
+    std::string err;
+    ui::Renderer2D r;
+    RenderTarget target;
+    if (!r.init(&err) || !target.create(a.width, a.height, 4)) {
+        std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
+        return 1;
+    }
+    LauncherScreen screen;
+    if (!screen.init(desktopLauncherEntries(a, found, games), std::max(0, a.selectorFocus), a.touch, &err)) {
+        std::fprintf(stderr, "as3d_game: %s\n", err.c_str());
+        return 1;
+    }
+    screen.setScreen(a.width, a.height, a.insets);
+    screen.update(0.25f, ui::UiInput());
+    target.bind();
+    screen.draw(r, a.width, a.height);
+    // The window shows colour only: the picture is written opaque (the 2D layer leaves alpha
+    // as its blending makes it).
+    Image img;
+    bool ok = target.readPixels(img);
+    for (size_t i = 3; ok && i < img.rgba.size(); i += 4) img.rgba[i] = 255;
+    if (!ok || !writePng(a.selectorShot.c_str(), img)) {
+        std::fprintf(stderr, "as3d_game: cannot write %s\n", a.selectorShot.c_str());
+        return 1;
+    }
+    if (!a.quiet)
+        std::printf("wrote %s (%s; font of %s)\n", a.selectorShot.c_str(), screen.layoutMarker().c_str(),
+                    screen.fontGame().c_str());
+    return 0;
 }
 
 int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, const InputScript* script,
@@ -482,6 +625,7 @@ int main(int argc, char** argv) {
         std::fputs(describeGames(a.game.dataRoot).c_str(), stdout);
         return 0;
     }
+    if (!a.selectorShot.empty()) return runSelectorShot(a);
     InputScript script;
     bool haveScript = false;
     if (!a.inputScript.empty()) {
@@ -526,6 +670,7 @@ int main(int argc, char** argv) {
         o.screenMode = a.screen;
         o.leftHanded = a.leftHanded;
         o.fps = a.fps;
+        if (frontend) planDesktopLauncher(a, o);
         return runGameWindow(o);
     }
     GameSession session;

@@ -21,6 +21,10 @@
 //   AS3D_PERF avg_ms=... max_ms=... sim_steps=...   every 5 s with `perfLog`
 //   AS3D_PAUSED reason=... / AS3D_RESUMED, AS3D_BACKGROUND / AS3D_FOREGROUND,
 //   AS3D_GL_REBUILD ms=T, AS3D_TOUCH ... (with `logTouches`)
+//   AS3D_SCREEN name=selector          the game selector is up (docs/spec/issues/163), with
+//   AS3D_SELECTOR cards=KEY@x,y,w,h;... play=... exit=... current=KEY   its layout (virtual
+//                                      800x600), for scripted taps
+//   AS3D_GAME_CHOSEN game=KEY / AS3D_GAME_CHANGE game=KEY   a game was chosen / left
 #pragma once
 
 #include <functional>
@@ -30,6 +34,7 @@
 #include "as3d/input.h"
 #include "game_flow.h"
 #include "game_session.h"
+#include "launcher_screen.h"
 
 namespace as3d_game {
 
@@ -69,6 +74,22 @@ struct LoopOptions {
     // The front end (menus); game.startLevel must then be false.
     bool frontend = false;
     FlowConfig flow;
+
+    // The game selector (docs/spec/issues/163), with the front end only. `games`: the playable
+    // games present when there are more than one and none was forced; empty otherwise (no
+    // selector, no "Change game": `game` and `flow` are the one game, as before).
+    struct Launcher {
+        std::vector<LauncherEntry> games;
+        int preselected = 0;
+        bool atStart = false;       // open on the selector instead of `game`
+        std::string choicePath;     // launcher.bin, the last choice ("" = not remembered)
+        // The platform's options for a game: its files (paks, extra files) and its front end's
+        // files, starting from `game` / `flow` as given above.
+        std::function<void(const as3d::GameProfile& game, GameOptions& options, FlowConfig& flow)> configure;
+    } launcher;
+    // The web page chooses the game itself: "Change game" is offered when this is set and hands
+    // over to it (the page's start screen) instead of the in-engine selector.
+    std::function<void()> changeGame;
 
     // Hooks of the web version (apps/web, docs/spec/issues/150); unset elsewhere.
     std::function<float()> dpiQuery;         // replaces `dpi`, queried with the layout (the page's scale changes)

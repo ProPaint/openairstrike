@@ -42,6 +42,7 @@ Stats analyse(const Image& img, const unsigned char* bg) {
 
 TEST_CASE("level renderer draws terrain, water and objects") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("levels and their water");
     static std::unique_ptr<GraphicsContext> ctx = [] {
         GraphicsConfig cfg;
         cfg.width = 320;

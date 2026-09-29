@@ -18,15 +18,26 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 OUT = os.path.join(REPO, "apps", "web", "site", "known_files.json")
 
-# Keep in step with as3d::gameIsPlayable (engine/include/as3d/game_data.h): the page starts only
-# these games; the files of the others are accepted and stored.
-PLAYABLE = {"as3d"}
+def playable_games():
+    """The keys as3d::gameIsPlayable accepts, read from the one place that decides it
+    (kPlayableGames in engine/src/game/game_data.cpp): the page offers only these games; the
+    files of the others are accepted and stored."""
+    src = os.path.join(REPO, "engine", "src", "game", "game_data.cpp")
+    with open(src, encoding="utf-8") as f:
+        m = re.search(r"kPlayableGames\[\]\s*=\s*\{([^}]*)\}", f.read())
+    if not m:
+        sys.exit("web_known_files: no kPlayableGames list in %s" % src)
+    return set(re.findall(r'"([a-z0-9_]+)"', m.group(1)))
+
+
+PLAYABLE = playable_games()
 
 GIVES = {
     "Settings.xml": "the intro pages, the version line and the menu logo",

@@ -55,6 +55,8 @@ TEST_CASE("expected.json: every game with goldens has a complete one for its key
         CHECK(j.find("game")->s == g.key);
         REQUIRE(j.find("playable") != nullptr);
         CHECK(j.find("playable")->kind == Json::Bool);
+        // The code decides (as3d::gameIsPlayable); the file's statement must agree with it.
+        CHECK(j.find("playable")->b == as3d::gameIsPlayable(g));
         for (const char* section : {"paks", "textures", "models", "maps", "text_blocks", "definitions", "scripts"}) {
             INFO("section ", section);
             CHECK(j.find(section) != nullptr);
@@ -76,6 +78,7 @@ TEST_CASE("expected.json: every game with goldens has a complete one for its key
 
 TEST_CASE("expected.json: the game under test is described and the first game plays") {
     CHECK(expected().find("game")->s == gameKey());
-    if (gameKey() == "as3d") CHECK(playable());
+    if (gameKey() == "as3d" || gameKey() == "as2") CHECK(playable());
+    if (gameKey() == "gulf") CHECK_FALSE(playable());
     CHECK(expectedInt("definitions.objects") >= expectedInt("definitions.distinct_object_names"));
 }

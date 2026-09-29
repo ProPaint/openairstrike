@@ -38,22 +38,15 @@ private:
 
 } // namespace
 
-GameSession::GameSession() = default;
-GameSession::~GameSession() {
-    world_.reset(); // before the definitions it points into
-}
-
-bool GameSession::init(const GameOptions& options, std::string* error) {
-    options_ = options;
+bool mountGameFiles(const GameOptions& options, Vfs& vfs, std::string* where, std::string* error) {
     std::string root = options.dataRoot.empty() ? "." : options.dataRoot;
-    std::string where = options.extractedDir;
-    if (where.empty())
-        where = options.game ? locateGameData(root, *options.game).extractedDir : root + "/assets_extracted";
-    if (!options.extraFiles.empty()) vfs_.mount(std::unique_ptr<IFileSource>(new PlatformFileSource(options.extraFiles)));
+    std::string w = options.extractedDir;
+    if (w.empty()) w = options.game ? locateGameData(root, *options.game).extractedDir : root + "/assets_extracted";
+    if (!options.extraFiles.empty()) vfs.mount(std::unique_ptr<IFileSource>(new PlatformFileSource(options.extraFiles)));
     if (options.paks.empty()) {
-        vfs_.mount(makeDirSource(where));
+        vfs.mount(makeDirSource(w));
     } else {
-        where = "the pak archives";
+        w = "the pak archives";
         for (const std::string& pak : options.paks) {
             std::unique_ptr<IStream> stream = openPlatformStream(pak);
             std::unique_ptr<IFileSource> source = stream ? makePakSource(std::move(stream)) : nullptr;
@@ -61,9 +54,22 @@ bool GameSession::init(const GameOptions& options, std::string* error) {
                 if (error) *error = "cannot mount " + pak;
                 return false;
             }
-            vfs_.mount(std::move(source));
+            vfs.mount(std::move(source));
         }
     }
+    if (where) *where = w;
+    return true;
+}
+
+GameSession::GameSession() = default;
+GameSession::~GameSession() {
+    world_.reset(); // before the definitions it points into
+}
+
+bool GameSession::init(const GameOptions& options, std::string* error) {
+    options_ = options;
+    std::string where;
+    if (!mountGameFiles(options, vfs_, &where, error)) return false;
     db_.reset(new DefDatabase());
     if (!db_->load(vfs_)) {
         if (error) *error = "cannot load definitions from " + where;

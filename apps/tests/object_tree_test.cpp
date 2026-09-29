@@ -227,6 +227,7 @@ TEST_CASE("ObjectTree: unknown object name yields an empty tree with one warning
 
 TEST_CASE("ObjectTree: spot check tank_small_green (turret at tag_turret, guns at tag_guns)") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("object definitions");
     Vfs vfs;
     REQUIRE(mountOriginalPaks(vfs));
     DefDatabase db;
@@ -293,6 +294,7 @@ TEST_CASE("ObjectTree: a helicopter object has rotor ('tag_vint*') children") {
 TEST_CASE("ObjectTree: every one of the 864 object definitions builds without crashing, "
           "terminates, and only produces documented warning kinds") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("object definitions");
     Vfs vfs;
     REQUIRE(mountOriginalPaks(vfs));
     DefDatabase db;

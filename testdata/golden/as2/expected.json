@@ -4,7 +4,7 @@
   "Documented in testdata/golden/README.md. Only counts, names and numbers, never game content beyond names."
  ],
  "game": "as2",
- "playable": false,
+ "playable": true,
  "paks": {
   "files": 2359
  },
@@ -347,5 +347,18 @@
   "no_code": [],
   "mode_pairs": 82,
   "builtins": 101
+ },
+ "sounds": {
+  "files": 40
+ },
+ "bot_regression": {
+  "mission": 1,
+  "seed": 1,
+  "difficulty": 2,
+  "pilot": "world",
+  "god": true,
+  "end_frame": 13448,
+  "score": 15390,
+  "lives": 2
  }
 }

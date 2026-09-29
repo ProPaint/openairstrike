@@ -21,7 +21,7 @@
     "as2": {
       "title": "AirStrike 2",
       "version": "2.51",
-      "playable": false,
+      "playable": true,
       "exe": "AirStrike3D II.exe",
       "texts": "texts_as2.txt",
       "paks": ["pak0.apk", "pak1.apk", "pak2.apk"],

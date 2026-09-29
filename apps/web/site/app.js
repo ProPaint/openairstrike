@@ -1,4 +1,4 @@
-// AirStrike 3D, web version: the page around the engine (docs/web.md, docs/spec/issues/150).
+// AirStrike, web version: the page around the engine (docs/web.md, docs/spec/issues/150, 163).
 // Start screen and game files, the canvas at the device's pixel ratio, full screen and
 // orientation, touch detection, the profile in browser storage, and the lifecycle calls into
 // the engine (apps/web/web_main.cpp). window.as3dState and window.as3dLog are read by the
@@ -54,13 +54,16 @@
     const v = parseInt(q.get(name), 10);
     return Number.isFinite(v) ? String(clamp(v, lo, hi)) : null;
   };
-  // The game: ?game=as3d|as2|gulf (default as3d). Its files live in data/<key>/ (bundled build)
-  // or under its own key in browser storage (bring-your-own build).
-  const GAME = /^[a-z0-9]+$/.test(q.get('game') || '') ? q.get('game') : 'as3d';
+  // The game: ?game=as3d|as2|gulf forces one. Without it the start screen offers the playable
+  // games this page has (bundled: data/games.txt; bring your own: those whose files are
+  // stored), when there are more than one, and only the chosen game's files are loaded
+  // (docs/spec/issues/163). Its files live in data/<key>/ (bundled build) or under its own key
+  // in browser storage (bring-your-own build). GAME is known once chosen.
+  const FORCED = /^[a-z0-9]+$/.test(q.get('game') || '') ? q.get('game') : null;
+  let GAME = FORCED;
   // ?level= and ?difficulty= are passed on as numbers; the engine checks them against the
   // rules of the chosen game (mission and difficulty counts differ) and ignores a bad one.
   if (intParam('level', 1, 9999)) args.push('--level', intParam('level', 1, 9999));
-  if (q.has('game')) args.push('--game', GAME);
   if (q.get('unfinished') === '1') args.push('--unfinished');
   if (q.get('bot') === '1') args.push('--bot');
   if (q.get('menus') === '1') args.push('--menus');
@@ -284,6 +287,7 @@
   // ---------------------------------------------------------------------------------------
   // Game files: bundled (fetched from data/<key>/) or the player's own (IndexedDB, per game).
   // ---------------------------------------------------------------------------------------
+  // Resolved with the chosen game's files ({name: bytes or Blob}); GAME is set by then.
   let resolveFiles;
   const filesReady = new Promise((ok) => { resolveFiles = ok; });
   function writeGameFiles() {
@@ -306,7 +310,81 @@
     bar.style.width = Math.round(100 * f) + '%';
   }
 
+  // ---------------------------------------------------------------------------------------
+  // Choosing the game (docs/spec/issues/163). The page chooses on the web, not the engine's
+  // selector: the engine needs one game's files before it starts, and only the chosen game's
+  // are downloaded (25 MB for AirStrike 3D, 48 MB for AirStrike 2). A card is the Play button
+  // of its game; the last choice (localStorage) is marked, never started by itself.
+  // ---------------------------------------------------------------------------------------
+  const LAST_GAME = 'as3d-last-game';
+  const lastGame = () => { try { return localStorage.getItem(LAST_GAME); } catch (e) { return null; } };
+  let offered = [];       // the games offered on the start screen (more than one: the chooser)
+  let wantStart = null;   // a card was clicked: start once the engine is ready ({ full })
+  const unfinished = q.get('unfinished') === '1';
+  const offerable = (kn, g) => !!kn[g] && (kn[g].playable || unfinished);
+  // `avail`: the games this page can start; resolves with the one to start.
+  function chooseGame(avail, kn) {
+    offered = avail;
+    state.offered = avail.slice();
+    if (avail.length <= 1) return Promise.resolve(avail[0]);
+    return new Promise((ok) => {
+      const list = $('game-list');
+      list.textContent = '';
+      const last = lastGame();
+      for (const g of avail) {
+        const def = kn[g];
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'game' + (g === last ? ' last' : '');
+        b.dataset.game = g;
+        const mb = Object.values(def.files).filter((f) => f.required).reduce((s, f) => s + (f.size || 0), 0) / 1048576;
+        const t = document.createElement('strong');
+        t.textContent = def.title;
+        const v = document.createElement('small');
+        v.textContent = `v${def.version}` + (BUILD.mode === 'bundled' && mb ? ` · ${Math.round(mb)} MB` : '') +
+                        (g === last ? ' · last played' : '');
+        b.append(t, v);
+        b.addEventListener('click', () => {
+          if (GAME) return;
+          try { localStorage.setItem(LAST_GAME, g); } catch (e) { /* not kept */ }
+          // The click is the Play gesture: full screen must be asked for inside it.
+          const full = touchAtStart || $('choose-full').checked;
+          if (full && fsApi && !installed) enterFullscreen();
+          wantStart = { full: false };
+          for (const o of list.children) o.disabled = o !== b;
+          b.classList.add('chosen');
+          $('games').classList.add('chosen');
+          log('AS3D_WEB game_chosen=' + g);
+          ok(g);
+        });
+        list.appendChild(b);
+      }
+      $('choose-full-label').hidden = touchAtStart || !fsApi || installed;
+      $('games').hidden = false;
+      $('play-row').hidden = true;
+      $('progress').hidden = true;
+      setStatus('');
+      state.chooser = true;
+      log('AS3D_WEB chooser games=' + avail.join(','));
+    });
+  }
+
+  // The bundled build: the games of data/games.txt (tools/web_build.sh; a build without it
+  // has the first game only).
+  async function bundledGames(kn) {
+    let keys = ['as3d'];
+    try {
+      const r = await fetch('data/games.txt', { cache: 'no-cache' });
+      if (r.ok) keys = (await r.text()).split(/\s+/).filter((k) => k);
+    } catch (e) { /* the first game */ }
+    return keys.filter((g) => offerable(kn, g));
+  }
+
   async function bundledFiles() {
+    const kn = await AS3DFiles.knownFiles();
+    const game = FORCED || await chooseGame(await bundledGames(kn), kn) || 'as3d';
+    GAME = game;
+    state.game = game;
     setStatus('Loading the game data...');
     const files = await AS3DFiles.fetchBundled(GAME, progress);
     progress(1);
@@ -318,10 +396,21 @@
   // chosen: { gameKey: { name: Blob } }, what is stored plus what was given this time.
   let chosen = {}, games = {};
   const titleOf = (g) => (games[g] ? games[g].title : g);
+  // The games whose files are all stored and that may be started.
+  const startable = () => Object.keys(games).filter((g) => offerable(games, g) && chosen[g] &&
+                                                         !AS3DFiles.missing(chosen[g], g).length);
+  // Without ?game=: the one game with its files, or the chooser for several.
+  async function startOwn() {
+    const game = await chooseGame(startable(), games);
+    GAME = game;
+    state.game = game;
+    $('files').hidden = true;
+    resolveFiles(chosen[game]);
+  }
   async function ownFiles() {
     games = await AS3DFiles.knownFiles();
-    if (!games[GAME]) {
-      fail(`Unknown game '${GAME}' (${Object.keys(games).join(', ')}).`);
+    if (FORCED && !games[FORCED]) {
+      fail(`Unknown game '${FORCED}' (${Object.keys(games).join(', ')}).`);
       return;
     }
     let stored = {};
@@ -334,9 +423,11 @@
         'the game files must be chosen again on every visit.';
     }
     chosen = stored;
-    if (!AS3DFiles.missing(chosen[GAME], GAME).length) {
+    if (FORCED ? !AS3DFiles.missing(chosen[FORCED], FORCED).length : startable().length) {
       showStored(chosen);
-      resolveFiles(chosen[GAME]);
+      if (!FORCED) return startOwn();
+      state.game = FORCED;
+      resolveFiles(chosen[FORCED]);
       return;
     }
     if (Object.keys(chosen).length) showStored(chosen);
@@ -358,14 +449,17 @@
     $('stored-text').textContent = `Your game files are kept in this browser (${(total / 1048576).toFixed(0)} MB; ` +
       parts.join('; ') + ').';
   }
+  // The picker lists the files of the forced game, else of the first game (any known game's
+  // files are taken).
+  const listed = () => FORCED || 'as3d';
   async function renderFileList(notes) {
-    const def = games[GAME];
+    const def = games[listed()];
     const ul = $('files-list');
     ul.textContent = '';
     const names = Object.keys(def.files).filter((n) => n !== def.exe);
     for (const n of names) {
       const li = document.createElement('li');
-      const have = !!(chosen[GAME] && chosen[GAME][n]);
+      const have = !!(chosen[listed()] && chosen[listed()][n]);
       const bad = notes.find((x) => !x.ok && (x.name === n || (n === def.texts && x.name === def.exe)));
       li.className = have ? 'ok' : bad ? 'bad' : 'missing';
       const what = def.files[n].gives ? ` (optional: ${def.files[n].gives})` : n.endsWith('.apk') ? ' (needed)' : '';
@@ -383,15 +477,17 @@
       });
       for (const [g, files] of Object.entries(res.games)) chosen[g] = Object.assign(chosen[g] || {}, files);
       await renderFileList(res.notes);
-      const miss = AS3DFiles.missing(chosen[GAME], GAME);
+      // Forced: that game's files must all be there. Otherwise any playable game's will do.
+      const ready = FORCED ? !AS3DFiles.missing(chosen[FORCED], FORCED).length : startable().length > 0;
+      const miss = ready ? [] : AS3DFiles.missing(chosen[listed()], listed());
       const bad = res.notes.filter((n) => !n.ok).map((n) => n.text);
       // The games whose files are all there are kept, whichever game the page starts.
       const complete = Object.keys(chosen).filter((g) => games[g] && !AS3DFiles.missing(chosen[g], g).length);
-      const others = complete.filter((g) => g !== GAME && res.games[g]);
+      const others = complete.filter((g) => g !== listed() && res.games[g]);
       const info = others.map((g) => `${titleOf(g)}: files recognised and stored` +
         (games[g].playable ? '' : '; the game is not playable yet'));
       if (!res.notes.length) status.textContent = 'None of these is a file of a game this page knows.';
-      else status.textContent = bad.concat(info, miss.length ? ['Still needed for ' + titleOf(GAME) + ': ' + miss.join(', ')] : []).join('; ');
+      else status.textContent = bad.concat(info, miss.length ? ['Still needed for ' + titleOf(listed()) + ': ' + miss.join(', ')] : []).join('; ');
       if (complete.length) {
         try {
           const keep = {};
@@ -402,10 +498,16 @@
           log('AS3D_WEB storage: ' + e);
         }
       }
-      if (miss.length) return;
-      status.textContent = '';
+      if (!ready) return;
       $('files').hidden = true;
-      resolveFiles(chosen[GAME]);
+      if (!FORCED) {
+        status.textContent = '';
+        await startOwn();
+      } else {
+        status.textContent = '';
+        state.game = FORCED;
+        resolveFiles(chosen[FORCED]);
+      }
       setStatus('Starting the engine...');
     } catch (e) {
       status.textContent = 'Cannot read the files: ' + e.message;
@@ -446,7 +548,7 @@
   function ready() {
     state.ready = true;
     $('progress').hidden = true;
-    // The sequels do not play yet (as3d::gameIsPlayable): their files are accepted and kept,
+    // Gulf Thunder does not play yet (as3d::gameIsPlayable): its files are accepted and kept,
     // the page starts them only with ?unfinished=1.
     AS3DFiles.knownFiles().then((kn) => {
       const def = kn[GAME];
@@ -457,7 +559,9 @@
       }
       play.disabled = false;
       setStatus(direct ? 'Ready (test mode: mission ' + (q.get('level') || '1') + ')' : '');
-      if (q.get('autostart') === '1') start(false);
+      // A game card was clicked (the chooser): it was the Play button.
+      if (wantStart) start(wantStart.full);
+      else if (q.get('autostart') === '1') start(false);
     }).catch((e) => fail(e.message));
   }
   // `full`: ask for full screen (touch devices always; must run in the click itself).
@@ -478,7 +582,9 @@
     canvas.focus();
     fit();
     state.running = true;
-    const a = args.concat(['--dpi', String(Math.round(scale * cssPerInch()))]);
+    const a = args.concat(['--game', GAME, '--dpi', String(Math.round(scale * cssPerInch()))]);
+    // More than one game offered: the main menu's "Change game" comes back here.
+    if (!FORCED && offered.length > 1) a.push('--change-game');
     log('AS3D_WEB start args=' + a.join(' '));
     try {
       Module.callMain(a);
@@ -521,6 +627,19 @@
       $('ended').hidden = false;
     },
     onProfileSaved: syncProfile,
+    // "Change game" (the profile was just saved): once browser storage has it, the start
+    // screen again, without ?game= (the choice is remembered there).
+    onChangeGame() {
+      log('AS3D_WEB change_game');
+      state.changingGame = true;
+      Module.FS.syncfs(false, (err) => {
+        if (err) log('AS3D_WEB profile_sync_failed ' + err);
+        const u = new URL(location.href);
+        u.searchParams.delete('game');
+        u.searchParams.delete('autostart');
+        location.href = u.toString();
+      });
+    },
   };
 
   // ---------------------------------------------------------------------------------------

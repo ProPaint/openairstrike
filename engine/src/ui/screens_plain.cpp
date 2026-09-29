@@ -90,6 +90,9 @@ Menu Frontend::buildPlainMain() {
     for (int i = 0; i < 4; i++)
         m.addTextButton(i + 1, {240, 238 + 56.0f * static_cast<float>(i), 320, 42}, texts_.get(labels[i])).textScale =
             kMainButtonScale;
+    // With more than one game (docs/spec/issues/163): the left slot of the bottom bar.
+    if (content_.changeGame)
+        m.addTextButton(kChangeGameItem, {kPlainLeft.x, kPlainLeft.y, 190, kPlainLeft.h}, texts_.get("menu.change_game"));
     m.onItem = [this](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
         switch (it.id) {
@@ -97,6 +100,10 @@ Menu Frontend::buildPlainMain() {
             case 2: open(Screen::TopScores); break;
             case 3: optionsInGame_ = false; open(Screen::Options); break;
             case 4: open(Screen::Exit); break;
+            case kChangeGameItem:
+                save();
+                host_.changeGame();
+                break;
             default: break;
         }
     };

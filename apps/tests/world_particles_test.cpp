@@ -153,6 +153,7 @@ TEST_CASE("particles freeze with the pause and restart with the level") {
 
 TEST_CASE("particle damage: the shipped flamethrowers") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("mission 1 emitters");
     Vfs vfs;
     vfs.mount(makeDirSource(testdata::extractedDir()));
     DefDatabase db;

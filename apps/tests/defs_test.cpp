@@ -275,6 +275,7 @@ TEST_CASE("DefDatabase loads every definition file from the real paks with the d
 
 TEST_CASE("duplicate object name: first definition wins name lookup (VERIFIED-CODE)") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE(); // the first game's definitions
+    AS3D_REQUIRE_FIRST_GAME("object definitions");
     Vfs vfs;
     REQUIRE(testdata::mountGamePaks(vfs));
     DefDatabase db;
@@ -295,6 +296,7 @@ TEST_CASE("duplicate object name: first definition wins name lookup (VERIFIED-CO
 
 TEST_CASE("spot check: tank_small_green") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE(); // the first game's definitions
+    AS3D_REQUIRE_FIRST_GAME("object definitions");
     Vfs vfs;
     REQUIRE(testdata::mountGamePaks(vfs));
     DefDatabase db;
@@ -327,6 +329,7 @@ TEST_CASE("spot check: tank_small_green") {
 
 TEST_CASE("spot check: mission 1's fog, sun and water") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE(); // the first game's definitions
+    AS3D_REQUIRE_FIRST_GAME("mission 1 settings");
     Vfs vfs;
     REQUIRE(testdata::mountGamePaks(vfs));
     DefDatabase db;

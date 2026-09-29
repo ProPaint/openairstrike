@@ -465,6 +465,7 @@ int countCloseTo(const Image& img, int r, int g, int b, int tol) {
 TEST_CASE("Smoke test: 20 assorted real objects render visibly with no unexpected placeholder texture") {
     AS3D_REQUIRE_HEADLESS_GL(ctx);
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("objects");
 
     Vfs vfs;
     REQUIRE(mountOriginalPaks(vfs));
