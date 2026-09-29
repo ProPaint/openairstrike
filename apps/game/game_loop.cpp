@@ -131,6 +131,7 @@ private:
     void simulate(int steps);
     void draw();
     void saveScreenshot();
+    void updateLayout();
     int fbWidth() const { return gl_ ? gl_->width() : o_.width; }
     int fbHeight() const { return gl_ ? gl_->height() : o_.height; }
 
@@ -156,7 +157,39 @@ private:
     long rendered_ = 0;
     int shots_ = 0;
     double lastPresent_ = -1;
+    int layoutW_ = -1, layoutH_ = -1;
+    SafeInsets layoutInsets_;
 };
+
+void GameWindow::updateLayout() {
+    SafeInsets in = o_.safeInsets ? o_.safeInsets() : SafeInsets();
+    int w = fbWidth(), h = fbHeight();
+    if (w == layoutW_ && h == layoutH_ && in.left == layoutInsets_.left && in.top == layoutInsets_.top &&
+        in.right == layoutInsets_.right && in.bottom == layoutInsets_.bottom)
+        return;
+    layoutW_ = w;
+    layoutH_ = h;
+    layoutInsets_ = in;
+    touch_.setScreen(w, h, in);
+    redraw_ = true;
+    if (!o_.markers) return;
+    // Button centres in framebuffer pixels, for tools/android_smoke.sh to tap.
+    const TouchLayout& L = touch_.layout();
+    std::string line;
+    char buf[96];
+    for (int b = 0; b < kTouchButtonCount; ++b) {
+        std::snprintf(buf, sizeof buf, " %s=%d,%d", touchButtonName(static_cast<TouchButton>(b)),
+                      static_cast<int>((L.buttons[b].x + L.buttons[b].w * 0.5f) * w),
+                      static_cast<int>((L.buttons[b].y + L.buttons[b].h * 0.5f) * h));
+        line += buf;
+    }
+    std::snprintf(buf, sizeof buf, " field=%d,%d,%d,%d", static_cast<int>(L.playField.x * w),
+                  static_cast<int>(L.playField.y * h), static_cast<int>((L.playField.x + L.playField.w) * w),
+                  static_cast<int>((L.playField.y + L.playField.h) * h));
+    line += buf;
+    AS3D_INFO("AS3D_LAYOUT size=%dx%d insets=%d,%d,%d,%d buttons=%s%s", w, h, in.left, in.top, in.right, in.bottom,
+              L.outside ? "outside" : "inside", line.c_str());
+}
 
 bool GameWindow::initGl(std::string* err) {
     view_.reset();
@@ -446,7 +479,7 @@ int GameWindow::run() {
         audio_.init(session_.vfs(), false);
         audio_.startLevel(session_.musicPath());
     }
-    touch_.setScreen(fbWidth(), fbHeight(), o_.safeInsets ? o_.safeInsets() : SafeInsets());
+    updateLayout();
     {
         const TouchLayout& L = touch_.layout();
         if (o_.markers) AS3D_INFO("AS3D_GAME_START size=%dx%d mission=%d load_ms=%.0f touch=%d buttons=%s gl=\"%s\"", fbWidth(),
@@ -459,7 +492,6 @@ int GameWindow::run() {
     const int kMaxCatchUp = 5; // steps per displayed frame; the rest of a long stall is dropped
     double last = nowSeconds();
     double acc = 0.0;
-    SafeInsets insets;
     while (running_) {
         screenshot_ = false;
         SDL_Event e;
@@ -473,8 +505,7 @@ int GameWindow::run() {
             acc = 0;
             continue;
         }
-        if (o_.safeInsets) insets = o_.safeInsets();
-        touch_.setScreen(fbWidth(), fbHeight(), insets);
+        updateLayout();
 
         double now = nowSeconds();
         acc += std::min(0.25, now - last);
