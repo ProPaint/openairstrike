@@ -782,9 +782,9 @@ origin fields even for attached entities, whose origin is overwritten at the nex
 - Same implementation as `RotateTo` (table record alias, VERIFIED-CODE). Used only with
   LCALL (VERIFIED-DATA): the step runs on every update of the thread until the done flag
   is set (all requested axes within 0.1°) or the latent timeout, if any, runs out. None of
-  the 32 shipped sites sets a timeout before it (VERIFIED-DATA, scan of the preceding
-  instructions), so they wait until aligned, the timeout left over from an earlier LCALL
-  of the thread excepted (rcsl-vm.md).
+  the 32 shipped sites has a TMO in the same basic block (VERIFIED-DATA); a completed
+  LCALL leaves the timeout at 0, so they wait until aligned unless a handler of the thread
+  left a timeout behind (rcsl-vm.md quirks 3–4).
 - Corpus: 32 / 0 / 32; `boss1\cannon_plasma.scr` pc 26 (`lRotateTo($player, 1)`).
 - Priority: P0.
 
@@ -879,8 +879,8 @@ origin fields even for attached entities, whose origin is overwritten at the nex
 
 ### 56. `lRotateToNextWP` — 0x41ba90
 
-- Same implementation as `RotateToNextWP`, used only with LCALL (6 sites, no TMO before
-  any): tanks turn on the spot toward the next waypoint before driving on
+- Same implementation as `RotateToNextWP`, used only with LCALL (6 sites, none with a TMO in
+  its basic block): tanks turn on the spot toward the next waypoint before driving on
   (`tanks\tank.scr` pc 35).
 - Corpus: 6 / 0 / 6. Priority: P1.
 
