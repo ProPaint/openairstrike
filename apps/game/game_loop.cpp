@@ -481,7 +481,7 @@ void GameWindow::logScreen() {
     else s = "none";
     if (s == screen_) return;
     screen_ = s;
-    AS3D_INFO("AS3D_SCREEN name=%s frame=%ld mission=%d", s.c_str(), frame_, session_.mission());
+    AS3D_INFO("AS3D_SCREEN name=%s frame=%ld mission=%d", s.c_str(), frame_, session_.hasLevel() ? session_.mission() : 0);
 }
 
 // One front-end frame with the events gathered since the last one, then the keys and buttons

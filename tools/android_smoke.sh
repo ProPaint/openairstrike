@@ -309,12 +309,14 @@ sleep 2
 shot menu_02_start
 try_until "AS3D_SCREEN name=playing" 3 vtap 680 482     # Start
 PLAY_FROM="$(grep -E "AS3D_SCREEN name=playing" "${LOG_FILE}" | tail -n1 | sed -nE 's/.* frame=([0-9]+).*/\1/p')"
+PLAY_LINE="$(grep -nE "AS3D_SCREEN name=playing" "${LOG_FILE}" | tail -n1 | cut -d: -f1)"
 echo "android_smoke: mission 1 started at frame ${PLAY_FROM}"
 # 600 frames of play: a frame marker of mission 1 at least 600 frames later.
 DEADLINE=$((SECONDS + 300))
 while :; do
     check_crash
-    LAST="$(grep -E "AS3D_GAME_FRAME n=[0-9]+ mission=1 " "${LOG_FILE}" | tail -n1 | sed -nE 's/.*AS3D_GAME_FRAME n=([0-9]+).*/\1/p')"
+    # Only markers logged after the mission started (the first part's run logged its own).
+    LAST="$(tail -n +"${PLAY_LINE}" "${LOG_FILE}" | grep -E "AS3D_GAME_FRAME n=[0-9]+ mission=1 " | tail -n1 | sed -nE 's/.*AS3D_GAME_FRAME n=([0-9]+).*/\1/p')"
     if [ -n "${LAST}" ] && [ "${LAST}" -ge "$((PLAY_FROM + 600))" ]; then break; fi
     [ "${SECONDS}" -lt "${DEADLINE}" ] || fail "mission 1 did not run 600 frames"
     sleep 2
