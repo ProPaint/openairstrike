@@ -35,7 +35,7 @@ Every claim carries one of:
 | [obj.md](obj.md), [wpn.md](wpn.md), [ps.md](ps.md), [levels-txt.md](levels-txt.md) | 1.0 | verified from parsers; some sub-field names guessed |
 | [engine-behaviour.md](engine-behaviour.md) | 1.0 | verified from code; collision projection details open |
 | [render-pipeline.md](render-pipeline.md) | 1.0 | verified from code; lists corrections to obj, ps, mdl and levels-txt specs in section 11.3 |
-| [rcsl-vm.md](rcsl-vm.md) | 1.0 | verified from code |
+| [rcsl-vm.md](rcsl-vm.md) | 1.1 | verified from code; C++ VM (`engine/src/script`) reproduces the reference trace of all 339 scripts |
 | [rcsl-builtins-table.md](rcsl-builtins-table.md) | 1.0 | signatures verified; gameplay builtin internals pending |
 | [rcsl-container.md](rcsl-container.md) | 1.0 | verified from code |
 | [rcsl-opcodes-v0.md](rcsl-opcodes-v0.md) | 0 | opcodes verified from code |

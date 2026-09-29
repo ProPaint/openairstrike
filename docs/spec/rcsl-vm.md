@@ -1,6 +1,6 @@
 # RCSL virtual machine: runtime contract
 
-Spec version 1.0. Reference implementation: `tools/ref/rcsl_vm.py` (mock host), test
+Spec version 1.1. Reference implementation: `tools/ref/rcsl_vm.py` (mock host), test
 `tools/ref/test_rcsl_vm.py`. Companions: [rcsl-container.md](rcsl-container.md) (file
 format, operand encoding), [rcsl-opcodes-v0.md](rcsl-opcodes-v0.md) (per-opcode semantics),
 [rcsl-builtins-table.md](rcsl-builtins-table.md) (builtins).
@@ -318,7 +318,7 @@ sites). Subroutines calling further subroutines do occur and behave as expected.
 2. If the done flag is non-zero, the call is **complete**.
 3. Otherwise, if the timeout is exactly 0.0, the call is **waiting**.
 4. Otherwise `timeout = timeout − frametime` (rounded to float); if the result is ≤ 0
-   the call is complete, else waiting (a NaN timeout waits forever).
+   the call is complete, else waiting (our VM and the reference test `not (t > 0)`, so a NaN timeout completes at once; what the original does with NaN is not established, see issues/001; no shipped script produces one).
 5. Complete: pc advances past the LCALL, timeout = 0, B = return register, the invocation
    returns 0. Waiting: pc stays on the LCALL, the invocation returns 0.
 
@@ -458,3 +458,4 @@ The mock host makes runs deterministic and reproducible by a C++ implementation:
 ## Changelog
 
 - 1.0 (WP-21/22): first version.
+- 1.1: NaN timeout wording corrected (issue 001).
