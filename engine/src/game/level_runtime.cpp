@@ -101,7 +101,6 @@ bool World::startLevel(std::unique_ptr<LoadedLevel> lvl, int mission) {
     for (int k = 0; k < 6; ++k) intermissionCam_[k] = st.intermission[k];
     hmin_ = st.hmin;
     stamps_.clear(); // the level loader empties the TerraMorph stamp table
-    terrainChanges_.clear();
     hasWater_ = st.hasWater;
     waterLevel_ = st.waterLevel;
     night_ = st.night;
@@ -148,7 +147,6 @@ void World::startEmptyLevel(bool spawnPlayers) {
     level_.reset();
     terrainValid_ = false;
     stamps_.clear();
-    terrainChanges_.clear();
     gamePaths_.clear();
     static const std::vector<Placement> kNone;
     cursor_.build(kNone);

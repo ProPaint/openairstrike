@@ -418,7 +418,7 @@ TEST_CASE("sequel TerraMorph: additive heights, 128 neutral, placement by trunca
     m.r.src->add("morphmaps/t.tga", greyTga(3, 2, {128, 138, 118, 128, 128, 228}));
     const float z0 = m.base();
     CHECK(m.z(3, 3) == z0);
-    m.r.world.takeTerrainChanges();
+    const u32 rev0 = m.r.world.terrainRevision();
     // pos (4.5 * 40, 3.9 * 40): c0 = trunc(4.5 - 1) = 3, r0 = trunc(3.9 - 1) = 2.
     REQUIRE(m.r.world.terraMorph(180.0f, 156.0f, "morphmaps/t.tga"));
     CHECK(m.z(3, 2) == z0);          // pixel (0, 0) = 128: neutral
@@ -429,13 +429,19 @@ TEST_CASE("sequel TerraMorph: additive heights, 128 neutral, placement by trunca
     // The height query sees the new ground at once.
     CHECK(near(m.r.world.terrainHeight(160.0f, 80.0f), z0 + 10.0f));
     // Dirty rectangle: the vertices written.
-    std::vector<TerrainChange> ch = m.r.world.takeTerrainChanges();
+    std::vector<TerrainChange> ch;
+    CHECK(m.r.world.terrainRevision() == rev0 + 1);
+    REQUIRE(m.r.world.terrainChangesSince(rev0, ch));
     REQUIRE(ch.size() == 1);
     CHECK(ch[0].c0 == 3);
     CHECK(ch[0].r0 == 2);
     CHECK(ch[0].c1 == 5);
     CHECK(ch[0].r1 == 3);
-    CHECK(m.r.world.takeTerrainChanges().empty());
+    // Reading changes nothing; a reader up to date gets nothing.
+    REQUIRE(m.r.world.terrainChangesSince(rev0, ch));
+    CHECK(ch.size() == 1);
+    REQUIRE(m.r.world.terrainChangesSince(rev0 + 1, ch));
+    CHECK(ch.empty());
     // Accumulation, and the stamp is loaded once.
     REQUIRE(m.r.world.terraMorph(180.0f, 156.0f, "morphmaps/t.tga"));
     CHECK(near(m.z(4, 2), z0 + 20.0f));
@@ -466,9 +472,9 @@ TEST_CASE("sequel TerraMorph: edges, a stamp bigger than the terrain, truncation
     REQUIRE(n.r.world.terraMorph(-20.0f, -20.0f, "morphmaps/one.tga"));
     CHECK(near(n.z(0, 0), n.base() + 2.0f));
     // Far outside: nothing written, no change recorded.
-    n.r.world.takeTerrainChanges();
+    const u32 rev = n.r.world.terrainRevision();
     CHECK(n.r.world.terraMorph(10000.0f, 10000.0f, "morphmaps/one.tga"));
-    CHECK(n.r.world.takeTerrainChanges().empty());
+    CHECK(n.r.world.terrainRevision() == rev);
 }
 
 TEST_CASE("sequel TerraMorph: underwater vertices never change") {

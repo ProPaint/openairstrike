@@ -262,12 +262,14 @@ struct PlayerRecord {
 };
 
 // A rectangle of terrain vertices whose heights changed (TerraMorph), inclusive, in vertex
-// columns (x) and rows (y). World::takeTerrainChanges hands them to whoever mirrors the
-// heights (the terrain renderer) and clears the list.
+// columns (x) and rows (y). The world keeps the last kMaxTerrainChanges of them numbered by
+// a revision count (World::terrainRevision, terrainChangesSince): whoever mirrors the heights
+// (the terrain renderer) remembers the revision it has seen and reads what came after, so
+// nobody takes anything from the world and a reader never changes the simulation.
 struct TerrainChange {
     int c0 = 0, r0 = 0, c1 = -1, r1 = -1;
 };
-constexpr size_t kMaxTerrainChanges = 64; // more in one frame merge into their bounding box
+constexpr size_t kMaxTerrainChanges = 64; // kept; a reader further behind refreshes everything
 constexpr int kMaxTerraMorphStamps = 64;  // distinct stamps per level (as2 TerraMorph step 1)
 
 // Programmatic input (a test or a bot fills it in): the held action bits per player.
@@ -443,9 +445,13 @@ public:
     // greyscale TGA, 128 neutral) to the vertex heights around (x, y). False if nothing
     // could be applied (no terrain, stamp missing or not 8-bit, 64 stamps already loaded).
     bool terraMorph(float x, float y, const char* name);
-    // Vertex rectangles changed since the last call, oldest first; clears the list.
-    std::vector<TerrainChange> takeTerrainChanges();
-    const std::vector<TerrainChange>& terrainChanges() const { return terrainChanges_; }
+    // Number of terrain changes since the world was initialised (never goes back, also not
+    // at a level start). A reader that has seen revision `rev` gets the rectangles changed
+    // after it, oldest first, from terrainChangesSince; false when more than
+    // kMaxTerrainChanges came after it (then the whole grid must be refreshed; `out` holds
+    // the grid's full rectangle when a terrain exists). Const: reading changes nothing.
+    u32 terrainRevision() const { return terrainRevision_; }
+    bool terrainChangesSince(u32 rev, std::vector<TerrainChange>& out) const;
     int terraMorphStampCount() const { return static_cast<int>(stamps_.size()); }
     void setupTransform(int idx);
     void attachToTag(int idx);
@@ -629,7 +635,9 @@ private:
         std::vector<u8> pixels; // w * h, row j of the file at j * w
     };
     std::vector<Stamp> stamps_;
-    std::vector<TerrainChange> terrainChanges_;
+    // The last kMaxTerrainChanges changes, a ring: revision r (1-based) at (r - 1) % size.
+    std::vector<TerrainChange> terrainLog_;
+    u32 terrainRevision_ = 0;
 
     float mapPos_ = 32.0f;
     float frametime_ = 0.0f;

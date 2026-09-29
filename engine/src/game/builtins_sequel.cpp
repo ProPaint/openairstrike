@@ -82,9 +82,9 @@ void bDetachEntity(BuiltinArgs& a, void*) {
 // C. Terrain and water.
 // ---------------------------------------------------------------------------------------
 
-// TerraMorph(pos, name) (delta 95; World::terraMorph). Approximate: the simulation side is
-// complete (heights, TerrainHeight, ground snapping), but no renderer consumes
-// World::takeTerrainChanges yet, so the crater is not drawn.
+// TerraMorph(pos, name) (delta 95; World::terraMorph): heights, TerrainHeight and ground
+// snapping at once; the renderer re-uploads the changed vertices from
+// World::terrainChangesSince at its next frame (the original redraws the grid every frame).
 void bTerraMorph(BuiltinArgs& a, void*) {
     World& w = worldOf(a);
     float pos[3];
@@ -237,7 +237,7 @@ const BuiltinDesc kTable[] = {
     {"WaterHeight", 2, bWaterHeight, nullptr, BuiltinStatus::Approximate},
     {"Lightning", 1, bLightning, nullptr, BuiltinStatus::Implemented},
     {"G_SetPowerUpCount", 2, bSetPowerUpCount, nullptr, BuiltinStatus::Implemented},
-    {"TerraMorph", 2, bTerraMorph, nullptr, BuiltinStatus::Approximate},
+    {"TerraMorph", 2, bTerraMorph, nullptr, BuiltinStatus::Implemented},
     {"IsMultiplayer", 0, bIsMultiplayer, nullptr, BuiltinStatus::Implemented},
     {"IsPlayerInGame", 1, bIsPlayerInGame, nullptr, BuiltinStatus::Implemented},
     {"GetMapPosOfs", 0, bGetMapPosOfs, nullptr, BuiltinStatus::Implemented},
