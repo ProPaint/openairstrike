@@ -2,7 +2,7 @@
 // (apps/game/game_loop.h) in the browser, opening on the front end like the Android app.
 //
 // The page (site/app.js) prepares everything before it calls main: the game files in /data
-// (pak0..2.apk, and when available Settings.xml, logo2s.tga, texts_v170.txt), browser storage
+// (data/<key>/: the game's paks, and when available Settings.xml, logo2s.tga and its texts file), browser storage
 // mounted at /persist (the profile), the canvas sized to the window. It passes its URL
 // parameters as arguments:
 //   --touch / --auto-touch      touch mode now / at the first finger (hybrid devices)
@@ -10,8 +10,8 @@
 //   --level N, --bot            straight into a mission, no menus (tests); --bot --menus: the
 //                               menus, and the bot plays the missions started from them
 //   --god, --no-audio, --frames N, --difficulty D, --fps
-//   --game KEY, --unfinished    the game (?game=as3d|as2|gulf, default as3d, its files in /data
-//                               under the names of its profile); a game that does not play yet
+//   --game KEY, --unfinished    the game (?game=as3d|as2|gulf, default as3d, its files in
+//                               /data/<key>/ under the names of its profile); a game that does not play yet
 //                               is refused unless ?unfinished=1
 //
 // Calls from the page (exported, see site/app.js):
@@ -109,6 +109,7 @@ int main(int argc, char* argv[]) {
     o.logTouches = true;
     const as3d::GameProfile* profile = &as3d::gameProfile(as3d::GameId::AirStrike3D);
     bool allowUnfinished = false, badGame = false;
+    int levelArg = 0, difficulty = -1; // as given; checked against the game's rules once it is known
     for (int i = 1; i < argc; ++i) {
         const char* s = argv[i];
         const char* v = i + 1 < argc ? argv[i + 1] : nullptr;
@@ -134,13 +135,11 @@ int main(int argc, char* argv[]) {
             g_dpi = static_cast<float>(std::atof(v));
             ++i;
         } else if (!std::strcmp(s, "--level") && v) {
-            int m = std::atoi(v);
-            if (m >= 1 && m <= o.game.rules().missionCount) o.game.mission = m;
+            levelArg = std::atoi(v); // range-checked against the chosen game below
             direct = level = true;
             ++i;
         } else if (!std::strcmp(s, "--difficulty") && v) {
-            int d = std::atoi(v);
-            if (d >= 0 && d < o.game.rules().difficultyCount) o.game.world.difficulty = d;
+            difficulty = std::atoi(v);
             ++i;
         } else if (!std::strcmp(s, "--frames") && v) {
             long f = std::strtol(v, nullptr, 10);
@@ -156,8 +155,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     o.game.game = profile;
-    for (const char* const* p = profile->paks; *p; ++p) o.game.paks.push_back(std::string("/data/") + *p);
-    if (o.game.mission > profile->rules.missionCount) o.game.mission = 1;
+    const std::string dir = std::string("/data/") + profile->key + "/"; // this game's files, put there by the page
+    for (const char* const* p = profile->paks; *p; ++p) o.game.paks.push_back(dir + *p);
+    // The level and difficulty ranges are the game's own.
+    if (levelArg >= 1 && levelArg <= profile->rules.missionCount) o.game.mission = levelArg;
+    else if (levelArg != 0) AS3D_WARN("--level %d is outside 1..%d, ignored", levelArg, profile->rules.missionCount);
+    if (difficulty >= 0 && difficulty < profile->rules.difficultyCount) o.game.world.difficulty = difficulty;
+    else if (difficulty != -1) AS3D_WARN("--difficulty %d is outside 0..%d, ignored", difficulty, profile->rules.difficultyCount - 1);
     if (o.game.world.difficulty >= profile->rules.difficultyCount) o.game.world.difficulty = profile->rules.defaultDifficulty;
     if (menus && !level) direct = false;
     o.safeInsets = [] { return g_insets; };
@@ -181,13 +185,13 @@ int main(int argc, char* argv[]) {
         o.frontend = true;
         o.game.startLevel = false;
         o.game.levelFlow = false;
-        o.game.extraFiles.push_back({"gfx\\logo2s.tga", "/data/logo2s.tga"});
+        o.game.extraFiles.push_back({"gfx\\logo2s.tga", dir + "logo2s.tga"});
         o.flow.touch = o.touch;
         o.flow.twoPlayerMode = false;
         o.flow.mouseControlOption = !o.touch;
         o.flow.touchMenuButton = false;
-        o.flow.settingsXml = "/data/Settings.xml";
-        o.flow.textsPath = std::string("/data/") + profile->textsFile;
+        o.flow.settingsXml = dir + "Settings.xml";
+        o.flow.textsPath = dir + profile->textsFile;
         o.flow.screenOptionAlways = true;
         o.flow.webKeys = true;
         o.flow.deferLoads = true;

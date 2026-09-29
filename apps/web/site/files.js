@@ -1,7 +1,8 @@
 // The game files of the web version (docs/web.md): fetched from the site (bundled build) or
-// supplied by the player (bring-your-own build), checked against known_files.json and kept in
-// IndexedDB. Also reads the front-end texts out of the player's AirStrike3D.exe, a port of
-// tools/extract_exe_texts.py (keep the two in step). No game data is part of this file.
+// supplied by the player (bring-your-own build), checked against known_files.json (grouped by
+// game; a file belongs to the game whose SHA-256 it has) and kept in IndexedDB under
+// "<game key>/<file name>". Also reads the front-end texts out of the player's game executable,
+// a port of tools/extract_exe_texts.py (keep the two in step). No game data is part of this file.
 'use strict';
 
 window.AS3DFiles = (function () {
@@ -72,16 +73,24 @@ window.AS3DFiles = (function () {
   // ---------------------------------------------------------------------------------------
   // The front-end texts in the player's AirStrike3D.exe (tools/extract_exe_texts.py).
   // ---------------------------------------------------------------------------------------
-  const PAGES = [
-    [1, 0x449EA4, 0x44A1F8], [2, 0x44A210, 0x44A430], [3, 0x44A448, 0x44A688], [4, 0x44A694, 0x44A850],
-    [5, 0x44A870, 0x44AA94], [6, 0x44AAB4, 0x44AB3C], [7, 0x44AB5C, 0x44AD90], [8, 0x44ADA8, 0x44AE28],
-    [9, 0x44AE40, 0x44AFF0], [10, 0x44AFF8, 0x44B07C]];
-  const CONGRATS = [[0, 0x449D6C], [2, 0x449D80], [3, 0x449DBC], [4, 0x449DF0]];
-  const RANK_TABLE = 0x45650C;
-  const PAGE_HINTS = [['info.hint.prev', 0x44B084], ['info.hint.next', 0x44B09C], ['info.page', 0x44B0B0]];
-  const PAGE_VALUES = 0x449E50;
+  // The text addresses of each known executable, chosen by its SHA-256; null = the game's
+  // addresses are not mapped yet (tools/extract_exe_texts.py, TABLES).
+  const EXE_TABLES = {
+    '3b371bc2a72dcf18c17b5efa1b7e08b85fef73cfdd28dce00ec0aa2f2e93df1d': { game: 'as3d', table: {
+      pages: [
+        [1, 0x449EA4, 0x44A1F8], [2, 0x44A210, 0x44A430], [3, 0x44A448, 0x44A688], [4, 0x44A694, 0x44A850],
+        [5, 0x44A870, 0x44AA94], [6, 0x44AAB4, 0x44AB3C], [7, 0x44AB5C, 0x44AD90], [8, 0x44ADA8, 0x44AE28],
+        [9, 0x44AE40, 0x44AFF0], [10, 0x44AFF8, 0x44B07C]],
+      congrats: [[0, 0x449D6C], [2, 0x449D80], [3, 0x449DBC], [4, 0x449DF0]],
+      rankTable: 0x45650C,
+      hints: [['info.hint.prev', 0x44B084], ['info.hint.next', 0x44B09C], ['info.page', 0x44B0B0]],
+      pageValues: 0x449E50 } },
+    'b24b62b2c5b61cfa1cf0aad781788aa777a2e4f4a385c73ba53014b039e46f5b': { game: 'as2', table: null },
+    '86195a9653489064844c172ce43307c703a50e53be7e00d45fe346c45d5ae077': { game: 'gulf', table: null },
+  };
 
-  function extractExeTexts(data) {
+  // `header`: the first comment line's "<title> v<version>" (games.json).
+  function extractExeTexts(data, table, header) {
     const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
     const fail = (m) => { throw new Error(m); };
     if (data[0] !== 0x4D || data[1] !== 0x5A) fail('not an MZ executable');
@@ -143,7 +152,7 @@ window.AS3DFiles = (function () {
       return null;
     };
     const entries = [];
-    for (const [page, body, title] of PAGES) {
+    for (const [page, body, title] of table.pages) {
       entries.push([`info.${page}.title`, cstr(title)]);
       const lines = [];
       let a = body;
@@ -164,19 +173,32 @@ window.AS3DFiles = (function () {
         entries.push([`info.${page}.${slot}`, s]);
       }
     }
-    for (const [line, addr] of CONGRATS) entries.push([`congrats.${line}`, cstr(addr)]);
-    for (let i = 0; i < 7; i++) entries.push([`rank.${i}`, cstr(u32(RANK_TABLE + 4 * i), 32)]);
-    for (const [key, addr] of PAGE_HINTS) entries.push([key, cstr(addr, 64)]);
-    for (let k = 0; k < 10; k++) entries.push([`info.pages.${10 - k}`, cstr(PAGE_VALUES + 8 * k + (k === 0 ? 0 : 4), 16)]);
+    for (const [line, addr] of table.congrats) entries.push([`congrats.${line}`, cstr(addr)]);
+    for (let i = 0; i < 7; i++) entries.push([`rank.${i}`, cstr(u32(table.rankTable + 4 * i), 32)]);
+    for (const [key, addr] of table.hints) entries.push([key, cstr(addr, 64)]);
+    for (let k = 0; k < 10; k++) entries.push([`info.pages.${10 - k}`, cstr(table.pageValues + 8 * k + (k === 0 ? 0 : 4), 16)]);
     const quote = (s) => '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
-    let out = '# AirStrike 3D v1.70 front-end texts, read from the user\'s executable by\n' +
+    let out = `# ${header} front-end texts, read from the user's executable by\n` +
               '# tools/extract_exe_texts.py. Do not commit. Format: key = "value".\n';
     for (const [k, v] of entries) out += `${k} = ${quote(v)}\n`;
     return out;
   }
 
+  // The texts of a game's executable: { game, text } for a known executable with a table,
+  // { game, text: null, notMapped: message } for a known one without (the sequels for now);
+  // throws for any other file. `bytes`: the executable, `sha`: its SHA-256, `known`: the
+  // games of known_files.json.
+  function textsFromExe(bytes, sha, known) {
+    const e = EXE_TABLES[sha];
+    if (!e) throw new Error('not the executable of a known game');
+    const g = known[e.game];
+    if (!e.table) return { game: e.game, text: null, notMapped: `texts of ${g.title} are not mapped yet` };
+    return { game: e.game, text: extractExeTexts(bytes, e.table, `${g.title} v${g.version}`) };
+  }
+
   // ---------------------------------------------------------------------------------------
-  // IndexedDB: one store, file name -> Blob.
+  // IndexedDB: one store, "<game key>/<file name>" -> Blob. Files stored by the first version
+  // of the page have no game key (they were AirStrike 3D's): loadStored renames them.
   // ---------------------------------------------------------------------------------------
   const DB = 'as3d-game-files', STORE = 'files';
   function openDb() {
@@ -201,8 +223,9 @@ window.AS3DFiles = (function () {
       db.close();
     }
   }
+  // { gameKey: { name: Blob } }
   async function loadStored() {
-    const out = {};
+    const raw = {};
     const db = await openDb();
     try {
       await new Promise((ok, fail) => {
@@ -211,7 +234,7 @@ window.AS3DFiles = (function () {
         c.onsuccess = () => {
           const cur = c.result;
           if (!cur) return;
-          out[cur.key] = cur.value;
+          raw[cur.key] = cur.value;
           cur.continue();
         };
         t.oncomplete = ok;
@@ -220,86 +243,138 @@ window.AS3DFiles = (function () {
     } finally {
       db.close();
     }
+    const legacy = Object.keys(raw).filter((k) => !k.includes('/'));
+    if (legacy.length) {
+      await tx('readwrite', (s) => {
+        for (const k of legacy) {
+          s.put(raw[k], 'as3d/' + k);
+          s.delete(k);
+        }
+      });
+      for (const k of legacy) {
+        raw['as3d/' + k] = raw[k];
+        delete raw[k];
+      }
+    }
+    const out = {};
+    for (const [k, v] of Object.entries(raw)) {
+      const i = k.indexOf('/');
+      (out[k.slice(0, i)] = out[k.slice(0, i)] || {})[k.slice(i + 1)] = v;
+    }
     return out;
   }
-  const store = (files) => tx('readwrite', (s) => { for (const [k, v] of Object.entries(files)) s.put(v, k); });
+  // `games`: { gameKey: { name: Blob } }
+  const store = (games) => tx('readwrite', (s) => {
+    for (const [g, files] of Object.entries(games)) for (const [k, v] of Object.entries(files)) s.put(v, g + '/' + k);
+  });
   const clearStored = () => tx('readwrite', (s) => s.clear());
 
   // ---------------------------------------------------------------------------------------
   // Checking what the player gave.
   // ---------------------------------------------------------------------------------------
-  let known = null;
+  let known = null; // known_files.json's games, plus the lookups built from them
+  let byName = null, byHash = null;
   async function knownFiles() {
     if (!known) {
       const r = await fetch('known_files.json?v=' + ((window.AS3D_BUILD || {}).stamp || ''));
-      known = (await r.json()).files;
+      const k = (await r.json()).games;
+      // A file name (lower case) -> what the games call it; a SHA-256 -> [{ game, name }].
+      byName = {};
+      byHash = {};
+      for (const [g, def] of Object.entries(k)) {
+        for (const [name, f] of Object.entries(def.files)) {
+          (byName[name.toLowerCase()] = byName[name.toLowerCase()] || { name, games: [] }).games.push(g);
+          if (f.sha256) (byHash[f.sha256] = byHash[f.sha256] || []).push({ game: g, name });
+        }
+      }
+      known = k;
     }
     return known;
   }
-  const REQUIRED = ['pak0.apk', 'pak1.apk', 'pak2.apk'];
-
-  // Canonical name of a known file from any path and case; null for other files.
-  function canonical(path) {
-    const base = path.split(/[\\/]/).pop().toLowerCase();
-    for (const n of ['pak0.apk', 'pak1.apk', 'pak2.apk', 'Settings.xml', 'logo2s.tga', 'AirStrike3D.exe', 'texts_v170.txt']) {
-      if (n.toLowerCase() === base) return n;
-    }
-    return null;
+  // The names of a game's required files (its paks).
+  function requiredOf(game) {
+    return Object.entries(known[game].files).filter(([, f]) => f.required).map(([n]) => n);
   }
 
-  // Checks the given File objects. Returns { files: {name: Blob}, notes: [{name, ok, text}] }:
-  // the files to keep (the exe becomes texts_v170.txt) and a line per file looked at.
+  // Canonical name of a file of any known game from any path and case; null for other files.
+  // knownFiles() must have been awaited.
+  function canonical(path) {
+    const base = path.split(/[\\/]/).pop().toLowerCase();
+    return byName && byName[base] ? byName[base].name : null;
+  }
+
+  // Checks the given File objects. Returns { games: {key: {name: Blob}}, notes: [{name, ok,
+  // text, game}] }: the files to keep, grouped by the game each belongs to (by SHA-256; the
+  // exe becomes the game's texts file), and a line per file looked at.
   async function check(fileList, progress) {
     const kn = await knownFiles();
-    const files = {}, notes = [];
+    const games = {}, notes = [];
+    const keep = (g, name, blob) => { (games[g] = games[g] || {})[name] = blob; };
+    const titles = Object.values(kn).map((g) => g.title).join(', ');
     const list = Array.from(fileList).filter((f) => canonical(f.webkitRelativePath || f.name));
-    // A logo only from gfx/ when a whole folder was given (the install has no other).
     let i = 0;
     for (const f of list) {
       const name = canonical(f.webkitRelativePath || f.name);
-      const k = kn[name];
       if (progress) progress(name, i++ / Math.max(1, list.length));
-      if (k && k.size && f.size !== k.size) {
-        notes.push({ name, ok: false, text: `${name}: ${f.size} bytes, expected ${k.size} (not the v1.70 file)` });
+      const texts = Object.keys(kn).filter((g) => kn[g].texts === name);
+      if (texts.length) {
+        const g = texts[0];
+        const t = new TextDecoder().decode(new Uint8Array(await f.arrayBuffer()));
+        if (!/^info\.1\.title = "/m.test(t)) {
+          notes.push({ name, game: g, ok: false, text: `${name}: not the file tools/extract_exe_texts.py writes` });
+          continue;
+        }
+        if (!(games[g] && games[g][name])) keep(g, name, new Blob([t], { type: 'text/plain' }));
+        notes.push({ name, game: g, ok: true, text: `${name}: OK` });
+        continue;
+      }
+      // Size first: no need to hash a file no game has in that size.
+      const cands = byName[name.toLowerCase()].games.filter((g) => {
+        const k = kn[g].files[name];
+        return !k.size || k.size === f.size;
+      });
+      if (!cands.length) {
+        notes.push({ name, ok: false, text: `${name}: ${f.size} bytes, not the file of any game this page knows (${titles})` });
         continue;
       }
       const bytes = new Uint8Array(await f.arrayBuffer());
-      if (k && k.sha256) {
-        const h = await sha256(bytes);
-        if (h !== k.sha256) {
-          notes.push({ name, ok: false, text: `${name}: the contents differ from the v1.70 file` });
-          continue;
-        }
+      const h = await sha256(bytes);
+      const hits = (byHash[h] || []).filter((x) => x.name === name);
+      if (!hits.length) {
+        notes.push({ name, ok: false, text: `${name}: the contents differ from the file of every game this page knows (${titles})` });
+        continue;
       }
-      if (name === 'AirStrike3D.exe') {
+      const isExe = hits.some((x) => kn[x.game].exe === name);
+      if (isExe) {
+        const g = hits[0].game, title = kn[g].title;
         try {
-          const t = extractExeTexts(bytes);
-          files['texts_v170.txt'] = new Blob([t], { type: 'text/plain' });
-          notes.push({ name, ok: true, text: 'AirStrike3D.exe: texts read (the executable itself is not kept)' });
+          const r = textsFromExe(bytes, h, kn);
+          if (r.text === null) {
+            notes.push({ name, game: g, ok: true, text: `${name}: the executable of ${title}; ${r.notMapped} (the executable itself is not kept)` });
+          } else {
+            keep(g, kn[g].texts, new Blob([r.text], { type: 'text/plain' }));
+            notes.push({ name, game: g, ok: true, text: `${name}: the executable of ${title}, texts read (the executable itself is not kept)` });
+          }
         } catch (e) {
-          notes.push({ name, ok: false, text: `AirStrike3D.exe: ${e.message}` });
+          notes.push({ name, game: g, ok: false, text: `${name}: ${e.message}` });
         }
         continue;
       }
-      if (name === 'texts_v170.txt') {
-        const t = new TextDecoder().decode(bytes);
-        if (!/^info\.1\.title = "/m.test(t)) {
-          notes.push({ name, ok: false, text: 'texts_v170.txt: not the file tools/extract_exe_texts.py writes' });
-          continue;
-        }
-        if (files['texts_v170.txt']) continue; // the exe gave them already
-      }
-      files[name] = new Blob([bytes]);
-      notes.push({ name, ok: true, text: `${name}: OK` });
+      const blob = new Blob([bytes]);
+      for (const x of hits) keep(x.game, name, blob);
+      const of = hits.map((x) => kn[x.game].title).join(' and ');
+      notes.push({ name, game: hits[0].game, ok: true, text: `${name}: OK, ${of}` });
     }
     if (progress) progress('', 1);
-    return { files, notes };
+    return { games, notes };
   }
 
-  function missing(files) { return REQUIRED.filter((n) => !files[n]); }
+  // The required files of `game` that `files` ({name: Blob}) lacks.
+  function missing(files, game) { return requiredOf(game).filter((n) => !(files && files[n])); }
 
   // Every File in a drop, folders included (Chromium, Firefox, Safari).
   async function droppedFiles(dt) {
+    await knownFiles();
     const items = Array.from(dt.items || []);
     const entries = items.map((it) => (it.webkitGetAsEntry ? it.webkitGetAsEntry() : null)).filter(Boolean);
     if (!entries.length) return Array.from(dt.files || []);
@@ -320,21 +395,23 @@ window.AS3DFiles = (function () {
     return out;
   }
 
-  // The bundled build: the files in data/ of the site, with a progress callback (0..1).
-  async function fetchBundled(progress) {
-    const kn = await knownFiles();
-    let names = ['pak0.apk', 'pak1.apk', 'pak2.apk', 'Settings.xml', 'logo2s.tga', 'texts_v170.txt'];
+  // The bundled build: the files in data/<game>/ of the site, with a progress callback (0..1).
+  async function fetchBundled(game, progress) {
+    const kn = (await knownFiles())[game];
+    if (!kn) throw new Error(`unknown game '${game}'`);
+    const dir = `data/${game}/`;
+    let names = Object.keys(kn.files).filter((n) => n !== kn.exe);
     try {
-      const r = await fetch('data/index.txt', { cache: 'no-cache' });
+      const r = await fetch(dir + 'index.txt', { cache: 'no-cache' });
       if (r.ok) names = (await r.text()).split(/\s+/).filter((n) => n && n !== 'index.txt');
     } catch (e) { /* the default list */ }
-    const total = names.reduce((s, n) => s + ((kn[n] && kn[n].size) || 10000), 0);
+    const total = names.reduce((s, n) => s + ((kn.files[n] && kn.files[n].size) || 10000), 0);
     let done = 0;
     const out = {};
     for (const n of names) {
-      const r = await fetch('data/' + n);
+      const r = await fetch(dir + n);
       if (!r.ok) {
-        if (REQUIRED.includes(n)) throw new Error(`cannot load data/${n} (HTTP ${r.status})`);
+        if (requiredOf(game).includes(n)) throw new Error(`cannot load ${dir}${n} (HTTP ${r.status})`);
         continue;
       }
       if (!r.body || !r.body.getReader) {
@@ -363,6 +440,6 @@ window.AS3DFiles = (function () {
     return out;
   }
 
-  return { sha256, sha256Js, extractExeTexts, loadStored, store, clearStored, check, missing, canonical,
-           droppedFiles, fetchBundled, knownFiles, REQUIRED };
+  return { sha256, sha256Js, extractExeTexts, textsFromExe, loadStored, store, clearStored, check, missing, canonical,
+           droppedFiles, fetchBundled, knownFiles };
 })();

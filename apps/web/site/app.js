@@ -54,8 +54,13 @@
     const v = parseInt(q.get(name), 10);
     return Number.isFinite(v) ? String(clamp(v, lo, hi)) : null;
   };
-  if (intParam('level', 1, 20)) args.push('--level', intParam('level', 1, 20));
-  if (/^[a-z0-9]+$/.test(q.get('game') || '')) args.push('--game', q.get('game'));
+  // The game: ?game=as3d|as2|gulf (default as3d). Its files live in data/<key>/ (bundled build)
+  // or under its own key in browser storage (bring-your-own build).
+  const GAME = /^[a-z0-9]+$/.test(q.get('game') || '') ? q.get('game') : 'as3d';
+  // ?level= and ?difficulty= are passed on as numbers; the engine checks them against the
+  // rules of the chosen game (mission and difficulty counts differ) and ignores a bad one.
+  if (intParam('level', 1, 9999)) args.push('--level', intParam('level', 1, 9999));
+  if (q.has('game')) args.push('--game', GAME);
   if (q.get('unfinished') === '1') args.push('--unfinished');
   if (q.get('bot') === '1') args.push('--bot');
   if (q.get('menus') === '1') args.push('--menus');
@@ -63,7 +68,7 @@
   if (q.get('noaudio') === '1') args.push('--no-audio');
   if (q.get('fps') === '1') args.push('--fps');
   if (intParam('frames', 1, 1e9)) args.push('--frames', intParam('frames', 1, 1e9));
-  if (intParam('difficulty', 0, 4)) args.push('--difficulty', intParam('difficulty', 0, 4));
+  if (intParam('difficulty', 0, 9999)) args.push('--difficulty', intParam('difficulty', 0, 9999));
 
   // ---------------------------------------------------------------------------------------
   // The canvas: the whole window at the device's pixel ratio, the drawing buffer's shorter
@@ -277,7 +282,7 @@
   }
 
   // ---------------------------------------------------------------------------------------
-  // Game files: bundled (fetched from data/) or the player's own (IndexedDB).
+  // Game files: bundled (fetched from data/<key>/) or the player's own (IndexedDB, per game).
   // ---------------------------------------------------------------------------------------
   let resolveFiles;
   const filesReady = new Promise((ok) => { resolveFiles = ok; });
@@ -285,11 +290,12 @@
     Module.addRunDependency('as3d-data');
     filesReady.then(async (files) => {
       Module.FS.mkdir('/data');
+      Module.FS.mkdir('/data/' + GAME);
       for (const [name, v] of Object.entries(files)) {
         const bytes = v instanceof Uint8Array ? v : new Uint8Array(await v.arrayBuffer());
-        Module.FS.writeFile('/data/' + name, bytes);
+        Module.FS.writeFile('/data/' + GAME + '/' + name, bytes);
       }
-      log('AS3D_WEB data=' + Object.keys(files).sort().join(','));
+      log('AS3D_WEB data=' + Object.keys(files).sort().join(',') + ' game=' + GAME);
       Module.removeRunDependency('as3d-data');
     }).catch((e) => fail('Cannot prepare the game files: ' + e.message));
   }
@@ -302,14 +308,22 @@
 
   async function bundledFiles() {
     setStatus('Loading the game data...');
-    const files = await AS3DFiles.fetchBundled(progress);
+    const files = await AS3DFiles.fetchBundled(GAME, progress);
     progress(1);
     resolveFiles(files);
   }
 
-  // Bring your own: the stored files, else the picker until the three paks are there.
-  let chosen = {};
+  // Bring your own: the stored files, else the picker until the game's required files (its
+  // paks) are there. Files of the other games are recognised by their SHA-256 and stored too.
+  // chosen: { gameKey: { name: Blob } }, what is stored plus what was given this time.
+  let chosen = {}, games = {};
+  const titleOf = (g) => (games[g] ? games[g].title : g);
   async function ownFiles() {
+    games = await AS3DFiles.knownFiles();
+    if (!games[GAME]) {
+      fail(`Unknown game '${GAME}' (${Object.keys(games).join(', ')}).`);
+      return;
+    }
     let stored = {};
     try {
       stored = await AS3DFiles.loadStored();
@@ -319,32 +333,42 @@
       $('warn').textContent = 'This browser does not let the page store files (private window?): ' +
         'the game files must be chosen again on every visit.';
     }
-    if (!AS3DFiles.missing(stored).length) {
-      showStored(stored);
-      resolveFiles(stored);
+    chosen = stored;
+    if (!AS3DFiles.missing(chosen[GAME], GAME).length) {
+      showStored(chosen);
+      resolveFiles(chosen[GAME]);
       return;
     }
-    chosen = stored;
+    if (Object.keys(chosen).length) showStored(chosen);
     setStatus('');
     $('files').hidden = false;
     await renderFileList([]);
   }
-  function showStored(files) {
-    const mb = Object.values(files).reduce((s, b) => s + (b.size || b.length || 0), 0) / 1048576;
-    $('stored').hidden = false;
-    $('stored-text').textContent = `Your game files are kept in this browser (${mb.toFixed(0)} MB: ` +
-      Object.keys(files).sort().join(', ') + ').';
+  function showStored(byGame) {
+    const size = (b) => b.size || b.length || 0;
+    const parts = [];
+    let total = 0;
+    for (const g of Object.keys(byGame).sort()) {
+      const files = byGame[g];
+      if (!Object.keys(files).length) continue;
+      total += Object.values(files).reduce((s, b) => s + size(b), 0);
+      parts.push(`${titleOf(g)}: ${Object.keys(files).sort().join(', ')}`);
+    }
+    $('stored').hidden = !parts.length;
+    $('stored-text').textContent = `Your game files are kept in this browser (${(total / 1048576).toFixed(0)} MB; ` +
+      parts.join('; ') + ').';
   }
   async function renderFileList(notes) {
-    const kn = await AS3DFiles.knownFiles();
+    const def = games[GAME];
     const ul = $('files-list');
     ul.textContent = '';
-    for (const n of ['pak0.apk', 'pak1.apk', 'pak2.apk', 'Settings.xml', 'logo2s.tga', 'texts_v170.txt']) {
+    const names = Object.keys(def.files).filter((n) => n !== def.exe);
+    for (const n of names) {
       const li = document.createElement('li');
-      const have = !!chosen[n];
-      const bad = notes.find((x) => !x.ok && (x.name === n || (n === 'texts_v170.txt' && x.name === 'AirStrike3D.exe')));
+      const have = !!(chosen[GAME] && chosen[GAME][n]);
+      const bad = notes.find((x) => !x.ok && (x.name === n || (n === def.texts && x.name === def.exe)));
       li.className = have ? 'ok' : bad ? 'bad' : 'missing';
-      const what = kn[n] && kn[n].gives ? ` (optional: ${kn[n].gives})` : n.endsWith('.apk') ? ' (needed)' : '';
+      const what = def.files[n].gives ? ` (optional: ${def.files[n].gives})` : n.endsWith('.apk') ? ' (needed)' : '';
       li.textContent = n + (have ? '' : what) + (bad ? ' - ' + bad.text : '');
       ul.appendChild(li);
     }
@@ -357,23 +381,31 @@
         status.textContent = name ? `Checking ${name}...` : 'Checking...';
         progress(f);
       });
-      Object.assign(chosen, res.files);
+      for (const [g, files] of Object.entries(res.games)) chosen[g] = Object.assign(chosen[g] || {}, files);
       await renderFileList(res.notes);
-      const miss = AS3DFiles.missing(chosen);
+      const miss = AS3DFiles.missing(chosen[GAME], GAME);
       const bad = res.notes.filter((n) => !n.ok).map((n) => n.text);
-      if (!res.notes.length) status.textContent = 'None of these is a file of the game.';
-      else status.textContent = bad.join('; ') || (miss.length ? 'Still needed: ' + miss.join(', ') : '');
-      if (miss.length) return;
-      status.textContent = 'Storing the files in this browser...';
-      try {
-        await AS3DFiles.store(chosen);
-        showStored(chosen);
-      } catch (e) {
-        log('AS3D_WEB storage: ' + e);
+      // The games whose files are all there are kept, whichever game the page starts.
+      const complete = Object.keys(chosen).filter((g) => games[g] && !AS3DFiles.missing(chosen[g], g).length);
+      const others = complete.filter((g) => g !== GAME && res.games[g]);
+      const info = others.map((g) => `${titleOf(g)}: files recognised and stored` +
+        (games[g].playable ? '' : '; the game is not playable yet'));
+      if (!res.notes.length) status.textContent = 'None of these is a file of a game this page knows.';
+      else status.textContent = bad.concat(info, miss.length ? ['Still needed for ' + titleOf(GAME) + ': ' + miss.join(', ')] : []).join('; ');
+      if (complete.length) {
+        try {
+          const keep = {};
+          for (const g of complete) keep[g] = chosen[g];
+          await AS3DFiles.store(keep);
+          showStored(keep);
+        } catch (e) {
+          log('AS3D_WEB storage: ' + e);
+        }
       }
+      if (miss.length) return;
       status.textContent = '';
       $('files').hidden = true;
-      resolveFiles(chosen);
+      resolveFiles(chosen[GAME]);
       setStatus('Starting the engine...');
     } catch (e) {
       status.textContent = 'Cannot read the files: ' + e.message;
@@ -398,7 +430,7 @@
     takeFiles(await AS3DFiles.droppedFiles(e.dataTransfer));
   });
   $('forget').addEventListener('click', async () => {
-    if (!confirm('Remove the game files stored in this browser? You will have to choose them again. ' +
+    if (!confirm('Remove the game files stored in this browser (all games)? You will have to choose them again. ' +
                  'Your progress and settings stay.')) return;
     try {
       await AS3DFiles.clearStored();
@@ -413,10 +445,20 @@
   if (!touchAtStart && fsApi && !installed) playFull.hidden = false;
   function ready() {
     state.ready = true;
-    play.disabled = false;
-    setStatus(direct ? 'Ready (test mode: mission ' + (q.get('level') || '1') + ')' : '');
     $('progress').hidden = true;
-    if (q.get('autostart') === '1') start(false);
+    // The sequels do not play yet (as3d::gameIsPlayable): their files are accepted and kept,
+    // the page starts them only with ?unfinished=1.
+    AS3DFiles.knownFiles().then((kn) => {
+      const def = kn[GAME];
+      if (def && !def.playable && q.get('unfinished') !== '1') {
+        state.notPlayable = GAME;
+        setStatus(def.title + ' is not playable yet. Its files are kept in this browser for when it is.');
+        return;
+      }
+      play.disabled = false;
+      setStatus(direct ? 'Ready (test mode: mission ' + (q.get('level') || '1') + ')' : '');
+      if (q.get('autostart') === '1') start(false);
+    }).catch((e) => fail(e.message));
   }
   // `full`: ask for full screen (touch devices always; must run in the click itself).
   function start(full) {
