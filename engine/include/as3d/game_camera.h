@@ -36,5 +36,8 @@ struct GameCamera {
 
 // mode is clamped to 0..3, cameraX to [578, 702]. far = max(fogEnd, 1000) with fog, else 2000.
 GameCamera computeGameCamera(int mode, float mapPos, float cameraX, float aspect, bool hasFog, float fogEnd);
+// The same for a game's own preset and x limits (GameRules); the caller has clamped the mode.
+GameCamera computeGameCamera(const CameraPreset& preset, float minX, float maxX, float mapPos, float cameraX,
+                             float aspect, bool hasFog, float fogEnd);
 
 } // namespace as3d

@@ -31,11 +31,11 @@ Vec4 planeFromRows(const Mat4& m, int row, float sign) {
 void World::resetCamera() {
     camera_ = CameraState();
     camera_.mode = config_.cameraMode;
-    mapPos_ = 32.0f;
-    camera_.field[0] = 640.0f;
+    mapPos_ = rules_->startMapPos;
+    camera_.field[0] = rules_->startCameraX;
     camera_.field[9] = 1.0f;
-    camera_.field[7] = 42.0f;
-    const CameraPreset& p = kGameCameraPresets[camera_.mode];
+    camera_.field[7] = rules_->scrollSpeed;
+    const CameraPreset& p = rules_->cameraModes[camera_.mode];
     camera_.field[1] = mapPos_ + p.yOffset;
     camera_.field[2] = p.height;
     camera_.field[3] = p.pitchDegrees;
@@ -91,7 +91,7 @@ bool World::loadLevel(const std::string& ref, std::string* error) {
             if (gp->build(pls[i])) gamePaths_[i] = std::move(gp);
         }
         const std::string* item = level_->data.itemName(pls[i]);
-        if (item && *item == "item_star") ++starTotal_;
+        if (item && rules_->starItemObject && *item == rules_->starItemObject) ++starTotal_;
     }
 
     resetPools();
@@ -195,8 +195,8 @@ void World::updateCamera() {
         c.field[5] = intermissionCam_[5] + 1.4f * std::sin(0.75f * time_);
         c.field[14] = 60.0f;
     } else {
-        const CameraPreset& preset = kGameCameraPresets[c.mode];
-        c.field[7] = c.field[9] * 42.0f;
+        const CameraPreset& preset = rules_->cameraModes[c.mode];
+        c.field[7] = c.field[9] * rules_->scrollSpeed;
         c.field[8] = 0.0f;
         mapPos_ += c.field[7] * frametime_;
 
@@ -216,8 +216,8 @@ void World::updateCamera() {
                 const Vec4& pl = planes_[k];
                 if (!(std::fabs(pl.x) > 1e-6f)) continue;
                 float xk = (-pl.w - pl.y * o.y - pl.z * o.z) / pl.x;
-                if (pl.x > 0.0f) o.x = std::max(o.x, xk + 10.0f); // left plane: lower bound
-                else o.x = std::min(o.x, xk - 10.0f);              // right plane: upper bound
+                if (pl.x > 0.0f) o.x = std::max(o.x, xk + rules_->playerClampMargin); // left plane: lower bound
+                else o.x = std::min(o.x, xk - rules_->playerClampMargin);              // right plane: upper bound
             }
             pe.setF(F_ORIGIN, o.x);
             sumX += o.x;
@@ -227,10 +227,11 @@ void World::updateCamera() {
         if (living > 0) {
             float target = sumX / static_cast<float>(living);
             float d = target - c.field[0];
-            if (d > 48.0f) c.field[0] = target - 48.0f;
-            else if (d < -48.0f) c.field[0] = target + 48.0f;
+            const float follow = rules_->cameraFollow;
+            if (d > follow) c.field[0] = target - follow;
+            else if (d < -follow) c.field[0] = target + follow;
         }
-        c.field[0] = std::min(std::max(c.field[0], kGameCameraMinX), kGameCameraMaxX);
+        c.field[0] = std::min(std::max(c.field[0], rules_->cameraMinX), rules_->cameraMaxX);
         c.field[1] = mapPos_ + preset.yOffset;
         c.field[2] = preset.height;
         c.field[3] = preset.pitchDegrees;

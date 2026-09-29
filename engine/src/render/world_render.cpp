@@ -262,6 +262,34 @@ struct WorldRenderer::Impl {
             precacheShadows(db->findObject(at.targetName), steps, night, depth + 1);
         }
     }
+
+    // Looks up the health bar objects named by the rules; hbarReady is false without them.
+    void resolveHealthBar(const GameRules& rules) {
+        Impl& im = *this;
+        const ObjectDef* he = rules.healthBarEmptyObject ? im.db->findObject(rules.healthBarEmptyObject) : nullptr;
+        const ObjectDef* hf = rules.healthBarFullObject ? im.db->findObject(rules.healthBarFullObject) : nullptr;
+        im.hbarReady = he && hf && he->hasBbox && hf->hasBbox;
+        if (im.hbarReady) {
+            HealthBarSpriteDef* outs[2] = {&im.hbarEmpty, &im.hbarFull};
+            const ObjectDef* defs[2] = {he, hf};
+            for (int k = 0; k < 2; ++k) {
+                const ObjectDef& d = *defs[k];
+                HealthBarSpriteDef& o = *outs[k];
+                o.minX = d.bboxMin[0];
+                o.minY = d.bboxMin[1];
+                o.minS = d.bboxMin[2];
+                o.minT = d.bboxMin[3];
+                o.maxX = d.bboxMax[0];
+                o.maxY = d.bboxMax[1];
+                o.maxS = d.bboxMax[2];
+                o.maxT = d.bboxMax[3];
+                o.texture = d.skin.empty() ? nullptr : im.cache->texture(d.skin).texture;
+                o.blend = decalBlendOf(d.blend);
+                o.noDepthTest = (d.rflag & RF_NODEPTHTEST) != 0;
+                o.noDepthWrite = (d.rflag & RF_NODEPTHWRITE) != 0;
+            }
+        }
+    }
 };
 
 WorldRenderer::WorldRenderer() : impl_(new Impl) {}
@@ -279,35 +307,14 @@ bool WorldRenderer::init(Vfs& vfs, const DefDatabase& db, std::string* error) {
     if (!im.marks.init(error)) return false;
     if (!im.shadows.init(error)) return false;
     if (!im.lightning.init(error)) return false;
-    const ObjectDef* he = db.findObject("hbar_empty");
-    const ObjectDef* hf = db.findObject("hbar_full");
-    im.hbarReady = he && hf && he->hasBbox && hf->hasBbox;
-    if (im.hbarReady) {
-        HealthBarSpriteDef* outs[2] = {&im.hbarEmpty, &im.hbarFull};
-        const ObjectDef* defs[2] = {he, hf};
-        for (int k = 0; k < 2; ++k) {
-            const ObjectDef& d = *defs[k];
-            HealthBarSpriteDef& o = *outs[k];
-            o.minX = d.bboxMin[0];
-            o.minY = d.bboxMin[1];
-            o.minS = d.bboxMin[2];
-            o.minT = d.bboxMin[3];
-            o.maxX = d.bboxMax[0];
-            o.maxY = d.bboxMax[1];
-            o.maxS = d.bboxMax[2];
-            o.maxT = d.bboxMax[3];
-            o.texture = d.skin.empty() ? nullptr : im.cache->texture(d.skin).texture;
-            o.blend = decalBlendOf(d.blend);
-            o.noDepthTest = (d.rflag & RF_NODEPTHTEST) != 0;
-            o.noDepthWrite = (d.rflag & RF_NODEPTHWRITE) != 0;
-        }
-    }
+    im.resolveHealthBar(defaultGameRules());
     if (!im.brightness.init(error)) return false;
     return true;
 }
 
 bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     Impl& im = *impl_;
+    im.resolveHealthBar(world.rules());
     im.terrain.reset();
     im.water.reset();
     im.terrainOf = nullptr;

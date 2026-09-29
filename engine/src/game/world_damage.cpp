@@ -52,7 +52,8 @@ void World::awardScore(int p, int idx) {
     pr.scores = std::min(pr.scores + static_cast<float>(amount), 1.0e9f);
     // Floating digits (6.4). Nothing is shown for a zero or negative award (GUESS).
     if (amount <= 0 || !db_) return;
-    const ObjectDef* digitDef = db_->findObject("score_num");
+    if (!rules_->scoreDigitObject) return;
+    const ObjectDef* digitDef = db_->findObject(rules_->scoreDigitObject);
     if (!digitDef) return;
     char buf[16];
     std::snprintf(buf, sizeof buf, "%d", amount);

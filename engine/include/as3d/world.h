@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "as3d/core.h"
+#include "as3d/game_profile.h"
 #include "as3d/math.h"
 #include "as3d/script.h"
 #include "as3d/terrain.h"
@@ -286,6 +287,9 @@ struct WorldConfig {
     // environment variable AS3D_GOD_MODE=1 also turns it on (read once by World::init), so
     // tools without a switch for it (as3d_game) can run whole missions.
     bool godMode = false;
+    // Native rules of the game being run (game_profile.h). nullptr = defaultGameRules().
+    // Must outlive the World.
+    const GameRules* rules = nullptr;
 };
 
 struct CameraState {
@@ -450,6 +454,7 @@ public:
     float maxLevelScore() const { return maxLevelScore_; }
     int starTotal() const { return starTotal_; }
     const WorldConfig& config() const { return config_; }
+    const GameRules& rules() const { return *rules_; }
     Rng& rng() { return rng_; }
     const DefDatabase& db() const { return *db_; }
     Vfs& vfs() { return *vfs_; }
@@ -519,6 +524,7 @@ private:
     Vfs* vfs_ = nullptr;
     const DefDatabase* db_ = nullptr;
     WorldConfig config_;
+    const GameRules* rules_ = &defaultGameRules();
     Rng rng_{1};
     std::unique_ptr<GameScriptHost> host_;
     std::unique_ptr<WorldParticles> particles_;
