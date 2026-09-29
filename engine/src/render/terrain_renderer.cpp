@@ -23,6 +23,7 @@ struct Vertex {
     float col[3];
     float uv0[2];
     float uv1[2];
+    float nrm[3];
 };
 
 Image placeholderImage() {
@@ -57,7 +58,8 @@ VertexLayout terrainLayout() {
     l.attribs = {{0, 3, offsetof(Vertex, pos), false},
                  {1, 3, offsetof(Vertex, col), false},
                  {2, 2, offsetof(Vertex, uv0), false},
-                 {3, 2, offsetof(Vertex, uv1), false}};
+                 {3, 2, offsetof(Vertex, uv1), false},
+                 {4, 3, offsetof(Vertex, nrm), false}};
     return l;
 }
 
@@ -214,6 +216,7 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
     im.chunks.resize(static_cast<size_t>(nChunks));
     const auto& pos = terrain.positions();
     const auto& col = terrain.colors();
+    const auto& nrm = terrain.normals();
     for (int k = 0; k < nChunks; k++) {
         Chunk& ch = im.chunks[static_cast<size_t>(k)];
         ch.rowStart = k * kChunkRows;
@@ -233,6 +236,7 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
                 v.uv0[1] = static_cast<float>(r - ch.block * kBaseTextureRows) / 32.0f;
                 v.uv1[0] = static_cast<float>(c) * 0.25f;
                 v.uv1[1] = static_cast<float>(r) * 0.25f;
+                v.nrm[0] = nrm[gi].x; v.nrm[1] = nrm[gi].y; v.nrm[2] = nrm[gi].z;
                 verts.push_back(v);
                 ch.bmin.x = std::min(ch.bmin.x, pos[gi].x); ch.bmax.x = std::max(ch.bmax.x, pos[gi].x);
                 ch.bmin.y = std::min(ch.bmin.y, pos[gi].y); ch.bmax.y = std::max(ch.bmax.y, pos[gi].y);
@@ -300,6 +304,7 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
                         q[i].col[0] = col[g[i]].r / 255.0f; q[i].col[1] = col[g[i]].g / 255.0f; q[i].col[2] = col[g[i]].b / 255.0f;
                         q[i].uv0[0] = uv[i].x; q[i].uv0[1] = uv[i].y;
                         q[i].uv1[0] = q[i].uv1[1] = 0.0f;
+                        q[i].nrm[0] = nrm[g[i]].x; q[i].nrm[1] = nrm[g[i]].y; q[i].nrm[2] = nrm[g[i]].z;
                     }
                     // triangles (v00, v11, v01) and (v00, v10, v11)
                     tv.push_back(q[0]); tv.push_back(q[2]); tv.push_back(q[3]);
@@ -387,6 +392,28 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
     im.program.setInt("uTex1", 1);
     im.program.setInt("uDetail", options.detail ? 1 : 0);
     im.program.setInt("uMode", 0);
+    // Dynamic lights (spec 2.4): position + radius, colour, spot direction + cosines.
+    {
+        size_t n = std::min(params.lightCount, static_cast<size_t>(kMaxDynamicLights));
+        float pr[kMaxDynamicLights * 4] = {}, colr[kMaxDynamicLights * 3] = {}, dir[kMaxDynamicLights * 4] = {};
+        for (size_t i = 0; i < n; i++) {
+            const DynamicLight& l = params.lights[i];
+            pr[i * 4 + 0] = l.position.x; pr[i * 4 + 1] = l.position.y; pr[i * 4 + 2] = l.position.z;
+            pr[i * 4 + 3] = l.radius;
+            colr[i * 3 + 0] = l.colour.x; colr[i * 3 + 1] = l.colour.y; colr[i * 3 + 2] = l.colour.z;
+            dir[i * 4 + 0] = l.direction.x; dir[i * 4 + 1] = l.direction.y; dir[i * 4 + 2] = l.direction.z;
+            dir[i * 4 + 3] = l.spot ? 1.0f : 0.0f;
+        }
+        float cosv[kMaxDynamicLights * 2] = {};
+        for (size_t i = 0; i < n; i++) { cosv[i * 2] = params.lights[i].cosOuter; cosv[i * 2 + 1] = params.lights[i].cosInner; }
+        im.program.setInt("uLightCount", static_cast<int>(n));
+        if (n > 0) {
+            glUniform4fv(im.program.uniformLocation("uLightPosRadius"), static_cast<GLsizei>(n), pr);
+            glUniform3fv(im.program.uniformLocation("uLightColour"), static_cast<GLsizei>(n), colr);
+            glUniform4fv(im.program.uniformLocation("uLightDirSpot"), static_cast<GLsizei>(n), dir);
+            glUniform2fv(im.program.uniformLocation("uLightCos"), static_cast<GLsizei>(n), cosv);
+        }
+    }
     im.detail.bind(1);
 
     const VertexArray& vao = options.wireframe ? im.wireVao : im.triVao;

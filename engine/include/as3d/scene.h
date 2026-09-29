@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "as3d/core.h"
+#include "as3d/dynamic_lights.h"
 #include "as3d/gfx.h"
 #include "as3d/math.h"
 #include "as3d/model.h"
@@ -104,6 +105,9 @@ struct Material {
     // not implemented, kept only so a TODO/debug view can report which mode was asked
     // for. Storing the raw int (not the enum) keeps this header defs.h-free.
     int envModeRaw = 0;
+    // The obj `envmap` texture (render-pipeline.md 4.3), null without one. Drawn through
+    // envModeRaw only on smooth-normal models; set envModeRaw to 0 to switch it off.
+    const Texture2D* envTexture = nullptr;
     u32 rflag = 0; // raw copy of ObjectDef::rflag, for callers that want the bits directly
     bool noLighting = false;
     bool noCulling = false;
@@ -206,6 +210,12 @@ public:
     // `mesh`/`material` must outlive end() (submitted by pointer, not copied).
     void submit(const GpuMesh& mesh, const Material& material, const Mat4& modelMatrix,
                 const Vec4& colour = Vec4{1.0f, 1.0f, 1.0f, 1.0f});
+    // Dynamic lights for models (render-pipeline.md 2.4): kept until replaced, so set them
+    // once per frame before the first begin(). Each draw evaluates them once at the model
+    // origin into the ambient cube; RF_NOLIGHTING and RF_NODLIGHT materials ignore them.
+    void setDynamicLights(const DynamicLight* lights, size_t count);
+    // Game time in seconds; drives the ENV_QUAD texture rotation.
+    void setTime(float seconds) { time_ = seconds; }
     // Sorts (SORT_OPAQUE, then SORT_TRANS back-to-front by distance to the camera, then
     // SORT_EFFECT) and issues the draw calls.
     void end();
@@ -224,6 +234,8 @@ private:
     Camera camera_;
     SceneLighting lighting_;
     std::vector<DrawItem> items_;
+    std::vector<DynamicLight> lights_;
+    float time_ = 0.0f;
 
     void draw(const DrawItem& item);
 };
