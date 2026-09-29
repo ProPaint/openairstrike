@@ -56,7 +56,7 @@ set(AS3D_WEB_LINK
   -sEXIT_RUNTIME=0
   -sENVIRONMENT=web
   -fwasm-exceptions
-  "-sEXPORTED_RUNTIME_METHODS=['callMain']"
+  "-sEXPORTED_RUNTIME_METHODS=['callMain','HEAPU8']"
 )
 if(AS3D_WEB_FULL_ES3)
   list(APPEND AS3D_WEB_LINK -sFULL_ES3=1)
