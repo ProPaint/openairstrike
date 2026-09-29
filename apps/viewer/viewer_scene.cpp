@@ -174,7 +174,6 @@ bool buildModelScene(ViewerContext& ctx, const std::string& mdlPath, const std::
         ResourceCache::LoadedTexture t = ctx.cache->texture(skin);
         part.material.texture = t.texture;
         part.material.textureHasAlpha = t.hasAlpha;
-        part.material.alphaTest = part.material.blend == MaterialBlend::Opaque && t.hasAlpha;
     } else if (!part.material.texture) {
         part.material = Material::fromObjectDef(ObjectDef{}, *ctx.cache);
     }

@@ -108,8 +108,10 @@ void generateBaseTextureRgb(const LevelData& level, const Image textures[4], int
             double fr = t - std::floor(t);
             const Image& ta = textures[i0];
             const Image& tb = textures[i1];
-            size_t pa = (static_cast<size_t>(r % ta.height) * ta.width + static_cast<size_t>(c % ta.width)) * 4;
-            size_t pb = (static_cast<size_t>(r % tb.height) * tb.width + static_cast<size_t>(c % tb.width)) * 4;
+            // The original reads TGA rows in file order, bottom row first (render-pipeline.md
+            // section 0); Image row 0 is the top, so index from the bottom.
+            size_t pa = (static_cast<size_t>(ta.height - 1 - r % ta.height) * ta.width + static_cast<size_t>(c % ta.width)) * 4;
+            size_t pb = (static_cast<size_t>(tb.height - 1 - r % tb.height) * tb.width + static_cast<size_t>(c % tb.width)) * 4;
             for (int k = 0; k < 3; k++) {
                 double v = static_cast<double>(ta.rgba[pa + k]) * (1.0 - fr) + static_cast<double>(tb.rgba[pb + k]) * fr;
                 rgb[(static_cast<size_t>(r) * kBaseTextureSize + c) * 3 + k] = static_cast<u8>(static_cast<int>(v) & 0xFF);

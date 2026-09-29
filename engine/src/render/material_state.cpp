@@ -22,7 +22,7 @@ struct BlendGLState {
 constexpr BlendGLState kBlendTable[] = {
     /* Opaque */ {false, GL_ONE, GL_ZERO},
     /* Alpha  */ {true, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA},
-    /* Add    */ {true, GL_SRC_ALPHA, GL_ONE},
+    /* Add    */ {true, GL_ONE, GL_ONE}, // render-pipeline.md 4.1: (ONE, ONE)
     // BLEND_FILTER ("multiplicative": dst *= src). as3d::setBlend (as3d/gfx.h) only
     // offers Off/AlphaBlend/Additive, so this one state is set with raw GL calls
     // instead of going through it -- everything else here does use as3d::setDepth /
