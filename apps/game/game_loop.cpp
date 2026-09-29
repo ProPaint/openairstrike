@@ -169,6 +169,12 @@ private:
     bool redraw_ = true;
     bool screenshot_ = false;
     bool mouseFinger_ = false;
+    // The sequels' mouse control (GameFlow::relativeMouseActive, issue as2/272): the pointer
+    // is captured (SDL relative mode) while it is live, and the motion gathered between two
+    // simulation steps goes to the next one.
+    bool relativeMouse_ = false;
+    float mouseRelX_ = 0.0f, mouseRelY_ = 0.0f;
+    void updateRelativeMouse();
     bool lastPaused_ = false;
     long frame_ = 0;
     long rendered_ = 0;
@@ -447,6 +453,12 @@ bool GameWindow::handleFlowEvent(const SDL_Event& e) {
         }
         case SDL_MOUSEMOTION: {
             if (e.motion.which == SDL_TOUCH_MOUSEID || touchMode_) return false;
+            if (relativeMouse_) {
+                // Captured for mouse control: the motion steers, the menus' pointer stays.
+                mouseRelX_ += static_cast<float>(e.motion.xrel);
+                mouseRelY_ += static_cast<float>(e.motion.yrel);
+                return true;
+            }
             float x = static_cast<float>(e.motion.x), y = static_cast<float>(e.motion.y);
             windowToFb(SDL_GetWindowFromID(e.motion.windowID), x, y);
             uiIn_.move(virtX(x), virtY(y));
@@ -665,6 +677,14 @@ void GameWindow::handleEvent(const SDL_Event& e) {
     }
 }
 
+void GameWindow::updateRelativeMouse() {
+    const bool want = flow_ && !touchMode_ && !background_ && flow_->relativeMouseActive();
+    if (want == relativeMouse_) return;
+    relativeMouse_ = want;
+    mouseRelX_ = mouseRelY_ = 0.0f;
+    SDL_SetRelativeMouseMode(want ? SDL_TRUE : SDL_FALSE);
+}
+
 void GameWindow::simulate(int steps) {
     const World& cw = session_.world();
     for (int s = 0; s < steps && running_; ++s) {
@@ -677,6 +697,12 @@ void GameWindow::simulate(int steps) {
         FrameInput fromTouch = touch_.takeFrame();
         FrameInput in = source_.next(static_cast<u32>(frame_), local);
         in = mergeFrameInput(in, fromTouch);
+        if (relativeMouse_) {
+            // Screen y grows downwards; the steering vector's y is forward (as2 7.2 step 2).
+            in.mouseDx = mouseRelX_;
+            in.mouseDy = -mouseRelY_;
+            mouseRelX_ = mouseRelY_ = 0.0f;
+        }
         recorder_.record(static_cast<u32>(frame_), in);
         double t0 = nowSeconds();
         const int loads = flow_ ? flow_->levelLoads() : 0;
@@ -910,6 +936,7 @@ void GameWindow::frame() {
         const int loads = flow_->levelLoads();
         uiFrame();
         if (!running_) return;
+        updateRelativeMouse();
         if (flow_->levelLoads() != loads) {
             // A level was loaded (seconds, behind the loading screen): not a frame time.
             last_ = nowSeconds();

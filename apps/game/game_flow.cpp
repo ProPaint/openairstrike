@@ -99,6 +99,13 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     if (loaded == ProfileLoad::Fresh) {
         if (config_.twoPlayerMode) applyDesktopPlayer2Keys(profile_.settings);
         if (config_.webKeys) applyWebKeyBindings(profile_.settings);
+        // The game's default MouseControl (as2 7.2: on), with the mouse buttons it binds;
+        // never in touch mode nor on the web (a captured pointer needs the page's pointer lock,
+        // issue as2/272). The first game's default is off, the Settings default.
+        if (session_.rules().mouseControlDefault && !config_.touch && !config_.webKeys && !profile_.settings.mouseControl) {
+            profile_.settings.mouseControl = true;
+            profile_.settings.applyMouseControlBindings();
+        }
     }
     profile_.settings.clampToRanges();
     if (!config_.showLogo) profile_.settings.showLogo = false;
@@ -365,9 +372,15 @@ int GameFlow::step(const FrameInput& input) {
         fe_->update(0.0f, ui::UiInput().key(ui::keys::Enter));
         playUiSounds();
     }
+    if (!playing() || !relativeMouseActive()) {
+        in.mouseSteer = false;
+        in.mouseDx = in.mouseDy = 0.0f;
+    } else {
+        in.mouseSteer = true; // the motion itself comes from the window loop
+    }
     if (!playing()) {
         in.held[0] = in.held[1] = 0;
-    } else if (mouseControl()) {
+    } else if (mouseControl() && !relativeMouseRules()) {
         // Mouse control (engine-behaviour.md 7.3): player 1's direction bits follow the pointer.
         float hx = 0, hy = 0;
         if (playerScreenCentre(session_.world(), 0, hx, hy))
@@ -394,7 +407,8 @@ void GameFlow::draw(int width, int height) {
     if (layers.hud) {
         layers.hudState = hudStateOf(session_);
         // The mouse-control cursor (frontend.md 2.7) during play, not under a menu.
-        layers.hudState.mouseCursor = !config_.touch && mouseControl() && !fe_->menuOpen();
+        // Not in the sequels, which steer by relative motion (as2 7.2, 11.2).
+        layers.hudState.mouseCursor = !config_.touch && mouseControl() && !fe_->menuOpen() && !relativeMouseRules();
         layers.hudState.mouseX = pointerX_;
         layers.hudState.mouseY = pointerY_;
     }

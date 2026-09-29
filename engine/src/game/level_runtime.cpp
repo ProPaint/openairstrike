@@ -213,6 +213,9 @@ void World::clampPlayerHealth() {
 }
 
 void World::applyInput(const PlayerInput& input) {
+    mouseSteer_ = input.mouseSteer;
+    mouseMotion_[0] = input.mouse[0];
+    mouseMotion_[1] = input.mouse[1];
     for (int p = 0; p < config_.players; ++p) {
         PlayerRecord& pr = players_[p];
         u32 now = input.action[p];
@@ -449,8 +452,9 @@ void World::playerFrame() {
 
 // as2/engine-behaviour.delta.md 7.2 step 1 (VERIFIED-CODE as2@0x413d6b): per player, (0, 0,
 // 0) and, unless the player's actions are disabled, +x right, +y forward, -x left, -y back;
-// a diagonal is scaled to length 1. Mouse control (step 2) is not wired: keys, touch and
-// the bot all produce direction bits.
+// a diagonal is scaled to length 1. Step 2, mouse control: for player 1 only, when its
+// actions are not disabled and the keys gave (0, 0), the mouse motion of this step scaled
+// to length GameRules::mouseAccel (2.0) when it is not zero (issue as2/272).
 void World::computeAccel() {
     for (int p = 0; p < kMaxPlayers; ++p) {
         PlayerRecord& pr = players_[p];
@@ -465,6 +469,14 @@ void World::computeAccel() {
                 float len = std::sqrt(ax * ax + ay * ay);
                 ax /= len;
                 ay /= len;
+            }
+            if (p == 0 && mouseSteer_ && rules_->mouseAccel > 0.0f && ax == 0.0f && ay == 0.0f) {
+                const float mx = mouseMotion_[0], my = mouseMotion_[1];
+                const float len = std::sqrt(mx * mx + my * my);
+                if (len > 0.0f) {
+                    ax = mx / len * rules_->mouseAccel;
+                    ay = my / len * rules_->mouseAccel;
+                }
             }
         }
         pr.accel[0] = ax;

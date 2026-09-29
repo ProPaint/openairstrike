@@ -290,6 +290,11 @@ constexpr int kMaxTerraMorphStamps = 64;  // distinct stamps per level (as2 Terr
 struct PlayerInput {
     u32 action[kMaxPlayers] = {0, 0};
     bool confirm = false; // the OK button of a tutorial hint box
+    // The sequels' mouse control (as2/engine-behaviour.delta.md 7.2 step 2): player 1's mouse
+    // motion this step (x right, y up; any unit, only the direction is used) while the
+    // MouseControl setting is on. Read only with GameRules::accelInput and mouseAccel > 0.
+    bool mouseSteer = false;
+    float mouse[2] = {0.0f, 0.0f};
 };
 
 // A dynamic light queued by PlaceLight for this frame (at most 32, cleared each frame).
@@ -645,6 +650,8 @@ private:
 
     PlayerRecord players_[kMaxPlayers];
     CameraState camera_;
+    bool mouseSteer_ = false;          // this step's PlayerInput mouse control
+    float mouseMotion_[2] = {0, 0};
 
     // Level.
     std::unique_ptr<LoadedLevel> level_;

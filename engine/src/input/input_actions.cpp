@@ -53,6 +53,9 @@ PlayerInput FrameInput::toPlayerInput() const {
     PlayerInput p;
     for (int k = 0; k < kMaxPlayers; ++k) p.action[k] = held[k];
     p.confirm = confirm;
+    p.mouseSteer = mouseSteer;
+    p.mouse[0] = mouseDx;
+    p.mouse[1] = mouseDy;
     return p;
 }
 
@@ -71,6 +74,9 @@ FrameInput mergeFrameInput(const FrameInput& a, const FrameInput& b) {
     for (int k = 0; k < kMaxPlayers; ++k) out.held[k] = a.held[k] | b.held[k];
     out.confirm = a.confirm || b.confirm;
     out.pausePressed = a.pausePressed || b.pausePressed;
+    out.mouseSteer = a.mouseSteer || b.mouseSteer;
+    out.mouseDx = a.mouseDx + b.mouseDx;
+    out.mouseDy = a.mouseDy + b.mouseDy;
     return out;
 }
 
