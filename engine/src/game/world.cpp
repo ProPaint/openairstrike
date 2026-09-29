@@ -10,7 +10,6 @@
 #include "as3d/model.h"
 #include "as3d/script_host.h"
 #include "as3d/vfs.h"
-#include "as3d/world_def_access.h"
 #include "as3d/world_particles.h"
 #include "world_internal.h"
 #include "world_path.h"
@@ -34,20 +33,26 @@ void Entity::setV3(int k, const Vec3& v) {
 }
 int Entity::flagBits() const { return ftol(f(F_FLAGS)); }
 
-// ---------------------------------------------------------------------------------------
-// Definition values being added to the loader (as3d/world_def_access.h).
-// ---------------------------------------------------------------------------------------
+namespace {
 
-bool objectDefSpeed(const ObjectDef& def, float* out) {
-    // TODO(orchestrator): `return def.hasSpeed ? (*out = def.speed, true) : false;` once
-    // ObjectDef::speed exists (as2/engine-behaviour.delta.md 3.1.3). Temporary: the player
-    // helicopters get 1.0, which is player_1's value.
-    if (def.kind != ObjectKind::Player) return false;
-    *out = 1.0f;
-    return true;
+// Class value (field 2) of a definition: 1 player, 2 enemy, 3 item, 5 civilian (the sequels'
+// `civilian` statement, as2/engine-behaviour.delta.md 3.1).
+float defClass(const ObjectDef& def) {
+    if (def.civilian) return kClassCivilian;
+    return static_cast<float>(static_cast<int>(def.kind));
 }
 
-float objectDefClass(const ObjectDef& def) { return static_cast<float>(static_cast<int>(def.kind)); }
+// The sequels' touch mode, a bit set (3.1): TOUCH_ALL is 0xF, TOUCH_CIVILIAN adds 0x4. The
+// loader keeps the last TOUCH_ENEMIES / TOUCH_PLAYER / TOUCH_ALL statement and the civilian
+// bit apart; the shipped definitions have at most one of the former (combinations 1, 2, 4,
+// 5, 6), so this equals the original's OR (docs/spec/as2/issues/233).
+int sequelTouchMode(const ObjectDef& def) {
+    int mode = def.touch == TouchMode::All ? 0xF : static_cast<int>(def.touch);
+    if (def.sequelTouch & SEQ_TOUCH_CIVILIAN) mode |= TOUCH_BIT_CIVILIAN;
+    return mode;
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------------------
 // Construction.
@@ -308,22 +313,26 @@ void World::applyDef(int idx, const ObjectDef* def) {
     Entity& e = ents_[static_cast<size_t>(idx)];
     e.def = def;
     e.name = def->name;
-    e.setF(F_CLASS, objectDefClass(*def));
+    e.setF(F_CLASS, defClass(*def));
     e.setF(F_FLAGS, static_cast<float>(def->flags));
     e.setF(F_HEALTH, static_cast<float>(def->health));
     e.setF(F_DAMAGE, static_cast<float>(def->damage));
     e.setF(F_SCORE, static_cast<float>(def->score));
     for (int k = 0; k < 4; ++k) e.setF(F_COLOR + k, 1.0f);
     e.setF(F_SCALE, 0.0f); // field 32 starts at 0; the obj "scale" key never reaches it
-    // The sequels copy the definition's `speed` into field 23 (as2/rcsl-vm.delta.md, field
-    // 23); the first game leaves it at 0.
-    float speed = 0.0f;
-    if (game_ != GameId::AirStrike3D && objectDefSpeed(*def, &speed)) e.setF(F_WP_SPEED, speed);
+    // The sequels copy the definition's `speed` into field 23 (as2/engine-behaviour.delta.md
+    // 3.1.3); the first game leaves it at 0. Only the helicopters carry one; a player
+    // definition without it gets the neutral factor 1.0 (the player scripts multiply their
+    // displacement by it), every other definition 0 as in the original.
+    if (game_ != GameId::AirStrike3D) {
+        if (def->hasSpeed) e.setF(F_WP_SPEED, def->speed);
+        else if (def->kind == ObjectKind::Player) e.setF(F_WP_SPEED, 1.0f);
+    }
     e.fields[F_RENDER_TYPE] = static_cast<u32>(def->type);
     e.fields[F_RENDER_FLAGS] = def->rflag;
     e.fields[F_SORT] = static_cast<u32>(def->sort);
     for (int k = 0; k < 9; ++k) e.setF(F_AXIS + k, (k % 4 == 0) ? 1.0f : 0.0f);
-    e.touchMode = static_cast<int>(def->touch);
+    e.touchMode = rules_->touchModeBits ? sequelTouchMode(*def) : static_cast<int>(def->touch);
     for (int k = 0; k < 3; ++k) e.bboxScale[k] = def->bboxScale[k];
     e.maxHealth = static_cast<float>(def->health);
     e.rt = RT_ACTIVE;

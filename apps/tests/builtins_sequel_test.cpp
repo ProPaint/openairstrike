@@ -90,7 +90,7 @@ int onScreen(BT& t, const std::string& name, Vec3 pos, float cls = -1.0f) {
 }
 
 const char* kTargets = "t_en {\n enemy\n flag FL_TEMPORARY\n health 100\n}\n"
-                       "t_civ {\n flag FL_TEMPORARY\n health 100\n}\n"; // class 5 set by the test
+                       "t_civ {\n civilian\n flag FL_TEMPORARY\n health 100\n}\n";
 
 } // namespace
 
@@ -581,7 +581,7 @@ TEST_CASE("sequel RadialDamage (changed): civilians are hit too") {
         t.e().setV3(F_ORIGIN, {600, 300, 0});
         int en = t.r.create("t_en", {650, 300, 0});
         int civ = t.r.create("t_civ", {650, 300, 0});
-        t.r.e(civ).setF(F_CLASS, kClassCivilian);
+        REQUIRE(t.r.e(civ).f(F_CLASS) == kClassCivilian); // `civilian` gives class 5
         t.run();
         INFO(std::string(gameProfile(g).key));
         CHECK(near(t.r.e(en).f(F_HEALTH), 92.0f));
@@ -1007,13 +1007,13 @@ TEST_CASE("sequel kill counter: capped at the level's enemy total") {
 // ---------------------------------------------------------------------------------------
 
 namespace {
-std::string as2Dir() { return testdata::root() + "/assets_extracted_games/as2"; }
-bool as2Available() {
-    std::FILE* f = std::fopen((as2Dir() + "/maps/levels.txt").c_str(), "rb");
-    if (!f) return false;
-    std::fclose(f);
-    return true;
+// AirStrike 2's extracted files, whatever game the suite runs for (AS3D_GAME).
+const GameData& as2Data() {
+    static const GameData d = locateGameData(testdata::root(), gameProfile(GameId::AirStrike2));
+    return d;
 }
+std::string as2Dir() { return as2Data().extractedDir; }
+bool as2Available() { return as2Data().hasExtracted; }
 } // namespace
 
 TEST_CASE("sequel data: every AirStrike 2 script binds with no unknown builtin or global") {
@@ -1089,4 +1089,29 @@ TEST_CASE("sequel data: AirStrike 2 mission 1 under the bot, no script error, th
         CHECK(row.status != BuiltinStatus::Stub);
     }
     CHECK(w.host().unknownGlobals().empty());
+}
+
+TEST_CASE("sequel definitions: civilian class 5, TOUCH_CIVILIAN and TOUCH_ALL as bits, speed in field 23") {
+    Rig r;
+    r.config.rules = &as2Rules();
+    r.obj("t_c {\n civilian\n flag FL_TEMPORARY\n}\n"
+          "t_t5 {\n flag FL_TEMPORARY\n touch TOUCH_ENEMIES\n touch TOUCH_CIVILIAN\n}\n"
+          "t_t6 {\n flag FL_TEMPORARY\n touch TOUCH_CIVILIAN\n touch TOUCH_PLAYER\n}\n"
+          "t_all {\n flag FL_TEMPORARY\n touch TOUCH_ALL\n}\n"
+          "t_w {\n flag FL_TEMPORARY\n speed 2.5\n}\n"
+          "t_n {\n flag FL_TEMPORARY\n}\n");
+    r.start();
+    CHECK(r.e(r.create("t_c")).f(F_CLASS) == kClassCivilian);
+    CHECK(r.e(r.create("t_t5")).touchMode == 5);
+    CHECK(r.e(r.create("t_t6")).touchMode == 6);
+    CHECK(r.e(r.create("t_all")).touchMode == 0xF);
+    CHECK(r.e(r.create("t_w")).f(F_WP_SPEED) == 2.5f);
+    CHECK(r.e(r.create("t_n")).f(F_WP_SPEED) == 0.0f);
+    // The first game: TOUCH_ALL stays 3 and `speed` does not reach field 23.
+    Rig a;
+    a.obj("t_all {\n flag FL_TEMPORARY\n touch TOUCH_ALL\n}\n"
+          "t_w {\n flag FL_TEMPORARY\n speed 2.5\n}\n");
+    a.start();
+    CHECK(a.e(a.create("t_all")).touchMode == 3);
+    CHECK(a.e(a.create("t_w")).f(F_WP_SPEED) == 0.0f);
 }

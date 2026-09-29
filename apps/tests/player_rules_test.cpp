@@ -18,8 +18,8 @@ namespace {
 const GameRules& as2Rules() { return gameProfile(GameId::AirStrike2).rules; }
 
 const char* kAs2Helis =
-    "player_1 {\n player\n flag FL_TEMPORARY\n health 500\n}\n"
-    "player_2 {\n player\n flag FL_TEMPORARY\n health 400\n}\n";
+    "player_1 {\n player\n flag FL_TEMPORARY\n health 500\n speed 1.0\n}\n"
+    "player_2 {\n player\n flag FL_TEMPORARY\n health 400\n speed 1.25\n}\n";
 
 struct PR {
     Rig r;
@@ -246,8 +246,7 @@ TEST_CASE("player rules: field 23 holds the helicopter's speed in the sequels") 
     PR t;
     int pe = t.r.world.playerEntityIndex(0);
     REQUIRE(pe >= 0);
-    // TODO(orchestrator): 1.25 for player_2 once ObjectDef::speed is read (world_def_access.h).
-    CHECK(t.r.e(pe).f(F_WP_SPEED) == 1.0f);
+    CHECK(t.r.e(pe).f(F_WP_SPEED) == 1.25f); // player_2's `speed`
     PR u(GameId::AirStrike3D);
     int ue = u.r.world.playerEntityIndex(0);
     REQUIRE(ue >= 0);
