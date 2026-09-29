@@ -1,1 +1,1 @@
-target_link_libraries(as3d_game PUBLIC as3d_formats as3d_vfs as3d_core)
+target_link_libraries(as3d_game PUBLIC as3d_script as3d_formats as3d_vfs as3d_core)
