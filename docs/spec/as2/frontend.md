@@ -1232,3 +1232,101 @@ Disagreements (this document wins for the front end; the delta is not edited):
 | 8.2 | the loadout is applied by `G_NewGame` and the two restarts | also by the in-game menu's Restart | as2@0x42a8c0 |
 | 10.3 step 2 | `G_MissionComplete` unlocks | yes, after the end dialogue has faded out, not at `EndLevel` | as2@0x4231b0 |
 | open question 4 | how the end dialogue hands over | answered: 3.19 and 5.3 | as2@0x4231b0, 0x4234b0 |
+
+## 6. Save file and settings
+
+Relation to the base §6: **changed**: smaller tables, a checkpoint block in `game.bin`, new video
+keys and new defaults in `config.ini`. As for the first game, our engine writes its own formats
+(spec README); this section says what must be persisted, when, with which defaults, and records
+the original layouts for an optional importer.
+
+### 6.1 Progress (`game.bin`; VERIFIED-CODE `G_LoadBin` as2@0x4069e0, `G_SaveBin` as2@0x406c70)
+
+**What is persisted:** the 15-entry high-score table, the 6 helicopter unlock flags, the 18 mission
+unlock flags, and **the campaign checkpoint** (mission, and per player lives, banked score and
+rank accumulator; 5.1). Not persisted: difficulty, player count, helicopter choice, weapon
+upgrades, a mission in progress. When a cheat was used in the session, the checkpoint is saved as
+"none" (mission −1, zeros).
+
+**When it is written:** on Exit → YES (when the game is ready: the level is freed first), before
+the Options → Apply video restart (6.3), before the fatal-error message box (as2@0x405750), and by
+the dormant purchase action (3.21). Every call site was found (as2@0x405777, 0x405b53, 0x410fc3,
+0x427fe4). **Closing the window does not save it**: the WM_CLOSE path (`Sys_Quit` as2@0x405bf0,
+reached from as2@0x415d8c) writes `config.ini` only. The same holds for the first game (the
+callers of v170@0x4011b0 are the exit confirmation, the video restart, the fatal-error box and the
+dormant purchase action), which corrects the base §6.1 (section 10). Read once at start-up
+(`Sys_Init`). Our engine should write after every change (issue 091 item 9 and issue 130 §5 already
+do so), which also covers the checkpoint written at every `EndLevel`.
+
+**Original layout** (1692 bytes; the base's scheme with smaller tables and a second block):
+
+| Offset | Size | Content |
+|---|---|---|
+| 0 | 4 | float version 1.0; any other value: the file is ignored ("Illegal version") |
+| 4 | 256 | XOR key, each byte round(rand() / 32767 × 255), new at every save |
+| 260 | 4 | u32 CRC-16/CCITT (table as2@0x49e2d8, start 0xFFFF, no final XOR) of the encrypted payload |
+| 264 | 0x574 | payload, byte i XORed with key[i & 0xFF] |
+| 1660 | 0x1C | checkpoint block, byte i XORed with key[i & 0xFF] (the key index restarts at 0) |
+| 1688 | 4 | u32 CRC of the encrypted checkpoint block |
+
+Payload: +0 u32 (always 0; the global it comes from is cleared after loading, unused); +4 15 ×
+{char name[32], i32 score, i32 rank index}; +604 6 × {u8 unlocked, char object name[32]}; +802
+18 × {u8 unlocked, char level id[32]}. The load copies these blocks over the tables at
+as2@0x49db78, 0x49ddf8 and 0x49df60, names included. Checkpoint block: i32 mission (−1 none); then
+for player 1 and player 2: i32 lives, i32 score, f32 rank accumulator. A bad payload CRC keeps all
+defaults ("corrupted"); a bad checkpoint CRC keeps the payload and resets the checkpoint.
+
+**Fresh-install defaults** (compiled in, VERIFIED-CODE): the high-score table is the base's (same
+15 names, scores and ranks, as2@0x49db78); helicopter 0 unlocked, 1–5 locked; missions 1 and 2
+unlocked, 3–18 locked; checkpoint −1.
+
+The shipped `game.bin` of the install is a played save (VERIFIED-DATA: both CRCs valid; default
+high scores; helicopter 0 and missions 1–4 unlocked; a checkpoint for mission 4). Our engine starts
+from the compiled-in defaults, not from that file.
+
+### 6.2 Settings (`config.ini`; VERIFIED-CODE `CFG_Read` as2@0x401b90, `CFG_Write` as2@0x402510, `CFG_Init` as2@0x402ab0)
+
+Read at start-up (missing file: written with defaults and read again; `-setup` and `FirstRun` show
+the setup dialog, dropped as in the base), written at program exit only (Options, Apply and the F
+keys change memory only). Path: the current directory. Keys as in the base §6.2, with these
+differences:
+
+| Section / key | Default if missing | Meaning, range | vs base |
+|---|---|---|---|
+| System MouseControl | **1** | 0/1; relative mouse steering (engine-behaviour.delta.md 7.2) | default changed (was 0) |
+| Display VideoMode | **−1** | **index into the list of display modes enumerated at start-up** (not a fixed table); −1 or out of range picks the last mode before the first one wider than 800 or 800 wide and taller than 600, normally 800×600 | meaning changed |
+| Display RefreshRate | 0 | Hz; snapped at start and on Apply (as2@0x4011e0): kept if the mode lists it, else 85 if listed, else the rate just below the first rate above 85 | snapping new |
+| Display **EnableNonStdModes** | 0 | 1: list every 16- and 32-bit mode; 0: only 4:3 modes (width / 4 = height / 3) | new |
+| Display **ForceStdModes** | 0 | 1: add 640×480, 800×600, 1024×768 and 1280×960 at 60, 75 and 85 Hz when Windows does not report them | new |
+| Controls, Controls2: Primary Attack, Missile Attack, Use Power-Up | 17 **200**, 16 **201**, 32 **202** (Ctrl/Shift/Space and the three mouse buttons) | "k1 k2", 0 read as unbound | defaults changed (the base: 203, 204, 205) |
+
+Other keys and defaults are the base's (ShowHints 0, FirstRun 1, ShowLogo 1, UseSystemMouse 0,
+Camera 1, RefreshRate 0, ColorDepth 0, Fullscreen 1, ForceFullscreen 0, WaitVSync 0, Brightness
+0.6, TextureFilter 0, the Graphics switches, Debug counters, SfxVolume 0.5, MusicVolume 0.5,
+Sound3D 0, the other binding defaults, Joystick keys). The writer spells `KeyUsePowerup`, the
+reader `KeyUsePowerUp` (INI lookups ignore case). When no display mode qualifies, the start-up
+retries with EnableNonStdModes, then ForceStdModes, then quits; the flags it turned on are saved.
+Shipped `config.ini` (VERIFIED-DATA): VideoMode 2, RefreshRate 60, ColorDepth 32, both new
+Display keys 0, MouseControl 1, FirstRun 0, both players' bindings equal to the defaults.
+
+For our engine: EnableNonStdModes, ForceStdModes, VideoMode, RefreshRate and ColorDepth have no
+meaning (window size from the command line, issue 130); keep them only for an importer.
+**MouseControl defaults to 1** for AS2 profiles, and the default fire keys include the mouse
+buttons.
+
+### 6.3 Settings that exist only for the PC original
+
+As the base §6.3. The Options → Apply video restart exists in AS2 (the symbol map's "removed" is
+wrong, section 10): code at as2@0x405b40, reached from the Apply action, frees the level and saves
+`game.bin` when the game is ready, shuts down sound and the renderer, re-creates window, sound and
+Direct3D, and runs `G_Init(1)` (no logo pages, a new random attract level, main menu). Our engine
+does not reproduce it.
+
+### 6.4 Settings.xml
+
+Tags read (as2@0x41e130): `CheckCD`, `PostScores` (both dropped features), `Demo/Purchase`,
+`Demo/NagScreen` (dead, 3.21), `Info version copyright` (main menu), **`AtExit shellCommand`**
+(new, dropped), `Intros` with `BuiltIn`, `Image` + `BackColor`, **`Video`** (new, parsed and
+ignored), `Logotypes/Image`. The engine's Settings.xml reader (`parseSettingsXml`) already covers
+what we use. The shipped file has no re-release branding (copyright "… DivoGames"); the branding
+filter of the first game is harmless.
