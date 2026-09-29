@@ -65,8 +65,12 @@ struct Panel {
     void count(float x, float y, int n, Color c) const {
         std::string s = std::to_string(n);
         float w = measureText(FontMetrics::original(), s, 0.75f);
-        r.rect(mx(x + 64 - w - 2, w + 4), y + 24, w + 4, 13, {0, 0, 0, 0.6f}, Blend::Alpha);
-        text(x, y + 25, 64, s, Align::Right, 0.75f, c, false);
+        r.rect(mx(x, 70) + 64 - w - 2, y + 24, w + 4, 13, {0, 0, 0, 0.6f}, Blend::Alpha);
+        TextStyle st;
+        st.scale = 0.75f;
+        st.color = c;
+        st.align = Align::Right;
+        drawText(r, a.uiFont(), mx(x, 70) + 64, y + 25, s, st);
     }
 
     void frame(float x, float y, Color c) const { pix(a.mainbar, x, y, 70, 39, 0, 42, 70, 81, c, Blend::Add, true); }
