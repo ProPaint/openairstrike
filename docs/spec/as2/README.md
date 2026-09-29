@@ -58,3 +58,7 @@ loose files (`gfx`, `menu`, `models`, `morphmaps`, `textures`, `tiles`, `Setting
 
 | Spec | Status | Package | Notes |
 |---|---|---|---|
+| [rcsl-container.delta.md](rcsl-container.delta.md) | verified from code | B2 | effectively the same; a script without a CODE section is valid |
+| [rcsl-opcodes.delta.md](rcsl-opcodes.delta.md) | verified from code | B2 | all handlers the same; 7 opcode/mode pairs new to the corpus need no new code |
+| [rcsl-vm.delta.md](rcsl-vm.delta.md) | verified from code | B2 | script-visible entity fields 0 to 87 unchanged; 28 globals; `create` returns the new entity; touch modes are a bit set |
+| [rcsl-builtins-table.delta.md](rcsl-builtins-table.delta.md) | signatures verified | B2 | 101 builtins; `Lightning` gained an argument; machine-readable in `testdata/golden/as2/rcsl_builtins.json`; checked by `tools/ref/check_builtin_calls.py --game as2` |
