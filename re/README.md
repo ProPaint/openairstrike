@@ -1,4 +1,4 @@
-# Reverse-engineering exports (AirStrike3D v1.70)
+# Reverse-engineering exports (AirStrike3D v1.70, AirStrike 2 v2.51, Gulf Thunder v2.71)
 
 This directory holds the Ghidra headless pipeline that turns
 `third_party_local/original/AirStrike3D.exe` (the original v1.70 game binary, not committed to
@@ -62,6 +62,63 @@ The Ghidra **project** lives under `third_party_local/ghidra_project/` (gitignor
 game-derived data). The **exports** live under `re/out/` (gitignored, regenerate any time from
 the exe). Only `re/run_ghidra.sh`, `re/install_ghidra.sh`, `re/ghidra_scripts/*`, `re/README.md`
 and `re/symbols_v170_auto.csv` are meant to be committed.
+
+## One export per game (`--game`)
+
+The three executables (keys and exe names in `tools/games.json`) each get their own Ghidra
+project, output directory, probe file and symbols CSV:
+
+| `--game` | tag | exe (after `tools/setup_data.sh <key>`) | project | output |
+|---|---|---|---|---|
+| `as3d` | `v170` | `third_party_local/original/AirStrike3D.exe` | `third_party_local/ghidra_project/` (project `AirStrike3D`, unchanged from before) | `re/out/v170/` |
+| `as2` | `as2` | `third_party_local/games/as2/AirStrike3D II.exe` | `third_party_local/ghidra_project/as2/` | `re/out/as2/` |
+| `gulf` | `gulf` | `third_party_local/games/gulf/AirStrike3D II - Gulf.exe` | `third_party_local/ghidra_project/gulf/` | `re/out/gulf/` |
+
+```bash
+export AS3D_DATA_ROOT=/path/to/main/checkout     # game data, projects and re/out live here
+tools/setup_data.sh as2                          # once: game directory + extracted paks
+timeout 1800 re/run_ghidra.sh --game as2         # full import + analysis + export (~5 min)
+timeout 1800 re/run_ghidra.sh --game as2 --export-only   # re-run naming pass + export (~1-2 min)
+re/run_ghidra.sh --game as3d --out /some/scratch/dir --project-dir /some/scratch/proj   # comparison run
+```
+
+`AS3D_DATA_ROOT` defaults to the repo root. Output always goes under
+`$AS3D_DATA_ROOT/re/out/` and `$AS3D_DATA_ROOT/third_party_local/`, never into a worktree,
+unless `--out` / `--project-dir` override it. The only file written into the worktree is the
+generated `re/symbols_<tag>_auto.csv` (addresses, names, evidence strings: committable).
+The v1.70 full run with `--out`/`--project-dir` in a scratch location leaves the existing
+`re/out/v170` and its project untouched.
+
+Run one Ghidra instance at a time, with `timeout 1800`, and only with at least 4 GB of
+memory available (`free -m`). `MAXMEM` stays at 3G and `-max-cpu 4`. The sequels take about
+5 minutes for a full run (about 1900 functions, decompiled in full) and produce about 26 MB
+each under `re/out/<tag>/`.
+
+### Probe files (`re/probes/<tag>.json`)
+
+`ExportAll.java` takes the probe file as its second script argument (`run_ghidra.sh` passes
+`re/probes/<tag>.json`; an unknown tag falls back to `v170.json`). It holds:
+
+- `builtin_names`: the script builtins to look for (v170: 85; as2 and gulf: those 85 plus 16
+  more). `global_names`: the script globals (v170: 24; sequels: those 24 plus `player1`,
+  `player2`, `p_maxHealth`, `cameramode`).
+- `acceptance_strings`: exact strings that must be present, listed in `SUMMARY.md` with the
+  functions that reference them.
+- `expected`: `builtin_table`, `builtin_count`, `global_table`, `global_count`. These are
+  claims to check, not inputs: the script finds the tables itself (runs of string-pointer
+  records in `.data` / `.rdata`) and `SUMMARY.md` says CONFIRMED or DIFFERS for each.
+
+`SUMMARY.md` ends with a "Probe results" section: per table, the detected run, the first
+record that matches a probe name, how many probe names were found and which are missing, and
+the imports per DLL. The builtin table run usually starts one or two records early: these
+are unrelated leading records (the compiler's "bad allocation" string), so the real table
+starts at "first record matching a probe name".
+
+Table scanning tries every 4-byte phase of the record stride (a table is not necessarily
+aligned to a multiple of its stride from the start of the section; the sequels' 12-byte
+global table is not). Runs found at a non-zero phase are dropped when they overlap a run
+already found. As a result `data_tables.json` of v1.70 lists a few more `unknown` tables
+than exports made before this change; functions, strings and SUMMARY.md counts are unchanged.
 
 ### Timing
 
