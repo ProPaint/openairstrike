@@ -70,10 +70,12 @@ ShadowBounds computeShadowBounds(const ModelData& model, ShadowKind kind, const 
     }
     ShadowBounds b;
     if (model.positions.empty()) return b;
-    b.xmin = static_cast<int>(std::floor(minX));
-    b.ymin = static_cast<int>(std::floor(minY));
-    b.xmax = static_cast<int>(std::ceil(maxX));
-    b.ymax = static_cast<int>(std::ceil(maxY));
+    // A hair of tolerance so that float noise (cos of a quarter turn) does not widen the box.
+    const float eps = 1e-3f;
+    b.xmin = static_cast<int>(std::floor(minX + eps));
+    b.ymin = static_cast<int>(std::floor(minY + eps));
+    b.xmax = static_cast<int>(std::ceil(maxX - eps));
+    b.ymax = static_cast<int>(std::ceil(maxY - eps));
     if (b.xmax <= b.xmin) b.xmax = b.xmin + 1;
     if (b.ymax <= b.ymin) b.ymax = b.ymin + 1;
     return b;
@@ -243,6 +245,7 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
     opts.wrapS = Wrap::ClampToEdge;
     opts.wrapT = Wrap::ClampToEdge;
     out.texture.create(img, opts);
+    out.image = std::move(img);
     out.bounds = bounds;
     out.kind = kind;
     out.width = W;

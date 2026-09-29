@@ -422,6 +422,10 @@ bool renderLevel(Vfs& vfs, const DefDatabase& db, ResourceCache& cache, MeshRend
     terrainRenderer.render(tv);
     markRenderer.draw(dv);
     std::vector<ShadowInstance> shadowInstances;
+    shadowParts.erase(shadowParts.begin(),
+                      shadowParts.begin() + std::min(shadowParts.size(), static_cast<size_t>(std::max(opts.shadowFirst, 0))));
+    if (opts.shadowLimit >= 0 && shadowParts.size() > static_cast<size_t>(opts.shadowLimit))
+        shadowParts.resize(static_cast<size_t>(opts.shadowLimit));
     for (const ShadowPart& sp : shadowParts) shadowInstances.push_back({sp.map, sp.origin, sp.yaw});
     shadowRenderer.draw(terrain, shadowInstances.data(), shadowInstances.size(), dv);
     renderer.begin(cam, light);

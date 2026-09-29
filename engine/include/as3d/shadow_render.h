@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "as3d/gfx.h"
+#include "as3d/image.h"
 #include "as3d/ground_marks.h"
 #include "as3d/math.h"
 #include "as3d/model.h"
@@ -45,6 +46,7 @@ constexpr float kShadowMaxAlpha = 0.4f;
 
 struct ShadowMap {
     Texture2D texture; // RGB (114, 114, 114), alpha = silhouette darkness in 0..102
+    Image image;       // CPU copy of the texture, row 0 = the top (largest y)
     ShadowBounds bounds;
     ShadowKind kind = ShadowKind::Planar;
     int width = 0, height = 0;

@@ -26,6 +26,8 @@ struct LevelRenderOptions {
     bool objects = true;
     int msaa = 4;
     // WP-35 passes, all on by default; the --no-* options switch them off for before/after pairs.
+    int shadowFirst = 0;   // tests: skip this many shadows,
+    int shadowLimit = -1;  // then draw only N of them (-1 = all)
     bool shadows = true;   // baked silhouette shadows under objects that declare `shadow`
     bool sprites = true;   // TYPE_SPRITE / HSPRITE / VSPRITE objects
     bool marks = true;     // TYPE_MARK objects the map places
