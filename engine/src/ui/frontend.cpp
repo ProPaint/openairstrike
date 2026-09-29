@@ -418,7 +418,7 @@ void drawLoadingScreen(Renderer2D& r, const UiAssets& a, float progress, bool in
         if (!intermission) {
             widgets::shadowedText(c, 400, 236, "Loading", orange(), Align::Center, 2.0f);
             if (!loadingState().mission.empty())
-                widgets::shadowedText(c, 400, 290, loadingState().mission, rust(), Align::Center);
+                widgets::shadowedText(c, 400, 290, loadingState().mission, Color{}, Align::Center);
             r.rect(250, 330, 300, 14, {0.188f, 0, 0, 1}, Blend::Opaque);
             r.rect(252, 332, 296 * p, 10, orange(), Blend::Opaque);
             r.outline(250, 330, 300, 14, rust(), Blend::Opaque);

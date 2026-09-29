@@ -75,7 +75,7 @@ Menu Frontend::buildOptions() {
         if (!content_.videoOptions) m.addSpinner(kShowFps, 400, 320, texts_.get("opt.showfps"), {off, on}, s.showFps ? 1 : 0);
     }
     if (plain()) {
-        m.addTextButton(kConfKeys, {230, 434, 340, 32}, texts_.get("plain.configure_controls"));
+        m.addTextButton(kConfKeys, {230, 446, 340, 32}, texts_.get("plain.configure_controls"));
         m.addTextButton(kBack, kPlainLeft, texts_.get("plain.back")).textScale = kPlainButtonScale;
         m.addTextButton(kApply, kPlainRight, texts_.get("plain.apply"), itemflag::Disabled | itemflag::Hidden).textScale =
             kPlainButtonScale;

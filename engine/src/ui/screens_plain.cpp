@@ -43,8 +43,11 @@ void keyHint(MenuDrawContext& c, const Texts& texts) {
 
 std::string Frontend::missionLabel(int mission) const {
     const int m = std::clamp(mission, 0, kMaxMissions - 1);
-    std::string name = content_.missionNames[m];
-    if (name.empty()) name = texts_.get("plain.mission") + " " + std::to_string(m + 1);
+    const std::string& name = content_.missionNames[m];
+    const std::string word = texts_.get("plain.mission");
+    // The sequels' level names already read "Mission 7: Gold Isle"; others get their number.
+    if (name.empty()) return word + " " + std::to_string(m + 1);
+    if (name.compare(0, word.size(), word) == 0) return name;
     return std::to_string(m + 1) + ". " + name;
 }
 
@@ -123,7 +126,7 @@ Menu Frontend::buildPlainExit() {
     m.drawBack = [this](MenuDrawContext& c) {
         widgets::letterbox(c);
         widgets::panel(c, 190, 220, 420, 160);
-        widgets::text(c, 400, 250, texts_.get("label.exit"), orange(), Align::Center);
+        widgets::text(c, 400, 266, texts_.get("label.exit"), orange(), Align::Center);
     };
     return m;
 }
@@ -137,17 +140,17 @@ Menu Frontend::buildPlainStartGame() {
     std::vector<ListEntry> missions;
     for (int i = 0; i < rules().missionCount; i++) {
         std::string label = missionLabel(i);
-        if (isMember(rules().bonusMissions, i + 1)) label += "  [" + texts_.get("plain.bonus") + "]";
-        if (isMember(rules().bossMissions, i + 1)) label += "  [" + texts_.get("plain.boss") + "]";
+        if (isMember(rules().bonusMissions, i + 1)) label += " [" + texts_.get("plain.bonus") + "]";
+        if (isMember(rules().bossMissions, i + 1)) label += " [" + texts_.get("plain.boss") + "]";
         missions.push_back({label, profile_.progress.missionUnlocked[i]});
     }
-    m.addList(3, 40, 134, 400, 324, missions);
+    m.addList(3, 30, 134, 440, 324, missions);
     std::vector<std::string> diffs;
     for (int i = 0; i < rules().difficultyCount; i++) diffs.push_back(texts_.get("difficulty." + std::to_string(i)));
     difficultyChoice_ = rules().defaultDifficulty; // Normal on every opening, as the first game's
     twoPlayers_ = false;                           // single player only until the co-op mode exists
-    m.addSpinner(4, 620, 360, texts_.get("label.difficulty"), diffs, difficultyChoice_);
-    addPlainHeliRows(m, 470, 134, 290, 30);
+    m.addSpinner(4, 630, 360, texts_.get("label.difficulty"), diffs, difficultyChoice_);
+    addPlainHeliRows(m, 490, 134, 290, 30);
     m.addTextButton(1, kPlainLeft, texts_.get("plain.back")).textScale = kPlainButtonScale;
     m.addTextButton(2, kPlainRight, texts_.get("plain.start")).textScale = kPlainButtonScale;
     auto start = [this](Menu& menu) {
@@ -171,8 +174,8 @@ Menu Frontend::buildPlainStartGame() {
     m.drawBack = [this](MenuDrawContext& c) {
         widgets::letterbox(c);
         widgets::plainTitle(c, texts_.get("plain.title.start"));
-        widgets::text(c, 40, 112, texts_.get("label.choose_mission"), orange());
-        widgets::text(c, 470, 112, texts_.get("plain.heli"), orange());
+        widgets::text(c, 30, 112, texts_.get("label.choose_mission"), orange());
+        widgets::text(c, 490, 112, texts_.get("plain.heli"), orange());
         keyHint(c, texts_);
     };
     return m;

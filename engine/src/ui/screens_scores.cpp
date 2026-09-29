@@ -97,6 +97,7 @@ Menu Frontend::buildNameEntry() {
     };
     m.drawBack = [this](MenuDrawContext& c) {
         widgets::letterbox(c);
+        if (c.plain) widgets::plainTitle(c, texts_.get("plain.title.name"));
         widgets::panel(c, 210, 220, 380, 160);
         widgets::text(c, 400, 240, texts_.get("label.enter_name"), orange(), Align::Center);
     };
