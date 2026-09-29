@@ -182,7 +182,7 @@ public:
     bool paused() const { return paused_; }
     bool hudVisible() const { return state_ == FrontendState::Playing && !hudHidden_; }
     bool menuOpen() const { return !menus_.empty(); }
-    bool wantsTextInput() const; // an edit field is focused (show the on-screen keyboard / IME)
+    bool wantsTextInput() const; // desktop: an edit field is focused (start text input); touch mode draws its own keyboard
     // Brightness the game should use: forced to 0.5 during the intro pages, else the setting.
     float brightness() const;
     std::vector<std::string> takeSounds() { return menus_.takeSounds(); }
