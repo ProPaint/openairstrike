@@ -3,6 +3,7 @@
 // Renderer2D::begin() and flush().
 #pragma once
 
+#include "as3d/game_profile.h"
 #include "as3d/input.h"
 #include "as3d/ui.h"
 #include "fps_counter.h"
@@ -16,6 +17,10 @@ struct TouchOverlayState {
     const as3d::ui::UiAssets* assets = nullptr;
     const as3d::ui::HudPlayer* player = nullptr; // player 1's HUD state; null: no icons, no counts
     float alpha = 1.0f;                          // overall opacity (as3d::TouchFade)
+    // The rules the next-item previews cycle by (as3d/player_select.h): the game's, so that the
+    // sequels' 9 weapon slots and power-up skip mask preview what a press selects. Null: the
+    // first game's.
+    const as3d::GameRules* rules = nullptr;
 };
 
 void drawTouchControls(as3d::ui::Renderer2D& r, const as3d::TouchMapper& touch, const TouchOverlayState& state = {});

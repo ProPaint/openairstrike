@@ -751,6 +751,7 @@ void GameWindow::draw() {
     }
     if (view_ && view_->hudAvailable()) ts.assets = &view_->assets();
     ts.alpha = fade_.alpha(touch_.layout().alpha);
+    ts.rules = &session_.rules(); // the game's next-item rules (touch_overlay.h)
     const bool showFps = (o_.fps || (flow_ && flow_->profile().settings.showFps)) && ts.assets;
     if (flow_ && flow_->loadPending()) {
         // A deferred level load runs on the next frame: this frame presents its loading screen.
