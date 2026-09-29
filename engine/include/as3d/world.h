@@ -282,6 +282,9 @@ struct WorldConfig {
     int cameraMode = 1;
     u32 seed = 1;
     float dt = 1.0f / 60.0f;    // fixed timestep
+    // Player damage ignored (the `iwannabe` cheat, engine-behaviour.md 14). Test flag: the
+    // environment variable AS3D_GOD_MODE=1 also turns it on (read once by World::init), so
+    // tools without a switch for it (as3d_game) can run whole missions.
     bool godMode = false;
 };
 

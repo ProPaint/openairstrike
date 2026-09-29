@@ -3,6 +3,7 @@
 #include "as3d/world.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 
 #include "as3d/defs.h"
@@ -61,6 +62,9 @@ void World::init(Vfs& vfs, const DefDatabase& db, const WorldConfig& config) {
     vfs_ = &vfs;
     db_ = &db;
     config_ = config;
+    if (const char* god = std::getenv("AS3D_GOD_MODE")) {
+        if (god[0] == '1') config_.godMode = true;
+    }
     config_.players = std::min(std::max(config_.players, 1), kMaxPlayers);
     config_.difficulty = std::min(std::max(config_.difficulty, 0), 4);
     config_.cameraMode = std::min(std::max(config_.cameraMode, 0), 3);
