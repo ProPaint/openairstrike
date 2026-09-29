@@ -20,6 +20,7 @@
 #include "as3d/math.h"
 #include "as3d/script.h"
 #include "as3d/terrain.h"
+#include "as3d/water.h"
 #include "as3d/world_skid.h"
 
 namespace as3d {
@@ -105,6 +106,11 @@ constexpr float kClassCivilian = 5.0f; // as2/engine-behaviour.delta.md 3.1.1 (`
 // Touch mode bits of the sequels (as2/engine-behaviour.delta.md 5.2): the first game's
 // modes 1, 2 and 3 read as a bit set, plus civilians.
 enum TouchBit : int { TOUCH_BIT_ENEMIES = 0x1, TOUCH_BIT_PLAYER = 0x2, TOUCH_BIT_CIVILIAN = 0x4 };
+
+// Flag bits the sequels' parser adds to field 3 (as2/engine-behaviour.delta.md 3.1):
+// FL_ONWATER_NORMAL is 0xC (FL_ONWATER + 0x8), FL_ONWATER_FLAT 0x204 (FL_ONWATER + 0x200).
+constexpr int kFlOnWaterTiltBit = 0x8;
+constexpr int kFlOnWaterFlatBit = 0x200;
 
 // p_action bits (engine-behaviour.md 7.2).
 enum ActionBit : u32 {
@@ -444,10 +450,16 @@ public:
 
     // --- movement helpers used by builtins ---------------------------------------
     float terrainHeight(float x, float y) const;
-    // G_WaterHeight (as2/engine-behaviour.delta.md 4.2): the terrain height without water;
-    // with water, the water level over flooded vertices (no wave term: that animation
-    // belongs to the renderer), the terrain elsewhere.
+    // G_WaterHeight (as2/engine-behaviour.delta.md 4.2, rcsl-builtins-semantics.delta.md
+    // 67): with GameRules::waterFollowsWaves the animated surface of as3d/water.h at the
+    // world's clock time() (waterHeightAt: the terrain height without water); otherwise the
+    // still surface (the water level over flooded vertices, the terrain elsewhere).
     float waterHeight(float x, float y) const;
+    // The level's water surface (weights and wet cells fixed at level start, as the
+    // renderer's) and its sample at (x, y) now: height and the normal G_AlignToWater tilts
+    // FL_ONWATER_NORMAL entities to. The renderer draws the waves at the same time().
+    const WaterSurface& waterSurface() const { return water_; }
+    WaterSample waterSample(float x, float y) const;
     // TerraMorph (as2/rcsl-builtins-semantics.delta.md 95): adds the stamp `name` (an 8-bit
     // greyscale TGA, 128 neutral) to the vertex heights around (x, y). False if nothing
     // could be applied (no terrain, stamp missing or not 8-bit, 64 stamps already loaded).
@@ -581,7 +593,9 @@ private:
     void attachScript(int idx, const std::string& path);
     void setStateRecursive(int idx, int state);
     void setPlayerIndexRecursive(int idx, int p);
-    void snapToGround(Entity& e);
+    // FL_ONGROUND / FL_ONWATER placement; `spawn`: G_SpawnObject's, which puts every
+    // FL_ONWATER object at the flat level (the first think moves it onto the waves).
+    void snapToGround(Entity& e, bool spawn = false);
     int rootOf(int idx) const;
     void markRemoved(int idx);
 
@@ -639,6 +653,7 @@ private:
     float hmin_ = -1.0e9f;
     float waterLevel_ = 0.0f;
     bool hasWater_ = false;
+    WaterSurface water_;
     bool night_ = false;
     bool intermission_ = false;
     float intermissionCam_[6] = {};

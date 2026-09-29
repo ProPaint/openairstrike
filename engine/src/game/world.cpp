@@ -316,7 +316,13 @@ void World::applyDef(int idx, const ObjectDef* def) {
     e.def = def;
     e.name = def->name;
     e.setF(F_CLASS, defClass(*def));
-    e.setF(F_FLAGS, static_cast<float>(def->flags));
+    u32 flags = def->flags;
+    if (rules_->waterFlags) {
+        // The executable's values of the two sequel keywords (3.1): 0xC and 0x204.
+        if (def->sequelFlags & SEQ_FL_ONWATER_NORMAL) flags |= FL_ONWATER | kFlOnWaterTiltBit;
+        if (def->sequelFlags & SEQ_FL_ONWATER_FLAT) flags |= FL_ONWATER | kFlOnWaterFlatBit;
+    }
+    e.setF(F_FLAGS, static_cast<float>(flags));
     e.setF(F_HEALTH, static_cast<float>(def->health));
     e.setF(F_DAMAGE, static_cast<float>(def->damage));
     e.setF(F_SCORE, static_cast<float>(def->score));
@@ -418,10 +424,16 @@ void World::setActive(int idx, bool on) {
 
 float World::terrainHeight(float x, float y) const { return terrainValid_ ? terrain_.heightAt(x, y) : 0.0f; }
 
-void World::snapToGround(Entity& e) {
+void World::snapToGround(Entity& e, bool spawn) {
     int fl = e.flagBits();
-    if (fl & FL_ONGROUND) e.setF(F_ORIGIN + 2, terrainHeight(e.f(F_ORIGIN), e.f(F_ORIGIN + 1)));
-    else if (fl & FL_ONWATER) e.setF(F_ORIGIN + 2, waterLevel_);
+    if (fl & FL_ONGROUND) {
+        e.setF(F_ORIGIN + 2, terrainHeight(e.f(F_ORIGIN), e.f(F_ORIGIN + 1)));
+    } else if (fl & FL_ONWATER) {
+        // The sequels (as2/engine-behaviour.delta.md 4.2): the animated surface, except for
+        // FL_ONWATER_FLAT and at spawn; the first game: always the flat level.
+        const bool flat = spawn || !rules_->waterFollowsWaves || (rules_->waterFlags && (fl & kFlOnWaterFlatBit));
+        e.setF(F_ORIGIN + 2, flat ? waterLevel_ : waterHeight(e.f(F_ORIGIN), e.f(F_ORIGIN + 1)));
+    }
 }
 
 int World::createEntity(const std::string& defName, const Vec3& pos, int creator) {
@@ -441,7 +453,7 @@ int World::spawnRoot(const ObjectDef* def, const Vec3& pos, bool snap) {
     Entity& e = ents_[static_cast<size_t>(idx)];
     setStateRecursive(idx, ES_ACTIVE);
     e.setV3(F_ORIGIN, pos);
-    if (snap) snapToGround(e);
+    if (snap) snapToGround(e, true);
     return idx;
 }
 

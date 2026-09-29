@@ -144,7 +144,15 @@ bool World::terrainChangesSince(u32 rev, std::vector<TerrainChange>& out) const 
     return false;
 }
 
+WaterSample World::waterSample(float x, float y) const {
+    if (!terrainValid_) return WaterSample();
+    return waterHeightAt(water_, terrain_, x, y, time_);
+}
+
 float World::waterHeight(float x, float y) const {
+    // The sequels: the animated surface at the simulation's clock, the same function and
+    // time the water renderer draws (as3d/water.h).
+    if (rules_->waterFollowsWaves) return terrainValid_ ? waterSample(x, y).height : 0.0f;
     if (!hasWater_ || !terrainValid_) return terrainHeight(x, y);
     // The water grid: a flooded vertex holds the water level, any other one the terrain,
     // the first and last rows too; bilinear in between, clamped to the map like

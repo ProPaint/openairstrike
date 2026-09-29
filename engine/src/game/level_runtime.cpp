@@ -103,6 +103,9 @@ bool World::startLevel(std::unique_ptr<LoadedLevel> lvl, int mission) {
     stamps_.clear(); // the level loader empties the TerraMorph stamp table
     hasWater_ = st.hasWater;
     waterLevel_ = st.waterLevel;
+    // The sequels' animated water: weights and wet cells from the heights at load (issue
+    // as2/220 choice 3); the shine texture does not matter to the simulation.
+    water_ = terrainValid_ ? buildWaterSurface(terrain_, rules_->waterFollowsWaves, std::string()) : WaterSurface();
     night_ = st.night;
 
     const std::vector<Placement>& pls = level_->data.placements;
@@ -154,6 +157,7 @@ void World::startEmptyLevel(bool spawnPlayers) {
     hmin_ = -1000.0f;
     hasWater_ = false;
     waterLevel_ = 0.0f;
+    water_ = WaterSurface();
     night_ = false;
     resetPools();
     resetCamera();
@@ -345,7 +349,7 @@ void World::spawnPlacement(const Placement& pl) {
     setStateRecursive(idx, ES_ACTIVE);
     // 1. Position and snapping.
     e.setV3(F_ORIGIN, pl.spawnPosition());
-    snapToGround(e);
+    snapToGround(e, true);
     // 2. Script override.
     if (!pl.scriptOverride.empty()) attachScript(idx, pl.scriptOverride);
     // 3. Player index.

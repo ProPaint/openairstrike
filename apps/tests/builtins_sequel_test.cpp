@@ -532,11 +532,17 @@ TEST_CASE("sequel TerraMorph builtin: through a script, ground entities follow")
     CHECK(near(m.r.e(g).f(F_ORIGIN + 2), m.base() + 50.0f));
 }
 
-TEST_CASE("sequel WaterHeight: terrain without water, water level over flooded vertices") {
+TEST_CASE("sequel WaterHeight: terrain without water, the animated surface over flooded vertices") {
     MorphRig dry;
     CHECK(near(dry.r.world.waterHeight(100.0f, 100.0f), dry.base()));
-    MorphRig wet(true, 50.0f); // base ~28.5 is under 50
-    CHECK(near(wet.r.world.waterHeight(100.0f, 100.0f), 50.0f));
+    MorphRig wet(true, 50.0f); // base ~28.5 is under 50: every vertex has weight 1
+    const World& w = wet.r.world;
+    // The wave term of as3d/water.h at the world's clock (0 at the level start).
+    const WaterSample s = waterHeightAt(w.waterSurface(), *w.terrain(), 100.0f, 100.0f, w.time());
+    CHECK(w.waterHeight(100.0f, 100.0f) == s.height);
+    // Vertex (2, 2) at T = 0: 50 + 16 * 0.5 * (sin(1.5) + sin(2)).
+    CHECK(near(w.waterHeight(80.0f, 80.0f), 50.0f + 8.0f * (std::sin(1.5f) + std::sin(2.0f))));
+    CHECK(std::fabs(w.waterHeight(100.0f, 100.0f) - 50.0f) <= 16.0f);
     // The builtin.
     BT t;
     t.setup([](Asm& a) {

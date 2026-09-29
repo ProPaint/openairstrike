@@ -92,9 +92,10 @@ void bTerraMorph(BuiltinArgs& a, void*) {
     w.terraMorph(pos[0], pos[1], strArg(a, 1));
 }
 
-// WaterHeight(x, y) (delta 67; World::waterHeight). Approximate: the original's water grid
-// carries an animated wave term written by its renderer, which is not decoded (open
-// question 3 of the delta) and not reproduced.
+// WaterHeight(x, y) (delta 67; World::waterHeight): the animated water surface of
+// as3d/water.h (the wave term of render-pipeline.delta.md 12.5) at the simulation's clock,
+// the terrain height on a level without water. Outside the map it clamps to the edge (our
+// TerrainHeight deviation, issue as2/251; the original returns 0 there).
 void bWaterHeight(BuiltinArgs& a, void*) { a.setReturnFloat(worldOf(a).waterHeight(a.f32(0), a.f32(1))); }
 
 // ---------------------------------------------------------------------------------------
@@ -234,7 +235,7 @@ const BuiltinDesc kTable[] = {
     {"create", 2, bCreate, nullptr, BuiltinStatus::Implemented},
     {"DetachEntity", 1, bDetachEntity, nullptr, BuiltinStatus::Implemented},
     {"RadialDamagePlayer", 3, bRadialDamagePlayer, nullptr, BuiltinStatus::Implemented},
-    {"WaterHeight", 2, bWaterHeight, nullptr, BuiltinStatus::Approximate},
+    {"WaterHeight", 2, bWaterHeight, nullptr, BuiltinStatus::Implemented},
     {"Lightning", 1, bLightning, nullptr, BuiltinStatus::Implemented},
     {"G_SetPowerUpCount", 2, bSetPowerUpCount, nullptr, BuiltinStatus::Implemented},
     {"TerraMorph", 2, bTerraMorph, nullptr, BuiltinStatus::Implemented},
