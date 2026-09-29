@@ -5,6 +5,7 @@
 //             [--screenshot-every K] [--out-dir DIR] [--dump-state FILE]
 //             [--touch] [--perf] [--fullscreen] [--paks DIR]
 //             [--profile FILE] [--attract 1..4] [--no-logo]
+//             [--screen wide|4x3] [--left-handed] [--dpi N] [--fps]
 //   as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]
 //             [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet] ...
 //   as3d_game --headless --ui-script FILE [--frames N] [--size WxH] [--touch] ...
@@ -22,6 +23,11 @@
 // The windowed loop is shared with the Android app (game_loop.h). --touch draws the touch
 // controls, makes the left mouse button one finger and puts the menus in touch mode
 // (docs/android.md); --perf logs frame statistics and the AS3D_* markers every 5 s.
+// --screen overrides the Screen setting for the session (4x3: the world only in the centred
+// 4:3 area), --left-handed mirrors the touch buttons when there is no front end (with it, the
+// Options "Controls" row decides), --dpi sizes the touch buttons for that display density
+// (default: the window is taken for a phone screen). --fps shows the frame counter whatever the
+// Show FPS setting says; headless screenshots show it only with --fps.
 // The simulation runs at a fixed 60 Hz step. Headless mode has no window and no audio
 // device (the mixer runs on the null device) and renders through EGL into an offscreen
 // target only on screenshot frames; `--dump-state` writes the same JSON as as3d_sim.
@@ -35,6 +41,7 @@
 #include <GLES3/gl3.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -73,6 +80,10 @@ struct Args {
     std::string uiScript, profilePath;
     int attract = 0;
     bool noLogo = false;
+    int screen = -1;
+    bool leftHanded = false;
+    float dpi = 0;
+    bool fps = false;
 };
 
 int usage() {
@@ -81,6 +92,7 @@ int usage() {
                  "                 [--input-script FILE] [--record FILE] [--bot] [--god] [--frames N] [--no-audio]\n"
                  "                 [--touch] [--perf] [--fullscreen] [--paks DIR]\n"
                  "                 [--profile FILE] [--attract 1..4] [--no-logo]\n"
+                 "                 [--screen wide|4x3] [--left-handed] [--dpi N] [--fps]\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
                  "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n"
                  "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n");
@@ -104,6 +116,14 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--profile" && next()) a.profilePath = v;
         else if (s == "--attract" && next()) a.attract = std::atoi(v);
         else if (s == "--no-logo") a.noLogo = true;
+        else if (s == "--screen" && next()) {
+            if (!std::strcmp(v, "wide")) a.screen = kScreenWide;
+            else if (!std::strcmp(v, "4x3")) a.screen = kScreen4x3;
+            else return false;
+        }
+        else if (s == "--left-handed") a.leftHanded = true;
+        else if (s == "--fps") a.fps = true;
+        else if (s == "--dpi" && next()) a.dpi = static_cast<float>(std::atof(v));
         else if (s == "--difficulty" && next()) a.game.world.difficulty = std::atoi(v);
         else if (s == "--seed" && next()) a.game.world.seed = static_cast<u32>(std::strtoul(v, nullptr, 10));
         else if (s == "--data" && next()) a.game.dataRoot = v;
@@ -164,6 +184,7 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
         }
         gl->makeCurrent();
         view.reset(new GameView());
+        view->screenMode = a.screen == kScreen4x3 ? kScreen4x3 : kScreenWide;
         if (!view->init(session, &err)) {
             std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
             return 1;
@@ -260,6 +281,7 @@ FlowConfig desktopFlow(Args& a, bool headless) {
     // Headless runs are reproducible: attract level 1 unless --attract.
     f.attract = a.attract > 0 ? a.attract : headless ? 1 : 0;
     f.showLogo = !a.noLogo;
+    f.screenOverride = a.screen;
     return f;
 }
 
@@ -305,7 +327,24 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
     ConsoleStatus status(a.quiet);
     flow.levelLoadedHook = [&]() { status.update(session, GameSession::kLevelStarted); };
     TouchMapper touch;
-    touch.setScreen(a.width, a.height);
+    TouchFade fade;
+    FpsCounter fps; // the headless loop's own frame rate (wall clock), shown with --fps
+    auto lastFrame = std::chrono::steady_clock::now();
+    int layoutKey = -1;
+    // The touch layout follows the settings (Screen, Controls), as in the windowed loop.
+    auto layout = [&]() {
+        const Settings& st = flow.profile().settings;
+        applyTouchSpeed(touch.settings(), st.touchSpeed);
+        const int key = flow.screenMode() * 2 + (st.leftHanded ? 1 : 0);
+        if (key == layoutKey) return;
+        layoutKey = key;
+        TouchLayoutOptions lo;
+        lo.dpi = a.dpi;
+        lo.leftHanded = st.leftHanded;
+        lo.screen4x3 = flow.screenMode() == kScreen4x3;
+        touch.setScreen(a.width, a.height, lo);
+    };
+    flow.setScreenSize(a.width, a.height);
     InputSource source(a.bot, script);
     flow.boot();
     const long frames = a.frames >= 0 ? a.frames : static_cast<long>(ui.lastFrame()) + 1;
@@ -314,8 +353,18 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
         target.bind();
         flow.draw(a.width, a.height);
         if (a.touch && flow.playing() && view->hudAvailable()) {
+            TouchOverlayState ts;
+            ui::HudPlayer hud = hudStateOf(session).players[0];
+            ts.player = &hud;
+            ts.assets = &view->assets();
+            ts.alpha = fade.alpha(touch.layout().alpha);
             view->overlay().begin(a.width, a.height);
-            drawTouchControls(view->overlay(), touch);
+            drawTouchControls(view->overlay(), touch, ts);
+            view->overlay().flush();
+        }
+        if (a.fps && view->hudAvailable()) {
+            view->overlay().begin(a.width, a.height);
+            drawFpsCounter(view->overlay(), view->assets(), fps, a.touch ? &touch.layout() : nullptr, SafeInsets());
             view->overlay().flush();
         }
         std::string path = a.outDir + "/" + name + ".png";
@@ -351,7 +400,37 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
         shots.clear();
         ui.eventsAt(static_cast<u32>(f), in, &shots);
         flow.uiFrame(1.0f / 60.0f, in);
+        layout();
+        {
+            const auto now = std::chrono::steady_clock::now();
+            fps.frame(std::chrono::duration<double>(now - lastFrame).count());
+            lastFrame = now;
+        }
+        // Fingers on the touch controls (the script's `finger` commands), during play only.
+        std::vector<UiScript::Command> fingers;
+        ui.fingersAt(static_cast<u32>(f), fingers);
+        for (const UiScript::Command& c : fingers) {
+            if (!flow.playing() && c.phase == 0) continue;
+            float nx = c.x, ny = c.y;
+            if (c.button >= 0) {
+                const TouchCircle& b = touch.layout().circles[c.button];
+                nx = b.x / static_cast<float>(a.width);
+                ny = b.y / static_cast<float>(a.height);
+            }
+            touch.touchEvent(c.id, c.phase == 0 ? TouchPhase::Down : c.phase == 1 ? TouchPhase::Move : TouchPhase::Up, nx, ny);
+        }
         FrameInput g = source.next(static_cast<u32>(f), FrameInput());
+        if (flow.playing()) {
+            float hx = 0, hy = 0;
+            const bool valid = session.hasLevel() && playerScreenCentre(session.world(), 0, hx, hy);
+            touch.setPlayerScreen(valid, hx, hy);
+            g = mergeFrameInput(g, touch.takeFrame());
+            bool held = false;
+            for (int b = 0; b < kTouchButtonCount; ++b) held |= touch.buttonHeld(static_cast<TouchButton>(b));
+            fade.update(1.0f / 60.0f, held);
+        } else {
+            fade.reset();
+        }
         const int ev = flow.step(g);
         if (session.hasLevel()) audio.drain(session.world());
         audio.pump(samplesPerStep);
@@ -425,6 +504,10 @@ int main(int argc, char** argv) {
         o.markers = a.perf;
         o.frameMarkerEvery = a.perf ? 600 : 0;
         o.logTouches = a.perf;
+        o.dpi = a.dpi;
+        o.screenMode = a.screen;
+        o.leftHanded = a.leftHanded;
+        o.fps = a.fps;
         return runGameWindow(o);
     }
     GameSession session;

@@ -10,7 +10,7 @@ namespace as3d::ui {
 namespace {
 
 enum OptionId { kBack = 1, kConfKeys = 2, kApply = 3, kResolution = 20, kRefresh, kDepth, kFullscreen, kBrightness,
-                kSfx, kMusic, kSound3D, kCamera, kMouse };
+                kSfx, kMusic, kSound3D, kCamera, kMouse, kScreenMode = 40, kHand, kTouchSpeed, kShowFps };
 
 bool videoDiffers(const Settings& a, const Settings& b) {
     return a.videoMode != b.videoMode || a.refreshRate != b.refreshRate || a.colorDepth != b.colorDepth ||
@@ -52,6 +52,27 @@ Menu Frontend::buildOptions() {
     for (int i = 0; i < 4; i++) cams.push_back(texts_.get("camera." + std::to_string(i)));
     m.addSpinner(kCamera, 400, 360, texts_.get("opt.camera"), cams, s.camera);
     m.addSpinner(kMouse, 400, 400, texts_.get("opt.mouse"), {off, on}, s.mouseControl ? 1 : 0);
+    // Ours (issue 140): in the rows of the video options, which this port does not offer.
+    {
+        float y = 160;
+        if (content_.screenOption && !content_.videoOptions) {
+            m.addSpinner(kScreenMode, 400, y, texts_.get("opt.screen"),
+                         {texts_.get("opt.screen.wide"), texts_.get("opt.screen.4x3")}, s.screenMode == kScreen4x3 ? 1 : 0);
+            y += 20;
+        }
+        if (content_.handOption && touch_ && !content_.videoOptions) {
+            m.addSpinner(kHand, 400, y, texts_.get("opt.controls"),
+                         {texts_.get("opt.controls.right"), texts_.get("opt.controls.left")}, s.leftHanded ? 1 : 0);
+            y += 20;
+            std::vector<std::string> speeds;
+            for (int i = 0; i < kTouchSpeedSteps; i++) speeds.push_back(texts_.get("opt.touchspeed." + std::to_string(i)));
+            m.addSpinner(kTouchSpeed, 400, y, texts_.get("opt.touchspeed"), speeds, s.touchSpeed);
+            y += 20;
+        }
+        // Show FPS in the row of 3D Sound (not offered by the port), between the volumes and
+        // the camera.
+        if (!content_.videoOptions) m.addSpinner(kShowFps, 400, 320, texts_.get("opt.showfps"), {off, on}, s.showFps ? 1 : 0);
+    }
     m.addButton(kConfKeys, 230, 430, 340, 32, "menu\\confkeys_1.tga", "menu\\confkeys_2.tga");
     m.addButton(kBack, 50, 450, 128, 64, "menu\\back_1.tga", "menu\\back_2.tga");
     m.addButton(kApply, 600, 450, 160, 64, "menu\\apply_ok_1.tga", "menu\\apply_ok_2.tga", {0, 0, 0.625f, 1},
@@ -90,6 +111,10 @@ Menu Frontend::buildOptions() {
             case kSfx: live.sfxVolume = std::round(it.value) / 10.0f; settingsChanged(); break;
             case kMusic: live.musicVolume = std::round(it.value) / 10.0f; settingsChanged(); break;
             case kCamera: live.camera = it.index; settingsChanged(); break;
+            case kScreenMode: live.screenMode = it.index == 1 ? kScreen4x3 : kScreenWide; settingsChanged(); break;
+            case kHand: live.leftHanded = it.index == 1; settingsChanged(); break;
+            case kTouchSpeed: live.touchSpeed = it.index; settingsChanged(); break;
+            case kShowFps: live.showFps = it.index == 1; settingsChanged(); break;
             case kMouse:
                 live.mouseControl = it.index == 1;
                 live.applyMouseControlBindings();

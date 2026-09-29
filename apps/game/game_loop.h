@@ -14,6 +14,8 @@
 //                                      names of Frontend::screenName, or intro / playing /
 //                                      paused)
 //   AS3D_VIEW scale=S x=X y=Y          virtual 800x600 to framebuffer pixels (fb = v*S + X/Y)
+//   AS3D_LAYOUT size=WxH ... missile=X,Y,R ...   the touch buttons' centres and radii in
+//                                      framebuffer pixels (tools/android_smoke.sh taps them)
 //   AS3D_GAME_FRAME n=N mission=M ... every `frameMarkerEvery` simulation frames
 //   AS3D_LEVEL_LOADED mission=M ms=T  after every level load
 //   AS3D_PERF avg_ms=... max_ms=... sim_steps=...   every 5 s with `perfLog`
@@ -55,6 +57,15 @@ struct LoopOptions {
     bool rebuildOnResume = false;            // test hook: rebuild every GL resource on resume
     // Framebuffer pixels kept free of controls (display cutouts); queried every frame.
     std::function<as3d::SafeInsets()> safeInsets;
+    // Display density (dots per inch) for the size of the touch buttons; 0 = unknown (the
+    // window is taken for a phone screen, the desktop --touch case).
+    float dpi = 0;
+    // Settings::screenMode for this session (--screen), -1 = the profile's setting (with the
+    // front end) or Wide (without it). Settings::leftHanded without the front end.
+    int screenMode = -1;
+    bool leftHanded = false;
+    int touchSpeed = as3d::kDefaultTouchSpeed; // Settings::touchSpeed without the front end
+    bool fps = false;                        // the frame counter regardless of Settings::showFps (--fps)
     // The front end (menus); game.startLevel must then be false.
     bool frontend = false;
     FlowConfig flow;

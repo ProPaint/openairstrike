@@ -124,6 +124,11 @@ void forEachSetting(Settings& s, F&& f) {
     flag("sound3D", s.sound3D);
     num("textureFilter", s.textureFilter);
     flag("showFps", s.showFps);
+    // Added after the first release of the format (WP-51): older files simply lack them and
+    // get the defaults; older readers skip them.
+    num("screenMode", s.screenMode);
+    flag("leftHanded", s.leftHanded);
+    num("touchSpeed", s.touchSpeed);
     char key[16];
     for (int p = 0; p < 2; p++)
         for (int a = 0; a < kActionCount; a++)

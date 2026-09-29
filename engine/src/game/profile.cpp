@@ -127,6 +127,8 @@ void Settings::clampToRanges() {
     if (refreshRate < 0 || refreshRate > 1000) refreshRate = 0;
     if (colorDepth != 0 && colorDepth != 16 && colorDepth != 32) colorDepth = 0;
     if (textureFilter < 0 || textureFilter > 1) textureFilter = 0;
+    if (screenMode != kScreenWide && screenMode != kScreen4x3) screenMode = d.screenMode;
+    if (touchSpeed < 0 || touchSpeed >= kTouchSpeedSteps) touchSpeed = d.touchSpeed;
     brightness = clampF(brightness, 0.2f, 1.0f, d.brightness);
     sfxVolume = clampF(sfxVolume, 0.0f, 1.0f, d.sfxVolume);
     musicVolume = clampF(musicVolume, 0.0f, 1.0f, d.musicVolume);

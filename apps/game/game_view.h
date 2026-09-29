@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 
+#include "as3d/profile.h"
 #include "as3d/ui.h"
 #include "as3d/world_render.h"
 #include "game_session.h"
@@ -53,9 +54,15 @@ public:
     const as3d::ui::UiAssets& assets() const { return assets_; }
     as3d::ui::Renderer2D& overlay() { return r2d_; }
     float brightness = kDefaultBrightness;
+    // Settings::screenMode (as3d/profile.h): with kScreen4x3 the world is drawn only in the
+    // centred 4:3 area and everything outside it ends black (after the 2D layer and the
+    // brightness pass). Drawing only: the simulation never sees it.
+    int screenMode = as3d::kScreenWide;
 
 private:
     struct Banner;
+    void renderWorld(const as3d::World& world, int width, int height);
+    void clearBars(int width, int height);
     as3d::WorldRenderer renderer_;
     as3d::ui::Renderer2D r2d_;
     as3d::ui::UiAssets assets_;

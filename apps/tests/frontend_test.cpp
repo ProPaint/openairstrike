@@ -568,3 +568,65 @@ TEST_CASE("frontend Settings.xml: info, intros, logotypes") {
     CHECK(c.logos[0].invertX);
     CHECK(c.logos[0].invertY);
 }
+
+TEST_CASE("frontend options (ours, issue 140): Screen and Controls rows, operable by taps") {
+    FakeGame game;
+    Profile profile;
+    FrontendContent c = content();
+    c.videoOptions = false; // as the port's host
+    c.screenOption = false;
+    c.handOption = true;
+    Frontend fe(game, profile, c, Texts{});
+    fe.setTouchMode(true);
+    fe.boot();
+    auto tap = [&](float x, float y) { fe.update(0.016f, UiInput().tap(x, y)); };
+    // Not offered while the window is 4:3 (desktop); Controls only in touch mode.
+    fe.open(Screen::Options);
+    Menu* m = fe.menus().top();
+    CHECK(m->find(40) == nullptr);
+    REQUIRE(m->find(41) != nullptr);
+    fe.update(0.016f, UiInput().key(keys::Escape));
+    fe.setScreenOptionShown(true);
+    fe.open(Screen::Options);
+    m = fe.menus().top();
+    MenuItem* screen = m->find(40);
+    MenuItem* hand = m->find(41);
+    REQUIRE(screen != nullptr);
+    REQUIRE(hand != nullptr);
+    CHECK(screen->y < hand->y);
+    CHECK(screen->values.size() == 2u);
+    CHECK(screen->index == 0);
+    const int changes = game.settings;
+    // A tap right of the value cycles forward, applied live.
+    tap(screen->x + 40, screen->y + 5);
+    CHECK(profile.settings.screenMode == kScreen4x3);
+    CHECK(game.settings > changes);
+    tap(hand->x + 40, hand->y + 5);
+    CHECK(profile.settings.leftHanded);
+    MenuItem* speed = m->find(42);
+    REQUIRE(speed != nullptr);
+    CHECK(speed->y > hand->y);
+    CHECK(speed->values.size() == static_cast<size_t>(kTouchSpeedSteps));
+    CHECK(speed->index == kDefaultTouchSpeed);
+    tap(speed->x + 40, speed->y + 5);
+    CHECK(profile.settings.touchSpeed == kDefaultTouchSpeed + 1);
+    MenuItem* fps = m->find(43);
+    REQUIRE(fps != nullptr);
+    CHECK(fps->y == 320.0f); // the port's free 3D Sound row, below Music Volume
+    tap(fps->x + 40, fps->y + 5);
+    CHECK(profile.settings.showFps);
+    // A tap on the "<" goes back.
+    tap(screen->x - 10, screen->y + 5);
+    CHECK(profile.settings.screenMode == kScreenWide);
+    // Keyboard mode has no Controls row.
+    FakeGame g2;
+    Profile p2;
+    Frontend desk(g2, p2, c, Texts{});
+    desk.boot();
+    desk.setScreenOptionShown(true);
+    desk.open(Screen::Options);
+    CHECK(desk.menus().top()->find(40) != nullptr);
+    CHECK(desk.menus().top()->find(41) == nullptr);
+    CHECK(desk.menus().top()->find(42) == nullptr);
+    CHECK(desk.menus().top()->find(43) != nullptr); // Show FPS on both targets
+}

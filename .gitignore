@@ -3,6 +3,8 @@ binaries/
 third_party_local/
 assets_extracted/
 android/app/src/main/assets/*.apk
+# Launcher icon rendered from the game data at build time (tools/android_build.sh)
+android/app/src/icon_from_data/
 testdata/golden_png/
 # Reverse-engineering outputs (decompiler output is never committed)
 re/out/

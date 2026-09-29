@@ -99,6 +99,14 @@ android {
         main {
             java.srcDirs += ["${sdl2Dir}/android-project/app/src/main/java"]
         }
+        // Optional launcher icon rendered from the owner's game data by
+        // tools/android_build.sh (AS3D_ICON_FROM_DATA; gitignored). Build-type resources
+        // override main's, so its ic_launcher.xml replaces our own vector icon's.
+        def iconFromData = file("src/icon_from_data/res")
+        if (iconFromData.exists()) {
+            debug.res.srcDirs += [iconFromData]
+            release.res.srcDirs += [iconFromData]
+        }
     }
 
     packagingOptions {

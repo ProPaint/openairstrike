@@ -411,6 +411,10 @@ void worldRenderOrder(const World& world, std::vector<int>& order, std::vector<c
 }
 
 void WorldRenderer::render(const World& world, int width, int height, const WorldRenderOptions& options) {
+    render(world, 0, 0, width, height, options);
+}
+
+void WorldRenderer::render(const World& world, int vx, int vy, int width, int height, const WorldRenderOptions& options) {
     Impl& im = *impl_;
     stats_ = WorldRenderStats();
     if (width <= 0 || height <= 0) return;
@@ -631,9 +635,16 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
     im.meshes.setTime(world.time());
 
     // Pass 0: clear to the fog colour (black without fog).
-    setViewport(0, 0, width, height);
+    setViewport(vx, vy, width, height);
     Vec3 cc = hasFog ? light.fogColor : Vec3{0, 0, 0};
+    const bool part = vx != 0 || vy != 0;
+    if (part) {
+        // A sub-rectangle: the clear must not reach outside it.
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(vx, vy, width, height);
+    }
     clear({cc.x, cc.y, cc.z, 1.0f}, true);
+    if (part) glDisable(GL_SCISSOR_TEST);
     setDepth(true, true);
     setCull(CullMode::Back);
 

@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <sstream>
 
+#include "as3d/input.h"
+
 namespace as3d_game {
 
 using namespace as3d;
@@ -101,6 +103,26 @@ bool UiScript::parse(const std::string& text, std::string* error) {
             c.shot = true;
             c.name = name;
             commands_.push_back(c);
+        } else if (cmd == "finger") {
+            std::string phase, where;
+            long long id = 0;
+            if (!(ls >> phase >> id >> where)) return fail("expected finger <down|move|up> <id> <x> <y|button>");
+            c.finger = true;
+            c.id = id;
+            c.phase = phase == "down" ? 0 : phase == "move" ? 1 : phase == "up" ? 2 : -1;
+            if (c.phase < 0) return fail("bad finger phase");
+            c.button = -1;
+            for (int b = 0; b < as3d::kTouchButtonCount; ++b)
+                if (where == as3d::touchButtonName(static_cast<as3d::TouchButton>(b))) c.button = b;
+            if (c.button < 0) {
+                float y = 0;
+                char* end = nullptr;
+                const float x = std::strtof(where.c_str(), &end);
+                if (!end || *end || !(ls >> y)) return fail("expected x y or a button name");
+                c.x = x;
+                c.y = y;
+            }
+            commands_.push_back(c);
         } else {
             return fail("unknown command");
         }
@@ -130,12 +152,20 @@ void UiScript::eventsAt(u32 frame, ui::UiInput& out, std::vector<std::string>* s
     auto it = std::lower_bound(commands_.begin(), commands_.end(), frame,
                                [](const Command& c, u32 f) { return c.frame < f; });
     for (; it != commands_.end() && it->frame == frame; ++it) {
+        if (it->finger) continue;
         if (it->shot) {
             if (shots) shots->push_back(it->name);
         } else {
             out.events.push_back(it->event);
         }
     }
+}
+
+void UiScript::fingersAt(u32 frame, std::vector<Command>& out) const {
+    auto it = std::lower_bound(commands_.begin(), commands_.end(), frame,
+                               [](const Command& c, u32 f) { return c.frame < f; });
+    for (; it != commands_.end() && it->frame == frame; ++it)
+        if (it->finger) out.push_back(*it);
 }
 
 } // namespace as3d_game

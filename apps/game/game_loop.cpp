@@ -131,6 +131,8 @@ private:
     void draw();
     void saveScreenshot();
     void updateLayout();
+    int screenMode() const;
+    bool leftHanded() const;
     int fbWidth() const { return gl_ ? gl_->width() : o_.width; }
     int fbHeight() const { return gl_ ? gl_->height() : o_.height; }
 
@@ -157,6 +159,11 @@ private:
     int shots_ = 0;
     double lastPresent_ = -1;
     int layoutW_ = -1, layoutH_ = -1;
+    int layoutScreen_ = -1, layoutHand_ = -1;
+    TouchFade fade_;
+    double lastDraw_ = -1;
+    FpsCounter fps_;
+    int droppedNow_ = 0; // simulation steps dropped since the last presented frame
     double stepAvg_ = -1, drawAvg_ = -1; // running averages (seconds) for AS3D_HITCH
     // A step or draw over 50 ms and over 3 times its running average: a stall, not a device
     // that is merely slow everywhere.
@@ -183,36 +190,56 @@ private:
     std::string screen_;                    // last AS3D_SCREEN name
 };
 
+int GameWindow::screenMode() const {
+    if (flow_) return flow_->screenMode();
+    return o_.screenMode == kScreen4x3 ? kScreen4x3 : kScreenWide;
+}
+
+bool GameWindow::leftHanded() const { return flow_ ? flow_->profile().settings.leftHanded : o_.leftHanded; }
+
 void GameWindow::updateLayout() {
     SafeInsets in = o_.safeInsets ? o_.safeInsets() : SafeInsets();
     int w = fbWidth(), h = fbHeight();
+    const int screen = screenMode(), hand = leftHanded() ? 1 : 0;
+    if (flow_) flow_->setScreenSize(w, h);
+    applyTouchSpeed(touch_.settings(), flow_ ? flow_->profile().settings.touchSpeed : o_.touchSpeed);
+    if (view_) view_->screenMode = screen;
     if (w == layoutW_ && h == layoutH_ && in.left == layoutInsets_.left && in.top == layoutInsets_.top &&
-        in.right == layoutInsets_.right && in.bottom == layoutInsets_.bottom)
+        in.right == layoutInsets_.right && in.bottom == layoutInsets_.bottom && screen == layoutScreen_ &&
+        hand == layoutHand_)
         return;
     layoutW_ = w;
     layoutH_ = h;
     layoutInsets_ = in;
-    touch_.setScreen(w, h, in);
+    layoutScreen_ = screen;
+    layoutHand_ = hand;
+    TouchLayoutOptions lo;
+    lo.insets = in;
+    lo.dpi = o_.dpi;
+    lo.leftHanded = hand != 0;
+    lo.screen4x3 = screen == kScreen4x3;
+    touch_.setScreen(w, h, lo);
     redraw_ = true;
     if (!o_.markers) return;
     const ui::Mapping m = ui::computeMapping(w, h);
     AS3D_INFO("AS3D_VIEW scale=%.4f x=%.1f y=%.1f", m.scaleX, m.offsetX, m.offsetY);
-    // Button centres in framebuffer pixels, for tools/android_smoke.sh to tap.
+    // Button centres and radii in framebuffer pixels, for tools/android_smoke.sh to tap.
     const TouchLayout& L = touch_.layout();
     std::string line;
     char buf[96];
     for (int b = 0; b < kTouchButtonCount; ++b) {
-        std::snprintf(buf, sizeof buf, " %s=%d,%d", touchButtonName(static_cast<TouchButton>(b)),
-                      static_cast<int>((L.buttons[b].x + L.buttons[b].w * 0.5f) * w),
-                      static_cast<int>((L.buttons[b].y + L.buttons[b].h * 0.5f) * h));
+        std::snprintf(buf, sizeof buf, " %s=%d,%d,%d", touchButtonName(static_cast<TouchButton>(b)),
+                      static_cast<int>(L.circles[b].x), static_cast<int>(L.circles[b].y),
+                      static_cast<int>(L.circles[b].r));
         line += buf;
     }
     std::snprintf(buf, sizeof buf, " field=%d,%d,%d,%d", static_cast<int>(L.playField.x * w),
                   static_cast<int>(L.playField.y * h), static_cast<int>((L.playField.x + L.playField.w) * w),
                   static_cast<int>((L.playField.y + L.playField.h) * h));
     line += buf;
-    AS3D_INFO("AS3D_LAYOUT size=%dx%d insets=%d,%d,%d,%d buttons=%s%s", w, h, in.left, in.top, in.right, in.bottom,
-              L.outside ? "outside" : "inside", line.c_str());
+    AS3D_INFO("AS3D_LAYOUT size=%dx%d insets=%d,%d,%d,%d buttons=%s screen=%s hand=%s px_per_mm=%.2f%s", w, h, in.left,
+              in.top, in.right, in.bottom, L.outside ? "outside" : "inside", screen == kScreen4x3 ? "4x3" : "wide",
+              hand ? "left" : "right", L.pixelsPerMm, line.c_str());
 }
 
 bool GameWindow::initGl(std::string* err) {
@@ -438,9 +465,9 @@ bool GameWindow::handleFlowEvent(const SDL_Event& e) {
     const char* on = "field";
     if (ph == TouchPhase::Down) {
         const TouchLayout& L = touch_.layout();
-        const bool onPause = L.hit[static_cast<int>(TouchButton::Pause)].contains(nx, ny);
-        for (int b = 0; b < kTouchButtonCount; ++b)
-            if (L.hit[b].contains(nx, ny)) on = touchButtonName(static_cast<TouchButton>(b));
+        const int hitB = L.hitTest(nx, ny);
+        const bool onPause = hitB == static_cast<int>(TouchButton::Pause);
+        if (hitB >= 0) on = touchButtonName(static_cast<TouchButton>(hitB));
         if (!flow_->playing() || onPause) {
             // A menu is up (or the pause button: Esc, the in-game menu).
             uiFingers_[id] = onPause;
@@ -573,11 +600,8 @@ void GameWindow::handleEvent(const SDL_Event& e) {
                                                      : TouchPhase::Move;
             touch_.touchEvent(static_cast<long long>(e.tfinger.fingerId), ph, e.tfinger.x, e.tfinger.y);
             if (o_.logTouches && ph != TouchPhase::Move) {
-                const TouchLayout& L = touch_.layout();
-                const char* on = "field";
-                for (int b = 0; b < kTouchButtonCount; ++b) {
-                    if (L.hit[b].contains(e.tfinger.x, e.tfinger.y)) on = touchButtonName(static_cast<TouchButton>(b));
-                }
+                const int hitB = touch_.layout().hitTest(e.tfinger.x, e.tfinger.y);
+                const char* on = hitB >= 0 ? touchButtonName(static_cast<TouchButton>(hitB)) : "field";
                 if (o_.markers) AS3D_INFO("AS3D_TOUCH %s id=%lld x=%.3f y=%.3f on=%s", ph == TouchPhase::Down ? "down" : "up",
                           static_cast<long long>(e.tfinger.fingerId), e.tfinger.x, e.tfinger.y, on);
             }
@@ -668,21 +692,41 @@ void GameWindow::saveScreenshot() {
 void GameWindow::draw() {
     int w = fbWidth(), h = fbHeight();
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    // The buttons' fade runs on the wall clock (drawing only).
+    const double now = nowSeconds();
+    const float dt = lastDraw_ < 0 ? 0.0f : static_cast<float>(std::min(0.25, now - lastDraw_));
+    lastDraw_ = now;
+    bool held = false;
+    for (int b = 0; b < kTouchButtonCount; ++b) held |= touch_.buttonHeld(static_cast<TouchButton>(b));
+    fade_.update(dt, held);
+    TouchOverlayState ts;
+    ui::HudPlayer hud;
+    if (session_.hasLevel()) {
+        hud = hudStateOf(session_).players[0];
+        ts.player = &hud;
+    }
+    if (view_ && view_->hudAvailable()) ts.assets = &view_->assets();
+    ts.alpha = fade_.alpha(touch_.layout().alpha);
+    const bool showFps = (o_.fps || (flow_ && flow_->profile().settings.showFps)) && ts.assets;
     if (flow_) {
         flow_->draw(w, h);
-        if (o_.touch && flow_->playing()) {
+        const bool controls = o_.touch && flow_->playing();
+        if (!controls) fade_.reset(); // full opacity again when play (re)starts
+        if (controls || showFps) {
             overlay_->begin(w, h);
-            drawTouchControls(*overlay_, touch_);
+            if (controls) drawTouchControls(*overlay_, touch_, ts);
+            if (showFps) drawFpsCounter(*overlay_, *ts.assets, fps_, o_.touch ? &touch_.layout() : nullptr, layoutInsets_);
             overlay_->flush();
         }
         return;
     }
     view_->draw(session_, w, h);
     bool paused = pausedByPlayer(session_.world());
-    if (o_.touch || paused) {
+    if (o_.touch || paused || showFps) {
         overlay_->begin(w, h);
         if (paused) drawPauseOverlay(*overlay_, o_.touch);
-        if (o_.touch) drawTouchControls(*overlay_, touch_);
+        if (o_.touch) drawTouchControls(*overlay_, touch_, ts);
+        if (showFps) drawFpsCounter(*overlay_, *ts.assets, fps_, o_.touch ? &touch_.layout() : nullptr, layoutInsets_);
         overlay_->flush();
     }
 }
@@ -801,6 +845,7 @@ int GameWindow::run() {
         }
         if (acc >= dt) {
             perf_.dropped(static_cast<int>(acc / dt));
+            droppedNow_ += static_cast<int>(acc / dt);
             acc = 0; // bounded catch-up: a long stall is not replayed
         }
         double work0 = nowSeconds();
@@ -823,6 +868,8 @@ int GameWindow::run() {
         ++rendered_;
         double t = nowSeconds();
         if (lastPresent_ >= 0) perf_.presented(t - lastPresent_, work);
+        fps_.frame(lastPresent_ >= 0 ? t - lastPresent_ : -1.0, droppedNow_);
+        droppedNow_ = 0;
         lastPresent_ = t;
         perf_.maybeLog(t, o_.perfLog);
     }

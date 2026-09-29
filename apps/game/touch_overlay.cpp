@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <string>
 
 namespace as3d_game {
 
@@ -18,14 +20,6 @@ struct Box {
     float py(float v) const { return y + v * h; }
 };
 
-Box toVirtual(const ui::Renderer2D& r, const TouchRect& t) {
-    const ui::Mapping& m = r.mapping();
-    float x0 = m.toVirtX(t.x * static_cast<float>(m.fbWidth));
-    float y0 = m.toVirtY(t.y * static_cast<float>(m.fbHeight));
-    float x1 = m.toVirtX((t.x + t.w) * static_cast<float>(m.fbWidth));
-    float y1 = m.toVirtY((t.y + t.h) * static_cast<float>(m.fbHeight));
-    return {x0, y0, x1 - x0, y1 - y0};
-}
 
 // Fills a convex polygon (unit-square coordinates of `b`) with horizontal strips.
 void fillConvex(ui::Renderer2D& r, const Box& b, const float* uv, int n, Color c) {
@@ -91,13 +85,15 @@ void bulletsIcon(ui::Renderer2D& r, const Box& outer, float u0, float v0, float 
         fillRectU(r, b, x, 0.3f, x + 0.16f, 0.86f, c);
     }
 }
-
-// ">" on the right side of the button: "next".
-void chevron(ui::Renderer2D& r, const Box& b, Color c) {
-    const float upper[] = {0.64f, 0.3f, 0.74f, 0.3f, 0.92f, 0.5f, 0.82f, 0.5f};
-    const float lower[] = {0.82f, 0.5f, 0.92f, 0.5f, 0.74f, 0.7f, 0.64f, 0.7f};
-    fillConvex(r, b, upper, 4, c);
-    fillConvex(r, b, lower, 4, c);
+// ">>" in the unit square of `b` (two chevrons): "next".
+void nextGlyph(ui::Renderer2D& r, const Box& b, Color c) {
+    for (int k = 0; k < 2; ++k) {
+        const float o = 0.22f * static_cast<float>(k);
+        const float upper[] = {0.26f + o, 0.28f, 0.38f + o, 0.28f, 0.60f + o, 0.5f, 0.48f + o, 0.5f};
+        const float lower[] = {0.48f + o, 0.5f, 0.60f + o, 0.5f, 0.38f + o, 0.72f, 0.26f + o, 0.72f};
+        fillConvex(r, b, upper, 4, c);
+        fillConvex(r, b, lower, 4, c);
+    }
 }
 
 Color withAlpha(Color c, float a) {
@@ -105,43 +101,102 @@ Color withAlpha(Color c, float a) {
     return c;
 }
 
+// A HUD atlas icon (66 x 35 texels) centred at (x, y), `w` virtual pixels wide.
+void atlasIcon(ui::Renderer2D& r, const Texture2D& tex, ui::SpecUv uv, float x, float y, float w, Color c, Blend b) {
+    if (!tex.valid() || uv.empty()) return;
+    const float h = w * 35.0f / 66.0f;
+    r.quadSpec(x - w * 0.5f, y - h * 0.5f, w, h, uv.s0, uv.t0, uv.s1, uv.t1, &tex, c, b);
+}
+
+// A count in the game font, centred on x, digits `height` virtual pixels tall.
+void countText(ui::Renderer2D& r, const ui::UiAssets& a, float x, float y, int n, float height, Color c) {
+    const std::string s = std::to_string(std::max(n, 0));
+    const float scale = height / 16.0f;
+    const float w = ui::numberWidth(s, scale);
+    // Dark backing so the additive digits read over bright ground.
+    r.rect(x - w * 0.5f - scale * 3.0f, y - scale, w + scale * 6.0f, height + scale * 2.0f, Color{0, 0, 0, 0.35f * c.a});
+    ui::drawNumber(r, a.uiFont(), x - w * 0.5f, y, s, scale, c);
+}
+
+const Color kOrange{1.0f, 0.63f, 0.0f, 1.0f};   // ui::orange()
+const Color kCount{1.0f, 0.72f, 0.25f, 1.0f};
+const Color kGreyIcon{0.5f, 0.5f, 0.52f, 1.0f};
+
 } // namespace
 
-void drawTouchControls(ui::Renderer2D& r, const TouchMapper& touch) {
+void drawTouchControls(ui::Renderer2D& r, const TouchMapper& touch, const TouchOverlayState& st) {
     const TouchLayout& L = touch.layout();
-    const float a = L.alpha;
+    const ui::Mapping& m = r.mapping();
+    const ui::HudPlayer* p = st.player;
+    const ui::UiAssets* as = st.assets;
     for (int i = 0; i < kTouchButtonCount; ++i) {
-        TouchButton id = static_cast<TouchButton>(i);
-        bool held = touch.buttonHeld(id);
-        Box b = toVirtual(r, L.buttons[i]);
-        Color bg = held ? Color{0.45f, 0.45f, 0.5f, 0.75f} : Color{0.08f, 0.08f, 0.1f, 0.55f};
-        r.rect(b.x, b.y, b.w, b.h, withAlpha(bg, a), Blend::Alpha);
-        Color edge = withAlpha(Color{0.85f, 0.85f, 0.85f, held ? 1.0f : 0.7f}, a);
-        r.rect(b.x, b.y, b.w, b.h * 0.03f, edge);
-        r.rect(b.x, b.y + b.h * 0.97f, b.w, b.h * 0.03f, edge);
-        r.rect(b.x, b.y, b.w * 0.03f, b.h, edge);
-        r.rect(b.x + b.w * 0.97f, b.y, b.w * 0.03f, b.h, edge);
-        const Color red = withAlpha(Color{0.95f, 0.35f, 0.15f, 1}, a);
-        const Color yellow = withAlpha(Color{1.0f, 0.85f, 0.2f, 1}, a);
-        const Color grey = withAlpha(Color{0.85f, 0.88f, 0.95f, 1}, a);
+        const TouchButton id = static_cast<TouchButton>(i);
+        const bool held = touch.buttonHeld(id);
+        const TouchCircle& c = L.circles[i];
+        if (!(c.r > 0)) continue;
+        // Held buttons are always at full opacity.
+        const float a = held ? 1.0f : std::min(std::max(st.alpha, 0.0f), 1.0f);
+        const float x = m.toVirtX(c.x), y = m.toVirtY(c.y);
+        const float rad = c.r / m.scaleY; // virtual pixels, vertically
+        const float px = 1.0f / m.scaleY; // one framebuffer pixel
+        const bool main = id == TouchButton::Missile || id == TouchButton::PowerUp;
+        // Soft shadow, body, rim, inner highlight.
+        r.circle(x, y + rad * 0.04f, rad * 1.10f, Color{0, 0, 0, 0.30f * a}, Blend::Alpha, rad * 0.22f);
+        const Color body = held ? Color{0.55f, 0.22f, 0.04f, 0.72f} : Color{0.05f, 0.05f, 0.07f, 0.55f};
+        r.circle(x, y, rad, withAlpha(body, a));
+        const Color rim = held ? Color{1.0f, 0.85f, 0.45f, 1.0f}
+                               : main ? withAlpha(kOrange, 0.85f) : Color{0.85f, 0.86f, 0.9f, 0.7f};
+        r.ring(x, y, rad, std::max(rad * 0.075f, 1.5f * px), withAlpha(rim, a), Blend::Alpha, px * 0.5f);
+        r.ring(x, y, rad * 0.9f, std::max(rad * 0.025f, px), Color{1, 1, 1, 0.10f * a});
+        if (held) r.ring(x, y, rad * 1.12f, rad * 0.14f, Color{1.0f, 0.55f, 0.1f, 0.55f}, Blend::Add, rad * 0.10f);
+
+        const float iconW = rad * 1.35f;
+        const Box box{x - rad, y - rad, 2 * rad, 2 * rad};
+        const Color light = withAlpha(Color{0.92f, 0.93f, 0.97f, 1}, a);
         switch (id) {
-            case TouchButton::Missile: missileIcon(r, b, 0.15f, 0.1f, 0.85f, 0.9f, red); break;
-            case TouchButton::PowerUp: diamondIcon(r, b, 0.15f, 0.15f, 0.85f, 0.85f, yellow); break;
-            case TouchButton::NextMissile:
-                missileIcon(r, b, 0.05f, 0.15f, 0.6f, 0.85f, red);
-                chevron(r, b, grey);
+            case TouchButton::Missile: {
+                const int t = p ? std::min(std::max(p->missileSelected, 0), ui::kMissileTypes - 1) : 0;
+                const int n = p ? p->missiles[t] : 1;
+                const Color ic = n > 0 ? withAlpha(Color{}, a) : withAlpha(kGreyIcon, 0.4f * a);
+                if (as && p && as->missiles.valid()) {
+                    atlasIcon(r, as->missiles, ui::missileIconUv(t), x, y - rad * 0.16f, iconW, ic, Blend::Alpha);
+                    countText(r, *as, x, y + rad * 0.22f, n, rad * 0.42f, withAlpha(n > 0 ? kCount : kGreyIcon, a));
+                } else {
+                    missileIcon(r, box, 0.25f, 0.15f, 0.75f, 0.85f, withAlpha(Color{0.95f, 0.35f, 0.15f, 1}, a));
+                }
                 break;
+            }
+            case TouchButton::PowerUp: {
+                const int k = p ? std::min(std::max(p->powerupSelected, 0), ui::kPowerupSlots - 1) : 0;
+                const int n = p ? p->powerups[k] : 1;
+                const Color ic = n > 0 ? withAlpha(Color{}, a) : withAlpha(kGreyIcon, 0.4f * a);
+                if (as && p && as->items.valid() && k < ui::kPowerupIconKinds) {
+                    atlasIcon(r, as->items, ui::powerupIconUv(k), x, y - rad * 0.16f, iconW, ic,
+                              k == 0 ? Blend::Add : Blend::Alpha);
+                } else {
+                    diamondIcon(r, box, 0.3f, 0.12f, 0.7f, 0.52f,
+                                n > 0 ? withAlpha(Color{1.0f, 0.85f, 0.2f, 1}, a) : withAlpha(kGreyIcon, 0.4f * a));
+                }
+                if (as && p) countText(r, *as, x, y + rad * 0.22f, n, rad * 0.42f, withAlpha(n > 0 ? kCount : kGreyIcon, a));
+                break;
+            }
             case TouchButton::NextWeapon:
-                bulletsIcon(r, b, 0.08f, 0.2f, 0.62f, 0.8f, grey);
-                chevron(r, b, grey);
+                if (as && p && as->weapons.valid() && !ui::weaponIconUv(p->weapon).empty()) {
+                    atlasIcon(r, as->weapons, ui::weaponIconUv(p->weapon), x, y - rad * 0.2f, rad * 1.45f,
+                              withAlpha(Color{}, 0.9f * a), Blend::Add);
+                    nextGlyph(r, Box{x - rad * 0.45f, y + rad * 0.12f, rad * 0.9f, rad * 0.6f}, withAlpha(kOrange, a));
+                } else {
+                    bulletsIcon(r, box, 0.22f, 0.2f, 0.78f, 0.6f, light);
+                    nextGlyph(r, Box{x - rad * 0.45f, y + rad * 0.15f, rad * 0.9f, rad * 0.6f}, withAlpha(kOrange, a));
+                }
                 break;
+            case TouchButton::NextMissile:
             case TouchButton::NextPowerUp:
-                diamondIcon(r, b, 0.08f, 0.22f, 0.6f, 0.78f, yellow);
-                chevron(r, b, grey);
+                nextGlyph(r, Box{x - rad * 0.5f, y - rad * 0.5f, rad * 1.0f, rad * 1.0f}, withAlpha(light, 0.9f));
                 break;
             case TouchButton::Pause:
-                fillRectU(r, b, 0.28f, 0.22f, 0.43f, 0.78f, grey);
-                fillRectU(r, b, 0.57f, 0.22f, 0.72f, 0.78f, grey);
+                fillRectU(r, box, 0.34f, 0.3f, 0.45f, 0.7f, light);
+                fillRectU(r, box, 0.55f, 0.3f, 0.66f, 0.7f, light);
                 break;
             default: break;
         }
@@ -149,9 +204,69 @@ void drawTouchControls(ui::Renderer2D& r, const TouchMapper& touch) {
     // Where the drag is steering the helicopter.
     if (touch.dragging() && touch.targetValid()) {
         float x = touch.targetX(), y = touch.targetY();
-        Color c{1, 1, 1, 0.45f};
-        r.rect(x - 10, y - 1, 20, 2, c);
-        r.rect(x - 1, y - 10, 2, 20, c);
+        r.ring(x, y, 9.0f, 1.6f, Color{1, 1, 1, 0.45f});
+        r.circle(x, y, 1.8f, Color{1, 1, 1, 0.45f});
+    }
+}
+
+void drawFpsCounter(ui::Renderer2D& r, const ui::UiAssets& a, const FpsCounter& fps, const TouchLayout* touch,
+                    const SafeInsets& in) {
+    if (!a.fontLoaded) return;
+    const ui::Mapping& m = r.mapping();
+    const float fw = static_cast<float>(m.fbWidth);
+    char line1[32], line2[48];
+    if (fps.valid()) {
+        std::snprintf(line1, sizeof line1, "%d FPS", static_cast<int>(fps.fps() + 0.5));
+        std::snprintf(line2, sizeof line2, "worst %d ms  drop %d", static_cast<int>(fps.worstMs() + 0.5), fps.dropped());
+    } else {
+        std::snprintf(line1, sizeof line1, "-- FPS");
+        line2[0] = 0;
+    }
+    const float s1 = 0.7f, s2 = 0.5f;            // text scales (virtual pixels)
+    const float h1 = 15.0f * s1, h2 = 15.0f * s2;
+    const ui::FontMetrics& fm = ui::FontMetrics::original();
+    const float w = std::max(ui::measureText(fm, line1, s1), ui::measureText(fm, line2, s2));
+    const float pad = 3.0f;
+    const float margin = 6.0f;
+    // Anchor: a top corner in virtual pixels, text right- or left-aligned from it.
+    float x = 0, y = 0;
+    ui::Align align = ui::Align::Right;
+    const float topInset = m.toVirtY(static_cast<float>(in.top)) - m.toVirtY(0);
+    if (touch && touch->outside) {
+        const TouchCircle& p = touch->circles[static_cast<int>(TouchButton::Pause)];
+        const bool pauseLeft = p.x < fw * 0.5f;
+        y = m.top() + topInset + margin;
+        if (pauseLeft) {
+            x = m.toVirtX(fw - static_cast<float>(in.right)) - margin;
+        } else {
+            x = m.toVirtX(static_cast<float>(in.left)) + margin;
+            align = ui::Align::Left;
+        }
+    } else if (touch) {
+        // Beside the pause button at the top centre of the field.
+        const TouchCircle& p = touch->circles[static_cast<int>(TouchButton::Pause)];
+        x = m.toVirtX(p.x + p.r) + margin;
+        y = m.toVirtY(p.y - p.r);
+        align = ui::Align::Left;
+    } else if (m.left() < -margin * 2) {
+        x = m.right() - margin; // the screen's top right corner, outside the field
+        y = m.top() + margin;
+    } else {
+        x = 400.0f + w * 0.5f; // top centre, between the health and score bars
+        y = 3.0f;
+    }
+    const float bx = align == ui::Align::Right ? x - w - pad : x - pad;
+    const float bh = h1 + (line2[0] ? h2 + 2.0f : 0.0f) + 2 * pad;
+    r.rect(bx, y - pad, w + 2 * pad, bh, Color{0, 0, 0, 0.45f});
+    ui::TextStyle st;
+    st.scale = s1;
+    st.align = align;
+    st.color = Color{1.0f, 0.63f, 0.0f, 1.0f};
+    ui::drawText(r, a.uiFont(), x, y, line1, st);
+    if (line2[0]) {
+        st.scale = s2;
+        st.color = Color{0.75f, 0.75f, 0.78f, 1.0f};
+        ui::drawText(r, a.uiFont(), x, y + h1 + 2.0f, line2, st);
     }
 }
 

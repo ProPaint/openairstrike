@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome layer for themed icons (Android 13 and later): the foreground's shapes in one
+  colour, which the system tints. Our own drawing (see ic_launcher_foreground.xml).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:translateY="-3">
+        <!-- Rotor rim. -->
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="1.6"
+            android:pathData="M54,26.8 a22.2,22.2 0 1,0 0.01,0 Z" />
+        <!-- Skids. -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M43.6,37 h2.2 v22 h-2.2 Z M62.2,37 h2.2 v22 h-2.2 Z" />
+        <!-- Tail boom, stabiliser, tail rotor. -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M51.9,60 L56.1,60 L55.2,83 L52.8,83 Z M47,75.5 h14 a1.6,1.6 0 0,1 0,3.2 h-14 a1.6,1.6 0 0,1 0,-3.2 Z M55.6,79 h1.6 v7 h-1.6 Z" />
+        <!-- Fuselage with the canopy cut out. -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M54,30 C59.6,30 61.6,37.5 61.6,46 C61.6,54.5 58.4,63 54,63 C49.6,63 46.4,54.5 46.4,46 C46.4,37.5 48.4,30 54,30 Z M54,32.2 C57.4,32.2 58.6,36 58.6,39.6 C58.6,41.6 56.6,42.6 54,42.6 C51.4,42.6 49.4,41.6 49.4,39.6 C49.4,36 50.6,32.2 54,32.2 Z" />
+        <!-- Blades and hub. -->
+        <group android:pivotX="54" android:pivotY="49" android:rotation="20">
+            <path android:fillColor="#FFFFFFFF" android:pathData="M52.9,49 L55.1,49 L55.5,28.4 C55.5,27.4 52.5,27.4 52.5,28.4 Z" />
+        </group>
+        <group android:pivotX="54" android:pivotY="49" android:rotation="140">
+            <path android:fillColor="#FFFFFFFF" android:pathData="M52.9,49 L55.1,49 L55.5,28.4 C55.5,27.4 52.5,27.4 52.5,28.4 Z" />
+        </group>
+        <group android:pivotX="54" android:pivotY="49" android:rotation="260">
+            <path android:fillColor="#FFFFFFFF" android:pathData="M52.9,49 L55.1,49 L55.5,28.4 C55.5,27.4 52.5,27.4 52.5,28.4 Z" />
+        </group>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M54,46.4 a2.6,2.6 0 1,0 0.01,0 Z" />
+    </group>
+</vector>

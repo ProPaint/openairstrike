@@ -69,12 +69,19 @@ struct Mapping {
     float top() const { return toVirtY(0); }
     float right() const { return toVirtX(static_cast<float>(fbWidth)); }
     float bottom() const { return toVirtY(static_cast<float>(fbHeight)); }
+    // Framebuffer pixels (origin top-left) covered by the virtual 800x600 screen, rounded and
+    // clipped to the framebuffer: the play-field, the area of the 4:3 screen mode.
+    void fieldPixels(int& x, int& y, int& w, int& h) const;
 };
 Mapping computeMapping(int fbWidth, int fbHeight);
 
 // ---------------------------------------------------------------------------
 // Quad list
 // ---------------------------------------------------------------------------
+// Ours (the touch controls): a quad can also be the disc or ring inscribed in it, with
+// anti-aliased edges computed per pixel (no texture needed).
+enum class QuadShape : u8 { Rect, Ellipse };
+
 struct Quad {
     float x = 0, y = 0, w = 0, h = 0;      // virtual pixels
     float s0 = 0, t0 = 0, s1 = 1, t1 = 1;  // (s0,t0) at the top-left corner
@@ -82,6 +89,9 @@ struct Quad {
     Color color;
     Blend blend = Blend::Alpha;
     bool line = false;                     // segment (x,y)-(x+w,y+h), one framebuffer pixel thick
+    QuadShape shape = QuadShape::Rect;     // Ellipse: only the inscribed ellipse is drawn
+    float inner = 0;                       // Ellipse: hole radius as a fraction of the radius (a ring)
+    float feather = 0;                     // Ellipse: extra edge softness, fraction of the radius
 };
 
 class Renderer2D {
@@ -113,6 +123,13 @@ public:
     bool line(float x0, float y0, float x1, float y1, Color c, Blend blend = Blend::Alpha);
     // Covers the whole framebuffer, including the bars outside the 4:3 field.
     bool fullscreen(Color c, Blend blend = Blend::Alpha);
+    // Ours: a filled disc and a ring centred on (cx, cy), anti-aliased. `radius` is in virtual
+    // pixels measured vertically; the shape stays round on screen whatever the mapping (the
+    // stretched 5:4 to 4:3 case too). `thickness` is the ring's width inwards from `radius`;
+    // `feather` (virtual pixels) softens the edges further. Alpha and Add blending.
+    bool circle(float cx, float cy, float radius, Color c, Blend blend = Blend::Alpha, float feather = 0);
+    bool ring(float cx, float cy, float radius, float thickness, Color c, Blend blend = Blend::Alpha,
+              float feather = 0);
 
     const std::vector<Quad>& quads() const { return quads_; }
     int dropped() const { return dropped_; }

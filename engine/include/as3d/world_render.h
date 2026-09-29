@@ -103,6 +103,10 @@ public:
     // Draws the world (3D passes 0 to 12 of render-pipeline.md 1.1) into the currently bound
     // framebuffer with viewport (0, 0, width, height). Leaves depth test on, blending off.
     void render(const World& world, int width, int height, const WorldRenderOptions& options = {});
+    // Same, into the rectangle (x, y, width, height) of the bound framebuffer (GL convention,
+    // y from the bottom): only that rectangle is cleared and drawn, with its own aspect (the
+    // 4:3 screen mode draws the world in the centred 4:3 area).
+    void render(const World& world, int x, int y, int width, int height, const WorldRenderOptions& options = {});
     // Pass 14, after the 2D layer: dst * b + b * dst over the whole framebuffer
     // (render-pipeline.md 1.5; config.ini Brightness, 0.5 neutral, default 0.6).
     void drawBrightness(int width, int height, float brightness);

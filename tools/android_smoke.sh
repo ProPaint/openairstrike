@@ -14,7 +14,14 @@
 #      AS3D_SCREEN markers: main menu (after the intro pages), Start Game, Start, 600 frames of
 #      mission 1, the pause button (the in-game menu), Resume, pause again, Quit to the main
 #      menu, the back key (exit confirmation), No; screenshots menu_*.png;
-#   6. prints the AS3D_PERF lines.
+#   6. opens Options, switches Screen to 4:3 (waits for the AS3D_LAYOUT line with screen=4x3,
+#      screenshot), and back to Wide;
+#   7. checks the launcher label and icon (dumpsys package, aapt2 dump badging) and takes a
+#      screenshot of the launcher's app list when the emulator's launcher shows one;
+#   8. prints the AS3D_PERF lines.
+#
+# Every tap on a touch button uses the centre the game logs in AS3D_LAYOUT (name=x,y,r in
+# framebuffer pixels, from the layout code), never hard-coded coordinates.
 #
 # Fails on a FATAL marker, a Java exception or a native crash, or a timeout. Screenshots and
 # the logcat capture go to $AS3D_SMOKE_OUT (default: <AS3D_DATA_ROOT or repo>/out/m8).
@@ -201,9 +208,10 @@ wait_for "AS3D_GAME_START" "${START_TIMEOUT}"
 wait_for "AS3D_LAYOUT" 30
 grep -E "AS3D_GAME_START|AS3D_LAYOUT|AS3D_INSETS" "${LOG_FILE}" | tail -n 4
 
-# Button centres (framebuffer pixels = screen pixels, the surface is full screen).
+# Button centres (framebuffer pixels = screen pixels, the surface is full screen), from
+# "name=x,y,r" in the layout line.
 LAYOUT="$(grep -E "AS3D_LAYOUT" "${LOG_FILE}" | tail -n1)"
-pos() { echo "${LAYOUT}" | sed -nE "s/.* $1=([0-9]+),([0-9]+).*/\1 \2/p"; }
+pos() { echo "${LAYOUT}" | sed -nE "s/.* $1=([0-9]+),([0-9]+),[0-9]+.*/\1 \2/p"; }
 FIELD="$(echo "${LAYOUT}" | sed -nE 's/.* field=([0-9]+),([0-9]+),([0-9]+),([0-9]+).*/\1 \2 \3 \4/p')"
 read -r FX0 FY0 FX1 FY1 <<<"${FIELD}"
 [ -n "${FX1:-}" ] || fail "no play-field in the layout line"
@@ -339,6 +347,37 @@ sleep 1
 shot menu_06_exit_confirmation
 try_until "AS3D_SCREEN name=main" 3 vtap 507 352        # No
 check_crash
+
+echo "== Options: Screen 4:3 and back =="
+try_until "AS3D_SCREEN name=options" 3 vtap 400 335     # Options
+sleep 1
+shot menu_07_options
+# The Screen spinner (our row at y 160): a tap right of its value cycles it.
+try_until "AS3D_LAYOUT .*screen=4x3" 3 vtap 440 168
+sleep 1
+shot menu_08_options_screen_4x3
+try_until "AS3D_LAYOUT .*screen=wide" 3 vtap 440 168
+try_until "AS3D_SCREEN name=main" 3 vtap 114 482        # Back
+check_crash
+
+echo "== launcher: label and icon =="
+adb -s "${SERIAL}" shell dumpsys package "${APP_ID}" | grep -E "versionName|icon|label" | head -n 6 || true
+BADGING="$("${ANDROID_HOME}/build-tools/$(ls -1 "${ANDROID_HOME}/build-tools" | sort -V | tail -n1)/aapt2" dump badging "${APK}" 2>/dev/null | grep -E "^application:|application-icon-160")"
+echo "${BADGING}"
+echo "${BADGING}" | grep -q "label='AirStrike 3D'" || fail "the app label is not AirStrike 3D"
+echo "${BADGING}" | grep -q "icon='res/mipmap-anydpi-v26/ic_launcher.xml'" || fail "no adaptive launcher icon"
+adb -s "${SERIAL}" shell am force-stop "${APP_ID}"
+adb -s "${SERIAL}" shell input keyevent KEYCODE_HOME
+sleep 3
+# The app list of the launcher (swipe up from the home screen), best effort.
+SIZE="$(adb -s "${SERIAL}" shell wm size | sed -nE 's/.*: ([0-9]+)x([0-9]+).*/\1 \2/p' | tail -n1)"
+read -r SW SH <<<"${SIZE}"
+if [ -n "${SH:-}" ]; then
+    adb -s "${SERIAL}" shell input swipe "$((SW / 2))" "$((SH * 9 / 10))" "$((SW / 2))" "$((SH / 5))" 400
+    sleep 3
+fi
+shot launcher_apps
+adb -s "${SERIAL}" shell input keyevent KEYCODE_HOME
 
 echo "== summary =="
 grep -E "AS3D_(ARGS|GAME_START|LAYOUT|INSETS|LEVEL_LOADED|GL_REBUILD|PAUSED|RESUMED|BACKGROUND|FOREGROUND|HITCH|SCREEN|VIEW)|GL_RENDERER" "${LOG_FILE}" | sed -E 's/^[0-9-]+ [0-9:.]+ //' | head -n 80

@@ -82,6 +82,10 @@ struct FrontendContent {
     bool twoPlayerMode = true;
     bool mouseControlOption = true;
     bool touchMenuButton = true;
+    // Ours (docs/spec/issues/140), in the Options screen's free rows: "Screen" (Wide / 4:3)
+    // and in touch mode "Controls" (Right / Left).
+    bool screenOption = false;
+    bool handOption = false;
 
     FrontendContent() {
         for (int& e : enableHelic) e = -1;
@@ -165,6 +169,9 @@ public:
     // docs/spec/issues/090-touch-mode-additions.md.
     void setTouchMode(bool on);
     bool touchMode() const { return touch_; }
+    // Whether Options offers the Screen row (the host: always on Android, on desktop while
+    // the window is wider than 4:3). Takes effect when Options is next opened.
+    void setScreenOptionShown(bool on) { content_.screenOption = on; }
 
     // Starts the program: the intro pages when ShowLogo = 1 and Settings.xml lists some, then the
     // attract level and the main menu.
