@@ -10,7 +10,7 @@ namespace as3d::ui {
 namespace {
 
 enum OptionId { kBack = 1, kConfKeys = 2, kApply = 3, kResolution = 20, kRefresh, kDepth, kFullscreen, kBrightness,
-                kSfx, kMusic, kSound3D, kCamera, kMouse, kScreenMode = 40, kHand };
+                kSfx, kMusic, kSound3D, kCamera, kMouse, kScreenMode = 40, kHand, kTouchSpeed };
 
 bool videoDiffers(const Settings& a, const Settings& b) {
     return a.videoMode != b.videoMode || a.refreshRate != b.refreshRate || a.colorDepth != b.colorDepth ||
@@ -60,9 +60,15 @@ Menu Frontend::buildOptions() {
                          {texts_.get("opt.screen.wide"), texts_.get("opt.screen.4x3")}, s.screenMode == kScreen4x3 ? 1 : 0);
             y += 20;
         }
-        if (content_.handOption && touch_ && !content_.videoOptions)
+        if (content_.handOption && touch_ && !content_.videoOptions) {
             m.addSpinner(kHand, 400, y, texts_.get("opt.controls"),
                          {texts_.get("opt.controls.right"), texts_.get("opt.controls.left")}, s.leftHanded ? 1 : 0);
+            y += 20;
+            std::vector<std::string> speeds;
+            for (int i = 0; i < kTouchSpeedSteps; i++) speeds.push_back(texts_.get("opt.touchspeed." + std::to_string(i)));
+            m.addSpinner(kTouchSpeed, 400, y, texts_.get("opt.touchspeed"), speeds, s.touchSpeed);
+            y += 20;
+        }
     }
     m.addButton(kConfKeys, 230, 430, 340, 32, "menu\\confkeys_1.tga", "menu\\confkeys_2.tga");
     m.addButton(kBack, 50, 450, 128, 64, "menu\\back_1.tga", "menu\\back_2.tga");
@@ -104,6 +110,7 @@ Menu Frontend::buildOptions() {
             case kCamera: live.camera = it.index; settingsChanged(); break;
             case kScreenMode: live.screenMode = it.index == 1 ? kScreen4x3 : kScreenWide; settingsChanged(); break;
             case kHand: live.leftHanded = it.index == 1; settingsChanged(); break;
+            case kTouchSpeed: live.touchSpeed = it.index; settingsChanged(); break;
             case kMouse:
                 live.mouseControl = it.index == 1;
                 live.applyMouseControlBindings();

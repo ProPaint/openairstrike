@@ -238,6 +238,15 @@ TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const TouchLayoutOptio
     return L;
 }
 
+float touchSpeedFactor(int step) { return 1.0f + 0.25f * static_cast<float>(std::min(std::max(step, 0), 4)); }
+
+void applyTouchSpeed(TouchSettings& s, int step) {
+    const TouchSettings base;
+    const float f = touchSpeedFactor(step);
+    s.gain = base.gain * f;
+    s.maxLead = base.maxLead * f;
+}
+
 TouchMapper::TouchMapper() { setScreen(800, 600); }
 
 void TouchMapper::setScreen(int fbWidth, int fbHeight, const SafeInsets& insets) {

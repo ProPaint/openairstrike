@@ -328,6 +328,7 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
     // The touch layout follows the settings (Screen, Controls), as in the windowed loop.
     auto layout = [&]() {
         const Settings& st = flow.profile().settings;
+        applyTouchSpeed(touch.settings(), st.touchSpeed);
         const int key = flow.screenMode() * 2 + (st.leftHanded ? 1 : 0);
         if (key == layoutKey) return;
         layoutKey = key;

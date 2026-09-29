@@ -112,6 +112,41 @@ same bits); the layout and the drawing are new.
 * Headless: `as3d_game --headless --touch --ui-script` accepts `finger down|move|up <id>
   <x> <y>|<button name>` lines to press the buttons for screenshots.
 
+## 4. Touch speed
+
+The owner found the helicopter "could be a tad faster" under the finger. Measured on mission 1
+with the real player script (`polish_test.cpp`, "a fast swipe on the real helicopter"): the
+finger moves 200 virtual px in 0.1 s.
+
+| Step | gain | lead | helicopter moved | 150 px after | 90 % after | top speed |
+|---|---|---|---|---|---|---|
+| 0 (WP-48) | 1.5 | 160 | 165 px of 300 asked | 31 frames | 30 frames | 7.6 px/frame |
+| 1 (default) | 1.875 | 200 | 204 px of 375 | 26 | 35 | 8.2 |
+| 2 | 2.25 | 240 | 244 px of 450 | 26 | 37 | 8.2 |
+| 3 | 2.625 | 280 | 284 px of 525 | 26 | 41 | 8.2 |
+| 4 | 3.0 | 320 | 331 px of 600 | 26 | 47 | 8.2 |
+
+Two limits: (a) the target's lead over the helicopter (160 px) cut a fast swipe short, so the
+helicopter covered only about half of what the finger asked, and braked early (the 10-frame
+look-ahead) without ever running at full speed for long; (b) the helicopter's own top speed,
+150 units/s (about 8.2 virtual px a frame, 490 px/s), set by the player script. From step 1 on
+the arrival time over 150 px is the same 26 frames: (b) is then the limit, and the higher steps
+only let one swipe carry the helicopter further.
+
+* **Setting**: "Touch speed:" in Options (touch mode: Android, desktop `--touch`), a 5-step
+  spinner (Original, x1.25, x1.5, x1.75, x2), stored as `touchSpeed` like the other new keys,
+  default step 1 ("a tad faster"), applied live. `applyTouchSpeed` scales the drag gain and
+  the lead by the same factor (1 + 0.25 step); the dead zone and look-ahead stay.
+* **The helicopter's speed is not changed.** The engine-behaviour.md 7.3 hook would be
+  `p_speedfactor`, but it is owned by the scripts: `player.scr` sets it to 1.0 at spawn and the
+  speed-up and speed-down items (`p_speedup.scr`, `p_speeddown.scr`) ramp it between 1.0 and
+  1.4 and back. Scaling it from the engine would fight those scripts (or need a hidden
+  multiplier on a script variable), so there is no clean hook and the game balance is left
+  exactly as the original's: only the touch mapping changes, which is input, not simulation.
+  Keyboard, bot and input-script play never see the setting (`game_flow_test.cpp` plays the
+  bot and the keyboard under opposite Touch speed, Screen and Controls settings and compares
+  the state dumps).
+
 ## Open
 
 * The data-derived icon is dark (the Comanche's dark green-grey body) on a dark background; it is

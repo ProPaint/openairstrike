@@ -119,6 +119,11 @@ u32 actionBit(Action a); // p_action bit (engine-behaviour.md 7.2)
 constexpr int kScreenWide = 0;
 constexpr int kScreen4x3 = 1;
 
+// Settings::touchSpeed: steps of the touch drag gain (as3d/input.h touchSpeedFactor); step 0 is
+// the original feel of WP-48, the default a tad faster.
+constexpr int kTouchSpeedSteps = 5;
+constexpr int kDefaultTouchSpeed = 1;
+
 struct Settings {
     bool showHints = false;
     bool showLogo = true;
@@ -140,6 +145,7 @@ struct Settings {
     // 4:3, and which thumb the touch buttons are for.
     int screenMode = kScreenWide;  // kScreenWide or kScreen4x3
     bool leftHanded = false;       // touch buttons mirrored to the left side
+    int touchSpeed = kDefaultTouchSpeed; // 0..kTouchSpeedSteps-1, the touch drag gain step
     // Two key codes per action and player; 0 = unbound.
     int keys[2][kActionCount][2] = {};
 

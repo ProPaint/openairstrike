@@ -132,7 +132,7 @@ asks whether to quit; it closes a hint box). Two players, mouse control and the 
 are not offered on Android.
 
 - **Move: drag anywhere** outside the buttons. The movement is relative: the helicopter moves
-  by the finger's displacement (times 1.5), it does not jump to the finger, so your finger
+  by the finger's displacement (times 1.875 by default, see Touch speed below), it does not jump to the finger, so your finger
   never has to cover it. Lift and put the finger down again to continue from wherever the
   helicopter is.
 - **Fire: automatic** while any finger is on the screen (except on the pause button).
@@ -163,6 +163,10 @@ clear of the HUD. They stay clear of display cutouts. The design and the reasons
   `as3d_game --screen wide|4x3` overrides it for the session.
 - **Controls: Right / Left**: the button cluster for the right or the left thumb (pause goes
   to the other top corner). Touch mode only.
+- **Touch speed: Original, x1.25 (default), x1.5, x1.75, x2**: how far the helicopter goes for
+  a given finger movement (the drag gain, and how far ahead of the helicopter a fast swipe
+  may reach). Original is the feel of the first Android build. The helicopter's own top speed
+  is the original game's and is not changed. Touch mode only.
 
 On desktop, `as3d_game --touch` draws the same controls and makes the left mouse button one
 finger (drag with the mouse; the window is resizable to try other aspect ratios). The

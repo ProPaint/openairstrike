@@ -128,6 +128,7 @@ void forEachSetting(Settings& s, F&& f) {
     // get the defaults; older readers skip them.
     num("screenMode", s.screenMode);
     flag("leftHanded", s.leftHanded);
+    num("touchSpeed", s.touchSpeed);
     char key[16];
     for (int p = 0; p < 2; p++)
         for (int a = 0; a < kActionCount; a++)

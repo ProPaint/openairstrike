@@ -255,6 +255,12 @@ struct TouchSettings {
     bool autoFire = true;
 };
 
+// The Options "Touch speed" step (Settings::touchSpeed, 0..4) as a factor on the drag gain
+// and on the target's lead: 1, 1.25, 1.5, 1.75, 2 (docs/spec/issues/140: the lead limits a
+// fast swipe, the helicopter's own top speed is left alone). Step 0 is the WP-48 feel.
+float touchSpeedFactor(int step);
+void applyTouchSpeed(TouchSettings& settings, int step);
+
 class TouchMapper {
 public:
     TouchMapper();

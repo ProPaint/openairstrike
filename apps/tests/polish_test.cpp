@@ -7,6 +7,7 @@
 
 #include <GLES3/gl3.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <memory>
@@ -15,11 +16,14 @@
 
 #include "../game/game_session.h"
 #include "../game/game_view.h"
+#include "as3d/defs.h"
 #include "as3d/gfx.h"
 #include "as3d/input.h"
 #include "as3d/platform.h"
 #include "as3d/profile.h"
 #include "as3d/ui.h"
+#include "as3d/vfs.h"
+#include "as3d/world.h"
 #include "test_data.h"
 
 using namespace as3d;
@@ -224,6 +228,7 @@ TEST_CASE("polish profile: the new settings round-trip; a profile written before
     Profile p;
     p.settings.screenMode = kScreen4x3;
     p.settings.leftHanded = true;
+    p.settings.touchSpeed = 3;
     p.settings.brightness = 0.8f;
     const std::vector<u8> bytes = serializeProfile(p);
     Profile q;
@@ -231,6 +236,7 @@ TEST_CASE("polish profile: the new settings round-trip; a profile written before
     REQUIRE_MESSAGE(deserializeProfile(bytes.data(), bytes.size(), q, &why), why);
     CHECK(q.settings.screenMode == kScreen4x3);
     CHECK(q.settings.leftHanded);
+    CHECK(q.settings.touchSpeed == 3);
     CHECK(q.settings.brightness == doctest::Approx(0.8f));
 
     // The version 1 layout as written before WP-51: PROG, then SETT without the new keys.
@@ -275,12 +281,15 @@ TEST_CASE("polish profile: the new settings round-trip; a profile written before
     CHECK(old.settings.showFps);
     CHECK(old.settings.screenMode == kScreenWide); // the defaults for what the file lacks
     CHECK_FALSE(old.settings.leftHanded);
+    CHECK(old.settings.touchSpeed == kDefaultTouchSpeed);
     CHECK(old.progress.missionUnlocked[4]);
     // An out-of-range value falls back to the default.
     Settings s;
     s.screenMode = 7;
+    s.touchSpeed = 5;
     s.clampToRanges();
     CHECK(s.screenMode == kScreenWide);
+    CHECK(s.touchSpeed == kDefaultTouchSpeed);
 }
 
 TEST_CASE("polish: the 2D layer's circle and ring are round, anti-aliased and hollow") {
@@ -366,4 +375,131 @@ TEST_CASE("polish: the simulation does not depend on the Screen setting") {
     CHECK(barPixels[1] == 0);
     CHECK(dumps[0].size() > 1000);
     CHECK(dumps[0] == dumps[1]);
+}
+
+namespace {
+
+bool heliAt(const World& w, float& x, float& y) {
+    int pi = w.playerEntityIndex(0);
+    if (pi < 0) return false;
+    const ScreenRect& r = w.entity(pi).rect;
+    if (!(r.max[0] > r.min[0])) return false;
+    x = 0.5f * (r.min[0] + r.max[0]);
+    y = 600.0f - 0.5f * (r.min[1] + r.max[1]);
+    return true;
+}
+
+struct SwipeResult {
+    float moved = 0;        // virtual px the helicopter travelled
+    int framesTo90 = -1;    // frames until 90 % of the final displacement
+    float topSpeed = 0;     // px per frame
+    int framesAtTop = 0;    // frames at >= 95 % of the top speed before arriving
+    int framesTo150 = -1;   // frames until the helicopter is 150 px to the right
+};
+
+// Mission 1 past the fly-in: the helicopter is brought to x ~ 250, then a fast swipe (the
+// finger moves `fingerPx` virtual pixels right in 6 frames, 0.1 s) with the mapper's `gain`
+// and `lead`; returns how the helicopter follows.
+SwipeResult swipe(float gain, float lead, float fingerPx) {
+    Vfs vfs;
+    vfs.mount(makeDirSource(testdata::extractedDir()));
+    DefDatabase db;
+    db.load(vfs);
+    World world;
+    world.init(vfs, db, WorldConfig());
+    std::string err;
+    world.loadLevel("1", &err);
+    TouchMapper t;
+    t.setScreen(800, 600);
+    std::vector<float> xs;
+    auto step = [&](bool record) {
+        float x = 0, y = 0;
+        bool ok = heliAt(world, x, y);
+        t.setPlayerScreen(ok, x, y);
+        FrameInput in = t.takeFrame();
+        in.confirm = true;
+        world.step(in.toPlayerInput());
+        if (record && heliAt(world, x, y)) xs.push_back(x);
+    };
+    for (int f = 0; f < 420; ++f) step(false);
+    // Bring it to the left with the default mapper, then let it settle.
+    t.touchEvent(1, TouchPhase::Down, 0.5f, 0.7f);
+    step(false);
+    t.touchEvent(1, TouchPhase::Move, 0.5f - 100.0f / 800.0f, 0.7f);
+    for (int f = 0; f < 240; ++f) step(false);
+    t.touchEvent(1, TouchPhase::Up, 0.5f, 0.7f);
+    for (int f = 0; f < 60; ++f) step(false);
+    t.settings().gain = gain;
+    t.settings().maxLead = lead;
+    const float fx0 = 0.3f;
+    t.touchEvent(2, TouchPhase::Down, fx0, 0.7f);
+    step(true);
+    for (int k = 1; k <= 6; ++k) {
+        t.touchEvent(2, TouchPhase::Move, fx0 + fingerPx / 800.0f * static_cast<float>(k) / 6.0f, 0.7f);
+        step(true);
+    }
+    for (int f = 0; f < 300; ++f) step(true);
+    SwipeResult r;
+    if (xs.size() < 10) return r;
+    const float x0 = xs.front(), x1 = xs.back();
+    r.moved = x1 - x0;
+    for (size_t i = 1; i < xs.size(); ++i) r.topSpeed = std::max(r.topSpeed, xs[i] - xs[i - 1]);
+    for (size_t i = 0; i < xs.size(); ++i)
+        if (xs[i] - x0 >= 150.0f) {
+            r.framesTo150 = static_cast<int>(i);
+            break;
+        }
+    for (size_t i = 0; i < xs.size(); ++i) {
+        if (xs[i] - x0 >= 0.9f * r.moved) {
+            r.framesTo90 = static_cast<int>(i);
+            break;
+        }
+        if (i > 0 && xs[i] - xs[i - 1] >= 0.95f * r.topSpeed) ++r.framesAtTop;
+    }
+    return r;
+}
+
+} // namespace
+
+TEST_CASE("touch speed: the setting scales the drag gain and the lead") {
+    CHECK(touchSpeedFactor(0) == 1.0f);
+    CHECK(touchSpeedFactor(1) == 1.25f);
+    CHECK(touchSpeedFactor(4) == 2.0f);
+    CHECK(touchSpeedFactor(-3) == 1.0f);
+    CHECK(touchSpeedFactor(9) == 2.0f);
+    TouchSettings s;
+    applyTouchSpeed(s, 0); // the original feel (WP-48)
+    CHECK(s.gain == 1.5f);
+    CHECK(s.maxLead == 160.0f);
+    applyTouchSpeed(s, kDefaultTouchSpeed);
+    CHECK(s.gain == doctest::Approx(1.875f));
+    CHECK(s.maxLead == doctest::Approx(200.0f));
+    applyTouchSpeed(s, 4);
+    CHECK(s.gain == doctest::Approx(3.0f));
+    CHECK(s.deadZone == TouchSettings().deadZone); // only gain and lead change
+    CHECK(s.lookAhead == TouchSettings().lookAhead);
+}
+
+TEST_CASE("touch speed: a fast swipe on the real helicopter goes further and arrives sooner") {
+    AS3D_REQUIRE_DATA();
+    // The finger moves 200 virtual px in 0.1 s; the helicopter's own top speed (150 units/s,
+    // about 8.2 px a frame) is the script's and is not changed.
+    SwipeResult r[kTouchSpeedSteps];
+    for (int step = 0; step < kTouchSpeedSteps; ++step) {
+        TouchSettings ts;
+        applyTouchSpeed(ts, step);
+        r[step] = swipe(ts.gain, ts.maxLead, 200.0f);
+        MESSAGE("step ", step, " (gain ", ts.gain, ", lead ", ts.maxLead, "): moved ", r[step].moved,
+                " px, 150 px after ", r[step].framesTo150, " frames, 90% after ", r[step].framesTo90,
+                " frames, top speed ", r[step].topSpeed, " px/frame, frames at top speed ", r[step].framesAtTop);
+    }
+    // Step 0 is the old feel: the 300 px the finger asks for are cut to the 160 px lead.
+    CHECK(r[0].moved < 180.0f);
+    for (int step = 1; step < kTouchSpeedSteps; ++step) {
+        CHECK(r[step].moved > r[step - 1].moved + 20.0f);
+        CHECK(r[step].framesTo150 >= 0);
+        CHECK(r[step].framesTo150 <= r[step - 1].framesTo150);
+    }
+    CHECK(r[kTouchSpeedSteps - 1].framesTo150 < r[0].framesTo150);
+    for (const SwipeResult& x : r) CHECK(x.topSpeed < 9.0f);
 }

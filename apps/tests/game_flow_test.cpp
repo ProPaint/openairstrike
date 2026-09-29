@@ -460,3 +460,32 @@ TEST_CASE("game flow: the main menu draws over the attract level with the banner
     CHECK(uitest::litIn(img, black, 240, 250, 560, 423) > 10000);
     h.flow->setView(nullptr);
 }
+
+TEST_CASE("game flow: Touch speed, Screen and Controls never reach keyboard or bot play") {
+    if (!haveData()) return;
+    // The same mission with the bot, then the keyboard, under opposite settings.
+    std::string dumps[2];
+    for (int k = 0; k < 2; ++k) {
+        const std::string path = profilePath(k == 0 ? "wp51_settings_a.bin" : "wp51_settings_b.bin");
+        Profile p;
+        p.settings.touchSpeed = k == 0 ? 0 : kTouchSpeedSteps - 1;
+        p.settings.screenMode = k == 0 ? kScreenWide : kScreen4x3;
+        p.settings.leftHanded = k == 1;
+        REQUIRE(saveProfileFile(path, p));
+        Harness h;
+        REQUIRE(h.init(path));
+        CHECK(h.fe().profile().settings.touchSpeed == p.settings.touchSpeed);
+        h.wait(37);
+        h.newGame();
+        for (u32 f = 0; f < 300; ++f) h.step({}, botInput(f));
+        // Keyboard: right arrow held for a second, through the mapper as the window does.
+        h.keys.keyEvent(SDL_SCANCODE_RIGHT, true, false);
+        for (int f = 0; f < 60; ++f) h.step({}, h.keys.takeFrame());
+        h.keys.keyEvent(SDL_SCANCODE_RIGHT, false, false);
+        for (int f = 0; f < 60; ++f) h.step({}, h.keys.takeFrame());
+        dumps[k] = h.world().dumpStateJson();
+        std::remove(path.c_str());
+    }
+    CHECK(dumps[0].size() > 1000);
+    CHECK(dumps[0] == dumps[1]);
+}

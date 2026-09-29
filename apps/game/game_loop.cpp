@@ -200,6 +200,7 @@ void GameWindow::updateLayout() {
     int w = fbWidth(), h = fbHeight();
     const int screen = screenMode(), hand = leftHanded() ? 1 : 0;
     if (flow_) flow_->setScreenSize(w, h);
+    applyTouchSpeed(touch_.settings(), flow_ ? flow_->profile().settings.touchSpeed : o_.touchSpeed);
     if (view_) view_->screenMode = screen;
     if (w == layoutW_ && h == layoutH_ && in.left == layoutInsets_.left && in.top == layoutInsets_.top &&
         in.right == layoutInsets_.right && in.bottom == layoutInsets_.bottom && screen == layoutScreen_ &&

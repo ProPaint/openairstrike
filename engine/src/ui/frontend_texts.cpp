@@ -32,6 +32,8 @@ const std::map<std::string, std::string>& defaults() {
             {"opt.off", "Off"}, {"opt.on", "On"},
             {"opt.screen", "Screen:"}, {"opt.screen.wide", "Wide"}, {"opt.screen.4x3", "4:3"},
             {"opt.controls", "Controls:"}, {"opt.controls.right", "Right"}, {"opt.controls.left", "Left"},
+            {"opt.touchspeed", "Touch speed:"}, {"opt.touchspeed.0", "Original"}, {"opt.touchspeed.1", "x1.25"},
+            {"opt.touchspeed.2", "x1.5"}, {"opt.touchspeed.3", "x1.75"}, {"opt.touchspeed.4", "x2"},
             {"opt.tooltip.resolution", "Changes screen resolution."},
             {"camera.0", "Low Pitch"}, {"camera.1", "Default"}, {"camera.2", "High Pitch"}, {"camera.3", "Top-Down"},
             {"ctl.set", "Controls Set:"}, {"ctl.player.1", "Player 1"}, {"ctl.player.2", "Player 2"},
