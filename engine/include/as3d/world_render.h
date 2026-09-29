@@ -52,6 +52,13 @@ struct WorldView {
 // near 4, far = max(fog end, 1000) with fog, else 2000.
 WorldView worldViewOf(const World& world, float aspect);
 
+// The order in which the entity pass thinks the entities, which is the order they submit
+// their render records (render-pipeline.md 1.2): newest pool entity first, each followed by
+// its definition children (parents before children); an entity attached with AttachEntity
+// comes after its root, which thinks first (engine-behaviour.md 4.1). Removed entities are
+// left out; emitter holders are included. `visited` is scratch space.
+void worldRenderOrder(const World& world, std::vector<int>& order, std::vector<char>& visited);
+
 // ---------------------------------------------------------------------------------------
 // Particles (GL free).
 // ---------------------------------------------------------------------------------------

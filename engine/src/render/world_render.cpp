@@ -264,6 +264,8 @@ struct WorldRenderer::Impl {
     std::map<std::pair<const ObjectDef*, std::string>, std::unique_ptr<Material>> materials;
     std::vector<MeshRecord> opaque, trans, effect;
     std::vector<const ParticleEmitter*> emitters;
+    std::vector<int> order;
+    std::vector<char> visited;
     int dropped = 0;
 
     const Material& materialFor(const ObjectDef& def, const std::string& skinOverride) {
@@ -452,7 +454,39 @@ void addMark(FrameContext& fc, const Entity& e, QuadRenderer& marks) {
     ++fc.markCount;
 }
 
+int rootOfEntity(const World& w, int i) {
+    for (int guard = 0; guard < 64 && w.validIndex(i) && w.entity(i).parent >= 0; ++guard) i = w.entity(i).parent;
+    return i;
+}
+
+void visitThinkOrder(const World& w, int i, std::vector<int>& order, std::vector<char>& visited, int depth) {
+    if (depth > 64 || !w.validIndex(i) || visited[static_cast<size_t>(i)]) return;
+    const Entity& e = w.entity(i);
+    if (e.rt & RT_REMOVED) return;
+    visited[static_cast<size_t>(i)] = 1;
+    // An attached pool entity (AttachEntity) makes its root think first
+    // (engine-behaviour.md 4.1), so the root's records are submitted first.
+    if (e.inList && w.validIndex(e.parent)) {
+        int r = rootOfEntity(w, e.parent);
+        if (w.validIndex(r) && w.entity(r).inList) visitThinkOrder(w, r, order, visited, depth + 1);
+    }
+    order.push_back(i);
+    if (e.emitter) return;
+    for (int c : e.children) {
+        if (w.validIndex(c) && w.entity(c).parent == i) visitThinkOrder(w, c, order, visited, depth + 1);
+    }
+}
+
 } // namespace
+
+// Entities in the order the entity pass thinks them, which is the order they submit their
+// render records (render-pipeline.md 1.2): newest pool entity first, each followed by its
+// definition children; an attached pool entity after its root.
+void worldRenderOrder(const World& world, std::vector<int>& order, std::vector<char>& visited) {
+    order.clear();
+    visited.assign(static_cast<size_t>(kMaxEntitySlots), 0);
+    for (int i : world.listEntities()) visitThinkOrder(world, i, order, visited, 0);
+}
 
 void WorldRenderer::render(const World& world, int width, int height, const WorldRenderOptions& options) {
     Impl& im = *impl_;
@@ -499,27 +533,17 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
     markBatch.clear();
     FrameContext fc{&world, im.cache.get(), &im.quads, &im.dropped, Vec3{wv.view.at(0, 0), wv.view.at(1, 0), wv.view.at(2, 0)},
                     Vec3{wv.view.at(0, 1), wv.view.at(1, 1), wv.view.at(2, 1)}};
-    std::vector<int> stack;
-    const std::vector<int> roots = world.listEntities();
-    for (int root : roots) {
-        stack.clear();
-        stack.push_back(root);
-        int guard = 0;
-        while (!stack.empty() && guard++ < kMaxEntitySlots) {
-            int i = stack.back();
-            stack.pop_back();
-            if (!world.validIndex(i)) continue;
+    worldRenderOrder(world, im.order, im.visited);
+    for (int i : im.order) {
+        {
             const Entity& e = world.entity(i);
-            if ((e.rt & RT_REMOVED) || e.emitter) continue;
-            for (auto c = e.children.rbegin(); c != e.children.rend(); ++c) {
-                if (world.validIndex(*c) && world.entity(*c).parent == i) stack.push_back(*c);
-            }
             if (!e.def || (e.flagBits() & FL_NODRAW)) continue;
             const ObjectDef& def = *e.def;
             switch (def.type) {
                 case ObjectType::Model: {
-                    if (!options.models || def.model.empty()) break;
-                    const GpuMesh& mesh = im.cache->mesh(def.model);
+                    // The entity's model handle: SetModel swaps it (damaged helicopters).
+                    if (!options.models || !e.model || e.modelPath.empty()) break;
+                    const GpuMesh& mesh = im.cache->mesh(e.modelPath);
                     if (!mesh.valid) break;
                     std::vector<MeshRecord>* list = &im.opaque;
                     int cap = kOpaqueCap;

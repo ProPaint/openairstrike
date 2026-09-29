@@ -255,6 +255,43 @@ TEST_CASE("game camera: the renderer sees what the collision code projects") {
     for (int i = 0; i < 16; ++i) CHECK(vp.m[i] == doctest::Approx(ref.m[i]).epsilon(1e-4));
 }
 
+TEST_CASE("render order: an attached pool entity is drawn after its root") {
+    // The player's spawn shield is a pool entity attached with AttachEntity and newer than
+    // the player; it thinks (and submits its record) after the player, whose body would
+    // otherwise fail the depth test behind the depth-writing additive shell.
+    AS3D_REQUIRE_DATA();
+    GameSession s;
+    std::string err;
+    REQUIRE_MESSAGE(s.init(level1Options(), &err), err);
+    std::vector<int> order;
+    std::vector<char> visited;
+    int attachedSeen = 0;
+    for (u32 f = 0; f < 300; ++f) {
+        s.step(botInput(f));
+        const World& w = s.world();
+        worldRenderOrder(w, order, visited);
+        std::vector<int> pos(static_cast<size_t>(kMaxEntitySlots), -1);
+        for (size_t k = 0; k < order.size(); ++k) pos[static_cast<size_t>(order[k])] = static_cast<int>(k);
+        for (int i : order) {
+            const Entity& e = w.entity(i);
+            if (e.parent >= 0) REQUIRE(pos[static_cast<size_t>(e.parent)] >= 0);
+            if (e.parent >= 0) CHECK(pos[static_cast<size_t>(e.parent)] < pos[static_cast<size_t>(i)]);
+            if (e.inList && e.parent >= 0) ++attachedSeen;
+        }
+        // Every live, non-removed entity appears exactly once.
+        int live = 0;
+        for (int i = 0; i < kMaxEntitySlots; ++i) {
+            if (w.validIndex(i) && !(w.entity(i).rt & RT_REMOVED) && pos[static_cast<size_t>(i)] < 0) {
+                // Only children of removed parents may be missing.
+                CHECK(w.entity(i).parent >= 0);
+            }
+            if (pos[static_cast<size_t>(i)] >= 0) ++live;
+        }
+        CHECK(live == static_cast<int>(order.size()));
+    }
+    CHECK(attachedSeen > 0);
+}
+
 TEST_CASE("mission 1 with the bot renders sensible frames") {
     AS3D_REQUIRE_DATA();
     GraphicsContext* ctx = sharedContext();

@@ -2,6 +2,7 @@
 //
 //   as3d_game [--level N] [--difficulty 0..4] [--seed S] [--data ROOT] [--size WxH]
 //             [--input-script FILE] [--record FILE] [--bot] [--frames N] [--no-audio]
+//             [--screenshot-every K] [--out-dir DIR] [--dump-state FILE]
 //   as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]
 //             [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet] ...
 //
@@ -324,6 +325,7 @@ int runWindowed(const Args& a, GameSession& session, const InputScript* script) 
             audio.drain(session.world());
             status.update(session, ev);
             ++frame;
+            if (a.screenshotEvery > 0 && frame % a.screenshotEvery == 0) screenshot = true;
             if (a.frames >= 0 && frame >= a.frames) running = false;
         }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
