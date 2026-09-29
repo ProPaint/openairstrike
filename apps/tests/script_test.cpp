@@ -701,11 +701,14 @@ TEST_CASE("script: LCALL waits on its timeout, waits forever without one") {
         int f = r.b.funcs("never");
         r.b.emit(OP_TMO, M_IMM1, static_cast<i32>(0x7FC00000u));
         r.b.emit(OP_LCALL, 0, func(f), 1);
+        r.b.emit(OP_MOV, M_IMM2, 16, imm(1.0f)); // not END: main would restart from its entry
         r.b.emit(OP_END);
         r.b.setEntry(EntryPoint::Main, 0);
         r.start();
         r.main(1.0f);
+        INFO(r.sink.text());
         CHECK(r.th->pc() == 2);
+        CHECK(r.th->timeoutBits() == 0);
     }
 }
 
@@ -886,6 +889,8 @@ TEST_CASE("script loader: structural errors are rejected") {
     bad("defs count", [](auto& v) { put32(v, 12, 2); });
     bad("func count", [](auto& v) { put32(v, 16, 0); });
     bad("data count", [](auto& v) { put32(v, 20, 3); });
+    // 8 * 0x20000002 wraps to 16 in 32 bits, the length of the two real entries.
+    bad("data count wrapping 32 bits", [](auto& v) { put32(v, 20, 0x20000002u); });
     bad("frame size", [](auto& v) { put32(v, 24, 4); });
     bad("strg size", [](auto& v) { put32(v, 28, 99); });
     bad("instr count", [](auto& v) { put32(v, 32, 6); });

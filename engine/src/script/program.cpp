@@ -160,7 +160,10 @@ bool ScriptProgram::load(const u8* data, size_t size, ScriptProgram& out, std::s
     }
 
     if (dataSec.present) {
-        if (dataSec.len != 8u * dataCount) return fail("DATA length != 8 * count");
+        // 64-bit product: a count such as 0x20000002 must not wrap to a small length.
+        if (dataSec.len != 8 * static_cast<std::uint64_t>(dataCount))
+            return fail("DATA length != 8 * count");
+        out.data_.reserve(dataCount);
         ByteReader dr(dataSec.data, dataSec.len);
         for (u32 i = 0; i < dataCount; ++i) {
             u16 kind = dr.readU16();
@@ -191,7 +194,7 @@ bool ScriptProgram::load(const u8* data, size_t size, ScriptProgram& out, std::s
         }
     }
 
-    if (code.len != kInstrSize * static_cast<size_t>(codeCount))
+    if (code.len != kInstrSize * static_cast<std::uint64_t>(codeCount))
         return fail("CODE length != 14 * instruction count");
     {
         ByteReader cr(code.data, code.len);
