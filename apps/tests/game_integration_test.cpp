@@ -255,6 +255,62 @@ TEST_CASE("game camera: the renderer sees what the collision code projects") {
     for (int i = 0; i < 16; ++i) CHECK(vp.m[i] == doctest::Approx(ref.m[i]).epsilon(1e-4));
 }
 
+TEST_CASE("game session: pause, restart after game over, next mission after completion") {
+    AS3D_REQUIRE_DATA();
+    GameOptions o = level1Options();
+    o.levelFlow = true;
+    o.flowDelayFrames = 30;
+    GameSession s;
+    std::string err;
+    REQUIRE_MESSAGE(s.init(o, &err), err);
+    for (u32 f = 0; f < 120; ++f) s.step(botInput(f));
+
+    // P toggles the pause: the scroll stops; unpausing clears p_action (1.3 state 6).
+    FrameInput in = botInput(120);
+    in.pausePressed = true;
+    s.step(in);
+    CHECK(s.world().paused());
+    float pos = s.world().mapPos();
+    for (u32 f = 0; f < 20; ++f) s.step(FrameInput());
+    CHECK(s.world().mapPos() == pos);
+    s.world().player(0).action = 7.0f;
+    FrameInput unpause;
+    unpause.pausePressed = true;
+    s.step(unpause);
+    CHECK_FALSE(s.world().paused());
+    CHECK(s.world().player(0).action == 0.0f);
+    CHECK(s.world().mapPos() > pos);
+
+    // Game over: the same mission restarts with the lives it started with.
+    s.world().player(0).lives = -1.0f;
+    s.world().setGameOver();
+    int events = 0;
+    for (int f = 0; f < 40; ++f) events |= s.step(FrameInput());
+    CHECK((events & GameSession::kLevelStarted) != 0);
+    CHECK(s.mission() == 1);
+    CHECK_FALSE(s.world().gameOver());
+    CHECK(s.world().player(0).lives == 2.0f);
+
+    // Mission complete: score banked, lives carried over, mission 2 starts.
+    for (u32 f = 0; f < 60; ++f) s.step(botInput(f));
+    s.world().player(0).scores = 1234.0f;
+    s.world().player(0).lives = 1.0f;
+    s.world().endLevel();
+    events = 0;
+    for (int f = 0; f < 40; ++f) events |= s.step(FrameInput());
+    CHECK((events & GameSession::kLevelComplete) != 0);
+    CHECK((events & GameSession::kLevelStarted) != 0);
+    CHECK(s.mission() == 2);
+    CHECK_FALSE(s.world().levelComplete());
+    CHECK(s.world().player(0).banked == 1234);
+    CHECK(s.world().player(0).lives == 1.0f);
+    CHECK(s.displayScore(0) == 1234);
+    // Every mission starts with the level 1 machine gun and nothing else (frontend.md 5).
+    CHECK(s.world().player(0).upgrades[0] == 1);
+    for (int k = 1; k < 20; ++k) CHECK(s.world().player(0).upgrades[k] == 0);
+    for (int m : s.world().player(0).missiles) CHECK(m == 0);
+}
+
 TEST_CASE("render order: an attached pool entity is drawn after its root") {
     // The player's spawn shield is a pool entity attached with AttachEntity and newer than
     // the player; it thinks (and submits its record) after the player, whose body would
