@@ -51,6 +51,7 @@ PilotRun fly(bool worldAware, int frames) {
 
 TEST_CASE("pilots: the world-aware pilot keeps to the lower middle, deterministically") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("mission 1 and pilot tuning");
     PilotRun a = fly(true, 3600), b = fly(true, 3600);
     CHECK(a.dump == b.dump);
     INFO("lower middle " << a.lowerMiddle << ", near centre " << a.nearCentre << " of " << a.frames);
@@ -61,6 +62,7 @@ TEST_CASE("pilots: the world-aware pilot keeps to the lower middle, deterministi
 
 TEST_CASE("pilots: the scripted bot no longer drifts into a corner") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("mission 1 and pilot tuning");
     PilotRun s = fly(false, 3600);
     INFO("lower middle " << s.lowerMiddle << ", near centre " << s.nearCentre << " of " << s.frames);
     CHECK(s.lowerMiddle > s.frames * 9 / 10);

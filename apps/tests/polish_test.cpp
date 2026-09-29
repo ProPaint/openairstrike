@@ -483,6 +483,7 @@ TEST_CASE("touch speed: the setting scales the drag gain and the lead") {
 
 TEST_CASE("touch speed: a fast swipe on the real helicopter goes further and arrives sooner") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("mission 1 helicopter and touch tuning");
     // The finger moves 200 virtual px in 0.1 s; the helicopter's own top speed (150 units/s,
     // about 8.2 px a frame) is the script's and is not changed.
     SwipeResult r[kTouchSpeedSteps];

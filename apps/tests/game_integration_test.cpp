@@ -51,6 +51,9 @@ GraphicsContext* sharedContext() {
 GameOptions level1Options() {
     GameOptions o;
     o.dataRoot = testdata::root();
+    // The game under test (AS3D_GAME), its extracted files and rules.
+    o.game = &testdata::game();
+    o.extractedDir = testdata::extractedDir();
     o.mission = 1;
     o.levelFlow = false;
     return o;
@@ -91,7 +94,9 @@ std::string simulateOnly(long frames, bool bot) {
     DefDatabase db;
     REQUIRE(db.load(vfs));
     World world;
-    world.init(vfs, db, WorldConfig());
+    WorldConfig cfg;
+    cfg.rules = &testdata::game().rules;
+    world.init(vfs, db, cfg);
     std::string err;
     REQUIRE(world.loadLevel("1", &err));
     PlayerInput input;
@@ -317,7 +322,9 @@ TEST_CASE("game session: pause, restart after game over, next mission after comp
     CHECK(s.world().player(0).banked == 1234);
     CHECK(s.world().player(0).lives == 1.0f);
     CHECK(s.displayScore(0) == 1234);
-    // Every mission starts with the level 1 machine gun and nothing else (frontend.md 5).
+    // Every mission starts with the level 1 machine gun and nothing else (frontend.md 5); the
+    // sequel's mission loadouts and carried upgrades are checked in as2_rules_test.cpp.
+    if (testdata::game().id != GameId::AirStrike3D) return;
     CHECK(s.world().player(0).upgrades[0] == 1);
     for (int k = 1; k < 20; ++k) CHECK(s.world().player(0).upgrades[k] == 0);
     for (int m : s.world().player(0).missiles) CHECK(m == 0);
@@ -425,7 +432,8 @@ TEST_CASE("mission 1 with the bot renders sensible frames") {
     CHECK(view.renderer().shadowMapCount() > 0);
     CHECK(maxEmitters > 0);
     CHECK(maxParticles > 0);
-    CHECK(rotorChanges > 1000); // spinning nearly every frame
+    // The first game's helicopter p_comanche and its rotor object (the sequel's have other names).
+    if (testdata::game().id == GameId::AirStrike3D) CHECK(rotorChanges > 1000); // spinning nearly every frame
     CHECK(s.world().particles().emitterCount() > 0);
 }
 
@@ -492,7 +500,7 @@ TEST_CASE("as3d_game --headless dumps the same state as as3d_sim") {
     InputRecorder rec;
     for (u32 f = 0; f < 600; ++f) rec.record(f, botInput(f));
     REQUIRE(rec.script().save(tmp + "/bot.txt"));
-    const std::string data = " --data '" + testdata::root() + "'";
+    const std::string data = " --data '" + testdata::root() + "' --game " + testdata::gameKey();
     // Screenshots on, so the renderer runs; the dump must not change.
     std::string cmdGame = "'" + game + "' --headless --frames 600 --quiet --no-audio --seed 7 --screenshot-every 200 --out-dir '" +
                           tmp + "' --input-script '" + tmp + "/bot.txt' --dump-state '" + tmp + "/game.json'" + data +

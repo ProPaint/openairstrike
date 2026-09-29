@@ -197,6 +197,7 @@ TEST_CASE("particles: CILINDER particles follow the emitter, DECART ones stay") 
 
 TEST_CASE("particles: every shipped system simulates for 5 s without NaN or runaway counts") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("flamethrowers");
     Vfs vfs;
     REQUIRE(mountOriginalPaks(vfs));
     DefDatabase db;

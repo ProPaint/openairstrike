@@ -15,6 +15,12 @@ using namespace as3d;
 
 TEST_CASE("all missions: 1500 frames each without script errors") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    if (testdata::game().id != GameId::AirStrike3D) {
+        // The sequel's rules and pilot: its missions are played by as2_missions_test.cpp.
+        std::fprintf(stderr, "SKIPPED (game '%s': its missions are played by as2_missions_test.cpp): %s\n",
+                     testdata::gameKey().c_str(), __FILE__);
+        return;
+    }
     Vfs vfs;
     vfs.mount(makeDirSource(testdata::extractedDir()));
     DefDatabase db;

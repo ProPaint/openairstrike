@@ -60,6 +60,7 @@ TEST_CASE("game rules: a world resolves nullptr to the default rules") {
 
 TEST_CASE("game rules: changed scroll speed, start position and helicopter are read") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("helicopters and start position");
     Fixture fx;
     GameRules r = defaultGameRules();
     r.scrollSpeed = 21.0f;

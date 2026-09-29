@@ -214,9 +214,9 @@ inline std::vector<std::string> expectedStrings(const std::string& path) {
     return out;
 }
 
-inline bool playable() {
-    const Json* v = expectedAt("playable");
-    return v && v->kind == Json::Bool && v->b;
-}
+// Whether the game under test plays: what the code says (as3d::gameIsPlayable, the one place
+// that decides it). expected.json's "playable" states which test groups apply and must agree
+// (expected_test.cpp checks it).
+inline bool playable() { return as3d::gameIsPlayable(game()); }
 
 } // namespace testdata

@@ -58,9 +58,13 @@ bool chooseGameData(const std::string& root, const std::string& key, const std::
 // One line per game: key, title, version, where found (--list-games).
 std::string describeGames(const std::string& root);
 
-// Whether the game runs end to end. False for the sequels until their packages land; the
-// Android and web entry points refuse an unplayable game unless told otherwise.
-inline bool gameIsPlayable(const GameProfile& g) { return g.id == GameId::AirStrike3D; }
+// Whether the game runs end to end and is offered to players: AirStrike 3D and AirStrike 2;
+// Gulf Thunder not yet. The one place this is decided (kPlayableGames in game_data.cpp, which
+// tools/web_known_files.py and the tests read); the game selector lists only playable games,
+// and the Android and web entry points refuse an unplayable one unless told otherwise.
+bool gameIsPlayable(const GameProfile& g);
+// The keys of the playable games, in GameId order.
+std::vector<std::string> playableGameKeys();
 
 // What identifies a game's pak0.apk. The table is a fact about files, not game data.
 struct PakSignature {

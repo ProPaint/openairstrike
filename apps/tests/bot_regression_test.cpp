@@ -4,7 +4,9 @@
 // say why in the commit message.
 //
 // History: values set after the on-screen rule of spec issue 120 and the symmetric bot weave
-// (WP-49).
+// (WP-49). AirStrike 2 (package D1): its own values, recorded from the build of that package,
+// under the world-aware pilot in god mode (expected.json "pilot": "world", "god": true), the
+// way its missions were played to the end (docs/missions-status-as2.md).
 #include "doctest.h"
 
 #include <string>
@@ -29,14 +31,20 @@ TEST_CASE("bot regression: mission 1 ends at the same frame with the same score"
     REQUIRE(db.load(vfs));
     World w;
     WorldConfig cfg;
+    cfg.rules = &testdata::game().rules;
+    const testdata::Json* pilot = testdata::expectedAt("bot_regression.pilot");
+    const bool worldPilot = pilot && pilot->s == "world";
+    const testdata::Json* god = testdata::expectedAt("bot_regression.god");
+    cfg.godMode = god && god->kind == testdata::Json::Bool && god->b;
     cfg.seed = static_cast<u32>(testdata::expectedInt("bot_regression.seed"));
     cfg.difficulty = static_cast<int>(testdata::expectedInt("bot_regression.difficulty"));
     w.init(vfs, db, cfg);
     std::string err;
     REQUIRE(w.loadLevel(std::to_string(testdata::expectedInt("bot_regression.mission")), &err));
     u32 endFrame = 0;
-    for (u32 f = 0; f < 16000 && endFrame == 0; ++f) {
-        w.step(botInput(f).toPlayerInput());
+    const u32 maxFrames = kExpectedEndFrame + 2000;
+    for (u32 f = 0; f < maxFrames && endFrame == 0; ++f) {
+        w.step((worldPilot ? botInput(w, f) : botInput(f)).toPlayerInput());
         if (w.levelComplete() || w.gameOver()) endFrame = f + 1;
     }
     INFO("end frame " << endFrame << ", score " << w.player(0).scores << ", lives " << w.player(0).lives);

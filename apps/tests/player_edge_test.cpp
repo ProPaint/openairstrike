@@ -70,6 +70,7 @@ EdgeRun runEdge(u32 dir, int hold, int count) {
 
 TEST_CASE("player: fires in the middle of the screen (reference for the edge tests)") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("mission 1 and its helicopter");
     EdgeRun mid = runEdge(0u, 240, 120);
     CHECK(mid.framesOnScreen == mid.frames);
     CHECK(mid.projectiles > 5);
@@ -80,6 +81,7 @@ TEST_CASE("player: fires in the middle of the screen (reference for the edge tes
 // player stays collidable and Shoot fires (it did not with the old containment rule).
 TEST_CASE("player: fires at the left, right and bottom limits (issue 120, T4)") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("mission 1 and its helicopter");
     const u32 dirs[3] = {ACT_LEFT, ACT_RIGHT, ACT_BACKWARD};
     const char* names[3] = {"left", "right", "bottom"};
     for (int k = 0; k < 3; ++k) {

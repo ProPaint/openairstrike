@@ -465,6 +465,7 @@ struct DataRig {
 
 TEST_CASE("world corpus: level 1 runs 3600 frames headless") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("level 1");
     DataRig r;
     REQUIRE(r.load("1", WorldConfig()));
     CHECK(r.world.playerEntityIndex(0) >= 0);

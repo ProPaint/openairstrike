@@ -566,7 +566,8 @@ int luma(const Image& img, int i) {
 #define REQUIRE_RENDER(envVar)                                                                  \
     AS3D_REQUIRE_DATA();                                                                        \
     AS3D_REQUIRE_PLAYABLE();                                                                    \
-    REQUIRE_GL(glCtx);                                                                          \
+    AS3D_REQUIRE_FIRST_GAME("levels, lights and objects");                                      \
+    REQUIRE_GL(glCtx);                                                                        \
     RenderEnv* envVar = renderEnv();                                                            \
     REQUIRE(envVar != nullptr)
 

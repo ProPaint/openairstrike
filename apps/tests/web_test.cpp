@@ -18,6 +18,7 @@ using namespace as3d;
 
 TEST_CASE("web key bindings: no Ctrl or Alt, Space fires, X missile, C item") {
     AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("files (the page ships them first)");
     Settings s = Settings::defaults();
     applyWebKeyBindings(s);
     const Settings d = Settings::defaults();
@@ -57,6 +58,7 @@ TEST_CASE("web key bindings: no Ctrl or Alt, Space fires, X missile, C item") {
 
 TEST_CASE("web: known_files.json matches the owner's game files") {
     AS3D_REQUIRE_PLAYABLE();
+    AS3D_REQUIRE_FIRST_GAME("files (the page ships them first)");
     const std::string list = std::string(AS3D_REPO_ROOT) + "/apps/web/site/known_files.json";
     std::ifstream in(list);
     REQUIRE(in.good());

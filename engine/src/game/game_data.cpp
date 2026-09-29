@@ -21,6 +21,11 @@ const PakSignature kBuiltinSignatures[] = {
     {GameId::GulfThunder, 35840140ull, 0xbf1903a53496c57eull},
 };
 
+// The games that run end to end (gameIsPlayable). The single source of that fact:
+// tools/web_known_files.py reads this line (keep it one line of quoted keys), and the tests ask
+// gameIsPlayable. Proposed to move into GameProfile as `bool playable` (docs/spec/issues/163).
+const char* const kPlayableGames[] = {"as3d", "as2"};
+
 const PakSignature* g_signatures = kBuiltinSignatures;
 int g_signatureCount = static_cast<int>(sizeof(kBuiltinSignatures) / sizeof(kBuiltinSignatures[0]));
 
@@ -79,6 +84,21 @@ std::string whereFound(const GameData& d) {
 }
 
 } // namespace
+
+bool gameIsPlayable(const GameProfile& g) {
+    for (const char* k : kPlayableGames)
+        if (std::strcmp(k, g.key) == 0) return true;
+    return false;
+}
+
+std::vector<std::string> playableGameKeys() {
+    std::vector<std::string> out;
+    for (int i = 0; i < kGameCount; ++i) {
+        const GameProfile& g = gameProfile(static_cast<GameId>(i));
+        if (gameIsPlayable(g)) out.push_back(g.key);
+    }
+    return out;
+}
 
 bool readPakSignature(const std::string& path, std::uint64_t* size, std::uint64_t* headHash) {
     std::FILE* f = std::fopen(path.c_str(), "rb");
