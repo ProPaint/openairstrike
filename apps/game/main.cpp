@@ -234,6 +234,9 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
                     a.frames, session.mission(), static_cast<double>(w.mapPos()), w.levelComplete() ? 1 : 0,
                     w.gameOver() ? 1 : 0, session.displayScore(0), static_cast<double>(w.player(0).lives),
                     audio.stats().played + audio.stats().loopsStarted, audio.stats().missing);
+        if (view)
+            std::printf("shadow maps: %d (%d generated after the level load)\n", view->renderer().shadowMapCount(),
+                        view->renderer().lateShadowMaps());
     }
     if (!a.recordPath.empty() && !recorder.script().save(a.recordPath)) {
         std::fprintf(stderr, "as3d_game: cannot write %s\n", a.recordPath.c_str());
