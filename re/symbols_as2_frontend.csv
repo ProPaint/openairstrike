@@ -1,0 +1,122 @@
+address,name,subsystem,description,confidence,evidence,v170_address
+0x004011e0,CFG_SnapRefreshRate,config,keeps RefreshRate if listed; else 85; else the rate below the first above 85,medium,read,
+0x004012b0,VID_SelectDisplayMode,window,enumerates display modes (4:3 only unless EnableNonStdModes; standard modes added with ForceStdModes); retries with both flags; quits when none,medium,read,
+0x00401b90,CFG_Read,config,"reads config.ini; new keys Display EnableNonStdModes and ForceStdModes; defaults VideoMode -1, MouseControl 1, fire keys 200 201 202",high,read,0x0041cef0
+0x00405860,Sys_ShellExecute,sys,ShellExecuteA of the string in EAX (purchase command),medium,read,
+0x00405b40,Sys_RestartVideo,sys,"CORRECTS symbol-map.md (listed as removed): code outside export functions; frees level and saves; recreates window, sound and Direct3D; G_Init(1)",medium,jump at as2@0x42c54d,0x004206c0
+0x00405bf0,Sys_Quit,sys,WM_CLOSE path: shut down; write config.ini; shell-execute Settings.xml AtExit command if set; exit; does not save game.bin,medium,called at as2@0x415d8c,
+0x00405c80,Sys_PostClose,sys,posts WM_CLOSE to the main window,medium,read,
+0x004069e0,G_LoadBin,save,game.bin: version float; 256-byte key; CRC of the encrypted 0x574-byte payload; then a 0x1C-byte checkpoint block with its own CRC,high,read,0x00401050
+0x00406c70,G_SaveBin,save,writes game.bin (1692 bytes); checkpoint saved as none when a cheat was used; callers as2@0x405777 0x405b53 0x410fc3 0x427fe4,high,read; raw call scan,0x004011b0
+0x004079c0,R_RenderMenuModel,frame,preview view: viewport (170 160 460 270) scaled; FOV 60; origin (0 0 -100); angles from the caller,medium,read,0x00401b30
+0x00407d20,HUD_Draw1P,hud,one-player HUD: up to 10 lives; health bar of 42 segments of the maximum (clamps health); weapon box with level pips; missile and power-up columns incl. timer slots 6 7 9; score,high,emulator; tables 0x49e1c4 0x49e1e8 0x49e278; switch 0x408ad4,0x00401ed0
+0x00408b00,HUD_Draw2P,hud,two-player HUD: player 1 left; player 2 mirrored right; both healths clamped,high,emulator,0x00402a90
+0x0040aa40,R_DrawStats,hud,debug counters ShowFPS/ShowTris/ShowTexBinds/ShowCounters at x 20/150 from y 200,high,read,
+0x0040ac80,HUD_Frame,hud,level name; 1P or 2P HUD; cheat message; skipped on intermission or HUD hidden; no mouse cursor,high,read; emulator,0x004041b0
+0x0040acc0,SCR_SelectLoadingComic,hud,"resets loading progress; registers the six tiles of set loading1 (mission index <= 6), loading2 (7..12) or loading3 (>= 13)",high,read; emulator,
+0x0040adf0,SCR_DrawLoading,hud,loading screen: black; comic 3 columns x 2 tiles at y 135 unless intermission; orange bar (340 500 200 10); Loading label,high,emulator,0x00404230
+0x0040b260,G_RootAddRef,game,CORRECTS FUN_0040b260 (subsystem 2d guessed): walks to the root entity and increments its reference count; only caller Shoot,medium,read; only caller PF_Shoot 0x420190,
+0x0040f000,IntroComic_Done7s,intro,Done of comic pages 1 and 2: clock >= 7,high,vtables as2@0x48ac54 0x48ac68,
+0x0040f020,IntroComic_DrawPanorama,intro,comic pages 1 and 2: black; 4x2 tiles at y 150/406; fades,high,emulator,
+0x0040f1e0,IntroComic_BeginPage1,intro,comic page 1: sound on; music track02 from order 0; registers Frame#1 tiles,high,strings; vtable as2@0x48ac54,
+0x0040f280,IntroComic_BeginPage2,intro,"comic page 2: registers Frame#2 tiles; fade in from white, out to black",high,vtable as2@0x48ac68,
+0x0040f310,IntroComic_BeginPage3,intro,comic page 3: registers 16 Frame#3 tiles,high,vtable as2@0x48ac7c,
+0x0040f3f0,IntroComic_Done20s,intro,Done of comic page 3: clock >= 20,high,vtable as2@0x48ac7c,
+0x0040f410,IntroComic_DrawPage3,intro,comic page 3: top strip slides up; panels fade in at 3 5 10 12 s; fade to black 18..20,high,emulator,
+0x004100b0,IntroComic_BeginPage4,intro,comic page 4: registers 10 Frame#4 tiles,high,vtable as2@0x48ac90,
+0x00410140,IntroComic_Done11s,intro,Done of comic page 4: clock >= 11,high,vtable as2@0x48ac90,
+0x00410160,IntroComic_DrawPage4,intro,comic page 4: 4x2 tiles at y 90/346; overlay panel fades in 3..4; black fades,high,emulator,
+0x00410fb0,G_SaveIfReady,save,if the game is ready: free level and save game.bin; only caller the dormant purchase action,medium,as2@0x42b864,0x00408dd0
+0x0041e130,Settings_Parse,settings,parses CheckCD; PostScores; Demo/Purchase; Demo/NagScreen; Info; AtExit (new); Intros (BuiltIn; Image with BackColor; Video parsed and ignored); Logotypes,high,read,0x0041f010
+0x00423050,M_PortraitDialogKey,menu,Enter/Esc/Space/mouse 1/mouse 2 complete or skip a page (code address inside 0x422fb0),high,objdump,
+0x004231b0,M_DrawPortraitDialog,menu,dialogue draw: 0.25 s fade; portrait; typing 1 char per 0.05 s; 3 s per page; on close pops and calls G_MissionComplete (end) or unpauses (start) (code address inside 0x422fb0),high,objdump; emulator,
+0x004234b0,M_ShowPortraitDialog,menu,"(mission, isEnd): pushes the dialogue from table 0x49d530, or for an end without dialogue calls G_MissionComplete",high,read; emulator,
+0x00423630,M_ControlsSetCapture,menu,enables or disables every binding row and Back by the capture flag,medium,read,
+0x004236b0,M_ControlsRowAction,menu,activate row: start capture (code address),medium,objdump,0x00422ef0
+0x004238c0,M_ControlsAction,menu,id 1 Back; id 2 Controls Set spinner reloads the rows (code address),medium,objdump,
+0x00423930,M_ControlsKey,menu,"capture, cancel and unbind; same as v1.70 incl. the display-only duplicate removal (code address)",medium,objdump,0x00423160
+0x00423a00,M_DrawControls,menu,items; panel (190 165 420 320) titled Configure Controls; green outline (200 205 400 270); title logo,high,emulator,0x00423230
+0x00423ca0,M_DrawCredits,menu,CORRECTS name M_PageCredits: draw callback of the credits screen (title logo; 21 centred lines from y 120),high,emulator,0x004288e0
+0x00423d90,M_CreditsMenu,menu,credits screen: Back text button; draw callback 0x423ca0,high,read; emulator,
+0x00423e00,UI_DrawTextItem,ui,"text label: green, orange focused, 0x404040 disabled",high,read,0x00423740
+0x00423e40,UI_LayoutTextButton,ui,"CORRECTS name UI_LayoutItem: sizes a text button: caption width without braces, at least the minimum width at item +0x5C, plus 46; height 30; sets flag 0x20000",high,read; emulator,
+0x00423f00,UI_DrawTextButton,ui,"draws a text button from interface.tga (caps, body, rivets) with a 0.25 s slide-in from the bottom edge; caption green/orange/grey",high,read; emulator,
+0x00424300,UI_InitSlider,ui,CORRECTS name UI_InitKeyItem: slider init (same code as v1.70),high,identical shape to v170@0x423780,0x00423780
+0x00424370,UI_SliderInput,ui,"CORRECTS name UI_KeyItemCapture: slider keys, clicks and drag (same code as v1.70)",high,identical shape to v170@0x4237f0,0x004237f0
+0x004245a0,UI_DrawSlider,ui,CORRECTS name UI_DrawKeyItem: slider bar and knob from interface.tga in the label colour,high,emulator (Options),0x00423a20
+0x00424800,UI_InitListItem,ui,list init; sets flag 0x20000 (no hover sound),high,read,0x00423c90
+0x00424bb0,UI_DrawList,ui,list: green outline; rows green/orange/grey; scroll boxes from interface.tga,high,emulator,0x00424030
+0x00425020,UI_InitSpinner,ui,spinner init; sets flag 0x20000,medium,read,0x004244d0
+0x00425250,UI_DrawSpinner,ui,"spinner: label and value green, orange focused, no box",high,emulator,0x004246e0
+0x004252d0,UI_InitHeliGrid,ui,helicopter grid init; the grid is never added to an AS2 menu (dead),medium,no UI_AddItem of a type-8 item,0x004247c0
+0x00425d50,UI_DrawString,2d,"additive font; centring and right-alignment measure without braces (v1.70 counted them); EAX string, ECX flags, stack x y colour",high,read,0x00425290
+0x00426230,UI_DrawStringAlpha,2d,CORRECTS name UI_DrawStringCentered: the alpha-font routine,high,as v1.70 (frontend.md 2.8),0x00425750
+0x004263e0,HUD_DrawNumber,hud,number font (same code as v1.70),high,compared with v170@0x4258f0,0x004258f0
+0x00426570,UI_DrawMenu,ui,draws the items (types 0 3 5 6 7 8 only once the menu open value is 1) and the tooltip,high,read,0x00425a10
+0x00426ae0,UI_DrawPanel,ui,panel (x y w h f; title in EDI): snow.tga FILTER noise fill with an overshooting open animation; top and bottom bars; cables; title tab,high,emulator at several sizes and f values; read,
+0x00427a20,M_MissionCompleteAction,menu,1 Quit; 2 Restart (loadout); 3 Next (bank; mission + 1 mod 18); 4 Choose Helicopter (accept mode),high,read,0x00426270
+0x00427b30,M_MissionCompleteKey,menu,swallows Esc and right click (code address),high,objdump,0x00426330
+0x00427fb0,M_ExitConfirmAction,menu,YES: when ready free level and save game.bin; post WM_CLOSE. NO: pop (code address),high,objdump,0x00426a20
+0x00428090,M_ExitConfirmMenu,menu,exit confirmation: text labels YES (id 1) and NO (id 2),high,read; emulator,0x00426c90
+0x004281c0,M_DrawCongrats,menu,CORRECTS symbol-map.md (listed as removed): 11-line congratulation typewriter from mt 4; 8 characters/s; type.wav (code address),high,immediates of the congratulation strings,0x00426e70
+0x00428430,M_DrawGameComplete,menu,game complete draw: fade to black 0..2 s; gamedone tiles 2..4 s; button and typewriter from 4 s (code address),medium,emulator; draw callback stored by as2@0x428a40,0x004270a0
+0x00428b90,M_DrawGameOver,menu,game over draw: comic panels fade in 1 s; gamov ADD; panel titled Game Over with f = mt (code address),medium,emulator; draw callback stored by as2@0x428e55,0x00427670
+0x00428f10,M_SpawnPreviewHeli,menu,builds the shown player selected helicopter object without its script as the preview entity,high,read,
+0x00428fb0,M_HeliSelectAction,menu,CORRECTS description: 1 Start/Continue (free level; pop all; G_NewGame on the selected mission); 2 Back and 8 Accept pop; 5 player; 6/7 next/previous helicopter mod 6 written at once,high,read,
+0x004290c0,M_DrawHeliGridBackdrop,menu,CORRECTS name M_DrawHeliStats: tiles grid.tga over (210 190 381 231) ADD green; the bars are drawn by 0x4291f0,high,read; emulator,
+0x004291f0,M_DrawHeliSelect,menu,selection draw: grid backdrop; 3D preview or helicna silhouette with NOT AVAILABLE; name; Speed and Armor bars; panel,high,read; emulator,
+0x00429530,M_HeliSelectMenu,menu,"selection items: two arrows (pictures), Start/Continue/Accept, Back (start mode), Player spinner (two players)",high,read; emulator,
+0x004297d0,M_ShowHeliSelect,menu,opens the helicopter selection; AL = 1 for accept mode (from mission complete),high,read,
+0x00429800,M_InfoMenuAction,menu,Back pops (code address),medium,taken by 0x42a7b0,0x00427a10
+0x00429820,M_InfoMenuKey,menu,"PgUp/Left previous page, PgDn/Right next page (code address)",high,objdump,0x00427a30
+0x0042a6e0,M_DrawInfoMenu,menu,"information draw callback: page text and icons, PgUp/PgDown hints (code address)",medium,taken by 0x42a7b0,0x004289b0
+0x0042a7b0,M_InfoMenuBuild,menu,information menu items: Page spinner (8 pages) and Back,high,read,0x00428c00
+0x0042a8c0,M_InGameMenuAction,menu,CORRECTS description: 1 Resume; 2 Options; 3 Quit; 4 Restart (new; applies the loadout),high,objdump,0x00428d40
+0x0042a9a0,M_InGameMenuKey,menu,"Esc/right click: clear p_action of both players, HUD hidden and paused, then generic pop (code address)",high,objdump,0x00428dd0
+0x0042adb0,UI_AddItem,ui,"adds an item; AS2 item types 0 text, 1 image button, 2 picture (new), 3 edit, 5 list, 6 spinner, 7 slider, 8 helicopter grid, 9 text button (new)",high,jump table as2@0x42ae64 read,0x00429490
+0x0042b1f0,UI_LoadAssets,2d,"registers font, font_alpha, logo, glow, two3, clouds, interface, snow (pic) and menu1/menu2 sounds",high,read,0x004298c0
+0x0042b2c0,UI_PushMenu,ui,push; also resets the open value of the new and the covered menu,high,read,0x004292f0
+0x0042b340,UI_PopMenu,ui,pop; resets the open value,high,read,0x00429360
+0x0042b3c0,UI_Frame,ui,menu time; menu open value +0x11C at 8/s (closing flag +0x118 never set); hover time; draw; cursor; 2D flush,high,read; emulator,0x004299f0
+0x0042b610,UI_DrawMenuHeader,ui,the AirStrike 2 title logo: glow ADD; rotating pulsing two3 emblem; logo with scrolling clouds as second texture (ADD),high,read; emulator,
+0x0042b7c0,M_MainMenuAction,menu,"ids 1 Start Game, 2 Top Scores (disables Post), 3 Options, 4 Information, 5 exit confirmation, 6 dormant purchase command, 7 Credits",high,read,0x00429b20
+0x0042b950,M_BuildMainMenu,menu,"six text buttons centred at x 400, y 230..455 step 45, minimum width 200 (ids 1 2 3 4 7 5)",high,read; emulator,0x00429f60
+0x0042bc10,M_NameEntryAction,menu,Ok or Enter: pop; insert the high score (0x4146c0) (code address),high,objdump,0x0042a300
+0x0042bc40,M_NameEntryKey,menu,swallows Esc and right click (code address),high,objdump,0x0042a330
+0x0042bc70,M_DrawNameEntry,menu,panel (210 220 380 160) then items (code address),high,objdump,0x0042a360
+0x0042bcd0,M_NameEntryMenu,menu,name entry: panel titled Enter Your Name; edit field id 2; Ok id 1,high,read; emulator,0x0042a580
+0x0042bda0,M_BuildResolutionList,menu,once per run: a %dx%d string per enumerated mode,medium,read,
+0x0042c270,M_RefreshRateToIndex,menu,refresh rate to spinner index (0 = default),medium,read,
+0x0042c350,M_RefreshIndexToRate,menu,spinner index to Hz,medium,read,
+0x0042c4a0,M_OptionsApplyAction,menu,Apply: commit video and 3D-sound values then Sys_RestartVideo (code address),medium,objdump,0x0042a840
+0x0042c560,M_OptionsUpdate,menu,CORRECTS name M_OptionsApply: per-frame Options update (Apply shown only when a pending video or 3D-sound value differs; refresh list rebuilt; depth disabled when windowed),medium,read,0x0042a8e0
+0x0042c690,M_SetBinding,menu,"CORRECTS FUN_0042c690 (resolves the undecided v1.70 M_SetBinding): Mouse Control rebinding, same rule and quirk as v1.70",medium,called at as2@0x42c75f 0x42c775 0x42c78b,0x0042a9f0
+0x0042c700,M_OptionsAction,menu,ids 1 Back; 2 Controls; 3 Brightness; 4 Sfx; 5 Music; 6 Camera; 8 Mouse Control (code address),medium,objdump; jump table as2@0x42c83c,0x0042aa60
+0x0042c860,M_DrawOptions,menu,update; items; panel (210 180 380 290) titled Options; title logo,high,emulator,0x0042abb0
+0x0042d7b0,M_StartGameCallback,menu,"Start Game: Back pops; Game mode sets the two-player flag; Next stores difficulty, mission and player count and opens the helicopter selection (code address)",high,objdump; taken by M_StartGameMenu,0x0042b3b0
+0x0042d840,M_DrawStartGame,menu,items; panel (150 180 500 270) titled Start Game; title logo,high,emulator,0x0042b470
+0x0042d8b0,M_StartGameMenu,menu,"mission list (7 rows), difficulty, game mode, Back, Next; a helicopter grid is filled in but never added",high,read; emulator,0x0042b710
+0x0042daf0,M_MessageBoxAction,menu,Ok: unpause; p_action 0 for both players; pop (code address),high,objdump,0x0042bcc0
+0x0042db30,M_MessageBoxKey,menu,Enter/Esc/Space close like Ok; other keys generic (code address),high,objdump,0x0042bd00
+0x0042db70,M_DrawMessageBox,menu,"hint lines (once the open value is 1), panel, items (code address)",high,objdump,0x0042bd40
+0x0042dd20,UI_MessageBox,ui,ShowTutorialHint box: lines split at ^; W = max(360; widest + 40); H = max(160; 18n + 60); panel titled Tutorial Tip; pauses,high,read; emulator,0x0042c000
+0x0042deb0,M_DrawTopScores,menu,top scores: panel (120 170 560 318); column bar; 15 rows,high,emulator,0x0042c1d0
+0x0042e0d0,M_TopScoresMenu,menu,Back; Post Scores only when PostScores allow is set,high,read,0x0042c660
+0x0048ac2c,vtbl_IntroPageImage,intro,image intro page vtable (Begin 0x40eb00; Done 0x40eb30; Draw 0x40eb50); Ghidra RTTI label swapped with DivoGames,high,G_StartIntros as2@0x4105e5,
+0x0048ac40,vtbl_IntroPageDivoGames,intro,DivoGames intro page vtable (Begin 0x40ed10; Done 0x40ed40; Draw 0x40ed60),high,G_StartIntros as2@0x410624,
+0x0049cbe8,g_heliSelLocked,data,2 bytes: selected helicopter of player 1/2 is locked,medium,written by 0x429530 0x428fb0,
+0x0049cbec,g_heliNames,data,6 display-name pointers in helicopter table order,high,read by 0x4291f0,
+0x0049d530,g_dialogueTable,data,36 pointers (mission x 2 + isEnd) to {u32 speaker; char* text} pairs ended by a null text,high,read from the executable,
+0x0049e1c4,g_weaponMaxLevel,data,maximum upgrade level per weapon slot (9 ints) for the HUD pips,high,read from the executable,
+0x0049e1e8,g_weaponIconUv,data,weapon icon UVs (9 x 4 floats),high,read from the executable,0x00457ae0
+0x0049e278,g_missileIconUv,data,missile icon UVs (5 x 4 floats); missing from re/symbols_as2_data.csv,high,read from the executable,0x00457c20
+0x0054328c,g_introSavedBrightness,data,brightness saved while the intro forces 0.5,high,as2@0x410539,
+0x00543290,g_introSpeed,data,intro clock speed: 1 at each page; x4 per key or mouse press,high,as2@0x410984 0x41111c 0x416055,
+0x020fedb7,g_heliSelectAcceptMode,data,1 when the selection was opened from mission complete,high,as2@0x4297db,
+0x02110dac,g_heliSelectPlayer,data,player whose helicopter the selection shows,medium,as2@0x428fb0 case 5,
+0x02111e5c,g_currentMenu,data,current menu record,high,UI_PushMenu,0x01fd93b0
+0x02111ef4,g_menuTime,data,menu time mt,high,UI_Frame,0x01fd93b4
+0x02219178,g_previewEntity,data,helicopter preview entity,high,as2@0x428f10,
+0x0221917c,g_previewSpin,data,preview spin in degrees (+60/s; never reset),medium,as2@0x4291f0,
+0x02219180,g_menuDepth,data,menu stack depth,high,UI_PushMenu,0x01fdb344
+0x02219184,g_titleLogoClock,data,clock of the title logo animation (+0.5 x frametime per draw),high,UI_DrawMenuHeader,
