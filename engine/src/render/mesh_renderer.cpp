@@ -7,6 +7,7 @@
 
 #include <algorithm>
 
+#include "as3d/envmap.h"
 #include "shaders.h"
 
 namespace as3d {
@@ -21,6 +22,10 @@ void MeshRenderer::begin(const Camera& camera, const SceneLighting& lighting) {
     camera_ = camera;
     lighting_ = lighting;
     items_.clear();
+}
+
+void MeshRenderer::setDynamicLights(const DynamicLight* lights, size_t count) {
+    lights_.assign(lights, lights + std::min(count, static_cast<size_t>(kMaxDynamicLights)));
 }
 
 void MeshRenderer::submit(const GpuMesh& mesh, const Material& material, const Mat4& modelMatrix,
@@ -54,6 +59,7 @@ void MeshRenderer::end() {
     program_.setFloat("uFogStart", lighting_.fogStart);
     program_.setFloat("uFogEnd", lighting_.fogEnd);
     program_.setInt("uTex", 0);
+    program_.setInt("uEnv", 1);
 
     for (const DrawItem& item : items_) draw(item);
 }
@@ -70,7 +76,36 @@ void MeshRenderer::draw(const DrawItem& item) {
     program_.setMat4("uModel", item.model);
     program_.setVec4("uColor", item.colour);
     program_.setInt("uNoLighting", mat.noLighting ? 1 : 0);
+    // Dynamic lights at the model origin, evaluated per signed local axis (spec 2.4).
+    Vec3 cube[6];
+    if (!mat.noLighting && !(mat.rflag & 0x200u /* RF_NODLIGHT */) && !lights_.empty()) {
+        Vec3 axes[3];
+        for (int i = 0; i < 3; i++) {
+            axes[i] = normalize(Vec3{item.model.at(i, 0), item.model.at(i, 1), item.model.at(i, 2)});
+        }
+        Vec3 origin{item.model.at(3, 0), item.model.at(3, 1), item.model.at(3, 2)};
+        accumulateModelLights(lights_.data(), lights_.size(), origin, axes, cube);
+    }
+    float cubeData[18];
+    for (int i = 0; i < 6; i++) {
+        cubeData[i * 3 + 0] = cube[i].x;
+        cubeData[i * 3 + 1] = cube[i].y;
+        cubeData[i * 3 + 2] = cube[i].z;
+    }
+    glUniform3fv(program_.uniformLocation("uDynCube"), 6, cubeData);
+
+    // Environment mapping: smooth-normal models with an envmap only (spec 4.3).
+    EnvMapMode env = envMapModeFromInt(mat.envModeRaw);
+    if (!mat.envTexture || !item.mesh->model.smoothNormals) env = EnvMapMode::None;
+    program_.setInt("uEnvMode", static_cast<int>(env));
+    if (env != EnvMapMode::None) {
+        Mat3 nm = envNormalMatrix(camera_.viewMatrix(), item.model);
+        program_.setMat3("uNormalMat", nm);
+        program_.setFloat("uEnvAngle", degToRad(time_ * kEnvQuadDegreesPerSecond));
+        mat.envTexture->bind(1);
+    }
     if (mat.texture) mat.texture->bind(0);
+    if (env != EnvMapMode::None) glActiveTexture(GL_TEXTURE0);
 
     item.mesh->vao.bind();
     GLenum indexType = item.mesh->ibo.type() == IndexType::U16 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;

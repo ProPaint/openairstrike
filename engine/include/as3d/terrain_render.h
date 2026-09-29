@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "as3d/core.h"
+#include "as3d/dynamic_lights.h"
 #include "as3d/gfx.h"
 #include "as3d/image.h"
 #include "as3d/level.h"
@@ -31,6 +32,10 @@ struct TerrainViewParams {
     float fogEnd = 1.0e9f;
     float time = 0.0f;       // seconds; drives the water animation
     float mapPos = 0.0f;     // g_map_pos (informational; visibility uses the frustum)
+    // Dynamic lights added to the vertex colours (render-pipeline.md 2.4); null = none.
+    // At most kMaxDynamicLights are used.
+    const DynamicLight* lights = nullptr;
+    size_t lightCount = 0;
 };
 
 struct TerrainRenderOptions {
