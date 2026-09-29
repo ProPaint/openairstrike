@@ -64,12 +64,10 @@ Material Material::fromObjectDef(const ObjectDef& def, ResourceCache& cache) {
     mat.textureHasAlpha = tex.hasAlpha;
 
     mat.blend = toMaterialBlend(def.blend);
-    // ENV_GLITTER/CHROME/QUAD (docs/spec/obj.md "envmode"): TODO, out of scope for
-    // WP-30 per the work package -- dynamic lights/shadows/environment mapping are
-    // left to a later package. The base texture is drawn unmodified regardless of
-    // envmode; this raw value is kept only so a debug view can report what was asked
-    // for.
+    // ENV_GLITTER/CHROME/QUAD (docs/spec/obj.md "envmode"): drawn by MeshRenderer from
+    // envModeRaw and envTexture (render-pipeline.md 4.3, as3d/envmap.h).
     mat.envModeRaw = static_cast<int>(def.envmode);
+    if (!def.envmap.empty()) mat.envTexture = cache.texture(def.envmap).texture;
     mat.rflag = def.rflag;
     mat.noLighting = (def.rflag & RF_NOLIGHTING) != 0;
     mat.noCulling = (def.rflag & RF_NOCULLING) != 0;

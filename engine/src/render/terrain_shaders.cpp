@@ -12,8 +12,14 @@ layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aColor;
 layout(location = 2) in vec2 aUv0;
 layout(location = 3) in vec2 aUv1;
+layout(location = 4) in vec3 aNormal;
 uniform mat4 uView;
 uniform mat4 uProj;
+uniform int uLightCount;                 // dynamic lights, render-pipeline.md 2.4
+uniform vec4 uLightPosRadius[32];
+uniform vec3 uLightColour[32];
+uniform vec4 uLightDirSpot[32];          // xyz spot direction, w = 1 for spot lights
+uniform vec2 uLightCos[32];              // outer, inner cosine
 out vec3 vColor;
 out vec2 vUv0;
 out vec2 vUv1;
@@ -21,7 +27,24 @@ out float vDepth;
 void main() {
     vec4 eye = uView * vec4(aPos, 1.0);
     vDepth = -eye.z;
-    vColor = aColor;
+    vec3 col = aColor;
+    for (int i = 0; i < uLightCount; i++) {
+        vec3 v = uLightPosRadius[i].xyz - aPos;
+        float radius = uLightPosRadius[i].w;
+        float dist = length(v);
+        if (radius <= 0.0 || dist > radius) continue;
+        if (dist > 0.0) v /= dist;
+        float spot = 1.0;
+        if (uLightDirSpot[i].w > 0.5) {
+            float c = dot(-v, uLightDirSpot[i].xyz);
+            if (c < uLightCos[i].x) continue;
+            if (c < uLightCos[i].y) spot = (c - uLightCos[i].x) / (uLightCos[i].y - uLightCos[i].x);
+        }
+        float nd = dot(aNormal, v);
+        if (nd <= 0.0) continue;
+        col += uLightColour[i] * ((0.7 * nd + 0.3) * (radius - dist) / radius * spot);
+    }
+    vColor = min(col, vec3(1.0));
     vUv0 = aUv0;
     vUv1 = aUv1;
     gl_Position = uProj * eye;
