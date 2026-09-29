@@ -37,8 +37,9 @@ ui::HudState hudStateOf(const GameSession& session) {
         hp.score = session.displayScore(p);
         hp.weapon = (pr.weapon >= 0.0f && pr.weapon < 64.0f) ? static_cast<int>(pr.weapon) : 0;
         hp.missileSelected = pr.currentMissile;
-        for (int t = 0; t < ui::kMissileTypes; ++t) hp.missiles[t] = pr.missiles[t] > 0 ? pr.missiles[t] : -1;
-        for (int k = 0; k < ui::kPowerupKinds; ++k) hp.powerups[k] = std::max(pr.powerups[k], 0);
+        for (int t = 0; t < ui::kMissileTypes; ++t) hp.missiles[t] = std::max(pr.missiles[t], 0);
+        hp.powerupSelected = pr.currentPowerup;
+        for (int k = 0; k < ui::kPowerupSlots; ++k) hp.powerups[k] = std::max(pr.powerups[k], 0);
     }
     return hs;
 }

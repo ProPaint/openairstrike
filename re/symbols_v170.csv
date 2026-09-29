@@ -532,3 +532,6 @@ address,name,subsystem,description,confidence,evidence
 0042bd40,M_DrawMessageBox,menu,message box draw (grow animation; centred lines; markup),high,objdump
 00425e80,UI_EditKey,ui,edit field keys,medium,jump table
 00424590,UI_SpinnerKey,ui,spinner keys,medium,jump table 0x4245e0
+00419920,R_RectTouchesScreen,render,"rect overlaps the video mode window: max>=0 and min<size (corrects R_RectOnScreen 'inside'; issue 120)",high,call site 0x4059b3 passes max in ECX and min in EDX
+004198d0,R_PointOnScreenInclusive,render,"point 0<=p<size (lower bound inclusive; issue 120)",high,x87 compare flags
+00411d70,R_ModelRadius,model,"max distance from model origin to the 8 header-box corners; stored at model +0x9c (issue 120)",high,R_LoadModel 0x411d42 and G_SpawnEntity 0x409f0b

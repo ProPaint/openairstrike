@@ -50,7 +50,7 @@ Every claim carries one of:
 | Terrain vertices facing away from the sun | black (ambient not scaled by 255) | lit with the ambient colour |
 | `TerrainHeight` outside the map | reads one cell past the edge | clamps to the edge |
 | Frame timing | variable step, capped at 100 ms | fixed step, for determinism |
-| Collision rectangles | window pixels of the actual video mode, previous frame's matrices | same formulas on a fixed 800x600 viewport |
+| Collision rectangles | window pixels of the actual video mode, previous frame's matrices | same formulas on a fixed 800x600 viewport; the player's x clamp uses that same 4:3 view, whatever the window's aspect |
 | Entity reference of 0 or to a freed entity | crashes, or acts on whatever now occupies the slot | references carry a generation count; a builtin given a null or stale reference does nothing and returns 0 |
 | Uninitialised values (`MoveToNextWP` bank on straight stretches, `Shoot` muzzle offset without a model) | whatever is on the stack | interpolated table value; zero offset |
 | Texts compiled into the executable (Information pages, congratulations, rank names, labels) | in the exe | a data setup tool reads them from the user's own exe into a gitignored text file that ships with the game data; short generic labels have built-in English defaults so the game runs without it (issue 080) |
@@ -80,8 +80,14 @@ Every claim carries one of:
 | Script VM | `engine/src/script` | reproduces the reference trace of all 339 scripts |
 | World, builtins, collision, level runtime | `engine/src/game`, `apps/sim_tool` | all 85 builtins bound; 3 approximate (`Lightning`, `EndLevel`, `ShowTutorialHint`) pending render and UI; headless bot finishes mission 1 |
 | Rendering | `engine/src/render`, `apps/viewer` | meshes, terrain, water, particles, shadows, ground marks, sprites, dynamic lights, environment maps; choices in issue 070; not yet driven by the live world |
-| 2D layer, font, HUD | `engine/src/ui` | done against the early spec; being corrected to frontend.md |
+| 2D layer, font, HUD | `engine/src/ui` | follows frontend.md section 4 |
 | Audio | `engine/src/audio` | mixer and music decoder; not yet driven by the world's sound queue |
 | Game app | `apps/game`, `engine/src/input`, `engine/src/render/world_render*` | mission 1 plays on desktop and completes under the bot (M6); choices in issue 050; missing: lightning bolts, enemy health bars, particle damage, menus |
-| Menus, progression, save | | in progress |
+| Menus, progression, save | `engine/src/ui`, `engine/src/game/profile*`, `tools/extract_exe_texts.py` | all screens, state machine, profile file, touch mode; tested against a fake game; not yet wired into `as3d_game` (interface `GameHost` in `frontend.h`) |
 | Android gameplay | `android`, `apps/android_boot` | boot test only |
+| [050](issues/050-game-integration-choices.md) | game integration choices: draw order, controls, audio |
+| [070](issues/070-render-extras-choices.md) | shadows, lights and environment map choices |
+| [090](issues/090-touch-mode-additions.md) | touch-mode additions to the menus |
+| [091](issues/091-frontend-wide-screens-and-small-choices.md) | wide screens and small front end choices |
+| [092](issues/092-information-page-layout.md) | Information page layout; paragraph icons are a guess |
+| [120](issues/120-player-fire-at-screen-edge.md) | the on-screen bit is set when the rectangle overlaps the window, not when it is contained; corrects engine-behaviour 3.3, 5.1, 7.3, render-pipeline 9.3 and `Shoot` step 1; settles 034 (radius, pivot) |

@@ -125,8 +125,40 @@ TEST_CASE("ui text: drawing, alignment and markup produce the expected quads") {
     Font f{&m, &tex};
     CHECK(drawText(r, f, 0, 0, "AB", {}) == 0); // invalid texture draws nothing
     CHECK(r.quads().empty());
-    CHECK(wrapText(m, "aaa bbb ccc", measureText(m, "aaa bbb", 1.0f)).size() == 2);
-    CHECK(wrapText(m, "single", 1000.0f).size() == 1);
+    // Alpha font without its texture draws nothing either.
+    TextStyle al;
+    al.kind = FontKind::Alpha;
+    CHECK(drawText(r, f, 0, 0, "AB", al) == 0);
+    CHECK(numberWidth("123", 0.75f) == doctest::Approx(30.0f)); // 10, 21, 31 truncated: 10 + 10 + 10
+    CHECK(numberWidth("12", 1.0f) == doctest::Approx(28.0f));
+}
+
+TEST_CASE("ui colours and spec UVs") {
+    Color o = orange();
+    CHECK(o.r == doctest::Approx(1.0f));
+    CHECK(o.g == doctest::Approx(0.627f).epsilon(0.01));
+    CHECK(o.b == doctest::Approx(0.0f));
+    Color p = packed(0x80000060u);
+    CHECK(p.r == doctest::Approx(0x60 / 255.0f));
+    CHECK(p.a == doctest::Approx(0x80 / 255.0f));
+    CHECK(pulse(2, 0, 0).r == doctest::Approx(0.5f));
+    CHECK(pulse(2, 0, 0.25f).r == doctest::Approx(1.0f));
+    Renderer2D r;
+    r.begin(800, 600);
+    Texture2D t;
+    r.quadSpec(0, 0, 10, 10, 0.1f, 0.2f, 0.3f, 0.9f, &t, Color{}, Blend::Alpha);
+    const Quad& q = r.quads().back();
+    CHECK(q.s0 == doctest::Approx(0.1f));
+    CHECK(q.t0 == doctest::Approx(0.1f)); // top-left samples spec t1 = 0.9 -> v 0.1
+    CHECK(q.t1 == doctest::Approx(0.8f));
+    // Weapon icon table: 4 and 9 in the third row, 10..19 empty.
+    CHECK(weaponIconUv(4).t0 == doctest::Approx(0.18f));
+    CHECK(weaponIconUv(9).s0 == doctest::Approx(0.258f));
+    CHECK(weaponIconUv(7).s0 == doctest::Approx(0.0f));
+    CHECK(weaponIconUv(7).t0 == doctest::Approx(0.453f));
+    CHECK(weaponIconUv(12).empty());
+    CHECK(missileIconUv(1).s0 == doctest::Approx(0.516f));
+    CHECK(powerupIconUv(0).t1 == doctest::Approx(0.727f));
 }
 
 TEST_CASE("ui mapping: 4:3, 16:9, 20:9, 5:4 and portrait") {
@@ -210,10 +242,30 @@ TEST_CASE("ui hud: state to quads, typewriter and hint layout") {
     std::string many;
     for (int i = 0; i < 30; i++) many += "x^";
     CHECK(layoutHint(m, many).lines.size() == 16);
+    // Lines are cut only at '^' (no width wrapping) and clamped at 63 bytes.
     std::string longLine(60, 'W');
     HintLayout L3 = layoutHint(m, longLine + " " + longLine);
-    CHECK(L3.lines.size() == 6);
-    CHECK(L3.box.w <= 800.0f);
+    CHECK(L3.lines.size() == 1);
+    CHECK(L3.lines[0].size() == 63);
+    // Box geometry of frontend.md 3.15.
+    HintLayout L4 = layoutHint(m, "one^two^three^four^five");
+    CHECK(L4.box.h == doctest::Approx(18.0f * 5 + 80));
+    CHECK(L4.box.y == doctest::Approx(std::floor((600 - L4.box.h) / 2)));
+    CHECK(L4.okButton.x == 350.0f);
+    CHECK(L4.okButton.y == doctest::Approx(L4.box.y + L4.box.h - 60));
+    CHECK(L4.okButton.w == 100.0f);
+    CHECK(L4.okButton.h == 64.0f);
+    CHECK(L4.textTop == doctest::Approx(L4.box.y + 20));
+    // Braces are not measured.
+    HintLayout L5 = layoutHint(m, std::string(30, 'W') + "{" + std::string(10, 'W') + "}");
+    CHECK(L5.box.w == doctest::Approx(40.0f * 23 + 40));
+
+    // Typewriter sound: the first character is silent, spaces are silent.
+    CHECK_FALSE(typewriterTypes("Ab c", 0.9f, 1.05f)); // first character appears
+    CHECK(typewriterTypes("Ab c", 1.05f, 1.2f));        // 'b'
+    CHECK_FALSE(typewriterTypes("Ab c", 1.2f, 1.3f));   // ' '
+    CHECK(typewriterTypes("Ab c", 1.3f, 1.4f));         // 'c'
+    CHECK_FALSE(typewriterTypes("Ab c", 1.4f, 1.45f));  // nothing new
 }
 
 TEST_CASE("ui headless: text and HUD render non-empty, upright, in the right places") {
@@ -316,11 +368,61 @@ TEST_CASE("ui headless: text and HUD render non-empty, upright, in the right pla
         CHECK(l.inBox > 500);
         CHECK(rr.inBox > 500);
 
+        // Two-player power-up columns: player 1 at x 82, player 2 at 648 (frontend.md 4.3).
+        target.bind(); // readPixels unbinds the target
+        clear({0, 0, 0, 1}, true);
+        r.begin(800, 600);
+        st.players[0].powerups[2] = 1;
+        st.players[1].powerups[3] = 1;
+        drawHud(r, assets, st);
+        r.flush();
+        REQUIRE(target.readPixels(img));
+        CHECK(litPixels(img, bg, 82, 54, 152, 93).inBox > 300);
+        CHECK(litPixels(img, bg, 648, 54, 718, 93).inBox > 300);
+
+        target.bind();
+        clear({0, 0, 0, 1}, true);
         r.begin(800, 600);
         drawHint(r, assets, "Hint text^second line");
         CHECK(r.flush() > 0);
         REQUIRE(target.readPixels(img));
         Stats box = litPixels(img, bg, 200, 200, 600, 400);
-        CHECK(box.lit > 1000);
+        CHECK(box.lit > 300);
+        CHECK(box.inBox == box.lit);
+    }
+
+    // One player: missile frames are packed in type order (types 1 and 3 owned -> frames at
+    // y 73 and 114, nothing at 155), the selected one is brighter (drawn twice).
+    {
+        RenderTarget target;
+        REQUIRE(target.create(800, 600, 0));
+        target.bind();
+        clear({0, 0, 0, 1}, true);
+        r.begin(800, 600);
+        HudState st;
+        st.players[0].missiles[1] = 4;
+        st.players[0].missiles[3] = 9;
+        st.players[0].missileSelected = 3;
+        drawHud(r, assets, st);
+        r.flush();
+        Image img;
+        REQUIRE(target.readPixels(img));
+        Stats first = litPixels(img, bg, 10, 73, 80, 112);
+        Stats second = litPixels(img, bg, 10, 114, 80, 153);
+        Stats third = litPixels(img, bg, 10, 155, 80, 194);
+        CHECK(first.inBox > 300);
+        CHECK(second.inBox > 300);
+        CHECK(third.inBox == 0);
+        // Frame border brightness: the selected (second) frame's top-left corner row is brighter.
+        auto sum = [&](int x0, int y0) {
+            long s = 0;
+            for (int y = y0; y < y0 + 3; y++)
+                for (int x = x0; x < x0 + 60; x++) s += img.rgba[(static_cast<size_t>(y) * 800 + x) * 4];
+            return s;
+        };
+        CHECK(sum(12, 114) > sum(12, 73));
+        // Lives: two icons by default, nothing at the third slot.
+        CHECK(litPixels(img, bg, 15, 555, 79, 587).inBox > 200);
+        CHECK(litPixels(img, bg, 80, 555, 111, 587).inBox == 0);
     }
 }

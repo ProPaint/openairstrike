@@ -1,9 +1,11 @@
-// 2D layer, font and in-game HUD. Spec: docs/spec/render-pipeline.md 8 (2D drawing, font) and
-// docs/spec/engine-behaviour.md 11 (HUD, tutorial hints); the gaps are in docs/spec/issues/060-*.md.
+// 2D layer, fonts and in-game HUD. Spec: docs/spec/frontend.md (authority: section 2.8 for the
+// text routines, section 4 for the HUD, section 3.15 for the hint box) and
+// docs/spec/render-pipeline.md 8 (2D list, font metrics).
 //
 // Everything is drawn in the original's virtual 800x600 screen, origin top-left, y down.
-// UVs given to Renderer2D follow the engine convention of gfx.h: v = 0 is the TOP of the
-// texture, so a quad with (s0,t0)-(s1,t1) shows the texture upright.
+// UVs given to Renderer2D::quad follow the engine convention of gfx.h: v = 0 is the TOP of the
+// texture, so a quad with (s0,t0)-(s1,t1) shows the texture upright. The specs write UVs the
+// other way up (t = 1 is the top row); Renderer2D::quadSpec takes them as written there.
 //
 // Renderer2D collects quads on the CPU (begin/quad/rect/..., testable without GL) and
 // draws them in submission order on flush() (needs a current GLES 3.0 context).
@@ -11,6 +13,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -30,10 +33,21 @@ struct Color {
     float r = 1, g = 1, b = 1, a = 1;
 };
 inline Color grey(float v) { return {v, v, v, 1}; }
+// The original's packed colours, 0xAABBGGRR.
+inline Color packed(u32 v) {
+    return {static_cast<float>(v & 0xFF) / 255.0f, static_cast<float>((v >> 8) & 0xFF) / 255.0f,
+            static_cast<float>((v >> 16) & 0xFF) / 255.0f, static_cast<float>((v >> 24) & 0xFF) / 255.0f};
+}
+// Named colours of frontend.md (conventions paragraph).
+inline Color orange() { return packed(0xFF00A0FFu); }
+inline Color rust() { return packed(0xFF0030C0u); }
+// Pulse(f, phi) of frontend.md: grey level 0.5 + 0.5 sin(f pi mt - phi), alpha 1.
+Color pulse(float f, float phi, float mt);
 
-// 2D blend modes (render-pipeline.md 4.1): Alpha = SRC_ALPHA/ONE_MINUS_SRC_ALPHA, Add = ONE/ONE
-// (the alpha of the colour scales the intensity), Filter = DST_COLOR/ZERO.
-enum class Blend { Alpha, Add, Filter };
+// 2D blend modes (render-pipeline.md 4.1, frontend.md conventions): Alpha =
+// SRC_ALPHA/ONE_MINUS_SRC_ALPHA, Add = ONE/ONE (the alpha of the colour scales the intensity),
+// Filter = DST_COLOR/ZERO, Opaque = no blending (the original's mode 0).
+enum class Blend { Alpha, Add, Filter, Opaque };
 
 // ---------------------------------------------------------------------------
 // Virtual screen to framebuffer mapping.
@@ -88,6 +102,10 @@ public:
     bool add(const Quad& q);
     bool quad(float x, float y, float w, float h, float s0, float t0, float s1, float t1,
               const Texture2D* tex, Color c, Blend blend);
+    // Same, with UVs as the specs write them (t = 1 is the top row of the image, the quad's
+    // top-left corner samples (s0, t1)). Swapping s0/s1 or t0/t1 mirrors the picture.
+    bool quadSpec(float x, float y, float w, float h, float s0, float t0, float s1, float t1,
+                  const Texture2D* tex, Color c, Blend blend);
     // Whole texture at one texel per virtual pixel ("draw pic").
     bool pic(float x, float y, const Texture2D& tex, Color c, Blend blend);
     bool rect(float x, float y, float w, float h, Color c, Blend blend = Blend::Alpha);
@@ -112,7 +130,7 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// Font (render-pipeline.md 8.3)
+// Font (render-pipeline.md 8.3, frontend.md 2.8)
 // ---------------------------------------------------------------------------
 struct FontMetrics {
     u8 advance[256] = {};          // pen advance per byte, virtual pixels at scale 1
@@ -130,103 +148,157 @@ struct GlyphUv {
 };
 // UV rectangle of byte c: the left glyphW texels and the lower glyphH texel rows of its cell.
 GlyphUv glyphUv(const FontMetrics& m, unsigned char c);
-// True if byte c is drawn (has a glyph texture, non-zero advance, not a blank space).
+// True if byte c has a textured glyph (below drawableLimit, non-zero advance, not a space).
 bool glyphDrawable(const FontMetrics& m, unsigned char c);
 
 enum class Align { Left, Center, Right };
 
+// The two string routines of frontend.md 2.8.
+//   Additive: font.tga, blend ADD, the colour's alpha scales the intensity (the original forces
+//             alpha to 1; callers wanting a fade pass the grey level instead). Markup allowed.
+//             Bytes >= 0x80 draw a solid rectangle in the text colour (the original's missing
+//             font_rus.tga), advancing by the table.
+//   Alpha:    font_alpha.tga, blend ALPHA, the colour's alpha is honoured; no markup; bytes
+//             >= 0x80 draw nothing. Used for black text and shadows.
+enum class FontKind { Additive, Alpha };
+
 struct TextStyle {
     float scale = 1.0f;
-    Color color;              // alpha scales the intensity (additive blend); 1 = full
+    Color color;
     Align align = Align::Left;
     bool markup = false;      // '{' switches to white, '}' back to `color`; neither is drawn
+    FontKind kind = FontKind::Additive;
 };
 
-// Width of the string in virtual pixels (sum of advances, markup characters excluded).
+// Width of the string in virtual pixels (sum of advances). With markup the braces are not
+// counted (the original counts them, 6 px each; frontend.md 8 question 4: we centre exactly).
 float measureText(const FontMetrics& m, std::string_view text, float scale = 1.0f, bool markup = false);
 
 struct Font {
     const FontMetrics* metrics = nullptr;
-    const Texture2D* texture = nullptr;
+    const Texture2D* texture = nullptr;      // gfx\ui\font.tga
+    const Texture2D* alphaTexture = nullptr; // gfx\ui\font_alpha.tga
 };
 // Draws one line; (x, y) is the top of the glyph boxes, x is the left, centre or right edge
 // depending on style.align. Returns the number of quads added.
 int drawText(Renderer2D& r, const Font& font, float x, float y, std::string_view text,
              const TextStyle& style = {});
+// Text with the original's black alpha-font shadow at (+2, +2) drawn first.
+int drawTextShadowed(Renderer2D& r, const Font& font, float x, float y, std::string_view text,
+                     const TextStyle& style, float shadowAlpha = 1.0f);
+
+// The number routine (0x4258f0): whole 32x16 cells of font.tga, quad 32s x 16s, pen advance
+// 14s, x truncated after each glyph, blend ADD, left-aligned. Returns the quads added.
+int drawNumber(Renderer2D& r, const Font& font, float x, float y, std::string_view digits,
+               float scale, Color c);
+// Width drawNumber advances over `digits` (14 s per character, truncated per glyph).
+float numberWidth(std::string_view digits, float scale);
 
 // ---------------------------------------------------------------------------
 // Assets
 // ---------------------------------------------------------------------------
 struct UiAssets {
-    Texture2D font, mainbar, life, weapons, missiles, items, cursor1, cursor2;
+    Texture2D font, fontAlpha, mainbar, life, weapons, missiles, items, cursor1, cursor2, mcCursor;
     bool fontLoaded = false;
     int missing = 0; // textures that could not be loaded (their draws are skipped)
 
-    // Loads gfx\ui\*.tga and menu\cursor_*.tga from the VFS. Returns false only if the
-    // font is missing (nothing can be drawn without it).
+    // Loads gfx\ui\*.tga, gfx\mc_cur.tga and menu\cursor_*.tga from the VFS and keeps the VFS
+    // for texture() below. Returns false only if the font is missing (nothing can be drawn
+    // without it). The VFS must outlive this object.
     bool load(Vfs& vfs, std::string* error = nullptr);
     Font uiFont() const;
+
+    // Any other picture by game path (e.g. "menu\\mmenu_1.tga"), loaded on first use and
+    // cached; null if it cannot be loaded or no VFS was given (CPU-only tests). The first
+    // call for a path needs a current GL context.
+    const Texture2D* texture(std::string_view path) const;
+
+private:
+    Vfs* vfs_ = nullptr;
+    mutable std::map<std::string, std::unique_ptr<Texture2D>> cache_;
 };
 
 // ---------------------------------------------------------------------------
-// HUD
+// HUD (frontend.md 4)
 // ---------------------------------------------------------------------------
 constexpr int kMissileTypes = 5;
-constexpr int kPowerupKinds = 4;
+constexpr int kPowerupSlots = 16;
+constexpr int kPowerupIconKinds = 4;  // slots 4..15 have a frame but no icon
+constexpr int kWeaponSlots = 20;      // entries 10..19 of the icon table have no picture
 constexpr float kFullHealth = 400.0f; // the health bar scale
 
 struct HudPlayer {
-    float health = kFullHealth;
-    int lives = 3;
-    std::int64_t score = 0;          // as shown: level score plus banked campaign score
-    int weapon = 0;                  // index into weapons.tga (4 columns of 64x34 cells)
-    int weaponLevel = 0;             // upgrade level of the weapon, 0 = none (drawn as pips)
-    int missileSelected = 0;
-    int missiles[kMissileTypes] = {-1, -1, -1, -1, -1}; // rounds per type, -1 = type not owned
-    int powerups[kPowerupKinds] = {0, 0, 0, 0};         // counts, 0 = not owned
-    int stars = 0;
+    float health = kFullHealth;       // entity health; the fill is health / 400 clamped to [0, 1]
+    int lives = 2;                    // p_lives; at most 5 icons are drawn
+    std::int64_t score = 0;           // as shown: ftol(p_scores) + banked score
+    int weapon = 0;                   // p_weapon, index into the icon table (4.4)
+    int missiles[kMissileTypes] = {}; // rounds per type; types with 0 are not shown
+    int missileSelected = 0;          // type index
+    int powerups[kPowerupSlots] = {}; // count per slot (slot = kind); 0 = not shown
+    int powerupSelected = 0;          // slot index
 };
 
 struct HudState {
     int playerCount = 1; // 1 or 2
     HudPlayer players[2];
-    float bossHealth = -1.0f;   // 0..1 fraction, negative = no boss bar
-    std::string levelName;      // typewriter text
-    float levelTime = -1.0f;    // seconds since the level started; negative = hide the typewriter
-    std::string message;        // cheat message and similar
+    std::string levelName;      // typewriter text (the level's `name`)
+    float levelTime = -1.0f;    // the level clock (stops while paused); typewriter tau = clock - 1
+    std::string message;        // cheat message
     float messageAge = -1.0f;   // seconds since it was posted; negative or >= 3 = hidden
+    bool mouseCursor = false;   // MouseControl = 1 and no menu cursor: draw gfx\mc_cur.tga
+    float mouseX = 0, mouseY = 0;
 };
 
-// Visible part and intensity of the level-name typewriter (starts 1 s in, 8 characters per
-// second, holds 3 s, fades over 1 s).
+// Icon UVs (spec convention, t = 1 at the top) of the HUD atlases, frontend.md 4.4.
+struct SpecUv {
+    float s0 = 0, t0 = 0, s1 = 0, t1 = 0;
+    bool empty() const { return s0 == s1 || t0 == t1; }
+};
+SpecUv weaponIconUv(int weapon);   // empty for 10..19 and out of range
+SpecUv missileIconUv(int type);    // 0..4
+SpecUv powerupIconUv(int kind);    // 0..3
+
+// Visible part and grey level of the level-name typewriter (frontend.md 4.5): starts 1 s in,
+// 8 characters per second, holds 3 s, fades over 1 s.
 struct Typewriter {
     std::string text;
     float alpha = 0;
+    int shown = 0; // characters shown (0 = nothing)
 };
 Typewriter typewriterText(std::string_view name, float levelTime);
+// True if `sounds\type.wav` should play when the level clock moves from tPrev to tNow: the
+// number of shown characters changed and the newest one is not a space (the first character
+// makes no sound).
+bool typewriterTypes(std::string_view name, float tPrev, float tNow);
 float messageAlpha(float age); // 1 until 2 s, fades to 0 at 3 s
 
-// Draws the whole HUD (one or two players by state.playerCount) plus the level name and
-// message lines. Call between Renderer2D::begin() and flush().
+// Draws the whole HUD (one or two players by state.playerCount) plus the level name, message
+// line and mouse-control cursor. Call between Renderer2D::begin() and flush().
 void drawHud(Renderer2D& r, const UiAssets& assets, const HudState& state);
 
 // ---------------------------------------------------------------------------
-// Tutorial hint box (ShowTutorialHint, engine-behaviour.md 11.3)
+// Tutorial hint box (frontend.md 3.15). The interactive box is a front-end screen (menu.h);
+// these functions hold its layout and drawing so the HUD viewer can show it too.
 // ---------------------------------------------------------------------------
 struct RectF {
     float x = 0, y = 0, w = 0, h = 0;
+    bool contains(float px, float py) const { return px >= x && px < x + w && py >= y && py < y + h; }
 };
 struct HintLayout {
-    std::vector<std::string> lines; // at most 16
+    std::vector<std::string> lines; // split at '^' only, at most 16, each at most 63 bytes
     RectF box;                      // width max(360, widest + 40), height max(160, 18 n + 80)
-    RectF okButton;
-    float textTop = 0;              // y of the first line
+    RectF okButton;                 // (350, top + H - 60, 100, 64)
+    float textTop = 0;              // y of the first line (top + 20)
 };
-// Lines are split on '^'; a line wider than `maxLineWidth` is word-wrapped.
-HintLayout layoutHint(const FontMetrics& m, std::string_view text, float maxLineWidth = 680.0f);
+constexpr float kHintOpenSeconds = 0.3f;
+HintLayout layoutHint(const FontMetrics& m, std::string_view text);
+// The panel and text at box time u (seconds since it opened): while u < 0.3 only the growing
+// fill is drawn. Returns true once the opening animation is over.
+bool drawHintPanel(Renderer2D& r, const UiAssets& assets, const HintLayout& layout, float boxTime);
+// The OK picture of the box (right 100 texels of menu\apply_ok_1.tga), highlighted with
+// apply_ok_2.tga in Pulse(2, 0) when focused.
+void drawHintOk(Renderer2D& r, const UiAssets& assets, const HintLayout& layout, bool focused, float mt);
+// Fully opened box with its OK button (for previews).
 void drawHint(Renderer2D& r, const UiAssets& assets, std::string_view text);
-// Greedy word wrap of one paragraph.
-std::vector<std::string> wrapText(const FontMetrics& m, std::string_view text, float maxWidth,
-                                  float scale = 1.0f);
 
 } // namespace as3d::ui
