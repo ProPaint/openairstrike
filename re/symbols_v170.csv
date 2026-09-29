@@ -495,3 +495,7 @@ address,name,subsystem,description,confidence,evidence
 00440960,sin,crt,sin,high,builtin sin calls it
 00440a50,sqrt,crt,square root,medium,called for vector length
 00440b70,cos,crt,cos,high,builtin cos calls it
+00440e40,floor,crt,floor (double),medium,result truncated to the path sample index in G_EvalPath and G_RotateToPath
+00440b1a,atan2,crt,atan2 of the two x87 operands,medium,VectorToAngles yaw and pitch; builtin vec_toyaw
+00440c9c,exp,crt,exponential,medium,V_UpdateQuake decay exp(-2t)
+00440d30,acos,crt,arc cosine,medium,G_PathSegmentYaw (normalised x component to degrees)

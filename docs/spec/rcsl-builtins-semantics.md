@@ -770,7 +770,8 @@ origin fields even for attached entities, whose origin is overwritten at the nex
   different heights (for example a ground turret aiming at the player at z ≈ 100);
   reproduce it.
 - Edge cases: D1 for `target` (it reads the target's fields directly). Target at self's
-  exact position: local = 0, D6 gives heading error −90 and pitch error −90 (pitch 90).
+  exact position: local = 0, D6 gives (−270, 0, −90), i.e. heading error −90 and, after
+  wrapping, pitch error +90.
 - Corpus: 23 / 23 / 0; `boss1\cannon_lighting.scr` pc 36 (`RotateTo($player, 1)`),
   `boss2\pcanproj.scr` pc 28 (`RotateTo($player, 3)`). Targets are `$player` at 20 sites
   and a script variable at 3 (VERIFIED-DATA).
@@ -1392,3 +1393,85 @@ compared **unsigned**, so negative values fail the range test (VERIFIED-CODE 0x4
   durations 0.1–7 s, or a script value such as `self[37]` (the waypoint delay, 26 sites
   take the timeout from memory). Example `boss1\boss1.scr` pc 268.
 - Priority: P0.
+
+---
+
+## Notes for implementers (most important first)
+
+1. **Nested handlers share VM state.** `create`, `Shoot`, `Damage`, `RadialDamage`,
+   `TraceLineDamage`, `Lightning`, `callback`, `AttachCallback`, `ParentCallback` and
+   `RespawnPlayer` run other entities' handlers synchronously (D3). The return register,
+   the latent timeout, `other` and `cb_*` are shared, so the value a CALL receives from
+   these builtins can come from the nested script (for `create` this is documented
+   behaviour the shipped scripts live with).
+2. **`Shoot` returns nothing**, fires only when the shooter is on screen and not leaving,
+   takes the muzzle from the shooter's last-think transform, and scales enemy projectile
+   damage by g_damage_factor after the projectile's `init` and first `main` (§D).
+3. **Orientation**: models face row 1 of the axis (+y at zero angles); field 16 is the
+   heading, field 14 the pitch (positive = nose down), field 15 the roll (D7). All
+   direction-to-angle conversions subtract 90° from the heading (D6).
+4. **`RotateTo` uses a defective matrix inverse** (D8) and reports arrival only when the
+   error was already below 0.1° at the start of the step. Homing missiles and turrets
+   depend on both.
+5. **Integer arguments of the G_ builtins are truncated** and range-tested unsigned.
+6. **Enemy targeting keys on class 2.0**; `RadialDamage` damage grows with distance from
+   the centre; `TraceLineDamage` picks its victims by the caller's touch filter; the lock
+   marker of `LockTarget` is never read.
+7. **Entity references are raw slot addresses** (D1, D2); decide on a policy for 0 and
+   stale references and keep the original's behaviour where the shipped scripts can
+   observe it (a stale homing target, a player reference after the final death).
+8. **Linked pool entities** (`AttachEntity`, muzzle flashes) are not reached by the
+   recursive child builtins and keep their parent's root alive until they are removed.
+
+## Open questions
+
+1. `MoveToNextWP` bank value when the heading does not change between two path samples:
+   the original leaves an uninitialised stack value (it only matters for the 7 scripts that
+   set field 25). Proposed: use the interpolated bank table value. Low impact.
+2. The per-sample flag byte (+0x44 of a sound registry record) that makes
+   `StartSound` play unpositioned: which samples have it (GUESS: UI samples). Sound
+   package.
+3. Whether looping channels (`StartLoopingSound`, +0x73) are stopped when their entity is
+   freed. Irrelevant for the shipped scripts (never started).
+4. `setskin` result for an empty or missing texture name (unused builtin).
+5. The definition `item_help` (objects/items.obj) names `scripts\items\i_help.scr`,
+   which is not shipped; all ten placements (all in mission 1) override the script
+   (VERIFIED-DATA). The object precache and the object builder create a thread from the
+   definition script first; what the v1.70 loader does with the missing file was not
+   traced (script loader package). An implementation must tolerate it, as it is P0.
+6. Policy for 0 and stale entity references (D1, D2): an engine decision; the original
+   crashes on 0 and acts on the slot's current occupant when stale.
+7. `ShowTutorialHint` text formatting of `{…}` spans (UI package).
+
+## Corrections to other specs
+
+Listed here, not applied (WP-23 does not edit other specs).
+
+| Spec, place | Says | Correct | Evidence |
+|---|---|---|---|
+| engine-behaviour.md §8.1 step 8 | `Shoot` "returns the projectile handle" | `Shoot` never writes the return register; its CALL receives a stale value or whatever a nested handler left | no store to 0x1fa7dfc in 0x41b0d0..0x41b54f |
+| engine-behaviour.md §8.1 steps 4–6 | init, then damage scaling, then two-player bits | Order is: projectile `init`, direct children's `init` (not recursive), one think, damage scaling, two-player index and bits, flash; during the projectile's `init` and first `main` its player index is still 0 | 0x41b273, 0x41b36a, 0x41b374, 0x41b3a5 |
+| engine-behaviour.md §8.2 | `G_GetUpgrade`/`G_SetUpgrade` "round their float arguments to nearest" | They truncate: the control word is set to round-toward-zero (OR 0x0C00) around each FISTP; the same holds for `G_AddPowerUp` and `G_AddMissiles`. rcsl-builtins-table.md (`int` = truncated) is right | 0x41c3d0, 0x41c440, 0x41c210, 0x41c2f0 |
+| engine-behaviour.md §8.2 | "the native code sends `callback(player, 2, id, 0)`" on first pick-up | The weapon pick-up scripts send it; no native code dispatches a `callback` entry (the entry is read only by the three callback builtins and the unused kind-4 path of 0x41a200) | `items\ammo\i_*.scr` pc 19 (VERIFIED-DATA); scan of reads of script +0x74 |
+| engine-behaviour.md §8.3 | `G_UseMissile`: "otherwise selects the next type that has missiles and returns 0" | With an empty selected count it returns 0 and changes nothing; the next type is selected when a use empties the count (that call returns 1). Same for power-ups | 0x40b220, 0x40b150 |
+| engine-behaviour.md §8.4 and rcsl-builtins-table.md | `LockTarget` skips targets "already locked (runtime bit 0x100)"; uses "self's player" | It tests FL_NONTARGET (0x100 in field 3) instead; runtime bit 0x100 is set but never read; the "ahead" test uses the player of the **candidate's** player index | 0x40c06a..0x40c07a, 0x40c0a7 |
+| engine-behaviour.md §4.3 | field 15 is pitch (nose up positive), field 14 is roll | With models facing row 1 (+y), field 14 is pitch (positive = nose down) and field 15 is roll/bank; field 16 heading is right (D7) | D6 subtracts 90°; player.scr field 14 = 30·vy/150; `MoveToNextWP` bank into field 15 |
+| rcsl-builtins-table.md `RotateTo` | done when "all requested axes arrived within this step" | An axis counts as arrived only if its error was below 0.1° at the start of the call; a snap within one step is reported on the next call. The local frame uses a defective inverse (D8) | 0x41b88f..0x41b8a3, 0x41e7e5 |
+| rcsl-builtins-table.md and hmap.md `RotateToNextWP` | turns toward "the path direction" / "the path heading" | Turns toward the position of the next waypoint (end of the current Bézier segment) in 2D; a snap within one step returns not-done | 0x406194..0x4061cf |
+| rcsl-builtins-table.md `RadialDamage` | which operand divides which "is not settled" | distance / radius (DE F9 = FDIVP ST(1),ST(0), ST(1) holds the distance); engine-behaviour.md §6.2 is right | 0x41b6d5, 0x41b701 |
+| rcsl-builtins-table.md `MoveToNextWP` | "when a new waypoint is reached, stores its delay into field 37" | Also: field 37 is set to 0 on every call that does not reach a waypoint, heading and bank are not updated on the call that reaches one, and a looping path's wrap reports no waypoint | 0x4060a8..0x4060d0, 0x406037 |
+| rcsl-vm.md "Event dispatch", `init` row | projectiles created by `Shoot` go through 0x404fa0 | `Shoot` runs the projectile's `init` through 0x41a200 (kind 1) and its direct children's with an inline loop: the time since damage is not set to 2.0 and the children do not take the parent's player index | 0x41b273..0x41b36a |
+| wpn.md `speed` | meaning GUESS | Initial projectile speed: `Shoot` sets velocity = normalised direction × speed; 0 leaves the projectile at rest for its script to move | 0x41b249..0x41b270 |
+| engine-behaviour.md §6.2 `Lightning` | "every enemy with class 2 and bit 0x08" | Also requires field 4 = 0; does not test the removed bit | 0x41c060..0x41c091 |
+
+## Symbols added to `re/symbols_v170.csv`
+
+C runtime helpers identified while reading the builtins, named like the existing `sin`,
+`cos`, `sqrt` rows: 0x440e40 `floor`, 0x440b1a `atan2`, 0x440c9c `exp`, 0x440d30 `acos`
+(subsystem `crt`, confidence medium: identified by use; see the CSV evidence column). All builtins and engine helpers used here already had names.
+
+## Changelog
+
+- 1.0 (WP-23): first version. All 85 builtins specified; shared definitions D1–D9;
+  priorities from a mission-1 reachability scan; corrections to engine-behaviour.md,
+  rcsl-builtins-table.md, rcsl-vm.md, hmap.md and wpn.md listed, not applied.
