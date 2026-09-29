@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive launcher icon (minSdk 26: no legacy PNG mipmaps needed). Our own vector drawing.
+  tools/android_build.sh can put a foreground rendered from the owner's game data in a
+  gitignored resource directory that overrides this file (AS3D_ICON_FROM_DATA).
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>
