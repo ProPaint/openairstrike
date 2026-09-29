@@ -906,3 +906,489 @@ origin fields even for attached entities, whose origin is overwritten at the nex
   `TerrainHeight(self.origin.x, self.origin.y)` to land debris or bombs
   (`bonuses\abomb\abomb_proj.scr` pc 21).
 - Priority: P0.
+
+---
+
+## D. Weapons, targeting and damage
+
+Target classes: native code recognises enemies by class (field 2) = 2.0 exactly; the
+`enemy` keyword of a definition sets it (engine-behaviour.md §3.1). Players are found
+through the two player records, not by class.
+
+### 46. `Shoot` — 0x41b0d0
+
+- Signature: `weapon` string (a weapon block name from `weapons\*.wpn`), `point` string (a
+  tag name in self's model, or `origin`), `dir` vec (direction, any length). Returns:
+  **none** (the return register is not written; see D3 for what the CALL receives).
+  Latent: no.
+- Behaviour (S = self's entity):
+  1. If S's on-screen bit (+0x1E & 0x08) is clear, or S's activation state (+0x1A) is 2
+     (leaving), return: off-screen shooters cannot fire. VERIFIED-CODE 0x41b0db..0x41b0e9.
+  2. Muzzle M (0x4046a0): look `point` up in S's model (0x410380): the name `origin` gives
+     (0, 0, 0); a found tag gives its position T; a tag the model lacks gives (0, 0, 0) and
+     logs `Tag '%s' not found in model '%s'`. If field 32 (scale) > 0.01, T ×= scale. M =
+     S's base origin (fields 41–43) + T.x·row0 + T.y·row1 + T.z·row2 of S's axis (fields
+     44–52). Base origin and axis are those of S's **last think**, so movement done by the
+     current `main` before `Shoot` is not reflected (one frame of lag). VERIFIED-CODE.
+  3. W = the first weapon block with this exact name (0x40c990). Unknown: log `ERROR:
+     Unknown weapon '%s'.` and return (no projectile, no flash). VERIFIED-CODE.
+  4. P = a new pool entity from W's `missile` object definition, built at (0, 0, 0)
+     (0x409ba0: no ground snapping, no difficulty scaling, active, player index 0). If
+     W has no valid missile definition, skip to step 11. VERIFIED-CODE.
+  5. P's class (field 2) = 4.0; P's origin and previous origin (fields 5–7 and 11–13) =
+     M; P's velocity (fields 17–19) = the vector `dir` points to. VERIFIED-CODE.
+  6. Normalise P's velocity (left as is if zero) and set P's angles (fields 14–16) =
+     D6(velocity) = (−pitch, 0, yaw − 90), so P's nose (row 1, D7) points along `dir`.
+     VERIFIED-CODE 0x41b1c1, 0x41b1ce.
+  7. If P is a model (field 38 = 0): with P's model box minimum mn (0x411e20), P's origin
+     += velocity × (−mn.y): the model is pushed forward so that its rear end sits at the
+     muzzle. VERIFIED-CODE 0x41b1d3..0x41b243.
+  8. P's velocity ×= W's `speed` (units per second; a weapon without `speed` has 0, so its
+     projectile starts at rest and its script supplies the motion). VERIFIED-CODE.
+  9. Run P's `init` handler (0x41a200 kind 1), then the `init` handler of each **direct**
+     definition child of P that has a thread (not recursive, and the children do not take
+     P's player index here), then one think of P (as `create` step 8; P's `main` runs).
+     VERIFIED-CODE 0x41b273..0x41b36a.
+  10. Difficulty: single-player: if self is not player 1's entity (`self` ≠ the `player`
+      global of index 0), P's field 35 (damage) ×= g_damage_factor. Two-player: scaled
+      unless self is either player's entity. The scaling happens **after** P's `init` and
+      first `main` (step 9). VERIFIED-CODE 0x41b374..0x41b3a3.
+  11. Two-player mode only: if S is player 1's entity: P's player index = 0 and P's field 3
+      = float(ftol(field 3) | 0x2000); if S is player 2's: index 1 and | 0x4000; otherwise P's
+      player index = S's. In single-player mode P keeps player index 0. VERIFIED-CODE
+      0x41b3a5..0x41b449. (Consequence: during P's `init` and first `main` in step 9, `player`
+      and the `p_*` globals always refer to player 1.)
+  12. F = a new pool entity from W's `flash` definition at (0, 0, 0); if W has one: F's
+      parent (+0x08) = S, F's tag (+0x0C) = the `point` string, F's `abs` flag = 1, F's
+      active bit set, F.+0x11 = 1, and the root of S's parent chain (S itself for a root)
+      gets +0x12 += 1 (a linked pool entity, see family B). Run F's `init` handler. F is
+      not thought now; its position comes from the tag at its first think.
+      VERIFIED-CODE 0x41b449..0x41b547.
+- Consequences: the projectile's script moves it with `move(&self.velocity)` and deals
+  damage in its `touch` handler with `Damage(other, self.damage)`; that damage is scaled by
+  g_damage_factor again inside `Damage`, so enemy fire scales with the factor squared and
+  player fire with the factor once (engine-behaviour.md §6.2). The flash is not removed
+  with S; its own script removes it, and until then S cannot be freed.
+- Edge cases: two-player mode with a weapon whose missile definition is missing: the
+  original writes through a null pointer in step 11 (crash); guard it (no shipped weapon
+  lacks a missile, wpn.md). A shooter without a model (handle 0; model table entry 0 is
+  never filled, 0x411e70): for any tag other than `origin` the lookup leaves T unset, so
+  the original uses stack garbage (VERIFIED-CODE 0x410380); use T = (0, 0, 0). `dir` of
+  zero length: velocity 0,
+  angles (−270, 0, −90) by D6 (pitch 270 for z = 0).
+- Corpus: 73 / 379 / 0. Weapon names are string literals at every site (29 use string
+  offset 0), tags come from string literals or string variables, `dir` is a script
+  vector, usually `player.origin − self.origin` plus a lead such as (0, 32, 32)
+  (VERIFIED-DATA). Examples `boss2\boss.scr` pc 57 (`Shoot("b2_wpn_missile",
+  "tag_left_cannon", dir)`), `btrs\btr\btr_guns.scr` (aim at the player with 32 units of
+  lead in y and z).
+- Priority: P0.
+
+### 47. `Damage` — 0x41b550
+
+- Signature: `target` entity, `amount` float (hit points). Returns: none (D3). Latent: no.
+- Behaviour: 1. T = raw target (D1). 2. a = amount × g_damage_factor (rounded to float).
+  3. attacker = D4. 4. G_Damage(T, a, attacker) (D5), which runs T's `damage` handler
+  synchronously. VERIFIED-CODE 0x41b550.
+- Edge cases: D1 (0 crashes the original). Damage to a dead (field 4 ≠ 0) or frozen
+  target does nothing, not even the handler. A negative amount heals and still runs the
+  handler. Damage to self from inside self's `damage` handler recurses (the scripts do not
+  do this).
+- Corpus: 77 / 93 / 0. Targets: `$other` 76 (touch handlers), `$self` 16 (a ramming
+  helicopter damages itself by 100–300 in its `touch` handler, `helics\helic1\bot1.scr`
+  pc 28), `$player` 1 (`boss2\boss.scr` pc 50, `Damage($player, 200 ×
+  frametime)`: a per-second beam). Amounts: `self.damage` (field 35) at 60 sites, fractions
+  of it (/ 7, / 10, / 3) or literals 100–400 (VERIFIED-DATA). Example
+  `weapons\bpg\bpg_proj.scr` pc 3.
+- Priority: P0.
+
+### 48. `RadialDamage` — 0x41b5d0
+
+- Signature: `center` vec (world position), `radius` float (world units), `damage` float
+  (hit points **per second** at the rim). Returns: none. Latent: no.
+- Behaviour: for each entity E of the live list (newest first; the next pointer is read
+  after E is processed): skip E if removed, if class ≠ 2.0 or if health (field 34) ≤ 0.
+  d = |E.origin − center| (3D, rounded to float). If d ≤ radius (or the comparison is
+  unordered): G_Damage(E, frametime × damage × (d / radius) × g_damage_factor, attacker D4).
+  VERIFIED-CODE 0x41b5d0..0x41b744 (the division at 0x41b6d5/0x41b701, opcode DE F9,
+  divides the distance by the radius).
+- Consequences: damage is 0 at the centre and maximal at the rim: the shipped callers are
+  expanding shock waves whose radius grows each frame (`effects\wave.scr`: radius =
+  24 × scale, scale growing over 0.6 s), so the ring front does the damage. Players are
+  never hit. No on-screen test, no FL_NONTARGET test; frozen entities are protected by
+  G_Damage.
+- Edge cases: radius 0 with an entity exactly at the centre gives 0/0 = NaN damage
+  (health becomes NaN); guard it. Negative radius: nothing is in range.
+- Corpus: 4 / 4 / 0; `effects\wave.scr` pc 14 (`RadialDamage(&self.origin, r, 100)`),
+  `effects\p_wave.scr` (4000), `effects\wave_big.scr` (1000), one at 40.
+- Priority: P0.
+
+### 66. `TraceLine` — 0x41bd40
+
+- Signature: `from`, `to` vec (world positions), `mask` int (0x2 players, 0x1 enemies).
+  Returns: entity reference or 0.0. Latent: no.
+- Behaviour:
+  1. Project `from` and `to` to screen space (D9).
+  2. If ftol(mask) & 2: for each player record i < player count, in order: if the player
+     entity's field 4 = 0 and the segment crosses its screen rectangle (D9), return that
+     player's reference. No on-screen or health test.
+  3. If ftol(mask) & 1: for each live-list entity, newest first: not removed, on-screen bit
+     set, class 2.0, health > 0 and the segment crosses its rectangle: return its reference.
+  4. Return 0.0.
+  VERIFIED-CODE 0x41bd40..0x41be96.
+- Edge cases: the player entity pointer of a record is read without a test (GUESS: always
+  set during play).
+- Corpus: none. Priority: P2.
+
+### 67. `TraceLineDamage` — 0x41bea0
+
+- Signature: `from`, `to` vec (world positions), `damage` float (hit points per call).
+  Returns: none (D3). Latent: no.
+- Behaviour:
+  1. Project both points (D9).
+  2. If self's touch filter (+0x5B) is exactly 2 (TOUCH_PLAYER): for each player record in
+     order whose entity has field 4 = 0 and whose rectangle the segment crosses:
+     G_Damage(player, damage, −1).
+  3. If the touch filter is exactly 1 (TOUCH_ENEMIES): for each live-list entity, newest
+     first, that is not removed, on screen, class 2.0, a model (field 38 = 0), without
+     FL_POINT_COLLISION (0x1000 in ftol(field 3)), with field 4 = 0, and crossed by the
+     segment: G_Damage(E, damage, −1).
+  4. Any other filter (0 or 3): nothing.
+  VERIFIED-CODE 0x41bea0..0x41bff4. The damage is not scaled by frametime or by
+  g_damage_factor and gives no score (attacker −1).
+- Corpus: 2 / 2 / 0: the big laser beams, `weapons\laser\biglaser_proj.scr` pc 27
+  (`TraceLineDamage(&self.origin, (player.x, player.y + 500, player.z), self.damage)`, once
+  per projectile, then a 0.6 s fade) and its enemy twin in `weapons_enemy\laser\`.
+- Priority: P0.
+
+### 68. `Lightning` — 0x41c000
+
+- Signature: none (the one caller also writes t0 and t1; they are ignored,
+  rcsl-builtins-table.md). Returns: none (D3). Latent: no.
+- Behaviour: for each live-list entity E (next pointer read before E is processed):
+  1. Skip unless E's field 4 = 0, E's on-screen bit is set and class = 2.0. The removed bit
+     is **not** tested.
+  2. d = |E.origin − self.origin| (3D, float); skip unless d ≤ 500.
+  3. Queue a lightning render record from self's origin to E's origin (render flags
+     0x1000, drawn as in render-pipeline.md §7.1).
+  4. G_Damage(E, self's field 35 × frametime × g_damage_factor, −1).
+  VERIFIED-CODE 0x41c000..0x41c15f (500.0 read from 0x44bc68).
+- Consequences: called every frame from `main`, so field 35 is damage per second. A
+  removed enemy that has not been freed yet (same frame) can still be struck and drawn.
+- Corpus: 1 / 1 / 0; `bonuses\lightingbomb\lightingbomb_proj.scr` pc 6 (each frame, while
+  the bomb falls).
+- Priority: P0.
+
+### 61. `LockTarget` — 0x41bb40
+
+- Signature: none. Returns: entity reference or 0.0. Latent: no.
+- Behaviour (0x40c020):
+  1. best = 9999, choice = none.
+  2. For each live-list entity E, newest first: skip unless not removed, class = 2.0,
+     FL_NONTARGET (0x100) clear in ftol(field 3), on-screen bit set, field 4 = 0 and health
+     > 0.
+  3. P = the entity of the player record selected by **E's** player index (+0x77), not
+     self's. v = E.origin − P.origin; L = |v|; normalise v.
+  4. If v.y ≥ 0.3 (E lies ahead of the player, within about 72° of the scroll direction)
+     and L < best: best = L, choice = E.
+  5. If a choice was made: set its runtime bit 0x100 and return its reference; else 0.0.
+  VERIFIED-CODE (constants 9999, 0.3 read from the binary).
+- Consequences: runtime bit 0x100 is written but never read anywhere in the executable
+  (VERIFIED-CODE, scan of the export), so several missiles can lock the same target. Map
+  objects in two-player mode have a random player index, so the "ahead" test uses that
+  player.
+- Edge cases: the player entity pointer is read without a test.
+- Corpus: 3 / 3 / 0; the heat-seeking missiles (`weapons\missile\p_heatmis.scr` pc 95,
+  `p_heatmis_big.scr`, `p_missile_mad.scr`), which then steer with `RotateTo(target, 3)`
+  each frame while `IsValidTarget(target)` holds.
+- Priority: P0.
+
+### 62. `IsValidTarget` — 0x41bb60
+
+- Signature: `ent` entity. Returns: 1.0 or 0.0. Latent: no.
+- Behaviour: return 1.0 if the reference is non-zero, the entity's field 4 = 0 and its
+  field 34 > 0, else 0.0. The fields are read through the reference itself (no
+  dereference), and the removed bit is not tested. VERIFIED-CODE.
+- Edge cases: 0.0 gives 0.0 safely. A stale reference (D2) reads whatever the slot holds:
+  a freed enemy keeps field 4 = 1.0 or health ≤ 0 in the common case (killed), but an
+  enemy removed alive (left the screen) stays "valid" until the slot is reused.
+- Corpus: 3 / 4 / 0; `weapons\missile\p_heatmis.scr` pc 13, 46.
+- Priority: P0.
+
+### 81. `FreezeHealth` — 0x41c530
+
+- Signature: `ent` entity, `on` float. Returns: none. Latent: no.
+- Behaviour: on ≠ 0: set runtime bit 0x10 of the raw entity; on = 0 (or −0): clear it.
+  VERIFIED-CODE. While set, G_Damage ignores the entity (D5) and the touch pass does not
+  offer it as an enemy candidate (engine-behaviour.md §5.2). Not recursive.
+- Edge cases: D1. NaN counts as non-zero (sets the bit).
+- Corpus: 2 / 6 / 0; `boss1\boss1.scr` pc 14 / 57 (boss parts invulnerable until their
+  phase), `boss3\boss3.scr`.
+- Priority: P1.
+
+---
+
+## E. Effects, lights, camera and sound
+
+No builtin creates particles directly: particle systems are attached through object
+definitions (`attach` of a `.ps` name) and switched with `AttachActivate` /
+`AttachDeactivate`, or come with objects made by `create`.
+
+### 59. `PlaceLight` — 0x41bb20
+
+- Signature: `pos` vec (world position), `color` vec (RGB multipliers, values above 1
+  allowed), `radius` float (world units). Returns: none. Latent: no.
+- Behaviour: if fewer than 32 dynamic lights are queued this frame, append one (0x40dd00)
+  with the three values copied; otherwise ignore the call. The list is cleared at the
+  start of each frame (0x40e690) and used when models are lit (render-pipeline.md §2.4:
+  contribution (0.7·n·l + 0.3) × (radius − d) / radius × color for d ≤ radius).
+  VERIFIED-CODE.
+- Consequences: a light lasts one frame, so scripts call it from `main` every frame; while
+  the game is paused `main` does not run and script lights disappear (VERIFIED-CODE,
+  0x405a60).
+- Corpus: 12 / 23 / 0; `effects\campfire.scr` pc 3 (`PlaceLight(&self.origin, c, 200)` with
+  c = (2.5, 2, 0) × a random flicker), explosion lights with radius 150 + t, the player's
+  weapons (`player\player.scr`), radii up to 6000 (VERIFIED-DATA).
+- Priority: P0.
+
+### 60. `CameraQuake` — 0x41bb90
+
+- Signature: `amount` float (amplitude A). Returns: none. Latent: no.
+- Behaviour: quake amplitude (0x1ebe5f0) = A; quake time left (0x1fdb2d4) = 3.0 s; quake
+  time (0x1ebe654) = 0. A later call restarts the quake with the new amplitude.
+  VERIFIED-CODE. The camera applies it for 3 s of unpaused time (engine-behaviour.md §9.4,
+  0x40c150: yaw 2A·e^(−2t)·sin(24t), roll and field of view similar).
+- Corpus: 11 / 12 / 0; amplitudes 0.3, 0.5, 0.6, 1.0, 1.4 (VERIFIED-DATA); `boss1\boss1.scr`
+  pc 201 (1.4), explosion scripts (`effects\expl1.scr`).
+- Priority: P0.
+
+### 63. `StartSound` — 0x41bc50
+
+- Signature: `file` string (a sample path, e.g. `sounds/expl3.wav`). Returns: none.
+  Latent: no.
+- Behaviour:
+  1. Look the name up among the calling script's CASH entries of kind 3 (0x41bbc0); take
+     the cached sample handle of the first entry with that name.
+  2. If none (or 0): register the sample by name, loading it (0x41ff90, at most 511
+     samples).
+  3. Play it once, attached to self (0x41fdf0, not looping): if sound is off or the handle
+     is 0 nothing plays; a sample whose registry record has its flag byte (+0x44) set plays
+     as a plain unpositioned channel (GUESS: the flag marks samples registered as UI
+     sounds); otherwise it takes a free one of the 32 entity channels (none free: not
+     played) and is positioned at the entity every frame (engine-behaviour.md §12).
+  VERIFIED-CODE.
+- Corpus: 58 / 116 / 0; `boss2\boss.scr` pc 53 (`StartSound("sounds/missile.wav")`),
+  weapon fire in `player\player.scr`, explosions. 53 sites pass string offset 0.
+- Priority: P0.
+
+### 64. `StartLoopingSound` — 0x41bcd0
+
+- Signature: `file` string. Returns: none. Latent: no.
+- Behaviour: 1. If self's looping channel (+0x73) is set: stop it (when sound is on) and
+  clear it. 2. Resolve the sample as `StartSound` steps 1–2. 3. Play it looping attached
+  to self and store the channel in +0x73 (0 if it could not play). VERIFIED-CODE.
+- Edge cases: the channel is not stopped when the entity is removed (GUESS: the sound
+  module stops channels of freed entities; not traced).
+- Corpus: none. Priority: P2.
+
+### 65. `StopLoopingSound` — 0x41bca0
+
+- Signature: none. Returns: none. Latent: no.
+- Behaviour: if self's +0x73 is set: stop that channel (only when sound is enabled) and
+  clear +0x73. VERIFIED-CODE.
+- Corpus: 3 / 3 / 0; the player scripts at death (`player\player.scr` pc 1412). Since no
+  shipped script starts a looping sound, this is a no-op in practice (VERIFIED-DATA).
+- Priority: P0.
+
+---
+
+## F. Level flow, player, HUD and items
+
+"Self's player" is the record selected by self's +0x77 (0 or 1). The counts below are
+32-bit integers in the record (engine-behaviour.md §7.1): power-up counts at +0xB9 (16),
+selected power-up +0xF9 (−1 none), missile counts +0xFD (5), selected missile +0x111 (−1
+none), upgrade levels +0x115 (20).
+
+**Integer arguments of the G_ builtins** are converted with the rounding control forced to
+truncation (FNSTCW, OR 0x0C00, FLDCW around FISTP), i.e. truncation toward zero, and then
+compared **unsigned**, so negative values fail the range test (VERIFIED-CODE 0x41c219,
+0x41c2f0, 0x41c3d0, 0x41c440).
+
+### 2. `EndLevel` — 0x407570
+
+- Signature: none. Returns: none. Latent: no.
+- Behaviour: HUD-hidden flag 0x4d52d6 = 1, paused flag 0x458eab = 1, then the mission
+  complete sequence (0x4269b0; engine-behaviour.md §1.3 state 9, §10.3–10.4).
+  VERIFIED-CODE. From the next frame on no `main` runs and the world is frozen behind the
+  mission-complete screen; the calling script finishes its current invocation.
+- Corpus: 4 / 4 / 0; `eol.scr` (the end-of-level trigger, after its autopilot) and the three
+  bosses (`boss1\boss1.scr` pc 273).
+- Priority: P0.
+
+### 1. `RespawnPlayer` — 0x41c640
+
+- Signature: none. Returns: none. Latent: no.
+- Behaviour: if self is player 1's entity, run G_SpawnPlayer(0); then, if self is player
+  2's entity, G_SpawnPlayer(1) (0x40b2f0). Otherwise nothing. G_SpawnPlayer(i):
+  1. Remove the record's current entity (as `remove`).
+  2. If p_lives < 0: set that entity's field 4 = 1.0 and stop (game over is detected by the
+     player logic).
+  3. Clear the power-up and missile counts and selections of **both** records.
+  4. Create the helicopter object of the record's helicopter index (a pool entity at
+     (0, 0, 0), no ground snap), set its player index = i, store it in the record and in the
+     `player` global of index i, reset the record's freeze counter (+0xB4) and
+     action-disabled flag (+0xB8) to 0, and run its `init` handler (recursively).
+  5. Two-player mode: x −= 100 for player 1, += 100 for player 2 (after `init`).
+  All VERIFIED-CODE 0x40b2f0. The new entity gets no immediate think.
+- Consequences: the new player's `init` runs nested inside the dying player's script;
+  after `RespawnPlayer` returns, the old script continues with `self` = the removed
+  entity, and `player` already names the new helicopter.
+- Corpus: 3 / 3 / 0; `player\player.scr` pc 1414 (after the crash sequence and
+  `p_lives -= 1`).
+- Priority: P0.
+
+### 78. `ShowTutorialHint` — 0x41c4c0
+
+- Signature: `text` string. Returns: none. Latent: no.
+- Behaviour: open the message box with this text (0x42c000): the world is paused (paused
+  flag = 1), the text is split into lines at `^` (at most 16 lines of 64 characters), and
+  the OK button resumes (engine-behaviour.md §11.3). Braces `{…}` in the shipped texts
+  mark highlighted words (GUESS: drawn in another colour; the formatter was not traced).
+  VERIFIED-CODE for the pause and the line split.
+- Corpus: 10 / 10 / 0, one per `items\help\i_help_*.scr` pick-up (mission 1 is the
+  tutorial), e.g. `items\help\i_help_ammobox.scr` pc 11.
+- Priority: P0.
+
+### 69. `PushPlayer` — 0x41c170
+
+- Signature: none. Returns: none. Latent: no.
+- Behaviour: P = the entity of the `player` global for self's player index. n = (P.x −
+  self.x, P.y − self.y, 0), normalised (unchanged if zero). P's velocity (fields 17–19)
+  += n × 4000 × frametime. VERIFIED-CODE (4000.0 read from the binary).
+- Consequences: a per-frame shove of 4000 units/s² away from self in the ground plane; the
+  player script integrates and clamps the velocity (±150 per axis).
+- Corpus: 17 / 17 / 0; enemy helicopters and `boss2\boss.scr` pc 47 call it from their
+  `touch` handler when they ram the player (`helics\helic1\bot1.scr` pc 29).
+- Priority: P0.
+
+### 79. `PlayerFreezeHealth` — 0x41c4e0
+
+- Signature: `on` float. Returns: none (the helper leaves a pointer in EAX; the return
+  register is not written). Latent: no.
+- Behaviour: on ≠ 0: self's player's freeze counter (+0xB4) += 1; on = 0: −= 1. While the
+  counter is non-zero (negative included) G_Damage ignores that player's entity (D5).
+  VERIFIED-CODE. G_SpawnPlayer resets the counter to 0.
+- Edge cases: unbalanced calls leave the player invulnerable (negative counter) until the
+  next respawn.
+- Corpus: 2 / 4 / 0; `player\p_rshield.scr` pc 1 (on) and pc 30 (off after 7 s),
+  `player\p_shield.scr`.
+- Priority: P0.
+
+### 80. `PlayerDisableAction` — 0x41c560
+
+- Signature: `on` float. Returns: none. Latent: no.
+- Behaviour: self's player's action-disabled byte (+0xB8) = (on ≠ 0); if it is now set,
+  that player's `p_action` = 0. While set, key events are not applied to that player
+  (engine-behaviour.md §7.2), but scripts can still write `p_action`. VERIFIED-CODE.
+- Corpus: 2 / 3 / 0; `eol.scr` pc 134 (the autopilot then drives the helicopter with
+  `SetFlag`/`ClearFlag` on `p_action`), `player\p_moln.scr` pc 1 and 23 (stunned).
+- Priority: P0.
+
+### 70. `G_AddPowerUp` — 0x41c210
+
+- Signature: `type` int (0–15), `count` int. Returns: none. Latent: no.
+- Behaviour: t = trunc(type), c = trunc(count). If t < 16 (unsigned): n = counts[t] + c;
+  if n > 98 as an unsigned number, n = 99; counts[t] = n; if no power-up is selected (< 0),
+  select t. VERIFIED-CODE.
+- Edge cases: a negative sum is a huge unsigned value and becomes 99. Out-of-range type:
+  nothing.
+- Corpus: 4 / 4 / 0; `items\bombs\i_abomb.scr` pc 10 (`G_AddPowerUp(1, 1)`), types 0–3
+  with counts 1, 2, 4 (VERIFIED-DATA; kinds in engine-behaviour.md §8.3).
+- Priority: P0.
+
+### 71. `G_UsePowerUp` — 0x41c2d0
+
+- Signature: none. Returns: 1.0 if a power-up was consumed, else 0.0. Latent: no.
+- Behaviour (0x40b150 for self's player): if no power-up is selected, return 0. If the
+  selected count < 1, return 0 (no change). Otherwise decrement it; if it is now < 1, set it
+  to 0 and select the next kind with a non-zero count (0x40b0d0: kinds sel+1, sel+2, … mod
+  16; −1 if none has any); return 1. VERIFIED-CODE.
+- Corpus: 3 / 12 / 0; `player\player.scr` pc 718 (fires the selected bomb when the
+  power-up key bit 0x4 is held and the use interval allows).
+- Priority: P0.
+
+### 72. `G_GetPowerUp` — 0x41c2b0
+
+- Signature: none. Returns: the selected power-up kind as a float, −1.0 if none.
+  VERIFIED-CODE.
+- Corpus: 3 / 3 / 0; `player\player.scr` pc 870 (selects the subroutine that fires the
+  matching bonus weapon, e.g. `Shoot("p_bonus_lightingb", "tag_gun1", …)`).
+- Priority: P0.
+
+### 73. `G_AddMissiles` — 0x41c2f0
+
+- Signature: `type` int (0–4), `count` int. Returns: none. Latent: no.
+- Behaviour: as `G_AddPowerUp` with 5 missile slots: type < 5 (unsigned), count capped at
+  99, selects the type if none is selected. VERIFIED-CODE.
+- Corpus: 5 / 5 / 0; `items\missiles\i_mis.scr` pc 10 (`G_AddMissiles(0, 20)`); counts 20,
+  12, 15 (VERIFIED-DATA).
+- Priority: P0.
+
+### 74. `G_UseMissile` — 0x41c3b0
+
+- Signature: none. Returns: 1.0 if a missile was consumed, else 0.0. Latent: no.
+- Behaviour (0x40b220): as `G_UsePowerUp` over the 5 missile slots; when the selected type
+  runs out, the next type with missiles is selected (mod 5; −1 if none). VERIFIED-CODE.
+- Corpus: 3 / 15 / 0; `player\player.scr` pc 582 (one site per missile type: the script
+  asks `G_GetMissiles`, then `G_UseMissile`, and fires only when it returned 1).
+- Priority: P0.
+
+### 75. `G_GetMissiles` — 0x41c390
+
+- Signature: none. Returns: the selected missile type as a float, −1.0 if none.
+  VERIFIED-CODE.
+- Corpus: 3 / 3 / 0; `player\player.scr` pc 851.
+- Priority: P0.
+
+### 76. `G_GetUpgrade` — 0x41c3d0
+
+- Signature: `index` int (weapon id 0–19). Returns: float. Latent: no.
+- Behaviour: i = trunc(index); if i > 19 as an unsigned number return 0.0, else the upgrade
+  level of weapon i of self's player (0 = not owned). VERIFIED-CODE.
+- Corpus: 13 / 16 / 0; the weapon pick-ups (`items\ammo\i_bpg.scr` pc 10:
+  `G_GetUpgrade(5)`), the player script with `p_weapon`. Weapon ids 0–9 (VERIFIED-DATA;
+  names in engine-behaviour.md §8.2).
+- Priority: P0.
+
+### 77. `G_SetUpgrade` — 0x41c440
+
+- Signature: `index` int (0–19), `value` int. Returns: none. Latent: no.
+- Behaviour: i = trunc(index); if i < 20 (unsigned): upgrade level of weapon i of self's
+  player = trunc(value). VERIFIED-CODE.
+- Corpus: 13 / 13 / 0; `items\ammo\i_bpg.scr` pc 31 (`G_SetUpgrade(5, min(level + 1,
+  4))`), the player script at death (every weapon above level 1 loses a level).
+- Priority: P0.
+
+---
+
+## G. Other
+
+### 0. `debug` — 0x41a350
+
+- Signature: none. Returns: none. Latent: no. Behaviour: returns immediately.
+  VERIFIED-CODE.
+- Corpus: none. Priority: P2.
+
+### 45. `sleep` — 0x41b0c0
+
+- Signature: none (the value some scripts leave in t0 is ignored). Returns: none. Latent:
+  done flag = 0.
+- Behaviour: store 0 in the done flag. Under `LCALL` the call therefore never completes by
+  itself: it waits until the thread's latent timeout (set by the preceding `TMO`) runs
+  out, decremented by frametime on each update (rcsl-vm.md "LCALL and TMO"). With a
+  timeout of exactly 0 it waits forever. Under a plain CALL it does nothing.
+  VERIFIED-CODE.
+- Corpus: 73 / 0 / 90; all 90 sites are LCALLs preceded by a TMO (VERIFIED-DATA): literal
+  durations 0.1–7 s, or a script value such as `self[37]` (the waypoint delay, 26 sites
+  take the timeout from memory). Example `boss1\boss1.scr` pc 268.
+- Priority: P0.
