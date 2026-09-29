@@ -99,3 +99,4 @@ Every claim carries one of:
 | [113](issues/113-all-missions-findings.md) | findings of the all-missions run: missing files in the shipped data, boss part leaving in mission 20, pinned roots |
 | [130](issues/130-frontend-game-integration.md) | front end integration choices |
 | [140](issues/140-android-polish.md) | launcher icon, Wide / 4:3 setting, touch overlay, touch speed (drag gain only; the helicopter's own speed is untouched), FPS counter |
+| [141](issues/141-next-item-preview.md) | next buttons preview the item they select, from the game's own cycling rule (`as3d/player_select.h`) |
