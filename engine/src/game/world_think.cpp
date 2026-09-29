@@ -64,6 +64,14 @@ void World::attachToTag(int idx) {
         // not in the pool list, so detaching it would orphan it).
         if (e.inList) {
             AS3D_WARN("Tag '%s' not found in model '%s'", e.tagName.c_str(), p.modelPath.c_str());
+            // The detached entity no longer pins its old root (docs/spec/issues/113): without
+            // this a removed root (e.g. a rocket launcher whose muzzle flash asked for a
+            // missing tag) would never be freed.
+            if (e.countedInRoot) {
+                int r = rootOf(e.parent);
+                if (r >= 0) --ents_[static_cast<size_t>(r)].attachRefCount;
+                e.countedInRoot = false;
+            }
             e.parent = -1;
             return;
         }
