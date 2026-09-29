@@ -18,21 +18,22 @@
 using namespace as3d;
 
 TEST_CASE("bot regression: mission 1 ends at the same frame with the same score") {
-    AS3D_REQUIRE_DATA();
-    constexpr u32 kExpectedEndFrame = 13662;
-    constexpr float kExpectedScore = 6250.0f;
-    constexpr float kExpectedLives = 2.0f;
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    // Mission, seed, difficulty and the expected result are in expected.json ("bot_regression").
+    const u32 kExpectedEndFrame = static_cast<u32>(testdata::expectedInt("bot_regression.end_frame"));
+    const float kExpectedScore = static_cast<float>(testdata::expectedNumber("bot_regression.score"));
+    const float kExpectedLives = static_cast<float>(testdata::expectedNumber("bot_regression.lives"));
     Vfs vfs;
     vfs.mount(makeDirSource(testdata::extractedDir()));
     DefDatabase db;
     REQUIRE(db.load(vfs));
     World w;
     WorldConfig cfg;
-    cfg.seed = 1;
-    cfg.difficulty = 2;
+    cfg.seed = static_cast<u32>(testdata::expectedInt("bot_regression.seed"));
+    cfg.difficulty = static_cast<int>(testdata::expectedInt("bot_regression.difficulty"));
     w.init(vfs, db, cfg);
     std::string err;
-    REQUIRE(w.loadLevel("1", &err));
+    REQUIRE(w.loadLevel(std::to_string(testdata::expectedInt("bot_regression.mission")), &err));
     u32 endFrame = 0;
     for (u32 f = 0; f < 16000 && endFrame == 0; ++f) {
         w.step(botInput(f).toPlayerInput());

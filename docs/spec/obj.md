@@ -354,7 +354,7 @@ session actually instantiated (this build never spawned `boss3_l2proj`,
 every loaded definition exhaustively, whether or not anything in a given
 session would ever reach it.
 
-## Canonical serialization (for `testdata/golden/defs_summary.json`)
+## Canonical serialization (for `testdata/golden/as3d/defs_summary.json`)
 
 `tools/ref/defs.py`'s `canonical_object()` and `engine/src/game/defs.cpp`'s
 `canonicalObject()` must produce byte-identical output for the same

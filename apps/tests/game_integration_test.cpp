@@ -256,7 +256,7 @@ TEST_CASE("bot input matches the as3d_sim pilot") {
 // ---------------------------------------------------------------------------------------
 
 TEST_CASE("game camera: the renderer sees what the collision code projects") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     GameSession s;
     std::string err;
     REQUIRE_MESSAGE(s.init(level1Options(), &err), err);
@@ -268,7 +268,7 @@ TEST_CASE("game camera: the renderer sees what the collision code projects") {
 }
 
 TEST_CASE("game session: pause, restart after game over, next mission after completion") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     GameOptions o = level1Options();
     o.levelFlow = true;
     o.flowDelayFrames = 30;
@@ -327,7 +327,7 @@ TEST_CASE("render order: an attached pool entity is drawn after its root") {
     // The player's spawn shield is a pool entity attached with AttachEntity and newer than
     // the player; it thinks (and submits its record) after the player, whose body would
     // otherwise fail the depth test behind the depth-writing additive shell.
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     GameSession s;
     std::string err;
     REQUIRE_MESSAGE(s.init(level1Options(), &err), err);
@@ -361,7 +361,7 @@ TEST_CASE("render order: an attached pool entity is drawn after its root") {
 }
 
 TEST_CASE("mission 1 with the bot renders sensible frames") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     GraphicsContext* ctx = sharedContext();
     REQUIRE_GL(ctx);
     GameSession s;
@@ -430,7 +430,7 @@ TEST_CASE("mission 1 with the bot renders sensible frames") {
 }
 
 TEST_CASE("rendering does not perturb the simulation") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     GraphicsContext* ctx = sharedContext();
     REQUIRE_GL(ctx);
     const long frames = 900;
@@ -463,7 +463,7 @@ TEST_CASE("rendering does not perturb the simulation") {
 }
 
 TEST_CASE("particles are deterministic") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     u32 hash[2] = {0, 0};
     for (int run = 0; run < 2; ++run) {
         GameSession s;
@@ -479,7 +479,7 @@ TEST_CASE("particles are deterministic") {
 }
 
 TEST_CASE("as3d_game --headless dumps the same state as as3d_sim") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     const std::string dir = exeDir();
     const std::string game = dir + "/game/as3d_game", sim = dir + "/sim_tool/as3d_sim";
     if (dir.empty() || !fileExists(game) || !fileExists(sim)) {

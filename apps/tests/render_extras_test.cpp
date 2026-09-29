@@ -524,7 +524,7 @@ RenderEnv* renderEnv() {
     static RenderEnv env;
     if (!env.ok) {
         for (const char* name : {"pak0.apk", "pak1.apk", "pak2.apk"}) {
-            auto src = makePakSource(openFileStream(testdata::originalDir() + "/data/" + name));
+            auto src = makePakSource(openFileStream(testdata::installDir() + "/data/" + name));
             if (!src) return nullptr;
             env.vfs.mount(std::move(src));
         }
@@ -565,6 +565,7 @@ int luma(const Image& img, int i) {
 
 #define REQUIRE_RENDER(envVar)                                                                  \
     AS3D_REQUIRE_DATA();                                                                        \
+    AS3D_REQUIRE_PLAYABLE();                                                                    \
     REQUIRE_GL(glCtx);                                                                          \
     RenderEnv* envVar = renderEnv();                                                            \
     REQUIRE(envVar != nullptr)

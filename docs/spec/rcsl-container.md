@@ -264,7 +264,7 @@ name encodings; DATA length = 8 × count; STRG size; CODE length = 14 × count; 
 byte-identical re-serialisation; that every opcode and (opcode, mode) pair is in the
 opcodes spec; and that every jump target, call target, DEFS index, FUNC index, slot index,
 STRG reference and DATA slot is within bounds. It also compares
-`testdata/golden/rcsl_summary.json`.
+`testdata/golden/as3d/rcsl_summary.json`.
 
 ## Changelog
 

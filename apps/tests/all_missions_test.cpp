@@ -14,12 +14,14 @@
 using namespace as3d;
 
 TEST_CASE("all missions: 1500 frames each without script errors") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     vfs.mount(makeDirSource(testdata::extractedDir()));
     DefDatabase db;
     REQUIRE(db.load(vfs));
-    for (int m = 1; m <= 20; ++m) {
+    const int first = static_cast<int>(testdata::expectedInt("missions.first"));
+    const int last = static_cast<int>(testdata::expectedInt("missions.last"));
+    for (int m = first; m <= last; ++m) {
         World w;
         WorldConfig cfg;
         cfg.godMode = true;

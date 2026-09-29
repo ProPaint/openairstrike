@@ -422,7 +422,7 @@ bool heliCentre(const World& w, float& x, float& y) {
 } // namespace
 
 TEST_CASE("touch: a drag steers the real helicopter of mission 1 and it settles") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     vfs.mount(makeDirSource(testdata::extractedDir()));
     DefDatabase db;

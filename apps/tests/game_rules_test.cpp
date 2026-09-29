@@ -44,14 +44,14 @@ const char* const kOtherHelis[] = {"p_apache", "p_apache_blue"};
 } // namespace
 
 TEST_CASE("game rules: nullptr and the default rules give identical state dumps") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Fixture fx;
     std::string a = fly(fx, nullptr, 600), b = fly(fx, &defaultGameRules(), 600);
     CHECK(a == b);
 }
 
 TEST_CASE("game rules: a world resolves nullptr to the default rules") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Fixture fx;
     World w;
     w.init(fx.vfs, fx.db, WorldConfig());
@@ -59,7 +59,7 @@ TEST_CASE("game rules: a world resolves nullptr to the default rules") {
 }
 
 TEST_CASE("game rules: changed scroll speed, start position and helicopter are read") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Fixture fx;
     GameRules r = defaultGameRules();
     r.scrollSpeed = 21.0f;
@@ -99,7 +99,7 @@ TEST_CASE("game rules: changed scroll speed, start position and helicopter are r
 }
 
 TEST_CASE("game rules: lives and camera limits are read") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Fixture fx;
     GameRules r = defaultGameRules();
     r.startLives = 5;
@@ -118,7 +118,7 @@ TEST_CASE("game rules: lives and camera limits are read") {
 }
 
 TEST_CASE("game rules: a game without the named objects skips the features") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Fixture fx;
     GameRules r = defaultGameRules();
     r.scoreDigitObject = nullptr;

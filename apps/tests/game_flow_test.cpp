@@ -64,7 +64,7 @@ struct Harness {
         c.attract = 1;
         c.showLogo = false;
         c.textsPath = testdata::extractedDir() + "/texts_v170.txt";
-        c.settingsXml = testdata::originalDir() + "/data/Settings.xml";
+        c.settingsXml = testdata::installDir() + "/data/Settings.xml";
         if (!flow->init(c, &err)) {
             FAIL_CHECK(err);
             return false;
@@ -138,7 +138,7 @@ struct Harness {
 };
 
 bool haveData() {
-    if (testdata::available()) return true;
+    if (testdata::available() && testdata::playable()) return true;
     std::fprintf(stderr, "SKIPPED (no game data): %s\n", __FILE__);
     return false;
 }

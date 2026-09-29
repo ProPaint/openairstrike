@@ -105,7 +105,7 @@ TEST_CASE("next item: wrap-around, single and empty cases for missiles, power-up
 }
 
 TEST_CASE("next item: the simulation selects what the prediction says, in a series of states") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     vfs.mount(makeDirSource(testdata::extractedDir()));
     DefDatabase db;
@@ -232,7 +232,7 @@ long diffIn(const Image& a, const Image& b, const TouchCircle& c) {
 } // namespace
 
 TEST_CASE("next item: the next buttons show different pixels when the next item differs; disabled is dim") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     AS3D_REQUIRE_GLES();
     Vfs vfs;
     REQUIRE(uitest::mountPaks(vfs));

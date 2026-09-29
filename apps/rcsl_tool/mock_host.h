@@ -33,6 +33,14 @@ inline float bitsToFloat(u32 b) {
     return f;
 }
 
+// Which engine tables the mock host resolves names against: the first game's (24 globals, 85
+// builtins) or the sequels' (28 globals, 101 builtins; docs/spec/as2). Process-wide, set once
+// before the first MockHost is made; the default is the first game's. tools/ref/rcsl_vm.py
+// selects the same tables from --game.
+enum class MockTableSet { V170, Sequel };
+void selectMockTables(MockTableSet set);
+MockTableSet mockTables();
+
 // Mock entities 0..3 exist from the start: 0 = self, 1 = player, 2 = camera, 3 = other.
 enum MockEntity { kMockSelf = 0, kMockPlayer = 1, kMockCamera = 2, kMockOther = 3 };
 constexpr int kEntityFields = 90;

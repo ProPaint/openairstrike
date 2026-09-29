@@ -53,7 +53,7 @@ bool finiteState(const ParticleEmitter& e) {
 }
 
 bool mountOriginalPaks(Vfs& vfs) {
-    std::string dataDir = testdata::originalDir() + "/data";
+    std::string dataDir = testdata::installDir() + "/data";
     for (const char* name : {"pak0.apk", "pak1.apk", "pak2.apk"}) {
         auto src = makePakSource(openFileStream(dataDir + "/" + name));
         if (!src) return false;
@@ -196,7 +196,7 @@ TEST_CASE("particles: CILINDER particles follow the emitter, DECART ones stay") 
 }
 
 TEST_CASE("particles: every shipped system simulates for 5 s without NaN or runaway counts") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     REQUIRE(mountOriginalPaks(vfs));
     DefDatabase db;
@@ -223,7 +223,7 @@ TEST_CASE("particles: every shipped system simulates for 5 s without NaN or runa
 }
 
 TEST_CASE("particles: a shipped explosion renders non-black pixels headless") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     GraphicsContext* ctx = headlessContext();
     if (!ctx) {
         std::fprintf(stderr, "SKIPPED (no headless GLES context available): %s\n", __FILE__);

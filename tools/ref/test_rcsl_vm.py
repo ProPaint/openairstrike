@@ -9,8 +9,10 @@ Asserts per script: no VM error (unknown opcode, access outside the frame / an e
 the globals, jump or call out of range, stack overflow or underflow, stall detector),
 the PUSH/POP stack balanced at the end of every handler, and every builtin called with
 its documented number of arguments written. Writes or validates
-testdata/golden/rcsl_trace_hashes.json (sha1 of the trace, instruction and builtin call
+testdata/golden/<key>/rcsl_trace_hashes.json (sha1 of the trace, instruction and builtin call
 counts). Set AS3D_REGEN_GOLDEN=1 or pass --regen to rewrite it.
+`--game <key>` (else $AS3D_GAME, else as3d) picks the game: its scripts, builtin table (gulf
+uses the as2 one), global table and golden (testdata/golden/<key>/rcsl_trace_hashes.json).
 Exits 0 with a loud SKIPPED when the game data is absent.
 """
 import hashlib
@@ -23,10 +25,13 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(REPO, "tools"))
 
+import gamesel  # noqa: E402
+
+gamesel.parse_game_arg()
 import rcsl_disasm as D  # noqa: E402
 import rcsl_vm as V  # noqa: E402
 
-GOLDEN = os.path.join(REPO, "testdata", "golden", "rcsl_trace_hashes.json")
+GOLDEN = gamesel.golden_path("rcsl_trace_hashes.json")
 FRAMES = 600
 DT = 1.0 / 60.0
 
@@ -53,13 +58,9 @@ def run_one(s):
 
 def main():
     regen = "--regen" in sys.argv or os.environ.get("AS3D_REGEN_GOLDEN") == "1"
-    root = D.scripts_dir()
-    if not os.path.isdir(root):
-        print("=" * 70)
-        print(f"test_rcsl_vm: SKIPPED: no script data at {root}")
-        print("test_rcsl_vm: set AS3D_DATA_ROOT to a checkout with assets_extracted/")
-        print("=" * 70)
+    if gamesel.skip_no_data("test_rcsl_vm"):
         return 0
+    root = D.scripts_dir()
     failures = []
     hashes = {}
     totals = [0, 0]
@@ -84,7 +85,11 @@ def main():
         for kind in kinds:
             if (name, kind) not in allowed_used:
                 failures.append(f"{name}: allowlisted '{kind}' no longer occurs; remove it")
-    if regen:
+    if not regen and not os.path.exists(GOLDEN) and not failures:
+        regen = True  # first run for this game: write the golden file
+    if regen and failures:
+        print("test_rcsl_vm: not writing the golden file while checks fail")
+    elif regen:
         with open(GOLDEN, "w") as f:
             json.dump(hashes, f, indent=1, sort_keys=True)
             f.write("\n")

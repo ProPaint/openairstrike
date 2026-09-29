@@ -1,0 +1,160 @@
+{
+ "_comment": [
+  "Expected counts and known exceptions of one game, read by apps/tests (apps/tests/expected.h) and tools/ref/test_*.py.",
+  "Documented in testdata/golden/README.md. Only counts, names and numbers, never game content beyond names."
+ ],
+ "game": "as3d",
+ "playable": true,
+ "paks": {
+  "files": 1351
+ },
+ "textures": {
+  "files": 463
+ },
+ "models": {
+  "files": 446,
+  "ok": 440,
+  "empty": [
+   "models/items/ammo/asec.mdl",
+   "models/items/ammo/bonus.mdl",
+   "models/jeeps/jeep_bug_cannon.mdl",
+   "models/mapobjects/ruins/stone_comb1.mdl"
+  ],
+  "broken": {
+   "models/mapobjects/bridges/bridge1.mdl": -24,
+   "models/mapobjects/bridges/japbridge.mdl": -336
+  }
+ },
+ "maps": {
+  "files": 24,
+  "names": [
+   "intro.hsc",
+   "intro2.hsc",
+   "intro3.hsc",
+   "intro4.hsc",
+   "level1.hsc",
+   "level10.hsc",
+   "level11.hsc",
+   "level12.hsc",
+   "level13.hsc",
+   "level14.hsc",
+   "level15.hsc",
+   "level16.hsc",
+   "level17.hsc",
+   "level18.hsc",
+   "level19.hsc",
+   "level20.hsc",
+   "level21.hsc",
+   "level3.hsc",
+   "level3_2.hsc",
+   "level4.hsc",
+   "level4_2.hsc",
+   "level5.hsc",
+   "level8.hsc",
+   "level9.hsc"
+  ],
+  "tile_sets": 5,
+  "pad_tile_set": 5,
+  "pad_tile_index": 5,
+  "markers_on_pads": 17,
+  "unresolved_names": [],
+  "odd_tiles": [
+   {
+    "map": "level12.hsc",
+    "col": 10,
+    "row": 64,
+    "set": 2,
+    "index": 32,
+    "rotation": 49
+   },
+   {
+    "map": "level12.hsc",
+    "col": 11,
+    "row": 64,
+    "set": 2,
+    "index": 54,
+    "rotation": 0
+   },
+   {
+    "map": "level12.hsc",
+    "col": 18,
+    "row": 192,
+    "set": 2,
+    "index": 32,
+    "rotation": 49
+   },
+   {
+    "map": "level12.hsc",
+    "col": 19,
+    "row": 192,
+    "set": 2,
+    "index": 54,
+    "rotation": 0
+   },
+   {
+    "map": "level18.hsc",
+    "col": 17,
+    "row": 179,
+    "set": 2,
+    "index": 32,
+    "rotation": 49
+   },
+   {
+    "map": "level18.hsc",
+    "col": 18,
+    "row": 179,
+    "set": 2,
+    "index": 54,
+    "rotation": 0
+   }
+  ]
+ },
+ "text_blocks": {
+  "files": 42,
+  "object_blocks": 864,
+  "distinct_object_names": 863
+ },
+ "definitions": {
+  "objects": 864,
+  "distinct_object_names": 863,
+  "weapons": 63,
+  "particle_systems": 80,
+  "levels": 24,
+  "unresolved_references": [
+   "object 'boss3_l2proj': model 'models\\bosses\\boss3\\boss3_laser2.mdl' not found",
+   "object 'boss3_l2proj': skin 'models\\bosses\\boss3\\boss3_gun.tga' not found",
+   "object 'boss_tank_expl1': script 'scripts\\effects\\boss_tank_expl1.scr' not found",
+   "object 'cannon4_green': script 'scripts\\cannonbase.scr' not found",
+   "object 'cannon4_gun': script 'scripts\\cannon.scr' not found",
+   "object 'expl1_hit': skin 'gfx\\expl3.tga' not found",
+   "object 'expl_wave': skin 'models\\misc\\hlanno2.tga' not found",
+   "object 'expl_wave_big': skin 'models\\misc\\hlanno2.tga' not found",
+   "object 'item_help': script 'scripts\\items\\i_help.scr' not found",
+   "object 'p_expl_wave': skin 'models\\misc\\hlanno2.tga' not found",
+   "object 'satellite_hit': attach target 'PS_LASER_HIT' at line 779 does not resolve to any object or particle system",
+   "object 'ship_destroyer_radar': script 'scripts\\j_cannon.scr' not found",
+   "object 'tank_dead': skin 'models/bigjeep/dead.tga' not found"
+  ]
+ },
+ "scripts": {
+  "files": 339,
+  "no_code": [],
+  "builtins": 85,
+  "mode_pairs": 79
+ },
+ "sounds": {
+  "files": 32
+ },
+ "missions": {
+  "first": 1,
+  "last": 20
+ },
+ "bot_regression": {
+  "mission": 1,
+  "seed": 1,
+  "difficulty": 2,
+  "end_frame": 13662,
+  "score": 6250,
+  "lives": 2
+ }
+}

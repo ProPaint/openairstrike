@@ -69,7 +69,7 @@ EdgeRun runEdge(u32 dir, int hold, int count) {
 } // namespace
 
 TEST_CASE("player: fires in the middle of the screen (reference for the edge tests)") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     EdgeRun mid = runEdge(0u, 240, 120);
     CHECK(mid.framesOnScreen == mid.frames);
     CHECK(mid.projectiles > 5);
@@ -79,7 +79,7 @@ TEST_CASE("player: fires in the middle of the screen (reference for the edge tes
 // partly outside the 800x600 window; the on-screen bit 0x08 is an overlap test, so the
 // player stays collidable and Shoot fires (it did not with the old containment rule).
 TEST_CASE("player: fires at the left, right and bottom limits (issue 120, T4)") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     const u32 dirs[3] = {ACT_LEFT, ACT_RIGHT, ACT_BACKWARD};
     const char* names[3] = {"left", "right", "bottom"};
     for (int k = 0; k < 3; ++k) {

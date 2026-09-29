@@ -606,7 +606,7 @@ static lighting as specified, a Bézier path sampler, and the commands
 textured preview with tiles and water, and a placement map with paths).
 
 `tools/ref/test_hmap.py` checks the whole corpus (see its docstring) and
-compares against `testdata/golden/hmap_summary.json`.
+compares against `testdata/golden/as3d/hmap_summary.json`.
 
 ## Open questions
 
