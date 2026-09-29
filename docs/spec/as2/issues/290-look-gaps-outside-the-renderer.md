@@ -21,7 +21,8 @@ count)` before drawing (game view or `WorldRenderer::drawWorld`).
 delta 12.6 (VERIFIED-CODE as2@0x40c750) puts them on the animated surface (`waterHeightAt`, in
 `as3d/water.h`, already written for this) and tilts `FL_ONWATER_NORMAL` ones with it. With
 waves of up to ±16 units, parts of flat floating objects end under the water surface in our
-game: mission 3's lily pads are partly hidden (`m3_seq_b` against our frame 860, lower pads),
+game: mission 3's lily pads are partly hidden (`m3_seq_b` against our frame 860: pad-green
+pixels in (250,365)-(320,430) original 414, ours 253; in (115,285)-(175,330) 247 and 219),
 where the original shows them whole. Needs: the entity sync of the simulation package to use
 `waterHeightAt` for `FL_ONWATER` and the plane normal for `FL_ONWATER_NORMAL` (the viewer's
 level renderer already does). This changes `as2` state dumps only.
