@@ -344,7 +344,10 @@ void GameWindow::simulate(int steps) {
         FrameInput in = source_.next(static_cast<u32>(frame_), local);
         in = mergeFrameInput(in, fromTouch);
         recorder_.record(static_cast<u32>(frame_), in);
+        double t0 = nowSeconds();
         int ev = session_.step(in);
+        double ts = nowSeconds() - t0;
+        if (ts > 0.05 && o_.markers) AS3D_INFO("AS3D_HITCH part=step frame=%ld ms=%.0f", frame_, 1000.0 * ts);
         if (ev & GameSession::kLevelStarted) {
             loadLevelView();
             if (!o_.noAudio) audio_.startLevel(session_.musicPath());
@@ -490,7 +493,6 @@ int GameWindow::run() {
         double work0 = nowSeconds();
         simulate(steps);
         perf_.stepped(steps);
-        if (!running_) break;
         // Without interpolation a frame only changes when the simulation stepped.
         if (steps == 0 && !redraw_ && !screenshot_) {
             SDL_Delay(1);
@@ -498,7 +500,10 @@ int GameWindow::run() {
             continue;
         }
         redraw_ = false;
+        double td = nowSeconds();
         draw();
+        td = nowSeconds() - td;
+        if (td > 0.05 && o_.markers) AS3D_INFO("AS3D_HITCH part=draw frame=%ld ms=%.0f", frame_, 1000.0 * td);
         if (screenshot_) saveScreenshot();
         double work = nowSeconds() - work0;
         gl_->swapBuffers();

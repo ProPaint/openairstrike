@@ -131,9 +131,9 @@ FrameInput mergeFrameInput(const FrameInput& a, const FrameInput& b);
 // the helicopter's current screen position; moving the finger moves the target by the
 // finger's displacement times `gain`. Each frame the direction bits steer the helicopter
 // toward the target through the ordinary keyboard movement model (the player script owns
-// speed and acceleration), with the original mouse control's 20-pixel dead zone and a
-// short look-ahead on the helicopter's own screen velocity so it brakes instead of
-// overshooting. The primary weapon fires while any finger is down (except on the pause
+// speed and acceleration), like the original's mouse control (engine-behaviour.md 7.3) but
+// with a smaller dead zone and a short look-ahead on the helicopter's own screen velocity
+// so it brakes instead of overshooting. The primary weapon fires while any finger is down (except on the pause
 // button). Buttons: missile and power-up are held; next missile, next weapon and next
 // power-up send their one-shot bits while held (the world acts on the press only); pause
 // toggles. While the game is paused, a tap anywhere continues.
@@ -177,7 +177,7 @@ TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const SafeInsets& inse
 
 struct TouchSettings {
     float gain = 1.5f;          // helicopter displacement per finger displacement
-    float deadZone = 20.0f;     // virtual pixels, as the original's mouse control
+    float deadZone = 8.0f;      // virtual pixels (the original's mouse control uses 20)
     float lookAhead = 10.0f;    // frames of the helicopter's screen velocity to anticipate
     float maxLead = 160.0f;     // the target stays within this many virtual pixels of the helicopter
     bool autoFire = true;

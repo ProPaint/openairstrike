@@ -117,7 +117,7 @@ TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const SafeInsets& inse
     }
     for (int b = 0; b < kTouchButtonCount; ++b) {
         L.buttons[b] = normalised(px[b], py[b], ps[b], ps[b], fw, fh);
-        float g = gap * 0.5f;
+        float g = gap * 0.4f; // neighbours never share a touch area
         L.hit[b] = normalised(px[b] - g, py[b] - g, ps[b] + 2 * g, ps[b] + 2 * g, fw, fh);
     }
     return L;
