@@ -74,6 +74,7 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     config_ = config;
     // Profile: progress and settings (frontend.md 6).
     profile_ = Profile();
+    profile_.progress = Progress::defaults(session_.rules()); // counts of the game; a saved file must match
     std::string why;
     Blob probe;
     const bool exists = !config_.profilePath.empty() && readPlatformFile(config_.profilePath, probe);
@@ -89,9 +90,10 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
 
     // Content from the data: mission names and unlocks (levels.txt), Settings.xml, texts.
     ui::FrontendContent content;
+    content.game = session_.game();
     int i = 0;
     for (const LevelDef& d : session_.db().levels()) {
-        if (d.name.empty() || i >= kMissionCount) continue;
+        if (d.name.empty() || i >= session_.rules().missionCount) continue;
         content.missionNames[i] = d.name;
         content.enableHelic[i] = d.enableHelic;
         ++i;
@@ -121,13 +123,13 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     fe_->setTouchMode(config_.touch);
     fe_->menus().drawCursor = !config_.touch && !profile_.settings.useSystemMouse;
 
-    if (config_.attract >= 1 && config_.attract <= 4) {
+    if (config_.attract >= 1 && config_.attract <= session_.rules().attractCount) {
         attract_ = config_.attract;
     } else {
         // Chosen once at boot and reused after every Quit (frontend.md 1.3); wall-clock
         // randomness is fine here, the attract level is never part of a recorded game.
         auto t = std::chrono::steady_clock::now().time_since_epoch().count();
-        attract_ = 1 + static_cast<int>(static_cast<unsigned long long>(t) % 4);
+        attract_ = 1 + static_cast<int>(static_cast<unsigned long long>(t) % static_cast<unsigned long long>(session_.rules().attractCount));
     }
     applySettings(profile_.settings);
     (void)error;

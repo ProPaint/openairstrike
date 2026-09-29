@@ -657,3 +657,83 @@ TEST_CASE("frontend options (ours, issue 140): Screen and Controls rows, operabl
     CHECK(desk.menus().top()->find(42) == nullptr);
     CHECK(desk.menus().top()->find(43) != nullptr); // Show FPS on both targets
 }
+
+namespace {
+
+// A game of 18 missions and 6 helicopters: a modified copy of the first game's profile.
+const GameProfile& smallGame() {
+    static const GameProfile g = [] {
+        GameProfile p = gameProfile(GameId::AirStrike3D);
+        p.rules.missionCount = 18;
+        p.rules.helicopterCount = 6;
+        return p;
+    }();
+    return g;
+}
+
+struct SmallRig {
+    FakeGame game;
+    Profile profile;
+    Frontend fe;
+    SmallRig()
+        : profile{Progress::defaults(smallGame().rules), Settings::defaults()},
+          fe(game, profile, [] {
+              FrontendContent c;
+              c.game = &smallGame();
+              for (int i = 0; i < 18; i++) c.missionNames[i] = "Mission " + std::to_string(i + 1);
+              c.enableHelic[16] = 5;
+              return c;
+          }(), Texts{}) {
+        fe.boot();
+    }
+    void tap(float x, float y) { fe.update(0.016f, UiInput().tap(x, y)); }
+    bool tapItem(int id) {
+        Menu* m = fe.menus().top();
+        if (!m) return false;
+        for (const MenuItem& it : m->items)
+            if (it.id == id && !it.disabled() && !it.hidden()) {
+                tap(it.hit.x + it.hit.w * 0.5f, it.hit.y + it.hit.h * 0.5f);
+                return true;
+            }
+        return false;
+    }
+};
+
+} // namespace
+
+TEST_CASE("frontend: a game of 18 missions and 6 helicopters") {
+    SmallRig rig;
+    REQUIRE(rig.tapItem(1)); // Start Game
+    REQUIRE(rig.fe.topScreen() == Screen::StartGame);
+    Menu* m = rig.fe.menus().top();
+    const MenuItem* list = m->find(3);
+    REQUIRE(list);
+    CHECK(list->entries.size() == 18);
+    const MenuItem* grid = m->find(6);
+    REQUIRE(grid);
+    CHECK(grid->grid.count == 6);
+    // Helicopter 7 does not exist: the tap on cell 6 (second row, second cell) changes nothing.
+    rig.profile.progress.helicopterUnlocked[6] = true; // even if a file had it set
+    rig.fe.debugSet("unlock", "1");
+    rig.tap(224 + 72 + 10, 304 + 72 + 10);
+    CHECK(rig.fe.menus().top()->find(6)->grid.choice[0] == 1);
+    rig.tap(224 + 10, 304 + 72 + 10); // cell 5
+    CHECK(rig.fe.menus().top()->find(6)->grid.choice[0] == 5);
+    // Difficulty debug values are clamped to the mission count.
+    rig.fe.debugSet("mission", "99");
+    CHECK(rig.fe.campaign().mission == 17);
+    REQUIRE(rig.tapItem(2)); // Start: campaign starts at the list's selection (mission 1)
+    REQUIRE_FALSE(rig.game.starts.empty());
+    CHECK(rig.game.starts.back().mission == 0);
+    // Mission 17 unlocks helicopter 5, mission 18 is the last: Game Complete.
+    rig.fe.debugSet("mission", "17");
+    rig.fe.onEndLevel(report(1000, 2));
+    CHECK(rig.fe.topScreen() == Screen::MissionComplete);
+    CHECK(rig.profile.progress.helicopterUnlocked[5]);
+    CHECK(rig.profile.progress.missionUnlocked[17]);
+    CHECK(rig.fe.campaign().nextMission() == 17);
+    rig.fe.debugSet("mission", "18");
+    rig.fe.onEndLevel(report(1000, 2));
+    CHECK(rig.fe.topScreen() == Screen::GameComplete);
+    CHECK(rig.fe.campaign().nextMission() == 0);
+}

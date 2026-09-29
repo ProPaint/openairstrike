@@ -322,3 +322,91 @@ TEST_CASE("profile file: truncated, corrupt and hostile files fall back to defau
         CHECK(q.settings.camera == 1);
     }
 }
+
+namespace {
+// A synthetic game of 18 missions and 6 helicopters, a modified copy of the first game.
+GameRules smallRules() {
+    GameRules r = defaultGameRules();
+    r.missionCount = 18;
+    r.helicopterCount = 6;
+    r.difficultyCount = 3;
+    r.defaultDifficulty = 1;
+    r.startLives = 4;
+    r.difficulty[2] = {9.0f, 8.0f, 7.0f, 6.0f};
+    return r;
+}
+} // namespace
+
+TEST_CASE("profile: the first game's constants equal its rules") {
+    const GameRules& d = defaultGameRules();
+    CHECK(kMissionCount == d.missionCount);
+    CHECK(kHelicopterCount == d.helicopterCount);
+    CHECK(kDifficultyCount == d.difficultyCount);
+    CHECK(kDefaultDifficulty == d.defaultDifficulty);
+    CHECK(kCampaignStartLives == d.startLives);
+    const Progress p = Progress::defaults();
+    CHECK(p.missionCount == 20);
+    CHECK(p.helicopterCount == 10);
+}
+
+TEST_CASE("profile: a game of 18 missions and 6 helicopters stays inside its counts") {
+    static const GameRules rules = smallRules();
+    Campaign c(rules);
+    CHECK(c.difficulty == 1);
+    CHECK(c.p[0].livesAtStart == 4);
+    c.start(99, 99, 1);
+    CHECK(c.mission == 17);
+    CHECK(c.difficulty == 2);
+    CHECK(c.p[1].livesAtStart == 4);
+    CHECK(c.isLastMission());
+    CHECK(c.nextMission() == 0);
+    c.start(-3, -3, 2);
+    CHECK(c.mission == 0);
+    CHECK(c.difficulty == 0);
+    CHECK(difficultyFactors(9, rules).rank == doctest::Approx(6.0f));
+    CHECK(difficultyFactors(9).rank == doctest::Approx(1.3f)); // default rules: the first game's
+
+    Progress p = Progress::defaults(rules);
+    CHECK(p.missionCount == 18);
+    CHECK(p.helicopterCount == 6);
+    p.unlockAfterMission(16, 5);
+    CHECK(p.missionUnlocked[17]);
+    CHECK(p.helicopterUnlocked[5]);
+    p.unlockAfterMission(17, 6); // helicopter 6 does not exist: nothing; next wraps to mission 1
+    CHECK_FALSE(p.helicopterUnlocked[6]);
+    CHECK_FALSE(p.missionUnlocked[18]);
+    CHECK(p.missionUnlocked[0]);
+    p.unlockAfterMission(-1, 10);
+    CHECK_FALSE(p.missionUnlocked[18]);
+    CHECK_FALSE(p.helicopterUnlocked[10]);
+    for (int i = 6; i < kMaxHelicopters; i++) CHECK_FALSE(p.helicopterUnlocked[i]);
+    for (int i = 18; i < kMaxMissions; i++) CHECK_FALSE(p.missionUnlocked[i]);
+}
+
+TEST_CASE("profile file: counts follow the game; a file of another game is rejected") {
+    static const GameRules rules = smallRules();
+    Profile small;
+    small.progress = Progress::defaults(rules);
+    small.progress.missionUnlocked[17] = true;
+    small.progress.helicopterUnlocked[5] = true;
+    const std::vector<u8> bytes = serializeProfile(small);
+    const std::vector<u8> first = serializeProfile(Profile{});
+    CHECK(bytes.size() == first.size() - 2 - 4); // 2 missions and 4 helicopters fewer
+    Profile back;
+    back.progress = Progress::defaults(rules);
+    CHECK(deserializeProfile(bytes.data(), bytes.size(), back));
+    CHECK(back.progress.missionCount == 18);
+    CHECK(back.progress.missionUnlocked[17]);
+    CHECK(back.progress.helicopterUnlocked[5]);
+    // Loaded as the first game's profile: the counts differ, progress falls back to defaults.
+    Profile wrong;
+    std::string why;
+    CHECK_FALSE(deserializeProfile(bytes.data(), bytes.size(), wrong, &why));
+    CHECK(wrong.progress.missionCount == 20);
+    CHECK_FALSE(wrong.progress.missionUnlocked[17]);
+    // And the other way round.
+    Profile wrong2;
+    wrong2.progress = Progress::defaults(rules);
+    CHECK_FALSE(deserializeProfile(first.data(), first.size(), wrong2, &why));
+    CHECK(wrong2.progress.missionCount == 18);
+}

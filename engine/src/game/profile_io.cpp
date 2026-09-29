@@ -65,14 +65,17 @@ void writeProgress(Writer& w, const Progress& p) {
         w.i64v(h.score);
         w.u8v(static_cast<u32>(h.rank));
     }
-    w.u8v(kHelicopterCount);
-    for (bool b : p.helicopterUnlocked) w.u8v(b ? 1 : 0);
-    w.u8v(kMissionCount);
-    for (bool b : p.missionUnlocked) w.u8v(b ? 1 : 0);
+    w.u8v(static_cast<u32>(p.helicopterCount));
+    for (int i = 0; i < p.helicopterCount; i++) w.u8v(p.helicopterUnlocked[i] ? 1 : 0);
+    w.u8v(static_cast<u32>(p.missionCount));
+    for (int i = 0; i < p.missionCount; i++) w.u8v(p.missionUnlocked[i] ? 1 : 0);
 }
 
 bool readProgress(ByteReader& r, Progress& p, std::string& why) {
+    // The counts are those of the Progress being replaced (its game); a file must match them.
     Progress out = Progress::defaults();
+    out.helicopterCount = p.helicopterCount;
+    out.missionCount = p.missionCount;
     const size_t n = r.readU8();
     if (r.failed() || n != kHighScoreCount) { why = "bad high-score count"; return false; }
     for (size_t i = 0; i < n; i++) {
@@ -85,10 +88,10 @@ bool readProgress(ByteReader& r, Progress& p, std::string& why) {
         if (r.failed() || h.rank >= kRankCount || h.score < 0) { why = "bad high-score entry"; return false; }
     }
     const size_t nh = r.readU8();
-    if (r.failed() || nh != kHelicopterCount || nh > r.remaining()) { why = "bad helicopter count"; return false; }
+    if (r.failed() || nh != static_cast<size_t>(out.helicopterCount) || nh > r.remaining()) { why = "bad helicopter count"; return false; }
     for (size_t i = 0; i < nh; i++) out.helicopterUnlocked[i] = r.readU8() != 0;
     const size_t nm = r.readU8();
-    if (r.failed() || nm != kMissionCount || nm > r.remaining()) { why = "bad mission count"; return false; }
+    if (r.failed() || nm != static_cast<size_t>(out.missionCount) || nm > r.remaining()) { why = "bad mission count"; return false; }
     for (size_t i = 0; i < nm; i++) out.missionUnlocked[i] = r.readU8() != 0;
     if (r.failed()) { why = "truncated progress"; return false; }
     // Never lock what a fresh install has.
@@ -168,6 +171,14 @@ bool readSettings(ByteReader& r, Settings& s, std::string& why) {
     return true;
 }
 
+// The defaults for whatever could not be read, sized like the Progress the caller passed in.
+void resetKeepingCounts(Profile& out) {
+    const int mc = out.progress.missionCount, hc = out.progress.helicopterCount;
+    out = Profile{};
+    out.progress.missionCount = mc;
+    out.progress.helicopterCount = hc;
+}
+
 } // namespace
 
 std::vector<u8> serializeProfile(const Profile& p) {
@@ -192,7 +203,7 @@ std::vector<u8> serializeProfile(const Profile& p) {
 }
 
 bool deserializeProfile(const u8* data, size_t size, Profile& out, std::string* why) {
-    out = Profile{};
+    resetKeepingCounts(out);
     std::string err;
     auto fail = [&](const char* msg) {
         if (why) *why = msg;
@@ -239,7 +250,7 @@ bool deserializeProfile(const u8* data, size_t size, Profile& out, std::string* 
 }
 
 bool loadProfileFile(const std::string& path, Profile& out, std::string* why) {
-    out = Profile{};
+    resetKeepingCounts(out);
     std::FILE* f = std::fopen(path.c_str(), "rb");
     if (!f) {
         if (why) *why = "no profile file";

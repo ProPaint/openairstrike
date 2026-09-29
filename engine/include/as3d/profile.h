@@ -11,13 +11,17 @@
 #include <vector>
 
 #include "as3d/core.h"
+#include "as3d/game_profile.h"
 
 namespace as3d {
 
-constexpr int kMissionCount = 20;
-constexpr int kHelicopterCount = 10;
 constexpr int kHighScoreCount = 15;
 constexpr int kRankCount = 7;
+// The first game's values (defaultGameRules()), for default member initialisers and code that
+// still has no game to ask. Sizes and bounds come from a GameRules at run time; the arrays are
+// sized kMaxMissions / kMaxHelicopters.
+constexpr int kMissionCount = 20;
+constexpr int kHelicopterCount = 10;
 constexpr int kDifficultyCount = 5;
 constexpr int kDefaultDifficulty = 2; // Normal
 constexpr int kCampaignStartLives = 2; // the current helicopter plus two spares
@@ -25,10 +29,9 @@ constexpr int kCampaignStartLives = 2; // the current helicopter plus two spares
 // ---------------------------------------------------------------------------
 // Difficulty (engine-behaviour.md 6.3) and rank (frontend.md 5.11)
 // ---------------------------------------------------------------------------
-struct DifficultyFactors {
-    float health, damage, score, rank;
-};
-const DifficultyFactors& difficultyFactors(int index); // clamped to 0..4
+using DifficultyFactors = DifficultyRow;
+// Row of the rules' table, the index clamped to 0..difficultyCount-1.
+const DifficultyFactors& difficultyFactors(int index, const GameRules& rules = defaultGameRules());
 
 // Rank index from a value v: 0 "Cheater" if a cheat was used, else the first i in 1..5 with
 // v < threshold[i] (3, 7.5, 14, 22, 30), else 6.
@@ -59,11 +62,17 @@ struct LevelTotals {
 };
 
 struct Campaign {
+    const GameRules* rules = &defaultGameRules(); // counts, difficulty table, start lives
     bool active = false;
-    int mission = 0;       // 0..19
+    int mission = 0;       // 0..rules->missionCount-1
     int difficulty = kDefaultDifficulty;
     int players = 1;       // 1 or 2
     CampaignPlayer p[2];
+
+    Campaign() = default;
+    explicit Campaign(const GameRules& r) : rules(&r), difficulty(r.defaultDifficulty) {
+        for (CampaignPlayer& cp : p) cp.livesAtStart = r.startLives;
+    }
 
     // New campaign (0x408c40): banked score and rank accumulator cleared, lives-at-start 2.
     void start(int missionIndex, int difficultyIndex, int playerCount);
@@ -74,8 +83,9 @@ struct Campaign {
     double missionRankValue(const LevelPlayerResult& r, const LevelTotals& totals) const;
     // Rank value stored with a high score: accumulator (after banking) times the rank factor.
     double highScoreRankValue() const;
-    // Next mission after Continue (mission index + 1, mod 20).
-    int nextMission() const { return (mission + 1) % kMissionCount; }
+    // Next mission after Continue (mission index + 1, mod the mission count).
+    int nextMission() const { return (mission + 1) % rules->missionCount; }
+    bool isLastMission() const { return mission == rules->missionCount - 1; }
 };
 
 // ---------------------------------------------------------------------------
@@ -89,10 +99,13 @@ struct HighScore {
 
 struct Progress {
     HighScore scores[kHighScoreCount];
-    bool helicopterUnlocked[kHelicopterCount] = {};
-    bool missionUnlocked[kMissionCount] = {};
+    int missionCount = kMissionCount;       // used part of missionUnlocked
+    int helicopterCount = kHelicopterCount; // used part of helicopterUnlocked
+    bool helicopterUnlocked[kMaxHelicopters] = {};
+    bool missionUnlocked[kMaxMissions] = {};
 
-    static Progress defaults(); // the compiled-in table, helicopters 0-1 and missions 1-2
+    // The compiled-in table, helicopters 0-1 and missions 1-2, sized by the game's rules.
+    static Progress defaults(const GameRules& rules = defaultGameRules());
 
     // Slot the score would take (first entry whose score <= score), or -1 if it does not
     // qualify (frontend.md 3.12).
@@ -100,7 +113,7 @@ struct Progress {
     // Inserts at the qualifying slot, shifting the rest down (the last is dropped). Returns the
     // slot or -1.
     int insert(const std::string& name, std::int64_t score, int rank);
-    // EndLevel unlocks (frontend.md 5.3): helicopter `enableHelic` if 0..9, and the next mission.
+    // EndLevel unlocks (frontend.md 5.3): helicopter `enableHelic` if inside the count, and the next mission.
     void unlockAfterMission(int missionIndex, int enableHelic);
 };
 

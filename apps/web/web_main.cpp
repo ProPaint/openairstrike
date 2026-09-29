@@ -121,12 +121,12 @@ int main(int argc, char* argv[]) {
             ++i;
         } else if (!std::strcmp(s, "--level") && v) {
             int m = std::atoi(v);
-            if (m >= 1 && m <= as3d::kMissionCount) o.game.mission = m;
+            if (m >= 1 && m <= o.game.rules().missionCount) o.game.mission = m;
             direct = level = true;
             ++i;
         } else if (!std::strcmp(s, "--difficulty") && v) {
             int d = std::atoi(v);
-            if (d >= 0 && d <= 4) o.game.world.difficulty = d;
+            if (d >= 0 && d < o.game.rules().difficultyCount) o.game.world.difficulty = d;
             ++i;
         } else if (!std::strcmp(s, "--frames") && v) {
             long f = std::strtol(v, nullptr, 10);

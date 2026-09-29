@@ -139,7 +139,7 @@ Menu Frontend::buildOptions() {
                 heli_[0] = 1;
                 heli_[1] = 0;
                 heliAlternator_ = 0;
-                campaign_ = Campaign{};
+                campaign_ = Campaign(rules());
                 paused_ = hudHidden_ = false;
                 state_ = FrontendState::Attract;
                 host_.loadAttract();

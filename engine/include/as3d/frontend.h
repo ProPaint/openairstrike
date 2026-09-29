@@ -68,8 +68,9 @@ struct LogoImage {
 };
 
 struct FrontendContent {
-    std::string missionNames[kMissionCount]; // levels.txt `name` of the 20 missions, table order
-    int enableHelic[kMissionCount];          // levels.txt enableHelic, -1 = none
+    const GameProfile* game = nullptr;       // nullptr = the first game (AirStrike 3D)
+    std::string missionNames[kMaxMissions];  // levels.txt `name` of the missions, table order
+    int enableHelic[kMaxMissions];           // levels.txt enableHelic, -1 = none
     std::string version, copyright;          // Settings.xml <Info>
     std::vector<IntroPage> intros;           // Settings.xml <Intros>
     std::vector<LogoImage> logos;            // Settings.xml <Logotypes>
@@ -104,7 +105,7 @@ void removeRereleaseBranding(FrontendContent& content);
 // Interface to the game
 // ---------------------------------------------------------------------------
 struct MissionStart {
-    int mission = 0;        // 0..19
+    int mission = 0;        // 0..missionCount-1
     int difficulty = kDefaultDifficulty;
     int players = 1;
     int helicopter[2] = {1, 0};
@@ -255,6 +256,7 @@ private:
     bool handlePlayingInput(const UiInput& input);
     void drawStats(MenuDrawContext& c, float boxY);
     void refreshLocks();
+    const GameRules& rules() const { return content_.game ? content_.game->rules : defaultGameRules(); }
 
     GameHost& host_;
     Profile& profile_;
@@ -270,7 +272,7 @@ private:
     bool twoPlayers_ = false;
     int heli_[2] = {1, 0};
     int heliAlternator_ = 0;
-    bool heliLocked_[kHelicopterCount] = {};
+    bool heliLocked_[kMaxHelicopters] = {};
     int difficultyChoice_ = kDefaultDifficulty;
     std::string hintText_;
     std::unique_ptr<IntroRun> intro_;

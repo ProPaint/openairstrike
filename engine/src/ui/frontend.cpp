@@ -35,7 +35,8 @@ bool screenFromName(std::string_view name, Screen& out) {
 }
 
 Frontend::Frontend(GameHost& host, Profile& profile, FrontendContent content, Texts texts)
-    : host_(host), profile_(profile), content_(std::move(content)), texts_(std::move(texts)) {
+    : host_(host), profile_(profile), content_(std::move(content)), texts_(std::move(texts)),
+      campaign_(rules()) {
     menus_.showHints = profile_.settings.showHints;
     menus_.drawCursor = !profile_.settings.useSystemMouse;
     pending_ = profile_.settings;
@@ -50,7 +51,7 @@ void Frontend::setTouchMode(bool on) {
 }
 
 void Frontend::refreshLocks() {
-    for (int i = 0; i < kHelicopterCount; i++) heliLocked_[i] = !profile_.progress.helicopterUnlocked[i];
+    for (int i = 0; i < rules().helicopterCount; i++) heliLocked_[i] = !profile_.progress.helicopterUnlocked[i];
 }
 
 void Frontend::boot() {
@@ -58,7 +59,7 @@ void Frontend::boot() {
     heli_[1] = 0;
     heliAlternator_ = 0;
     paused_ = hudHidden_ = false;
-    campaign_ = Campaign{};
+    campaign_ = Campaign(rules());
     if (profile_.settings.showLogo && !content_.intros.empty()) {
         intro_ = std::make_unique<IntroRun>();
         intro_->pages = content_.intros;
@@ -188,12 +189,12 @@ void Frontend::onEndLevel(const MissionReport& report) {
     report_ = report;
     setPausedFlag(true);
     hudHidden_ = true;
-    const int mission = std::clamp(campaign_.mission, 0, kMissionCount - 1);
+    const int mission = std::clamp(campaign_.mission, 0, rules().missionCount - 1);
     profile_.progress.unlockAfterMission(mission, content_.enableHelic[mission]);
     refreshLocks();
     save(); // ours: right away, not only at exit (frontend.md 6.1 recommendation)
     typedChars_ = 0;
-    open(mission == kMissionCount - 1 ? Screen::GameComplete : Screen::MissionComplete);
+    open(mission == rules().missionCount - 1 ? Screen::GameComplete : Screen::MissionComplete);
 }
 
 void Frontend::onGameOver(const MissionReport& report) {
@@ -376,15 +377,15 @@ bool Frontend::debugSet(std::string_view key, std::string_view value) {
         return true;
     }
     if (key == "players") { twoPlayers_ = n >= 2; campaign_.players = twoPlayers_ ? 2 : 1; return true; }
-    if (key == "mission") { campaign_.mission = std::clamp(n - 1, 0, kMissionCount - 1); return true; }
+    if (key == "mission") { campaign_.mission = std::clamp(n - 1, 0, rules().missionCount - 1); return true; }
     if (key == "unlock") {
-        for (bool& b : profile_.progress.helicopterUnlocked) b = true;
-        for (bool& b : profile_.progress.missionUnlocked) b = true;
+        for (int i = 0; i < rules().helicopterCount; i++) profile_.progress.helicopterUnlocked[i] = true;
+        for (int i = 0; i < rules().missionCount; i++) profile_.progress.missionUnlocked[i] = true;
         refreshLocks();
         return true;
     }
-    if (key == "heli") { heli_[0] = std::clamp(n, 0, kHelicopterCount - 1); return true; }
-    if (key == "heli2") { heli_[1] = std::clamp(n, 0, kHelicopterCount - 1); return true; }
+    if (key == "heli") { heli_[0] = std::clamp(n, 0, rules().helicopterCount - 1); return true; }
+    if (key == "heli2") { heli_[1] = std::clamp(n, 0, rules().helicopterCount - 1); return true; }
     if (key == "page") { infoPage_ = std::clamp(n - 1, 0, 9); return true; }
     if (key == "capture") { captureRow_ = std::clamp(n, 0, kActionCount - 1); return true; }
     if (key == "hint") { hintText_ = v; return true; }

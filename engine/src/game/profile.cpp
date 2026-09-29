@@ -9,12 +9,8 @@ namespace as3d {
 // ---------------------------------------------------------------------------
 // Difficulty and rank
 // ---------------------------------------------------------------------------
-const DifficultyFactors& difficultyFactors(int index) {
-    static const DifficultyFactors t[kDifficultyCount] = {
-        {0.3f, 0.5f, 0.6f, 0.7f},  {0.5f, 0.7f, 0.8f, 0.85f}, {0.75f, 0.8f, 1.0f, 1.07f},
-        {1.5f, 1.25f, 1.2f, 1.2f}, {2.0f, 1.4f, 1.4f, 1.3f},
-    };
-    return t[std::clamp(index, 0, kDifficultyCount - 1)];
+const DifficultyFactors& difficultyFactors(int index, const GameRules& rules) {
+    return rules.difficulty[std::clamp(index, 0, rules.difficultyCount - 1)];
 }
 
 int rankIndex(double v, bool cheatUsed) {
@@ -30,10 +26,13 @@ int rankIndex(double v, bool cheatUsed) {
 // ---------------------------------------------------------------------------
 void Campaign::start(int missionIndex, int difficultyIndex, int playerCount) {
     active = true;
-    mission = std::clamp(missionIndex, 0, kMissionCount - 1);
-    difficulty = std::clamp(difficultyIndex, 0, kDifficultyCount - 1);
+    mission = std::clamp(missionIndex, 0, rules->missionCount - 1);
+    difficulty = std::clamp(difficultyIndex, 0, rules->difficultyCount - 1);
     players = playerCount >= 2 ? 2 : 1;
-    for (CampaignPlayer& cp : p) cp = CampaignPlayer{};
+    for (CampaignPlayer& cp : p) {
+        cp = CampaignPlayer{};
+        cp.livesAtStart = rules->startLives;
+    }
 }
 
 static double ratio(double a, double b) { return b != 0 ? a / b : 0.0; }
@@ -50,16 +49,20 @@ void Campaign::bank(const LevelPlayerResult results[2], const LevelTotals& total
 
 double Campaign::missionRankValue(const LevelPlayerResult& r, const LevelTotals& totals) const {
     const double v = ratio(r.stars, totals.starTotal) + 0.5 * ratio(r.score, totals.maxScore) + p[0].rankAccumulator;
-    return v * difficultyFactors(difficulty).rank;
+    return v * difficultyFactors(difficulty, *rules).rank;
 }
 
-double Campaign::highScoreRankValue() const { return p[0].rankAccumulator * difficultyFactors(difficulty).rank; }
+double Campaign::highScoreRankValue() const {
+    return p[0].rankAccumulator * difficultyFactors(difficulty, *rules).rank;
+}
 
 // ---------------------------------------------------------------------------
 // Progress
 // ---------------------------------------------------------------------------
-Progress Progress::defaults() {
+Progress Progress::defaults(const GameRules& rules) {
     Progress p;
+    p.missionCount = rules.missionCount;
+    p.helicopterCount = rules.helicopterCount;
     // Fresh-install table (frontend.md 6.1).
     static const struct { const char* name; std::int64_t score; int rank; } t[kHighScoreCount] = {
         {"Divo Master", 1000000, 6}, {"Dennis", 900000, 5},   {"Terminator", 800000, 5},
@@ -89,8 +92,8 @@ int Progress::insert(const std::string& name, std::int64_t score, int rank) {
 }
 
 void Progress::unlockAfterMission(int missionIndex, int enableHelic) {
-    if (enableHelic >= 0 && enableHelic < kHelicopterCount) helicopterUnlocked[enableHelic] = true;
-    const int next = ((missionIndex + 1) % kMissionCount + kMissionCount) % kMissionCount;
+    if (enableHelic >= 0 && enableHelic < helicopterCount) helicopterUnlocked[enableHelic] = true;
+    const int next = ((missionIndex + 1) % missionCount + missionCount) % missionCount;
     missionUnlocked[next] = true;
     missionUnlocked[0] = true; // mission 1 is always unlocked
 }
