@@ -171,5 +171,16 @@ multi-touch is covered by the unit tests only.
 - Two players, gamepads and the hardware keyboard's rebinding are not supported on Android
   (a Bluetooth keyboard works with the desktop keys).
 - The emulator renders with SwiftShader (a CPU GLES implementation): its frame times say
-  nothing about a phone's.
+  nothing about a phone's. Measured on the `atticpad-test` AVD (Pixel 6 profile, 2400x1080,
+  x86_64, KVM, SwiftShader), emulator numbers only: 6 to 9 displayed frames per second
+  (`avg_ms` 105 to 170, work 100 to 160 ms per frame, almost all of it drawing), about 40 of
+  the 60 simulation steps per second run and the rest dropped (the game runs at about 2/3
+  speed there), first level load 9 to 12 s from the APK, a GL rebuild after resume 2.5 to
+  6.5 s. `-gpu host` does not start headless on the development machine (no X display), so
+  `AS3D_EMU_GPU=host` only helps where a display is available. On desktop (GTX 1060) the
+  same loop holds 60 fps with 1.3 to 2.9 ms of work per frame.
+- A pause request (button, P, Back) is ignored while a tutorial hint box holds the pause,
+  as in the original; the smoke test retries it.
+- Under heavy load the emulator's System UI may show "isn't responding"; the smoke test
+  closes system dialogs before tapping.
 - No app icon yet.
