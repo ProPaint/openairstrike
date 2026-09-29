@@ -72,6 +72,7 @@ class Matcher:
         self.m = {}      # src addr -> dst addr
         self.rm = {}     # dst addr -> src addr
         self.info = {}   # src addr -> (confidence, evidence)
+        self.removed, self.extra, self.codemap, self.blocked = {}, {}, {}, set()
         for fs in (self.S, self.D):
             for f in fs.values():
                 f.strings_c = Counter(s for s in f.strings)
@@ -82,6 +83,10 @@ class Matcher:
     # a pair is accepted only once per side
     def add(self, s, d, conf, ev):
         if s in self.m or d in self.rm:
+            return False
+        # manual decisions win: a source marked removed and a target named
+        # as new code (names file) are never paired automatically
+        if not ev.startswith("manual:") and (s in self.removed or d in self.blocked):
             return False
         self.m[s] = d
         self.rm[d] = s
@@ -514,6 +519,7 @@ def build_rows(M, names_new):
             row["description"] = "builtin '%s' (new in %s)" % (blist[0], M.dst)
             row["confidence"] = "high"
             row["evidence"] = "builtin table entry '%s'" % blist[0]
+            row["_b"] = True
         elif not f.name.startswith("FUN_") and (is_library_name(f.name) or a >= lay["game_end"]):
             row["name"] = f.name
             row["subsystem"] = "crt"
@@ -551,8 +557,8 @@ def build_rows(M, names_new):
                 row["description"] = "C++ standard library template instance"
                 row["evidence"] = "calls std:: helpers / throws length errors"
                 row["confidence"] = "low"
-        if blist:
-            extra = "builtin%s %s" % ("s" if len(blist) > 1 else "", ", ".join("'%s'" % b for b in blist))
+        if blist and not row.get("_b"):
+            extra ="builtin%s %s" % ("s" if len(blist) > 1 else "", ", ".join("'%s'" % b for b in blist))
             row["description"] = (row["description"] + "; " if row["description"] else "") + extra
         row["name"] = uniq(row["name"], a)
         rows[a] = row
@@ -710,6 +716,9 @@ def main():
         sys.exit(0 if check(args.check, args.dst, args.removed_doc) else 1)
     M = Matcher(args.src, args.dst)
     M.names = load_src_names(args.src)
+    names_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "names_%s.csv" % args.dst)
+    names_new = load_new_names(names_path)
+    M.blocked = set(names_new)
     ov = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                       "overrides_%s_%s.csv" % (args.src, args.dst))
     steps = [("manual overrides", lambda: M.apply_overrides(ov)),
@@ -742,8 +751,7 @@ def main():
     matched_named = sum(1 for a in named if a in M.m or a in M.extra)
     print("v170 named matched: %d of %d, removed %d" % (matched_named, len(named), len(M.removed)),
           file=sys.stderr)
-    names_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "names_%s.csv" % args.dst)
-    rows = build_rows(M, load_new_names(names_path))
+    rows = build_rows(M, names_new)
     if args.out:
         write_rows(rows, args.out)
         print("wrote %s (%d rows)" % (args.out, len(rows)), file=sys.stderr)
@@ -755,6 +763,36 @@ def write_report(M, rows, path):
     """Markdown tables for docs/spec/<dst>/symbol-map.md (pasted by hand)."""
     N = M.names
     out = []
+    # subsystem table
+    st = defaultdict(Counter)
+    for s, (n, sub, _, _) in N.items():
+        st[sub]["v170"] += 1
+        if s in M.m:
+            st[sub]["matched"] += 1
+            if M.S[s].exact == M.D[M.m[s]].exact:
+                st[sub]["same"] += 1
+            elif M.S[s].loose == M.D[M.m[s]].loose:
+                st[sub]["regs"] += 1
+        elif s in M.extra or s in M.codemap:
+            st[sub]["matched"] += 1
+        elif s in M.removed:
+            st[sub]["removed"] += 1
+        else:
+            st[sub]["open"] += 1
+    for r in rows:
+        st[r["subsystem"]]["as2"] += 1
+        if not r["v170_address"]:
+            st[r["subsystem"]]["new"] += 1
+    out.append("### Subsystems\n")
+    out.append("| subsystem | v1.70 named | matched | same instruction shape | same opcodes, other operands | "
+               "removed | undecided | AS2 functions | AS2 without counterpart |")
+    out.append("|---|---|---|---|---|---|---|---|---|")
+    for sub in sorted(st, key=lambda k: (-st[k]["v170"], k)):
+        c = st[sub]
+        out.append("| %s | %d | %d | %d | %d | %d | %d | %d | %d |" % (
+            sub or "(none)", c["v170"], c["matched"], c["same"], c["regs"], c["removed"], c["open"],
+            c["as2"], c["new"]))
+    out.append("")
     out.append("### Removed v1.70 functions\n")
     out.append("| v1.70 address | v1.70 name | status | confidence | evidence |")
     out.append("|---|---|---|---|---|")

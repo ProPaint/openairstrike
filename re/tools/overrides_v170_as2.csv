@@ -106,3 +106,4 @@ from_address,to_address,confidence,evidence
 0x0042bcc0,code:0x0042daf0,low,message-box builder 0x0042dc10 callbacks keep the v1.70 order (draw; key; action) and the v1.70 address order
 0x0042aa60,code:0x0042c700,low,M_OptionsMenu 0x0042c8d0 callbacks other than the draw callback: the higher address as in v1.70 (M_OptionsApplyAction below M_OptionsAction)
 0x0042a840,code:0x0042c4a0,low,M_OptionsMenu 0x0042c8d0 callbacks other than the draw callback: the lower address as in v1.70
+0x004184e0,removed,low,no function with its shape or constants in AS2; the one the automatic propagation proposed (0x0042f3d0) is a Direct3D format check (IDirect3D8 CheckDeviceFormat); mip levels are made by D3DX

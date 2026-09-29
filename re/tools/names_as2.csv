@@ -1,8 +1,8 @@
 address,name,subsystem,description,confidence,evidence
 # Names for AS2 functions that have no v1.70 counterpart (new code), chosen
 # from their strings, callers, callees, constants and Direct3D 8 method calls
-# (re/tools/d3d8_vtable.py). Read by match_symbols.py; rows for addresses that
-# the matcher pairs with a v1.70 function are ignored. Lines starting with #
+# (re/tools/d3d8_vtable.py). Read by match_symbols.py; the addresses listed
+# here are never paired automatically with a v1.70 function. Lines starting with #
 # are comments.
 0x004012b0,VID_SelectDisplayMode,window,enumerates the display modes and picks the one to use; logs the list and falls back or quits when none fits,medium,"strings 'Forcing video mode', 'Summary:', 'no suitable video modes found', 'Enabling non-standard modes'; called by CFG_Init; uses C++ containers (0x004031d0-0x00405570)"
 0x00405880,Sys_WriteRegistryKey,sys,writes a value under a CLSID key of the registry at start-up,medium,RegCreateKeyExA / RegSetValueExA with a 'Software\CLASSES\CLSID\{...}' path; called by WinMain
@@ -66,8 +66,8 @@ address,name,subsystem,description,confidence,evidence
 0x0042f0f0,R_FlushVertices,render,draws the vertices written since the last lock,medium,calls SetStreamSource SetVertexShader DrawPrimitive (Direct3D 8 device slots 83 76 70)
 0x0042f200,R_LockParticleVertices,render,vertex reservation used by the particle drawer,low,only caller R_DrawParticleSystem; calls R_LockVertexBuffer
 0x0042f290,R_DrawIndexed,render,draws indexed triangles from the dynamic buffers,medium,calls SetIndices SetStreamSource SetVertexShader DrawIndexedPrimitive
-0x0042f4b0,D3D_ModeHelperA,render,display-mode helper of D3D_ApplyMode,low,only caller 0x0042f7c0
-0x0042f570,D3D_ModeHelperB,render,display-mode helper of D3D_ApplyMode,low,only caller 0x0042f7c0
+0x0042f4b0,D3D_FindAdapterFormat,render,checks which back-buffer format the adapter supports for the chosen mode,medium,only caller D3D_ApplyMode 0x0042f7c0; calls IDirect3D8 slot 9 (CheckDeviceType)
+0x0042f570,D3D_FindDepthFormat,render,picks a depth-buffer format compatible with the display format,medium,only caller D3D_ApplyMode 0x0042f7c0; calls IDirect3D8 slots 10 and 12 (CheckDeviceFormat; CheckDepthStencilMatch)
 0x0042f620,D3D_SetDefaultStates,render,sets the default render and texture-stage states after device creation or reset,medium,calls only SetRenderState and SetTextureStageState; called by GL_Init D3D_ResetDevice D3D_ApplyMode
 0x0042f750,D3D_ResetDevice,render,resets the Direct3D device (lost device) and recreates the buffers,high,string 'error: Could not reset D3D device.'; calls D3D_ReleaseBuffers D3D_CreateBuffers D3D_SetDefaultStates; called by R_EndFrame
 0x0042f7c0,D3D_ApplyMode,render,applies a window/fullscreen mode change,low,called by the window procedure and GL_Init; calls D3D_ResetDevice D3D_SetDefaultStates and the device Clear method
@@ -85,5 +85,6 @@ address,name,subsystem,description,confidence,evidence
 0x00436440,R_SetupWaterStages,terrain,texture-stage and texture-transform set-up for the water (wave animation),low,only caller R_DrawWater; sin; 0.4/0.5 constants of the v1.70 water drawer
 0x004377d0,R_DrawTerrainPatch,terrain,draws one terrain patch,low,called by R_DrawTerrain; calls GL_SetBlendMode R_SetTextureStage R_LockVertexBuffer R_FlushVertices
 0x00438260,R_ShadowMapHelper,shadow,shadow-map helper,low,only caller R_GenerateShadowMap
-0x00438310,R_CreateTexture,texture,creates a Direct3D texture from a generated image with mip levels,medium,calls the device CreateTexture method R_Downsample2x and the D3DX helper 0x0044f0b3; called by R_BuildTerrainTextures
+0x00438310,R_CreateTexture,texture,creates a Direct3D texture from a generated image with mip levels,medium,calls the device CreateTexture method, D3D_FindTextureFormat and the D3DX helper 0x0044f0b3; called by R_BuildTerrainTextures
 0x00438650,R_DrawWaterSurface,terrain,draws the water geometry,low,only caller R_DrawWater; R_LockVertexBuffer R_FlushVertices
+0x0042f3d0,D3D_FindTextureFormat,render,checks which texture format the device supports,medium,"calls IDirect3D8 slot 10 (CheckDeviceFormat); called by D3D_CreateBuffers, R_GenerateShadowMap and R_CreateTexture; the toolkit author calls the Gulf counterpart find_d3d_format (naming aid only)"

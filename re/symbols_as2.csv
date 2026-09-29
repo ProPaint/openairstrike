@@ -331,15 +331,15 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x0041f300,PF_cos,script-builtin,cos of degrees; builtin 'cos',high,builtin table entry 'cos',0x0041a3d0
 0x0041f320,PF_tan,script-builtin,tan of degrees; builtin 'tan',high,builtin table entry 'tan',0x0041a3f0
 0x0041f340,PF_atan,script-builtin,atan (input converted from degrees; returns radians); builtin 'atan',high,builtin table entry 'atan',0x0041a410
-0x0041f370,PF_atan2,script-builtin,builtin 'atan2' (new in as2); builtin 'atan2',high,builtin table entry 'atan2',
+0x0041f370,PF_atan2,script-builtin,builtin 'atan2' (new in as2),high,builtin table entry 'atan2',
 0x0041f3b0,PF_abs,script-builtin,abs; builtin 'abs',high,builtin table entry 'abs',0x0041a430
 0x0041f3e0,PF_min,script-builtin,min; builtin 'min',high,builtin table entry 'min',0x0041a460
 0x0041f420,PF_max,script-builtin,max; builtin 'max',high,builtin table entry 'max',0x0041a4a0
 0x0041f460,PF_lerp,script-builtin,lerp(t;a;b)=a+(b-a)t; builtin 'lerp',high,builtin table entry 'lerp',0x0041a4e0
-0x0041f480,PF_copysign,script-builtin,builtin 'copysign' (new in as2); builtin 'copysign',high,builtin table entry 'copysign',
-0x0041f4b0,PF_floor,script-builtin,builtin 'floor' (new in as2); builtin 'floor',high,builtin table entry 'floor',
-0x0041f4e0,PF_floor2,script-builtin,builtin 'floor2' (new in as2); builtin 'floor2',high,builtin table entry 'floor2',
-0x0041f510,PF_fmod,script-builtin,builtin 'fmod' (new in as2); builtin 'fmod',high,builtin table entry 'fmod',
+0x0041f480,PF_copysign,script-builtin,builtin 'copysign' (new in as2),high,builtin table entry 'copysign',
+0x0041f4b0,PF_floor,script-builtin,builtin 'floor' (new in as2),high,builtin table entry 'floor',
+0x0041f4e0,PF_floor2,script-builtin,builtin 'floor2' (new in as2),high,builtin table entry 'floor2',
+0x0041f510,PF_fmod,script-builtin,builtin 'fmod' (new in as2),high,builtin table entry 'fmod',
 0x0041f530,PF_vec_copy,script-builtin,vec_copy(src;dst); builtin 'vec_copy',high,builtin table entry 'vec_copy',0x0041a500
 0x0041f550,PF_vec_add,script-builtin,vec_add(a;b;out); builtin 'vec_add',high,builtin table entry 'vec_add',0x0041a520
 0x0041f580,PF_vec_sub,script-builtin,vec_sub(a;b;out)=a-b; builtin 'vec_sub',high,builtin table entry 'vec_sub',0x0041a550
@@ -359,7 +359,7 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x0041fa20,PF_getentity,script-builtin,raw entity pointer to handle (+0x7B); builtin 'getentity',high,builtin table entry 'getentity',0x0041a9e0
 0x0041fa40,PF_setskin,script-builtin,set entity skin; builtin 'setskin',high,builtin table entry 'setskin',0x0041aa00
 0x0041fa70,PF_AttachEntity,script-builtin,attach entity to parent tag; builtin 'AttachEntity',high,builtin table entry 'AttachEntity',0x0041aa30
-0x0041fae0,PF_DetachEntity,script-builtin,builtin 'DetachEntity' (new in as2); builtin 'DetachEntity',high,builtin table entry 'DetachEntity',
+0x0041fae0,PF_DetachEntity,script-builtin,builtin 'DetachEntity' (new in as2),high,builtin table entry 'DetachEntity',
 0x0041fb50,PF_AttachActivate,script-builtin,activate direct child by id; builtin 'AttachActivate',high,builtin table entry 'AttachActivate',0x0041aa90
 0x0041fc10,PF_AttachDeactivate,script-builtin,deactivate direct child by id; builtin 'AttachDeactivate',high,builtin table entry 'AttachDeactivate',0x0041ab50
 0x0041fcd0,PF_AttachCallback,script-builtin,run callback on child by id; builtin 'AttachCallback',high,builtin table entry 'AttachCallback',0x0041ac10
@@ -377,14 +377,14 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x00420190,PF_Shoot,script-builtin,Shoot(weapon;tag;dir*): spawn projectile and flash; builtin 'Shoot',high,builtin table entry 'Shoot',0x0041b0d0
 0x00420630,PF_Damage,script-builtin,Damage(h;amount*g_damage_factor); builtin 'Damage',high,builtin table entry 'Damage',0x0041b550
 0x004206b0,PF_RadialDamage,script-builtin,per-frame radial damage to enemies (grows with distance); builtin 'RadialDamage',high,builtin table entry 'RadialDamage',0x0041b5d0
-0x00420840,PF_RadialDamagePlayer,script-builtin,builtin 'RadialDamagePlayer' (new in as2); builtin 'RadialDamagePlayer',high,builtin table entry 'RadialDamagePlayer',
+0x00420840,PF_RadialDamagePlayer,script-builtin,builtin 'RadialDamagePlayer' (new in as2),high,builtin table entry 'RadialDamagePlayer',
 0x004209b0,PF_RotateTo,script-builtin,"turn yaw/pitch toward a point (latent); builtins 'RotateTo', 'lRotateTo'",high,builtin table entry 'RotateTo',0x0041b750
 0x00420c20,PF_RotateToClamp,script-builtin,"RotateTo with clamp; builtins 'RotateToClamp', 'lRotateToClamp'",high,builtin table entry 'RotateToClamp',0x0041b9c0
 0x00420cc0,PF_MoveToNextWP,script-builtin,"latent path move; builtins 'MoveToNextWP', 'lMoveToNextWP'",high,builtin table entry 'MoveToNextWP',0x0041ba60
 0x00420cf0,PF_RotateToNextWP,script-builtin,"latent path rotate; builtins 'RotateToNextWP', 'lRotateToNextWP'",high,builtin table entry 'RotateToNextWP',0x0041ba90
 0x00420d10,PF_GetWaypointDelay,script-builtin,delay of waypoint i mod n; builtin 'GetWaypointDelay',high,builtin table entry 'GetWaypointDelay',0x0041bab0
 0x00420d50,PF_TerrainHeight,script-builtin,terrain height at x;y; builtin 'TerrainHeight',high,builtin table entry 'TerrainHeight',0x0041baf0
-0x00420d80,PF_WaterHeight,script-builtin,builtin 'WaterHeight' (new in as2); builtin 'WaterHeight',high,builtin table entry 'WaterHeight',
+0x00420d80,PF_WaterHeight,script-builtin,builtin 'WaterHeight' (new in as2),high,builtin table entry 'WaterHeight',
 0x00420db0,PF_PlaceLight,script-builtin,add dynamic light for this frame; builtin 'PlaceLight',high,builtin table entry 'PlaceLight',0x0041bb20
 0x00420dd0,PF_LockTarget,script-builtin,lock nearest enemy ahead; builtin 'LockTarget',high,builtin table entry 'LockTarget',0x0041bb40
 0x00420df0,PF_IsValidTarget,script-builtin,entity alive test; builtin 'IsValidTarget',high,builtin table entry 'IsValidTarget',0x0041bb60
@@ -400,7 +400,7 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x00421550,PF_G_AddPowerUp,script-builtin,add power-ups (max 99); builtin 'G_AddPowerUp',high,builtin table entry 'G_AddPowerUp',0x0041c210
 0x00421600,PF_G_GetPowerUp,script-builtin,current power-up or -1; builtin 'G_GetPowerUp',high,builtin table entry 'G_GetPowerUp',0x0041c2b0
 0x00421620,PF_G_UsePowerUp,script-builtin,consume current power-up; builtin 'G_UsePowerUp',high,builtin table entry 'G_UsePowerUp',0x0041c2d0
-0x00421650,PF_G_SetPowerUpCount,script-builtin,builtin 'G_SetPowerUpCount' (new in as2); builtin 'G_SetPowerUpCount',high,builtin table entry 'G_SetPowerUpCount',
+0x00421650,PF_G_SetPowerUpCount,script-builtin,builtin 'G_SetPowerUpCount' (new in as2),high,builtin table entry 'G_SetPowerUpCount',
 0x004216c0,PF_G_AddMissiles,script-builtin,add missiles (max 99); builtin 'G_AddMissiles',high,builtin table entry 'G_AddMissiles',0x0041c2f0
 0x00421770,PF_G_GetMissiles,script-builtin,current missile type or -1; builtin 'G_GetMissiles',high,builtin table entry 'G_GetMissiles',0x0041c390
 0x00421790,PF_G_UseMissile,script-builtin,consume current missile; builtin 'G_UseMissile',high,builtin table entry 'G_UseMissile',0x0041c3b0
@@ -414,12 +414,12 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x004219f0,PF_ClearFlag,script-builtin,returns a&~b; builtin 'ClearFlag',high,builtin table entry 'ClearFlag',0x0041c5e0
 0x00421a20,PF_SetModel,script-builtin,change entity model; builtin 'SetModel',high,builtin table entry 'SetModel',0x0041c610
 0x00421a50,PF_RespawnPlayer,script-builtin,respawn player helicopter; builtin 'RespawnPlayer',high,builtin table entry 'RespawnPlayer',0x0041c640
-0x00421a90,PF_TerraMorph,script-builtin,builtin 'TerraMorph' (new in as2); builtin 'TerraMorph',high,builtin table entry 'TerraMorph',
-0x00421ab0,PF_IsMultiplayer,script-builtin,builtin 'IsMultiplayer' (new in as2); builtin 'IsMultiplayer',high,builtin table entry 'IsMultiplayer',
-0x00421ae0,PF_IsPlayerInGame,script-builtin,builtin 'IsPlayerInGame' (new in as2); builtin 'IsPlayerInGame',high,builtin table entry 'IsPlayerInGame',
-0x00421b20,PF_GetMapPosOfs,script-builtin,builtin 'GetMapPosOfs' (new in as2); builtin 'GetMapPosOfs',high,builtin table entry 'GetMapPosOfs',
-0x00421b40,PF_GetPlayerAccel,script-builtin,builtin 'GetPlayerAccel' (new in as2); builtin 'GetPlayerAccel',high,builtin table entry 'GetPlayerAccel',
-0x00421ba0,PF_GetPlayersDistance,script-builtin,builtin 'GetPlayersDistance' (new in as2); builtin 'GetPlayersDistance',high,builtin table entry 'GetPlayersDistance',
+0x00421a90,PF_TerraMorph,script-builtin,builtin 'TerraMorph' (new in as2),high,builtin table entry 'TerraMorph',
+0x00421ab0,PF_IsMultiplayer,script-builtin,builtin 'IsMultiplayer' (new in as2),high,builtin table entry 'IsMultiplayer',
+0x00421ae0,PF_IsPlayerInGame,script-builtin,builtin 'IsPlayerInGame' (new in as2),high,builtin table entry 'IsPlayerInGame',
+0x00421b20,PF_GetMapPosOfs,script-builtin,builtin 'GetMapPosOfs' (new in as2),high,builtin table entry 'GetMapPosOfs',
+0x00421b40,PF_GetPlayerAccel,script-builtin,builtin 'GetPlayerAccel' (new in as2),high,builtin table entry 'GetPlayerAccel',
+0x00421ba0,PF_GetPlayersDistance,script-builtin,builtin 'GetPlayersDistance' (new in as2),high,builtin table entry 'GetPlayersDistance',
 0x00421c30,SL_GetExternFunc,script,builtin table lookup,high,unique string 'RespawnPlayer' (2 shared),0x0041c680
 0x00421c90,SL_FindGlobal,script,globals table lookup,high,unique string 'other' (1 shared),0x0041c6e0
 0x00421ce0,SL_FreeScripts,script,free loaded scripts,medium,caller of _free (score 0.92),0x0041c730
@@ -433,7 +433,7 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x004225a0,S_Init,sound,BASS initialisation (22050 Hz; 3D factors),high,unique string '-nosound' (6 shared),0x0041fa60
 0x004226d0,S_FreeAll,sound,free samples and music,high,only caller of import BASS_SampleFree,0x0041fb90
 0x00422760,S_StopAll,sound,BASS_Stop and clear channels,medium,"identical shape, caller of BASS_Stop (score 1.00)",0x0041fc00
-0x00422790,S_Update,sound,listener + channel positions each frame,high,only caller of import BASS_Update,0x0041fc30
+0x00422790,S_Update,sound,listener + channel positions each frame,high,only caller of import BASS_Set3DPosition,0x0041fc30
 0x00422880,S_ChangeMusic,sound,load/jump music (order 35 on game over),high,"identical normalised instruction shape (59 insns, unique in both)",0x0041fd20
 0x00422950,S_StartSound,sound,play sample attached to entity,high,"identical normalised instruction shape (86 insns, unique in both)",0x0041fdf0
 0x00422a50,S_StartLocalSound,sound,play UI sample 2D,high,"identical normalised instruction shape (22 insns, unique in both)",0x0041fef0
@@ -567,9 +567,9 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x0042f0f0,R_FlushVertices,render,draws the vertices written since the last lock,medium,calls SetStreamSource SetVertexShader DrawPrimitive (Direct3D 8 device slots 83 76 70),
 0x0042f200,R_LockParticleVertices,render,vertex reservation used by the particle drawer,low,only caller R_DrawParticleSystem; calls R_LockVertexBuffer,
 0x0042f290,R_DrawIndexed,render,draws indexed triangles from the dynamic buffers,medium,calls SetIndices SetStreamSource SetVertexShader DrawIndexedPrimitive,
-0x0042f3d0,R_Downsample2x,texture,2x2 integer box filter of an 8-bit image (v1.70 alias: R_BlurImage),medium,callee R_GenerateShadowMap (score 0.69),0x004184e0
-0x0042f4b0,D3D_ModeHelperA,render,display-mode helper of D3D_ApplyMode,low,only caller 0x0042f7c0,
-0x0042f570,D3D_ModeHelperB,render,display-mode helper of D3D_ApplyMode,low,only caller 0x0042f7c0,
+0x0042f3d0,D3D_FindTextureFormat,render,checks which texture format the device supports,medium,"calls IDirect3D8 slot 10 (CheckDeviceFormat); called by D3D_CreateBuffers, R_GenerateShadowMap and R_CreateTexture; the toolkit author calls the Gulf counterpart find_d3d_format (naming aid only)",
+0x0042f4b0,D3D_FindAdapterFormat,render,checks which back-buffer format the adapter supports for the chosen mode,medium,only caller D3D_ApplyMode 0x0042f7c0; calls IDirect3D8 slot 9 (CheckDeviceType),
+0x0042f570,D3D_FindDepthFormat,render,picks a depth-buffer format compatible with the display format,medium,only caller D3D_ApplyMode 0x0042f7c0; calls IDirect3D8 slots 10 and 12 (CheckDeviceFormat; CheckDepthStencilMatch),
 0x0042f620,D3D_SetDefaultStates,render,sets the default render and texture-stage states after device creation or reset,medium,calls only SetRenderState and SetTextureStageState; called by GL_Init D3D_ResetDevice D3D_ApplyMode,
 0x0042f750,D3D_ResetDevice,render,resets the Direct3D device (lost device) and recreates the buffers,high,string 'error: Could not reset D3D device.'; calls D3D_ReleaseBuffers D3D_CreateBuffers D3D_SetDefaultStates; called by R_EndFrame,
 0x0042f7c0,D3D_ApplyMode,render,applies a window/fullscreen mode change,low,called by the window procedure and GL_Init; calls D3D_ResetDevice D3D_SetDefaultStates and the device Clear method,
@@ -623,7 +623,7 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x00438070,R_FindTexture,texture,case-sensitive name lookup in the texture registry,medium,callee R_RegisterTexture (score 0.69),0x00418c80
 0x004380e0,R_LoadTextureFile,texture,copy name; replace extension by .tga; load (v1.70 alias: R_LoadImage),medium,manual: called by R_RegisterTexture and R_RegisterPic; strips the extension and opens the image file; now loads it through the statically linked D3DX loader 0x00450177 (the OpenGL upload GL_UploadTexture has no separate counterpart),0x004189d0
 0x00438260,R_ShadowMapHelper,shadow,shadow-map helper,low,only caller R_GenerateShadowMap,
-0x00438310,R_CreateTexture,texture,creates a Direct3D texture from a generated image with mip levels,medium,calls the device CreateTexture method R_Downsample2x and the D3DX helper 0x0044f0b3; called by R_BuildTerrainTextures,
+0x00438310,R_CreateTexture,texture,creates a Direct3D texture from a generated image with mip levels,medium,calls the device CreateTexture method,
 0x004384b0,R_RegisterTexture,texture,find or load a mipmapped texture (v1.70 alias: R_RegisterPic),medium,callee PF_setskin (score 0.66),0x00418cf0
 0x00438550,R_RegisterPic,texture,find or load a texture without mipmaps (GL_LINEAR) (v1.70 alias: R_RegisterPicUI),medium,callee CL_LoadHudAssets (score 0.72),0x00418d60
 0x004385f0,R_FreeTextures,texture,delete all GL textures and clear the registry,low,manual: texture table clear called by the two renderer free functions 0x00417e30 (shutdown) and 0x00417e90 (level change) that v1.70 called individually,0x00418dd0
@@ -940,7 +940,7 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x0044244b,__close,crt,v1.70 export name (library),high,same library/thunk name '__close' (Ghidra function ID),0x00432009
 0x0044250e,FUN_0044250e,crt,counterpart of the unnamed v1.70 function FUN_004320cc,medium,"identical shape, callee __close (score 1.00)",0x004320cc
 0x00442518,__freebuf,crt,v1.70 export name (library),high,same library/thunk name '__freebuf' (Ghidra function ID),0x004320d6
-0x00442544,__write_nolock,crt,v1.70 export name (library),high,only caller of import GetConsoleMode,0x004313e5
+0x00442544,__write_nolock,crt,v1.70 export name (library),high,only caller of import GetConsoleCP,0x004313e5
 0x00442b0a,__write,crt,v1.70 export name (library),high,same library/thunk name '__write' (Ghidra function ID),0x004319ab
 0x00442bdc,FUN_00442bdc,crt,counterpart of the unnamed v1.70 function FUN_00431a7d,medium,"identical shape, callee __write (score 1.00)",0x00431a7d
 0x00442be6,_fastcopy_I,crt,v1.70 export name (library),high,same library/thunk name '_fastcopy_I' (Ghidra function ID),0x00432102
@@ -977,7 +977,7 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x0044438d,_parse_cmdline,crt,v1.70 export name (library),high,same library/thunk name '_parse_cmdline' (Ghidra function ID),0x00437b5c
 0x00444525,__setargv,crt,v1.70 export name (library),high,same library/thunk name '__setargv' (Ghidra function ID),0x00437cf4
 0x004445de,___crtGetEnvironmentStringsA,crt,v1.70 export name (library),high,same library/thunk name '___crtGetEnvironmentStringsA' (Ghidra function ID),0x00437dad
-0x00444713,___security_init_cookie,crt,v1.70 export name (library),high,only caller of import QueryPerformanceCounter,0x00437ee2
+0x00444713,___security_init_cookie,crt,v1.70 export name (library),high,only caller of import GetCurrentProcessId,0x00437ee2
 0x004447a7,__CxxUnhandledExceptionFilter,crt,v1.70 export name (library),high,same library/thunk name '__CxxUnhandledExceptionFilter' (Ghidra function ID),0x00437f76
 0x00444863,FUN_00444863,crt,C runtime (unnamed),low,address range of the runtime and library code,
 0x00444885,___TypeMatch,crt,v1.70 export name (library),high,same library/thunk name '___TypeMatch' (Ghidra function ID),0x00438054
@@ -1016,7 +1016,7 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x00445f8c,__recalloc,crt,v1.70 export name (library),high,same library/thunk name '__recalloc' (Ghidra function ID),0x0043cc68
 0x00445fd3,_fastzero_I,crt,v1.70 export name (library),high,same library/thunk name '_fastzero_I' (Ghidra function ID),0x004399b7
 0x0044602a,__VEC_memzero,crt,v1.70 export name (library),high,same library/thunk name '__VEC_memzero' (Ghidra function ID),0x00439a0e
-0x004460b9,__crtGetStringTypeA_stat,crt,v1.70 export name (library),high,only caller of import GetStringTypeW,0x0043a435
+0x004460b9,__crtGetStringTypeA_stat,crt,v1.70 export name (library),high,only caller of import GetStringTypeA,0x0043a435
 0x00446271,___crtGetStringTypeA,crt,v1.70 export name (library),high,same library/thunk name '___crtGetStringTypeA' (Ghidra function ID),0x0043a5ed
 0x004462b1,___free_lc_time,crt,v1.70 export name (library),high,same library/thunk name '___free_lc_time' (Ghidra function ID),0x0043a62d
 0x00446441,___free_lconv_num,crt,v1.70 export name (library),high,same library/thunk name '___free_lconv_num' (Ghidra function ID),0x0043a7bd
@@ -1071,7 +1071,7 @@ address,name,subsystem,description,confidence,evidence,v170_address
 0x0044916e,FUN_0044916e,crt,counterpart of the unnamed v1.70 function FUN_0043a044,medium,"identical shape, callee __alloc_osfhnd (score 1.00)",0x0043a044
 0x00449177,__commit,crt,v1.70 export name (library),high,only caller of import FlushFileBuffers,0x0043a297
 0x0044924e,FUN_0044924e,crt,counterpart of the unnamed v1.70 function FUN_0043a36e,medium,"identical shape, callee __commit (score 1.00)",0x0043a36e
-0x00449258,__putwch_nolock,crt,v1.70 export name (library),high,only caller of import WriteConsoleA,0x0043a0ab
+0x00449258,__putwch_nolock,crt,v1.70 export name (library),high,only caller of import GetConsoleOutputCP,0x0043a0ab
 0x0044931a,_has_osfxsr_set,crt,v1.70 export name (library),high,same library/thunk name '_has_osfxsr_set' (Ghidra function ID),0x0043a378
 0x0044936a,__get_sse2_info,crt,v1.70 export name (library),high,same library/thunk name '__get_sse2_info' (Ghidra function ID),0x0043a3c8
 0x004493d7,___ansicp,crt,v1.70 export name (library),high,only caller of import GetLocaleInfoA,0x0043ab00
