@@ -187,6 +187,7 @@ void World::step(const PlayerInput& input) {
     activateMapObjects();
     if (!intermission_ && !gameOver_) playerFrame();
     runEntities();
+    updateSkidTrails(); // after the entity pass, also while paused (as2 delta 2 step 7)
     updateParticles();
     renderPass();
     clampPlayerHealth();

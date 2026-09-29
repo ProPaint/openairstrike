@@ -202,6 +202,7 @@ struct WorldRenderer::Impl {
     std::vector<VertexRect> rectScratch;
 
     void followTerrainChanges(const World& world);
+    void collectSkidTrails(const World& world);
     Vec3 towardsSun{0.0f, 0.0f, 1.0f};
     // Materials by (definition, model, skin); unique_ptr keeps addresses stable.
     std::map<std::pair<const ObjectDef*, std::string>, std::unique_ptr<Material>> materials;
@@ -395,6 +396,28 @@ void WorldRenderer::Impl::followTerrainChanges(const World& world) {
     const TerrainGridView grid = TerrainGridView::of(*terrainOf);
     if (terrain) terrain->update(rectScratch.data(), rectScratch.size(), grid);
     if (water) water->update(rectScratch.data(), rectScratch.size(), grid);
+}
+
+void WorldRenderer::Impl::collectSkidTrails(const World& world) {
+    const size_t n = world.liveSkidTrailCount();
+    if (skidTrails.size() < n) skidTrails.resize(n);
+    skidTrailCount = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const WorldSkidTrail& src = world.liveSkidTrail(i);
+        if (src.nodeCount < 2) continue; // a strip needs two sections
+        SkidTrail& t = skidTrails[skidTrailCount++];
+        t.texture = src.texture ? *src.texture : std::string();
+        t.nodes.resize(static_cast<size_t>(src.nodeCount));
+        for (int k = 0; k < src.nodeCount; ++k) {
+            const WorldSkidNode& a = src.nodes[static_cast<size_t>(k)];
+            SkidNode& b = t.nodes[static_cast<size_t>(k)];
+            b.position = a.position;
+            b.direction = a.direction;
+            b.width = src.width;
+            b.age = a.age;
+            b.distance = a.distance;
+        }
+    }
 }
 
 const RenderRules& WorldRenderer::rules() const { return impl_->rules; }
@@ -728,8 +751,9 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
         }
         if (!im.markDescs.empty()) im.marks.draw(dv);
         // The sequels' skid marks, between the marks and the shadows (as2 delta 1.1 pass 5).
-        // (The world's trails are not handed over yet.)
-        if (im.rules.skidMarkPass && im.skidsReady && options.sprites && im.skidTrailCount > 0) {
+        if (im.rules.skidMarkPass && im.skidsReady && options.sprites) im.collectSkidTrails(world);
+        else im.skidTrailCount = 0;
+        if (im.skidTrailCount > 0) {
             im.skids.draw(im.skidTrails.data(), im.skidTrailCount, TerrainGridView::of(*terrain), dv);
             stats_.skidTrails = im.skids.lastTrailCount();
         }

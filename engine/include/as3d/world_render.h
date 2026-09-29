@@ -120,7 +120,9 @@ public:
     // changes after the revision it saw last (World::terrainChangesSince) and the terrain and
     // water meshes re-upload the touched chunks from the world's terrain; ground marks cut
     // afterwards and skid trails lie on the new heights. The world is only read.
-
+    //
+    // Skid trails (pass 5 of the sequels' frame): render() draws the world's live trails
+    // (World::liveSkidTrail, as3d/world_skid.h) through SkidTrailRenderer.
     // The game's render rules chosen at beginLevel from world.rules() (as3d/render_rules.h).
     const RenderRules& rules() const;
 

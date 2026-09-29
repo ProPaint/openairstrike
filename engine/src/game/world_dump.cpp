@@ -83,7 +83,25 @@ std::string World::dumpStateJson() const {
         for (int k = 0; k < 16; ++k) appendf(s, "%s%d", k ? "," : "", pr.powerups[k]);
         appendf(s, "]}%s\n", p + 1 < config_.players ? "," : "");
     }
-    s += "  ],\n  \"list\": [";
+    s += "  ],\n";
+    if (rules_->skidMarks) {
+        // The sequels' skid trails in live-list order (absent for the first game, so its
+        // dumps are unchanged): owner, timer, length and every node's numbers as bits.
+        appendf(s, "  \"skid_trails\": {\"free\": %d, \"live\": [", static_cast<int>(skidFree_.size()));
+        for (size_t i = 0; i < skidLive_.size(); ++i) {
+            const WorldSkidTrail& t = skidPool_[static_cast<size_t>(skidLive_[i])];
+            appendf(s, "%s\n    {\"slot\": %d, \"owner\": %d, \"timer\": \"%08x\", \"length\": \"%08x\", \"nodes\": \"",
+                    i ? "," : "", skidLive_[i], t.owner, fbits(t.timer), fbits(t.length));
+            for (int k = 0; k < t.nodeCount; ++k) {
+                const WorldSkidNode& n = t.nodes[static_cast<size_t>(k)];
+                appendf(s, "%s%08x%08x%08x%08x%08x%08x", k ? " " : "", fbits(n.position.x), fbits(n.position.y),
+                        fbits(n.direction.x), fbits(n.direction.y), fbits(n.age), fbits(n.distance));
+            }
+            s += "\"}";
+        }
+        s += "]},\n";
+    }
+    s += "  \"list\": [";
     bool first = true;
     for (int i = newest_; i != -1; i = ents_[static_cast<size_t>(i)].older) {
         appendf(s, "%s%d", first ? "" : ",", i);

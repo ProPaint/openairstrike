@@ -20,6 +20,7 @@
 #include "as3d/math.h"
 #include "as3d/script.h"
 #include "as3d/terrain.h"
+#include "as3d/world_skid.h"
 
 namespace as3d {
 
@@ -220,6 +221,12 @@ struct Entity {
     ScreenRect rect;                         // +0x1C3
     bool hasPrevPoint = false;
     float prevPoint[3] = {0, 0, 0};
+
+    // as2 fields 88 and 89 (engine-behaviour.delta.md 3.2): the skid trails this entity
+    // lays, one per skid_mark record of its definition (pool index, -1 when the pool was
+    // empty).
+    int skidTrailCount = 0;
+    int skidTrails[kMaxEntitySkidTrails] = {-1, -1, -1, -1, -1, -1, -1, -1};
 
     u32 fields[kEntityFieldCount] = {};
 
@@ -472,6 +479,13 @@ public:
     void dismissHint();
     script::u64 hintsShown() const { return hintsShown_; }
 
+    // --- skid trails (world_skid.cpp, as3d/world_skid.h) ----------------------------
+    // The live trails in the original's list order (newest first), the order they are drawn;
+    // at most GameRules::skidTrailPool. Updated after the entity pass of every frame.
+    size_t liveSkidTrailCount() const { return skidLive_.size(); }
+    const WorldSkidTrail& liveSkidTrail(size_t i) const { return skidPool_[static_cast<size_t>(skidLive_[i])]; }
+    int freeSkidTrailCount() const { return static_cast<int>(skidFree_.size()); }
+
     // --- particles (world_particles.cpp): the particle-system instances of the emitter
     // holders, simulated at step 7 of the frame (engine-behaviour.md 2); read by the renderer.
     const WorldParticles& particles() const { return *particles_; }
@@ -588,6 +602,10 @@ private:
     void computeAccel();          // as2 G_PlayerFrame step 1 (GameRules::accelInput)
     void clampPlayerHealth();     // as2 HUD clamp (GameRules::clampPlayerHealthToMax)
     void noteTerrainChange(const TerrainChange& c);
+    void resetSkidTrails();                  // the level start rebuilds the pool
+    void attachSkidTrails(int idx);          // G_InitObject: one trail per skid_mark record
+    void releaseSkidTrails(Entity& e);       // G_FreeEntity: the trails lose their owner
+    void updateSkidTrails();                 // G_UpdateSkidTrails, every frame, also paused
 
     Vfs* vfs_ = nullptr;
     const DefDatabase* db_ = nullptr;
@@ -638,6 +656,12 @@ private:
     // The last kMaxTerrainChanges changes, a ring: revision r (1-based) at (r - 1) % size.
     std::vector<TerrainChange> terrainLog_;
     u32 terrainRevision_ = 0;
+
+    // Skid trails: the pool (sized from the rules at each level start), its free list (LIFO)
+    // and the live list, newest first.
+    std::vector<WorldSkidTrail> skidPool_;
+    std::vector<int> skidFree_;
+    std::vector<int> skidLive_;
 
     float mapPos_ = 32.0f;
     float frametime_ = 0.0f;

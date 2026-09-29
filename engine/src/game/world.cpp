@@ -126,6 +126,7 @@ void World::resetPools() {
     slotsInUse_ = 0;
     current_ = -1;
     dispatchDepth_ = 0;
+    resetSkidTrails(); // rebuilt with the entity pool (as2@0x40e474)
 }
 
 int World::allocSlot() {
@@ -152,6 +153,7 @@ void World::freeSlot(int idx) {
     std::vector<u32>& tomb = tombs_[static_cast<size_t>(idx)];
     std::copy(e.fields, e.fields + kEntityFieldCount, tomb.begin());
     tomb[F_DEAD] = fbits(1.0f);
+    releaseSkidTrails(e);
     e.thread.reset();
     e.program = nullptr;
     e.children.clear();
@@ -361,6 +363,7 @@ int World::buildEntity(const ObjectDef* def, int depth) {
         return -1;
     }
     applyDef(idx, def);
+    attachSkidTrails(idx);
     if (depth >= kMaxAttachDepth) return idx;
     for (const AttachDef& at : def->attachments) {
         if (at.nightOnly && !night_) continue;
