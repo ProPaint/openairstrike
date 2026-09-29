@@ -51,6 +51,7 @@ int usage() {
 int main(int argc, char** argv) {
     std::string level = "1", dumpPath, reportPath, dataRoot;
     long frames = 600;
+    bool bot = false;
     WorldConfig cfg;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -68,6 +69,7 @@ int main(int argc, char** argv) {
         else if (a == "--dump-state" && next(v)) dumpPath = v;
         else if (a == "--builtin-report" && next(v)) reportPath = v;
         else if (a == "--data" && next(v)) dataRoot = v;
+        else if (a == "--bot") bot = true;
         else return usage();
     }
     if (frames < 0 || frames > 10'000'000) return usage();
@@ -93,6 +95,17 @@ int main(int argc, char** argv) {
     PlayerInput input;
     int maxList = world.listCount();
     for (long f = 0; f < frames; ++f) {
+        if (bot) {
+            // A deterministic test pilot: fire held, missiles and power-ups pulsed, weaving
+            // left and right every 2 s, hint boxes confirmed.
+            u32 a = ACT_FIRE;
+            if ((f / 120) % 2) a |= ACT_LEFT;
+            else a |= ACT_RIGHT;
+            if ((f / 30) % 2) a |= ACT_MISSILE;
+            if (f % 600 == 300) a |= ACT_POWERUP;
+            input.action[0] = input.action[1] = a;
+            input.confirm = true;
+        }
         world.step(input);
         maxList = std::max(maxList, world.listCount());
     }

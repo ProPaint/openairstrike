@@ -169,8 +169,14 @@ void World::applyInput(const PlayerInput& input) {
         u32 released = pr.heldInput & ~now;
         pr.heldInput = now;
         if (pr.actionsDisabled) continue;
+        // Held level bits (fire, missile, power-up, directions) are re-applied every frame,
+        // like the keyboard autorepeat of the original's WM_KEYDOWN stream, so a script
+        // that clears p_action (the player's fly-in) does not lose a held key for good.
+        // The one-shot switch bits (0x100, 0x200, 0x400) are applied on the press only.
+        // Engine decision, docs/spec/issues/033.
+        constexpr u32 kLevelBits = 0x0FFu;
         u32 a = static_cast<u32>(ftol(pr.action));
-        a = (a | pressed) & ~released;
+        a = (a | pressed | (now & kLevelBits)) & ~released;
         pr.action = static_cast<float>(a);
     }
 }
