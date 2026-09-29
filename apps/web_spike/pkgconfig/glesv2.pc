@@ -1,0 +1,5 @@
+Name: glesv2
+Description: WebGL 2 through Emscripten
+Version: 3.0
+Cflags:
+Libs: -sMAX_WEBGL_VERSION=2 -sMIN_WEBGL_VERSION=2

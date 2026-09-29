@@ -1,0 +1,5 @@
+Name: sdl2
+Description: SDL2 from the Emscripten port
+Version: 2.30
+Cflags: -sUSE_SDL=2
+Libs: -sUSE_SDL=2
