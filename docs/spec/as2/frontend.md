@@ -1330,3 +1330,62 @@ Tags read (as2@0x41e130): `CheckCD`, `PostScores` (both dropped features), `Demo
 ignored), `Logotypes/Image`. The engine's Settings.xml reader (`parseSettingsXml`) already covers
 what we use. The shipped file has no re-release branding (copyright "… DivoGames"); the branding
 filter of the first game is harmless.
+
+## 7. Texts compiled into the executable
+
+Relation to the base §8 question 1 and issue 080: **same decision, new table**. Every text the AS2
+front end shows that is not in the data paks (all labels, button captions, titles, Information and
+Credits pages, the congratulation lines, rank, difficulty and helicopter names, cheat messages and
+the 40 portrait-dialogue pages) is listed with its key, virtual address and kind in
+**`tools/exe_texts/as2.json`** (301 entries: 230 `text`, 31 `text_ml`, 40 `u32`). The file holds
+addresses only. `re/tools/gen_exe_texts_as2.py` regenerates it and checks every address against
+the user's executable. Level names stay in `levels.txt`; comic captions are painted into the
+comic images (no text to extract).
+
+**Executable and addresses.** `AirStrike3D II.exe`, SHA-256 in [README.md](README.md), image base
+0x400000. File offset = address − 0x400000 − section virtual address + section raw offset. All texts
+are in `.rdata` (virtual 0x47F000, raw 0x7F000, so offset = address − 0x400000); the dialogue
+records (the `u32` speaker entries) are in `.data` (virtual 0x498000, raw 0x98000, so the same
+rule). VERIFIED-DATA.
+
+**Encoding and kinds.** 7-bit ASCII, NUL-terminated (no byte ≥ 0x80 in any listed text,
+checked by the generator). `text`: one line; button captions keep their leading and trailing
+spaces, which the text-button layout counts in the width (2.5). `text_ml`: the dialogue pages,
+lines separated by a single LF (0x0A), an empty line written as two LFs, one to five lines, at most
+167 characters. `u32`: an integer at the address (the dialogue speaker: 0 officer, 1 pilot).
+Markup `{…}` is inside the strings as in the first game (Information headings, credits names).
+
+**Key scheme.** The first game's keys (`tools/extract_exe_texts.py`,
+`engine/src/ui/frontend_texts.cpp`) are reused wherever the meaning is the same; new prefixes for
+new things:
+
+| Keys | Addresses | Meaning | vs the first game's keys |
+|---|---|---|---|
+| `title.start_game`, `title.options`, `title.controls`, `title.heli`, `title.mission_complete`, `title.top_scores`, `title.enter_name`, `title.exit`, `title.hint`, `title.game_over` | 0x48ee84, 0x48ebc4, 0x48d728, 0x48de98, 0x48d934, 0x48eedc, 0x48ed24, 0x48d9a0, 0x48eeb0, 0x48dd34 | panel titles (3.1) | new |
+| `label.exit`, `label.difficulty`, `label.game_mode`, `label.player` | 0x48d980, 0x48ee90, 0x48ee9c, 0x48deac | labels | same keys; `label.player` new; `label.choose_mission` and `label.enter_name` have no AS2 text |
+| `difficulty.0` … `difficulty.4` | 0x48ee78, 0x48ee70, 0x48ee68, 0x48ee60, 0x48ee54 (table as2@0x49e6d8) | difficulty names | same |
+| `mode.0`, `mode.1` | 0x48ee44, 0x48ee38 | game mode values | replace `label.players.1/2` |
+| `button.start_game`, `button.top_scores`, `button.options`, `button.information`, `button.credits`, `button.quit` | 0x48ece8, 0x48ecf8, 0x48ebc4, 0x48ed08, 0x48ed18, 0x48ebd0 | main menu (and in-game Options/Quit) | new (the first game's buttons were pictures) |
+| `button.yes`, `button.no`, `button.back`, `button.back_wide`, `button.next`, `button.next_wide`, `button.start`, `button.continue`, `button.accept`, `button.restart`, `button.quit_wide`, `button.resume`, `button.choose_heli`, `button.configure_controls`, `button.apply`, `button.ok` | 0x48d9b0, 0x48d9b8, 0x48d794, 0x48d8b0, 0x48eea8, 0x48d974, 0x48dec0, 0x48dd28, 0x48deb4, 0x48d948, 0x48d954, 0x48ebb8, 0x48d960, 0x48ee18, 0x48ee30, 0x48ed34 | other buttons; `_wide` variants have more padding | new |
+| `stat.enemies`, `stat.stars`, `stat.rank`, `msg.new_heli` | 0x48d8c8, 0x48d8e4, 0x48d900, 0x48d914 | mission complete | `stat.*` same; `msg.new_heli` new |
+| `rank.0` … `rank.6` | table as2@0x49cba4 | rank names | same |
+| `heli.0` … `heli.5`, `heli.speed`, `heli.armor`, `heli.na` | table as2@0x49cbec; 0x48de88, 0x48de90, 0x48de78 | helicopter selection (names in helicopter table order, 5.8) | new |
+| `scores.number`, `scores.name`, `scores.score`, `scores.rank` | 0x48eec0, 0x48eec4, 0x48eecc, 0x48eed4 | Top Scores columns | same |
+| `opt.resolution` … `opt.mouse`, `opt.refresh.default`, `opt.off`, `opt.on`, `opt.depth.0/16/32`, `camera.0` … `camera.3` | 0x48ed90..0x48ee08, 0x48ed80, 0x48ed7c, 0x48ed78, 0x48ed64, 0x48ed44, 0x48ed3c, table as2@0x49e6b4 | Options | same keys; no `opt.hz` (AS2 formats "%d Hz", the engine's default suffix fits), no `opt.tooltip.resolution` (gone) |
+| `ctl.set`, `ctl.player.1/2`, `ctl.row.0` … `ctl.row.9` | 0x48d784, 0x48d52c, 0x48d520, row table as2@0x49d080 | Configure controls | same; no `ctl.or` (AS2 formats " or %s"; the engine default " or " fits) and no `ctl.unbound` (an immediate in the code) |
+| `info.page`, `info.hint.prev`, `info.hint.next`, `info.pages.1` … `info.pages.8` | 0x48ebb0, 0x48eb84, 0x48eb9c, table as2@0x49e684 | Information frame | same keys, 8 pages ("N of 8") |
+| `info.N.title`, `info.N.L` (N = 1..8) | titles in 3.14; body strings 0x48df18..0x48eb4c | page N title and body line slot L (body y = 184 + 18 L); blank slots are omitted and are blank lines | same scheme, other page contents (no story pages; items page 2 new) |
+| `credits.L` (L = 0..20) | 0x48d79c..0x48d898 | Credits line slot L (y = 120 + 18 L); blank slots omitted | new (the first game's credits were `info.10.*`) |
+| `congrats.L` (L = 0, 2, 3, 4, 6, 7, 8, 10) | 0x48db10..0x48dc68 | Game Complete line L (y = 160 + 18 L); lines 1, 5, 9 are blank | same key, 11 lines instead of 5 |
+| `loading.label` | 0x48a424 | loading screen | new |
+| `cheat.god_on`, `cheat.god_off`, `cheat.lives`, `cheat.weapons`, `cheat.missiles`, `cheat.powerups` | 0x48a018, 0x48a02c, 0x48a054, 0x48a07c, 0x48a0a4, 0x48a0d0 | cheat messages (4.6) | new (built into the first port) |
+| `dialog.M.start.I`, `dialog.M.end.I` (`text_ml`) and `dialog.M.start.I.speaker`, `dialog.M.end.I.speaker` (`u32`) | table as2@0x49d530 (pages at 0x48c7f4..0x48d460) | page I of mission M's start or end dialogue, and its speaker | new |
+
+Line slots were read from the running code ((emu): each string's y position), not from the
+instruction pattern the first game's tool uses; the generator writes them into the keys. The
+first game's extraction tool needs a per-game address table to serve AS2 (section 9); its output
+file for AS2 is `texts_as2.txt` (`tools/games.json`).
+
+Not listed (dropped with their features): the nag-screen and end-of-demo texts (3.21), the "Post
+Scores" caption, the debug statistics labels, the key names of the controls screen (identical to
+the first game's table, which the engine already has).
