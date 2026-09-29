@@ -1,5 +1,5 @@
-// In-game HUD and tutorial hint box. Layout: engine-behaviour.md 11.2 and 11.3. The two-player
-// layout, stars, upgrades and boss bar are our own design (docs/spec/issues/060-hud-gaps.md).
+// In-game HUD and tutorial hint box drawing (frontend.md 4 and 3.15; answers to issue 060 in
+// frontend.md 4.9).
 #include <algorithm>
 #include <cmath>
 
@@ -9,158 +9,186 @@ namespace as3d::ui {
 
 namespace {
 
-const Color kScoreColor{0.75f, 0.19f, 0.0f, 1};
-const Color kMissileSelected{0.82f, 0.25f, 0.0f, 1};
-const Color kMissileIdle{0.5f, 0.125f, 0.0f, 1};
+// frontend.md 4.1 colours.
+const Color kFrameGrey = grey(0x80 / 255.0f);
+const Color kLifeGrey = grey(0xA0 / 255.0f);
+const Color kScoreColor{0.753f, 0.188f, 0.0f, 1};
+const Color kCountSelected{0.816f, 0.251f, 0.0f, 1};
+const Color kCountOther{0.502f, 0.031f, 0.0f, 1};
 
-// Draws in "column space" (the left-hand layout); mirror flips x around the 800 wide field.
-struct Panel {
+// Pieces of mainbar.tga in spec UVs (frontend.md 4.1).
+constexpr SpecUv kBarFrame{0.0f, 0.8359f, 0.7031f, 1.0f};
+constexpr SpecUv kBoxFrame{0.0f, 0.375f, 0.2734f, 0.6719f};
+constexpr float kFillS0 = 0.0078f, kFillT0 = 0.6719f, kFillT1 = 0.8359f;
+
+int ftol(float v) { return static_cast<int>(v); }
+
+struct Hud {
     Renderer2D& r;
     const UiAssets& a;
-    bool mirror;
 
-    float mx(float x, float w) const { return mirror ? kVirtualWidth - x - w : x; }
-
-    // Pixel rectangle (px0,py0)-(px1,py1) of `tex` drawn at (x, y) with size w x h.
-    void pix(const Texture2D& tex, float x, float y, float w, float h, float px0, float py0, float px1, float py1,
-             Color c, Blend b, bool flipUv = false) const {
+    void piece(const Texture2D& tex, float x, float y, float w, float h, SpecUv uv, bool mirror, Color c,
+               Blend b) const {
         if (!tex.valid()) return;
-        float tw = static_cast<float>(tex.width()), th = static_cast<float>(tex.height());
-        float s0 = px0 / tw, s1 = px1 / tw, t0 = py0 / th, t1 = py1 / th;
-        if (mirror && flipUv) std::swap(s0, s1);
-        r.quad(mx(x, w), y, w, h, s0, t0, s1, t1, &tex, c, b);
+        if (mirror) std::swap(uv.s0, uv.s1);
+        r.quadSpec(x, y, w, h, uv.s0, uv.t0, uv.s1, uv.t1, &tex, c, b);
     }
+    void barFrame(float x, float y, bool mirror) const { piece(a.mainbar, x, y, 180, 21, kBarFrame, mirror, kFrameGrey, Blend::Add); }
+    void boxFrame(float x, float y, bool mirror) const { piece(a.mainbar, x, y, 70, 39, kBoxFrame, mirror, kFrameGrey, Blend::Add); }
 
-    void text(float x, float y, float w, std::string_view s, Align align, float scale, Color c,
-              bool flipAlign = true) const {
-        // x, w describe the anchor box in column space; align is in column space too.
-        Align al = align;
-        float ax;
-        if (mirror) {
-            float bx = mx(x, w);
-            ax = align == Align::Left ? bx + w : (align == Align::Right ? bx : bx + w * 0.5f);
-            if (flipAlign) {
-                al = align == Align::Left ? Align::Right : (align == Align::Right ? Align::Left : Align::Center);
-            } else {
-                ax = align == Align::Left ? bx : (align == Align::Right ? bx + w : bx + w * 0.5f);
-            }
-        } else {
-            ax = align == Align::Left ? x : (align == Align::Right ? x + w : x + w * 0.5f);
-        }
-        TextStyle st;
-        st.scale = scale;
-        st.color = c;
-        st.align = al;
-        drawText(r, a.uiFont(), ax, y, s, st);
-    }
-
-    void healthBar(float x, float y, float health, float width = 180.0f) const {
-        pix(a.mainbar, x, y, width, 21, 0, 0, 180, 21, grey(0.5f), Blend::Add, true);
-        float f = std::clamp(health / kFullHealth, 0.0f, 1.0f);
+    // Health fill: from the left at (12, y), or growing from the right edge 788 (mirrored).
+    void fill(float y, float health, bool fromRight) const {
+        const float f = std::clamp(health / kFullHealth, 0.0f, 1.0f);
         if (f <= 0) return;
-        pix(a.mainbar, x + 2, y, f * (width - 8), 21, 0, 21, f * 174.0f, 42, Color{}, Blend::Add, true);
+        const float w = 172.0f * f;
+        SpecUv uv{kFillS0, kFillT0, f * 174.0f / 256.0f, kFillT1};
+        piece(a.mainbar, fromRight ? 788.0f - w : 12.0f, y, w, 21, uv, fromRight, Color{}, Blend::Add);
     }
 
-    // Count in the bottom-right corner of a frame, on a dark backing so it reads over the icon.
-    void count(float x, float y, int n, Color c) const {
+    void weapon(float boxX, float boxY, bool mirrorBox, int w) const {
+        boxFrame(boxX, boxY, mirrorBox);
+        SpecUv uv = weaponIconUv(w);
+        if (!uv.empty()) piece(a.weapons, boxX + 1, boxY + 3, 66, 35, uv, false, Color{}, Blend::Add);
+    }
+
+    void count(float right, float y, int n, bool selected) const {
         std::string s = std::to_string(n);
-        float w = measureText(FontMetrics::original(), s, 0.75f);
-        r.rect(mx(x, 70) + 64 - w - 2, y + 24, w + 4, 13, {0, 0, 0, 0.6f}, Blend::Alpha);
-        TextStyle st;
-        st.scale = 0.75f;
-        st.color = c;
-        st.align = Align::Right;
-        drawText(r, a.uiFont(), mx(x, 70) + 64, y + 25, s, st);
+        float x = static_cast<float>(ftol(right - 10.5f * static_cast<float>(s.size())));
+        drawNumber(r, a.uiFont(), x, y, s, 0.75f, selected ? kCountSelected : kCountOther);
     }
 
-    void frame(float x, float y, Color c) const { pix(a.mainbar, x, y, 70, 39, 0, 42, 70, 81, c, Blend::Add, true); }
-
-    void weaponBox(float x, float y, const HudPlayer& p) const {
-        frame(x, y, grey(0.5f));
-        if (p.weapon >= 0 && p.weapon < 12) {
-            float cx = static_cast<float>(p.weapon % 4) * 64.0f, cy = static_cast<float>(p.weapon / 4) * 34.0f;
-            pix(a.weapons, x + 1, y + 3, 66, 35, cx, cy, cx + 64, cy + 34, Color{}, Blend::Add);
-        }
-        for (int i = 0; i < std::min(p.weaponLevel, 8); i++)
-            r.rect(mx(x + 4 + 7.0f * static_cast<float>(i), 5), y + 4, 5, 3, {1.0f, 0.85f, 0.1f, 1}, Blend::Add);
-    }
-
-    void missileFrames(float x, float y0, const HudPlayer& p) const {
-        int k = 0;
+    // Missile column: frames at (frameX, y0 + 41 n), packed in type order.
+    void missiles(float frameX, float y0, bool mirror, float countRight, const HudPlayer& p) const {
+        int n = 0;
         for (int t = 0; t < kMissileTypes; t++) {
-            if (p.missiles[t] < 0) continue;
-            float y = y0 + 41.0f * static_cast<float>(k++);
-            bool sel = t == p.missileSelected;
-            frame(x, y, grey(0.5f));
-            if (sel) frame(x, y, grey(0.5f));
-            float cx = static_cast<float>(t % 4) * 64.0f, cy = static_cast<float>(t / 4) * 34.0f;
-            pix(a.missiles, x + 1, y + 2, 66, 35, cx, cy, cx + 64, cy + 34, Color{}, Blend::Alpha);
-            count(x, y, p.missiles[t], sel ? kMissileSelected : kMissileIdle);
+            if (p.missiles[t] == 0) continue;
+            const float y = y0 + 41.0f * static_cast<float>(n++);
+            const bool sel = t == p.missileSelected;
+            boxFrame(frameX, y, mirror);
+            if (sel) boxFrame(frameX, y, mirror);
+            piece(a.missiles, frameX + 1, y + 3, 66, 35, missileIconUv(t), false, Color{}, Blend::Alpha);
+            count(countRight, y + 3, p.missiles[t], sel);
         }
     }
 
-    void powerups(float x, float y0, const HudPlayer& p) const {
-        int k = 0;
-        for (int t = 0; t < kPowerupKinds; t++) {
-            if (p.powerups[t] <= 0) continue;
-            float y = y0 + 41.0f * static_cast<float>(k++);
-            frame(x, y, grey(0.5f));
-            float cx = static_cast<float>(t) * 64.0f;
-            pix(a.items, x + 1, y + 2, 66, 35, cx, 0, cx + 64, 34, Color{}, Blend::Alpha);
-            if (p.powerups[t] > 1)
-                count(x, y, p.powerups[t], kMissileSelected);
+    // Power-up column: frames at (frameX, frameY0 + 41 n), icons at (iconX, frameY0 + 3 + 41 n).
+    void powerups(float frameX, float frameY0, float iconX, bool mirror, float countRight, const HudPlayer& p) const {
+        int n = 0;
+        for (int k = 0; k < kPowerupSlots; k++) {
+            if (p.powerups[k] == 0) continue;
+            const float y = frameY0 + 41.0f * static_cast<float>(n++);
+            const bool sel = k == p.powerupSelected;
+            boxFrame(frameX, y, mirror);
+            if (sel) boxFrame(frameX, y, mirror);
+            if (k < kPowerupIconKinds)
+                piece(a.items, iconX, y + 3, 66, 35, powerupIconUv(k), false, Color{}, k == 0 ? Blend::Add : Blend::Alpha);
+            if (p.powerups[k] > 1) count(countRight, y + 3, p.powerups[k], sel);
         }
     }
 
-    void lives(int n) const {
-        for (int i = 0; i < std::min(n, 5); i++) pix(a.life, 15 + 32.0f * static_cast<float>(i), 555, 32, 32, 0, 0, 32, 32, grey(0.63f), Blend::Add);
-    }
-
-    void stars(float x, float y, float w, int n, Align al) const {
-        if (n <= 0) return;
-        text(x, y, w, "STARS " + std::to_string(n), al, 0.75f, {0.9f, 0.75f, 0.1f, 1});
+    void lives(int n, bool fromRight) const {
+        if (!a.life.valid()) return;
+        for (int i = 0; i < std::min(n, 5); i++) {
+            const float x = fromRight ? 753.0f - 32.0f * static_cast<float>(i) : 15.0f + 32.0f * static_cast<float>(i);
+            r.quad(x, 555, 32, 32, 0, 0, 1, 1, &a.life, kLifeGrey, Blend::Add);
+        }
     }
 };
 
-void drawOnePlayer(Renderer2D& r, const UiAssets& a, const HudPlayer& p) {
-    Panel left{r, a, false}, right{r, a, true};
-    left.healthBar(10, 10, p.health);
-    left.weaponBox(10, 32, p);
-    left.missileFrames(10, 73, p);
-    left.lives(p.lives);
-    // Score bar: the health bar frame mirrored.
-    right.pix(a.mainbar, 10, 10, 180, 21, 0, 0, 180, 21, grey(0.5f), Blend::Add, true);
-    left.text(630, 12, 150, std::to_string(p.score), Align::Left, 1.0f, kScoreColor);
-    right.powerups(10, 32, p);
-    left.stars(0, 562, 788, p.stars, Align::Right);
+void drawOnePlayer(const Hud& h, const HudPlayer& p) {
+    h.barFrame(10, 10, false);
+    h.fill(10, p.health, false);
+    h.weapon(10, 32, false, p.weapon);
+    h.missiles(10, 73, false, 76, p);
+    h.barFrame(610, 10, true);
+    drawNumber(h.r, h.a.uiFont(), 630, 12, std::to_string(p.score), 1.0f, kScoreColor);
+    h.powerups(720, 32, 721, true, 786, p);
+    h.lives(p.lives, false);
 }
 
-void drawTwoPlayers(Renderer2D& r, const UiAssets& a, const HudPlayer& p, int side) {
-    Panel c{r, a, side == 1};
-    c.healthBar(10, 10, p.health);
-    c.text(12, 33, 176, std::to_string(p.score), Align::Left, 0.75f, kScoreColor);
-    c.weaponBox(10, 48, p);
-    c.missileFrames(10, 89, p);
-    c.powerups(86, 48, p);
-    c.lives(p.lives);
-    c.stars(12, 532, 176, p.stars, Align::Left);
+void drawTwoPlayers(const Hud& h, const HudPlayer& p1, const HudPlayer& p2) {
+    // Player 1, left column (frontend.md 4.3).
+    h.lives(p1.lives, false);
+    h.barFrame(10, 10, false);
+    h.fill(10, p1.health, false);
+    h.barFrame(10, 32, false);
+    {
+        std::string s = std::to_string(p1.score);
+        drawNumber(h.r, h.a.uiFont(), 170.0f - 14.0f * static_cast<float>(s.size()), 34, s, 1.0f, kScoreColor);
+    }
+    h.weapon(10, 54, true, p1.weapon);
+    h.missiles(10, 95, true, 76, p1);
+    h.powerups(82, 54, 86, true, 148, p1);
+    // Player 2, right column.
+    h.lives(p2.lives, true);
+    h.barFrame(610, 10, true);
+    h.fill(10, p2.health, true);
+    h.barFrame(610, 32, true);
+    drawNumber(h.r, h.a.uiFont(), 630, 34, std::to_string(p2.score), 1.0f, kScoreColor);
+    h.weapon(720, 54, false, p2.weapon);
+    h.missiles(720, 95, false, 786, p2);
+    h.powerups(648, 54, 649, true, 714, p2);
 }
 
 } // namespace
 
-Typewriter typewriterText(std::string_view name, float t) {
+SpecUv weaponIconUv(int w) {
+    // Table 0x457ae0 (frontend.md 4.4); entries 10..19 are zero (no picture).
+    static const SpecUv t[10] = {
+        {0.0f, 0.727f, 0.258f, 1.0f},     {0.258f, 0.727f, 0.516f, 1.0f},   {0.516f, 0.727f, 0.774f, 1.0f},
+        {0.774f, 0.727f, 0.998f, 1.0f},   {0.0f, 0.18f, 0.258f, 0.453f},    {0.516f, 0.453f, 0.774f, 0.727f},
+        {0.774f, 0.453f, 0.998f, 0.727f}, {0.0f, 0.453f, 0.258f, 0.727f},   {0.258f, 0.453f, 0.516f, 0.727f},
+        {0.258f, 0.18f, 0.516f, 0.453f},
+    };
+    return w >= 0 && w < 10 ? t[w] : SpecUv{};
+}
+
+SpecUv missileIconUv(int type) {
+    static const SpecUv t[kMissileTypes] = {
+        {0.0f, 0.727f, 0.258f, 1.0f},   {0.516f, 0.727f, 0.774f, 1.0f}, {0.258f, 0.727f, 0.516f, 1.0f},
+        {0.774f, 0.727f, 0.998f, 1.0f}, {0.0f, 0.501f, 0.258f, 0.727f},
+    };
+    return type >= 0 && type < kMissileTypes ? t[type] : SpecUv{};
+}
+
+SpecUv powerupIconUv(int kind) {
+    static const SpecUv t[kPowerupIconKinds] = {
+        {0.0f, 0.453f, 0.258f, 0.727f},
+        {0.774f, 0.727f, 0.998f, 1.0f},
+        {0.258f, 0.727f, 0.516f, 1.0f},
+        {0.516f, 0.727f, 0.774f, 1.0f},
+    };
+    return kind >= 0 && kind < kPowerupIconKinds ? t[kind] : SpecUv{};
+}
+
+Typewriter typewriterText(std::string_view name, float clock) {
     Typewriter out;
-    t -= 1.0f;
-    if (t < 0 || name.empty()) return out;
-    const float n = static_cast<float>(name.size());
-    size_t shown = static_cast<size_t>(std::min(std::floor(t * 8.0f) + 1.0f, n));
-    float tFull = n / 8.0f;
-    float since = t - tFull;
-    float alpha = since <= 3.0f ? 1.0f : 1.0f - (since - 3.0f);
+    const float tau = clock - 1.0f;
+    if (tau < 0 || name.empty()) return out;
+    const float d = static_cast<float>(name.size()) / 8.0f;
+    if (tau > d + 4.0f) return out;
+    int shown = static_cast<int>(name.size());
+    if (tau < d) shown = std::min(ftol(8.0f * tau) + 1, shown);
+    float alpha = 1.0f;
+    if (tau > d + 3.0f) alpha = 1.0f - (tau - d - 3.0f);
     if (alpha <= 0) return out;
-    out.text = std::string(name.substr(0, shown));
+    out.text = std::string(name.substr(0, static_cast<size_t>(shown)));
     out.alpha = std::min(alpha, 1.0f);
+    out.shown = shown;
     return out;
+}
+
+bool typewriterTypes(std::string_view name, float tPrev, float tNow) {
+    const float d = static_cast<float>(name.size()) / 8.0f;
+    auto shownAt = [&](float clock) {
+        const float tau = clock - 1.0f;
+        if (tau < 0 || name.empty()) return 0;
+        if (tau >= d) return static_cast<int>(name.size());
+        return std::min(ftol(8.0f * tau) + 1, static_cast<int>(name.size()));
+    };
+    const int a = shownAt(tPrev), b = shownAt(tNow);
+    if (b == a || b <= 1) return false;
+    return name[static_cast<size_t>(b - 1)] != ' ';
 }
 
 float messageAlpha(float age) {
@@ -169,93 +197,93 @@ float messageAlpha(float age) {
 }
 
 void drawHud(Renderer2D& r, const UiAssets& a, const HudState& s) {
-    if (s.playerCount >= 2) {
-        drawTwoPlayers(r, a, s.players[0], 0);
-        drawTwoPlayers(r, a, s.players[1], 1);
-    } else {
-        drawOnePlayer(r, a, s.players[0]);
-    }
-    if (s.bossHealth >= 0) {
-        Panel c{r, a, false};
-        c.healthBar(250, 10, s.bossHealth * kFullHealth, 300);
-    }
+    Hud h{r, a};
+    // Level-name typewriter first (frontend.md 4.1 order).
     Typewriter tw = typewriterText(s.levelName, s.levelTime);
     if (!tw.text.empty()) {
+        // The full name is measured so that the text grows rightwards from its final left edge.
+        const float full = measureText(FontMetrics::original(), s.levelName);
+        const float x = static_cast<float>(ftol(400.0f - full * 0.5f));
         TextStyle st;
-        st.color = {1, 1, 1, tw.alpha};
-        // The full name is measured so that the text does not shift while it is typed.
-        float full = measureText(FontMetrics::original(), s.levelName);
-        st.align = Align::Left;
-        drawText(r, a.uiFont(), 400.0f - full * 0.5f, 500, tw.text, st);
+        st.color = grey(tw.alpha);
+        drawTextShadowed(r, a.uiFont(), x, 500, tw.text, st, tw.alpha);
     }
-    float ma = messageAlpha(s.messageAge);
+    if (s.playerCount >= 2) drawTwoPlayers(h, s.players[0], s.players[1]);
+    else drawOnePlayer(h, s.players[0]);
+    const float ma = messageAlpha(s.messageAge);
     if (ma > 0 && !s.message.empty()) {
         TextStyle st;
         st.align = Align::Center;
-        st.color = {1, 0.85f, 0.3f, ma};
-        drawText(r, a.uiFont(), 400, 110, s.message, st);
+        st.color = grey(ma);
+        drawTextShadowed(r, a.uiFont(), 400, 555, s.message, st, ma);
     }
+    if (s.mouseCursor && a.mcCursor.valid())
+        r.quad(s.mouseX - 7, s.mouseY - 7, 16, 16, 0, 0, 1, 1, &a.mcCursor, Color{}, Blend::Add);
 }
 
-static std::vector<std::string> splitHintLines(std::string_view text) {
-    std::vector<std::string> out;
+// ---------------------------------------------------------------------------
+// Tutorial hint box
+// ---------------------------------------------------------------------------
+
+HintLayout layoutHint(const FontMetrics& m, std::string_view text) {
+    HintLayout L;
     size_t i = 0;
-    while (true) {
+    while (L.lines.size() < 16) {
         size_t j = text.find('^', i);
         if (j == std::string_view::npos) j = text.size();
-        out.emplace_back(text.substr(i, j - i));
+        std::string line(text.substr(i, j - i));
+        if (line.size() > 63) line.resize(63); // the original overflows a 64-byte buffer
+        L.lines.push_back(std::move(line));
         if (j >= text.size()) break;
         i = j + 1;
-    }
-    return out;
-}
-
-HintLayout layoutHint(const FontMetrics& m, std::string_view text, float maxLineWidth) {
-    HintLayout L;
-    for (const std::string& para : splitHintLines(text)) {
-        if (measureText(m, para, 1.0f, true) <= maxLineWidth) {
-            L.lines.push_back(para);
-        } else {
-            for (std::string& w : wrapText(m, para, maxLineWidth)) L.lines.push_back(std::move(w));
-        }
-        if (L.lines.size() >= 16) { L.lines.resize(16); break; }
     }
     float widest = 0;
     for (const std::string& l : L.lines) widest = std::max(widest, measureText(m, l, 1.0f, true));
     const float n = static_cast<float>(L.lines.size());
     L.box.w = std::max(360.0f, widest + 40.0f);
     L.box.h = std::max(160.0f, 18.0f * n + 80.0f);
-    L.box.x = std::floor((kVirtualWidth - L.box.w) * 0.5f);
-    L.box.y = std::floor((kVirtualHeight - L.box.h) * 0.5f);
+    L.box.x = static_cast<float>(ftol((kVirtualWidth - L.box.w) * 0.5f));
+    L.box.y = static_cast<float>(ftol((kVirtualHeight - L.box.h) * 0.5f));
     L.textTop = L.box.y + 20.0f;
-    L.okButton = {L.box.x + std::floor((L.box.w - 80.0f) * 0.5f), L.box.y + L.box.h - 44.0f, 80.0f, 28.0f};
+    L.okButton = {350.0f, L.box.y + L.box.h - 60.0f, 100.0f, 64.0f};
     return L;
+}
+
+bool drawHintPanel(Renderer2D& r, const UiAssets& a, const HintLayout& L, float u) {
+    if (u < kHintOpenSeconds) {
+        const float f = std::max(u, 0.0f) / kHintOpenSeconds;
+        const float x = static_cast<float>(ftol(400.0f - (400.0f - L.box.x) * f));
+        r.rect(x, L.box.y, L.box.w * f, L.box.h, {0, 0, 0, static_cast<float>(ftol(80.0f * f)) / 255.0f}, Blend::Alpha);
+        return false;
+    }
+    r.rect(L.box.x, L.box.y, L.box.w, L.box.h, packed(0x50000000u), Blend::Alpha);
+    TextStyle st;
+    st.align = Align::Center;
+    st.markup = true;
+    st.color = orange();
+    float y = L.textTop;
+    for (const std::string& line : L.lines) {
+        drawText(r, a.uiFont(), 400, y, line, st);
+        y += 18.0f;
+    }
+    return true;
+}
+
+void drawHintOk(Renderer2D& r, const UiAssets& a, const HintLayout& L, bool focused, float mt) {
+    const RectF& b = L.okButton;
+    if (const Texture2D* t = a.texture("menu\\apply_ok_1.tga"))
+        r.quadSpec(b.x, b.y, b.w, b.h, 0.6094f, 0, 1, 1, t, Color{}, Blend::Alpha);
+    if (focused)
+        if (const Texture2D* t = a.texture("menu\\apply_ok_2.tga"))
+            r.quadSpec(b.x, b.y, b.w, b.h, 0.6094f, 0, 1, 1, t, pulse(2, 0, mt), Blend::Add);
 }
 
 void drawHint(Renderer2D& r, const UiAssets& a, std::string_view text) {
     Font font = a.uiFont();
     if (!font.metrics) return;
     HintLayout L = layoutHint(*font.metrics, text);
-    r.fullscreen({0, 0, 0, 0.45f}, Blend::Alpha);
-    r.rect(L.box.x, L.box.y, L.box.w, L.box.h, {0.04f, 0.04f, 0.06f, 0.92f}, Blend::Alpha);
-    const Color orange{0.82f, 0.3f, 0.0f, 1};
-    r.outline(L.box.x, L.box.y, L.box.w, L.box.h, orange, Blend::Alpha);
-    r.outline(L.box.x + 2, L.box.y + 2, L.box.w - 4, L.box.h - 4, {0.4f, 0.15f, 0.0f, 1}, Blend::Alpha);
-    TextStyle st;
-    st.align = Align::Center;
-    st.markup = true;
-    st.color = {0.85f, 0.85f, 0.85f, 1};
-    float y = L.textTop;
-    for (const std::string& line : L.lines) {
-        drawText(r, font, L.box.x + L.box.w * 0.5f, y, line, st);
-        y += 18.0f;
-    }
-    r.rect(L.okButton.x, L.okButton.y, L.okButton.w, L.okButton.h, {0.3f, 0.1f, 0.0f, 0.9f}, Blend::Alpha);
-    r.outline(L.okButton.x, L.okButton.y, L.okButton.w, L.okButton.h, orange, Blend::Alpha);
-    TextStyle ok;
-    ok.align = Align::Center;
-    ok.color = {1, 1, 1, 1};
-    drawText(r, font, L.okButton.x + L.okButton.w * 0.5f, L.okButton.y + 7, "OK", ok);
+    drawHintPanel(r, a, L, 1.0f);
+    drawHintOk(r, a, L, false, 0);
 }
 
 } // namespace as3d::ui

@@ -8,6 +8,11 @@
 
 namespace as3d::ui {
 
+Color pulse(float f, float phi, float mt) {
+    const float v = 0.5f + 0.5f * std::sin(f * 3.14159265f * mt - phi);
+    return {v, v, v, 1.0f};
+}
+
 Mapping computeMapping(int fbWidth, int fbHeight) {
     Mapping m;
     m.fbWidth = std::max(fbWidth, 1);
@@ -64,6 +69,8 @@ Color effectiveColor(const Quad& q) {
     Color c = q.color;
     if (q.blend == Blend::Add) {
         c.r *= c.a; c.g *= c.a; c.b *= c.a; c.a = 1.0f;
+    } else if (q.blend == Blend::Opaque) {
+        c.a = 1.0f;
     } else if (q.blend == Blend::Filter) {
         c.r = 1.0f + (c.r - 1.0f) * c.a;
         c.g = 1.0f + (c.g - 1.0f) * c.a;
@@ -130,6 +137,13 @@ bool Renderer2D::quad(float x, float y, float w, float h, float s0, float t0, fl
     q.color = c;
     q.blend = blend;
     return add(q);
+}
+
+bool Renderer2D::quadSpec(float x, float y, float w, float h, float s0, float t0, float s1, float t1,
+                          const Texture2D* tex, Color c, Blend blend) {
+    // Spec convention: top-left samples (s0, t1) with t = 1 at the top of the image; ours has
+    // v = 0 at the top, so v = 1 - t.
+    return quad(x, y, w, h, s0, 1.0f - t1, s1, 1.0f - t0, tex, c, blend);
 }
 
 bool Renderer2D::pic(float x, float y, const Texture2D& tex, Color c, Blend blend) {
@@ -226,6 +240,9 @@ int Renderer2D::flush() {
                 break;
             case Blend::Filter:
                 glBlendFuncSeparate(GL_DST_COLOR, GL_ZERO, GL_ZERO, GL_ONE);
+                break;
+            case Blend::Opaque:
+                glBlendFuncSeparate(GL_ONE, GL_ZERO, GL_ZERO, GL_ONE);
                 break;
         }
         // Lines and untextured quads use the white texture; a texture that failed to load is
