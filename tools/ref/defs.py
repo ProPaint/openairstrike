@@ -229,6 +229,7 @@ class LevelDef:
     sun: List[float] = dataclasses.field(default_factory=lambda: [0.0] * 9)
     has_water: bool = False
     water_texture: str = ""
+    water_shine: str = ""  # the sequels' second water texture; empty in the first game's form
     water_level: float = 0.0
     water_alpha: float = 0.0
     night: bool = False
@@ -541,8 +542,15 @@ class DefDatabase:
                 elif key == "water":
                     lv.has_water = True
                     lv.water_texture = a[0].text if a else ""
-                    lv.water_level = self._num(a[1] if len(a) > 1 else None)
-                    lv.water_alpha = self._num(a[2] if len(a) > 2 else None)
+                    if len(a) > 1 and (a[1].quoted or not a[1].is_number()):
+                        # The sequels' two-texture form, `water base shine level opacity`
+                        # (as2/render-pipeline.delta.md 12.5; issue as2/250).
+                        lv.water_shine = a[1].text
+                        lv.water_level = self._num(a[2] if len(a) > 2 else None)
+                        lv.water_alpha = self._num(a[3] if len(a) > 3 else None)
+                    else:
+                        lv.water_level = self._num(a[1] if len(a) > 1 else None)
+                        lv.water_alpha = self._num(a[2] if len(a) > 2 else None)
                 elif key == "night":
                     lv.night = True
                 elif key == "enablehelic":
@@ -628,6 +636,8 @@ class DefDatabase:
                 problems.append(f"level '{label}': textures '{lv.textures}' has no files")
             if lv.has_water and lv.water_texture and not file_exists(lv.water_texture):
                 problems.append(f"level '{label}': water texture '{lv.water_texture}' not found")
+            if lv.has_water and lv.water_shine and not file_exists(lv.water_shine):
+                problems.append(f"level '{label}': water texture '{lv.water_shine}' not found")
 
         self.warnings.extend(problems)
         return problems
@@ -747,6 +757,8 @@ def canonical_particle_system(p: ParticleSystemDef) -> str:
 
 
 def canonical_level(lv: LevelDef) -> str:
+    # waterShine only for the two-texture form, so the first game's hashes stay (issue as2/250).
+    shine = [f"waterShine={lv.water_shine}"] if lv.water_shine else []
     return "\n".join([
         f"id={lv.id}",
         f"name={lv.name}",
@@ -764,6 +776,7 @@ def canonical_level(lv: LevelDef) -> str:
         f"waterTexture={lv.water_texture}",
         f"waterLevel={fhex(lv.water_level)}",
         f"waterAlpha={fhex(lv.water_alpha)}",
+        *shine,
         f"night={int(lv.night)}",
         f"enableHelic={lv.enable_helic}",
         f"hasIntermission={int(lv.has_intermission)}",

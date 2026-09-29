@@ -277,10 +277,15 @@ struct LevelDef {
 
     float sun[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
+    // `water "<texture>" <level> <opacity>` (levels-txt.md), or the sequels' form
+    // `water "<base>" "<shine>" <level> <opacity>` (as2/render-pipeline.delta.md 12.5),
+    // told apart by the statement's shape: a second argument that is quoted or not a number
+    // is the shine texture (docs/spec/as2/issues/250-level-water-statement.md).
     bool hasWater = false;
-    std::string waterTexture;
+    std::string waterTexture; // the base texture in the two-texture form
+    std::string waterShine;   // empty in the first game's form
     float waterLevel = 0.0f;
-    float waterAlpha = 0.0f;
+    float waterAlpha = 0.0f;  // the opacity
 
     bool night = false;
     // VERIFIED-CODE default: -1 (memset 0xff) when the key is absent.

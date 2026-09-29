@@ -314,8 +314,15 @@ void loadLevelsFile(const TextFile& tf, const std::string& baseName, std::vector
             } else if (key == "water") {
                 lv.hasWater = true;
                 lv.waterTexture = textAt(a, 0);
-                lv.waterLevel = numAt(a, 1);
-                lv.waterAlpha = numAt(a, 2);
+                if (a.size() > 1 && (a[1].quoted || !a[1].isNumber())) {
+                    // The sequels' two-texture form (as2 render-pipeline.delta.md 12.5).
+                    lv.waterShine = textAt(a, 1);
+                    lv.waterLevel = numAt(a, 2);
+                    lv.waterAlpha = numAt(a, 3);
+                } else {
+                    lv.waterLevel = numAt(a, 1);
+                    lv.waterAlpha = numAt(a, 2);
+                }
             } else if (key == "night") {
                 lv.night = true;
             } else if (key == "enablehelic") {
@@ -496,6 +503,10 @@ void DefDatabase::validate(Vfs& vfs) {
             warnings_.push_back("level '" + label + "': water texture '" + lv.waterTexture +
                                  "' not found");
         }
+        if (lv.hasWater && !lv.waterShine.empty() && !vfs.exists(lv.waterShine)) {
+            warnings_.push_back("level '" + label + "': water texture '" + lv.waterShine +
+                                 "' not found");
+        }
     }
 }
 
@@ -668,6 +679,8 @@ std::string canonicalLevel(const LevelDef& lv) {
     line(out, "waterTexture", lv.waterTexture);
     line(out, "waterLevel", fhex(lv.waterLevel));
     line(out, "waterAlpha", fhex(lv.waterAlpha));
+    // Only for the two-texture form, so the first game's hashes stay as they were (issue 250).
+    if (!lv.waterShine.empty()) line(out, "waterShine", lv.waterShine);
     line(out, "night", lv.night ? "1" : "0");
     line(out, "enableHelic", std::to_string(lv.enableHelic));
     line(out, "hasIntermission", lv.hasIntermission ? "1" : "0");
