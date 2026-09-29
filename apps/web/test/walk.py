@@ -20,7 +20,13 @@ Scenarios (each in a fresh browser context, so fresh storage):
   gameover   a profile with a zero high-score table; mission 2 at the hardest difficulty with
              nobody flying until Game Over, Quit, name entry with the touch keyboard, Top Scores.
   byo        the bring-your-own site: the owner's files through the file input, stored,
-             used again after a reload, removed.
+             used again after a reload, removed; files of another game (AirStrike 2) told
+             apart by their contents and stored under their own key; files stored by the
+             first version of the page (no game key) still found.
+  migration  a version 1 profile at the old path /persist/profile.bin (Screen 4:3 and Show
+             FPS set): after a reload the settings are in effect, /persist/as3d/profile.bin
+             and /persist/profile.v1.bak exist and /persist/profile.bin is gone; the same
+             after a second reload (the directory and the rename reached browser storage).
 Screenshots go to DIR; a JSON report beside them (walk_<engine>.json). Exit code 1 on failure.
 """
 import argparse
@@ -56,13 +62,20 @@ class Walk:
 
 
 # ------------------------------------------------------------------------------------------
-# Profile helpers (docs: engine/include/as3d/profile.h, file format version 1)
+# Profile helpers (docs/spec/issues/160-save-format-v2.md: version 2 has the game key, saves live
+# in /persist/<key>/profile.bin; version 1 was /persist/profile.bin of the first game)
 # ------------------------------------------------------------------------------------------
 def parse_profile(b):
     assert b[:8] == b"AS3DPROF", "not a profile"
+    version = struct.unpack_from("<I", b, 8)[0]
     size, crc = struct.unpack_from("<II", b, 12)
-    payload = b[20:20 + size]
-    assert zlib.crc32(payload) == crc, "profile CRC"
+    key = b""
+    start = 20
+    if version >= 2:
+        start = 21 + b[20]
+        key = b[21:start]
+    payload = b[start:start + size]
+    assert zlib.crc32(key + payload) == crc, "profile CRC"
     chunks, o = {}, 0
     while o + 8 <= len(payload):
         tag = payload[o:o + 4].decode()
@@ -88,7 +101,17 @@ def parse_profile(b):
             score, rank = struct.unpack_from("<qB", p, o)
             o += 9
             scores.append((name, score, rank))
-    return {"version": struct.unpack_from("<I", b, 8)[0], "chunks": chunks, "settings": settings, "scores": scores}
+    return {"version": version, "key": key.decode(), "chunks": chunks, "settings": settings, "scores": scores}
+
+
+def build_profile(version, key, chunks):
+    """A profile file of the given version (1: no key) from {tag: data}."""
+    payload = b""
+    for tag, data in chunks.items():
+        payload += tag.encode() + struct.pack("<I", len(data)) + data
+    kb = key.encode() if version >= 2 else b""
+    head = bytes([len(kb)]) + kb if version >= 2 else b""
+    return b"AS3DPROF" + struct.pack("<III", version, len(payload), zlib.crc32(kb + payload)) + head + payload
 
 
 def profile_with_scores(b, scores):
@@ -104,17 +127,23 @@ def profile_with_scores(b, scores):
         nb = name.encode("latin-1")
         newp += bytes([len(nb)]) + nb + struct.pack("<qB", score, rank)
     newp += rest
-    payload = b""
-    for tag, data in prof["chunks"].items():
-        data = newp if tag == "PROG" else data
-        payload += tag.encode() + struct.pack("<I", len(data)) + data
-    return b"AS3DPROF" + struct.pack("<III", prof["version"], len(payload), zlib.crc32(payload)) + payload
+    chunks = {tag: (newp if tag == "PROG" else data) for tag, data in prof["chunks"].items()}
+    return build_profile(prof["version"], prof["key"], chunks)
 
 
-def read_profile(p):
-    arr = p.page.evaluate("(() => { try { return Array.from(Module.FS.readFile('/persist/profile.bin')); }"
-                          " catch (e) { return null; } })()")
+PROFILE = "/persist/as3d/profile.bin"      # version 2, the first game
+OLD_PROFILE = "/persist/profile.bin"       # version 1, before the save moved
+BACKUP = "/persist/profile.v1.bak"
+
+
+def read_profile(p, path=PROFILE):
+    arr = p.page.evaluate("(path) => { try { return Array.from(Module.FS.readFile(path)); }"
+                          " catch (e) { return null; } }", path)
     return bytes(arr) if arr else None
+
+
+def fs_exists(p, path):
+    return p.page.evaluate("(path) => Module.FS.analyzePath(path).exists", path)
 
 
 # ------------------------------------------------------------------------------------------
@@ -352,6 +381,8 @@ def desktop(w, b):
         p.reload()
         p.wait_ready()
         prof = parse_profile(read_profile(p))
+        assert prof["version"] == 2 and prof["key"] == "as3d", "the web profile is not version 2 / as3d"
+        assert not fs_exists(p, OLD_PROFILE), "a profile.bin appeared at the old location"
         r["profile_after_reload"] = {k: prof["settings"].get(k) for k in ("showFps", "key0.0.0")}
         assert prof["settings"].get("showFps") == 1, "Show FPS lost after reload"
         r["errors"] = p.errors()
@@ -546,11 +577,18 @@ def gameover(w, b):
         prof = read_profile(p)
         low = [("Low %d" % i, 0, 0) for i in range(15)]
         data = profile_with_scores(prof, low)
-        p.page.evaluate("(bytes) => { Module.FS.writeFile('/persist/profile.bin', new Uint8Array(bytes));"
-                        " return new Promise((ok) => Module.FS.syncfs(false, ok)); }", list(data))
-        p.reload()
-        p.wait_ready()
-        assert parse_profile(read_profile(p))["scores"][0][0] == "Low 0"
+        # Reloading hides the page, and the game saves its own profile then; that save can win
+        # against ours in browser storage (a race of the test's, not of the game): try again.
+        for attempt in range(4):
+            p.page.evaluate("(bytes) => { Module.FS.writeFile('/persist/as3d/profile.bin', new Uint8Array(bytes));"
+                            " return new Promise((ok) => Module.FS.syncfs(false, ok)); }", list(data))
+            p.reload()
+            p.wait_ready()
+            got = parse_profile(read_profile(p))
+            if got["scores"] and got["scores"][0][0] == "Low 0":
+                break
+            r["profile_race_retries"] = attempt + 1
+        assert got["scores"] and got["scores"][0][0] == "Low 0", got["scores"][:3]
         p.page.click("#play")
         to_main_menu(w, p, by="touch")
         w.step("gameover: mission 2 at the hardest difficulty, nobody flying")
@@ -590,6 +628,34 @@ def gameover(w, b):
     return r
 
 
+IDB_KEYS = """() => new Promise((ok, fail) => {
+    const r = indexedDB.open('as3d-game-files');
+    r.onsuccess = () => {
+        const q = r.result.transaction('files').objectStore('files').getAllKeys();
+        q.onsuccess = () => { r.result.close(); ok(q.result); };
+    };
+    r.onerror = () => fail(r.error);
+})"""
+
+# Renames every stored "as3d/<name>" to "<name>", as the first version of the page stored them.
+IDB_MAKE_LEGACY = """() => new Promise((ok, fail) => {
+    const r = indexedDB.open('as3d-game-files');
+    r.onsuccess = () => {
+        const t = r.result.transaction('files', 'readwrite');
+        const s = t.objectStore('files');
+        const c = s.openCursor();
+        c.onsuccess = () => {
+            const cur = c.result;
+            if (!cur) return;
+            if (String(cur.key).startsWith('as3d/')) { s.put(cur.value, String(cur.key).slice(5)); cur.delete(); }
+            cur.continue();
+        };
+        t.oncomplete = () => { r.result.close(); ok(); };
+        t.onerror = () => fail(t.error);
+    };
+})"""
+
+
 def byo(w, b):
     orig = os.path.join(DATA_ROOT, "third_party_local", "original")
     files = [os.path.join(orig, "data", n) for n in ("pak0.apk", "pak1.apk", "pak2.apk", "Settings.xml")]
@@ -603,7 +669,7 @@ def byo(w, b):
         w.step("byo: a wrong file is refused")
         p.page.set_input_files("#pick-files", [{"name": "pak1.apk", "mimeType": "application/octet-stream",
                                                 "buffer": b"\0" * 1000}])
-        p.page.wait_for_function("document.getElementById('files-status').textContent.includes('expected')", timeout=20000)
+        p.page.wait_for_function("document.getElementById('files-status').textContent.includes('not the file of any game')", timeout=20000)
         r["wrong_file_message"] = p.page.locator("#files-status").text_content()
         w.step("byo: the owner's files through the file input")
         t0 = time.time()
@@ -613,6 +679,7 @@ def byo(w, b):
         r["stored_text"] = p.page.locator("#stored-text").text_content()
         r["data_line"] = [t for t in p.texts() if "AS3D_WEB data=" in t]
         assert "texts_v170.txt" in r["data_line"][0], "the exe's texts were not used"
+        assert "game=as3d" in r["data_line"][0], r["data_line"]
         p.page.click("#play")
         to_main_menu(w, p)
         w.shot(p, "byo_main")
@@ -626,11 +693,130 @@ def byo(w, b):
         p.wait_ready(120)
         assert p.page.locator("#files").is_hidden()
         assert p.page.locator("#stored").is_visible()
+        keys = p.page.evaluate(IDB_KEYS)
+        r["stored_keys"] = keys
+        assert keys and all(k.startswith("as3d/") for k in keys), keys
+        assert "as3d/texts_v170.txt" in keys and "as3d/pak0.apk" in keys, keys
+        w.step("byo: files stored by the first version of the page (no game key) are still found")
+        p.page.evaluate(IDB_MAKE_LEGACY)
+        assert "pak0.apk" in p.page.evaluate(IDB_KEYS)
+        p.reload()
+        p.wait_ready(120)
+        assert p.page.locator("#files").is_hidden(), "the old-style stored files were not found"
+        keys = p.page.evaluate(IDB_KEYS)
+        assert keys and all(k.startswith("as3d/") for k in keys), "the old-style keys were not renamed: %s" % keys
         w.step("byo: remove them")
         p.page.once("dialog", lambda d: d.accept())
         p.page.click("#forget")
         p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
         r["picker_after_remove"] = True
+        assert p.page.evaluate(IDB_KEYS) == [], "storage not empty after removing"
+        w.step("byo: the files of AirStrike 2 are told apart by their contents and kept under their own key")
+        as2 = os.path.join(DATA_ROOT, "third_party_local", "games", "as2")
+        if os.path.isdir(as2):
+            p.page.set_input_files("#pick-files", [os.path.join(as2, "data", n) for n in ("pak0.apk", "pak1.apk", "pak2.apk", "Settings.xml")]
+                                   + [os.path.join(as2, "AirStrike3D II.exe")])
+            p.page.wait_for_function("document.getElementById('files-status').textContent.includes('not playable yet')", timeout=120000)
+            r["as2_message"] = p.page.locator("#files-status").text_content()
+            assert "AirStrike 2" in r["as2_message"], r["as2_message"]
+            assert p.page.locator("#files").is_visible(), "AirStrike 3D's picker went away"
+            assert p.page.locator("#play").is_disabled()
+            keys = p.page.evaluate(IDB_KEYS)
+            r["as2_keys"] = keys
+            assert "as2/pak0.apk" in keys and all(k.startswith("as2/") for k in keys), keys
+            assert "as2/texts_as2.txt" not in keys, "texts of an unmapped game were invented"
+            w.step("byo: AirStrike 2 files with ?game=as2 alone: not playable message, no start")
+            p.goto("game=as2")
+            p.wait_ready(120)
+            assert p.state().get("notPlayable") == "as2", p.state()
+            assert p.page.locator("#play").is_disabled()
+            p.goto("")
+            p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
+            p.page.once("dialog", lambda d: d.accept())
+            p.page.click("#forget")
+            p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
+        else:
+            r["as2"] = "skipped: no AirStrike 2 data"
+        r["errors"] = p.errors()
+    finally:
+        p.close()
+    return r
+
+
+def profile_paths(p):
+    return {"old": fs_exists(p, OLD_PROFILE), "new": fs_exists(p, PROFILE), "bak": fs_exists(p, BACKUP),
+            "dir": fs_exists(p, "/persist/as3d")}
+
+
+def migration(w, b):
+    p = b.page(w.a.url, "", viewport={"width": 1280, "height": 720})
+    r = {}
+    try:
+        p.wait_ready()
+        w.step("migration: the game writes a profile with Show FPS on and Screen 4:3")
+        p.page.click("#play")
+        to_main_menu(w, p)
+        mk = p.mark()
+        p.tap_item("main", 3)
+        wait_new_screen(p, "options", mk)
+        p.page.wait_for_timeout(400)
+        p.tap_item("options", 43)   # Show FPS: Off -> On
+        p.page.wait_for_timeout(300)
+        mk = p.mark()
+        p.tap_virtual(440, 168)     # Screen: Wide -> 4:3 (the row at y 160)
+        p.wait_line(r"AS3D_LAYOUT .*screen=4x3", 10, after=mk)
+        mk = p.mark()
+        p.tap_item("options", 1)    # Back (saves)
+        wait_new_screen(p, "main", mk)
+        p.wait_line(r"AS3D_WEB profile_synced", 10, after=mk)
+        v2 = parse_profile(read_profile(p))
+        assert v2["version"] == 2 and v2["key"] == "as3d"
+        settings = v2["settings"]
+        assert settings.get("showFps") == 1
+        r["settings"] = settings
+
+        w.step("migration: put it back as the version 1 file of the old location")
+        v1 = build_profile(1, "", v2["chunks"])
+        assert parse_profile(v1)["settings"] == settings
+        p.page.evaluate("""(bytes) => {
+            Module.FS.unlink('/persist/as3d/profile.bin');
+            Module.FS.rmdir('/persist/as3d');
+            Module.FS.writeFile('/persist/profile.bin', new Uint8Array(bytes));
+            return new Promise((ok) => Module.FS.syncfs(false, ok)); }""", list(v1))
+        p.reload()
+        p.wait_ready()
+        st = profile_paths(p)
+        r["before_migration"] = st
+        assert st == {"old": True, "new": False, "bak": False, "dir": False}, st
+
+        def check_migrated(when):
+            st = profile_paths(p)
+            r["state_" + when] = st
+            assert st == {"old": False, "new": True, "bak": True, "dir": True}, (when, st)
+            assert read_profile(p, BACKUP) == v1, when + ": profile.v1.bak is not the old file"
+            now = parse_profile(read_profile(p))
+            assert now["version"] == 2 and now["key"] == "as3d", (when, now["version"], now["key"])
+            assert now["settings"] == settings, (when, "settings changed")
+
+        w.step("migration: start: the old settings are in effect, the file moved")
+        mk = p.mark()
+        p.page.click("#play")
+        to_main_menu(w, p)
+        p.wait_line(r"AS3D_LAYOUT .*screen=4x3", 10, after=mk)
+        p.wait_line(r"AS3D_WEB profile_synced", 10, after=mk)
+        assert not [t for t in p.texts() if "using the defaults" in t], "the old profile was not used"
+        check_migrated("after_start")
+        for n in (1, 2):
+            w.step("migration: reload %d: what the migration did is in browser storage" % n)
+            p.reload()
+            p.wait_ready()
+            check_migrated("after_reload_%d" % n)
+            mk = p.mark()
+            p.page.click("#play")
+            to_main_menu(w, p)
+            p.wait_line(r"AS3D_LAYOUT .*screen=4x3", 10, after=mk)
+            assert not [t for t in p.texts() if "using the defaults" in t]
+            check_migrated("running_after_reload_%d" % n)
         r["errors"] = p.errors()
     finally:
         p.close()
@@ -638,7 +824,7 @@ def byo(w, b):
 
 
 SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "complete": complete,
-             "gameover": gameover}
+             "gameover": gameover, "migration": migration}
 
 
 def main():
@@ -648,7 +834,7 @@ def main():
     ap.add_argument("--shots", required=True)
     ap.add_argument("--engine", default="chromium", choices=["chromium", "firefox"])
     ap.add_argument("--gl", default="gpu", choices=["gpu", "swiftshader"])
-    ap.add_argument("--only", default="desktop,phone,iphone,byo,complete,gameover")
+    ap.add_argument("--only", default="desktop,phone,iphone,byo,complete,gameover,migration")
     a = ap.parse_args()
     os.makedirs(a.shots, exist_ok=True)
     w = Walk(a)
