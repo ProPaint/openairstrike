@@ -182,6 +182,274 @@ frame's projection; `create` thinks once inside the builtin; the C runtime `rand
 
 ---
 
+## 3. Entities
+
+### 3.1 Object definitions: changed
+
+`ParseObject` as2@0x4125a0 (v170@0x40a160), `G_InitObject` as2@0x411e90 (v170@0x409ba0).
+VERIFIED-CODE unless marked.
+
+Same: at most 2048 definitions (as2@0x4125d0 tests 0x800), 1-based, first definition of a name
+wins (`G_FindObject` as2@0x411ba0), at most 64 `attach` lines per definition (as2@0x41311f),
+precaching on first use, the `type`, `sort`, `blend`, `envmode`, `rflag`, `shadow` values and
+the rule that a non-model type sets flag 0x1000. The definition record is 0x3604 bytes
+(v1.70 0x32d9); an `attach` record is 200 bytes (v1.70 197).
+
+The keyword set differs from v1.70 by exactly six words (a diff of the keyword strings of both
+parsers): `civilian`, `speed`, `skid_mark`, `FL_ONWATER_NORMAL`, `FL_ONWATER_FLAT`,
+`TOUCH_CIVILIAN`. Changed or new values:
+
+| Key | as2 value | v1.70 | Evidence |
+|---|---|---|---|
+| `player` / `enemy` / `item` | class 1 / 2 / 3 | same | parser, class stored at definition +0x35E4 |
+| `civilian` | **class 5** | – | as2@0x412e11 |
+| `speed <float>` | stored per definition, copied into **field 23** at spawn | – | parser; `G_InitObject` as2@0x411f51..0x411f57 |
+| `flag FL_ONWATER` | 0x4 | 0x4 | |
+| `flag FL_ONWATER_NORMAL` | **0xC** (0x4 + 0x8) | – | parser |
+| `flag FL_ONWATER_FLAT` | **0x204** (0x4 + 0x200) | – | parser |
+| `touch TOUCH_ENEMIES` | ORs **0x1** | sets 1 | parser |
+| `touch TOUCH_PLAYER` | ORs **0x2** | sets 2 | parser |
+| `touch TOUCH_CIVILIAN` | ORs **0x4** | – | parser |
+| `touch TOUCH_ALL` | sets **0xF** | sets 3 | parser |
+| `skid_mark <x> <y> <w> "<texture>"` | appended to a per-definition list (3.1.2) | – | parser, records of 0x4C bytes |
+
+`touch` values are now ORed, so several `touch` lines combine (VERIFIED-DATA: the shipped
+combinations are 1, 2, 4, 5 and 6; `TOUCH_ALL` is not used). Class values seen in the data:
+0 (1185 definitions), 1 (the 6 helicopters), 2 (238), 5 (103); `item` is still unused.
+
+The class value (field 2) as the native code tests it:
+
+| Class | Meaning | Native tests |
+|---|---|---|
+| 1.0 | player | – (players are found through the player records) |
+| 2.0 | enemy | touch bit 0x1, particle damage, `RadialDamage`, `TraceLine(Damage)`, `Lightning`, `LockTarget`, kill counter, enemy total, health bar |
+| 4.0 | projectile made by `Shoot` | – |
+| 5.0 | civilian (new) | touch bit 0x4, particle damage, `RadialDamage`, `TraceLine(Damage)` |
+
+#### 3.1.1 Civilians (class 5.0, `TOUCH_CIVILIAN`)
+
+VERIFIED-CODE: the only native comparisons with 5.0 are in the touch pass (as2@0x40c314..0x40c346), the
+particle damage (as2@0x40bbc0), `RadialDamage` (as2@0x4206b0), `TraceLine` (as2@0x420fd0) and
+`TraceLineDamage` (as2@0x421180). Consequences:
+
+- **Collision**: a civilian is a touch candidate only for touchers whose mode has bit 0x4
+  (5.2). Player bullets carry `TOUCH_ENEMIES` only (VERIFIED-DATA), so **gunfire passes over
+  civilians**; the definitions that touch civilians are `abomb_proj` (mode 5), `expl_wave_big`
+  (4) and the two falling meteorites (6).
+- **Damage**: civilians are damaged by what touches them, by splash (`RadialDamage`), by traces
+  and by particle systems whose `touch` includes bit 0x4. The exact rules of those builtins are
+  in `rcsl-builtins-semantics.delta.md (pending)`.
+- **Score**: `G_Damage` awards the victim's field 36 to a player attacker whatever the class
+  (6.1), so a civilian scores only if its definition has `score`: 5 of the 103 do (100 or 200,
+  scaled by the difficulty like every placed object). VERIFIED-DATA.
+- **Not an enemy**: not counted in the enemy total (spawner as2@0x40ea8b tests class 2.0), no kill
+  credit (as2@0x40bb1b tests class 2.0), not a `LockTarget` candidate (as2@0x414c89), not hit by
+  `Lightning` (as2@0x421399), no health bar (`G_ThinkEntity` as2@0x40cce7 tests 2.0).
+- **No penalty.** No native code counts civilian losses; no script writes `p_scores` except the
+  two score pick-ups, and `p_stars` only `star.scr` (VERIFIED-DATA). The mission statistics
+  ignore civilians.
+- What they are (VERIFIED-DATA): 60 buildings, 22 trees, 7 map objects, 10 civilian vehicles,
+  3 planes and `player_bomber`, the friendly bomber of the "Air Support" power-up. 8 of them
+  lay skid marks.
+
+#### 3.1.2 Skid marks (`skid_mark`)
+
+VERIFIED-CODE: parser as2@0x413268..0x4132fb, trail allocation `G_InitObject`
+as2@0x412200..0x4122f0, update `G_UpdateSkidTrails` as2@0x414850, release `G_FreeEntity`
+as2@0x40b300 and `G_FreeAllSkidTrails` as2@0x414800 (from `G_FreeLevel` as2@0x40e660), drawing
+as2@0x430280 / as2@0x4300e0. None of this exists in v1.70.
+
+**Definition.** Each `skid_mark x y w "texture"` line adds a record {x, y, w, texture name
+(64 bytes)}. The record area of a definition holds 8 records; the parser does not check the
+count (a ninth line would overwrite the class and flags of the definition). The data uses 2 per
+definition (92 definitions) or 4 (1). x is the offset along the model's lateral axis (axis row
+0), y along its forward axis (row 1), w the width of the mark; the data pairs +x and −x for the
+left and right wheels (for example `jeeps.obj`: `17 21 16` and `-17 21 16`). VERIFIED-DATA.
+
+**Who lays marks.** Every entity built from a definition with skid marks, when it is created
+(map spawn, `create`, drops, definition children alike): `G_InitObject` sets field 88 (entity
++0x1E4) to the number of records and field 89 (+0x1E8) to an array of that many pointers, and
+takes one **trail** per record from a pool of **64 trails** (0x64C bytes each, pool
+as2@0x20c5da8, free list as2@0x20c5d9c, live list as2@0x20c5da0, rebuilt at every level start
+in `G_StartLevel` as2@0x40e474..0x40e4b7). A trail is zeroed, linked at the head of the live
+list, and remembers its owner entity, the texture, x, y and w. When the pool is empty the
+pointer is 0 and that mark is simply not laid. VERIFIED-DATA: 80 enemy, 8 civilian and 5
+class-0 definitions have skid marks (jeeps, BTRs, M113, trucks, rocket launchers, a buggy, the
+intro Chinook).
+
+**Update, every frame, including paused frames** (`G_UpdateSkidTrails`, after the entity
+pass). For each live trail, in list order:
+
+1. If it has no owner (the owner was freed: `G_FreeEntity` clears the owner of each of its
+   trails) and no node left, the trail returns to the pool.
+2. Otherwise: its node timer += frametime and every node's age += frametime. Nodes whose age
+   is ≥ 10 s are removed from the front (oldest first).
+3. The trail is appended to the frame's draw list (at most 64 per frame, as2@0x2113074; further
+   trails are not drawn that frame).
+4. With an owner, let F and L be the owner's axis rows 0 and 1 (entity +0x134, +0x140)
+   reduced to their x, y components and normalised in 2D (left as is when of length 0), and
+   B its base origin (fields 41..43):
+   - when the node timer ≥ 5/12 s (0.4166667, as2@0x48f768): the timer −= 5/12 s and a new
+     node is started (the node count grows; at 23 nodes the oldest is dropped instead,
+     as2@0x414a93);
+   - when there is no node yet, node 0 is started; otherwise the last node is the current one;
+   - the current node gets B.xy; if the trail has nodes, its length += |B − previous B| (3D)
+     and the previous B is stored;
+   - the current node's two points: B + y·L + (x ∓ w/2)·F, each with z = terrain height
+     at that point + 2 (`R_TerrainHeight` as2@0x41a1e0, constant as2@0x48f2d0), and the
+     texture coordinate along the trail = the trail length at that moment.
+
+So the last node follows the vehicle every frame, a node is fixed every 5/12 s whatever the
+speed (a standing vehicle piles nodes on one spot), a trail holds at most 23 nodes (about 9.6 s)
+and nodes vanish at 10 s. Marks lie on the terrain, never on water, and are not affected by
+the scale field or by the owner's altitude.
+
+**Drawing** (as2@0x4300e0, renderer package for the states): a strip through the nodes' point
+pairs; u = 0 on the −w/2 side and 1 on the other; v = trail length / w (the texture repeats
+every w units); colour white with alpha = 1 for ages up to 5 s, then 1 − (age − 5) / 5, 0 at
+10 s; depth writes off; nothing drawn when 2 × nodes ≥ 4096.
+
+Quirks of the original an implementation may drop: a newly started node keeps whatever age its
+slot held (0 in a fresh trail); ages keep growing while the game is paused; when a trail is full
+the committed node is written one slot past the visible ones. See
+[issue 210](issues/210-skid-trail-details.md).
+
+#### 3.1.3 `speed` on player helicopters
+
+The parser stores the float; `G_InitObject` copies it into field 23 (`wp_speed`) of every entity
+of that definition (as2@0x411f51..0x411f57); v1.70 left field 23 at 0 (v170@0x409c4f..0x409c6a).
+Only the six helicopters carry `speed` (VERIFIED-DATA: `player_1` 1.0, `player_2` 1.25,
+`player_3` 1.4, `player_4` 0.85, `player_5` 0.7, `player_6` 1.2), so for every other object
+field 23 starts at 0 as before. No native code reads field 23 except the waypoint builtins.
+What it scales is decided by the player scripts: 7.3.
+
+#### 3.1.4 `FL_ONWATER_NORMAL` and `FL_ONWATER_FLAT`
+
+Bit values in the table above; behaviour in 4.2. VERIFIED-DATA: `FL_ONWATER` alone on 25
+definitions, `FL_ONWATER_NORMAL` on 10 (destroyers, cutters, the small boat, the submarine
+`apl`), `FL_ONWATER_FLAT` on 4 (`avianos`, the two rocket boats, `ship_big`).
+
+### 3.2 Entity memory layout: changed
+
+An entity is **0x1F4** bytes (v1.70 0x1E3). The `as2` structure is the v1.70 structure with
+natural 4-byte alignment and one new dword before the reference, and two new dwords before the
+children list. VERIFIED-CODE: `G_InitObject` as2@0x411e90 against v170@0x409ba0 (every store
+of the builder pairs up), `G_ThinkEntity` as2@0x40cb30, `G_FreeEntity` as2@0x40b300, and the
+aligned-use table of rcsl-vm.delta.md.
+
+Native part (before the reference):
+
+| as2 | v1.70 | Type | Meaning |
+|---|---|---|---|
+| +0x00 / +0x04 | +0x00 / +0x04 | ptr | next / previous (+0x04 also the free-list link) |
+| +0x08 | +0x08 | ptr | parent |
+| +0x0C | +0x0C | ptr | parent tag name |
+| +0x10 | +0x10 | u8 | `abs` flag |
+| +0x11 | +0x11 | u8 | counted in the root's reference count |
+| +0x12..0x13 | – | | padding |
+| +0x14 | +0x12 | i32 | attachment reference count of a root |
+| +0x18 | +0x16 | ptr | name (definition name, or attach `id`) |
+| +0x1C | +0x1A | i32 | activation state 0 / 1 / 2 |
+| +0x20 | +0x1E | u32 | runtime flags (same bits as v1.70) |
+| +0x24 | +0x22 | i32 | drop definition |
+| +0x28..+0x34 | +0x26..+0x32 | | light parameters (4 dwords) |
+| +0x38 | +0x36 | u8 | spot-light flag |
+| +0x39..0x3B | – | | padding |
+| +0x3C..+0x48 | +0x37..+0x43 | | light parameters (4 dwords) |
+| +0x4C | +0x47 | i32 | shadow type |
+| +0x50 / +0x54 / +0x58 | +0x4B / +0x4F / +0x53 | | waypoint path / distance / last node |
+| +0x5C | +0x57 | ptr | script thread |
+| +0x60 | +0x5B | u32 | touch mode (now a bit set, 5.2) |
+| +0x64..+0x6C | +0x5F..+0x67 | 3 floats | `bbox_scale` |
+| +0x70 | +0x6B | float | maximum health |
+| +0x74 | +0x6F | float | seconds since the last damage (2.0 after `init`) |
+| **+0x78** | – | float | **new**: seconds since `Lightning` last spawned its hit effect on this entity; grows by frametime while < 5.0 (as2@0x40cb82..0x40cb9b); `Lightning` spawns `wavegun_hit` on a target only when it is ≥ 0.2 and then resets it to 0 (as2@0x42144e..0x42146b). Semantics of `Lightning`: builtins delta (pending) |
+| +0x7C | +0x73 | i32 | looping sound channel |
+| +0x80 | +0x77 | i32 | player index 0 / 1 |
+| +0x84 | +0x7B | | reference; script fields 0..87 at +0x84 + 4k, same meaning as v1.70 |
+
+After the reference every v1.70 offset is 9 larger (the base table's +0x153 model is +0x15C,
++0x1BB emitter is +0x1C4, +0x1BF radius is +0x1C8, the collision rectangle +0x1C3..+0x1D7 is
++0x1CC..+0x1E0), then:
+
+| as2 | Field | Meaning |
+|---|---|---|
+| +0x1E4 | 88 | **new**: number of skid trails of this entity (from the definition, 3.1.2) |
+| +0x1E8 | 89 | **new**: array of that many trail pointers (0 for a mark the pool could not supply) |
+| +0x1EC | 90 | child count (v1.70 +0x1DB) |
+| +0x1F0 | 91 | child array (v1.70 +0x1DF) |
+
+Fields 88 and 89 are engine-internal; no script uses an index above 37 (rcsl-vm.delta.md).
+
+Runtime flag bits at +0x20: the same bits with the same meaning (0x01 removed, 0x02 thought,
+0x04 `main` active, 0x08 collidable, 0x10 health frozen, 0x20 `AttachEntity`, 0x100 locked).
+VERIFIED-CODE for 0x01/0x02/0x04/0x08/0x20 in `G_ThinkEntity`, `G_RemoveEntity`, `G_RunEntities`,
+`AttachEntity` as2@0x41fa70; 0x10 in `G_Damage` as2@0x40b9e0; 0x100 in `LockTarget`'s helper
+as2@0x414c50 (identical instruction shape to v170@0x40c020).
+
+`G_SyncRenderRecord` (v1.70 `G_SetupTransform`) now clamps the render colour copied from fields
+28..31 to [0, 1] (as2@0x40c899..0x40c986); v1.70 copied it unclamped (v170@0x4058ac..0x4058b2). Renderer
+detail.
+
+### 3.3 Pool and lists: same
+
+1024 entities (pool as2@0x4c2278, `memset` of 0x7D000 bytes and the free-list build in
+`G_StartLevel` as2@0x40e44f..0x40e472), free list as2@0x4c2078, live list sentinel as2@0x4c2080,
+newest pointer as2@0x4c2084, live count as2@0x221913c. Allocation `G_AllocEntity` as2@0x40b4b0
+(identical shape to v170@0x404530, still no exhaustion check). Iteration newest to oldest.
+Children outside the pool (heap, 0x1F4 bytes). Removal `G_RemoveEntity` as2@0x40b280: same
+effect (bit 0x01 on the entity and its children, emitter stopped, root count decremented); the
+shadow display list is no longer deleted here but in `G_FreeEntity`. Free at the start of the
+next entity pass (the unlink is now inlined into `G_RunEntities`, before the call at as2@0x40cdf7;
+`G_FreeEntity` as2@0x40b300 frees the thread, detaches the entity's skid trails, frees the
+path, stops the emitter, frees the shadow list and the decal and recursively frees the children;
+v1.70's separate tree walk v170@0x4044b0 is folded into it). Level end: `G_FreeAllEntities`
+as2@0x40b510 frees every live entity the same way.
+
+### 3.4 Creating entities: changed
+
+**From the map (`G_ActivateMapObjects` as2@0x40e7e0, v170@0x407590).** Same cursor, same
+window test and the same twelve steps (position from row and column, height from terrain or the
+flat water level, script override, player index at random between the living players with the
+same `rand` rule, projected shadow, yaw 30° steps or the path, `init`, drop, state 1 or 0,
+health × g_health_factor, score rounding with the score factor, enemy total for class 2.0
+without `FL_NONTARGET`, maximum level score). VERIFIED-CODE, same steps in the same order. The
+in-memory map record is 0x20 bytes (v1.70 0x1F). Changes:
+
+- **Intermission levels** (as2@0x40e815): the window test is skipped, so every placement of an
+  attract level is spawned in the first call, whatever its row. v1.70 applied the window to
+  attract levels too.
+- **First call during loading**: `G_StartLevel` calls the spawner once before the first frame
+  (§2), with the front edge at `g_map_pos + 800`; the objects of rows 0..20 therefore exist
+  (and have run `init` and one think) when play starts. Their contribution to the enemy total
+  and the maximum score is erased by the counter reset that follows `G_StartLevel` (10.2).
+- The spawned entity's player index: same rule (as2@0x40e8fc..0x40e969).
+
+**From scripts (`create` as2@0x41f7d0).** Same steps; it now returns the new entity even when
+its `init` writes the return register (rcsl-vm.delta.md). Health and score of created entities
+are still not scaled by the difficulty.
+
+**Projectiles (`Shoot` as2@0x420190)**: 8.1.
+
+**Drops**: `G_Damage` spawns the drop with `G_SpawnObject` as2@0x4124c0 (same code as
+v170@0x40a080 apart from offsets).
+
+### 3.5 Activation states: same
+
+`G_RunEntities` as2@0x40cdc0, `G_InActivationArea` as2@0x40c000 and `G_InVisibleTerrainBox`
+as2@0x40c090 (both identical in shape to v170@0x4050b0 and v170@0x405140, ratio 1.000),
+`G_SetStateRecursive` as2@0x40cd70 (identical to v170@0x405c70): the three states, the band
+y − r ∈ [g_map_pos + 16, g_map_pos + 800], x ± r within 0..1280, z + r ≥ `hmin`, and the
+leaving test (sphere in the frustum and in the visible terrain box) are unchanged. `activate`
+and `deactivate` are the same code. The issue 031 and 113 §4 questions carry over unchanged.
+
+### 3.6 Event entry points: same
+
+See rcsl-vm.delta.md "Event dispatch": `init`, `main`, `damage`, `callback` same; `touch` with
+the new pair tests of 5.2.
+
+---
+
 ## Changelog
 
 - 1.0 (B4): first version.
