@@ -33,10 +33,11 @@ Every claim carries one of:
 | [mdl.md](mdl.md) | 1.1 | verified, with corrections in render-pipeline.md section 11.3: front face is counter-clockwise, normals are renormalised |
 | [hmap.md](hmap.md) | 1.0 | layout verified; engine behaviour from code |
 | [obj.md](obj.md), [wpn.md](wpn.md), [ps.md](ps.md), [levels-txt.md](levels-txt.md) | 1.0 | verified from parsers; some sub-field names guessed |
-| [engine-behaviour.md](engine-behaviour.md) | 1.0 | verified from code; collision projection details open |
+| [engine-behaviour.md](engine-behaviour.md) | 1.0 | verified from code; collision projection is settled in render-pipeline.md; corrections to sections 4.3, 6.2 and 8.1 to 8.4 are listed in rcsl-builtins-semantics.md, which wins where they differ |
 | [render-pipeline.md](render-pipeline.md) | 1.0 | verified from code; lists corrections to obj, ps, mdl and levels-txt specs in section 11.3 |
 | [rcsl-vm.md](rcsl-vm.md) | 1.1 | verified from code; C++ VM (`engine/src/script`) reproduces the reference trace of all 339 scripts |
-| [rcsl-builtins-table.md](rcsl-builtins-table.md) | 1.0 | signatures verified; gameplay builtin internals pending |
+| [rcsl-builtins-table.md](rcsl-builtins-table.md) | 1.0 | signatures verified; behaviour is in rcsl-builtins-semantics.md, which wins where they differ |
+| [rcsl-builtins-semantics.md](rcsl-builtins-semantics.md) | 1.0 | all 85 builtins, core behaviour verified from code; 62 are needed for mission 1; also lists corrections to engine-behaviour, rcsl-vm, hmap and wpn specs; checked by `tools/ref/check_builtin_semantics.py` |
 | [rcsl-container.md](rcsl-container.md) | 1.0 | verified from code |
 | [rcsl-opcodes-v0.md](rcsl-opcodes-v0.md) | 0 | opcodes verified from code |
 
@@ -49,4 +50,13 @@ Every claim carries one of:
 | `TerrainHeight` outside the map | reads one cell past the edge | clamps to the edge |
 | Frame timing | variable step, capped at 100 ms | fixed step, for determinism |
 | Collision rectangles | window pixels of the actual video mode, previous frame's matrices | same formulas on a fixed 800x600 viewport |
+| Entity reference of 0 or to a freed entity | crashes, or acts on whatever now occupies the slot | references carry a generation count; a builtin given a null or stale reference does nothing and returns 0 |
+| Uninitialised values (`MoveToNextWP` bank on straight stretches, `Shoot` muzzle offset without a model) | whatever is on the stack | interpolated table value; zero offset |
 | Online high scores, CD check | present | dropped |
+
+## Open spec issues
+
+| Issue | Topic |
+|---|---|
+| [001](issues/001-lcall-nan-timeout.md) | NaN timeout in LCALL; resolved in rcsl-vm.md 1.1 |
+| [010](issues/010-particle-prev-origin.md) | particle emitter previous origin and yaw of oriented emitters; check once emitters move in game |
