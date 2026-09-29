@@ -56,6 +56,31 @@ void main() {
 }
 )";
 
+#ifdef __EMSCRIPTEN__
+// The web version (docs/spec/issues/150): step 6 on the GPU. glReadPixels is a synchronous
+// stall in WebGL, about 1.2 ms per silhouette and 110 of them per level, so the 2x2 box filter
+// is a pass into the final texture instead: each output texel samples the supersampled
+// silhouette halfway between its four texels (bilinear = their mean). Rows come out in the
+// order Texture2D::create gives the CPU path (top row first). No CPU copy is kept.
+const char* const kDownVertexSrc = R"(#version 300 es
+void main() {
+    vec2 p = vec2(gl_VertexID == 1 ? 3.0 : -1.0, gl_VertexID == 2 ? 3.0 : -1.0);
+    gl_Position = vec4(p, 0.0, 1.0);
+}
+)";
+const char* const kDownFragmentSrc = R"(#version 300 es
+precision highp float;
+uniform sampler2D uTex;
+uniform vec2 uSize;
+out vec4 fragColor;
+void main() {
+    vec2 uv = vec2(gl_FragCoord.x / uSize.x, 1.0 - gl_FragCoord.y / uSize.y);
+    float r = texture(uTex, uv).r;
+    fragColor = vec4(vec3(114.0 / 255.0), 1.0 - r);
+}
+)";
+#endif
+
 } // namespace
 
 ShadowBounds computeShadowBounds(const ModelData& model, ShadowKind kind, const Vec3& towardsSun, int rotationSteps) {
@@ -107,6 +132,9 @@ GroundRect shadowRect(const ShadowMap& map, const Vec3& origin, float yawDegrees
 struct ShadowRenderer::Impl {
     DecalDrawer drawer;
     ShaderProgram silProgram;
+#ifdef __EMSCRIPTEN__
+    ShaderProgram downProgram;
+#endif
 };
 
 ShadowRenderer::ShadowRenderer() : impl_(new Impl) {}
@@ -114,6 +142,9 @@ ShadowRenderer::~ShadowRenderer() = default;
 
 bool ShadowRenderer::init(std::string* error) {
     if (!impl_->drawer.init(error)) return false;
+#ifdef __EMSCRIPTEN__
+    if (!impl_->downProgram.valid() && !impl_->downProgram.compile(kDownVertexSrc, kDownFragmentSrc, error)) return false;
+#endif
     if (impl_->silProgram.valid()) return true;
     return impl_->silProgram.compile(kSilVertexSrc, kSilFragmentSrc, error);
 }
@@ -217,6 +248,51 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
     glDisable(GL_BLEND);
     setDepth(true, true);
 
+#ifdef __EMSCRIPTEN__
+    {
+        Image blank;
+        blank.width = W;
+        blank.height = H;
+        blank.hasAlpha = true;
+        blank.rgba.assign(static_cast<size_t>(W) * static_cast<size_t>(H) * 4, 0);
+        TextureOptions opts;
+        opts.mipmaps = true;
+        opts.wrapS = Wrap::ClampToEdge;
+        opts.wrapT = Wrap::ClampToEdge;
+        out.texture.create(blank, opts);
+        GLuint fbo = 0;
+        glGenFramebuffers(1, &fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, out.texture.id(), 0);
+        const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+        if (complete) {
+            glViewport(0, 0, W, H);
+            setDepth(false, false);
+            glDisable(GL_BLEND);
+            ShaderProgram& down = impl_->downProgram;
+            down.use();
+            down.setInt("uTex", 0);
+            down.setVec2("uSize", {static_cast<float>(W), static_cast<float>(H)});
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, target.colorTextureId());
+            glBindVertexArray(0);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
+            setDepth(true, true);
+            glBindTexture(GL_TEXTURE_2D, out.texture.id());
+            glGenerateMipmap(GL_TEXTURE_2D);
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(prevFbo));
+        glDeleteFramebuffers(1, &fbo);
+        glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+        if (!complete) return false;
+        out.image = Image();
+        out.bounds = bounds;
+        out.kind = kind;
+        out.width = W;
+        out.height = H;
+        return out.texture.valid();
+    }
+#endif
     Image big;
     bool ok = target.readPixels(big);
     glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(prevFbo));
