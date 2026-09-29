@@ -169,3 +169,196 @@ Same as the base §1.4, with these differences (VERIFIED-CODE):
 - S13b and S15, S16: the HUD is hidden (`EndLevel` as2@0x40e730 sets it before the dialogue).
 - While any menu is on the stack, keys and buttons go to the menu system first; F5–F9, P and Esc
   are inactive then (`G_KeyEvent` as2@0x4110f0, same rule as the base).
+
+## 2. Menu system (widgets and input)
+
+Relation to the base §2: **changed in its art and in two mechanisms, same in its logic**. The
+stack, focus rules, generic keys, spinner, slider, list, edit field and text routines work as in
+the base; the item types are renumbered, two item types are new (a picture and a text button),
+every widget is drawn in the new green style from `gfx\ui\interface.tga`, a menu has an opening
+animation, and most widgets no longer play the hover sound. The first game's implementation can
+be reused with per-game tables (section 9).
+
+### 2.1 Menu stack (VERIFIED-CODE as2@0x42b2c0, 0x42b340, 0x42b3c0, 0x42bbc0)
+
+Same as the base: 16 menus at most (depth as2@0x2219180, array as2@0x2112698, current menu
+as2@0x2111e5c); only the top menu is drawn and receives input; push and pop reset `mt` and the
+focus of the newly current menu and re-run the hover test; builders rebuild every item on each
+opening.
+
+Menu record (static globals, one per screen): +0x00 item count, +0x04 64 item pointers, +0x104
+focused index, +0x108 hovered index, +0x10C hover time, +0x110/+0x114 cursor position when the
+hover started, **+0x118 closing flag (new)**, **+0x11C open value f (new)**, +0x120 draw
+callback, +0x124 key callback. Builders now pass the callbacks in the order action (per item,
+item +0x44), draw, key.
+
+**Open value f (new).** Push and pop set f of the new top menu (and of the menu it covers) to 0
+(as2@0x42b2c0, 0x42b340). `UI_Frame` then raises it by 4 × frametime twice per frame while the
+closing flag is clear, so a menu opens in **0.125 s**; it is clamped at 1 (as2@0x42b3fe..0x42b4e8;
+(emu): 0.16, 0.32, … 0.96, 1.0 at frametime 0.02). With the closing flag set the two steps cancel
+out and f stays where it is; no code of the export sets that flag (no byte write to +0x118 of a
+menu record exists), so the branch is dead. f is used for:
+
+- the panel's opening animation (3.1), on the screens that pass f to `UI_DrawPanel`;
+- widgets of types 0, 3, 5, 6, 7 and 8 are drawn only once f ≥ 1 (as2@0x426570); pictures
+  (types 1, 2) and text buttons (type 9) are drawn from the first frame, text buttons with their
+  own slide-in (2.5).
+
+Drawing: the menu's draw callback if it has one, else `UI_DrawMenu` as2@0x426570 (items in
+insertion order, then the tooltip); then the cursor (2.7); then the 2D list is flushed and the
+per-frame render lists are cleared (as2@0x42b5d9..0x42b605).
+
+### 2.2 Items
+
+Same record and events as the base (type, id, flags, label, tooltip, x, y, hit rectangle, action
+callback with event 1 activate, 2 focus gained, 3 focus lost). New: item +0x48 is an optional
+per-item draw callback that replaces the type's drawer (used by the controls rows, 3.7). The
+**type numbers changed** (`UI_AddItem` as2@0x42adb0, jump table as2@0x42ae64; VERIFIED-CODE):
+
+| AS2 type | Base type | Widget | Hit rectangle when added |
+|---|---|---|---|
+| 0 | 0 | text label | 10 × character count wide, 16 high, anchored by the align flags (same) |
+| 1 | 1 | image button | (x, y, w, h), w and h at item +0x54/+0x58 (same) |
+| 2 | – | **picture** (new): an image button without highlight | (x, y, w, h) |
+| 3 | 2 | edit field | (x, y, w, 16) (same) |
+| 5 | 4 | list | (x, y, w, h) (same) |
+| 6 | 5 | spinner | as the base |
+| 7 | 6 | slider | as the base |
+| 8 | 7 | helicopter grid | as the base; **never added by any AS2 builder** (Start Game fills one in at (324, 304) and does not add it, as2@0x42d8b0) |
+| 9 | – | **text button** (new) | (left, y, W + 46, 30), W = max(caption width, minimum width at item +0x5C), left from the align flags (2.5) |
+
+Types 4 and above 9 add nothing. Flags: as the base (1 focused, 2 disabled, 4 not drawn, 0x2000
+right-align on x, 0x4000 centre on x, 0x10000 brace markup, 0x20000 no hover sound); 0x100 and
+0x1000 appear in builders without effect. Item +0x24 holds 0xFFFFFF on every text button; no
+reader was found (GUESS: an unused colour field).
+
+### 2.3 Focus, hover and sounds
+
+Same rules as the base (VERIFIED-CODE `UI_UpdateHover` as2@0x42ac00, same logic as
+v170@0x429200; `UI_MenuKey` as2@0x42af60): focus follows the mouse; `sounds\menu2.wav` plays when
+the hovered item changes and the new item lacks flag 0x20000; activation plays
+`sounds\menu1.wav`. **Changed in effect:** the list (`UI_InitListItem` as2@0x424800), spinner
+(`UI_InitSpinner` as2@0x425020) and text-button (as2@0x423e40) initialisers now set 0x20000 and
+the builders give it to sliders and controls rows, so in practice only plain text labels (the
+exit confirmation's YES and NO) and possibly the pictures play the hover sound ((emu): hovering a
+spinner or a text button queues no sound). Tooltips: same code as the base; no AS2 item has one
+(the resolution tooltip text is gone).
+
+### 2.4 Generic keyboard and mouse handling (VERIFIED-CODE as2@0x42ab90, 0x42af60)
+
+Same as the base §2.4 with the renumbered types: Esc or right button pops; with nothing focused,
+Tab/Up/Down/stick focus the first selectable item; a focused edit field (3), list (5), spinner
+(6), slider (7) or grid (8) gets the key first; Tab/Down/stick down and Up/stick up move the focus
+over non-disabled items, wrapping; Enter activates; left button or joy 1 activates the item under
+the cursor.
+
+### 2.5 Widgets
+
+Additive font unless stated. VERIFIED-CODE at the cited addresses; layouts (emu) where marked.
+
+**Text label (type 0, as2@0x423e00).** Same shape as the base with new colours: green; orange when
+focused; grey 0x404040 when disabled (the base: grey, white, dark grey).
+
+**Image button (type 1, inline in as2@0x426570).** Same as the base: normal texture ALPHA, white
+(0x808080 when disabled); when focused the highlight texture ADD in Pulse(2, 0) =
+255 × (0.5 + 0.5 sin(2π·mt)). No AS2 screen uses it.
+
+**Picture (type 2, new, inline in as2@0x426570).** The texture (item +0x4C) with the item's UVs
+(+0x5C..+0x68) over (x, y, w, h), blend ALPHA; green, orange when focused ((emu), the helicopter
+selection arrows). No highlight texture.
+
+**Edit field (type 3, as2@0x427940).** Same code as the base (63 characters, cursor, overwrite,
+Backspace/Delete/Home/End/Left/Right/Insert, Enter sends event 1). Its only AS2 use is the name
+entry: box (x − 2, y, w + 4, 16) in dark green, blend ALPHA; text white at (x, y) ((emu),
+as2@0x42bcd0).
+
+**List (type 5, keys as2@0x4248a0, draw as2@0x424bb0).** Logic the same as the base: visible rows
+= (h − 4) / 20; entries {text, enabled}; disabled entries can never be selected; same keys and
+clicks. Drawing changed ((emu), Start Game list at (190, 200, 420, 144)):
+
+- outline (x, y, w, h) in the green outline colour, blend ALPHA (the base: a black fill);
+- row k text at (x + 10, y + 4 + 20k): the selected row orange on a dark-green bar
+  (x + 4, row y − 1, w − 25, 18), blend ALPHA; enabled rows green; disabled rows grey 0x808080;
+- scroll bar at x + w − 18 from `interface.tga`, 15 wide, tinted green, blend ALPHA: up box
+  texel (153, 113, 15, 15) at y + 3; track texel (153, 138, 15, 15) repeated from y + 21 to
+  y + h − 21 (the last piece cut); thumb texel (153, 130, 15, 6) on the track, at y + 21 for the
+  first row (its travel formula was not traced; GUESS: proportional to the first visible row as in
+  the base); down box texel (153, 154, 15, 15) at y + h − 19. The base used
+  `menu\scroller_1/2.tga`.
+
+**Spinner (type 6, as2@0x425250).** Same logic as the base (next: Enter, Right, left click, joy 1,
+wheel up; previous: Left, wheel down, stick left; event 1 after every key). Drawing changed: label
+right-aligned ending at x − 10, value at x + 10, green; orange when focused, **without** the base's
+box; grey when disabled ((emu), Start Game and Options).
+
+**Slider (type 7; init as2@0x424300 and input as2@0x424370, both the same code as the base; draw
+as2@0x4245a0).** Logic the same as the base. Drawing changed ((emu), Options): label right-aligned
+at x − 10, green (orange focused); bar `interface.tga` texel (107, 89, 128, 11) at
+(x + 8, y + 3, 128, 11); knob texel (239, 87, 6, 15) at
+(x + 8 + ftol((value − min) × 128 / (max − min)) − 3, y + 1, 6, 15); both in the label colour,
+blend ALPHA. `re/symbols_as2.csv` calls these three functions "key item"; they are the slider.
+
+**Helicopter grid (type 8).** Code present (as2@0x4252d0, 0x4253c0, 0x4254b0), never shown. Omit.
+
+**Text button (type 9, new; layout as2@0x423e40, draw as2@0x423f00).** Every AS2 button is one.
+
+- Width W = max(caption width, minimum width at item +0x5C); the caption width skips `{` and `}`
+  and includes the padding spaces of the caption string. Total size (W + 46) × 30. left = x, or
+  x − (W + 46)/2 with flag 0x4000, or x − (W + 46) with flag 0x2000.
+- **Slide-in:** a slide value a (item +0x58) rises by 4 × frametime to 1 while the button is not
+  hidden (flag 4) and falls at the same rate to 0 while it is; the button is drawn at
+  y_d = 600 − (600 − y)·a, so it slides up from the bottom edge in 0.25 s when a screen opens and
+  back down when it is hidden ((emu): the tutorial box's Ok at y 584, 552, 520 on successive
+  0.05 s frames). The hit rectangle does not move; hidden buttons are still drawn, below the
+  screen.
+- **Frame**, `interface.tga`, white, blend ALPHA, at (left, y_d): left cap texel (18, 79, 23, 30);
+  body texel (41, 79, ≤40, 30) repeated over W in pieces of at most 40 (the last one cut); right
+  cap texel (80, 79, 23, 30) at left + 23 + W.
+- **Caption:** centred on left + 23 + W/2 at y_d + 7: green; orange when focused; grey 0x404040
+  when disabled; red 0x000000FF when flag 0x10000 is set (no AS2 button has it).
+- **Rivets**, white, ALPHA: texel (0, 230, 26, 15) at (left + 25, y_d + 21) and
+  (left + W − 6, y_d + 21); texel (0, 215, 26, 15) at (left + 25, y_d − 5) and
+  (left + W − 6, y_d − 5).
+- No highlight picture: focus only changes the caption colour.
+
+Checked on the atlas: the three frame pieces cut the first bevelled bar at texel y 79..109 into
+its left end, body and right end; the two rivet pictures are the small bolts at texel (0, 215)
+and (0, 230). (emu) for the main menu gives, for " Start Game " (minimum width 200) centred at
+x 400, y 230: frame 277..523, caption centred on 400 at y 237, rivets at x 302 and 471.
+
+### 2.6 Tooltip (VERIFIED-CODE as2@0x426570)
+
+Same code and look as the base §2.6. Unused: no AS2 item has tooltip text.
+
+### 2.7 Mouse cursor
+
+Same as the base (VERIFIED-CODE as2@0x42b5a6..0x42b5d4, (emu)): unless `UseSystemMouse` = 1,
+`menu\cursor_1.tga` ALPHA then `menu\cursor_2.tga` ADD at (mouse x − 4, mouse y − 2), white;
+both files are shipped (VERIFIED-DATA). **Changed:** nothing is drawn during play any more, also
+with mouse control on (`HUD_Frame` as2@0x40ac80; `gfx\mc_cur.tga` is still registered by
+as2@0x4077b0 but never drawn). Mouse coordinates: the base's mapping (as2@0x411390, same code as
+v170@0x4091c0).
+
+### 2.8 Text routines
+
+Same three routines as the base:
+
+| Routine | Texture, blend | As the base? |
+|---|---|---|
+| additive font as2@0x425d50 | `gfx\ui\font.tga`, ADD | same glyph cells (30×15 from 32×16), advance table as2@0x49cc50 (identical to v1.70) and markup (`{` white, `}` back) |
+| alpha font as2@0x426230 | `gfx\ui\font_alpha.tga`, ALPHA | same |
+| number font as2@0x4263e0 | `font.tga` whole 32×16 cells, ADD, advance 14·scale | same code as v170@0x4258f0 |
+
+**Changed:** when a string is centred or right-aligned, `{` and `}` are no longer counted in its
+width (as2@0x425d66..0x425da4; the base counted 6 px each). The same rule is used by the text
+button, the tutorial box, the panel title and the typewriters. For AS2 this settles the base's
+open question 4 in the direction issue 091 item 2 already took. VERIFIED-CODE.
+
+Calling convention of the additive routine (for reading the code): string in EAX, flags in ECX,
+then x, y and colour on the stack.
+
+### 2.9 Shared screen decoration (new)
+
+Two drawers replace the base's letterbox, three-layer headers and panel fills: the **panel**
+`UI_DrawPanel` as2@0x426ae0 and the **title logo** `UI_DrawMenuHeader` as2@0x42b610. They are
+specified in 3.1, with the `interface.tga` atlas table.
