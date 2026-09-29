@@ -121,6 +121,7 @@ Rules for delta specs:
 | [160](issues/160-save-format-v2.md) | save format 2: game key, counts as data, migration of the first game's save |
 | [161](issues/161-game-detection.md) | how a game's data is found and identified |
 | [162](issues/162-packaging-by-game.md) | packaging by game on Android and the web |
+| [163](issues/163-game-selector.md) | the game selector, "Change game", switching games in one process |
 
 Issues of a sequel are in its own directory, `as2/issues/` (numbers from 200).
 
@@ -139,5 +140,5 @@ Issues of a sequel are in its own directory, `as2/issues/` (numbers from 200).
 | Android | `android`, `apps/game`, `engine/src/input/touch_mapper.cpp`, `docs/android.md` | runs on the owner's phone; touch overlay with item previews, Wide / 4:3, touch speed, FPS counter |
 | Web | `apps/web`, `tools/web_build.sh`, `tools/web_serve.sh`, `docs/web.md` | the whole game in the browser, one player; verified in headless Chromium and by the owner on Android Chrome and Edge; Safari, iPhone and Firefox untested |
 | Several games | `engine/include/as3d/{game_profile,game_data}.h`, `tools/games.json`, `tools/regress_as3d.sh` | groundwork done: game chosen at start (`--game`, `AS3D_GAME`, `?game=`), rules from `GameRules`, one save per game (format 2), tests, goldens and tools per game, packaging by game |
-| AirStrike 2 (`as2`) | `docs/spec/as2/` | reverse engineering done except the front end; all files load; scripts run in the simulator; builtins, player rules, water, skid marks, menus in progress; not playable yet |
+| AirStrike 2 (`as2`) | `docs/spec/as2/`, `docs/missions-status-as2.md` | playable on all three targets: all 18 missions end under the pilot, its own HUD, water and lava checked against the original under Wine (`tools/run_original.sh`); started from a plain front end of ours; its real menus, comics, dialogues and campaign checkpoint are not done; co-op not done |
 | Gulf Thunder (`gulf`) | `docs/spec/gulf/` | data deltas only; all files load; interpreter and builtins equal AirStrike 2's |

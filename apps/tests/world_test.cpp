@@ -454,7 +454,11 @@ struct DataRig {
     bool load(const std::string& level, const WorldConfig& cfg) {
         vfs.mount(makeDirSource(testdata::extractedDir()));
         if (!db.load(vfs)) return false;
-        world.init(vfs, db, cfg);
+        // The data is the selected game's, so its rules apply (a sequel's scripts use
+        // globals and builtins the first game's rules do not have).
+        WorldConfig c = cfg;
+        if (!c.rules) c.rules = &testdata::game().rules;
+        world.init(vfs, db, c);
         std::string err;
         bool ok = world.loadLevel(level, &err);
         if (!ok) MESSAGE(err);
