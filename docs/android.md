@@ -1,14 +1,18 @@
 # Android
 
-The game (`apps/game`) runs on Android as a native SDL2 + OpenGL ES 3.0 app with touch
-controls. It opens on the original's front end in touch mode (intro pages, main menu over the
+The games (`apps/game`) run on Android as one native SDL2 + OpenGL ES 3.0 app, "AirStrike",
+with touch controls. It holds AirStrike 3D and AirStrike 2 and opens on the game selector
+(`docs/spec/issues/163`): one card per game with its save (missions open, best score); a tap
+plays it, and each game's main menu has "Change game" to come back without restarting the
+app. AirStrike 3D runs its original front end in touch mode (intro pages, main menu over the
 attract level, Start Game, the in-game menu, Mission Complete, Game Over, Top Scores, Options,
 Information; `docs/spec/frontend.md`, touch additions in issue 090, integration choices in
-issue 130). With the `level` or `bot` extra it starts straight into a mission and moves on to
-the next one by itself, like `as3d_game --level N` on desktop.
+issue 130), AirStrike 2 our plain front end (issue as2/260). With the `level` or `bot` extra
+it starts straight into a mission and moves on to the next one by itself, like
+`as3d_game --level N` on desktop.
 
-**Copyright.** The APK contains the original AirStrike 3D game data (the three pak archives,
-copied from your own copy of the game). It is for the owner's personal use only: do not
+**Copyright.** The APK contains the original game data (the pak archives, copied from your own
+copies of the games). It is for the owner's personal use only: do not
 share it or upload it anywhere. No APK, pak, keystore or screenshot is ever committed: the
 paks copied into `android/app/src/main/assets/`, `android/app/build/` and `out/` are
 gitignored, and `tools/android_build.sh` refuses to build if a pak is tracked by git. The
@@ -41,8 +45,8 @@ the platform module.
 ## What is bundled
 
 `tools/android_build.sh` bundles the games named in `AS3D_ANDROID_GAMES` (comma-separated keys
-of `tools/games.json`: `as3d`, `as2`, `gulf`; default `as3d`, it becomes all three when the
-sequels play). Each game's files go under `assets/<key>/` of the APK, and the first game is
+of `tools/games.json`: `as3d`, `as2`, `gulf`; default `as3d,as2`, the playable games). Each
+game's files go under `assets/<key>/` of the APK, and the first game is
 under `as3d/` too (one layout; the flat layout of older builds is gone, the build script
 removes it from the assets directory): the game's paks (`pak0.apk`, `pak1.apk`, `pak2.apk`,
 plus `pak4.apk` for `gulf`; the `.apk` extension is the original game's naming) from
@@ -52,8 +56,9 @@ plus `pak4.apk` for `gulf`; the `.apk` extension is the original game's naming) 
 from the APK through the asset manager (`SDL_RWFromFile("as3d/pak0.apk")`,
 `engine/src/platform/rw_stream.cpp`), seeking to the offsets of the pak's file table: nothing
 is extracted to storage. They are mounted in the profile's order (later paks override
-earlier ones). About 25 MB of data for `as3d`; the APK with both ABIs is 37.9 MB for `as3d`
-alone and 129 MB with `as3d,as2,gulf`.
+earlier ones). About 25 MB of data for `as3d` and 48 MB for `as2`; the APK with both ABIs is
+37.9 MB for `as3d` alone, 86.1 MB (86 123 550 bytes) with the default `as3d,as2`, and 129 MB with
+`as3d,as2,gulf`.
 
 It also copies, when the data has them, the front end's loose files of each game:
 `Settings.xml` and `gfx/logo2s.tga` from the same directory (intro pages, version line, the
@@ -63,11 +68,14 @@ from `$AS3D_DATA_ROOT/assets_extracted/`, `texts_as2.txt` / `texts_gulf.txt` fro
 `tools/extract_exe_texts.py`, issue 080: Information pages, rank names). Without them the
 menus still work. Everything in `android/app/src/main/assets/` is gitignored there, and the
 build script refuses to build if any file of any game (or anything but the `.gitignore`)
-under it is tracked by git. The native side (`apps/game/android_main.cpp`) reads from
-`<key>/` for the game chosen by the `game` extra (`docs/spec/issues/162-packaging-by-game.md`).
+under it is tracked by git. The native side (`apps/game/android_main.cpp`) finds the games
+the APK holds (`<key>/pak0.apk`) and reads each from `<key>/`
+(`docs/spec/issues/162-packaging-by-game.md`): the selector lists the playable ones; with one
+game it starts directly; the `game` extra forces one.
 
-The profile (unlocks, high scores, settings) is `<game key>/profile.bin` (`as3d/profile.bin`
-for this game) in the app's internal files directory, one save per game; a save of an earlier
+The profile (unlocks, high scores, settings) is `<game key>/profile.bin` (`as3d/profile.bin`,
+`as2/profile.bin`) in the app's internal files directory, one save per game; the selector's
+last choice is `launcher.bin` beside them (it only preselects the card). A save of an earlier
 release, `profile.bin` beside it, is moved there on the first start and kept as
 `profile.v1.bak` (docs/spec/issues/160). It is written after a mission, a high score or a settings change and whenever the
 app goes to the background. Uninstalling the app removes it. Updating the app over the old one
@@ -85,8 +93,9 @@ needed, copies the paks, writes `android/local.properties` (gitignored) and runs
 `./gradlew assembleDebug` with the Gradle JVM capped at 1.5 GB and 2 workers. Native code is
 built `RelWithDebInfo` even in the debug APK. `AS3D_ANDROID_ABIS=x86_64` builds only the
 emulator ABI (faster); `AS3D_NATIVE_JOBS` sets the parallel compile jobs (default 4);
-`AS3D_ANDROID_GAMES=as3d,as2,gulf` bundles the sequels too (they are refused at run time
-without `--ez allow_unfinished true`, `apps/game/android_main.cpp`).
+`AS3D_ANDROID_GAMES=as3d,as2,gulf` bundles Gulf Thunder too (it is not listed on the selector
+and refused at run time without `--ez allow_unfinished true`, `apps/game/android_main.cpp`);
+`AS3D_ANDROID_GAMES=as3d` makes the app of before, without the selector.
 Output: `android/app/build/outputs/apk/debug/app-debug.apk`. Stop the Gradle daemon
 afterwards on a shared machine: `(cd android && ./gradlew --stop)`.
 
@@ -95,7 +104,9 @@ Toolchain: Android SDK 36, NDK 28.2.13676358, CMake 3.31.6, JDK 17, Android Grad
 
 ### Launcher icon and name
 
-The app is called "AirStrike 3D" in the launcher. Its icon is an adaptive icon of our own (a
+The app is called "AirStrike" in the launcher (it holds more than one game; it was "AirStrike
+3D" before the selector; the application id `org.as3dport.game` did not change, so installing
+the new APK over the old one keeps the app and its saves). Its icon is an adaptive icon of our own (a
 red helicopter from above under an orange rotor disc, on a dark background, with a monochrome
 layer for themed icons), committed in `android/app/src/main/res/`. When the desktop viewer
 (`build/apps/viewer/as3d_viewer`, or `AS3D_VIEWER`) and the game data are available,
@@ -127,11 +138,12 @@ Any arm64 phone with Android 8.0 or later and OpenGL ES 3.0 should run it. To re
 
 | Extra | Meaning |
 |---|---|
-| (none) | the front end: intro pages, then the main menu |
-| `--ez bot true` | no menus: the scripted test pilot plays (same as `as3d_game --bot`); touch still works |
-| `--ei level N` | no menus: start in mission N (1 up to the chosen game's mission count: 20 for `as3d`) |
-| `--es game KEY` | the game: `as3d` (default), `as2`, `gulf`; its files are read from `assets/<key>/` |
-| `--ez allow_unfinished true` | run a game that does not play yet (`as2`, `gulf`); without it they are refused |
+| (none) | the game selector (more than one playable game in the APK), then the chosen game's front end: intro pages, then the main menu |
+| `--ez bot true` | no menus: the scripted test pilot plays (same as `as3d_game --bot`); touch still works; the first game offered unless `game` names one |
+| `--ez bot true --ez menus true` | the selector and the menus as usual; the pilot plays the missions started from them (the smoke test) |
+| `--ei level N` | no menus: start in mission N (1 up to the chosen game's mission count: 20 for `as3d`, 18 for `as2`) |
+| `--es game KEY` | this game, no selector and no "Change game": `as3d`, `as2`, `gulf`; its files are read from `assets/<key>/` |
+| `--ez allow_unfinished true` | offer and run a game that does not play yet (`gulf`); without it it is refused |
 | `--ei frames N` | quit after N simulation frames |
 | `--ei difficulty D` | 0 up to the game's difficulty count minus one (0..4 for `as3d`); a value outside is ignored |
 | `--ez no_audio true` | no sound |
@@ -219,8 +231,12 @@ The app logs under the tag `AS3D` (`adb logcat -s AS3D:*`):
 | Marker | When |
 |---|---|
 | `AS3D_ARGS` | at start: the arguments from the intent |
-| `AS3D_GAME_START size=WxH load_ms=...` | the game is up (the first level, or the front end) |
-| `AS3D_SCREEN name=main|start|ingame|...|playing|paused|intro frame=N mission=M` | with the menus: the top screen changed (names of `Frontend::screenName`) |
+| `AS3D_GAMES present=N selector=0|1 game=KEY` | at start: the games in the APK, whether the selector opens, the first game |
+| `AS3D_GAME_START size=WxH load_ms=... game=KEY` | a game is up (the first level, or the front end), after every choice on the selector |
+| `AS3D_SCREEN name=main|start|ingame|...|playing|paused|intro|selector frame=N mission=M` | with the menus: the top screen changed (names of `Frontend::screenName`; `selector` between games) |
+| `AS3D_SELECTOR cards=KEY@x,y,w,h;... play=... exit=... current=KEY` | the selector's layout (virtual 800x600), when it opens |
+| `AS3D_GAME_CHOSEN game=KEY`, `AS3D_GAME_CHANGE game=KEY` | a card was played; "Change game" left that game |
+| `AS3D_MENU name=... items=ID@x,y,w,h ...` | the top menu's items (virtual 800x600), "Change game" is item 60 |
 | `AS3D_VIEW scale=S x=X y=Y` | virtual 800x600 to screen pixels (`px = v * S + X`), with the layout |
 | `AS3D_LAYOUT size=... insets=... buttons=outside|inside screen=wide|4x3 hand=right|left px_per_mm=... missile=x,y,r ...` | button centres and radii in pixels, when the screen, the insets, Screen or Controls change |
 | `AS3D_DPI ddpi=... hdpi=... vdpi=...` | the display density SDL reports (sizes the buttons) |
@@ -240,11 +256,22 @@ another project and is never wiped or reconfigured). It installs the APK, launch
 the bot pilot in mission 1 and `rebuild_on_resume`, waits for `AS3D_GAME_FRAME n=600`,
 injects a drag, a missile and a next-weapon tap, the pause button and a tap, the Back key and
 a tap, sends the app to the background and brings it back (checking `AS3D_GL_REBUILD`), taps
-to continue, and plays on to frame 3600. Then it restarts the app on the front end and taps
-through it by the `AS3D_SCREEN` markers: main menu, Start Game, Start, 600 frames of mission
-1, the pause button (in-game menu), Resume, pause again, Quit to the main menu, Back (exit
-confirmation), No; screenshots `menu_*.png`. It fails on a `FATAL` marker, a Java exception or a native
-crash, and on timeouts. Screenshots and the logcat capture go to
+to continue, and plays on to frame 3600. Then it starts the first game forced (`game=as3d`,
+as the app before the selector), opens and leaves Options so that `files/as3d/profile.bin`
+exists, keeps a copy of it, and checks there is no `files/as2/profile.bin` yet. It restarts
+the app without extras: the selector (`AS3D_GAMES present=2 selector=1`), the AirStrike 3D
+card tapped (its rectangle from `AS3D_SELECTOR`), and taps through the first game's front end
+by the `AS3D_SCREEN` markers: main menu, Start Game, Start, 600 frames of mission 1, the pause
+button (in-game menu), Resume, pause again, Quit to the main menu, Back (exit confirmation),
+No; screenshots `menu_*.png`; Options, Screen 4:3 and back. Then the pilot with the menus
+(`bot`, `menus`): the selector with AirStrike 3D preselected (the last choice), AirStrike 3D's
+Start Game, Start, mission 1 to 1800 frames under the pilot, pause, Quit, "Change game" (item
+60 of `AS3D_MENU`) back to the selector, the AirStrike 2 card, its Start Game, Start, mission 1
+to 1800 frames, pause, Quit, "Change game" again. At the end, with `run-as`:
+`files/as3d/profile.bin` is byte for byte what it was before AirStrike 2 ran,
+`files/as2/profile.bin` exists with the key `as2`, and `files/launcher.bin` exists. The launcher
+label must be "AirStrike". It fails on a `FATAL` marker, a Java exception or a native crash,
+and on timeouts. Screenshots and the logcat capture go to
 `$AS3D_DATA_ROOT/out/m8/` (gitignored; `AS3D_SMOKE_OUT` changes it). `adb shell input` has no
 multi-touch, so multi-touch is covered by the unit tests only.
 
@@ -253,7 +280,8 @@ survives the update: it installs the old APK (`AS3D_SMOKE_OLD_APK`, or one built
 `AS3D_SMOKE_OLD_COMMIT`, default `7753c66`, in a scratch git worktree under the output
 directory), starts it on the front end, sets Screen to 4:3 in Options and leaves Options (the
 profile is written), stops it, keeps a copy of `files/profile.bin`, installs the new APK over
-it (`adb install -r`), starts it, and checks with `run-as`: `files/profile.bin` is gone,
+it (`adb install -r`), starts it (on the selector: the AirStrike 3D card is tapped), and
+checks with `run-as`: `files/profile.bin` is gone,
 `files/profile.v1.bak` has the old file's bytes, `files/as3d/profile.bin` is a version 2 file
 with the key `as3d`, the app logged no profile problem and comes up with Screen still 4:3
 (`AS3D_LAYOUT ... screen=4x3`). The normal walk then goes on from the updated app.

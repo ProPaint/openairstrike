@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Builds the AirStrike 3D game APK (apps/game with touch controls, docs/android.md).
+# Builds the game APK, "AirStrike" (apps/game with touch controls and the game selector,
+# docs/android.md).
 #   tools/android_build.sh
 # Env:
 #   AS3D_DATA_ROOT     where third_party_local/ (SDL2, libopenmpt, the original game data of
 #                      every bundled game) lives (default: this repo's root; set it from a worktree to point at
 #                      the main checkout).
-#   AS3D_ANDROID_GAMES comma-separated game keys to bundle (as3d, as2, gulf; default as3d, to
-#                      become all three when the sequels play). Each game's paks, Settings.xml,
-#                      logo and texts file go under assets/<key>/ (tools/games.json lists them).
+#   AS3D_ANDROID_GAMES comma-separated game keys to bundle (as3d, as2, gulf; default as3d,as2,
+#                      the playable games: the app opens on the game selector when it holds
+#                      more than one, docs/spec/issues/163; gulf plays only with the extra
+#                      allow_unfinished). Each game's paks, Settings.xml, logo and texts file go
+#                      under assets/<key>/ (tools/games.json lists them).
 #   AS3D_ANDROID_ABIS  comma-separated ABIs (default arm64-v8a,x86_64).
 #   AS3D_NATIVE_JOBS   parallel native compile jobs (default 4).
 #   AS3D_ICON_FROM_DATA  1 (default): launcher icon foreground rendered from the game data
@@ -38,7 +41,7 @@ ASSETS_DIR="${REPO_ROOT}/android/app/src/main/assets"
 GAMES_JSON="${SCRIPT_DIR}/games.json"
 
 # The games bundled in the APK: their keys, comma separated (as3d, as2, gulf).
-GAMES="${AS3D_ANDROID_GAMES:-as3d}"
+GAMES="${AS3D_ANDROID_GAMES:-as3d,as2}"
 IFS=',' read -r -a GAME_KEYS <<< "${GAMES}"
 
 # One line per game from tools/games.json: key|paks (space separated)|texts file.

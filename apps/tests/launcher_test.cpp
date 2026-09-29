@@ -599,7 +599,7 @@ TEST_CASE("switching games: five times each way, the GL objects back to the same
     const GameProfile* order[2] = {&kAs3d, &kAs2};
     for (int round = 0; round < 10; ++round) {
         const GameProfile& g = *order[round % 2];
-        INFO("round " << round << ", " << g.key);
+        INFO("round " << round << ", " << std::string(g.key));
         // The selector between games, as the window shows it.
         {
             LauncherScreen screen;

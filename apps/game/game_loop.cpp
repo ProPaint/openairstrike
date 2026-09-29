@@ -1091,6 +1091,7 @@ void GameWindow::selectorFrame() {
     const double now = nowSeconds();
     const float dt = lastSelector_ < 0 ? 0.0f : static_cast<float>(std::min(0.1, now - lastSelector_));
     lastSelector_ = now;
+    updateLayout(); // AS3D_VIEW and the insets, as in a game
     const SafeInsets in = o_.safeInsets ? o_.safeInsets() : SafeInsets();
     selector_->setTouchMode(touchMode_);
     selector_->setScreen(fbWidth(), fbHeight(), in);
