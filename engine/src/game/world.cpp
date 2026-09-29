@@ -67,6 +67,7 @@ void World::init(Vfs& vfs, const DefDatabase& db, const WorldConfig& config) {
     if (!(config_.dt > 0.0f) || config_.dt > 0.1f) config_.dt = 1.0f / 60.0f;
     for (int p = 0; p < kMaxPlayers; ++p) config_.heli[p] = std::min(std::max(config_.heli[p], 0), 9);
     rng_ = Rng(config_.seed);
+    retreg_ = 0;
     for (Entity& e : ents_) e.thread.reset();
     host_.reset(new GameScriptHost(*this));
     report_ = script::BuiltinReport();
@@ -274,6 +275,7 @@ void World::attachScript(int idx, const std::string& path) {
     if (!prog) return;
     e.program = prog;
     e.thread.reset(new script::ScriptThread(*prog, *host_, &report_, nullptr, e.scriptPath.c_str()));
+    e.thread->setSharedReturnRegister(&retreg_); // one engine global (docs/spec/issues/032)
     if (!e.thread->valid()) {
         AS3D_WARN("script '%s': bind failed: %s", e.scriptPath.c_str(), e.thread->bindError().c_str());
         e.thread.reset();
@@ -407,6 +409,12 @@ int World::spawnRoot(const ObjectDef* def, const Vec3& pos, bool snap) {
 }
 
 int World::createEntity(const ObjectDef* def, const Vec3& pos, int creator, bool thinkNow) {
+    int idx = spawnForCreate(def, pos, creator);
+    if (idx >= 0) finishCreate(idx, thinkNow);
+    return idx;
+}
+
+int World::spawnForCreate(const ObjectDef* def, const Vec3& pos, int creator) {
     int idx = spawnRoot(def, pos);
     if (idx < 0) return -1;
     Entity& e = ents_[static_cast<size_t>(idx)];
@@ -415,10 +423,15 @@ int World::createEntity(const ObjectDef* def, const Vec3& pos, int creator, bool
         for (int k = 0; k < 3; ++k) e.fields[F_ANGLES + k] = c.fields[F_ANGLES + k];
         setPlayerIndexRecursive(idx, c.playerIndex);
     }
+    return idx;
+}
+
+void World::finishCreate(int idx, bool thinkNow) {
+    if (!validIndex(idx)) return;
     runInit(idx);
+    Entity& e = ents_[static_cast<size_t>(idx)];
     if (e.f(F_CLASS) == kClassEnemy && !(e.flagBits() & FL_NONTARGET)) ++enemiesInLevel_;
     if (thinkNow) think(idx);
-    return idx;
 }
 
 void World::attachEntity(int child, int parent, const std::string& tag, bool absolute) {

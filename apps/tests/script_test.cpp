@@ -614,6 +614,65 @@ TEST_CASE("script: builtin CALL sees its arguments and shares one return registe
     CHECK(rows[0].status == BuiltinStatus::Implemented);
 }
 
+namespace {
+// A builtin that runs another thread's callback handler, like `callback` or `create`
+// (whose result is set before the nested init runs when `setFirst`).
+struct NestCtx {
+    ScriptThread* other = nullptr;
+    bool setFirst = false;
+};
+void bNest(BuiltinArgs& a, void* ud) {
+    NestCtx& c = *static_cast<NestCtx*>(ud);
+    if (c.setFirst) a.setReturnFloat(1.0f);
+    c.other->runEvent(EntryPoint::Callback, 0);
+}
+} // namespace
+
+TEST_CASE("script: a shared return register leaks nested handler results (issue 032)") {
+    // Callee: callback handler = RET 5.0.
+    ScrBuilder cb;
+    cb.emit(OP_RET, M_IMM1, imm(5.0f));
+    cb.setEntry(EntryPoint::Callback, 0);
+    std::vector<u8> cbytes = cb.build();
+    ScriptProgram cprog;
+    REQUIRE(ScriptProgram::load(cbytes.data(), cbytes.size(), cprog, nullptr));
+
+    for (int shared = 0; shared < 2; ++shared) {
+        for (int setFirst = 0; setFirst < 2; ++setFirst) {
+            Rig r;
+            NestCtx ctx;
+            ctx.setFirst = setFirst != 0;
+            r.host.addBuiltin("nest", 0, bNest, &ctx);
+            int f = r.b.funcs("nest");
+            r.b.emit(OP_CALL, 0, func(f), 2); // t2 = nest()
+            r.b.emit(OP_END);
+            r.b.setEntry(EntryPoint::Main, 0);
+            r.start();
+            ScriptThread callee(cprog, r.host);
+            REQUIRE(callee.valid());
+            ctx.other = &callee;
+            u32 reg = fb(-1.0f);
+            if (shared) {
+                r.th->setSharedReturnRegister(&reg);
+                callee.setSharedReturnRegister(&reg);
+            }
+            r.main();
+            INFO("shared " << shared << " setFirst " << setFirst);
+            if (shared) {
+                // The original: the callee's RET replaced whatever the caller would receive.
+                CHECK(r.slot(2) == 5.0f);
+                CHECK(reg == fb(5.0f));
+                CHECK(r.th->returnRegisterBits() == fb(5.0f));
+            } else {
+                // Per-thread registers: the caller sees its own builtin's value (or its own
+                // stale register, 0, when the builtin returns nothing).
+                CHECK(r.slot(2) == (setFirst ? 1.0f : 0.0f));
+                CHECK(callee.returnRegisterBits() == fb(5.0f));
+            }
+        }
+    }
+}
+
 TEST_CASE("script: unknown and unimplemented builtins bind to a counted stub") {
     Rig r;
     int f1 = r.b.funcs("random");     // documented, not registered by this host

@@ -64,7 +64,13 @@ public:
         if (!isStringArg(index)) return nullptr;
         return owner_.program().stringAt(bits(index));
     }
-    void setReturnBits(u32 b) override { retreg_ = b; wroteReturn_ = true; }
+    // Written through at once: a nested handler run later by the same builtin can still
+    // replace it (rcsl-vm.md quirk 9).
+    void setReturnBits(u32 b) override {
+        retreg_ = b;
+        wroteReturn_ = true;
+        owner_.setReturnRegisterBits(b);
+    }
     bool latent() const override { return latent_; }
     void setDone(bool d) override { done_ = d; }
     u32 timeoutBits() const override { return owner_.timeoutBits(); }
@@ -326,12 +332,11 @@ bool ScriptThread::execBuiltin(i32 a, bool latent, u32& doneOrRet) {
         fail(static_cast<u32>(pc_), args.failMessage());
         return false;
     }
-    if (args.wroteReturn()) retregBits_ = args.retreg();
     doneOrRet = args.done() ? 1u : 0u;
 
     if (sink_) {
         sink_->builtinCall(currentFrame_, currentEntry_, static_cast<u32>(pc_), name.c_str(),
-                            argWords, n, retregBits_);
+                            argWords, n, retreg());
     }
     return true;
 }
@@ -498,7 +503,7 @@ bool ScriptThread::runInvocation(int& status) {
                 u32 av;
                 if (!loadOp(a, av)) return false;
                 val = quiet(av);
-                retregBits_ = val;
+                retreg() = val;
                 traceInstruction(pc, ins.op, true, val);
                 status = 1;
                 return true;
@@ -523,7 +528,7 @@ bool ScriptThread::runInvocation(int& status) {
                     int subStatus = 0;
                     if (!execSubroutine(ins.a, subStatus)) return false;
                 }
-                val = quiet(retregBits_);
+                val = quiet(retreg());
                 hasVal = true;
                 if (!storeOp(b, val)) return false;
                 break;
@@ -555,7 +560,7 @@ bool ScriptThread::runInvocation(int& status) {
                 if (complete) {
                     pc_ = static_cast<i32>(pc) + 1;
                     timeoutBits_ = 0;
-                    val = quiet(retregBits_);
+                    val = quiet(retreg());
                     if (!storeOp(b, val)) return false;
                     traceInstruction(pc, ins.op, true, val);
                 } else {

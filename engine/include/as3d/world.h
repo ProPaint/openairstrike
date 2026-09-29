@@ -322,6 +322,11 @@ public:
     // `create` semantics (engine-behaviour.md 3.4): -1 on failure.
     int createEntity(const ObjectDef* def, const Vec3& pos, int creator, bool thinkNow = true);
     int createEntity(const std::string& defName, const Vec3& pos, int creator = -1);
+    // The two halves of createEntity, for the `create` builtin, which writes the new
+    // reference into the return register between them (rcsl-vm.md quirk 9): the spawn with
+    // the creator's angles and player index, then init, the enemy count and the first think.
+    int spawnForCreate(const ObjectDef* def, const Vec3& pos, int creator);
+    void finishCreate(int idx, bool thinkNow);
     // Builds a pool entity at `pos` (ground/water snapping, state active) without
     // running init or a think: the common first half of create, Shoot and the spawners.
     int spawnRoot(const ObjectDef* def, const Vec3& pos, bool snap = true);
@@ -444,6 +449,9 @@ public:
     script::BuiltinReport& report() { return report_; }
     const WorldStats& stats() const { return stats_; }
 
+    // The return register shared by every script thread (rcsl-vm.md "Thread state").
+    u32 returnRegister() const { return retreg_; }
+
     // Script globals (the host reads/writes them; rcsl-vm.md "Globals").
     u32 selfBits = 0, otherBits = 0, cbMsgBits = 0, cbParm1Bits = 0, cbParm2Bits = 0;
     float lNight = 0.0f, lWater = 0.0f, lWaterLevel = 0.0f;
@@ -501,6 +509,7 @@ private:
     Rng rng_{1};
     std::unique_ptr<GameScriptHost> host_;
     std::unique_ptr<WorldParticles> particles_;
+    u32 retreg_ = 0; // the shared return register (0x1fa7dfc)
     script::BuiltinReport report_;
     WorldStats stats_;
 

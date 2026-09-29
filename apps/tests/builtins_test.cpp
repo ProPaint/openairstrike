@@ -326,6 +326,36 @@ TEST_CASE("builtin create: copies angles and player index, returns the reference
     CHECK(u.e().fields[26] == 0u);
 }
 
+TEST_CASE("builtin create: a RET in the new entity's init replaces the result (shared return register)") {
+    // rcsl-vm.md quirk 9: the reference goes into the one engine-global return register
+    // before the child's init runs; the child's `RET 7` then replaces it.
+    for (int withRet = 0; withRet < 2; ++withRet) {
+        BT t;
+        Asm child;
+        child.entry(EntryPoint::Init);
+        if (withRet) child.emit(OP_RET, M_IMM1, imm(7.0f));
+        else child.end();
+        t.r.script("scripts\\child.scr", child);
+        t.setup(
+            [](Asm& a) {
+                a.movStr(0, "t_child");
+                a.leaGlobal(1, "self", 5);
+                callStore(a, "create");
+            },
+            "t_child {\n flag FL_TEMPORARY\n script \"scripts\\child.scr\"\n}\n");
+        int before = t.r.world.listCount();
+        t.run();
+        CHECK(t.r.world.listCount() == before + 1); // created either way
+        INFO("with RET " << withRet);
+        if (withRet) {
+            CHECK(t.f(26) == 7.0f);
+            CHECK(t.r.world.returnRegister() == fb(7.0f));
+        } else {
+            CHECK(t.r.world.liveIndexFromRef(t.e().fields[26]) >= 0);
+        }
+    }
+}
+
 TEST_CASE("builtin remove: deferred, script keeps running") {
     BT t;
     t.setup([](Asm& a) {

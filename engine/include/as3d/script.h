@@ -440,6 +440,17 @@ public:
     // builtin (see BuiltinArgs::timeoutBits).
     u32 timeoutBits() const { return timeoutBits_; }
 
+    // The return register. In the original it is one engine global shared by every thread
+    // (rcsl-vm.md "Thread state", quirks 5 and 9; builtins semantics D3): a RET or a
+    // value-returning builtin in a nested handler changes what the calling CALL receives.
+    // A host reproduces that by pointing every thread at one register it owns (it must
+    // outlive the threads); without it each thread keeps its own. A builtin's
+    // BuiltinArgs::setReturnBits writes the register at once, so a builtin that runs
+    // handlers after setting its result (`create`) sees them overwrite it.
+    void setSharedReturnRegister(u32* reg) { sharedRetreg_ = reg; }
+    u32 returnRegisterBits() const { return sharedRetreg_ ? *sharedRetreg_ : retregBits_; }
+    void setReturnRegisterBits(u32 bits) { retreg() = bits; }
+
     const ScriptProgram& program() const { return program_; }
 
 private:
@@ -488,7 +499,9 @@ private:
     std::vector<u32> stack_;   // PUSH/POP stack, up to 512 entries
     i32 pc_ = -1;              // -1: no main entry (thread never runs main)
     u32 timeoutBits_ = 0;      // latent timeout (thread +0x820)
-    u32 retregBits_ = 0;       // return register (thread-global in the original)
+    u32 retregBits_ = 0;       // return register when not shared
+    u32* sharedRetreg_ = nullptr; // the host's shared register (see setSharedReturnRegister)
+    u32& retreg() { return sharedRetreg_ ? *sharedRetreg_ : retregBits_; }
     int depth_ = 0;            // trace nesting depth (subroutine calls)
 
     EntryPoint currentEntry_ = EntryPoint::Main;

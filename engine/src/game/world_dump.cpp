@@ -58,8 +58,10 @@ std::string World::dumpStateJson() const {
             "\"damage_players\": \"%08x\", \"damage_enemies\": \"%08x\"},\n",
             particles_->emitterCount(), particles_->liveParticles(), static_cast<unsigned long long>(particles_->refused()),
             particles_->stateHash(), fbits(particles_->damageToPlayers()), fbits(particles_->damageToEnemies()));
-    appendf(s, "  \"globals\":{\"self\": \"%08x\", \"other\": \"%08x\", \"cb\": [\"%08x\", \"%08x\", \"%08x\"]},\n",
-            selfBits, otherBits, cbMsgBits, cbParm1Bits, cbParm2Bits);
+    appendf(s,
+            "  \"globals\": {\"self\": \"%08x\", \"other\": \"%08x\", \"cb\": [\"%08x\", \"%08x\", \"%08x\"], "
+            "\"retreg\": \"%08x\"},\n",
+            selfBits, otherBits, cbMsgBits, cbParm1Bits, cbParm2Bits, retreg_);
     s += "  \"camera\": [";
     for (int k = 0; k < kCameraFieldCount; ++k) appendf(s, "%s\"%08x\"", k ? ", " : "", fbits(camera_.field[k]));
     s += "],\n  \"players\": [\n";
