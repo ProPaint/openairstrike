@@ -3,9 +3,9 @@
 target_include_directories(as3d_render PRIVATE ${CMAKE_SOURCE_DIR}/third_party/stb)
 
 if(ANDROID)
-  target_link_libraries(as3d_render PUBLIC as3d_core as3d_formats GLESv3)
+  target_link_libraries(as3d_render PUBLIC as3d_core as3d_formats as3d_game as3d_vfs GLESv3)
 else()
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(AS3D_RENDER_GLESV2 REQUIRED IMPORTED_TARGET glesv2)
-  target_link_libraries(as3d_render PUBLIC as3d_core as3d_formats PkgConfig::AS3D_RENDER_GLESV2)
+  target_link_libraries(as3d_render PUBLIC as3d_core as3d_formats as3d_game as3d_vfs PkgConfig::AS3D_RENDER_GLESV2)
 endif()
