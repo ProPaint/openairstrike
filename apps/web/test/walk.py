@@ -4,7 +4,14 @@
     walk.py --url http://127.0.0.1:8766/ [--byo-url http://127.0.0.1:8767/] --shots DIR
             [--engine chromium|firefox] [--gl gpu|swiftshader] [--only NAME,...]
 
-Scenarios (each in a fresh browser context, so fresh storage):
+Scenarios (each in a fresh browser context, so fresh storage). The bundled site holds as3d
+and as2 (tools/web_build.sh); every scenario but `choose` and `byo` forces ?game=as3d.
+  choose     the start screen offers both games and downloads nothing before a choice;
+             AirStrike 3D chosen: only its files fetched, "Change game" on its main menu goes
+             back to the start screen (the choice remembered); AirStrike 2 chosen with the
+             pilot (bot=1&menus=1): only its files, mission 1 plays 30 s from its menus; then
+             /persist/as3d/profile.bin is byte for byte what it was before AirStrike 2 ran and
+             /persist/as2/profile.bin exists (docs/spec/issues/163).
   desktop    mouse and keyboard at 1280x720: Play, intro, main menu, Options (Show FPS),
              Top Scores, Information, Start Game, play with keys, Esc, in-game menu, Resume,
              F full screen, context loss and restore, tab hidden and shown, reload: the
@@ -20,9 +27,10 @@ Scenarios (each in a fresh browser context, so fresh storage):
   gameover   a profile with a zero high-score table; mission 2 at the hardest difficulty with
              nobody flying until Game Over, Quit, name entry with the touch keyboard, Top Scores.
   byo        the bring-your-own site: the owner's files through the file input, stored,
-             used again after a reload, removed; files of another game (AirStrike 2) told
-             apart by their contents and stored under their own key; files stored by the
-             first version of the page (no game key) still found.
+             used again after a reload, removed; files of AirStrike 2 told apart by their
+             contents, stored under their own key, and started; with both games' files the
+             page lists and offers both; files stored by the first version of the page (no
+             game key) still found.
   migration  a version 1 profile at the old path /persist/profile.bin (Screen 4:3 and Show
              FPS set): after a reload the settings are in effect, /persist/as3d/profile.bin
              and /persist/profile.v1.bak exist and /persist/profile.bin is gone; the same
@@ -211,7 +219,7 @@ def touch_layout(p):
 # Scenarios
 # ------------------------------------------------------------------------------------------
 def desktop(w, b):
-    p = b.page(w.a.url, "", viewport={"width": 1280, "height": 720})
+    p = b.page(w.a.url, "game=as3d", viewport={"width": 1280, "height": 720})
     r = {}
     try:
         p.wait_ready()
@@ -398,7 +406,7 @@ def phone(w, b, device="Pixel 7"):
     ctx = {k: v for k, v in dev.items() if k not in ("viewport", "screen", "default_browser_type")}
     ctx.update(viewport=vp, screen={"width": 915, "height": 412}, device_scale_factor=2.625, is_mobile=True,
                has_touch=True)
-    p = b.page(w.a.url, "", **ctx)
+    p = b.page(w.a.url, "game=as3d", **ctx)
     r = {"device": device, "viewport": vp}
     try:
         p.wait_ready()
@@ -508,7 +516,7 @@ def phone(w, b, device="Pixel 7"):
 def iphone(w, b):
     dev = b.device("iPhone 13 landscape")
     ctx = {k: v for k, v in dev.items() if k != "default_browser_type"}
-    p = b.page(w.a.url, "", **ctx)
+    p = b.page(w.a.url, "game=as3d", **ctx)
     r = {"device": "iPhone 13 landscape", "viewport": dev["viewport"]}
     try:
         p.wait_ready()
@@ -532,7 +540,7 @@ def iphone(w, b):
 
 
 def complete(w, b):
-    p = b.page(w.a.url, "bot=1&menus=1&god=1", viewport={"width": 1280, "height": 720})
+    p = b.page(w.a.url, "game=as3d&bot=1&menus=1&god=1", viewport={"width": 1280, "height": 720})
     r = {}
     try:
         p.wait_ready()
@@ -561,7 +569,7 @@ def complete(w, b):
 
 def gameover(w, b):
     # Touch mode, so the name is typed on the front end's own keyboard.
-    p = b.page(w.a.url, "touch=1", viewport={"width": 1280, "height": 720}, has_touch=True)
+    p = b.page(w.a.url, "game=as3d&touch=1", viewport={"width": 1280, "height": 720}, has_touch=True)
     r = {}
     try:
         p.wait_ready()
@@ -711,27 +719,39 @@ def byo(w, b):
         p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
         r["picker_after_remove"] = True
         assert p.page.evaluate(IDB_KEYS) == [], "storage not empty after removing"
-        w.step("byo: the files of AirStrike 2 are told apart by their contents and kept under their own key")
+        w.step("byo: the files of AirStrike 2 are told apart by their contents, kept under their own key, and start it")
         as2 = os.path.join(DATA_ROOT, "third_party_local", "games", "as2")
         if os.path.isdir(as2):
-            p.page.set_input_files("#pick-files", [os.path.join(as2, "data", n) for n in ("pak0.apk", "pak1.apk", "pak2.apk", "Settings.xml")]
-                                   + [os.path.join(as2, "AirStrike3D II.exe")])
-            p.page.wait_for_function("document.getElementById('files-status').textContent.includes('not playable yet')", timeout=120000)
-            r["as2_message"] = p.page.locator("#files-status").text_content()
-            assert "AirStrike 2" in r["as2_message"], r["as2_message"]
-            assert p.page.locator("#files").is_visible(), "AirStrike 3D's picker went away"
-            assert p.page.locator("#play").is_disabled()
+            as2_files = [os.path.join(as2, "data", n) for n in ("pak0.apk", "pak1.apk", "pak2.apk", "Settings.xml")] \
+                + [os.path.join(as2, "AirStrike3D II.exe")]
+            p.page.set_input_files("#pick-files", as2_files)
+            p.wait_ready(180)  # the one game with all its files: no choice to make
+            data = [t for t in p.texts() if "AS3D_WEB data=" in t]
+            assert data and "game=as2" in data[-1], data
             keys = p.page.evaluate(IDB_KEYS)
             r["as2_keys"] = keys
             assert "as2/pak0.apk" in keys and all(k.startswith("as2/") for k in keys), keys
             assert "as2/texts_as2.txt" not in keys, "texts of an unmapped game were invented"
-            w.step("byo: AirStrike 2 files with ?game=as2 alone: not playable message, no start")
-            p.goto("game=as2")
-            p.wait_ready(120)
-            assert p.state().get("notPlayable") == "as2", p.state()
-            assert p.page.locator("#play").is_disabled()
-            p.goto("")
+            w.step("byo: AirStrike 3D's files added (?game=as3d asks for them): both kept")
+            p.goto("game=as3d")
             p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
+            p.page.set_input_files("#pick-files", files)
+            p.wait_ready(180)
+            w.step("byo: without ?game= the page lists the games whose files it holds and offers both")
+            p.goto("")
+            p.page.wait_for_selector("#games:not([hidden])", timeout=60000)
+            offered = p.page.evaluate("Array.from(document.querySelectorAll('#game-list button')).map((b) => b.dataset.game)")
+            r["byo_offered"] = offered
+            assert offered == ["as3d", "as2"], offered
+            stored = p.page.locator("#stored-text").text_content()
+            assert "AirStrike 3D" in stored and "AirStrike 2" in stored, stored
+            w.shot(p, "byo_chooser")
+            mk = p.mark()
+            p.page.click("#game-list button[data-game=as2]")
+            p.wait_ready(180)
+            p.wait_line(r"AS3D_WEB data=.* game=as2", 60, after=mk)
+            p.goto("")
+            p.page.wait_for_selector("#games:not([hidden])", timeout=60000)
             p.page.once("dialog", lambda d: d.accept())
             p.page.click("#forget")
             p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
@@ -749,7 +769,7 @@ def profile_paths(p):
 
 
 def migration(w, b):
-    p = b.page(w.a.url, "", viewport={"width": 1280, "height": 720})
+    p = b.page(w.a.url, "game=as3d", viewport={"width": 1280, "height": 720})
     r = {}
     try:
         p.wait_ready()
@@ -823,8 +843,118 @@ def migration(w, b):
     return r
 
 
+AS2_PROFILE = "/persist/as2/profile.bin"
+
+
+def data_requests(p):
+    """The game data files the page fetched so far: ['as3d/pak0.apk', ...]."""
+    return sorted(set(re.sub(r"^.*/data/", "", u).split("?")[0] for u in p.requests
+                      if "/data/" in u and "games.txt" not in u))
+
+
+def choose(w, b):
+    """The start screen offers both games of the bundled build; only the chosen game's files
+    are downloaded; "Change game" comes back to it; AirStrike 2's mission 1 plays under the
+    pilot for 30 s; the first game's save is untouched by it (docs/spec/issues/163)."""
+    p = b.page(w.a.url, None, viewport={"width": 1280, "height": 720})
+    p.requests = []
+    p.page.on("request", lambda req: p.requests.append(req.url))
+    p.goto("")
+    r = {}
+    try:
+        w.step("choose: the start screen offers both games, nothing downloaded yet")
+        p.page.wait_for_selector("#games:not([hidden])", timeout=60000)
+        p.page.wait_for_timeout(1500)
+        offered = p.page.evaluate("Array.from(document.querySelectorAll('#game-list button')).map((b) => b.dataset.game)")
+        r["offered"] = offered
+        assert offered == ["as3d", "as2"], offered
+        assert not p.state()["ready"], "the engine started before a game was chosen"
+        assert data_requests(p) == [], data_requests(p)
+        assert p.page.locator("#play-row").is_hidden()
+        w.shot(p, "choose_start")
+
+        w.step("choose: AirStrike 3D; only its files are fetched; its main menu has Change game")
+        p.page.click("#game-list button[data-game=as3d]")
+        p.wait_ready(180)
+        to_main_menu(w, p)
+        got = data_requests(p)
+        r["as3d_requests"] = got
+        assert got and all(g.startswith("as3d/") for g in got), got
+        items = p.menu_items("main")
+        assert 60 in items, "no Change game on the first game's main menu: %s" % sorted(items)
+        w.shot(p, "choose_as3d_main")
+
+        w.step("choose: Change game (saves): back to the start screen, AirStrike 3D marked as the last one")
+        mk = p.mark()
+        p.tap_item("main", 60)
+        p.wait_line(r"AS3D_WEB change_game", 30, after=mk)
+        p.wait_line(r"AS3D_WEB chooser games=", 60, after=mk)
+        p.page.wait_for_selector("#games:not([hidden])", timeout=60000)
+        assert "last" in (p.page.get_attribute("#game-list button[data-game=as3d]", "class") or "")
+        w.shot(p, "choose_again")
+
+        w.step("choose: AirStrike 2 with the pilot (bot=1&menus=1): only its files; mission 1 plays 30 s")
+        p.requests.clear()
+        p.lines.clear()  # the lines of the first game's load would satisfy the waits below
+        p.goto("bot=1&menus=1")
+        p.page.wait_for_selector("#games:not([hidden])", timeout=60000)
+        p.page.click("#game-list button[data-game=as2]")
+        p.wait_ready(180)
+        # The first game's save as browser storage has it, before AirStrike 2 does anything.
+        before = read_profile(p)
+        assert before, "the first game's save is not in browser storage"
+        assert parse_profile(before)["key"] == "as3d"
+        r["as3d_save_bytes"] = len(before)
+        to_main_menu(w, p)
+        got = data_requests(p)
+        r["as2_requests"] = got
+        assert got and all(g.startswith("as2/") for g in got), got
+        assert 60 in p.menu_items("main"), "no Change game on AirStrike 2's main menu"
+        w.shot(p, "choose_as2_main")
+        start_mission(w, p)
+        mk = p.mark()
+        t0 = time.time()
+        while time.time() - t0 < 30:
+            p.page.wait_for_timeout(2000)
+        frames = [int(m.group(1)) for t in p.texts()[mk:] for m in [re.search(r"AS3D_GAME_FRAME n=(\d+) mission=1 ", t)] if m]
+        r["as2_frame_markers"] = frames
+        assert len(set(frames)) >= 2, "AirStrike 2's mission 1 did not run: %s" % frames
+        assert not any("AS3D_SCREEN name=gameover" in t for t in p.texts()[mk:]), "game over within 30 s"
+        w.shot(p, "choose_as2_playing")
+
+        w.step("choose: in-game menu, Quit, Change game; then the saves")
+        mk = p.mark()
+        p.key("Escape")
+        wait_new_screen(p, "ingame", mk)
+        mk = p.mark()
+        p.tap_item("ingame", 3)
+        wait_new_screen(p, "main", mk)
+        p.page.wait_for_timeout(500)
+        mk = p.mark()
+        p.tap_item("main", 60)
+        p.wait_line(r"AS3D_WEB change_game", 30, after=mk)
+        p.wait_line(r"AS3D_WEB chooser games=", 60, after=mk)
+        p.page.wait_for_selector("#games:not([hidden])", timeout=60000)
+        assert "last" in (p.page.get_attribute("#game-list button[data-game=as2]", "class") or "")
+        # A fresh engine reads browser storage as it is now.
+        p.goto("game=as3d")
+        p.wait_ready(180)
+        after = read_profile(p)
+        as2 = read_profile(p, AS2_PROFILE)
+        assert as2, "AirStrike 2 wrote no /persist/as2/profile.bin"
+        assert parse_profile(as2)["key"] == "as2"
+        r["as2_save_bytes"] = len(as2)
+        assert after == before, "the first game's save changed while AirStrike 2 was played"
+        r["as3d_save_untouched"] = True
+        r["errors"] = p.errors()
+        assert not r["errors"], r["errors"]
+    finally:
+        p.close()
+    return r
+
+
 SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "complete": complete,
-             "gameover": gameover, "migration": migration}
+             "gameover": gameover, "migration": migration, "choose": choose}
 
 
 def main():
@@ -834,7 +964,7 @@ def main():
     ap.add_argument("--shots", required=True)
     ap.add_argument("--engine", default="chromium", choices=["chromium", "firefox"])
     ap.add_argument("--gl", default="gpu", choices=["gpu", "swiftshader"])
-    ap.add_argument("--only", default="desktop,phone,iphone,byo,complete,gameover,migration")
+    ap.add_argument("--only", default="choose,desktop,phone,iphone,byo,complete,gameover,migration")
     a = ap.parse_args()
     os.makedirs(a.shots, exist_ok=True)
     w = Walk(a)
