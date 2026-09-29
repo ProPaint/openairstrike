@@ -2,6 +2,9 @@
 
 #include <SDL.h>
 #include <GLES3/gl3.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 #include <algorithm>
 #include <cstdio>
@@ -110,6 +113,12 @@ class GameWindow {
 public:
     explicit GameWindow(const LoopOptions& o) : o_(o), source_(o.bot, o.script), status_(o.quiet) {}
     int run();
+    // run() is start(), frame() while running(), finish(); the web build calls frame() once
+    // per animation frame instead of blocking (docs/web-spike.md).
+    int start();   // 0 once the game is up, else the exit code
+    void frame();
+    bool running() const { return running_; }
+    int finish();
 
 private:
     bool initGl(std::string* err);
@@ -158,6 +167,7 @@ private:
     long rendered_ = 0;
     int shots_ = 0;
     double lastPresent_ = -1;
+    double dt_ = 0, last_ = 0, acc_ = 0;   // fixed-step clock of the loop
     int layoutW_ = -1, layoutH_ = -1;
     int layoutScreen_ = -1, layoutHand_ = -1;
     TouchFade fade_;
@@ -732,6 +742,22 @@ void GameWindow::draw() {
 }
 
 int GameWindow::run() {
+    int rc = start();
+    if (rc != 0) return rc;
+    while (running_) frame();
+    return finish();
+}
+
+// Idle wait between loop iterations. The browser build returns to its event loop instead.
+static void idleDelay(Uint32 ms) {
+#ifndef __EMSCRIPTEN__
+    SDL_Delay(ms);
+#else
+    (void)ms;
+#endif
+}
+
+int GameWindow::start() {
     GraphicsConfig gc;
     gc.headless = false;
     gc.width = o_.width;
@@ -803,76 +829,82 @@ int GameWindow::run() {
     }
     if (!flow_) status_.update(session_, GameSession::kLevelStarted);
 
-    const double dt = session_.world().config().dt;
-    const int kMaxCatchUp = 5; // steps per displayed frame; the rest of a long stall is dropped
-    double last = nowSeconds();
-    double acc = 0.0;
-    while (running_) {
-        screenshot_ = false;
-        SDL_Event e;
-        while (SDL_PollEvent(&e)) handleEvent(e);
-        if (!running_) break;
-        if (background_) {
-            // SDL blocks inside SDL_PollEvent while the activity is paused; this only runs
-            // between the background event and that point.
-            SDL_Delay(10);
-            last = nowSeconds();
-            acc = 0;
-            continue;
-        }
-        updateLayout();
-        if (flow_) {
-            const int loads = flow_->levelLoads();
-            uiFrame();
-            if (!running_) break;
-            if (flow_->levelLoads() != loads) {
-                // A level was loaded (seconds, behind the loading screen): not a frame time.
-                last = nowSeconds();
-                acc = 0.0;
-                lastPresent_ = -1;
-            }
-        }
+    dt_ = session_.world().config().dt;
+    last_ = nowSeconds();
+    acc_ = 0.0;
+    return 0;
+}
 
-        double now = nowSeconds();
-        acc += std::min(0.25, now - last);
-        last = now;
-        // Wall-clock time only decides how many fixed steps to run; the simulation itself
-        // never sees it.
-        int steps = 0;
-        while (acc >= dt && steps < kMaxCatchUp) {
-            acc -= dt;
-            ++steps;
-        }
-        if (acc >= dt) {
-            perf_.dropped(static_cast<int>(acc / dt));
-            droppedNow_ += static_cast<int>(acc / dt);
-            acc = 0; // bounded catch-up: a long stall is not replayed
-        }
-        double work0 = nowSeconds();
-        simulate(steps);
-        perf_.stepped(steps);
-        // Without interpolation a frame only changes when the simulation stepped.
-        if (steps == 0 && !redraw_ && !screenshot_) {
-            SDL_Delay(1);
-            perf_.maybeLog(nowSeconds(), o_.perfLog);
-            continue;
-        }
-        redraw_ = false;
-        double td = nowSeconds();
-        draw();
-        td = nowSeconds() - td;
-        if (isHitch(td, drawAvg_)) AS3D_INFO("AS3D_HITCH part=draw frame=%ld ms=%.0f", frame_, 1000.0 * td);
-        if (screenshot_) saveScreenshot();
-        double work = nowSeconds() - work0;
-        gl_->swapBuffers();
-        ++rendered_;
-        double t = nowSeconds();
-        if (lastPresent_ >= 0) perf_.presented(t - lastPresent_, work);
-        fps_.frame(lastPresent_ >= 0 ? t - lastPresent_ : -1.0, droppedNow_);
-        droppedNow_ = 0;
-        lastPresent_ = t;
-        perf_.maybeLog(t, o_.perfLog);
+// One iteration of the loop: events, the front end, the fixed steps due, one frame drawn.
+void GameWindow::frame() {
+    const int kMaxCatchUp = 5; // steps per displayed frame; the rest of a long stall is dropped
+    screenshot_ = false;
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) handleEvent(e);
+    if (!running_) return;
+    if (background_) {
+        // SDL blocks inside SDL_PollEvent while the activity is paused; this only runs
+        // between the background event and that point.
+        idleDelay(10);
+        last_ = nowSeconds();
+        acc_ = 0;
+        return;
     }
+    updateLayout();
+    if (flow_) {
+        const int loads = flow_->levelLoads();
+        uiFrame();
+        if (!running_) return;
+        if (flow_->levelLoads() != loads) {
+            // A level was loaded (seconds, behind the loading screen): not a frame time.
+            last_ = nowSeconds();
+            acc_ = 0.0;
+            lastPresent_ = -1;
+        }
+    }
+
+    double now = nowSeconds();
+    acc_ += std::min(0.25, now - last_);
+    last_ = now;
+    // Wall-clock time only decides how many fixed steps to run; the simulation itself
+    // never sees it.
+    int steps = 0;
+    while (acc_ >= dt_ && steps < kMaxCatchUp) {
+        acc_ -= dt_;
+        ++steps;
+    }
+    if (acc_ >= dt_) {
+        perf_.dropped(static_cast<int>(acc_ / dt_));
+        droppedNow_ += static_cast<int>(acc_ / dt_);
+        acc_ = 0; // bounded catch-up: a long stall is not replayed
+    }
+    double work0 = nowSeconds();
+    simulate(steps);
+    perf_.stepped(steps);
+    // Without interpolation a frame only changes when the simulation stepped.
+    if (steps == 0 && !redraw_ && !screenshot_) {
+        idleDelay(1);
+        perf_.maybeLog(nowSeconds(), o_.perfLog);
+        return;
+    }
+    redraw_ = false;
+    double td = nowSeconds();
+    draw();
+    td = nowSeconds() - td;
+    if (isHitch(td, drawAvg_)) AS3D_INFO("AS3D_HITCH part=draw frame=%ld ms=%.0f", frame_, 1000.0 * td);
+    if (screenshot_) saveScreenshot();
+    double work = nowSeconds() - work0;
+    gl_->swapBuffers();
+    ++rendered_;
+    double t = nowSeconds();
+    if (lastPresent_ >= 0) perf_.presented(t - lastPresent_, work);
+    fps_.frame(lastPresent_ >= 0 ? t - lastPresent_ : -1.0, droppedNow_);
+    droppedNow_ = 0;
+    lastPresent_ = t;
+    perf_.maybeLog(t, o_.perfLog);
+}
+
+int GameWindow::finish() {
     if (flow_) flow_->saveNow();
     if (!o_.recordPath.empty() && !recorder_.script().save(o_.recordPath))
         std::fprintf(stderr, "as3d_game: cannot write %s\n", o_.recordPath.c_str());
@@ -889,9 +921,31 @@ int GameWindow::run() {
 
 } // namespace
 
+#ifndef __EMSCRIPTEN__
 int runGameWindow(const LoopOptions& options) {
     std::unique_ptr<GameWindow> w(new GameWindow(options));
     return w->run();
 }
+#else
+// The browser owns the loop: frame() runs once per animation frame and this call does not
+// return to its caller while the game runs (emscripten_set_main_loop simulates an infinite
+// loop). The options and the window live as long as the page.
+int runGameWindow(const LoopOptions& options) {
+    GameWindow* w = new GameWindow(*new LoopOptions(options));
+    int rc = w->start();
+    if (rc != 0) return rc;
+    emscripten_set_main_loop_arg(
+        [](void* p) {
+            GameWindow* gw = static_cast<GameWindow*>(p);
+            gw->frame();
+            if (!gw->running()) {
+                emscripten_cancel_main_loop();
+                gw->finish();
+            }
+        },
+        w, 0, true);
+    return 0;
+}
+#endif
 
 } // namespace as3d_game

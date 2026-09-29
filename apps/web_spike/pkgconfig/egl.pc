@@ -1,0 +1,5 @@
+Name: egl
+Description: Emscripten EGL (unused: no headless backend on the web)
+Version: 1.4
+Cflags:
+Libs:

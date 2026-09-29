@@ -1,0 +1,3 @@
+#!/bin/sh
+# pkg-config restricted to the stub .pc files beside this script (see ../CMakeLists.txt).
+PKG_CONFIG_LIBDIR="$(dirname "$0")" PKG_CONFIG_PATH= exec pkg-config "$@"
