@@ -40,8 +40,8 @@ delta). Checked parts:
 - **Entity update** as2@0x40cb30 (v170@0x405a60): same structure. Skipped when removed; if
   not paused, field 1 (age) and the internal time since the last damage (entity + 0x74,
   v170 + 0x6F) += frametime; **new:** an internal timer at entity + 0x78 is increased by
-  frametime while it is below 5.0 (as2@0x40cb82..0x40cb9b; `Lightning` resets it, see the
-  builtins delta); then `main` is dispatched under the same conditions as in v1.70 (active bit
+  frametime while it is below 5.0 (as2@0x40cb82..0x40cb9b, inserted after what is
+  v170@0x405aab; `Lightning` resets it, see the builtins delta); then `main` is dispatched under the same conditions as in v1.70 (active bit
   +0x20 & 0x4, visibility state +0x1C ≠ 1, parent allows scripts, script has a `main`).
   VERIFIED-CODE. Placement of attached children changed in details (as2@0x40cc36) that do not
   concern the VM.
@@ -93,11 +93,12 @@ object definitions use is not checked here (object-definition delta).
 Table at as2@0x49d908, 28 records of 12 bytes `{name, address for player index 0, address for
 player index 1}`, terminated by a NULL name (VERIFIED-CODE: the table read from the executable;
 lookup as2@0x421c90). The interpreter picks the address with the player index at entity +
-**0x80** of the current `self` (as2@0x41eb24; v1.70: + 0x77). Scripts resolve globals by
+**0x80** of the current `self` (as2@0x41eb24; v1.70: + 0x77 at v170@0x419bf4). Scripts resolve globals by
 name, so the new order does not affect them; it matters only for tools that number globals
 (such as the reference VM's mock address space).
 
-Player records: base as2@0x20c5ad0 (v170: 0x1ebe308), stride **0x164** (v170: 0x171); +0 is the
+Player records: base as2@0x20c5ad0 (v170@0x1ebe308), stride **0x164** (v1.70: 0x171; e.g. the
+damage routine's player loop as2@0x40ba36 against v170@0x404b36); +0 is the
 player's raw entity pointer. The record fields the globals point at moved: `p_maxHealth` was
 inserted after `p_action`, and every later field is 4 bytes further than in v1.70.
 
@@ -183,7 +184,7 @@ instruction pairs with v1.70 offset → AS2 offset; one example pair):
 | 14–16 | 0xB3 | 0xBC | angles | 3/2/13; v170@0x405859 → as2@0x40c846; `DetachEntity` copies the parent's 14..16 (as2@0x41faf6) | same |
 | 17–19 | 0xBF | 0xC8 | velocity | 1/1/1; v170@0x41b16a → as2@0x42023d | same |
 | 20–22 | 0xCB | 0xD4 | field20 | no engine use in either executable | same (script-owned) |
-| 23 | 0xD7 | 0xE0 | wp_speed | 1; v170@0x406002 → as2@0x40d152. **New initial value:** the object builder now stores a float from the object definition into field 23 at spawn (as2@0x411f51..0x411f57); v1.70 did not initialise it. Belongs to the object-definition delta. | same index, changed initialisation |
+| 23 | 0xD7 | 0xE0 | wp_speed | 1; v170@0x406002 → as2@0x40d152. **New initial value:** the object builder now stores a float from the object definition into field 23 at spawn (as2@0x411f51..0x411f57); the v1.70 builder (the same sequence at v170@0x409c4f..0x409c6a) does not initialise it. Belongs to the object-definition delta. | same index, changed initialisation |
 | 24 | 0xDB | 0xE4 | wp_turn_rate | 1; v170@0x4061d4 → as2@0x40d324; `RotateTo` reads self + 0x60 (as2@0x4209ff) | same |
 | 25 | 0xDF | 0xE8 | wp_bank | 2; v170@0x4060e2 → as2@0x40d232 | same |
 | 26–27 | 0xE3 | 0xEC | (not in the base table) | no engine use found | not listed in base |
@@ -196,8 +197,8 @@ instruction pairs with v1.70 offset → AS2 offset; one example pair):
 | 37 | 0x10F | 0x118 | wp_wait | 3; v170@0x40605b → as2@0x40d1ab | same |
 | 38 | 0x113 | 0x11C | render_type | 13; v170@0x405b80 → as2@0x40cc76 | same |
 | 44–52 | 0x12B | 0x134 | axis | 6 (k = 44), 2 each for 45..52; v170@0x405b4e → as2@0x40cc44; `RotateTo` reads entity + 0x134 (as2@0x420a02) | same |
-| 88 | 0x1DB | 0x1E4 | (children count in v1.70) | v1.70's children count moved to 0x1EC (21 uses); 0x1E4 is a new engine-internal dword | changed, engine-internal |
-| 89 | 0x1DF | 0x1E8 | (children array in v1.70) | moved to 0x1F0 (17 uses); 0x1E8 is a new engine-internal dword | changed, engine-internal |
+| 88 | 0x1DB | 0x1E4 | (children count in v1.70) | v1.70's children count moved to 0x1EC (21 uses, e.g. v170@0x40506b → as2@0x40bfae in the init dispatcher); 0x1E4 is a new engine-internal dword | changed, engine-internal |
+| 89 | 0x1DF | 0x1E8 | (children array in v1.70) | moved to 0x1F0 (17 uses, e.g. v170@0x405073 → as2@0x40bfc0); 0x1E8 is a new engine-internal dword | changed, engine-internal |
 | 90–91 | – | 0x1EC, 0x1F0 | – | children count and array | new, engine-internal |
 
 The engine-internal fields 39..43 and 53..87 not listed above also keep their offsets relative
