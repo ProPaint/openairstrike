@@ -76,6 +76,17 @@ afterwards on a shared machine: `(cd android && ./gradlew --stop)`.
 Toolchain: Android SDK 36, NDK 28.2.13676358, CMake 3.31.6, JDK 17, Android Gradle Plugin
 9.4.1 with Gradle 9.7.0, SDL 2.30.12 (SHA-256 pinned in `fetch_third_party.sh`).
 
+### Launcher icon and name
+
+The app is called "AirStrike 3D" in the launcher. Its icon is an adaptive icon of our own (a
+red helicopter from above under an orange rotor disc, on a dark background, with a monochrome
+layer for themed icons), committed in `android/app/src/main/res/`. When the desktop viewer
+(`build/apps/viewer/as3d_viewer`, or `AS3D_VIEWER`) and the game data are available,
+`tools/android_build.sh` instead renders the default player helicopter from your own data as
+the icon's foreground, into the gitignored `android/app/src/icon_from_data/`; set
+`AS3D_ICON_FROM_DATA=0` to keep our drawing. That rendered icon comes from the copyrighted
+data like the rest of the APK: it is never committed.
+
 ## Installing on a phone over USB
 
 1. On the phone: Settings, About phone, tap "Build number" seven times; then in Developer
@@ -125,21 +136,38 @@ are not offered on Android.
   never has to cover it. Lift and put the finger down again to continue from wherever the
   helicopter is.
 - **Fire: automatic** while any finger is on the screen (except on the pause button).
-- **Buttons** (right-hand column, bottom up): missile (red rocket), power-up (yellow
-  diamond), next missile type, next weapon, next power-up. They can be pressed while another
-  finger drags.
-- **Pause**: the pause button (top left on wide screens, top centre on 4:3) or the Back key
-  opens the in-game menu (Resume, Options, Quit); it is the only pause control. Without the
-  menus (`level` / `bot` extras) it pauses and a tap anywhere continues.
+- **Buttons**: round, sized in millimetres from the display density (main buttons 12.5 mm,
+  the others 9 mm), in a cluster under the right thumb: **missile** in the bottom corner with
+  the selected missile type's icon and count, **power-up** above it with the selected
+  power-up and its count (greyed at zero), each with a smaller **next** satellite (double
+  chevron) on its inner side, and **next weapon** (the current weapon's icon) above
+  power-up. They can be pressed while another finger drags. They are at full opacity while
+  used and fade to a lighter look 2 s after the last button use.
+- **Pause**: the small round pause button in the top corner on the other side (top centre
+  on 4:3 tablets) or the Back key opens the in-game menu (Resume, Options, Quit); it is the
+  only pause control. Without the menus (`level` / `bot` extras) it pauses and a tap anywhere
+  continues.
 - A tutorial hint box closes with its OK button (without the menus: a tap anywhere).
 
-On screens wider than 4:3 (most phones) the buttons sit outside the 4:3 play-field, at the
-sides; on 4:3 tablets they are drawn translucent inside it. They stay clear of display
-cutouts. The design and the reasons are in `docs/spec/issues/100-touch-controls.md`.
+On screens of 16:9 and wider (most phones) the buttons sit beside the 4:3 play-field (an arc
+on 20:9, a column on 16:9); on 16:10 and 4:3 tablets they are drawn translucent inside it,
+clear of the HUD. They stay clear of display cutouts. The design and the reasons are in
+`docs/spec/issues/100-touch-controls.md` and `140-android-polish.md`.
+
+**Settings of our own** in Options (in the original's style, stored in the profile):
+
+- **Screen: Wide / 4:3**. Wide (default): the 3D world fills the screen. 4:3: the world and
+  the menus are drawn only in the centred 4:3 area with black bars at the sides, as the
+  original looked; the buttons then sit in the bars. Applied at once; the game itself plays
+  the same either way. On desktop the row appears when the window is wider than 4:3, and
+  `as3d_game --screen wide|4x3` overrides it for the session.
+- **Controls: Right / Left**: the button cluster for the right or the left thumb (pause goes
+  to the other top corner). Touch mode only.
 
 On desktop, `as3d_game --touch` draws the same controls and makes the left mouse button one
 finger (drag with the mouse; the window is resizable to try other aspect ratios). The
-keyboard keeps working.
+keyboard keeps working. The window is taken for a phone screen 68 mm tall when sizing the
+buttons (`--dpi N` for another density); `--left-handed` mirrors them without the menus.
 
 ## App lifecycle
 
@@ -163,7 +191,8 @@ The app logs under the tag `AS3D` (`adb logcat -s AS3D:*`):
 | `AS3D_GAME_START size=WxH load_ms=...` | the game is up (the first level, or the front end) |
 | `AS3D_SCREEN name=main|start|ingame|...|playing|paused|intro frame=N mission=M` | with the menus: the top screen changed (names of `Frontend::screenName`) |
 | `AS3D_VIEW scale=S x=X y=Y` | virtual 800x600 to screen pixels (`px = v * S + X`), with the layout |
-| `AS3D_LAYOUT size=... insets=... buttons=outside|inside missile=x,y ...` | button centres in pixels, when the screen or the insets change |
+| `AS3D_LAYOUT size=... insets=... buttons=outside|inside screen=wide|4x3 hand=right|left px_per_mm=... missile=x,y,r ...` | button centres and radii in pixels, when the screen, the insets, Screen or Controls change |
+| `AS3D_DPI ddpi=... hdpi=... vdpi=...` | the display density SDL reports (sizes the buttons) |
 | `AS3D_GAME_FRAME n=600 mission=1 score=...` | every 600 simulation frames (10 s of game time) |
 | `AS3D_PERF avg_ms max_ms fps work_ms sim_steps dropped_steps` | every 5 s: frame interval average and maximum, CPU time per frame, steps run and dropped |
 | `AS3D_LEVEL_LOADED mission=N ms=...` | after a later level load |

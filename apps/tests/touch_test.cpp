@@ -20,7 +20,7 @@ namespace {
 float cx(const TouchRect& r) { return r.x + r.w * 0.5f; }
 float cy(const TouchRect& r) { return r.y + r.h * 0.5f; }
 
-bool overlaps(const TouchRect& a, const TouchRect& b) {
+[[maybe_unused]] bool overlaps(const TouchRect& a, const TouchRect& b) {
     return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
@@ -73,8 +73,10 @@ TEST_CASE("touch layout: buttons at 4:3 sit inside the play-field, translucent")
     CHECK(L.alpha < 1.0f);
     for (int b = 0; b < kTouchButtonCount; ++b) {
         CHECK(insideScreen(L.buttons[b]));
-        CHECK(L.hit[b].contains(cx(L.buttons[b]), cy(L.buttons[b])));
-        for (int c = b + 1; c < kTouchButtonCount; ++c) CHECK_FALSE(overlaps(L.hit[b], L.hit[c]));
+        CHECK(L.hitTest(cx(L.buttons[b]), cy(L.buttons[b])) == b);
+        for (int c = b + 1; c < kTouchButtonCount; ++c)
+            CHECK(std::hypot(L.circles[b].x - L.circles[c].x, L.circles[b].y - L.circles[c].y) >=
+                  L.circles[b].r + L.circles[c].r);
     }
     // Clear of the HUD's top bars (health at the left, score at the right, virtual y < 31)
     // and of the power-up column (x >= 720, y < 200): only the pause button is at the top,
@@ -100,14 +102,13 @@ TEST_CASE("touch layout: 16:9 and 20:9 put the buttons in the side bars") {
             CAPTURE(b);
             const TouchRect& r = L.buttons[b];
             CHECK(insideScreen(r));
-            // Every button is outside the 4:3 field: the action column on the right, pause
+            // Every button is outside the 4:3 field: the action cluster on the right, pause
             // on the left.
             bool right = r.x >= pf.x + pf.w - 1e-4f;
             bool left = r.x + r.w <= pf.x + 1e-4f;
             CHECK((right || left));
             if (b == static_cast<int>(TouchButton::Pause)) CHECK(left);
             else CHECK(right);
-            for (int c = b + 1; c < kTouchButtonCount; ++c) CHECK_FALSE(overlaps(L.hit[b], L.hit[c]));
         }
         // Missile is the lowest (thumb) button, power-up above it.
         const TouchRect& m = L.buttons[static_cast<int>(TouchButton::Missile)];
@@ -124,7 +125,7 @@ TEST_CASE("touch layout: display cutouts keep controls out of the insets") {
     TouchLayout L = computeTouchLayout(2400, 1080, left);
     CHECK(L.outside);
     for (int b = 0; b < kTouchButtonCount; ++b) CHECK(L.buttons[b].x * 2400.0f >= 130.0f);
-    // Rotated the other way: the cutout is on the right, where the action column is.
+    // Rotated the other way: the cutout is on the right, where the action cluster is.
     SafeInsets right;
     right.right = 130;
     L = computeTouchLayout(2400, 1080, right);
@@ -143,32 +144,45 @@ TEST_CASE("touch layout: button hit areas at 4:3, 16:9 and 20:9 map to their act
                                          ACT_NEXT_POWERUP, 0};
     for (const auto& sz : sizes) {
         CAPTURE(sz[0]);
+        const float fw = static_cast<float>(sz[0]), fh = static_cast<float>(sz[1]);
         for (int b = 0; b < kTouchButtonCount; ++b) {
             CAPTURE(b);
-            TouchMapper t;
-            t.setScreen(sz[0], sz[1]);
-            const TouchLayout& L = t.layout();
-            // Near the edge of the hit area (inside the margin around the drawn button).
-            const TouchRect& h = L.hit[b];
-            t.touchEvent(1, TouchPhase::Down, h.x + h.w * 0.03f, h.y + h.h * 0.97f);
-            CHECK(t.buttonHeld(static_cast<TouchButton>(b)));
-            FrameInput in = t.takeFrame();
-            if (b == static_cast<int>(TouchButton::Pause)) {
-                CHECK(in.pausePressed);
-                CHECK(in.held[0] == 0u); // the pause button does not fire
-            } else {
-                CHECK((in.held[0] & bits[b]) == bits[b]);
-                CHECK((in.held[0] & ACT_FIRE) != 0u);
-                CHECK_FALSE(in.pausePressed);
+            TouchMapper probe;
+            probe.setScreen(sz[0], sz[1]);
+            const TouchCircle& h = probe.layout().hit[b];
+            // Near the edge of the round hit area, on a side away from the other buttons.
+            int found = 0;
+            for (int k = 0; k < 16; ++k) {
+                const float a = 6.2831853f * static_cast<float>(k) / 16.0f;
+                const float nx = (h.x + std::cos(a) * h.r * 0.97f) / fw, ny = (h.y + std::sin(a) * h.r * 0.97f) / fh;
+                if (nx < 0 || nx > 1 || ny < 0 || ny > 1) continue;
+                bool other = false;
+                for (int c = 0; c < kTouchButtonCount; ++c)
+                    if (c != b && probe.layout().hit[c].contains(nx * fw, ny * fh)) other = true;
+                if (other) continue;
+                ++found;
+                TouchMapper t;
+                t.setScreen(sz[0], sz[1]);
+                t.touchEvent(1, TouchPhase::Down, nx, ny);
+                CHECK(t.buttonHeld(static_cast<TouchButton>(b)));
+                FrameInput in = t.takeFrame();
+                if (b == static_cast<int>(TouchButton::Pause)) {
+                    CHECK(in.pausePressed);
+                    CHECK(in.held[0] == 0u); // the pause button does not fire
+                } else {
+                    CHECK((in.held[0] & bits[b]) == bits[b]);
+                    CHECK((in.held[0] & ACT_FIRE) != 0u);
+                    CHECK_FALSE(in.pausePressed);
+                }
+                CHECK((in.held[0] & kDirs) == 0u); // a button press never steers
+                // Just outside the hit area, the same direction is not this button.
+                TouchMapper u;
+                u.setScreen(sz[0], sz[1]);
+                const float ox = (h.x + std::cos(a) * (h.r + 3.0f)) / fw, oy = (h.y + std::sin(a) * (h.r + 3.0f)) / fh;
+                u.touchEvent(2, TouchPhase::Down, ox, oy);
+                CHECK_FALSE(u.buttonHeld(static_cast<TouchButton>(b)));
             }
-            CHECK((in.held[0] & kDirs) == 0u); // a button press never steers
-            // Just outside the hit area, the same finger position is the play-field.
-            TouchMapper u;
-            u.setScreen(sz[0], sz[1]);
-            u.touchEvent(2, TouchPhase::Down, h.x - 0.002f, h.y + h.h * 0.5f);
-            bool onAnother = false;
-            for (int c = 0; c < kTouchButtonCount; ++c) onAnother |= u.buttonHeld(static_cast<TouchButton>(c));
-            CHECK_FALSE(onAnother);
+            CHECK(found >= 3);
         }
     }
 }

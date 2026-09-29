@@ -11,6 +11,10 @@
 //     <frame> key <key>            press and release
 //     <frame> text <characters>    typed characters (the rest of the line)
 //     <frame> shot <name>          after this frame, writes <out-dir>/<name>.png
+//     <frame> finger <down|move|up> <id> <x> <y>    a finger on the touch controls during play
+//     <frame> finger <down|move|up> <id> <button>   (x, y normalised 0..1; or the centre of a
+//                                  touch button by its name: missile, powerup, next_missile,
+//                                  next_weapon, next_powerup, pause), for --touch runs
 //
 // <key> is a code of the original (frontend.md: Windows virtual keys, 200 = mouse 1, 201 =
 // mouse 2) or one of the names Escape, Enter, Space, Backspace, Tab, Delete, Up, Down, Left,
@@ -33,6 +37,13 @@ public:
         as3d::ui::UiEvent event; // unused for shots
         bool shot = false;
         std::string name;        // screenshot name
+        // A finger command (touch controls): phase 0 down, 1 move, 2 up; `button` >= 0 names a
+        // touch button (as3d::TouchButton), else (x, y) normalised.
+        bool finger = false;
+        int phase = 0;
+        long long id = 0;
+        int button = -1;
+        float x = 0, y = 0;
     };
 
     bool parse(const std::string& text, std::string* error);
@@ -40,6 +51,8 @@ public:
 
     // The events of `frame` (appended to `out`) and the screenshot names after it.
     void eventsAt(as3d::u32 frame, as3d::ui::UiInput& out, std::vector<std::string>* shots) const;
+    // The finger commands of `frame`, in order.
+    void fingersAt(as3d::u32 frame, std::vector<Command>& out) const;
     as3d::u32 lastFrame() const { return commands_.empty() ? 0 : commands_.back().frame; }
     const std::vector<Command>& commands() const { return commands_; }
 

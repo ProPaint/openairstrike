@@ -85,9 +85,44 @@ ui::HudState hudStateOf(const GameSession& session) {
     return hs;
 }
 
+void GameView::renderWorld(const World& world, int width, int height) {
+    if (screenMode == kScreen4x3) {
+        int x, y, w, h;
+        ui::computeMapping(width, height).fieldPixels(x, y, w, h);
+        if (w > 0 && h > 0 && (w != width || h != height)) {
+            renderer_.render(world, x, height - y - h, w, h);
+            glViewport(0, 0, width, height);
+            return;
+        }
+    }
+    renderer_.render(world, width, height);
+}
+
+void GameView::clearBars(int width, int height) {
+    if (screenMode != kScreen4x3) return;
+    int x, y, w, h;
+    ui::computeMapping(width, height).fieldPixels(x, y, w, h);
+    if (w == width && h == height) return;
+    // The rectangles around the field, GL convention (y from the bottom).
+    const int rects[4][4] = {
+        {0, 0, x, height},                              // left
+        {x + w, 0, width - x - w, height},              // right
+        {x, height - y, w, y},                          // top
+        {x, 0, w, height - y - h},                      // bottom
+    };
+    glEnable(GL_SCISSOR_TEST);
+    glClearColor(0, 0, 0, 1);
+    for (const auto& r : rects) {
+        if (r[2] <= 0 || r[3] <= 0) continue;
+        glScissor(r[0], r[1], r[2], r[3]);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
+    glDisable(GL_SCISSOR_TEST);
+}
+
 void GameView::draw(const GameSession& session, int width, int height) {
     const World& w = session.world();
-    renderer_.render(w, width, height);
+    renderWorld(w, width, height);
     // Pass 13: the 2D layer. No HUD on intermission levels or while it is hidden (level end,
     // game over); the hint box is drawn over everything.
     if (hudReady_) {
@@ -98,11 +133,12 @@ void GameView::draw(const GameSession& session, int width, int height) {
     }
     // Pass 14: brightness.
     renderer_.drawBrightness(width, height, brightness);
+    clearBars(width, height);
 }
 
 void GameView::drawFrame(const GameSession& session, int width, int height, const FrameLayers& layers) {
     if (layers.world && session.hasLevel()) {
-        renderer_.render(session.world(), width, height);
+        renderWorld(session.world(), width, height);
     } else {
         glViewport(0, 0, width, height);
         glClearColor(0, 0, 0, 1);
@@ -125,6 +161,7 @@ void GameView::drawFrame(const GameSession& session, int width, int height, cons
         r2d_.flush();
     }
     renderer_.drawBrightness(width, height, layers.brightness);
+    clearBars(width, height);
 }
 
 void GameView::drawBanner(float mt, int width, int height) {

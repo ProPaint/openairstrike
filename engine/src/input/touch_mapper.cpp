@@ -1,5 +1,6 @@
 // Touch events to FrameInput: relative drag steering, auto-fire, on-screen buttons
-// (as3d/input.h; the choices are in docs/spec/issues/100-touch-controls.md).
+// (as3d/input.h; the choices are in docs/spec/issues/100-touch-controls.md and, for the round
+// button layout, 140-android-polish.md).
 #include <algorithm>
 #include <cmath>
 
@@ -24,14 +25,61 @@ constexpr const char* kButtonNames[kTouchButtonCount] = {
 
 constexpr float kVirtualW = 800.0f;
 constexpr float kVirtualH = 600.0f;
+constexpr float kPi = 3.14159265f;
 
-TouchRect normalised(float x, float y, float w, float h, float fw, float fh) {
-    TouchRect r;
-    r.x = x / fw;
-    r.y = y / fh;
-    r.w = w / fw;
-    r.h = h / fh;
-    return r;
+// Physical sizes (millimetres) of the round buttons.
+constexpr float kMainMm = 12.5f;     // missile and power-up
+constexpr float kSatelliteMm = 9.0f; // next missile, next weapon, next power-up
+constexpr float kPauseMm = 8.0f;
+constexpr float kGapMm = 1.2f;       // between neighbouring buttons
+constexpr float kEdgeMm = 2.0f;      // from the screen edges (and the cutout insets)
+constexpr float kFieldGapMm = 0.8f;  // from the 4:3 field when the buttons sit in the bars
+constexpr float kMinTouchMm = 9.0f;  // smallest touch area across
+constexpr float kPhoneHeightMm = 68.0f; // assumed screen height when the density is unknown
+
+// The action cluster relative to its corner: x to the left is negative, y up is positive
+// (right-handed layout; the left-handed one is its mirror image). Button order as TouchButton.
+struct Cluster {
+    float x[5], y[5], r[5];
+    float width = 0, height = 0;
+};
+
+// Missile in the corner, power-up straight above it; each has its "next" satellite at angle
+// `theta` (degrees, 90 = straight up, larger = more towards the screen centre), next weapon
+// above power-up. Neighbours keep `g` between their edges.
+Cluster makeCluster(float D, float s, float g, float thetaDeg) {
+    Cluster c;
+    const float th = thetaDeg * kPi / 180.0f;
+    const float dx = std::cos(th), dy = std::sin(th);
+    const float rs = D * 0.5f + g + s * 0.5f; // main to satellite centre distance
+    const int M = static_cast<int>(TouchButton::Missile), P = static_cast<int>(TouchButton::PowerUp),
+              NM = static_cast<int>(TouchButton::NextMissile), NW = static_cast<int>(TouchButton::NextWeapon),
+              NP = static_cast<int>(TouchButton::NextPowerUp);
+    c.x[M] = -D * 0.5f;
+    c.y[M] = D * 0.5f;
+    c.r[M] = D * 0.5f;
+    c.x[NM] = c.x[M] + rs * dx;
+    c.y[NM] = c.y[M] + rs * dy;
+    c.r[NM] = s * 0.5f;
+    c.x[P] = -D * 0.5f;
+    c.y[P] = c.y[M] + D + g;
+    float ddx = c.x[NM] - c.x[P];
+    if (std::fabs(ddx) < rs) c.y[P] = std::max(c.y[P], c.y[NM] + std::sqrt(rs * rs - ddx * ddx));
+    c.r[P] = D * 0.5f;
+    c.x[NP] = c.x[P] + rs * dx;
+    c.y[NP] = c.y[P] + rs * dy;
+    c.r[NP] = s * 0.5f;
+    c.x[NW] = c.x[P];
+    c.y[NW] = c.y[P] + rs;
+    c.r[NW] = s * 0.5f;
+    const float ss = s + g;
+    ddx = c.x[NP] - c.x[NW];
+    if (std::fabs(ddx) < ss) c.y[NW] = std::max(c.y[NW], c.y[NP] + std::sqrt(ss * ss - ddx * ddx));
+    for (int i = 0; i < 5; ++i) {
+        c.width = std::max(c.width, -c.x[i] + c.r[i]);
+        c.height = std::max(c.height, c.y[i] + c.r[i]);
+    }
+    return c;
 }
 
 } // namespace
@@ -41,16 +89,59 @@ const char* touchButtonName(TouchButton b) {
     return (i >= 0 && i < kTouchButtonCount) ? kButtonNames[i] : "?";
 }
 
+int TouchLayout::hitTest(float nx, float ny) const {
+    const float px = nx * static_cast<float>(fbWidth), py = ny * static_cast<float>(fbHeight);
+    int best = -1;
+    float bestScore = 2.0f;
+    for (int b = 0; b < kTouchButtonCount; ++b) {
+        const TouchCircle& h = hit[b];
+        if (!(h.r > 0) || !h.contains(px, py)) continue;
+        const float score = std::sqrt((px - h.x) * (px - h.x) + (py - h.y) * (py - h.y)) / h.r;
+        if (score < bestScore) {
+            bestScore = score;
+            best = b;
+        }
+    }
+    return best;
+}
+
+bool TouchLayout::hits(TouchButton b, float nx, float ny) const { return hitTest(nx, ny) == static_cast<int>(b); }
+
+float touchFadeAlpha(float t, float rest) {
+    if (!(t > kTouchFadeHold)) return 1.0f;
+    const float u = (t - kTouchFadeHold) / kTouchFadeTime;
+    if (u >= 1.0f) return rest;
+    const float e = u * u * (3.0f - 2.0f * u);
+    return 1.0f + (rest - 1.0f) * e;
+}
+
+void TouchFade::update(float dt, bool buttonHeld) {
+    if (buttonHeld) idle_ = 0;
+    else if (dt > 0) idle_ = std::min(idle_ + dt, 1.0e4f);
+}
+
 TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const SafeInsets& insets) {
+    TouchLayoutOptions o;
+    o.insets = insets;
+    return computeTouchLayout(fbWidth, fbHeight, o);
+}
+
+TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const TouchLayoutOptions& o) {
     TouchLayout L;
     L.fbWidth = std::max(fbWidth, 1);
     L.fbHeight = std::max(fbHeight, 1);
+    L.leftHanded = o.leftHanded;
+    L.screen4x3 = o.screen4x3;
     const float fw = static_cast<float>(L.fbWidth);
     const float fh = static_cast<float>(L.fbHeight);
-    const float inL = std::min(std::max(static_cast<float>(insets.left), 0.0f), fw * 0.25f);
-    const float inR = std::min(std::max(static_cast<float>(insets.right), 0.0f), fw * 0.25f);
-    const float inT = std::min(std::max(static_cast<float>(insets.top), 0.0f), fh * 0.25f);
-    const float inB = std::min(std::max(static_cast<float>(insets.bottom), 0.0f), fh * 0.25f);
+    // The left-handed layout is computed as the right-handed one of the mirrored screen.
+    const SafeInsets& in0 = o.insets;
+    const float insL = static_cast<float>(o.leftHanded ? in0.right : in0.left);
+    const float insR = static_cast<float>(o.leftHanded ? in0.left : in0.right);
+    const float inL = std::min(std::max(insL, 0.0f), fw * 0.25f);
+    const float inR = std::min(std::max(insR, 0.0f), fw * 0.25f);
+    const float inT = std::min(std::max(static_cast<float>(in0.top), 0.0f), fh * 0.25f);
+    const float inB = std::min(std::max(static_cast<float>(in0.bottom), 0.0f), fh * 0.25f);
 
     // The play-field, by the rule of the 2D layer (ui::computeMapping): wider than 4:3 has
     // bars left and right, 5:4 to 4:3 is stretched, narrower is letterboxed.
@@ -62,63 +153,87 @@ TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const SafeInsets& inse
         pfH = fw * 3.0f / 4.0f;
         pfY = (fh - pfH) * 0.5f;
     }
-    L.playField = normalised(pfX, pfY, pfW, pfH, fw, fh);
+    L.playField = {pfX / fw, pfY / fh, pfW / fw, pfH / fh};
 
-    const float margin = 0.03f * fh;
-    const float gap = 0.025f * fh;
-    const float rightBarX = pfX + pfW;
-    const float rightBar = (fw - inR) - rightBarX;
-    const float leftBar = pfX - inL;
+    const bool dpiKnown = o.dpi >= 80.0f && o.dpi <= 1200.0f;
+    const float mm = dpiKnown ? o.dpi / 25.4f : fh / kPhoneHeightMm;
+    L.pixelsPerMm = mm;
+    // Physical sizes, capped for screens that are small in pixels for their density.
+    float D = std::min(kMainMm * mm, 0.20f * fh);
+    float s = std::min(kSatelliteMm * mm, 0.15f * fh);
+    float g = std::min(kGapMm * mm, 0.012f * fh);
+    const float edge = std::min(kEdgeMm * mm, 0.03f * fh);
+    const float pauseD = std::min(kPauseMm * mm, 0.12f * fh);
 
-    float big = std::min(0.15f * fh, rightBar - margin);
-    L.outside = big >= 0.10f * fh;
+    // Outside: the right bar, from the field (plus a small gap) to the screen edge.
+    Cluster c;
+    float x1 = fw - inR - edge, y1 = fh - inB - edge;
+    {
+        const float availW = x1 - (pfX + pfW + kFieldGapMm * mm);
+        const float availH = y1 - (inT + edge);
+        // The widest arc that fits; then a straight column; then a narrower column.
+        for (float th = 145.0f; th >= 90.0f && !L.outside; th -= 5.0f) {
+            c = makeCluster(D, s, g, th);
+            L.outside = c.width <= availW && c.height <= availH;
+        }
+        if (!L.outside && availW >= s) {
+            float d2 = std::min(D, availW);
+            c = makeCluster(d2, s, g, 90.0f);
+            float k = c.height > availH ? availH / c.height : 1.0f;
+            if (s * k >= kMinTouchMm * mm * 0.8f) {
+                c = makeCluster(d2 * k, s * k, g * k, 90.0f);
+                L.outside = c.width <= availW + 0.5f;
+                if (L.outside) {
+                    D = d2 * k;
+                    s *= k;
+                    g *= k;
+                }
+            }
+        }
+    }
+    if (!L.outside) {
+        // Inside the field, in its bottom corner, below the HUD's power-up column (right) or
+        // missile column (left, where the lives also sit at the bottom).
+        x1 = std::min(pfX + pfW, fw - inR) - edge;
+        y1 = std::min(pfY + pfH, fh - inB) - edge;
+        if (o.leftHanded) y1 = std::min(y1, pfY + pfH * (548.0f / kVirtualH));
+        const float top = pfY + pfH * ((o.leftHanded ? 285.0f : 210.0f) / kVirtualH);
+        D = std::min(D, 0.17f * fh);
+        s = std::min(s, 0.125f * fh);
+        c = makeCluster(D, s, g, 145.0f);
+        const float availH = y1 - top;
+        if (c.height > availH && availH > 0) {
+            const float k = availH / c.height;
+            c = makeCluster(D * k, s * k, g * k, 145.0f);
+            g *= k;
+        }
+    }
+    L.alpha = !L.outside ? 0.35f : o.screen4x3 ? 0.7f : 0.5f;
 
-    float px[kTouchButtonCount], py[kTouchButtonCount], ps[kTouchButtonCount];
-    float colCentre, bottom;
+    for (int b = 0; b < 5; ++b) {
+        TouchCircle& t = L.circles[b];
+        t.x = x1 + c.x[b];
+        t.y = y1 - c.y[b];
+        t.r = c.r[b];
+    }
+    TouchCircle& p = L.circles[static_cast<int>(TouchButton::Pause)];
+    p.r = pauseD * 0.5f;
     if (L.outside) {
-        L.alpha = 0.85f;
-        colCentre = rightBarX + rightBar * 0.5f;
-        bottom = fh - inB - margin;
+        // The top corner on the other side, clear of cutouts.
+        p.x = inL + edge + p.r;
+        p.y = inT + edge + p.r;
     } else {
-        L.alpha = 0.4f;
-        big = 0.12f * fh;
-        float colRight = std::min(pfX + pfW, fw - inR) - margin;
-        colCentre = colRight - big * 0.5f;
-        bottom = std::min(pfY + pfH, fh - inB) - margin;
+        // Top centre of the field, between the HUD's health and score bars.
+        p.x = pfX + pfW * 0.5f;
+        p.y = std::max(pfY, inT) + edge * 0.5f + p.r;
     }
-    const float small = big * 0.75f;
-    // The column, bottom up: missile (the most used), power-up, then the three switches.
-    const TouchButton order[5] = {TouchButton::Missile, TouchButton::PowerUp, TouchButton::NextMissile,
-                                  TouchButton::NextWeapon, TouchButton::NextPowerUp};
-    float y = bottom;
-    for (int k = 0; k < 5; ++k) {
-        int b = static_cast<int>(order[k]);
-        float s = k < 2 ? big : small;
-        y -= s;
-        px[b] = colCentre - s * 0.5f;
-        py[b] = y;
-        ps[b] = s;
-        y -= gap;
-    }
-    // Pause: the top of the left bar when it has room, else the top of the right bar
-    // (outside), or the top centre of the play-field (inside, clear of the HUD bars).
-    const int p = static_cast<int>(TouchButton::Pause);
-    if (L.outside) {
-        float s = std::min(0.10f * fh, big);
-        ps[p] = s;
-        py[p] = inT + margin;
-        if (leftBar - margin >= s) px[p] = inL + (leftBar - s) * 0.5f;
-        else px[p] = colCentre - s * 0.5f;
-    } else {
-        float s = 0.08f * fh;
-        ps[p] = s;
-        px[p] = pfX + pfW * 0.5f - s * 0.5f;
-        py[p] = std::max(pfY, inT) + margin * 0.5f;
-    }
+    const float minHit = kMinTouchMm * mm * 0.5f;
     for (int b = 0; b < kTouchButtonCount; ++b) {
-        L.buttons[b] = normalised(px[b], py[b], ps[b], ps[b], fw, fh);
-        float g = gap * 0.4f; // neighbours never share a touch area
-        L.hit[b] = normalised(px[b] - g, py[b] - g, ps[b] + 2 * g, ps[b] + 2 * g, fw, fh);
+        TouchCircle& t = L.circles[b];
+        if (o.leftHanded) t.x = fw - t.x;
+        L.hit[b] = t;
+        L.hit[b].r = std::max(t.r + g * 0.5f, minHit);
+        L.buttons[b] = {(t.x - t.r) / fw, (t.y - t.r) / fh, 2 * t.r / fw, 2 * t.r / fh};
     }
     return L;
 }
@@ -129,6 +244,10 @@ void TouchMapper::setScreen(int fbWidth, int fbHeight, const SafeInsets& insets)
     layout_ = computeTouchLayout(fbWidth, fbHeight, insets);
 }
 
+void TouchMapper::setScreen(int fbWidth, int fbHeight, const TouchLayoutOptions& options) {
+    layout_ = computeTouchLayout(fbWidth, fbHeight, options);
+}
+
 int TouchMapper::findFinger(long long id) const {
     for (int i = 0; i < kMaxFingers; ++i) {
         if (fingers_[i].down && fingers_[i].id == id) return i;
@@ -136,12 +255,7 @@ int TouchMapper::findFinger(long long id) const {
     return -1;
 }
 
-int TouchMapper::hitButton(float x, float y) const {
-    for (int b = kTouchButtonCount - 1; b >= 0; --b) { // pause first
-        if (layout_.hit[b].contains(x, y)) return b;
-    }
-    return -1;
-}
+int TouchMapper::hitButton(float x, float y) const { return layout_.hitTest(x, y); }
 
 float TouchMapper::virtualPerNormX() const {
     return layout_.playField.w > 0 ? kVirtualW / layout_.playField.w : kVirtualW;

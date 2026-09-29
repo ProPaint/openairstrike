@@ -97,6 +97,7 @@ int main(int argc, char* argv[]) {
         o.flow.touchMenuButton = false;
         o.flow.settingsXml = "Settings.xml";
         o.flow.textsPath = "texts_v170.txt";
+        o.flow.screenOptionAlways = true; // Options offers Screen (Wide / 4:3) on every device
     }
     AS3D_INFO("AS3D_ARGS bot=%d mission=%d frames=%ld audio=%d rebuild_on_resume=%d menus=%d", o.bot ? 1 : 0,
               o.game.mission, o.frames, o.noAudio ? 0 : 1, o.rebuildOnResume ? 1 : 0, o.frontend ? 1 : 0);
@@ -111,6 +112,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     SDL_DisableScreenSaver();
+    // The display density sizes the touch buttons in millimetres (issue 140); densityDpi is
+    // the stable, bucketed value (xdpi / ydpi are wrong on some devices).
+    float ddpi = 0, hdpi = 0, vdpi = 0;
+    if (SDL_GetDisplayDPI(0, &ddpi, &hdpi, &vdpi) == 0) o.dpi = ddpi;
+    AS3D_INFO("AS3D_DPI ddpi=%.0f hdpi=%.0f vdpi=%.0f", ddpi, hdpi, vdpi);
     // The profile lives in the app's internal files directory (needs SDL's Android glue).
     if (o.frontend) o.flow.profilePath = defaultProfilePath();
     int rc = runGameWindow(o);

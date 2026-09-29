@@ -110,6 +110,10 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     content.twoPlayerMode = config_.twoPlayerMode;
     content.mouseControlOption = config_.mouseControlOption;
     content.touchMenuButton = config_.touchMenuButton;
+    content.screenOption = config_.screenOptionAlways;
+    content.handOption = config_.touch;
+    screenOverride_ = config_.screenOverride == kScreenWide || config_.screenOverride == kScreen4x3 ? config_.screenOverride : -1;
+    lastScreenSetting_ = profile_.settings.screenMode;
 
     fe_.reset(new ui::Frontend(*this, profile_, std::move(content), std::move(texts)));
     fe_->setTouchMode(config_.touch);
@@ -202,7 +206,16 @@ void GameFlow::applySettings(const Settings& s) {
     if (session_.hasLevel()) session_.world().camera().mode = std::min(std::max(s.camera, 0), 3);
 }
 
-void GameFlow::settingsChanged(const Settings& s) { applySettings(s); }
+void GameFlow::settingsChanged(const Settings& s) {
+    // Changing the Screen option ends the session's --screen override.
+    if (s.screenMode != lastScreenSetting_) screenOverride_ = -1;
+    lastScreenSetting_ = s.screenMode;
+    applySettings(s);
+}
+
+void GameFlow::setScreenSize(int width, int height) {
+    if (fe_) fe_->setScreenOptionShown(config_.screenOptionAlways || width * 3 > height * 4);
+}
 
 void GameFlow::saveProfile(const Profile& p) {
     if (config_.profilePath.empty()) return;
@@ -293,6 +306,7 @@ void GameFlow::draw(int width, int height) {
     }
     layers.frontend = fe_.get();
     layers.brightness = fe_->brightness();
+    view_->screenMode = screenMode();
     view_->drawFrame(session_, width, height, layers);
 }
 

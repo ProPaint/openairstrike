@@ -190,17 +190,62 @@ struct SafeInsets {
     int left = 0, top = 0, right = 0, bottom = 0;
 };
 
+// A round button, in framebuffer pixels (origin top-left).
+struct TouchCircle {
+    float x = 0, y = 0, r = 0;
+    bool contains(float px, float py) const { return (px - x) * (px - x) + (py - y) * (py - y) <= r * r; }
+};
+
+struct TouchLayoutOptions {
+    SafeInsets insets;
+    // Display density in dots per inch as the platform reports it; 0 (or implausible) =
+    // unknown: the screen is taken for a landscape phone, 68 mm tall.
+    float dpi = 0;
+    bool leftHanded = false;  // Settings::leftHanded: the cluster at the left, pause at the right
+    bool screen4x3 = false;   // Settings::screenMode == kScreen4x3: the bars are black
+};
+
+// The on-screen buttons (docs/spec/issues/140): round, sized in millimetres from the display
+// density. Missile and power-up are the two big buttons in the corner under the thumb, each
+// with its "next" button as a smaller satellite; next weapon sits above power-up. Pause is a
+// small round button in the top corner on the other side.
 struct TouchLayout {
     int fbWidth = 800, fbHeight = 600;
     // True when the buttons sit in the side bars outside the 4:3 play-field (screens wider
-    // than 4:3 with room for them); false when they are drawn inside it, translucent.
+    // than 4:3 with room for them); false when they are drawn inside it.
     bool outside = false;
-    float alpha = 1.0f;                     // suggested opacity of the button art
+    bool leftHanded = false;
+    bool screen4x3 = false;
+    float alpha = 1.0f;                     // resting opacity of the buttons (see TouchFade)
+    float pixelsPerMm = 1.0f;               // the density used
     TouchRect playField;                    // the centred 4:3 field (whole screen if narrower)
-    TouchRect buttons[kTouchButtonCount];   // drawn area
-    TouchRect hit[kTouchButtonCount];       // touch area (the drawn area plus a small margin)
+    TouchRect buttons[kTouchButtonCount];   // bounding boxes of `circles`, normalised
+    TouchCircle circles[kTouchButtonCount]; // drawn buttons, framebuffer pixels
+    TouchCircle hit[kTouchButtonCount];     // touch areas, framebuffer pixels (at least 9 mm across)
+    // The button under a finger (normalised framebuffer coordinates), -1 for none. Where touch
+    // areas overlap, the button whose centre is nearest (relative to its radius) wins.
+    int hitTest(float nx, float ny) const;
+    bool hits(TouchButton b, float nx, float ny) const;
 };
+TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const TouchLayoutOptions& options);
 TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const SafeInsets& insets = {});
+
+// The buttons' opacity over time: full while a button is held and for 2 s after the last
+// button use, then easing over 0.5 s to the layout's resting opacity, so they hide less of
+// the scene. Starts at full opacity (the player sees them when play begins).
+constexpr float kTouchFadeHold = 2.0f;
+constexpr float kTouchFadeTime = 0.5f;
+float touchFadeAlpha(float secondsSinceUse, float restingAlpha);
+class TouchFade {
+public:
+    void update(float dt, bool buttonHeld);
+    void reset() { idle_ = 0; }
+    float alpha(float restingAlpha) const { return touchFadeAlpha(idle_, restingAlpha); }
+    float idleSeconds() const { return idle_; }
+
+private:
+    float idle_ = 0;
+};
 
 struct TouchSettings {
     float gain = 1.5f;          // helicopter displacement per finger displacement
@@ -215,6 +260,7 @@ public:
     TouchMapper();
 
     void setScreen(int fbWidth, int fbHeight, const SafeInsets& insets = {});
+    void setScreen(int fbWidth, int fbHeight, const TouchLayoutOptions& options);
     const TouchLayout& layout() const { return layout_; }
     TouchSettings& settings() { return settings_; }
 

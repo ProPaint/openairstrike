@@ -114,6 +114,11 @@ enum class Action {
 constexpr int kActionCount = static_cast<int>(Action::Count);
 u32 actionBit(Action a); // p_action bit (engine-behaviour.md 7.2)
 
+// Settings::screenMode: Wide = the 3D world fills the whole screen; 4:3 = everything is drawn
+// in the centred 4:3 area with black bars, as the original's aspect.
+constexpr int kScreenWide = 0;
+constexpr int kScreen4x3 = 1;
+
 struct Settings {
     bool showHints = false;
     bool showLogo = true;
@@ -131,6 +136,10 @@ struct Settings {
     bool sound3D = false;
     int textureFilter = 0;     // 0 bilinear, 1 trilinear
     bool showFps = false;
+    // Ours, not in the original (docs/spec/issues/140): how the world fills a screen wider than
+    // 4:3, and which thumb the touch buttons are for.
+    int screenMode = kScreenWide;  // kScreenWide or kScreen4x3
+    bool leftHanded = false;       // touch buttons mirrored to the left side
     // Two key codes per action and player; 0 = unbound.
     int keys[2][kActionCount][2] = {};
 

@@ -32,19 +32,36 @@ Mapping computeMapping(int fbWidth, int fbHeight) {
     return m;
 }
 
+void Mapping::fieldPixels(int& x, int& y, int& w, int& h) const {
+    const int x0 = std::max(0, static_cast<int>(std::lround(toFbX(0))));
+    const int y0 = std::max(0, static_cast<int>(std::lround(toFbY(0))));
+    const int x1 = std::min(fbWidth, static_cast<int>(std::lround(toFbX(kVirtualWidth))));
+    const int y1 = std::min(fbHeight, static_cast<int>(std::lround(toFbY(kVirtualHeight))));
+    x = x0;
+    y = y0;
+    w = std::max(x1 - x0, 0);
+    h = std::max(y1 - y0, 0);
+}
+
 namespace {
 
 const char* kVertexSrc = R"(#version 300 es
 layout(location = 0) in vec2 aPos;
 layout(location = 1) in vec2 aUv;
 layout(location = 2) in vec4 aColor;
+layout(location = 3) in vec2 aLocal;
+layout(location = 4) in vec4 aShape;
 uniform vec2 uInvHalfSize;
 out vec2 vUv;
 out vec4 vColor;
+out vec2 vLocal;
+out vec4 vShape;
 void main() {
     gl_Position = vec4(aPos.x * uInvHalfSize.x - 1.0, 1.0 - aPos.y * uInvHalfSize.y, 0.0, 1.0);
     vUv = aUv;
     vColor = aColor;
+    vLocal = aLocal;
+    vShape = aShape;
 }
 )";
 
@@ -53,14 +70,28 @@ precision mediump float;
 uniform sampler2D uTex;
 in vec2 vUv;
 in vec4 vColor;
+in highp vec2 vLocal;
+in vec4 vShape; // ellipse flag, hole radius, feather (fractions of the radius), scale rgb too
 out vec4 oColor;
 void main() {
-    oColor = texture(uTex, vUv) * vColor;
+    vec4 c = texture(uTex, vUv) * vColor;
+    if (vShape.x > 0.5) {
+        // Distance from the centre in radii; one pixel of anti-aliasing plus the feather.
+        highp float d = length(vLocal);
+        float aa = max(fwidth(d), 1e-4) + vShape.z;
+        float cov = 1.0 - smoothstep(1.0 - aa, 1.0, d);
+        if (vShape.y > 0.0) cov *= smoothstep(vShape.y - aa, vShape.y, d);
+        c.a *= cov;
+        if (vShape.w > 0.5) c.rgb *= cov;
+    }
+    oColor = c;
 }
 )";
 
 struct Vertex {
     float x, y, s, t, r, g, b, a;
+    float lx, ly;                            // position in the inscribed ellipse, in radii
+    float kind, inner, feather, scaleRgb;    // aShape
 };
 
 // Colour actually sent to the GPU: additive quads use alpha as intensity, filter quads fade
@@ -108,7 +139,7 @@ bool Renderer2D::init(std::string* error) {
     im.vbo.upload(dummy, sizeof dummy, true);
     VertexLayout layout;
     layout.strideBytes = sizeof(Vertex);
-    layout.attribs = {{0, 2, 0, false}, {1, 2, 8, false}, {2, 4, 16, false}};
+    layout.attribs = {{0, 2, 0, false}, {1, 2, 8, false}, {2, 4, 16, false}, {3, 2, 32, false}, {4, 4, 40, false}};
     im.vao.create(im.vbo, layout);
     return true;
 }
@@ -173,6 +204,27 @@ bool Renderer2D::line(float x0, float y0, float x1, float y1, Color c, Blend ble
     return add(q);
 }
 
+bool Renderer2D::circle(float cx, float cy, float radius, Color c, Blend blend, float feather) {
+    return ring(cx, cy, radius, radius, c, blend, feather);
+}
+
+bool Renderer2D::ring(float cx, float cy, float radius, float thickness, Color c, Blend blend, float feather) {
+    if (!(radius > 0)) return false;
+    // Round on screen: the horizontal radius in virtual pixels follows the mapping's aspect.
+    const float rx = radius * mapping_.scaleY / mapping_.scaleX;
+    Quad q;
+    q.x = cx - rx;
+    q.y = cy - radius;
+    q.w = 2 * rx;
+    q.h = 2 * radius;
+    q.color = c;
+    q.blend = blend;
+    q.shape = QuadShape::Ellipse;
+    q.inner = thickness >= radius ? 0.0f : std::max(0.0f, (radius - thickness) / radius);
+    q.feather = std::max(feather, 0.0f) / radius;
+    return add(q);
+}
+
 bool Renderer2D::fullscreen(Color c, Blend blend) {
     return rect(mapping_.left(), mapping_.top(), mapping_.right() - mapping_.left(),
                 mapping_.bottom() - mapping_.top(), c, blend);
@@ -188,6 +240,9 @@ int Renderer2D::flush() {
     for (const Quad& q : quads_) {
         const Color c = effectiveColor(q);
         float px[4], py[4], ps[4], pt[4];
+        static const float kLx[4] = {-1, -1, 1, 1}, kLy[4] = {-1, 1, 1, -1};
+        const float kind = q.shape == QuadShape::Ellipse ? 1.0f : 0.0f;
+        const float scaleRgb = q.blend == Blend::Add ? 1.0f : 0.0f;
         if (q.line) {
             float x0 = m.toFbX(q.x), y0 = m.toFbY(q.y), x1 = m.toFbX(q.x + q.w), y1 = m.toFbY(q.y + q.h);
             float dx = x1 - x0, dy = y1 - y0;
@@ -207,7 +262,9 @@ int Renderer2D::flush() {
             px[3] = x1; py[3] = y0; ps[3] = q.s1; pt[3] = q.t0;
         }
         static const int order[6] = {0, 1, 2, 0, 2, 3};
-        for (int k : order) im.verts.push_back({px[k], py[k], ps[k], pt[k], c.r, c.g, c.b, c.a});
+        for (int k : order)
+            im.verts.push_back({px[k], py[k], ps[k], pt[k], c.r, c.g, c.b, c.a, kLx[k], kLy[k], kind, q.inner,
+                                q.feather, scaleRgb});
     }
     im.vbo.upload(im.verts.data(), im.verts.size() * sizeof(Vertex), true);
 

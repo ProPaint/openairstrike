@@ -30,6 +30,8 @@ const std::map<std::string, std::string>& defaults() {
             {"opt.mouse", "Mouse Control:"}, {"opt.refresh.default", "default"}, {"opt.hz", " Hz"},
             {"opt.depth.0", "Default"}, {"opt.depth.16", "16 bit"}, {"opt.depth.32", "32 bit"},
             {"opt.off", "Off"}, {"opt.on", "On"},
+            {"opt.screen", "Screen:"}, {"opt.screen.wide", "Wide"}, {"opt.screen.4x3", "4:3"},
+            {"opt.controls", "Controls:"}, {"opt.controls.right", "Right"}, {"opt.controls.left", "Left"},
             {"opt.tooltip.resolution", "Changes screen resolution."},
             {"camera.0", "Low Pitch"}, {"camera.1", "Default"}, {"camera.2", "High Pitch"}, {"camera.3", "Top-Down"},
             {"ctl.set", "Controls Set:"}, {"ctl.player.1", "Player 1"}, {"ctl.player.2", "Player 2"},

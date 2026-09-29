@@ -34,6 +34,11 @@ struct FlowConfig {
     std::string textsPath;            // texts imported from the exe (tools/extract_exe_texts.py); "" = none
     int attract = 0;                  // attract level 1..4 (intro1..intro4); 0 = random at boot
     bool showLogo = true;             // intro pages (also needs ShowLogo = 1 in the settings)
+    // Ours (docs/spec/issues/140): Settings::screenMode for this session (desktop --screen),
+    // -1 = the profile's; the Options "Screen" row always (Android) or only while the window
+    // is wider than 4:3 (desktop).
+    int screenOverride = -1;
+    bool screenOptionAlways = false;
 };
 
 // Level-start bits the loop reacts to (renderer and audio are handled inside).
@@ -83,6 +88,10 @@ public:
     // True while the gameplay controls are live (touch controls drawn, keys reach the world).
     bool playing() const;
     bool mouseControl() const { return profile_.settings.mouseControl; }
+    // The screen mode in use: the session's override until the player changes the setting.
+    int screenMode() const { return screenOverride_ >= 0 ? screenOverride_ : profile_.settings.screenMode; }
+    // The framebuffer size, for the Options screen (the Screen row on wide windows).
+    void setScreenSize(int width, int height);
     as3d::ui::Frontend& frontend() { return *fe_; }
     as3d::Profile& profile() { return profile_; }
     const FlowConfig& config() const { return config_; }
@@ -117,6 +126,8 @@ private:
     bool quit_ = false;
     int levelLoads_ = 0;
     float pointerX_ = 400, pointerY_ = 300;
+    int screenOverride_ = -1;
+    int lastScreenSetting_ = 0;
 };
 
 // The player's helicopter centre in the virtual 800x600 screen (y down), from its collision
