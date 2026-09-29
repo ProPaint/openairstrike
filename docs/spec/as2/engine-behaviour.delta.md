@@ -450,6 +450,232 @@ the new pair tests of 5.2.
 
 ---
 
+## 4. Movement and transforms
+
+### 4.1 Think order: changed (one timer)
+
+`G_ThinkEntity` as2@0x40cb30 against v170@0x405a60, VERIFIED-CODE: the same steps in the same
+order (removed entities skipped, bit 0x02, unless paused: age += frametime, time since damage
++= frametime, **new: the `Lightning` timer at +0x78 += frametime while below 5.0**
+(as2@0x40cb82..0x40cb9b), resume `main` under the same conditions; parent's bit 0x08, tag
+attachment, transform, screen bounds for roots and `AttachEntity` children, emitter holders
+stop after moving their emitter, render queue and definition light unless `FL_NODRAW`, health
+bar, children). The symbol-map match (medium) is confirmed.
+
+### 4.2 Position and velocity: changed (water)
+
+No native integration of velocity, gravity or friction, as in v1.70.
+
+Ground and water following for roots, `G_SyncRenderRecord` as2@0x40c750 (v1.70
+`G_SetupTransform` v170@0x4057c0), VERIFIED-CODE, in this order:
+
+1. flag bit 0x1 (`FL_ONGROUND`): z = `R_TerrainHeight(x, y)` (as2@0x40c76f..0x40c78a; same
+   function as v1.70, identical shape);
+2. flag bit 0x4 (`FL_ONWATER`, also part of `_NORMAL` and `_FLAT`): if bit 0x200 is set
+   (`FL_ONWATER_FLAT`), z = the level's flat water level (level record +0x1C0, the
+   `l_waterlevel` value); otherwise **z = `G_WaterHeight(x, y)`** (as2@0x41d530), the height of
+   the animated water surface (as2@0x40c798..0x40c7c8). v1.70 always used the flat level
+   (v170@0x4057c0);
+3. axis: bit 0x2 (`FL_ONGROUND_NORMAL`): from the terrain (`G_AlignToTerrain` as2@0x41a360,
+   identical shape to v170@0x4165f0); else **bit 0x8 (`FL_ONWATER_NORMAL`): from the water
+   surface** (`G_AlignToWater` as2@0x41d6d0, as2@0x40c80b..0x40c836); else from the angles.
+
+`G_WaterHeight(x, y)` as the game rules see it (VERIFIED-CODE as2@0x41d530): when the level
+has no water surface (no `water` line; flag as2@0x2103ca4 set from level record +0x140 by the
+terrain loader as2@0x41be84), it returns the **terrain** height; otherwise, for a point inside
+the water grid, the bilinear interpolation of the z of the four surrounding water-grid
+vertices (the grid the water renderer animates, `R_WaterWaveVertices` as2@0x41d8d0), and 0
+outside the grid (x < 0, y < 0, or beyond the grid's cell count × 40). The wave animation that
+moves the vertices belongs to the renderer and to the `WaterHeight` builtin (pending).
+
+`G_AlignToWater` builds the axis exactly as `G_AlignToTerrain` does (same instruction shape,
+ratio 1.000 against v170@0x4165f0), with water heights: samples at (x − 10, y + 15),
+(x + 10, y + 15) and (x, y − 25), up = the normalised plane normal, row 1 = the yaw direction
+(cos yaw, sin yaw, 0) made orthogonal to up, row 0 = row 1 × up, each normalised (issue 034 §2
+describes the same construction for the terrain).
+
+Placement at spawn (`G_SpawnObject` as2@0x4124c0, same code as v170@0x40a080) still puts
+`FL_ONWATER` objects at the flat level; the first think then moves them onto the waves.
+
+So: `FL_ONWATER` floats up and down with the waves but keeps its own angles;
+`FL_ONWATER_NORMAL` also pitches and rolls with the surface; `FL_ONWATER_FLAT` sits at the
+still level (the big ships and the aircraft carrier).
+
+### 4.3 Axis from angles: same
+
+`AnglesToAxis` is the same code; the correction of rcsl-builtins-semantics.md (field 14 is
+pitch, field 15 roll) applies unchanged.
+
+### 4.4 Attachment to tags: changed (non-model parents)
+
+`G_AttachToTag` as2@0x40b730 against v170@0x404850 (ratio 0.822), VERIFIED-CODE. Same for a
+model parent: the tag is looked up, a missing tag detaches the child and **decrements the root's
+reference count** when the child was counted (as2@0x40b75e..0x40b778; v170@0x404879..0x404891
+does the same, see "Corrections"), `abs` and non-`abs` placement as in v1.70. New: when the
+parent is not a model (render type ≠ 0) no tag is looked up and the tag position used is the
+parent's own base origin (fields 41..43); the child then lands at parent base + parent axis ·
+(parent base [+ offset]), which looks like an oversight. No shipped definition attaches
+anything to a non-model (VERIFIED-DATA); only a script `AttachEntity` to a sprite would reach
+it. An implementation may treat the tag position as 0 there (GUESS about the intent).
+
+The definition-children build (`attach` with `abs`, `id`, `night`, particle-system children):
+same rules (`G_InitObject` as2@0x412357..0x412429 against v170@0x409ba0): a `night` child is
+built only on night levels (level record +0x1C8); `abs` sets +0x10; `id` names the child; the
+emitter holder allocation is inlined (v170 `G_AllocEmitterEntity` v170@0x4099a0).
+
+### 4.5 Waypoint paths: same
+
+`G_EvalPath` as2@0x40cf20, `G_MoveAlongPath` as2@0x40d130, `G_RotateToPath` as2@0x40d260 and
+`G_BuildPath` as2@0x40db10 have the instruction shapes of v170@0x405dd0, 0x405fe0, 0x406110 and
+0x4069a0 (ratio 1.000; only structure offsets differ). The only difference for paths is the
+initial field 23 (3.1.3), which no path-following object sets in its definition.
+
+### 4.6 World bounds: same
+
+1280 units wide, no clamp; leaving handled by the activation states; the player bounded by the
+camera (7.3).
+
+---
+
+## 5. Collision
+
+### 5.1 Shapes: same, with issue 120
+
+`G_ComputeScreenBounds` as2@0x40ca00 against v170@0x405930, VERIFIED-CODE: the class-0 and
+touch-0 exemption, the sphere test (`R_CullSphere` as2@0x41d310, identical shape), the model
+box through `R_ProjectEntityBounds` as2@0x41cfd0, the point path through `R_WorldToScreen` and
+`R_PointOnScreen` as2@0x41d270, the previous-point rule. **Issue 120 holds for `as2`**: the
+call at as2@0x40ca80..0x40ca84 passes the maximum (entity +0x1D8) in ECX and the minimum
+(+0x1CC) in EDX, exactly as v170@0x4059b3..0x4059b7, and `R_RectOnScreen` as2@0x41d2c0 tests
+max.x ≥ 0, min.x < width, max.y ≥ 0, min.y < height: an **overlap** test. The point test
+as2@0x41d270 is 0 ≤ p < size. Width and height are the video-mode size (as2@0x49f878,
+0x49f87c); our 800×600 deviation applies.
+
+### 5.2 Which pairs are tested: changed
+
+`G_TouchEntity` as2@0x40c120 against v170@0x4051d0 (the symbol-map match is confirmed; the
+changes are those of rcsl-vm.delta.md, restated here for the game rules). VERIFIED-CODE. The
+entity is tested when its touch mode ≠ 0 and it has bit 0x08 (as before):
+
+- **Players** (mode bit 0x2, as2@0x40c140): each player with health > 0, in player order, same
+  model/point tests; first hit sets `other`, the toucher's player index, runs `touch` and ends
+  the entity's pass.
+- **Other entities** (mode ≠ 2, as2@0x40c1fa): candidates are list entities other than the
+  toucher that are (mode bit 0x1 and class 2.0) **or (mode bit 0x4 and class 5.0)**, **not dead
+  (field 4 = 0, new)**, with bit 0x08, not removed and not health-frozen. Same pair tests
+  (model/model overlap, point/model swept segment `G_SegmentHitsRect` as2@0x417650 with the
+  identical shape of v170@0x40ca10, model/point always, point/point never); the scan continues
+  after a hit unless the toucher was removed.
+
+| Mode (shipped values) | Players | Enemies (2.0) | Civilians (5.0) |
+|---|---|---|---|
+| 1 `TOUCH_ENEMIES` | – | yes | – |
+| 2 `TOUCH_PLAYER` | yes | – | – |
+| 4 `TOUCH_CIVILIAN` | – | – | yes |
+| 5 | – | yes | yes |
+| 6 | yes (first) | – | yes, unless a player was touched |
+| 0xF `TOUCH_ALL` (unused) | yes (first) | yes | yes |
+
+VERIFIED-DATA pairs: player bullets (32 definitions, mode 1), enemy fire and 54 ramming enemies
+(mode 2), `abomb_proj` (5), `expl_wave_big` (4), the falling meteorites (6); helicopters have no
+touch mode. v1.70's "items are ordinary TOUCH_PLAYER objects" holds.
+
+The new dead-entity filter matters: a wreck whose script has not yet removed it (health ≤ 0,
+field 4 = 1) no longer absorbs bullets. Players are still selected by health > 0 only.
+
+### 5.3 What a hit triggers: same
+
+Only the `touch` handler; damage is the script's `Damage` call.
+
+### 5.4 Two-player push-apart: same
+
+as2@0x40c5a8..0x40c73f (reached from `G_RunEntities`, §2): both players alive, rectangles
+overlap, velocities ± normalize(p1.xy − p2.xy) × 2000 × frametime. VERIFIED-CODE, same constants
+and order as v170@0x4055d0.
+
+### 5.5 Traces: changed (civilians)
+
+`TraceLine` as2@0x420fd0 and `TraceLineDamage` as2@0x421180 now also accept class 5.0 targets
+(the 5.0 comparisons at as2@0x420fd0.. and as2@0x421180..). Their exact rules are in the
+builtins semantics delta (pending).
+
+---
+
+## 6. Damage and death
+
+### 6.1 `G_Damage`: changed (kill counter cap)
+
+`G_Damage` as2@0x40b9e0 against v170@0x404ae0 (ratio 0.927; the symbol-map match is
+confirmed), VERIFIED-CODE. Same skip conditions (dead; frozen bit 0x10; the entity is a player's
+entity and that player's freeze counter, record +0xB8, ≠ 0; god mode for players; the player
+loop runs over the number of players), same order (time since damage = 0, health −= amount,
+`damage` handler, then at health ≤ 0: kill accounting, field 4 = 1, drop spawned and cleared,
+score to a player attacker ≥ 0). One change:
+
+- **Kill counter cap**: for a class-2.0 victim without `FL_NONTARGET`, the attacker's kill
+  counter (player record +0x148) is increased only while it is below the level's enemy total
+  (as2@0x40bb46..0x40bb5d: compare with as2@0x5432c0). v1.70 increased it unconditionally
+  (v170@0x404c44). With attacker = −1 the counter index is −1 as in v1.70 (reads and writes 4
+  bytes before player 1's record; harmless, ignore it).
+
+### 6.2 Damage sources: changed (targets)
+
+Attacker rule: same (`Damage` as2@0x420630 has the identical shape of v170@0x41b550).
+`g_damage_factor` handling: same (`Damage` multiplies; `Shoot` multiplies enemy projectiles'
+field 35).
+
+| Source | as2 | Change against v1.70 (details: builtins semantics delta, pending) |
+|---|---|---|
+| `Damage` | as2@0x420630 | none |
+| `RadialDamage` | as2@0x4206b0 | also hits class 5.0 (civilians) |
+| `RadialDamagePlayer` (new) | as2@0x420840 | the `RadialDamage` shape over the player records instead of the entity list (rcsl-builtins-table.delta.md); used by 7 scripts (explosions, meteorites, the big rocket launcher) |
+| `TraceLine`, `TraceLineDamage` | as2@0x420fd0, 0x421180 | class 5.0 accepted as well as 2.0 |
+| `Lightning` | as2@0x421310 | takes the range as its argument (t0); spawns `wavegun_hit` at most every 0.2 s per target (+0x78) |
+| Particle damage | `G_ParticleDamage` as2@0x40bbc0 | the particle system's touch mode is read as a bit set: bit 0x2 → every player whose rectangle contains the particle; otherwise the first list entity that is alive (health > 0), on screen, and (bit 0x1 and class 2.0) or (bit 0x4 and class 5.0), containing it. Attacker −1 |
+| `Shoot` | as2@0x420190 | the shooter must also be alive (8.1) |
+
+### 6.3 Difficulty: same
+
+Table as2@0x49dee8 (VERIFIED-CODE, read from the executable), applied at each level start by
+`G_BeginLevel` as2@0x410cd0 (as2@0x410cf5..0x410d2f), index as2@0x49ded4 clamped to 4, default
+2; factors as2@0x49ded8 (damage), 0x49dedc (health), 0x49dee0 (score), 0x49dee4 (rank), all 1.0
+before the first level:
+
+| Index | g_health_factor | g_damage_factor | score factor | rank factor |
+|---|---|---|---|---|
+| 0 | 0.3 | 0.5 | 0.6 | 0.7 |
+| 1 | 0.5 | 0.7 | 0.8 | 0.85 |
+| 2 | 0.75 | 0.8 | 1.0 | 1.07 |
+| 3 | 1.5 | 1.25 | 1.2 | 1.2 |
+| 4 | 2.0 | 1.4 | 1.4 | 1.3 |
+
+Identical to v170@0x4577d0, value by value. What each factor scales is unchanged: health
+factor on placed objects (civilians included), damage factor in `Damage` and on enemy
+projectiles, score factor in the spawner's score rounding, rank factor in the displayed rank
+(10.4). The player's own health is never scaled (players are built directly by
+`G_InitObject`, 7.4).
+
+### 6.4 Score award: same
+
+`G_AwardScore` as2@0x414350 has the identical instruction shape of v170@0x40bb20 (ratio 1.000):
+nothing for a zero award, p_scores += award capped at 10⁹, one `score_num` per decimal digit at
+(x − (12n/2 − 6) + 12k, y, z + 8). This settles issue 031 §6 for both games (VERIFIED-CODE:
+`if award ≠ 0` at the top of both).
+
+### 6.5 Enemy health bar: same
+
+`G_DrawHealthBar` as2@0x40bd70: same code as v170@0x404e30 apart from offsets (ratio 0.936,
+the differences are the moved fields): maximum health > 150, class 2.0, less than 1 s since the
+last damage, not dead; `hbar_full` / `hbar_empty`.
+
+### 6.6 Invulnerability: same
+
+`FreezeHealth` as2@0x421930 and `PlayerFreezeHealth` as2@0x4218d0 have the identical shapes of
+v170@0x41c530 and v170@0x41c4e0 (freeze counter now at record +0xB8). The spawn shield
+`p_rshield.scr` freezes the player's health for 7 s (VERIFIED-DATA).
+
+---
+
 ## Changelog
 
 - 1.0 (B4): first version.
