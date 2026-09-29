@@ -9,7 +9,14 @@ if [ ! -d "$ROOT/assets_extracted" ]; then
 fi
 cmake -S "$ROOT" -B "$BUILD" -DCMAKE_BUILD_TYPE=RelWithDebInfo ${AS3D_CMAKE_ARGS:-} >/dev/null
 cmake --build "$BUILD" -j"$(nproc)"
-"$BUILD/apps/as3d_tests" "$@"
+# Address-space cap for the tests: a runaway allocation must fail as bad_alloc, not
+# take the machine (and the terminal session) down through the kernel OOM killer.
+# AS3D_TEST_MEM_KB=0 disables it (needed for sanitizer builds).
+MEM_KB="${AS3D_TEST_MEM_KB:-4000000}"
+(
+  [ "$MEM_KB" = 0 ] || ulimit -v "$MEM_KB"
+  "$BUILD/apps/as3d_tests" "$@"
+)
 for t in "$ROOT"/tools/ref/test_*.py; do
   [ -e "$t" ] || continue
   echo "ci: python $t"
