@@ -34,7 +34,7 @@ add_subdirectory(${AS3D_REPO_ROOT} ${CMAKE_BINARY_DIR}/as3d_repo)
 
 add_library(main SHARED
     ${AS3D_REPO_ROOT}/apps/android_boot/src/main.cpp
-    ${AS3D_REPO_ROOT}/apps/android_boot/src/pak_boot.cpp
+    ${AS3D_REPO_ROOT}/apps/android_boot/src/sdl_stream.cpp
 )
 
 target_include_directories(main PRIVATE
@@ -43,6 +43,8 @@ target_include_directories(main PRIVATE
 
 target_link_libraries(main PRIVATE
     as3d_core
+    as3d_vfs
+    as3d_audio
     SDL2
     SDL2main
     GLESv3

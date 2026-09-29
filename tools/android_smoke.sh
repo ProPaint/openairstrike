@@ -134,6 +134,7 @@ fi
 LOG_FILE="${OUT_DIR}/android_smoke_logcat.txt"
 SAW_BOOT_OK=0
 SAW_FRAME_300=0
+SAW_AUDIO_OK=0
 FAILED=0
 
 run_and_wait() {
@@ -146,7 +147,7 @@ run_and_wait() {
         return 1
     }
 
-    echo "== waiting up to ${LOGCAT_TIMEOUT}s for AS3D_BOOT_OK and AS3D_FRAME 300 =="
+    echo "== waiting up to ${LOGCAT_TIMEOUT}s for AS3D_BOOT_OK, AS3D_FRAME 300 and AS3D_AUDIO_OK =="
     : > "${LOG_FILE}"
     DEADLINE=$((SECONDS + LOGCAT_TIMEOUT))
 
@@ -155,15 +156,17 @@ run_and_wait() {
 
     SAW_BOOT_OK=0
     SAW_FRAME_300=0
+    SAW_AUDIO_OK=0
     FAILED=0
     while [ "${SECONDS}" -lt "${DEADLINE}" ]; do
         if grep -q "AS3D_BOOT_OK" "${LOG_FILE}"; then SAW_BOOT_OK=1; fi
         if grep -q "AS3D_FRAME 300" "${LOG_FILE}"; then SAW_FRAME_300=1; fi
-        if grep -qE "FATAL EXCEPTION|SIGSEGV|Fatal signal" "${LOG_FILE}"; then
+        if grep -q "AS3D_AUDIO_OK" "${LOG_FILE}"; then SAW_AUDIO_OK=1; fi
+        if grep -qE "FATAL EXCEPTION|SIGSEGV|Fatal signal|AS3D_AUDIO_FAIL" "${LOG_FILE}"; then
             FAILED=1
             break
         fi
-        if [ "${SAW_BOOT_OK}" = "1" ] && [ "${SAW_FRAME_300}" = "1" ]; then
+        if [ "${SAW_BOOT_OK}" = "1" ] && [ "${SAW_FRAME_300}" = "1" ] && [ "${SAW_AUDIO_OK}" = "1" ]; then
             break
         fi
         sleep 1
@@ -175,7 +178,7 @@ run_and_wait() {
     if [ "${FAILED}" = "1" ]; then
         return 2
     fi
-    if [ "${SAW_BOOT_OK}" = "1" ] && [ "${SAW_FRAME_300}" = "1" ]; then
+    if [ "${SAW_BOOT_OK}" = "1" ] && [ "${SAW_FRAME_300}" = "1" ] && [ "${SAW_AUDIO_OK}" = "1" ]; then
         return 0
     fi
     return 1
@@ -215,11 +218,11 @@ echo "== relevant logcat lines =="
 grep -E "AS3D_|GL_VENDOR|GL_RENDERER|GL_VERSION|FATAL EXCEPTION|SIGSEGV|Fatal signal" "${LOG_FILE}" || true
 
 if [ "${RESULT}" = "2" ]; then
-    echo "android_smoke: FAILED - crash signature seen in logcat" >&2
+    echo "android_smoke: FAILED - crash signature or AS3D_AUDIO_FAIL seen in logcat" >&2
     exit 1
 fi
 if [ "${RESULT}" != "0" ]; then
-    echo "android_smoke: FAILED - timed out waiting for AS3D_BOOT_OK / AS3D_FRAME 300" >&2
+    echo "android_smoke: FAILED - timed out waiting for AS3D_BOOT_OK / AS3D_FRAME 300 / AS3D_AUDIO_OK" >&2
     exit 1
 fi
 

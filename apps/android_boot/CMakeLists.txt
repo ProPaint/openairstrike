@@ -40,10 +40,12 @@ pkg_check_modules(GLESV2 REQUIRED IMPORTED_TARGET glesv2)
 
 add_executable(android_boot
     src/main.cpp
-    src/pak_boot.cpp
+    src/sdl_stream.cpp
 )
 target_link_libraries(android_boot PRIVATE
     as3d_core
+    as3d_vfs
+    as3d_audio
     PkgConfig::SDL2
     PkgConfig::EGL
     PkgConfig::GLESV2
