@@ -107,14 +107,25 @@ ShadowBounds computeShadowBounds(const ModelData& model, ShadowKind kind, const 
 }
 
 void shadowTextureSize(const ShadowBounds& bounds, ShadowQuality quality, int& width, int& height) {
+    shadowTextureSize(bounds, quality, width, height, renderRules(GameId::AirStrike3D));
+}
+
+void shadowTextureSize(const ShadowBounds& bounds, ShadowQuality quality, int& width, int& height,
+                       const RenderRules& rules) {
     float w = static_cast<float>(bounds.xmax - bounds.xmin);
     float h = static_cast<float>(bounds.ymax - bounds.ymin);
+    const int capY = rules.shadowHeightExpCap;
+    const float limitY = static_cast<float>(1 << capY);
     float ex = w < 256.0f ? std::log2(std::max(w, 1.0f)) : 8.0f;
-    float ey = h < 128.0f ? std::log2(std::max(h, 1.0f)) : 7.0f;
+    float ey = h < limitY ? std::log2(std::max(h, 1.0f)) : static_cast<float>(capY);
     int W = 1 << static_cast<int>(ex + 0.5f);
     int H = 1 << static_cast<int>(ey + 0.5f);
     if (quality == ShadowQuality::Low) { W /= 2; H /= 2; }
     else if (quality == ShadowQuality::High) { W *= 2; H *= 2; }
+    if (rules.shadowMaxSide > 0) { // as2 delta 5.2 step 1: halved until 2·side <= 2·max
+        while (W > rules.shadowMaxSide) W /= 2;
+        while (H > rules.shadowMaxSide) H /= 2;
+    }
     width = std::max(W, 1);
     height = std::max(H, 1);
 }
@@ -132,6 +143,7 @@ GroundRect shadowRect(const ShadowMap& map, const Vec3& origin, float yawDegrees
 struct ShadowRenderer::Impl {
     DecalDrawer drawer;
     ShaderProgram silProgram;
+    RenderRules rules = renderRules(GameId::AirStrike3D);
 #ifdef __EMSCRIPTEN__
     ShaderProgram downProgram;
 #endif
@@ -139,6 +151,8 @@ struct ShadowRenderer::Impl {
 
 ShadowRenderer::ShadowRenderer() : impl_(new Impl) {}
 ShadowRenderer::~ShadowRenderer() = default;
+
+void ShadowRenderer::setRules(const RenderRules& rules) { impl_->rules = rules; }
 
 bool ShadowRenderer::init(std::string* error) {
     if (!impl_->drawer.init(error)) return false;
@@ -156,7 +170,8 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
     Vec3 L = effectiveLight(kind, towardsSun);
     ShadowBounds bounds = computeShadowBounds(model, kind, towardsSun, rotationSteps);
     int W, H;
-    shadowTextureSize(bounds, quality, W, H);
+    const RenderRules& rules = impl_->rules;
+    shadowTextureSize(bounds, quality, W, H, rules);
     const int rw = 2 * W, rh = 2 * H; // supersampled render size
     const float sx = static_cast<float>(rw) / static_cast<float>(bounds.xmax - bounds.xmin);
     const float sy = static_cast<float>(rh) / static_cast<float>(bounds.ymax - bounds.ymin);
@@ -233,7 +248,7 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
     // Step 4 (projected shadows only): a white quad at z = 0 erases what is at or below the
     // ground, so foundations sunk into the terrain cast no shadow.
     prog.setInt("uMode", 1);
-    if (kind == ShadowKind::Projected) {
+    if (kind == ShadowKind::Projected && rules.shadowEraseBelowGround) {
         glDisable(GL_BLEND);
         prog.setVec4("uColour", {1.0f, 1.0f, 1.0f, 1.0f});
         glDrawArrays(GL_TRIANGLES, static_cast<GLint>(meshVerts), 6);
@@ -256,7 +271,7 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
         blank.hasAlpha = true;
         blank.rgba.assign(static_cast<size_t>(W) * static_cast<size_t>(H) * 4, 0);
         TextureOptions opts;
-        opts.mipmaps = true;
+        opts.mipmaps = rules.shadowMipmaps;
         opts.wrapS = Wrap::ClampToEdge;
         opts.wrapT = Wrap::ClampToEdge;
         out.texture.create(blank, opts);
@@ -279,7 +294,7 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
             glDrawArrays(GL_TRIANGLES, 0, 3);
             setDepth(true, true);
             glBindTexture(GL_TEXTURE_2D, out.texture.id());
-            glGenerateMipmap(GL_TEXTURE_2D);
+            if (rules.shadowMipmaps) glGenerateMipmap(GL_TEXTURE_2D);
         }
         glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(prevFbo));
         glDeleteFramebuffers(1, &fbo);
@@ -317,7 +332,7 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
         }
     }
     TextureOptions opts;
-    opts.mipmaps = true;
+    opts.mipmaps = rules.shadowMipmaps;
     opts.wrapS = Wrap::ClampToEdge;
     opts.wrapT = Wrap::ClampToEdge;
     out.texture.create(img, opts);
@@ -331,6 +346,12 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
 
 void ShadowRenderer::draw(const Terrain& terrain, const ShadowInstance* instances, size_t count,
                           const DecalViewParams& params) {
+    draw(TerrainGridView::of(terrain), instances, count, params);
+}
+
+void ShadowRenderer::draw(const TerrainGridView& terrain, const ShadowInstance* instances, size_t count,
+                          const DecalViewParams& params) {
+    const bool multiply = impl_->rules.shadowMultiply;
     std::vector<DecalVertex> verts;
     std::vector<DecalBatch> batches;
     for (size_t i = 0; i < count; i++) {
@@ -342,11 +363,11 @@ void ShadowRenderer::draw(const Terrain& terrain, const ShadowInstance* instance
         b.count = verts.size() - b.first;
         if (b.count == 0) continue;
         b.texture = &inst.map->texture;
-        b.blend = DecalBlend::Alpha;
+        b.blend = multiply ? DecalBlend::Filter : DecalBlend::Alpha;
         batches.push_back(b);
     }
     lastTriangles_ = verts.size() / 3;
-    impl_->drawer.draw(params, verts, batches, true);
+    impl_->drawer.draw(params, verts, batches, multiply ? DecalLook::ShadowMultiply : DecalLook::ShadowAlpha);
 }
 
 } // namespace as3d
