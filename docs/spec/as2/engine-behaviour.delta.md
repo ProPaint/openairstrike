@@ -956,6 +956,198 @@ rcsl-builtins-semantics.md: class 2.0 only, so civilians are never locked. `IsVa
 
 ---
 
+## 9. Scrolling and camera
+
+### 9.1 The camera structure: same
+
+Camera record as2@0x20df0a8 (`camera` global as2@0x49d900), same field layout (rcsl-vm.delta.md
+"Camera structure"): fields 21 and 22 are the activation edges g_map_pos − 64 and
+g_map_pos + 1000 (as2@0x414f7e, 0x414f8a in `V_UpdateCamera`).
+
+### 9.2 Scrolling: same
+
+`V_ResetCamera` as2@0x415290 (v170@0x40c660; the manual match is confirmed): g_map_pos = 32,
+scroll factor 1, scroll speed 42, camera x 640, edges g_map_pos − 64 and g_map_pos + 800,
+camera mode clamped to 0..3; the only addition is the debug option `-campos N` (g_map_pos =
+N × 40). `V_UpdateCamera` as2@0x414e90 has the identical instruction shape of v170@0x40c260
+(ratio 1.000, only structure offsets differ): g_map_pos += frametime × 42 × factor, 42.0 at
+as2@0x48f430. Native code never changes the factor; scripts do (bosses, `eol.scr`,
+`p_speeddown.scr`, VERIFIED-DATA).
+
+### 9.3 Camera modes and placement: same
+
+Mode table as2@0x49db28, read from the executable, identical to v170@0x457398:
+
+| Mode | FOV | Pitch | Height | Y offset |
+|---|---|---|---|---|
+| 0 | 60 | −35 | 270 | 0 |
+| 1 | 60 | −45 | 270 | 0 |
+| 2 | 60 | −50 | 270 | 0 |
+| 3 | 70 | −15 | 370 | +100 |
+
+Mode index as2@0x49db68, `[System] Camera` default 1, F9 cycles (as2@0x4110f0 case 0x78). Follow
+dead zone ±48, clamp [578, 702], mean x of the players with p_lives ≥ 0: same code. The new
+builtin `GetMapPosOfs` returns the current mode's Y offset (as2@0x421b20). The `cameramode`
+script global is not the engine's mode (rcsl-vm.delta.md). Projection rule (renderer, checked
+only for the constants): near 4, far 2000 without fog, else the fog end but at least 1000
+(`R_RenderView` as2@0x430a20, constants 4.0, 2000.0, 1000.0 as in v170@0x40e0d0).
+
+### 9.4 CameraQuake: same
+
+`CL_CameraQuake` as2@0x414d80 and the builtin as2@0x420e20 have the identical instruction shapes
+of v170@0x40c150 and v170@0x41bb90 (ratio 1.000): 3 s, e^(−2t), yaw 2A·sin 24t, roll A·sin 12t,
+FOV + A·sin 18t.
+
+### 9.5 Screen and world: same
+
+2D layer 800×600, player bounded by the frustum in x and by its script in y, collision in window
+pixels (our fixed 800×600 deviation).
+
+### 9.6 Intermission (attract) levels: changed (spawning)
+
+Fixed camera from the `intermission` line with the same sway (pitch + 0.5·sin(0.5·time), roll +
+1.4·sin(0.75·time), FOV 60; same code, level record +0x1E8..+0x1FC instead of +0x1A8..+0x1BC),
+no players. New: every placed object of the attract level is spawned in the first spawner call,
+during loading (3.4). `as2` has two attract levels, `intro1` (map `intro2.hsc`) and `intro2`
+(map `intro1.hsc`), both with `intermission 150 256 200 -60 0 30` (VERIFIED-DATA).
+
+### 9.7 Activation handover: changed (first call)
+
+Same rows (≤ (g_map_pos + 1000) / 40 and ≥ (g_map_pos − 64) / 40), same activation band and
+positions. The first spawner call happens inside `G_StartLevel` with the reset edges
+(g_map_pos − 64 = −32 and g_map_pos + 800 = 832), i.e. rows 0 to 20 at load time (§2); from the
+first frame on, the edges of `V_UpdateCamera` apply.
+
+---
+
+## 10. Level flow
+
+### 10.1 Level list: same format, 18 missions
+
+`levels.txt` parser `G_ParseLevel` as2@0x40d490 (unique string "Too many levels in level-list
+file.", at most 32 records) with the same keyword set as v170@0x406340 (a diff of the keyword
+strings of both parsers finds none added or removed; the `water` line's arguments belong to the
+level package). The mission table as2@0x49df60 has **18** entries (`mission1` .. `mission18`,
+missions 1 and 2 unlocked by default, read from the executable); the shipped `levels.txt` has
+20 records, the 18 missions and `intro1`, `intro2` (VERIFIED-DATA). `enableHelic` defaults to
+−1; the data uses 1 to 5 (7.6).
+
+Mission roles (VERIFIED-DATA, names and maps in `levels.txt`; no native code treats them
+specially, VERIFIED-CODE: the only uses of the mission index are the loading comic, the
+portrait dialogues, the loadout table, the checkpoint and the unlock):
+
+| Mission | Role | Map |
+|---|---|---|
+| 1 | tutorial ("Mission 1: Tutorial", `ShowTutorialHint` in its scripts) | `level1_tutor.hsc` |
+| 6, 12, 18 | boss levels | `level_boss1/2/3.hsc` |
+| 7, 13 | bonus levels ("Gold Isle", "Treasures of Ancients") | `bonus_level.hsc`, `bonus_level2.hsc` |
+
+The loading screen shows one of three comic sets by mission index (0..6, 7..12, 13..17;
+`SCR_SelectLoadingComic` as2@0x40acc0; frontend package).
+
+### 10.2 Level start: changed
+
+`G_BeginLevel` as2@0x410cd0 (v170@0x408b30): difficulty factors (6.3), clears HUD hidden,
+pause and game over, resets the per-player state (7.4), calls `G_StartLevel`, **then** sets
+the enemy total (as2@0x5432c0) and the maximum level score (as2@0x5432c4) to 0
+(as2@0x410d96..0x410d9c), and writes `objects.txt` under `-obj`. Same order as v1.70.
+
+`G_StartLevel` as2@0x40e1e0 (v170@0x407080), in order (VERIFIED-CODE): intermission flag from
+the level record (+0x1E4), pause cleared; loading comic chosen and UI assets; HUD assets;
+particle systems; the map (`G_LoadMap` as2@0x4113c0, which counts the `item_star` drops into
+the star total as2@0x543294 as before); fog; per-placement precache; particle pool (256), entity
+pool (1024), **skid-trail pool (64)**; `V_ResetCamera`; BASS; players spawned (not on
+intermission levels); spawner cursor reset; `l_night`, `l_water`, `l_waterlevel`, level clock
+0; **one spawner call, one entity pass and one render (§2)**; music; on mission levels the
+start dialogue (`M_ShowPortraitDialog(mission, start)` as2@0x40e639), which pauses the game
+while it is shown (missions with a start dialogue: 1, 2, 3, 5, 6, 8, 11, 12, 14, 15, 17, 18;
+table as2@0x49d530).
+
+Consequence (VERIFIED-CODE, the order of these calls): the enemies and scores of the objects
+spawned by the load-time call (rows 0..20) are added to the counters and then erased by
+`G_BeginLevel`. The enemy total and the maximum level score therefore count only the objects
+spawned during play. Kills of load-time enemies still count, up to the enemy total (6.1). See
+[issue 211](issues/211-load-time-spawn-and-statistics.md) for what an implementation should
+do.
+
+### 10.3 End of level: changed
+
+**`EndLevel`** as2@0x40e730 (v170@0x407570), VERIFIED-CODE:
+
+1. Checkpoint for the next mission: checkpoint mission (as2@0x49ddf4) = current mission index +
+   1; for **both** player records: checkpoint lives (+0x158) = ftol(p_lives), checkpoint score
+   (+0x15C) = ftol(banked score + p_scores), checkpoint rank (+0x160) = rank accumulator +
+   p_stars / star total + 0.5 × p_scores / maximum level score (the banking formula of 10.4).
+2. HUD hidden.
+3. `M_ShowPortraitDialog(mission, end)`: when the mission has an end dialogue (missions 1, 2,
+   3, 4, 5, 6, 9, 10, 11, 12, 15, 16) the game pauses behind it and the mission-complete screen
+   follows it; otherwise the game pauses and `G_MissionComplete` runs at once.
+4. Pause.
+
+`EndLevel` no longer calls `G_MissionComplete` itself. `eol.scr` (VERIFIED-DATA) still disables
+the player's actions, sets `p_speedfactor` 0.5, flies the player out, ramps the scroll down,
+waits 0.5 s and calls `EndLevel`.
+
+**`G_MissionComplete`** as2@0x427f40 (v170@0x4269b0): unlocks helicopter `enableHelic` when
+0..5, unlocks mission (index + 1) mod **18**, and pushes the game-complete menu after mission 18
+(index 17), otherwise the mission-complete menu. Its buttons (`M_MissionCompleteAction`
+as2@0x427a20): **Quit** (attract level and main menu; no banking, no high-score check, as in
+v1.70), **Restart** (loadout table applied, `G_BeginLevel`), **Choose Helicopter** (opens the
+player-selection menu in "Accept" mode; frontend), **Next** (pops the menus, frees the level,
+banks the score, mission index = (index + 1) mod 18, `G_BeginLevel`). Game complete
+(`M_GameCompleteAction` as2@0x428140): bank, attract level, main menu, high-score check.
+
+**`GameOver`** (new builtin, native `G_GameOver` as2@0x410e70): 1.3 state 8.
+
+**`G_NewGame`** as2@0x410dc0 (v1.70 "new campaign" v170@0x408c40), run by the start button:
+- if the selected mission index is 0, or differs from the checkpoint mission: checkpoint
+  mission = −1 and both players' checkpoint values = lives 2, score 0, rank 0;
+- then for both players: lives at level start = checkpoint lives, banked score = checkpoint
+  score, rank accumulator = checkpoint rank;
+- `-god` → god mode;
+- loadout table for the mission (8.2), then `G_BeginLevel`.
+
+So choosing the mission that follows the last completed one ("Continue") resumes the campaign
+with its lives, score and rank; any other choice starts fresh with 3 helicopters.
+
+### 10.4 Scoring and rank: changed (display conditions)
+
+Banking (`G_BankScore` as2@0x414540): same instructions as v170@0x40bd10 (banked score =
+ftol(banked + p_scores); rank accumulator += p_stars / star total + 0.5 × p_scores / maximum
+level score; lives at level start = p_lives). Rank index (`G_RankIndex` as2@0x4145d0, identical
+shape): Cheater if a cheat was used, else thresholds 3, 7.5, 14, 22, 30 (table as2@0x49e654,
+same values), names Cheater, Rookie, Junior Pilot, Pilot, Master Pilot, Berserker, Elite (table
+as2@0x49cba4, same strings). HUD score = ftol(p_scores) + banked (as2@0x407d20).
+
+The mission-complete screen (`M_DrawMissionComplete` as2@0x427b60, v170@0x426360):
+- the three lines appear at 1.0, 1.4 and 1.8 s as before, **only in one-player mode**;
+- "Enemies destroyed" is drawn only when the enemy total ≠ 0 (v1.70 divided by it); kills are
+  capped at the total (6.1), so it never exceeds 100 %;
+- the rank line uses (p_stars / star total + 0.5 × p_scores / maximum level score + rank
+  accumulator) × rank factor, as before (a level without stars still divides by zero; guard it);
+- new line "New helicopter is available." at (400, 400) when the level's `enableHelic` is
+  0..5.
+
+No end-of-level bonus (same as v1.70).
+
+### 10.5 Save file: changed
+
+`G_SaveBin` as2@0x406c70 / `G_LoadBin` as2@0x4069e0 (same XOR and CRC scheme as v1.70).
+Payload of 0x574 bytes: a u32, 15 high scores × 40 bytes, **6** helicopters × 33 bytes,
+**18** missions × 33 bytes; then a second block of 7 dwords XORed with the same key: the
+checkpoint mission and, per player, checkpoint lives, score and rank. **When a cheat was used
+in the session the checkpoint is saved as "none"** (mission −1, zeros). Default high scores
+start with "Divo Master" (as2@0x49db78). Our engine keeps its own save format (package A3);
+this section lists what is saved. Byte layout of the second block: not checked beyond its
+content (save package).
+
+### 10.6 Unlocking: changed
+
+Completing mission i unlocks mission (i + 1) mod 18 and the helicopter entry named by
+`enableHelic` (0..5, table order of 7.6). Nothing else.
+
+---
+
 ## Changelog
 
 - 1.0 (B4): first version.
