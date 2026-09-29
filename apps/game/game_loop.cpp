@@ -114,7 +114,7 @@ public:
     explicit GameWindow(const LoopOptions& o) : o_(o), source_(o.bot, o.script), status_(o.quiet), touchMode_(o.touch) {}
     int run();
     // run() is start(), frame() while running(), finish(); the web build calls frame() once
-    // per animation frame instead of blocking (docs/web-spike.md).
+    // per animation frame instead of blocking (docs/web.md).
     int start();   // 0 once the game is up, else the exit code
     void frame();
     bool running() const { return running_; }

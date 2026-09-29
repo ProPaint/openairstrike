@@ -1,0 +1,367 @@
+# Web version
+
+The whole game in a browser: the engine compiled to WebAssembly with Emscripten, drawing
+through WebGL 2, with the same front end, missions, settings and touch controls as the
+Android app. Design choices: `docs/spec/issues/150-web-version.md`. The feasibility spike
+that came first is summarised under "Spike measurements" below.
+
+> **Warning.** The **bundled** build contains the original, copyrighted game data (the three
+> pak archives, `Settings.xml`, the menu logo and the texts from the executable). It is for
+> your own use on your own network and must **never be hosted publicly** or uploaded
+> anywhere. The **bring-your-own** (byo) build contains no game data at all (the build script
+> checks this); each player supplies the files of their own copy.
+
+## Build
+
+Emscripten lives outside the repository, in `~/tools/emsdk` (or `$EMSDK`):
+
+```bash
+git clone https://github.com/emscripten-core/emsdk.git ~/tools/emsdk
+~/tools/emsdk/emsdk install 6.0.10 && ~/tools/emsdk/emsdk activate 6.0.10
+```
+
+Then, from a checkout (`AS3D_DATA_ROOT` points at the checkout that has
+`third_party_local/`, the game data and `assets_extracted/texts_v170.txt`):
+
+```bash
+AS3D_DATA_ROOT=/path/to/main/checkout tools/web_build.sh          # bundled -> out/web/site/
+AS3D_DATA_ROOT=/path/to/main/checkout tools/web_build.sh byo      # byo     -> out/web/site-byo/
+```
+
+Both share the CMake build in `build-web/` (about 3 minutes from scratch with `-j4`, seconds
+afterwards). `AS3D_WEB_SITE` sends the site elsewhere. The new site is assembled beside the
+old one and swapped in at the end, so a running server keeps serving a whole site; reload the
+page to get the new build (every file carries the build stamp, so the browser never mixes two
+builds).
+
+The web build is not part of the desktop build, Android or `tools/ci.sh`.
+
+## Serve
+
+```bash
+tools/web_serve.sh                  # http://127.0.0.1:8080/  (this machine only)
+tools/web_serve.sh 8088 0.0.0.0     # your home network, e.g. to play from your phone
+AS3D_WEB_SITE=$PWD/out/web/site-byo tools/web_serve.sh 8081
+```
+
+It is Python's `http.server`: fine at home. Never serve the bundled site on a network you do
+not control.
+
+Hosting the byo site publicly works on any static web host. Use HTTPS: installing the page as
+an app, persistent storage, WebCrypto and the landscape lock of installed apps all need a
+secure context (plain http on a home network works for everything else, see "Known limits").
+
+## Playing
+
+Open the page and press **Play**. On a phone or tablet Play also switches to full screen and
+locks landscape; on a computer "Play" keeps the window and "Play full screen" does not. Sound
+starts with that press.
+
+**Keys** (a new profile on the web; change them in Options, Controls):
+
+| | |
+|---|---|
+| Arrows | fly |
+| Space | fire |
+| X | missile |
+| C | use item (power-up) |
+| 1 / 2 | switch missiles / switch weapon and item |
+| P, Esc | pause, in-game menu |
+| Return | close a hint |
+| F | full screen on and off (F11 is the browser's own full screen) |
+
+The original fires with Ctrl, but Ctrl+W closes the browser tab, so the web profile uses
+Space, X and C. A profile carried over keeps its keys. The keys reach the game while the game
+has the focus (click it once if you clicked elsewhere); F5, F11, F12 and every Ctrl, Alt or
+Cmd combination stay with the browser. The mouse works in the menus as on the desktop.
+
+**Touch**: phones and tablets start in touch mode with the Android app's controls (drag
+anywhere to fly, the round buttons for missile, power-up and switching, the pause button for
+the in-game menu). A computer with a touch screen switches to touch mode at the first touch;
+keyboard and mouse keep working. Beside the pause button there is a full-screen button.
+Leaving full screen (the back gesture, Esc) pauses the game; held upright, a phone shows
+"turn your device sideways" and the game pauses. The system back gesture outside full screen
+acts as the game's Back key.
+
+**URL parameters** (tests, tuning): `?level=N` straight into mission N without menus,
+`?bot=1` the bot plays (`&menus=1` keeps the menus), `?touch=1` / `?touch=0` force touch mode
+on or off, `?fps=1` the frame counter, `?god=1`, `?noaudio=1`, `?difficulty=0..4`,
+`?frames=N`, `?maxlines=N` the cap of the drawing buffer's shorter side (default 1080),
+`?dpr=X` a pixel ratio of your choice, `?autostart=1` no Play button.
+
+## Full screen on a phone: add it to the home screen
+
+* **Android (Chrome, Edge, Samsung Internet)**: Play already gives full screen. To get an
+  icon that opens straight into full screen: menu, **Add to Home screen** (or **Install
+  app**). With HTTPS the page installs as an app (`display: fullscreen`, landscape). On plain
+  http (the home server) Chrome only makes a shortcut that opens a normal tab; Play still gives
+  full screen there. (For a home server you can also list its address under
+  `chrome://flags/#unsafely-treat-insecure-origin-as-secure` on the phone.)
+* **iPhone (Safari)**: iPhones have no full-screen API for pages, so Play cannot do it and
+  there is no landscape lock. Share, **Add to Home Screen**: the icon opens the game without
+  Safari's bars. Turn the phone sideways yourself. (An iPad does have full screen.)
+
+## Game files (byo build)
+
+On the first visit the page asks for the files of your own AirStrike 3D v1.70: choose the
+files, choose the game folder (computers), or drop the folder or the files on the page.
+
+| File | Needed | Gives |
+|---|---|---|
+| `data/pak0.apk`, `data/pak1.apk`, `data/pak2.apk` | yes | the game |
+| `data/Settings.xml` | no | the intro pages, the version line, the logo placement |
+| `data/gfx/logo2s.tga` | no | the main menu's logo |
+| `AirStrike3D.exe` or `texts_v170.txt` | no | the Information pages, the Game Complete text, the rank names |
+
+Each file is checked by name, size and SHA-256 against `apps/web/site/known_files.json`
+(sizes and hashes only); files of another version are refused with a message. From the
+executable the page reads only the texts (the same as `tools/extract_exe_texts.py`, whose
+output file is accepted too) and keeps only those. Nothing is uploaded: the files go into the
+browser's storage and are used again on the next visit. "Remove them" on the start page deletes
+them.
+
+## What the browser stores
+
+| What | Where | Size |
+|---|---|---|
+| The profile: settings, key bindings, unlocked missions and helicopters, high scores | IndexedDB, database `/persist` (Emscripten's IDBFS), written after every save | 1 KB |
+| The game files (byo build only) | IndexedDB, database `as3d-game-files` | 25 MB (paks, optional files, the texts; not the executable) |
+
+The profile is saved at the same moments as on the other platforms (leaving Options, after a
+name entry, at the end of a mission, when the game goes to the background), and also when the
+tab is hidden. The page asks the browser to keep this storage (`navigator.storage.persist()`);
+if the browser says no, the data is still kept but may be evicted under storage pressure.
+Clearing the site's data in the browser removes both.
+
+## Tests
+
+`apps/web/test/` (Playwright; set up once in a virtual environment outside the repository:
+`pip install playwright && python -m playwright install chromium firefox`):
+
+* `walk.py`: scripted walks (desktop by mouse and keys; a 20:9 Android phone and an iPhone
+  profile by synthesized touch, multi-touch; Mission Complete with the bot; Game Over and name
+  entry; the byo files through the file input). It taps the real menu items from the
+  engine's `AS3D_MENU` lines.
+* `measure.py`: the spike's measurement run (frame times, memory, audio level, screenshots).
+* `files_check.js` (node): the page's SHA-256 and the texts read from the executable against
+  the Python tool and the owner's files.
+
+```bash
+AS3D_WEB_SITE=$PWD/out/web/site tools/web_serve.sh 8766 &
+AS3D_WEB_SITE=$PWD/out/web/site-byo tools/web_serve.sh 8767 &
+python apps/web/test/walk.py --url http://127.0.0.1:8766/ --byo-url http://127.0.0.1:8767/ --shots out/web/shots
+```
+
+## Measurements (WP-52)
+
+Headless Chromium 153 (Playwright), page served from localhost, development machine (Intel
+i7 Kaby Lake, 15 GB). **GPU** = ANGLE on the Intel HD 630 through EGL
+(`--use-angle=gl-egl`): real hardware rendering, roughly a 2017 laptop iGPU. Nothing here was
+measured on a phone. Logs in `out/web/measure/` and `out/web/shots/` of the main checkout
+(gitignored).
+
+**Download** (the byo site, what a public host would serve):
+
+| File | Raw | gzip -9 |
+|---|---|---|
+| `as3d_web.wasm` | 2 606 224 | 953 456 |
+| `as3d_web.js` | 257 563 | 51 910 |
+| `app.js`, `files.js`, `index.html`, `style.css`, `build.js`, `known_files.json`, manifest | 51 467 | 17 652 |
+| icons (PNG and SVG) | 161 202 | 160 024 |
+| **total** | **3 076 456** | **1 183 042** |
+
+The bundled site adds `data/` (the three paks, `Settings.xml`, the logo, the texts): 25.0 MB,
+fetched once per visit (the browser's cache usually keeps it).
+
+**Startup** (GPU, from navigation start, localhost):
+
+| | ms |
+|---|---|
+| engine compiled and runtime ready, game files in memory | 444 to 463 |
+| first frame after Play (`?autostart=1`), menus: intro page on screen | 665 |
+| first frame, `?level=1` (mission 1 loaded inside `main`) | 1057 |
+| attract level load behind the loading screen (`AS3D_LOAD_MS`) | 111 to 250 |
+| mission load, before / after the shadow fix below (`load_ms` of `?level=N`) | mission 1: 589 / 312, mission 12: 420 / 286 |
+
+**Frame times**, mission 1, the bot playing, 60 s, GPU (`measure.py`, quiet machine):
+60.0 animation frames per second, interval mean 16.67 ms, p95 17.0 ms, p99 17.2 ms, max
+23.6 ms; time inside the frame callback mean 2.97 ms, p95 4.8 ms, max 17.4 ms. `AS3D_PERF`:
+60 fps, 3.1 to 3.8 ms of work, 0 dropped steps. The same over the walks' menus and missions:
+56 to 60 fps.
+
+**Memory**: WebAssembly heap 64 MB (its initial size, never grew), JavaScript heap 54 MB
+(the bundled files are copied into Emscripten's memory file system: 25 MB of that and more
+outside the count), all browser processes together 725 MB resident, the largest 214 MB.
+
+**Audio**: the tap on the output was non-silent in 58 of 58 samples over 60 s (RMS up to
+0.15).
+
+**Level loads and the shadow read-back.** The silhouette shadows are baked at level load, one
+`glReadPixels` each: about 1.2 ms per silhouette on the GPU path, 110 to 112 per mission (15
+for the attract level), so 112 to 140 ms per mission. Over the 100 ms budget, so on the web
+the 2x2 filter of that step runs on the GPU into the final texture and nothing is read back
+(`engine/src/render/shadow_renderer.cpp`, under `__EMSCRIPTEN__`; desktop and Android keep
+the read-back and the CPU copy the tests use). Frames with the new path differ from the old
+by at most 2 of 255 per channel (mean 0.002, missions 1 and 12, frame 240), and mission loads
+went from 420 to 589 ms to 286 to 312 ms. The loading screen now shows during every load
+(the load runs one frame after the screen is presented).
+
+## Known limits per browser
+
+Tested here: Chromium 153 headless (desktop profile, a 20:9 Android phone profile with touch
+and dpr 2.625, an iPhone 13 profile; the iPhone profile is Chromium with an iPhone's
+viewport, touch and user agent, not Safari). **Firefox could not be tested**: Playwright's
+Firefox 155 installs, but headless Firefox on this machine has neither WebGL 2 nor WebGL 1
+(no display, no Xvfb). **Safari and real phones were not tested.** What follows for them is
+from documentation.
+
+| Browser | Status and limits |
+|---|---|
+| Chrome / Edge on Android | Play gives full screen and the landscape lock. Leaving full screen (back gesture) pauses; the next back acts as the game's Back. "Install app" needs HTTPS; on plain http only a shortcut that opens a tab. Storage persistence (`persist()`) and WebCrypto need HTTPS; without them storage can be evicted under pressure and the page hashes files itself (slower, about 1 s for 25 MB on a phone, estimated). |
+| Chrome / Edge on the desktop | Tested headless. F toggles full screen; F11 is the browser's (the page fills it too). Ctrl+W, Ctrl+T, Ctrl+N and Ctrl+Tab always belong to the browser, hence the web keys. Esc in full screen first leaves full screen (and pauses). |
+| Firefox | Not tested (see above). Nothing used is Chromium-only: WebGL 2, Fullscreen API, IndexedDB, `webkitdirectory` and folder drops exist in Firefox. No landscape lock on Firefox for Android in most versions; the rotate notice covers that. |
+| Safari on iPhone | No full-screen API and no orientation lock: add the page to the home screen for a full-screen app, turn the phone yourself (the rotate notice shows in portrait). WebGL 2 needs iOS 15; the wasm uses native exceptions (libopenmpt), which need Safari 15.2. Web Audio follows the silent switch. Safari may delete a site's storage after 7 days without a visit unless it is on the home screen: the profile and the byo files could vanish. Safe-area insets (the notch) come from `env(safe-area-inset-*)`, untested. |
+| Safari on iPad and macOS | Element full screen exists (Play and the toggle work, from iPadOS 12 / Safari 16.4 unprefixed); no orientation lock. Otherwise as above. |
+| All | One player only (no two-player mode on the web). A computer with a touch screen switches to touch mode at the first touch; the Options rows only touch mode has (Controls hand, touch speed) are then missing; open the page with `?touch=1` to have them. Hidden tabs pause the game and silence it; the game comes back in the in-game menu. A lost WebGL context pauses and rebuilds everything when the browser restores it (tested with `WEBGL_lose_context`). |
+
+## Spike measurements (2026-09-29, before WP-52)
+
+The feasibility spike (`apps/web_spike`, now `apps/web`) ran the level viewer (Stage A) and
+the game straight into a mission (Stage B), without menus. Its verdict was "feasible, with
+high confidence": no renderer, shader or engine module change, one refactor of the game loop
+into `start()` / `frame()` / `finish()`. Its measurements, kept for comparison:
+
+These numbers come from a headless browser on the development machine, with the page served
+from localhost. **SwiftShader** means Chromium's CPU renderer. Its numbers say little about any
+real device, and they are listed only as a floor. **GPU** means ANGLE on the machine's Intel HD
+630 through EGL (`--use-angle=gl-egl`), which is real hardware rendering: roughly a 2017 laptop
+iGPU. Headless Vulkan gave no WebGL 2, and the GTX 1060 was not reachable from the browser.
+Runs marked "loaded" overlapped with other jobs on this shared machine (load average about 5).
+Logs and screenshots are in `out/web/` of the main checkout (gitignored).
+
+#### WebGL 2
+
+WebGL 2 initialised in every run. Renderer strings (unmasked):
+
+- GPU: `ANGLE (Intel, Mesa Intel(R) HD Graphics 630 (KBL GT2), OpenGL ES 3.2)`
+- SwiftShader: `ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)`
+
+Across all runs, including missions 4, 8, 12, 16 and 20 (rain, particles, lights), there were
+no shader compile or link failures, no GL errors and no JavaScript errors. The console showed
+only these warnings:
+
+- `ScriptProcessorNode is deprecated`: from SDL2's Emscripten audio backend.
+- `GPU stall due to ReadPixels`: a performance note. It comes from the shadow silhouettes
+  being baked with a readback at level load, and from Stage A's per-frame readback.
+- Two data warnings that native builds print as well: `scripts\items\i_help.scr not found`,
+  and the known missing `models\misc\hlanno2.tga`.
+
+#### Download size
+
+| File | Raw | gzip -9 |
+|---|---|---|
+| `as3d_web_game.wasm` | 2 583 513 | 945 193 |
+| `as3d_web_game.js` | 249 461 | 49 885 |
+| `as3d_web_level.wasm` / `.js` (Stage A only) | 630 463 / 188 896 | 215 678 / 43 520 |
+| `game_data.data` (the three paks) | 24 967 841 | 13 778 927 |
+| `game_data.js` | 5 578 | 1 954 |
+| `index.html` | 3 715 | 1 712 |
+
+The engine a real page would ship is about 2.8 MB raw, or **1.0 MB gzipped**; libopenmpt is
+most of the wasm. The data would come from the user, not over the network.
+
+#### Startup (from navigation start, localhost, fresh browser each run)
+
+| | GPU | SwiftShader |
+|---|---|---|
+| wasm compiled and runtime ready | 226 to 373 ms | 202 to 350 ms |
+| 25 MB of paks fetched (localhost) | about 0.27 s | same |
+| game session, renderer and mission 1 loaded (`load_ms`) | 633 to 1977 ms (upper end loaded) | 707 ms |
+| end of the first drawn game frame | 0.93 to 2.56 s | 0.91 to 0.97 s |
+| Stage A first frame | 1.09 s | 1.49 s |
+
+On a real connection the paks dominate. Here they would be the user's own files, read
+locally.
+
+#### Frame times, mission 1, bot playing, 60 s
+
+"rAF" is the interval between `requestAnimationFrame` callbacks and the time spent inside
+them. `AS3D_PERF` is the game's own 5-second statistic: displayed fps, CPU work per frame, and
+simulation steps dropped by the bounded catch-up.
+
+| Run | rAF/s | interval mean / p95 / max (ms) | callback mean / p95 / max (ms) | AS3D_PERF |
+|---|---|---|---|---|
+| GPU, quiet | 60.8 | 16.7 / 16.9 / 83 | 2.6 / 4.3 / 22 | 59.4 to 60 fps, work 2.9 to 3.6 ms, 0 dropped |
+| GPU, loaded | 55.7 | 18.1 / 27.6 / 135 | 5.8 / 19.6 / 71 | 45 to 52 fps, work 7 to 8 ms, 0 to 1 dropped |
+| SwiftShader, quiet | 27.2 | 37.4 / 100 / 1371 | 3.6 / 9.8 / 1345 | 20 to 23 fps, work 3 to 4 ms, about 10 % of steps dropped |
+| SwiftShader, loaded | 20.5 | 49.1 / 146 / 1371 | 5.5 / 12.9 / 1345 | 15 to 19 fps, 15 to 20 % dropped |
+
+Other runs:
+
+- Keyboard play and touch play on the GPU ran at 60 fps with 1.1 to 2.9 ms of work.
+- A short run of each of missions 4, 8, 12, 16 and 20 on the GPU gave 60 fps and 0.8 to
+  3.6 ms of work, except mission 16 during a load spike (40 fps).
+
+For comparison, docs/android.md measures 1.3 to 2.9 ms of work per frame for the native
+desktop build on the GTX 1060, so the wasm CPU cost is in the same range. Under SwiftShader
+the wasm side stays at 3 to 4 ms and the rest is software rasterisation in the GPU process.
+The 1.2 to 1.3 s hitches under SwiftShader happen when a new model type is drawn for the first
+time and its textures load, the same thing the Android notes describe.
+
+Stage A costs 330 ms (GPU) to 760 ms (SwiftShader) per frame. This is by design and says
+nothing about the game: `renderLevel` reloads the level, rebuilds the terrain and reads the
+image back on every call.
+
+#### Memory
+
+- WebAssembly heap: 64 MB, the initial size. It never grew in any run, including 60 s of
+  play with the paks loaded.
+- JavaScript heap: 28 to 54 MB. The preloaded paks sit in an ArrayBuffer outside that count.
+- Resident memory of all headless-browser processes together: 580 to 720 MB. The largest
+  single process (the renderer or the GPU process) used 175 to 236 MB.
+
+These numbers are rough (`ps` on the browser's processes). On a phone the relevant figure is
+the wasm heap plus the data plus GL textures, about 150 MB, well within limits.
+
+#### Audio
+
+The game creates SDL2's Web Audio output, and libopenmpt, compiled to wasm with native
+WebAssembly exceptions, loads the mission's MO3 music without a warning. Tapping the output
+with an `AnalyserNode` gave a non-silent signal in every sample: RMS up to 0.16, 59 of 59
+samples above silence over 60 s.
+
+The autoplay rule is handled by SDL2's port. Its audio callback resumes the `AudioContext`
+once `navigator.userActivation.hasBeenActive` is true (after the first key, click or tap). On
+browsers without `userActivation` it adds keydown, mousedown and touchstart listeners
+instead. Our code needed nothing for this. The headless shell did not enforce the autoplay
+policy even with `--autoplay-policy=user-gesture-required`: the context was already
+"running" before any input. So "silent until the first key or tap" is established from the
+port's code, not observed. Music and sound effects were not measured separately.
+
+#### Input
+
+- Keyboard (no bot): held arrows, Ctrl and Shift, and Return confirmed the tutorial hint.
+  The mission ran on, and the score rose from firing.
+- Touch (`touch=1`, touch events sent over the DevTools protocol): SDL finger events arrive
+  with the correct normalised positions (`AS3D_TOUCH down id=1 x=0.500 y=0.700 on=field`), the
+  on-screen buttons are drawn, and dragging moved the helicopter.
+- Multi-touch was not tested.
+
+#### Screenshots compared with native
+
+- **Stage A**: the browser under SwiftShader at scroll 500 (`level_hold_swiftshader_0.png`),
+  compared with `as3d_viewer level 1 --scroll 500` on the GTX 1060 (`level_native.png`). Mean
+  absolute difference 0.43 of 255 per channel, 0.08 % of pixels differ by more than 8, and
+  0.009 % by more than 32. They look identical: the same geometry, textures, fog, shadows,
+  sprites and environment maps. (`tools/imgdiff.py` reports 9.4 % because it compares alpha.
+  The native PNG keeps alpha below 255 where blending wrote it; a browser screenshot is
+  opaque.)
+- **Stage B**: frame 1800 of mission 1 with the bot. The browser (`frames=1800`, GPU,
+  `game_bot_f1800_gpu_end.png`) is compared with `as3d_game --headless --bot --frames 1800
+  --screenshot-every 1800` (`native/frame_001800.png`).
+  - The simulation state is the same: every object and bullet is in the same place, and the
+    score matches. The wasm build reproduces the fixed-step simulation.
+  - Mean difference 0.59; 1.5 % of pixels differ by more than 8, only along polygon edges
+    (`game_f1800_diff_x4.png`). The native headless path renders into a 4x MSAA target,
+    while the canvas, like the desktop window, has no MSAA.
+

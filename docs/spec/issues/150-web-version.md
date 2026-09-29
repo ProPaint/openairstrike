@@ -72,9 +72,9 @@ page; the original's menus and look stay as they are.
   (`LoopOptions::autoTouch`, `GameWindow::setTouchMode`, `GameFlow::setTouchMode`): the touch
   controls appear, the front end's touch additions (issue 090) and its missing cursor follow,
   the system pointer stays for the mouse, which then acts as a finger. Keys work throughout.
-  The Options rows that exist only in touch mode (Controls hand, touch speed) appear after a
-  reload in that case: the front end's content is fixed at start (engine/src/ui is not
-  touched by this work).
+  The Options rows that exist only in touch mode (Controls hand, touch speed) are missing in
+  that case (`?touch=1` starts in touch mode with them): the front end's content is fixed at
+  start, and engine/src/ui is not touched by this work.
 * Fingers never become synthetic mouse events (`SDL_HINT_TOUCH_MOUSE_EVENTS 0`), and SDL
   prevents the browser's default on touches, so no scrolling, zooming or emulated clicks.
   Multi-touch is SDL's: each finger is its own id.
@@ -149,8 +149,13 @@ on if it is refused or missing (it needs a secure context).
 ## 10. The shadow read-back
 
 The silhouette shadows are baked at level load with one `glReadPixels` per shadow map, a
-synchronous stall in WebGL. Measured in `docs/web.md` ("Level loads"); see there for whether
-it needed a change.
+synchronous stall in WebGL: measured at about 1.2 ms each, 110 per mission, so 112 to 140 ms
+per level on the development machine's GPU path, over the 100 ms budget. Under
+`__EMSCRIPTEN__` the last step (the 2x2 box filter to the final size, alpha = 255 - red) is a
+pass on the GPU that renders straight into the shadow texture, rows ordered as the CPU path
+uploads them, mipmaps generated afterwards; `ShadowMap::image` (the CPU copy, used only by
+tests) stays empty on the web. Frames match the read-back path within 2/255. Desktop and
+Android are unchanged.
 
 ## 11. Log markers added
 
