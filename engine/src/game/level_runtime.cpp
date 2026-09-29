@@ -6,6 +6,7 @@
 
 #include "as3d/defs.h"
 #include "as3d/game_camera.h"
+#include "as3d/player_select.h"
 #include "as3d/world.h"
 #include "world_internal.h"
 #include "world_path.h"
@@ -349,35 +350,20 @@ void World::playerFrame() {
     for (int p = 0; p < config_.players; ++p) {
         PlayerRecord& pr = players_[p];
         u32 a = static_cast<u32>(ftol(pr.action));
+        bool found = false;
         if (a & ACT_NEXT_POWERUP) {
-            for (int k = 1; k <= 16; ++k) {
-                int t = ((pr.currentPowerup < 0 ? -1 : pr.currentPowerup) + k + 16) % 16;
-                if (pr.powerups[t] > 0) {
-                    pr.currentPowerup = t;
-                    break;
-                }
-            }
+            const int t = nextOwnedIndex(pr.powerups, kPowerupKindsOwned, pr.currentPowerup, &found);
+            if (found) pr.currentPowerup = t;
             a &= ~ACT_NEXT_POWERUP;
         }
         if (a & ACT_NEXT_MISSILE) {
-            for (int k = 1; k <= 5; ++k) {
-                int t = ((pr.currentMissile < 0 ? -1 : pr.currentMissile) + k + 5) % 5;
-                if (pr.missiles[t] > 0) {
-                    pr.currentMissile = t;
-                    break;
-                }
-            }
+            const int t = nextOwnedIndex(pr.missiles, kMissileKindsOwned, pr.currentMissile, &found);
+            if (found) pr.currentMissile = t;
             a &= ~ACT_NEXT_MISSILE;
         }
         if (a & ACT_NEXT_WEAPON) {
-            int cur = ftol(pr.weapon);
-            for (int k = 1; k <= 20; ++k) {
-                int t = ((cur < 0 ? -1 : cur) + k + 20) % 20;
-                if (pr.upgrades[t] > 0) {
-                    pr.weapon = static_cast<float>(t);
-                    break;
-                }
-            }
+            const int t = nextOwnedIndex(pr.upgrades, kWeaponKindsOwned, ftol(pr.weapon), &found);
+            if (found) pr.weapon = static_cast<float>(t);
             a &= ~ACT_NEXT_WEAPON;
         }
         pr.action = static_cast<float>(a);

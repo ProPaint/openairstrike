@@ -73,6 +73,7 @@ ui::HudState hudStateOf(const GameSession& session) {
         hp.lives = pr.lives > 0.0f ? static_cast<int>(std::min(pr.lives, 99.0f)) : 0;
         hp.score = session.displayScore(p);
         hp.weapon = (pr.weapon >= 0.0f && pr.weapon < 64.0f) ? static_cast<int>(pr.weapon) : 0;
+        for (int k = 0; k < ui::kWeaponSlots; ++k) hp.upgrades[k] = std::max(pr.upgrades[k], 0);
         hp.missileSelected = pr.currentMissile;
         for (int t = 0; t < ui::kMissileTypes; ++t) hp.missiles[t] = std::max(pr.missiles[t], 0);
         hp.powerupSelected = pr.currentPowerup;
