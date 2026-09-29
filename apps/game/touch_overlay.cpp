@@ -37,8 +37,10 @@ void fillConvex(ui::Renderer2D& r, const Box& b, const float* uv, int n, Color c
         top = std::min(top, ys[i]);
         bottom = std::max(bottom, ys[i]);
     }
-    const int strips = 14;
-    float step = (bottom - top) / strips;
+    // About one strip per two framebuffer pixels, so edges look smooth at any resolution.
+    int strips = static_cast<int>((bottom - top) * r.mapping().scaleY * 0.5f);
+    strips = std::min(std::max(strips, 6), 160);
+    float step = (bottom - top) / static_cast<float>(strips);
     if (step <= 0) return;
     for (int s = 0; s < strips; ++s) {
         float yc = top + (s + 0.5f) * step;

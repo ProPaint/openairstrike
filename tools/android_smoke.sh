@@ -55,9 +55,9 @@ LOGCAT_PID=""
 
 cleanup() {
     if [ -n "${LOGCAT_PID}" ]; then kill "${LOGCAT_PID}" >/dev/null 2>&1 || true; fi
-    if [ "${STARTED_EMULATOR}" = "1" ] && [ -n "${SERIAL}" ]; then
-        echo "android_smoke: shutting down emulator ${SERIAL} (we started it)"
-        adb -s "${SERIAL}" emu kill >/dev/null 2>&1 || true
+    if [ "${STARTED_EMULATOR}" = "1" ]; then
+        echo "android_smoke: shutting down the emulator (we started it)"
+        if [ -n "${SERIAL}" ]; then adb -s "${SERIAL}" emu kill >/dev/null 2>&1 || true; fi
         for _ in $(seq 1 30); do
             kill -0 "${EMULATOR_PID}" 2>/dev/null || break
             sleep 1
@@ -124,12 +124,17 @@ else
     done
     [ "${BOOTED}" = "1" ] || fail "timed out waiting for boot"
     echo "android_smoke: booted in ${i}s"
-    sleep 8 # display metrics settle after boot_completed
+    # A cold emulator keeps working for a while after boot_completed; starting the game
+    # (software GLES) on top of that has made System UI stop responding once.
+    sleep 25
 fi
 adb -s "${SERIAL}" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
 adb -s "${SERIAL}" shell wm dismiss-keyguard >/dev/null 2>&1 || true
 # The one-time "Viewing full screen" hint would sit over the game and swallow the taps.
 adb -s "${SERIAL}" shell settings put secure immersive_mode_confirmations confirmed >/dev/null 2>&1 || true
+# An overloaded emulator can show "System UI isn't responding" over the game; such dialogs
+# would swallow the taps. (The emulator's data partition is temporary.)
+adb -s "${SERIAL}" shell settings put global hide_error_dialogs 1 >/dev/null 2>&1 || true
 
 echo "== install =="
 adb -s "${SERIAL}" uninstall "${APP_ID}" >/dev/null 2>&1 || true
@@ -174,7 +179,16 @@ shot() {
     if [ -s "${OUT_DIR}/$1.png" ]; then echo "android_smoke: screenshot ${OUT_DIR}/$1.png"; else echo "android_smoke: WARNING screenshot $1 failed"; fi
 }
 
-tap() { adb -s "${SERIAL}" shell input tap "$1" "$2"; }
+# An overloaded emulator (software GLES) sometimes shows "System UI isn't responding"; the
+# dialog would swallow the taps. Closing system dialogs dismisses it.
+dismiss_dialogs() {
+    if adb -s "${SERIAL}" shell dumpsys window 2>/dev/null | grep -q "Application Not Responding"; then
+        echo "android_smoke: dismissing an ANR dialog of the system (emulator overload)"
+        adb -s "${SERIAL}" shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true
+        sleep 2
+    fi
+}
+tap() { dismiss_dialogs; adb -s "${SERIAL}" shell input tap "$1" "$2"; }
 
 echo "== launch (bot pilot) =="
 adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" --ez bot true --ez rebuild_on_resume true || fail "am start failed"
@@ -196,10 +210,12 @@ read -r NEXTW_X NEXTW_Y <<<"$(pos next_weapon)"
 [ -n "${PAUSE_Y:-}" ] && [ -n "${MISSILE_Y:-}" ] || fail "cannot parse the button layout"
 
 wait_for "AS3D_GAME_FRAME n=600 " 240
+dismiss_dialogs
 shot 01_playing
 
 echo "== touch: drag in the play-field, missile and next-weapon buttons =="
 BEFORE="$(count "AS3D_TOUCH down")"
+dismiss_dialogs
 adb -s "${SERIAL}" shell input swipe "${FCX}" "${FCY}" "$((FCX + (FX1 - FX0) / 6))" "${FCY}" 1500
 tap "${MISSILE_X}" "${MISSILE_Y}"
 tap "${NEXTW_X}" "${NEXTW_Y}"
@@ -210,9 +226,24 @@ grep -qE "AS3D_TOUCH down .* on=next_weapon" "${LOG_FILE}" || fail "the next-wea
 shot 02_after_touch
 
 echo "== pause button, then a tap to continue =="
-BEFORE="$(count "AS3D_PAUSED")"
-tap "${PAUSE_X}" "${PAUSE_Y}"
-wait_more "AS3D_PAUSED" "${BEFORE}" 20
+# try_until PATTERN TRIES COMMAND...: runs the command until PATTERN occurs once more. The
+# game ignores a pause request while a tutorial hint box holds the pause (the bot closes
+# those one frame later), so a single tap can legitimately do nothing.
+try_until() {
+    local pattern="$1" tries="$2" before
+    shift 2
+    before="$(count "${pattern}")"
+    for _ in $(seq 1 "${tries}"); do
+        "$@"
+        for _ in $(seq 1 8); do
+            check_crash
+            if [ "$(count "${pattern}")" -gt "${before}" ]; then return 0; fi
+            sleep 1
+        done
+    done
+    fail "no new /${pattern}/ after ${tries} attempts"
+}
+try_until "AS3D_PAUSED" 3 tap "${PAUSE_X}" "${PAUSE_Y}"
 sleep 2
 shot 03_paused
 BEFORE="$(count "AS3D_RESUMED")"
@@ -220,9 +251,7 @@ tap "${FCX}" "${FCY}"
 wait_more "AS3D_RESUMED" "${BEFORE}" 20
 
 echo "== back key pauses =="
-BEFORE="$(count "AS3D_PAUSED reason=back")"
-adb -s "${SERIAL}" shell input keyevent KEYCODE_BACK
-wait_more "AS3D_PAUSED reason=back" "${BEFORE}" 20
+try_until "AS3D_PAUSED reason=back" 3 adb -s "${SERIAL}" shell input keyevent KEYCODE_BACK
 BEFORE="$(count "AS3D_RESUMED")"
 tap "${FCX}" "${FCY}"
 wait_more "AS3D_RESUMED" "${BEFORE}" 20
