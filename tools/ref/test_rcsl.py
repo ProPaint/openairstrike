@@ -150,7 +150,11 @@ def main():
     if sorted(no_code) != sorted(want["no_code"]):
         fail(f"scripts without a CODE section: {sorted(no_code)}, expected {sorted(want['no_code'])}")
 
-    if regen:
+    if not regen and not os.path.exists(GOLDEN) and not failures:
+        regen = True  # first run for this game: write the golden file
+    if regen and failures:
+        print("test_rcsl: not writing the golden file while checks fail")
+    elif regen:
         with open(GOLDEN, "w") as f:
             json.dump(summary, f, indent=1, sort_keys=True)
             f.write("\n")

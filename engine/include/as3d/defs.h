@@ -88,6 +88,26 @@ enum FlagBits : u32 {
     FL_POINT_COLLISION = 0x1000,
 };
 
+// Syntax the sequels' object definitions add (docs/spec/as2/obj.delta.md): kept as written,
+// with defaults that leave the first game's definitions and their hashes unchanged. What the
+// keywords mean is specified in engine-behaviour.delta.md (pending); the bits below are ours,
+// one per keyword value, not the executable's flag values.
+enum SequelFlagBits : u32 {
+    SEQ_FL_ONWATER_NORMAL = 0x1, // "flag FL_ONWATER_NORMAL"
+    SEQ_FL_ONWATER_FLAT = 0x2,   // "flag FL_ONWATER_FLAT"
+};
+enum SequelTouchBits : u32 {
+    SEQ_TOUCH_CIVILIAN = 0x1, // "touch TOUCH_CIVILIAN"; leaves ObjectDef::touch as it was
+};
+
+// One "skid_mark <x> <y> <width> "<texture>"" statement.
+struct SkidMarkDef {
+    float x = 0.0f;
+    float y = 0.0f;
+    float width = 0.0f;
+    std::string texture; // a .tga path
+};
+
 // One "attach" statement. See docs/spec/obj.md for the full grammar
 // (modifier* target tag) and the resolution order (particle system first,
 // then object).
@@ -150,6 +170,14 @@ struct ObjectDef {
     std::string script; // "script", a scripts\...\*.scr path; see docs/spec/rcsl-container.md
 
     std::vector<AttachDef> attachments;
+
+    // Sequel syntax (see SequelFlagBits above); all default to "absent".
+    bool civilian = false;              // the "civilian" statement
+    bool hasSpeed = false;              // "speed <factor>"
+    float speed = 0.0f;
+    u32 sequelFlags = 0;                // OR of SequelFlagBits, from "flag" statements
+    u32 sequelTouch = 0;                // OR of SequelTouchBits, from "touch" statements
+    std::vector<SkidMarkDef> skidMarks; // "skid_mark" statements in file order (at most 64 kept)
 
     // Not owned; valid as long as the owning DefDatabase is alive. Lets
     // callers reach any statement, including ones with no typed field yet.
@@ -276,6 +304,10 @@ public:
     // files found at all); parse/reference problems go to warnings() and
     // never abort the load.
     bool load(Vfs& vfs);
+
+    // A keyword of a definition block that no loader knows is logged once per keyword and kind
+    // (object, weapon, particle system, level) in warnings(), as "<file>: unknown <kind>
+    // keyword '<key>' at line N", and otherwise ignored.
 
     // Resolves every model/skin/texture/script/music/map path, and every
     // attach/missile/flash reference, appending a warning for each miss.

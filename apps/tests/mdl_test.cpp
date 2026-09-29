@@ -715,7 +715,16 @@ TEST_CASE("buildRenderMesh: more than 65535 unique vertices fails cleanly") {
 TEST_CASE("fuzz: mutated real .mdl file never crashes") {
     AS3D_REQUIRE_DATA();
     Blob seed;
-    REQUIRE(testdata::readExtracted("models\\apache\\apache.mdl", seed));
+    // The first game's helicopter where the game has it, else its first model that parses.
+    if (!testdata::readExtracted("models\\apache\\apache.mdl", seed)) {
+        JsonValue golden;
+        REQUIRE(loadGolden(testdata::goldenDir() + "/mdl_summary.json", golden));
+        for (const JsonValue& entry : golden.arrayValue) {
+            if (str(entry.get("status")) != "ok") continue;
+            REQUIRE(testdata::readExtracted(str(entry.get("path")), seed));
+            break;
+        }
+    }
     REQUIRE(!seed.empty());
 
     std::mt19937 rng(20020101);

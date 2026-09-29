@@ -85,7 +85,11 @@ def main():
         for kind in kinds:
             if (name, kind) not in allowed_used:
                 failures.append(f"{name}: allowlisted '{kind}' no longer occurs; remove it")
-    if regen:
+    if not regen and not os.path.exists(GOLDEN) and not failures:
+        regen = True  # first run for this game: write the golden file
+    if regen and failures:
+        print("test_rcsl_vm: not writing the golden file while checks fail")
+    elif regen:
         with open(GOLDEN, "w") as f:
             json.dump(hashes, f, indent=1, sort_keys=True)
             f.write("\n")

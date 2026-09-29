@@ -1,0 +1,151 @@
+{
+ "_comment": [
+  "Expected counts and known exceptions of one game, read by apps/tests (apps/tests/expected.h) and tools/ref/test_*.py.",
+  "Documented in testdata/golden/README.md. Only counts, names and numbers, never game content beyond names."
+ ],
+ "game": "gulf",
+ "playable": false,
+ "paks": {
+  "files": 1920
+ },
+ "textures": {
+  "files": 541
+ },
+ "models": {
+  "files": 601,
+  "ok": 597,
+  "empty": [
+   "models/items/ammo/asec.mdl",
+   "models/items/ammo/bonus.mdl",
+   "models/mapobjects/houses/angar_rightdoor.mdl",
+   "models/mapobjects/ruins/stone_comb1.mdl"
+  ],
+  "broken": {}
+ },
+ "maps": {
+  "files": 25,
+  "names": [
+   "intro.hsc",
+   "level01.hsc",
+   "level02.hsc",
+   "level03.hsc",
+   "level04.hsc",
+   "level05.hsc",
+   "level06.hsc",
+   "level07.hsc",
+   "level08.hsc",
+   "level09.hsc",
+   "level10_boss.hsc",
+   "level11_bonus.hsc",
+   "level12.hsc",
+   "level13.hsc",
+   "level14.hsc",
+   "level15.hsc",
+   "level16.hsc",
+   "level17.hsc",
+   "level18_bonus.hsc",
+   "level19.hsc",
+   "level20.hsc",
+   "level21.hsc",
+   "level22.hsc",
+   "level23.hsc",
+   "level24_boss.hsc"
+  ],
+  "tile_sets": 9,
+  "pad_tile_set": 6,
+  "pad_tile_index": 5,
+  "markers_on_pads": 22,
+  "unresolved_names": [
+   [
+    "level02.hsc",
+    "stone1_gray"
+   ],
+   [
+    "level02.hsc",
+    "tank_medium2_dead"
+   ],
+   [
+    "level08.hsc",
+    "plane_fighter_green"
+   ],
+   [
+    "level14.hsc",
+    "vagonetka01"
+   ],
+   [
+    "level17.hsc",
+    "barrel"
+   ],
+   [
+    "level21.hsc",
+    "hungar01_ruin"
+   ],
+   [
+    "level21.hsc",
+    "plane_fighter_green"
+   ]
+  ],
+  "odd_tiles": [],
+  "reference_exceptions": {
+   "intro.hsc": 2
+  }
+ },
+ "text_blocks": {
+  "files": 43,
+  "object_blocks": 956,
+  "distinct_object_names": 953
+ },
+ "definitions": {
+  "objects": 956,
+  "distinct_object_names": 953,
+  "weapons": 88,
+  "particle_systems": 126,
+  "levels": 26,
+  "unresolved_references": [
+   "object 'expl1_hit': skin 'gfx\\expl3.tga' not found",
+   "object 'gorox_flash': skin 'models\\weapons\\gorox\\gorox_flash.tga' not found",
+   "object 'gruzovik_dead': model 'models\\gruzovik\\gruzovik_dead.mdl' not found",
+   "object 'lightinggun_small1_proj': skin 'models/weapons/wavegun/wavegun.tga' not found",
+   "object 'meteorite_hvost': model 'models/weapons/missilegun/missile_small_hvost.mdl' not found",
+   "object 'meteorite_hvost': model 'models/weapons/missilegun/missile_small_hvost.mdl' not found",
+   "object 'mgun_trasser': model 'models\\weapons\\trassers\\mgun_trasser.mdl' not found",
+   "object 'mgun_trasser': skin 'models\\weapons\\trassers\\trassers.tga' not found",
+   "object 'missilegun_hvost': model 'models/weapons/missilegun/missile_small_hvost.mdl' not found",
+   "object 'plasma_lazer2_proj': attach target 'PS_PLASMA_LAZER2' at line 1736 does not resolve to any object or particle system",
+   "object 'plasma_lazer3_proj': attach target 'PS_PLASMA_LAZER3' at line 1741 does not resolve to any object or particle system",
+   "object 'plasma_lazer_big2_proj': attach target 'PS_PLASMA_LAZER_BIG2' at line 1751 does not resolve to any object or particle system",
+   "object 'plasma_lazer_big3_proj': attach target 'PS_PLASMA_LAZER_BIG3' at line 1756 does not resolve to any object or particle system",
+   "object 'player1_kabina': model 'models\\helics\\player1\\player1_kabina.mdl' not found",
+   "object 'player1_kabina': skin 'models\\helics\\player1\\player1_kabina.tga' not found",
+   "object 'satellite_hit': attach target 'PS_LASER_HIT' at line 1391 does not resolve to any object or particle system",
+   "object 'sinogoga_dead': model 'models\\mapobjects\\houses\\sinogoga\\sinogoga_dead.mdl' not found",
+   "object 'tank_big_almostdead': model 'models/tanks/tank_big/tank_big.mdl' not found",
+   "object 'tank_big_almostdead': skin 'models/tanks/tank_big/tank_big.tga' not found",
+   "object 'terra_blast_spark': attach target 'PS_TERRABLAST' at line 6 does not resolve to any object or particle system",
+   "object 'wavegun_small1_proj': skin 'models/weapons/wavegun/wavegun.tga' not found",
+   "object 'wavegun_small2_proj': skin 'models/weapons/wavegun/wavegun.tga' not found"
+  ]
+ },
+ "scripts": {
+  "files": 665,
+  "no_code": [
+   "scripts\\misc\\svet_fonar_flicker.scr"
+  ],
+  "mode_pairs": 86,
+  "builtins": 101,
+  "extra_mode_pairs": [
+   [
+    24,
+    1
+   ],
+   [
+    7,
+    2
+   ],
+   [
+    7,
+    0
+   ]
+  ]
+ }
+}

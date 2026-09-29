@@ -254,7 +254,9 @@ def main():
     # Golden file: generate if missing (or on request), else diff exactly.
     summary.sort(key=lambda r: r["path"])
     regenerate = os.environ.get("AS3D_MDL_REGENERATE_GOLDEN") == "1"
-    if regenerate or not os.path.isfile(GOLDEN_PATH):
+    if (regenerate or not os.path.isfile(GOLDEN_PATH)) and errors:
+        print("test_mdl: not writing the golden file while checks fail", file=sys.stderr)
+    elif regenerate or not os.path.isfile(GOLDEN_PATH):
         os.makedirs(os.path.dirname(GOLDEN_PATH), exist_ok=True)
         with open(GOLDEN_PATH, "w") as f:
             json.dump(summary, f, indent=1, sort_keys=True)

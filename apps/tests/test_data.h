@@ -25,11 +25,14 @@ inline std::string root() {
     return env && *env ? env : AS3D_REPO_ROOT;
 }
 
-// Key of the game under test: $AS3D_GAME, else as3d.
-inline std::string gameKey() {
+// Key of the game under test: $AS3D_GAME, else as3d. Read once at start: game_data_test.cpp
+// changes the variable while it runs.
+inline const std::string kGameKey = [] {
     const char* env = std::getenv("AS3D_GAME");
-    return env && *env ? env : "as3d";
-}
+    return std::string(env && *env ? env : "as3d");
+}();
+
+inline const std::string& gameKey() { return kGameKey; }
 
 inline const as3d::GameProfile& game() {
     static const as3d::GameProfile* g = [] {

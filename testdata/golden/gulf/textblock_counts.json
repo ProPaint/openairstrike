@@ -1,0 +1,228 @@
+{
+ "files": {
+  "maps/levels.txt": {
+   "blocks": 26,
+   "statements": 270,
+   "tokens": 931
+  },
+  "objects/_new.obj": {
+   "blocks": 23,
+   "statements": 107,
+   "tokens": 270
+  },
+  "objects/bikes.obj": {
+   "blocks": 11,
+   "statements": 62,
+   "tokens": 185
+  },
+  "objects/boss#2.obj": {
+   "blocks": 12,
+   "statements": 87,
+   "tokens": 262
+  },
+  "objects/boss_1.obj": {
+   "blocks": 18,
+   "statements": 134,
+   "tokens": 369
+  },
+  "objects/btrs.obj": {
+   "blocks": 10,
+   "statements": 68,
+   "tokens": 214
+  },
+  "objects/buildings.obj": {
+   "blocks": 80,
+   "statements": 566,
+   "tokens": 1284
+  },
+  "objects/cannons.obj": {
+   "blocks": 22,
+   "statements": 114,
+   "tokens": 276
+  },
+  "objects/effects.obj": {
+   "blocks": 80,
+   "statements": 315,
+   "tokens": 835
+  },
+  "objects/effects2.obj": {
+   "blocks": 1,
+   "statements": 8,
+   "tokens": 23
+  },
+  "objects/flora.obj": {
+   "blocks": 20,
+   "statements": 123,
+   "tokens": 266
+  },
+  "objects/helics.obj": {
+   "blocks": 37,
+   "statements": 366,
+   "tokens": 931
+  },
+  "objects/items.obj": {
+   "blocks": 49,
+   "statements": 378,
+   "tokens": 931
+  },
+  "objects/jeeps.obj": {
+   "blocks": 48,
+   "statements": 309,
+   "tokens": 929
+  },
+  "objects/mapobjects.obj": {
+   "blocks": 129,
+   "statements": 754,
+   "tokens": 1791
+  },
+  "objects/misc.obj": {
+   "blocks": 25,
+   "statements": 102,
+   "tokens": 289
+  },
+  "objects/nature.obj": {
+   "blocks": 7,
+   "statements": 22,
+   "tokens": 59
+  },
+  "objects/planes.obj": {
+   "blocks": 8,
+   "statements": 116,
+   "tokens": 305
+  },
+  "objects/player.obj": {
+   "blocks": 26,
+   "statements": 244,
+   "tokens": 667
+  },
+  "objects/rlbig.obj": {
+   "blocks": 13,
+   "statements": 87,
+   "tokens": 285
+  },
+  "objects/ruins.obj": {
+   "blocks": 23,
+   "statements": 118,
+   "tokens": 262
+  },
+  "objects/ships.obj": {
+   "blocks": 19,
+   "statements": 114,
+   "tokens": 321
+  },
+  "objects/tanks.obj": {
+   "blocks": 60,
+   "statements": 425,
+   "tokens": 1298
+  },
+  "objects/teera_balst.obj": {
+   "blocks": 2,
+   "statements": 7,
+   "tokens": 19
+  },
+  "objects/transport.obj": {
+   "blocks": 9,
+   "statements": 56,
+   "tokens": 154
+  },
+  "objects/tyagach.obj": {
+   "blocks": 7,
+   "statements": 50,
+   "tokens": 157
+  },
+  "objects/weapons.obj": {
+   "blocks": 118,
+   "statements": 929,
+   "tokens": 2375
+  },
+  "objects/weapons_enemy.obj": {
+   "blocks": 77,
+   "statements": 707,
+   "tokens": 1818
+  },
+  "objects/weapons_enemy_missiles.obj": {
+   "blocks": 14,
+   "statements": 102,
+   "tokens": 254
+  },
+  "objects/zabors.obj": {
+   "blocks": 8,
+   "statements": 46,
+   "tokens": 107
+  },
+  "particles/_new.ps": {
+   "blocks": 6,
+   "statements": 81,
+   "tokens": 273
+  },
+  "particles/boss2.ps": {
+   "blocks": 2,
+   "statements": 26,
+   "tokens": 95
+  },
+  "particles/explosions.ps": {
+   "blocks": 20,
+   "statements": 278,
+   "tokens": 956
+  },
+  "particles/particles.ps": {
+   "blocks": 46,
+   "statements": 577,
+   "tokens": 1962
+  },
+  "particles/rlbig.ps": {
+   "blocks": 2,
+   "statements": 25,
+   "tokens": 89
+  },
+  "particles/water.ps": {
+   "blocks": 1,
+   "statements": 12,
+   "tokens": 42
+  },
+  "particles/weapons.ps": {
+   "blocks": 38,
+   "statements": 511,
+   "tokens": 1788
+  },
+  "particles/weapons_enemy.ps": {
+   "blocks": 5,
+   "statements": 70,
+   "tokens": 240
+  },
+  "particles/weather.ps": {
+   "blocks": 6,
+   "statements": 80,
+   "tokens": 276
+  },
+  "weapons/e_missiles.wpn": {
+   "blocks": 10,
+   "statements": 25,
+   "tokens": 60
+  },
+  "weapons/e_weapons.wpn": {
+   "blocks": 32,
+   "statements": 91,
+   "tokens": 214
+  },
+  "weapons/enemies.wpn": {
+   "blocks": 1,
+   "statements": 3,
+   "tokens": 7
+  },
+  "weapons/player.wpn": {
+   "blocks": 45,
+   "statements": 124,
+   "tokens": 293
+  }
+ },
+ "summary": {
+  "objects_distinct_names": 953,
+  "objects_duplicate_names": [
+   "meteorite_flare",
+   "meteorite_hit",
+   "meteorite_hvost"
+  ],
+  "objects_total_named_blocks": 956
+ }
+}

@@ -1,0 +1,5329 @@
+[
+ {
+  "name": "gfx\\black.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "468986a76911c05c77e05315620460c4b56079e4"
+ },
+ {
+  "name": "gfx\\chrome2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "16a13b0622dea29d0dcab3ac7a1f6e1901f029e9"
+ },
+ {
+  "name": "gfx\\chrome3.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "bf0de121f91071c51a0a733e2a444eb642fec34b"
+ },
+ {
+  "name": "gfx\\clouds\\clouds1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "f4c2dcf943246eb688b3a354a2223e3564d669e8"
+ },
+ {
+  "name": "gfx\\combust2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1fb299dceb3ad06a060365858a65e3bf5378df35"
+ },
+ {
+  "name": "gfx\\effects\\earth_piece.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "09a219a07ac9ae0430bebd12d4e50554730cfb7b"
+ },
+ {
+  "name": "gfx\\effects\\expl1light.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0d171ffdce48a0f18cc45cd18b2e3a5f5086da13"
+ },
+ {
+  "name": "gfx\\effects\\flare_blue.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "645d876f5becc07a01f486ce1c840de9a5e8e7e1"
+ },
+ {
+  "name": "gfx\\effects\\flare_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "eec105adccd406df8bde1aeb84df924380dfb1bd"
+ },
+ {
+  "name": "gfx\\effects\\flare_red.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "36f179c5c045913effcb16cd916cc25c81c49a25"
+ },
+ {
+  "name": "gfx\\effects\\flare_test.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "44ea200f2fc2043b247c074f0f689c12cdcc5930"
+ },
+ {
+  "name": "gfx\\effects\\flash_yellow.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "b08695a690a69f22bbd38fd8e6784a9e0652f983"
+ },
+ {
+  "name": "gfx\\effects\\fonarflare.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "2c4517f72d7eea7e6bc69c2896c7bd560f239ec4"
+ },
+ {
+  "name": "gfx\\effects\\fonarflare_red.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "0a7525428c5f217dcb69a8d8b1d70f16bbf89461"
+ },
+ {
+  "name": "gfx\\effects\\gibflare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "12b91bdbbc813d833485e860e5948a936d418351"
+ },
+ {
+  "name": "gfx\\effects\\gibspark.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "614adec1445a36e7ccf34b4176f708de5f00d4c6"
+ },
+ {
+  "name": "gfx\\effects\\moln.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "64a6f2a0f08f3bf5b126f796d46728192edae367"
+ },
+ {
+  "name": "gfx\\effects\\shell_mag.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "dbf6500cd0a8ba6f7e6a34787faff5fc8eed74ac"
+ },
+ {
+  "name": "gfx\\effects\\shield.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "493560dc700e10c68e3807b36cf024933c365408"
+ },
+ {
+  "name": "gfx\\effects\\whitespark.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6280b1dec18d12fec56bff16099dcc447c85873d"
+ },
+ {
+  "name": "gfx\\envmap1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "df3e9dc5126114aacd522a74294925c6a6095ab3"
+ },
+ {
+  "name": "gfx\\envmap2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "b694e0df4613725c9b618248410b1d167e225c3b"
+ },
+ {
+  "name": "gfx\\envmap3.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "23868888d892cffbc84533d126e8f1c7f5240f6f"
+ },
+ {
+  "name": "gfx\\envmap4.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e9f0c2e2ca229a031c7d368bd45b609246956fc6"
+ },
+ {
+  "name": "gfx\\expl.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "6d7d843babcabb5b68f0cddbfffe44f09ab4f626"
+ },
+ {
+  "name": "gfx\\flare_blue_small.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "cb41d27f330dbc993e0adb9d8d8f78b754e96f88"
+ },
+ {
+  "name": "gfx\\flare_orange_green_small.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "962b2ae00f766ff65507f81c0ed3296509ff1b2e"
+ },
+ {
+  "name": "gfx\\flare_white_red_small.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "eb6a6dc39f34b67c5f28bdda5b2bc13ddb665d70"
+ },
+ {
+  "name": "gfx\\hbar_0.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "3c44bc8f3879ab8f7b35174f968514f49e13c528"
+ },
+ {
+  "name": "gfx\\hbar_1.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "a324f1afe01140c4d58618875715ee545b9f1ecc"
+ },
+ {
+  "name": "gfx\\lightning1.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "7e23cde880d656b26f007e31d7f5c9d658fd3f6e"
+ },
+ {
+  "name": "gfx\\lightning2.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "fadce00db332f524f24f9f5aa3137fa9d7a6e81f"
+ },
+ {
+  "name": "gfx\\lightning_big.tga",
+  "width": 32,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "4b1ccee32df6687f5b2ab3b16aa692744ce3c809"
+ },
+ {
+  "name": "gfx\\logo.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "5eba590b5a4fcd72c9aa394f842300297f699ba4"
+ },
+ {
+  "name": "gfx\\logo\\clouds.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "f05734fff25ee3b5fa1963c91014b2b099ab6806"
+ },
+ {
+  "name": "gfx\\logo\\glow.tga",
+  "width": 512,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "09ead3a37df0db77eaf814e394a992ddddc365e4"
+ },
+ {
+  "name": "gfx\\logo\\logo.tga",
+  "width": 512,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "08ae44c5be34bf9c4121d13c22e6672d9e0b316a"
+ },
+ {
+  "name": "gfx\\logo\\two3.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "4daed98e7ec727b8937510bf6ac1dcf8a6487b09"
+ },
+ {
+  "name": "gfx\\mark.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "2208704c4f5a70e17238be1daa7da0854021f7e8"
+ },
+ {
+  "name": "gfx\\marks\\jeepmark1.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "d23457fc6074c9ad62f99e51402c0545e3cb00a6"
+ },
+ {
+  "name": "gfx\\marks\\tankmark1.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "b14dc45ef5880e44b86532e92c4cf114f5687ad0"
+ },
+ {
+  "name": "gfx\\mc_cur.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "74a1d4eb56671685a7e41e8523ffae1978b8ef76"
+ },
+ {
+  "name": "gfx\\pepel.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "c208b2c03f1fb6067b52a5ff29b836c58bf5aca5"
+ },
+ {
+  "name": "gfx\\rain.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "fdfff34297f216721542b7735ba156682fa82831"
+ },
+ {
+  "name": "gfx\\scores.tga",
+  "width": 256,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "12eee5858fa93e904476dce28414dc62dc88c754"
+ },
+ {
+  "name": "gfx\\smoke.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "5719660d49f58837480613f356fd867bae89fcc4"
+ },
+ {
+  "name": "gfx\\smoke2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "3c1f3c9297c88b8c760308cbff04538d225b4376"
+ },
+ {
+  "name": "gfx\\smoke3.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "783d4b5ad12b618337fb65f49bdfd9c694faca81"
+ },
+ {
+  "name": "gfx\\smoke_green.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "8ce913641eaa73d01a0a88f188c019088eb7c243"
+ },
+ {
+  "name": "gfx\\spice.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "c740326a337cbb3afbc58e280e49092375ac1c29"
+ },
+ {
+  "name": "gfx\\splash.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "d6fb7b9615f3d71f94695da6ae72392d43c68a08"
+ },
+ {
+  "name": "gfx\\splash_ship.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c575929ad6d2f907625f083e9e301029c47df4f7"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_1_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "7c947a9d4381a51df27a69dcdb141f3002023968"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_1_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c6150d1869a10ab12befe832d83df0438d488ca0"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_2_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ce9aacbcd9bdee96d86f5daa5a5172ed292a3c61"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_2_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "77fe014bbbd10eef2090b8fddc344a7013f82f18"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_3_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "61189a79ebb64a8069cc2c5715dcd973e5ee783a"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_3_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "90456929b70ba2a75f79712f026726ab88eb415b"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_1_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "63ddd425b902df3a394bf22040860f781aae0096"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_1_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "13cc689e5bd73a366cf681eacbd6e5de1d9c5f14"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_2_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "833f25252d829f16936cebb613c049abce3802f2"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_2_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d33e435a5379b36104426d4c89119696d8a55c48"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_3_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "5d9158ae658f2269113d47761e3da4b333542047"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_3_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ef57054aa47082f224f6755547d3aa4e58bb3a73"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamov.tga",
+  "width": 512,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0252fdcb01fbe9c234c2a4db200aaf753ce3a182"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#1_0_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "4b3a08e5127865a8648b03e57b0ebb667ec8d49a"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#1_0_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "36f129b4eda2369479e1d4a146d55bfc1b0ea4af"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#1_0_2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "6f32fe53c3775b0215fc507f9a6e36defc3ca345"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#1_0_3.tga",
+  "width": 64,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "083a033a01cf6c12118df0b38952f83196bc810a"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#1_1_0.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f84ace5b8385c47d88a11f0494b165879bf30101"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#1_1_1.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "9119b0ffa1c3ff57217dd9783998cc555373510e"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#1_1_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "02722718ffd6f183429e1ab3b1b71a760ad8a4de"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#1_1_3.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "5553ec21ad5c7a129c6cafafbe3a23c197aac3da"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#2_0_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "8022c23b082599f420f62d3bbde9aa3b92f7b67c"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#2_0_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "41fcdfe914970c9a088c17b6e0d769a86134ca15"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#2_0_2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "3f1461ab7d6924b50e61557da173e4417a861a7e"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#2_0_3.tga",
+  "width": 64,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "47bd8bda84b54a5b49354e21e395aaac09116d07"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#2_1_0.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0213b38439757ff406a3da3bc296880298ffbe24"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#2_1_1.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "ae7110ffa6b16c8bfbb6fa041ff7139d9412bae7"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#2_1_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "4bacc3451cbdcb18398c6705de9240026539269b"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#2_1_3.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "1b6941084432f50619e404f53de242f3819f0cb6"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_1_0_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "a9724282a92f0b71731b506090137831ab116c0d"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_1_0_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c3bd3bb041eae868bc130b185f11734709c178c1"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_1_0_2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "e37d68db5ecf2f94f4494c0d58ac0f331cf647dc"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_1_0_3.tga",
+  "width": 64,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "6b07f4958afbfa2c04ea205c9d1c25a42ecba3d8"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_2_0_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "ce892106660527a93d9b0e83a061b05365084ef2"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_2_0_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "ea6f3f66b14e13849362259e4bac7b0b81c9c061"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_2_1_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "19a48b6fc2e47fc8a07d1d47df0ebd29e632187e"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_2_1_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "006ee6b0a4d1c53b0f3631980ab0028128ccf25f"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_3_0_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "17171b01c132b74f76565028624752b50f79aa67"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_3_0_1.tga",
+  "width": 128,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "b6ee27445b313c476647a5336ff5bc58c7bf9728"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_4_0_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "68fbc9a5a863d41b4f35eab8c5793f633a3921ff"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_4_0_1.tga",
+  "width": 128,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "bda132b6ad7a6633cb01b949e684aad238bfe70b"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_4_1_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "9e54e3c6e7df4d63dab06cfa25bb803c5eee4484"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_4_1_1.tga",
+  "width": 128,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "10e82638f49f858d4eaa323043d8d17ccd2860ca"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_5_0_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "d31eb7c944069927a37928cf0966e5662ccdfe8c"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#3_5_0_1.tga",
+  "width": 128,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "0eec5989d3494b8f6f2889c271e30f829dc936ee"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#4_1_0_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "bfa9bf61511ca7ac7f0909adf40e213459c5838a"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#4_1_0_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "974742f732c8cb23b5ee862e661cc151dfd51f9d"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#4_1_0_2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "1da2d8cd632d15dc904018cc47bb19c9f533096a"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#4_1_0_3.tga",
+  "width": 64,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "f9f31e984052cc75115d50c2f49b3d0e419e99e5"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#4_1_1_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "f34cfa8ed5b2944d2a9322b1a0dde564ed71dabd"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#4_1_1_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "70d53b815675570c7f8eb59522d72dac53b4bacc"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#4_1_1_2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b5ab64411f2bac12ee0c436632d5c9751e27e454"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#4_1_1_3.tga",
+  "width": 64,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "12bc44738299b4b3e4b6fb26b8360ab66a41c168"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#4_2_0_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "9179d84c07a2205228db25151ae98cd6a50b18b1"
+ },
+ {
+  "name": "gfx\\ui\\comix\\intro\\frame#4_2_0_1.tga",
+  "width": 128,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "833ceb7996d1f4efd2830cc2b6451dd6c782f665"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_1_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "457cd8c452452dbcd291b1c1b6359ff7f472286f"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_1_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "43bfda6ba6ba34f4d93edaeb25ba33fabb772ebd"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_2_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b23ede20f82e17cd4e5ab823ff7279730f91a938"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_2_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "5d18431a5419d4442c7ac5ce2fc33538108924e9"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_3_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "80aa8d07ad250b6803c2439233b720767bad7f74"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_3_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "17c3ef85c3ff7850814328dac62c46506db8e14c"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading2_1_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "abc2a6168820280ef2e5c87b8585cfbfeac305c4"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading2_1_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "3548067d002b9c7db412094d57f219724dcd364e"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading2_2_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d09f7605d62d0c21e8846c87d4fd75121a3e8b79"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading2_2_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "478fc0700f8f697e6972db7b53ccc516c165af8c"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading2_3_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "2d4f3b09cde7a2ade37f33171b18e574e2656a2d"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading2_3_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "9de5075794b214832c375700338fd97a80707e6f"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading3_1_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "74bc4e74d158372d5b87a1301acb2796adf24876"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading3_1_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "db5344be431a12f90abdeb997c83245681ef338e"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading3_2_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "29f6e9504e9d9350289d83c7c8421e461eab6c47"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading3_2_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "08fe9f082b6dbb4b721f16fad546084ca7b68c11"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading3_3_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "e2bbfa7a5d53f2f2d8c5abd6c7ba769b66a59cb8"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading3_3_2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "09b8a09ed05314a4c5e79a37c940de062e747354"
+ },
+ {
+  "name": "gfx\\ui\\font.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "6497f270237bfa200eeeb2f44d400189b730a5ba"
+ },
+ {
+  "name": "gfx\\ui\\font_alpha.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "8ce08f1a2a6d35e31d4d31c56a505717df5edfd3"
+ },
+ {
+  "name": "gfx\\ui\\grid.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "79d187a785f5978fe3847c71f0250beb725dd07b"
+ },
+ {
+  "name": "gfx\\ui\\helicna.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "309113e5bd13cbf068508a473eb9eae18eae40d4"
+ },
+ {
+  "name": "gfx\\ui\\interface.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "73ae224ef465e0b337ab7494b5dc1fe9e0d26fc3"
+ },
+ {
+  "name": "gfx\\ui\\items.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "35dd17c2a5cce1afbb0bfb82cfa65c41617b4645"
+ },
+ {
+  "name": "gfx\\ui\\life.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ac15f2b0ada8f55db240f563535a296e747f936f"
+ },
+ {
+  "name": "gfx\\ui\\mainbar2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "1d9676fcc7a42b16961fa75595f52213fe83ac64"
+ },
+ {
+  "name": "gfx\\ui\\missiles.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "2854bcd62474f62e433288683e626829f1a750c7"
+ },
+ {
+  "name": "gfx\\ui\\portraits2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "cedd360a6e8388ff82b6976fb2e789745533401f"
+ },
+ {
+  "name": "gfx\\ui\\snow.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "cc172d2137e1fc813f60a77b404f6072d8477b25"
+ },
+ {
+  "name": "gfx\\ui\\weapons.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "708515af75fe2b8c311a41eb5ec347a052edffc4"
+ },
+ {
+  "name": "gfx\\water\\water_lava2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "34774c3dcba5097480fdf6990c817019a1410a6c"
+ },
+ {
+  "name": "gfx\\water\\water_ocean_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "aeb84e8497545dc89c6888aa063a24f818aa3098"
+ },
+ {
+  "name": "gfx\\water\\water_ocean_1_shine.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "0794bc3f92271b97cbf5ddd1c6e72ec6bacdb6d0"
+ },
+ {
+  "name": "gfx\\water\\water_sand_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "12dfb4d7400fb3bb5a0be84aa6a361a2db03398e"
+ },
+ {
+  "name": "gfx\\water\\water_sand_1_shine.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "2753e74841351062e4a7bba802db819108f976c1"
+ },
+ {
+  "name": "gfx\\water_spray.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "766f340e19e2dd2a2c75f80230c404a30a734451"
+ },
+ {
+  "name": "gfx\\weapons\\bublik.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "eb81078ae5a22716712d020fff257f20c6563595"
+ },
+ {
+  "name": "gfx\\weapons\\combust_flamefrower.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "974eb9462089f3e2cc2cb55a8634ea69092ad30d"
+ },
+ {
+  "name": "gfx\\weapons\\combust_flamefrower2.tga",
+  "width": 128,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "070c2f62b07785ecce72dace3648c93742d2826a"
+ },
+ {
+  "name": "gfx\\weapons\\combust_flamefrower_2.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "43a026dc56303114b34d534ab267614288e01b12"
+ },
+ {
+  "name": "gfx\\weapons\\combust_flamefrower_3.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "52c42e2d401f2c826b8adbcec2cfeb06157659b1"
+ },
+ {
+  "name": "gfx\\weapons\\expl_missile.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "10236f946df7aba45881a7fb650517fce5428573"
+ },
+ {
+  "name": "gfx\\weapons\\hits.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d551309211fc891037ff364fff27b7f219bddd15"
+ },
+ {
+  "name": "gfx\\weapons\\iskra.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "4af60746fe6d33250f397387020e10e2bd00a24a"
+ },
+ {
+  "name": "gfx\\weapons\\sharik.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "8ae7f48591d23fdd558bef8fc94c6efbe2963ef9"
+ },
+ {
+  "name": "menu\\cursor_1.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "f23c6e939cbf20cb58d95041f459b4276695f2f4"
+ },
+ {
+  "name": "menu\\cursor_2.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "a3a7f3f2dafdd165ae80a18b3e2a9ee8d6a26172"
+ },
+ {
+  "name": "models\\_new\\kamaz.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "3f9d40c4e03397cc6c5ebbe9b53b7263d5680a31"
+ },
+ {
+  "name": "models\\_new\\meteorite.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "95ddcdd36beb25e20670dfe880b85395bc161a62"
+ },
+ {
+  "name": "models\\_new\\stones.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6bcef03baf3d0416e05b8abb0da2627c26917504"
+ },
+ {
+  "name": "models\\bosses\\boss_1\\boss_1_base.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "af05304d10c15eb03e8528d89446814dfd7f8fce"
+ },
+ {
+  "name": "models\\bosses\\boss_1\\boss_1_bashnya.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "0fde2dcdf6e999141bdea7258d913b2fe301fe88"
+ },
+ {
+  "name": "models\\bosses\\boss_2\\boss_2_base.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c531881a08a484227391edcbec0ede98aea47b94"
+ },
+ {
+  "name": "models\\bosses\\boss_2\\boss_2_guns.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0fc72915a7b6ba18c3376654e5ac6362e9800165"
+ },
+ {
+  "name": "models\\bosses\\boss_2\\boss_2_kabina.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "dcf2e30151bf8ed2284253d321991586b3af6ae0"
+ },
+ {
+  "name": "models\\bosses\\boss_3_base\\base.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "9c33dc8075efe26c289b000a2974f6b0703983f8"
+ },
+ {
+  "name": "models\\bosses\\boss_3_base\\bashni.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ad263f36720537cc50babcbb703a22925da72202"
+ },
+ {
+  "name": "models\\bosses\\boss_3_helic\\boss_3_helic.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "9ff3b0b0de60e11719103d278988353c4deacd38"
+ },
+ {
+  "name": "models\\bosses\\boss_3_helic\\luk.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d6238a12f7c4da79535d5d2dcc9cd60fa5364423"
+ },
+ {
+  "name": "models\\bosses\\boss_3_train\\vagon01.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "6d78870a2c2b06f770f247bef9d79b4b4cfabb06"
+ },
+ {
+  "name": "models\\bosses\\boss_3_train\\vagon02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "eaad76bf62eb4adb848daa459f1b943ea3d69f16"
+ },
+ {
+  "name": "models\\bosses\\boss_3_train\\vagon03.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "18054f4be5c3131edcca66180b7116e74dbe7bff"
+ },
+ {
+  "name": "models\\bosses\\boss_3_train\\vagon04.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f5f9dca26d3568f503366c7b725c3fb50f099998"
+ },
+ {
+  "name": "models\\btrs\\btr_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "94407301fb657ccc1346b96a43100c80ededc55f"
+ },
+ {
+  "name": "models\\btrs\\btr_rocket\\btr_rocket_desert.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8b11ea2b0ee8957c9fa954a4140c3dc52a37d592"
+ },
+ {
+  "name": "models\\btrs\\btr_rocket\\btr_rocket_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "af2f9a3acfd8ee57acedd3bb1fbc42fd71328237"
+ },
+ {
+  "name": "models\\btrs\\btr_rocket\\btr_rocket_snow.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "fd74a1074ee9ea6cceeec70500438ff4f40e45c3"
+ },
+ {
+  "name": "models\\btrs\\btr_small_1\\btr_small_1_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "07539e44ab8826f500fba1ebb28bb589d82aca70"
+ },
+ {
+  "name": "models\\btrs\\btr_small_1\\btr_small_1_white.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "7f6ec1e5f002f824c38a4db4323b633ae3649b04"
+ },
+ {
+  "name": "models\\btrs\\btr_small_1\\btr_small_1_yellow.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "545b8bc006c6046992f1fd0f1f348bf5666d0975"
+ },
+ {
+  "name": "models\\btrs\\btr_small_brdm\\btr_small_brdm.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "fb75ba7e1321f48587cb756fbfacf7c154c59669"
+ },
+ {
+  "name": "models\\btrs\\btr_small_brdm\\btr_small_brdm_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "b1471f4edaed340abc0ed4aff028fc80b700ea60"
+ },
+ {
+  "name": "models\\btrs\\btr_small_brdm\\btr_small_brdm_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "cec7a4323e5c1f44e764d2ad4784d868a75cf596"
+ },
+ {
+  "name": "models\\btrs\\btr_small_brdm\\btr_small_brdm_white.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c7e1cef5b810c89772af5369ef51876cb3bd4e2f"
+ },
+ {
+  "name": "models\\buggy\\buggy02\\buggy02.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "100a4b50fec1a47855bb4cd757ccbb417d662088"
+ },
+ {
+  "name": "models\\cannons\\cannon10.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "bbfbd83190fa60518a0fc07cdb38f86d3ab4f21d"
+ },
+ {
+  "name": "models\\cannons\\cannon10_3.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "dd56316b569e68f2c45f422a9f2dca44665805a0"
+ },
+ {
+  "name": "models\\cannons\\cannon2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "82dfc9c10fd0f42ad4a1df5409a9666db7cf7834"
+ },
+ {
+  "name": "models\\cannons\\cannon3.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "19b73936a279b076c28e49a349581f3d7a8c510f"
+ },
+ {
+  "name": "models\\cannons\\cannon4.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f007a8bb1586522c5bf3f950f4ad77a137dd5844"
+ },
+ {
+  "name": "models\\cannons\\cannon4_big\\cannon4_big_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0e3bcc0a836e4431738f7e95acd7979dd8e9477a"
+ },
+ {
+  "name": "models\\cannons\\cannon4_big\\cannon4_big_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "f68afc14250526289968e59db974f251d53cd77f"
+ },
+ {
+  "name": "models\\cannons\\cannon5.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f007a8bb1586522c5bf3f950f4ad77a137dd5844"
+ },
+ {
+  "name": "models\\cannons\\cannon8_bmg.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8450e617104adbd38bc7d270a0235a2d43b8c54c"
+ },
+ {
+  "name": "models\\cannons\\cannon8_bmg_brown.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a429f321d6d249cdbb4aff5ed82ff57199130083"
+ },
+ {
+  "name": "models\\cannons\\machine_gun_x2\\machine_gun_x2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "abd2e573aafae479a00cc57f6d19ed177956dcff"
+ },
+ {
+  "name": "models\\cannons\\machine_gun_x2\\machine_gun_x2_2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1a3b48fac86e25953d89b8abbee40b7a19269c31"
+ },
+ {
+  "name": "models\\cannons\\machine_gun_x2\\machine_gun_x2_3.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "472cea4fb43e2302c3b2eea6d89be03556087ac5"
+ },
+ {
+  "name": "models\\cannons\\rocket_launcher\\rocket_launcher.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ab4c47ad3cb1ffebd6fab28503bd84f453f83bbb"
+ },
+ {
+  "name": "models\\cannons\\rocketlaucher_winter.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "3ea97d3bafb2955fad1eb6a589668649e8e68534"
+ },
+ {
+  "name": "models\\dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "f75d0fea0c601e99f235aeca35d0c6d1867e9fd2"
+ },
+ {
+  "name": "models\\fire_truck\\fire_truck.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "aa5d59869f6fb7a297d17aeb82a59ab727953d6e"
+ },
+ {
+  "name": "models\\gibs\\gib.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0b813503b14654e0bb81b4ad8e700346ef339366"
+ },
+ {
+  "name": "models\\gibs\\gib_koleso.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "c9222bfc01d1f96d52b2a8a04554a3398f4f4904"
+ },
+ {
+  "name": "models\\gruzovik\\gruzovik.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "332ccc8becd0f4f9b42b571c0262a784d5882f33"
+ },
+ {
+  "name": "models\\gruzovik\\gruzovik_oil.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ee9f50b8f397bdd34b55472a1b0b53ae40d90bea"
+ },
+ {
+  "name": "models\\helics\\chinook\\chinook.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "75aec4f8278959150855c3b4a1d5357374c76233"
+ },
+ {
+  "name": "models\\helics\\cobra\\cobra_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d453139f5240bcc68745773c30ed36ffbb09b5c8"
+ },
+ {
+  "name": "models\\helics\\cobra\\cobra_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "bf185f8322964b2e89803098419e2b97bf6700d1"
+ },
+ {
+  "name": "models\\helics\\cobra\\cobra_jungle.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "7d38a800502e8a8849aa9a46db4cdc1072cbd105"
+ },
+ {
+  "name": "models\\helics\\helic2\\helic2_green2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9d5977783ac36f8e64b2daedc8755bffdd7a5a9c"
+ },
+ {
+  "name": "models\\helics\\helic6\\helic6.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "71a4e2b4d00d3dc56744a98411620a3b078a948c"
+ },
+ {
+  "name": "models\\helics\\helic_big1\\heli_big1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b9bf5c60d24330283d552a314523086aea2b20b5"
+ },
+ {
+  "name": "models\\helics\\helic_big1\\heli_big1_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ad1ab2767a81748c522230a43a2209e8c462ccb6"
+ },
+ {
+  "name": "models\\helics\\helic_big1\\heli_big1_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b9bf5c60d24330283d552a314523086aea2b20b5"
+ },
+ {
+  "name": "models\\helics\\helic_big2\\heli_big2_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "14b83556e9423ffa5bdc021607480312eb98b4ce"
+ },
+ {
+  "name": "models\\helics\\helic_big2\\heli_big2_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "99ef8cd592e1ec20d749d058de06bc128a5f9007"
+ },
+ {
+  "name": "models\\helics\\helic_big2\\helic_big2_besert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "14b83556e9423ffa5bdc021607480312eb98b4ce"
+ },
+ {
+  "name": "models\\helics\\helic_dead.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "37f3e19d6692f521d94207d277793a505364fa8b"
+ },
+ {
+  "name": "models\\helics\\helic_small\\helic_small2_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "2025adc16622c1a7712e6d8ac9a436656c165d76"
+ },
+ {
+  "name": "models\\helics\\helic_small\\helic_small2_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "295b65dd0e7a5b7b25532950e1a2b77e3975e8f5"
+ },
+ {
+  "name": "models\\helics\\helic_small\\helic_small2_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4aeb5b27d42334b1ba4689e3015f7ea5ec72cefa"
+ },
+ {
+  "name": "models\\helics\\helic_small\\helic_small3_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d9a0303ea42bc29f0fd4815f63c90fd703cabc0e"
+ },
+ {
+  "name": "models\\helics\\helic_small\\helic_small3_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0b35f46783dc035fa7150b7c7a368d55de571469"
+ },
+ {
+  "name": "models\\helics\\helic_small\\helic_small3_yellow.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "468e05055afb7c3db87ad5b24e214c6c476f8eda"
+ },
+ {
+  "name": "models\\helics\\helic_tiger\\helic_tiger.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d6c551a4d996725c383eb1bae782709cc02978db"
+ },
+ {
+  "name": "models\\helics\\kamov\\kamov_black.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "45c4a77e5be20fa9d265f24475a0f5ce10ce88df"
+ },
+ {
+  "name": "models\\helics\\kamov\\kamov_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4d52bef1401f292314dd418be52973b32854fe7b"
+ },
+ {
+  "name": "models\\helics\\kamov\\kamov_snow.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a51c0d6a1703bcb2a01458999f16e8193a6eee12"
+ },
+ {
+  "name": "models\\helics\\mi_24\\mi_24_blue.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "cf998ceb204ac56ad29326932e5d72f15a7ce159"
+ },
+ {
+  "name": "models\\helics\\mi_24\\mi_24_desert.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1bc24b49090fcda8376cfc54b95765bbfe4cdb49"
+ },
+ {
+  "name": "models\\helics\\mi_24\\mi_24_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "38e1fb73627705a619047e473e26c12d38e92498"
+ },
+ {
+  "name": "models\\helics\\player1\\player1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "3bdb1ddc8a73f96d2a29dbca976b523991605e25"
+ },
+ {
+  "name": "models\\helics\\player1\\player1_kabina.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "f65584107cb835b8351c048bbf8bee4d9a2b231c"
+ },
+ {
+  "name": "models\\helics\\player1\\player4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "3724d4502638750a83c36347ef9108d657d28dac"
+ },
+ {
+  "name": "models\\helics\\player1\\player5.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "9cf86e66c1b1011a90c1708a94f5e982e4105689"
+ },
+ {
+  "name": "models\\helics\\player1\\vint_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "b93c50381156ebbcc3e52654feb890d5b0c57c88"
+ },
+ {
+  "name": "models\\helics\\player2\\kabina.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "7becbac2e36e1c6efcc32bdcfde732c10a39d236"
+ },
+ {
+  "name": "models\\helics\\player2\\player2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "0eb957906175c6703ed67985cf9bc0e7bc4bd64b"
+ },
+ {
+  "name": "models\\helics\\player2\\player6.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "08ac89338e203914b21ec11372eb30e11ad07723"
+ },
+ {
+  "name": "models\\helics\\player2\\vint.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "72b963492c1e1c7992de57dbb4b7edefda363aff"
+ },
+ {
+  "name": "models\\helics\\player3\\kabina.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "e3cba411cdfa28c9a74e0f84a23ff04fb61f0531"
+ },
+ {
+  "name": "models\\helics\\player3\\player3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b555d5bf560bed19f24c742e97b50a6510390e8b"
+ },
+ {
+  "name": "models\\helics\\player3\\vint.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "3747eab16dc3317afeaaac8fd50f6aecc41f1a04"
+ },
+ {
+  "name": "models\\helics\\redflare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "aaa144c121cf9b62d98b4bfc7cd0d0a9b7c00c48"
+ },
+ {
+  "name": "models\\helics\\uh\\uh_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "e001b2ebaec6030d4b657e2d8fb9ae8fcfe53045"
+ },
+ {
+  "name": "models\\helics\\uh\\uh_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "753c1a3a0ec3739c08d9d8cf2484fb0c41ee6703"
+ },
+ {
+  "name": "models\\helics\\uh\\uh_green2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "25273588e43ca85c89aac8673ae1dea01128dbfc"
+ },
+ {
+  "name": "models\\helics\\uh\\uh_snow.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "0d6cad9d027c0a4f58816cd01dad36c78438002f"
+ },
+ {
+  "name": "models\\helics\\uh\\uh_snow2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "450b0489eac4bc05afbe57d7646b713eb38441ae"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_3_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "72b963492c1e1c7992de57dbb4b7edefda363aff"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_4_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "b93c50381156ebbcc3e52654feb890d5b0c57c88"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_4_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "3747eab16dc3317afeaaac8fd50f6aecc41f1a04"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_5_orange.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "90b183c748408fd20f470c8bc36a4e864415c88a"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_5_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "c399c82d0fca0c8cf664fc49ce271edb6369cef9"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_small.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "d841cfa748ce05f716c8c66b2ba071b2d092b38f"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_small2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "d841cfa748ce05f716c8c66b2ba071b2d092b38f"
+ },
+ {
+  "name": "models\\items\\ammo\\bfgbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "5bfea1a5b7fa0df8206e95074d41ce6001fe1f9a"
+ },
+ {
+  "name": "models\\items\\ammo\\flamefrowerbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0bbb74ff93236b252a9b9fef51c917f1f903ca73"
+ },
+ {
+  "name": "models\\items\\ammo\\impulsebox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "3485a4f78ae52d2aa2aeeeb9aabcd4254d2734b4"
+ },
+ {
+  "name": "models\\items\\ammo\\laserbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0b4e0400699cf3972f494fd2fcc4c7beff103950"
+ },
+ {
+  "name": "models\\items\\ammo\\lasergreenbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c59f6f1185c54d4fd505e7aa92e0675299fcd8c8"
+ },
+ {
+  "name": "models\\items\\ammo\\lightinggunbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "6cfe224c45a0009aba63be3821c0f7ddf9ef4ab1"
+ },
+ {
+  "name": "models\\items\\ammo\\machinebox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "db3deded396541e05c34c51e923a87f7e9276ae3"
+ },
+ {
+  "name": "models\\items\\ammo\\missilegunbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "db4f01fe04556dcdefe17e413c14ec83a0816278"
+ },
+ {
+  "name": "models\\items\\ammo\\plasmabox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f5db6a5f1ee7fd8d83ec839e6c5a52c4abaa29b5"
+ },
+ {
+  "name": "models\\items\\ammo\\wavegunbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f9b604f3556ada22d4eed495297754e1f38d905e"
+ },
+ {
+  "name": "models\\items\\anihilator\\cherep.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "4b4727a1c21faa7ca7650fcb05f24393413b174c"
+ },
+ {
+  "name": "models\\items\\armor\\armor.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "32568d108bb2913a0eab682f5424a257c1fdf7ca"
+ },
+ {
+  "name": "models\\items\\bombs\\abomb.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "97128b278982615615dfbc19af7bae0ae8aa791f"
+ },
+ {
+  "name": "models\\items\\bombs\\lightingb.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "5896f66770b0426f6dd3af0d831672f56d2c2e48"
+ },
+ {
+  "name": "models\\items\\bonus.tga",
+  "width": 4,
+  "height": 4,
+  "hasAlpha": false,
+  "sha1": "8cdb3f083f7bcebb3779c6a5616da561e2b4debe"
+ },
+ {
+  "name": "models\\items\\bonuses\\abomb.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "97128b278982615615dfbc19af7bae0ae8aa791f"
+ },
+ {
+  "name": "models\\items\\bonuses\\lightingb.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "5896f66770b0426f6dd3af0d831672f56d2c2e48"
+ },
+ {
+  "name": "models\\items\\life.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "770b0e0294b428a06c755d745051ca9b6b448a6e"
+ },
+ {
+  "name": "models\\items\\points\\points.tga",
+  "width": 4,
+  "height": 4,
+  "hasAlpha": false,
+  "sha1": "5f80f608a25294ec2db9fe20489cc47157279eda"
+ },
+ {
+  "name": "models\\items\\shield\\shield.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "b3a53f6baab3a2bc1e2779e9cf01febd70bfc024"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_car2_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "a531d7aa128b3b095b0b6ec560bf40b16ef60a42"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_car2_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e051ce762e79f86867427480db9d75e225d64468"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_car2_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "38baf4c19060b2550a8ec784982926301c6838b1"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_car_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "25a9192ca8802e8b625f60210b7628294159b976"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_car_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "4f95b819594769a792cc68fe08e92d36dee3eba2"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_car_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "063779a6e6097cbbaad24978edd12f4e2de4e140"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_car_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "f9ca290f8051b628574106e15df1db5092d9256b"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_jeep_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8c68d9b94e7370c6d4a1254a38b3d6464006e1c3"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_jeep_dark.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4f940596bdd1062bd8855403692b712d8cc4db09"
+ },
+ {
+  "name": "models\\jeeps\\civil\\polozai.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "47a23afece3566cc31132535265449032e79b502"
+ },
+ {
+  "name": "models\\jeeps\\jeep\\jeep_haki2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "824eba42ac8f19837992c6e3989399b51c070024"
+ },
+ {
+  "name": "models\\jeeps\\jeep\\jeep_haki3.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "b7859ab95739a5acdd43bb3a09cdb41d3348366e"
+ },
+ {
+  "name": "models\\jeeps\\jeep\\jeep_sand.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "7589445b1f9c3cd39c4ec05b228cf75bfff19854"
+ },
+ {
+  "name": "models\\jeeps\\jeep_army2\\jeep_army2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "267d2918ae368d8494f83c50ba01114bca09363f"
+ },
+ {
+  "name": "models\\jeeps\\jeep_army2\\jeep_army2_brown.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0d0fe521ac2a8a780004eedd3b3c6e815ae7db15"
+ },
+ {
+  "name": "models\\jeeps\\jeep_big_6\\jeep_big6_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "5a9b7d1c5c32b14a5094bb35e30206a21067e595"
+ },
+ {
+  "name": "models\\jeeps\\jeep_big_6\\jeep_big6_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b08ba5dacb98d18b6ddfc447a4b581c928c2f4ba"
+ },
+ {
+  "name": "models\\jeeps\\jeep_bug_big\\jeep_buggy_big.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8042b95c154f21272a829eed850ea5c8f75733ae"
+ },
+ {
+  "name": "models\\jeeps\\jeep_bug_big\\jeep_buggy_big_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "43c8511a522d1191d08bd5d6b5082ee51eab4454"
+ },
+ {
+  "name": "models\\jeeps\\jeep_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5f9ddf2b5e3e6f1d4d186dd38aca5ba2c75bda35"
+ },
+ {
+  "name": "models\\jeeps\\jeep_medium\\jeep_medium_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "5ae41cec2efa4e2d92dbcbdd96f3e95f48c8891f"
+ },
+ {
+  "name": "models\\jeeps\\jeep_medium\\jeep_medium_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "70b7389c4428862a1a47063fb539cf43b1953539"
+ },
+ {
+  "name": "models\\jeeps\\jeep_medium\\jeep_medium_snow.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "1f9245013fdcbfd0235a0e2b73f65b733f9283ae"
+ },
+ {
+  "name": "models\\jeeps\\jeep_medium_bug\\jeep_medium_bug.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "eecc17a36aa5753d38b4e9dd85a925539b16bafa"
+ },
+ {
+  "name": "models\\jeeps\\jeep_medium_bug\\jeep_medium_bug1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "b9ee3f312cd726566ad338c77060820284e4c546"
+ },
+ {
+  "name": "models\\jeeps\\jeep_medium_bug\\jeep_medium_bug_white.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "177b4d9e44d3f47d01f4d6afc966ccd16bc88f14"
+ },
+ {
+  "name": "models\\jeeps\\jeep_small_rocket\\jeep_small_rocket.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0f9b6d85962c80de5460a02a8bbd33feabeb4342"
+ },
+ {
+  "name": "models\\jeeps\\jeep_small_rocket\\jeep_small_rocket_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "7c199721fb13f7e016bade40869f4bba1c62015f"
+ },
+ {
+  "name": "models\\jeeps\\jeep_small_rocket\\jeep_small_rocket_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1e2d3caa7847d0b8df33421afeb68c3c38bc7ea1"
+ },
+ {
+  "name": "models\\jeeps\\jeep_small_rocket\\jeep_small_rocket_snow.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ebc250828463e39d83975ad3e0819699bdf4b964"
+ },
+ {
+  "name": "models\\jeeps\\jeep_vsmall\\jeep_vsmall.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "f729b6d02dfc526cd7ca8cfbb39c9d8344fbae85"
+ },
+ {
+  "name": "models\\jeeps\\jeep_vsmall\\jeep_vsmall_brown.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0095f51a191696ec3ffbf531b8675fdf7d535aa8"
+ },
+ {
+  "name": "models\\jeeps\\luas\\luas_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "da552a8a95e0f45e50766c97f54dd92111274f0a"
+ },
+ {
+  "name": "models\\jeeps\\luas\\luas_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0a7f6c40c8a410c572f21d6263a85b8ada38d42e"
+ },
+ {
+  "name": "models\\jeeps\\luas\\luas_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "96082c8a7734be7b87a397db81919ac84b7b1207"
+ },
+ {
+  "name": "models\\jeeps\\sj3\\sj3_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "f7789dc58d842687d9bbc4f30f2c1f5634df9a28"
+ },
+ {
+  "name": "models\\jeeps\\sj3\\sj3_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e8ea6d1972ec8336e77cc21ffda5344f480bb291"
+ },
+ {
+  "name": "models\\jeeps\\sj3\\sj3_snow.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "84799c7a4426518bdb96253096213b61ff5d8bab"
+ },
+ {
+  "name": "models\\jeeps\\uaz\\uaz_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "695ce8c06324d40b5cfc12d4d3f722c907e8f376"
+ },
+ {
+  "name": "models\\jeeps\\uaz\\uaz_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1baf4c1916027da4f3f2986ce87569ec49a850b6"
+ },
+ {
+  "name": "models\\jeeps\\uaz\\uaz_snow.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "f3400d0229e6bbf0b7b31493e3f6d647296d054a"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3152e3995c4c6320fa471a43800bb97abcf1c2cb"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar01.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "96f2a8487bdf4de497bcd11036e1e2fc742e38fe"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ed2a57ab52cd361d495e5e6ab70b7658f61bdfcc"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar03.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0f6431d4350c1d3d35e658482b5912c0b223f056"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar04.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e7b1b7ff00ff88cb07fb038cb663765e8b369786"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar_1_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "725d9ae137cec1fc554aa3302bf77a1acf71badb"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar_2_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a4d0a64218208943aca2641dd769637061d4e890"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\dom_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "64ddc545ed5390a47ce2f6efe022e58f04b82786"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\dom_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0e586ea252e49396b030c4387cf152773b84d58a"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\dom_3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c9239583d45736e40217bfe874021c6422babeaf"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\kolodec.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "b273e4c23c524bcdaf6885ff9ff394e774c4fb93"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\minoret.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e2b4ffae39620483087a91e61f0fa4a250062dae"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\tent.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "2ff38b6fd67f612b448e5364800f1b1b57aa2e2e"
+ },
+ {
+  "name": "models\\mapobjects\\barrel\\barrel.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ceab7965361671224e00f17cddd8071039cb5406"
+ },
+ {
+  "name": "models\\mapobjects\\barrel\\barrel_big.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "749c6cfdbf11fee5dc623d1cce29bff1fbc98902"
+ },
+ {
+  "name": "models\\mapobjects\\barrel\\barrel_big_green.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "a470eda8ebab3e10326886fb4feb5d6315f598bc"
+ },
+ {
+  "name": "models\\mapobjects\\barrel\\bochka.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "e532ea6dff111cd4451481db6ca24ab5fe0b8eb7"
+ },
+ {
+  "name": "models\\mapobjects\\benzokolonka\\benzokolonka.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "0a052ce9ea537215b8411aac4600280941dbf0d9"
+ },
+ {
+  "name": "models\\mapobjects\\benzokolonka\\benzokolonka_dead.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "2a79bd80e924afafecd926697daed2d051f962e8"
+ },
+ {
+  "name": "models\\mapobjects\\brevna\\brevna.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "94f7f24aa84da87f3c4e30a4c8859dbf2dfc5394"
+ },
+ {
+  "name": "models\\mapobjects\\bridges\\bridge1.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "8aff6e582b10eed9b4b03b0eb75a4f948c8835f4"
+ },
+ {
+  "name": "models\\mapobjects\\bridges\\bridge_big_single.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f11d3a9f6dd7e4ea5dea7682f5cc51aabd0a5134"
+ },
+ {
+  "name": "models\\mapobjects\\bridges\\bridge_big_zhelroad.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "02f6d11be71263377f5e274371c79b6ca564124f"
+ },
+ {
+  "name": "models\\mapobjects\\bridges\\bridge_new02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "12277788ce1074a97de3d54f1fd9c82f7e4e5097"
+ },
+ {
+  "name": "models\\mapobjects\\bridges\\most_new_wood.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "a763b8606dbcb81b609fda8f819f2c9861466a4b"
+ },
+ {
+  "name": "models\\mapobjects\\budki\\budka01.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8bcea18635e4989283b19ddce066633f309f78df"
+ },
+ {
+  "name": "models\\mapobjects\\budki\\budka_02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8d58e7f226fd2d902b9eb21da1cfa8160685ada7"
+ },
+ {
+  "name": "models\\mapobjects\\budki\\budka_03.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "43735f07ea61cfd6a5599162a8b5e35f9b99b6b2"
+ },
+ {
+  "name": "models\\mapobjects\\budki\\budka_05.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "df4ebad4b5b3d5fad86be832da2116bfc9c4e630"
+ },
+ {
+  "name": "models\\mapobjects\\bushs\\bush.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "dbf32423a7701ffdb715fa383555c29b17814950"
+ },
+ {
+  "name": "models\\mapobjects\\bushs\\bush_new.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "0e2d11ccb04b007f6c2128bbc61302f05541cfc4"
+ },
+ {
+  "name": "models\\mapobjects\\bushs\\bush_new02.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "c8ab3dc5ee02984db6a4b2e029502fe5f5825c66"
+ },
+ {
+  "name": "models\\mapobjects\\bushs\\bush_new03.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "28731715cfed9dc121daff4791b6fc0d6f550502"
+ },
+ {
+  "name": "models\\mapobjects\\cactus\\cactus.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "dfbf18c5f4b5401d0adffa7469b04208911a821d"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cisterna01.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "26cad48854edb39fb102892354014c0936af26b6"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cisterna02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "055ef683b003fde1e35bf059297c4cc7a68d310b"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cisterna03.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "de01226f6ceb0f65a933f4c5a0f5ad0e4ecb08bd"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cisterna04.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e8399a856b7ef1ba0f7bd664bfd5cc685fdb75b9"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cisterna05.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "bee7b70b3e9ebda438b2bc73fff1b367ec9b9f7a"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\lestnica.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "b527cfdc1a4e0c40df2f63103ac885fad0de48a2"
+ },
+ {
+  "name": "models\\mapobjects\\docks\\dock_domik\\dock_domik_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "77244b0c359a10fb39cbd08b5f8c36f478e5f534"
+ },
+ {
+  "name": "models\\mapobjects\\docks\\dock_domik\\dock_domik_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "3e2a949f0745a3e0da4e0cc32fae600b58a18744"
+ },
+ {
+  "name": "models\\mapobjects\\docks\\dock_domik\\dock_domik_green_1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "bc0557f658eb5906549d591c67b56ccd4101f562"
+ },
+ {
+  "name": "models\\mapobjects\\docks\\dock_domik\\dock_domik_grey.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c51f5ecfd3acc2fca3b6b278aefbccaf3122c9ba"
+ },
+ {
+  "name": "models\\mapobjects\\docks\\dock_domik\\dock_domik_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "6f87a96142d48a3cc9b224411080c09a01ccd185"
+ },
+ {
+  "name": "models\\mapobjects\\docks\\dock_prichal\\dock_prichal.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "988ea1b1e730eefc598c602e9fb2da3928e85095"
+ },
+ {
+  "name": "models\\mapobjects\\doma\\dom01.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ec1cd11f04f3d82dfe4ff66fbca51f5f81c31cd3"
+ },
+ {
+  "name": "models\\mapobjects\\doma\\dom02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d41805a0ef6a993751a57ab9a45f9a1b329ba8bd"
+ },
+ {
+  "name": "models\\mapobjects\\doma\\dom03.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "4208cf61a6f23f59e63a0d380884d0177bcc95c4"
+ },
+ {
+  "name": "models\\mapobjects\\elektro\\electro.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "52e6a77b9cf096da4cb0fbf0acb9a1f63e909204"
+ },
+ {
+  "name": "models\\mapobjects\\elektro\\electro_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d73425c080bb0466e42568bff3b0c0a94e4a70db"
+ },
+ {
+  "name": "models\\mapobjects\\elektro\\power_plant.tga",
+  "width": 256,
+  "height": 257,
+  "hasAlpha": false,
+  "sha1": "e29e2a891d856621a0211c92152f09cf04fedeb7"
+ },
+ {
+  "name": "models\\mapobjects\\elka\\elka.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "bb05c050defc4a632b203aa39ce08543e0a6df7f"
+ },
+ {
+  "name": "models\\mapobjects\\elka\\elka2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "2d0bd37cb2dcee6e4cb35b0846d8b65fcc35b21e"
+ },
+ {
+  "name": "models\\mapobjects\\elka\\elka3.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "17329a9a31a8d5e388c02d2273b9d756373259bc"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\factory_med\\factory_med_red.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "172f0d991b434945832a0c2bd17e225eaff9f6f6"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\factory_x\\factory_x.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "67887938b1bf2e85a8fde5a85359842f50719623"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\hell\\hells_kitchen.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "73d40beba3daa8537119bc3d796e345390ca2465"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\hell\\shahta.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "34538ad446efada74d96f3e62522f56fd434355c"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\hell\\tower.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "a510773ea88420bdf0ebc0e7911f15261975dd5a"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\hungar01\\hungar01_kletka.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "4fe5c8175aa015ce7107ae2e6a11aa5af1ee1f3d"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\hungar02\\hungar02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "cf188fe98a786039699de82921242df081b013bf"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\hungar02\\hungar02_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0b7da1dcced4ea0847b19d7519498cb25f958a10"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\hungar02\\hungar02_kletka.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ce5e0ba88c0558ad5708a802a61e453029c4beb2"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\office\\office.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "bb10dbd3ab21d2265ab2c46133efccdac1fce058"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\office\\office_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "b771278c7d6b40d8dcf4ff450d4ab39a4c6f9958"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\office\\office_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6172c53ead90fc99c0893dd08256ea1e230d0029"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\office\\office_old.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0979d5b041271322f1803a8e61a13a9eb8b85535"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\office\\office_old_1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1e4cc74adec3a21a386cc3267c3e9dde8c3fd88b"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\vetryk\\vetryk.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "aa2e9f4b5d5005cd273eadcf0e2cb823ccf74797"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\water_tw\\water_tw.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "80cb27b76ff0f48835dd8dc28adb6acdec25c390"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\army\\angar.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3152e3995c4c6320fa471a43800bb97abcf1c2cb"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\army\\angar_brown.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c1381b2ab3eeb5535c041489243b904699e87e92"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\big_dom\\big_dom02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ff3e11a6038a25878ee62c105654de0b2a8347c3"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\big_dom\\big_dom03.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9f7fdc1dd73de783759df6f85fe2fb29eca5910c"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\dom1_2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "650a9e178cb9349c1f4b87d2f57445338c14f01b"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\dom2_3.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ee445b8afaad5fee7eb4dc7794adadf186052e35"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\dom3.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "bff4cfccc41d74fe98ff7893ff8bbefbad7becce"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\sinogoga\\castel.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "4361ccab945a32582cc64be09ffcb1f0ef6f11b5"
+ },
+ {
+  "name": "models\\mapobjects\\kamni\\kamni.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "7ab3e42c240c207fbb6a4ef3b8f24980c8dac69d"
+ },
+ {
+  "name": "models\\mapobjects\\kamni\\kamni_1.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "30ffd920af679365f3cc568cb4c25264065b509a"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kastel.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "4361ccab945a32582cc64be09ffcb1f0ef6f11b5"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz01.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3d8d7c9b1011e50210240ca6bcea9de3d463f9f8"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz05.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d00739a93c35ea45b8cf80b919174bf0930f625b"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz06.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0e9086fe88c70396d98c44a58acd193f26a6af75"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz06_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "19cb62a7c7e682bdd6f7dd0b8a61b68e1443e6a4"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz06_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "024e4036feb1acdef083315e3c7071df26f98ad4"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz06_green_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "96c1b3b043cf01ca95762da959a87755b3fe43a1"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz06_wood.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "bc5391860d38a05267cc25d912220bc770e6d3ff"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz06_wood1.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "eecc399e7e0c46a760fdb369b74746af1e7530ac"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz06_wood1_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3a8e47ec53ad288c5a809a2969ede28c7d5c27e5"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz08.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3b988ee242f3dde1b49e8297a81b09851ba9d983"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz09_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b827447f30ff994f13ca41cf3615b76343a6b0a4"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz09_2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "f381e815cffa16fbb32b2c0e2815baeb9ad2a213"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz10_grey.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1b14ef7d180faf9a55af60dfdb8689fe280aa934"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz10_red.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "35784afa783be940d5774c09224ce6d010ea1de7"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz11_grey.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9fee91f577fe623b33d02e7b4f79e5ff955a5333"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz11_red.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ce5424aca746441259018f8c571e85c608b73049"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz12_bricks.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5001de2c5f8c27f32e6cfd4501b3e6ecc1749b56"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz12_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0a2e2803d53d44fdee2042b92c8d3eb5d81acf0b"
+ },
+ {
+  "name": "models\\mapobjects\\kolhoz\\kolhoz12_grey.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "2762b48644a5af5285b60b56911b342202c2fe2a"
+ },
+ {
+  "name": "models\\mapobjects\\kran\\kran.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "f38a84c9c27047677a625d4e50d553a7c9716adc"
+ },
+ {
+  "name": "models\\mapobjects\\kran\\kran02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "2242ceeb9d0b4c0d8fac08ef1ce9d41f3d68a6c2"
+ },
+ {
+  "name": "models\\mapobjects\\led\\ice.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d0beff6d36baddaf832e82ae00f5f1a31583397c"
+ },
+ {
+  "name": "models\\mapobjects\\led\\ice2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "2286094227a9473f14990e2cf434a40e7cead6af"
+ },
+ {
+  "name": "models\\mapobjects\\mayak\\mayak.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5b8b9ac6bf09cf20af6aa774eb50d0d1a0830dd6"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\abomb_ground.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "36db2a1e13002a3c5af90cad5ac885cb458c9713"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\ammo_box.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c24c8c2b78d034e05c311891443c7f0451c72433"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\ammo_box_cargo.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c24c8c2b78d034e05c311891443c7f0451c72433"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\baken.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "0de209f59133f45187f7fc27d77f9bccdb2f2960"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\barricade.tga",
+  "width": 128,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "b890c22663963e552528b8a5285cb565edf9e20a"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\box_bresent.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "30407e2cae9367115a986bec2a73ba11ae3c4591"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\boxes2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d8dc502364d2ed07807f2ff288bab17dcda456c0"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\boxes_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c4ee0dbddd266dc55ba0f55dc4e866913cbd738e"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\fonar_big.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "e3953fafff517bbce1c94c78b7f0e8a435f8bb1b"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\helic_a.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "f6853d53a4adde260608e595df2e68adbd495558"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\katushka.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "bd36da59a7c033c8e800e84f5e72a1149d56d9be"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\kolodec.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "5c65e41d8d93585309e34c40e6eec6a56017d42c"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\koluchka.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "16ca41b8d6a5ef409ce6a79619309d2bb4b8921f"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\konteiner.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "739cb8c14e5410923c4940b31cc578c3b1e3ddbf"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\kotelnya.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "93e9af6ba124536766e80e53d999d800fff8a417"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\krematorii.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "55d519b87645029aa496582e9b8a275e3f41230c"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\krest\\krest01.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0595b06c1395018e6c83e501050a5361405d9c2c"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\krest\\krest01_1.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "19fe185a663de9f6bfd16c3111ebba22cede6450"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\krest\\krest02.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "71ef057073505058e3a92566df78d40ab7ebb87a"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\krest\\krest02_1.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "1775d09c872c2ea8da1b6cb7aa4636c92b688ad8"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\krest\\krest03.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "57447f93adbfd262db998e595c57772131d6cd47"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\krest\\krest03_1.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "75cfa22a58c5133e3b5cc1e9d1d9bcd23fe749ee"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\laser_bar.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e498510ec14493580f90501c85ff189e871c03a5"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\laser_bar_toggle.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "2877b8f8d104dd102c80670c21501e578f15b587"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\mentovka.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8ab3f2a2dc130da2e920aa0c89285719d14818ac"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\misc.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3080bf9dbf1842ab62b7d10259259f1273f97e4a"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\pomoika01.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c4f8864206545daa6cafb564e82a0bed83d3964a"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\pomoika02.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "942f552cf78d1461df52f6dece46b5e3511265ba"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\sand_bags.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "db0098c84d4eea1a2d53e46078d9e2c99295c74d"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\sccs.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "3ca8c3e08fbf7c1b275e6885b9d42b32885472b4"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\sccs02.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5b2f45a61498b3c39cbfd23c59a1dd4bc4e024ad"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\shahta.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "7ca7ad022d750d454301fcf50626d586a3eea157"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\shina.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "18922e631ee341a9e839472f99a30c441b9765bd"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\shlagbaum.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "9cb33f25b4e60350bce310aa863ecfb4d24e64e6"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\stog.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e77154c036d2262eb78a7f00b985e04be7723161"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\stolb.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "4d62f9b00041e97b6a4f2966e766562072df0a03"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\stonehahds.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "1f3610c6f16f162702810475fd79b3502f5547e3"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\vag_1.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9a1d17bddb543b481bf88a1cdc48925bd0c29893"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\vag_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ff5e08f63d2d70617000de4386b49b9829836bde"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\vagonetka.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "14c21e8e3d6050a04adc5e1a824933c0004579ca"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\zhelroad_new.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "2dde61b0b67645ab245315c1e06efcd2aa3c5dc7"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\zhelroad_new_boss.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ed097bff140f652f756dc78d1e0d4a46cc887c01"
+ },
+ {
+  "name": "models\\mapobjects\\musor\\musor.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6fdc576ca6cdafebdb90d563f7bfcf0772b783a2"
+ },
+ {
+  "name": "models\\mapobjects\\oil_platform\\oil_platform.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "fcc21d90758158d9b647821fcdf488914b2e88e3"
+ },
+ {
+  "name": "models\\mapobjects\\oilpump2\\oil_pump.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "df68dda0fa9297064fac1261613da08508c32fcd"
+ },
+ {
+  "name": "models\\mapobjects\\oilpump3\\oilpump.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "dc0a5192fec96c82081849eb2ff163da3737b2e4"
+ },
+ {
+  "name": "models\\mapobjects\\oilpump\\oilpump.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "6035612e1a912f23e8a3658435da2212168b52b5"
+ },
+ {
+  "name": "models\\mapobjects\\oilpump\\oilpump_big.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "7e8315cbffecf27c0eed0f0848ec2a0f94d50ecb"
+ },
+ {
+  "name": "models\\mapobjects\\oilpump\\oilpump_twice.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "01baa15f037594f299b49b80a04e7bbf3054a651"
+ },
+ {
+  "name": "models\\mapobjects\\palms\\palm.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "c29474b50ed3279e0a1ab44df767c6d4380ab514"
+ },
+ {
+  "name": "models\\mapobjects\\palms\\palm_big.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "5a621214c44728bc6f74ebf172f3c1f1f2ac9450"
+ },
+ {
+  "name": "models\\mapobjects\\palms\\palm_iva.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "e96533debe5e2192506440c9eaa51ed22de9c3d3"
+ },
+ {
+  "name": "models\\mapobjects\\radar\\radar.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "bb1bca600b2ba919346eafed4ca802ef82bd5614"
+ },
+ {
+  "name": "models\\mapobjects\\radar\\radar_pod.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "a76069dcdc77621655f733434f1c6e31bf4a4b4a"
+ },
+ {
+  "name": "models\\mapobjects\\radar\\radar_small.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "4cff727aa763eace62eeaa313a1c138d42a6605b"
+ },
+ {
+  "name": "models\\mapobjects\\radar\\radar_small_black.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "910d6d0c0191b088c54cc199a1563f75ce3b5edb"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\ruin_dom\\pepelishe.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "66097845d1cda3bb060805d86d385e5bc1431483"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\ruin_dom\\pepelishe_2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9659ceb9bf8ec2fb194c4fdb85c3af5b62ef7a70"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\ruin_dom\\ruin_dom.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4ff5d01f3afdaf1c6d350d081ce02a72811cebf3"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\ruin_dom\\ruin_dom2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "722d20ed7a7cec04e9aa012972e40dcd7079fb71"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\ruins.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "3f3a23293eb0105c90f10d59b4ed410d78429430"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\stroika\\stroika.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "bde329b766187f928e6bc8ac237be7a9ca326bab"
+ },
+ {
+  "name": "models\\mapobjects\\sandbags\\sand_bags.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "db0098c84d4eea1a2d53e46078d9e2c99295c74d"
+ },
+ {
+  "name": "models\\mapobjects\\stones\\stones.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e5918a6238a2d8a8029a3fa490a13b0c4c455c34"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\boxs.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "320c86fa0a6588503e18fe654a4f56bf025a1f21"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\tent_01.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "9d3693d12c521e6e60c02c63bb28cadb83f35e6b"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\tent_02.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "a11675133820f20688aed70f9fbdaa54453ea124"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\tent_03.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "27b63bbfc6e1ff17ff79982d52c57709240dfb92"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\tent_04.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "33f27c87127ad095dba04ef5b4f9b593ecfb73cc"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\water_boxs.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "631d7b92f98aaa1442b98dcffc37d3891873e440"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\bereza\\bereza_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "a5178af67824722cb7d37b6869c2371e9e620989"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\bereza\\bereza_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "dada7e29cbd3ef0ed599bcfce8c9481cb58a46c9"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\bereza\\bereza_w_leafs.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "1df89662289cfb23cfe20b49792d3019703d960f"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\bereza\\tree_bereza.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "eec321671a0e9b5dc782981055dde4652a33be52"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\palm\\palm.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "5543af4781303d979db5bbc0c6cb79710705227a"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\podsolnuh.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "177f943ebee84d8697bfc6b745f11ce76f6f09a0"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\sosna\\sosna_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "c3c2c98ff7de6b57d2ad9a3cb2c01ab955980d13"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\tree.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "2e33d59d05468e1c23b9d8f25117e84885cdc7b2"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\tree_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "07a49a0829401b0e6c99c97bffca063ea51c2c6c"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\tree_new_01.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "f02756078cac67194ab4c7b2952a5df5fc6c5090"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\tree_redleafs.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "1c62d76210bc6ff0b5610f533529c0270356de8d"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\tree_w_l.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "befe40000f6068b1f3fb4ea5c30025000cec508d"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\tree_woleafs.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "b2e709d08fef54c136342608ca932147b95301a5"
+ },
+ {
+  "name": "models\\mapobjects\\trubes\\truba.tga",
+  "width": 64,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "a501b1cae71a7ad93531b420072fc28ecdf15910"
+ },
+ {
+  "name": "models\\mapobjects\\trubes\\truba_big.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "b868ce9520cdbe9414447e4b6cd5478b2c933356"
+ },
+ {
+  "name": "models\\mapobjects\\trubes\\truba_oil.tga",
+  "width": 64,
+  "height": 8,
+  "hasAlpha": false,
+  "sha1": "c96bccda4a952584929819823be43790bfb67092"
+ },
+ {
+  "name": "models\\mapobjects\\vishka\\flare.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "884dfe03573c0399f2cd11e1b45e8e8dd02a8119"
+ },
+ {
+  "name": "models\\mapobjects\\vishka\\vishka_brownbricks.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "2ee99367eea835a841caf94401780dc45a594518"
+ },
+ {
+  "name": "models\\mapobjects\\vishka\\vishka_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "30426740cb284f7d5423e959a8841dbb871d0982"
+ },
+ {
+  "name": "models\\mapobjects\\vishka\\vishka_redbricks.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "942eaca03b88fc6eb00c4c20a28913864c3f5fb7"
+ },
+ {
+  "name": "models\\mapobjects\\vulcan\\geyser.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "7e76b942116f18471bd0f1003de5f7b75ab0e9c0"
+ },
+ {
+  "name": "models\\mapobjects\\vulcan\\vulkan.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "22a7c0c1cad85b053731887dd5756bc6df33e5e8"
+ },
+ {
+  "name": "models\\mapobjects\\water\\grass2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "358abfb4b8d4cd1ac67ed2add81f92eadcd97d83"
+ },
+ {
+  "name": "models\\mapobjects\\water\\grass2_rty.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "e626b5654453b8c60f4a239e3d1661b2e591f7b8"
+ },
+ {
+  "name": "models\\mapobjects\\water\\grass_hu.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "075c5e8dd5c5ef3e21552215ec66e26b4953d5f7"
+ },
+ {
+  "name": "models\\mapobjects\\water\\grassedf.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "d2d16d98e1e1a8223a0d825022b0ec2d1a410706"
+ },
+ {
+  "name": "models\\mapobjects\\water\\kuvshinka.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "9821fcd205a7f94c7cb3a1b7c68efb55a195d6dd"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\yellowflare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "561c3a8c402e4680a56f767123fb1495882b4bd5"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "873e22f174b24ca727dadaa989e9eceb0f02dab8"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_bricks.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "a028d3a94d9954dc32f780309fef783b6788cdf9"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_cement.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "57ef3286482e417471c25ce1ab18d0152658a12b"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_concr\\zabor_concr.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "eedbb5301796b7a91797b9a6bb32ab196245defd"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_new\\zabor_beton.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5b0359dee183f7d58a978c017416e4a5065fa701"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_new\\zabor_new.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "2b703e3d59b81d84a48d89da0a2add768e80a8fa"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_new\\zabor_new_wood.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "bca9c68bd052aaae833978e7c61e3bc1a5e6357b"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_wood.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "b45c7467e8bc278ce601300ff8614d907c278996"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_wood_white.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "948d6aec2d9ad1fa3d32ac044e67f9564a4c76d1"
+ },
+ {
+  "name": "models\\mapobjects\\znaki\\znak01.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "a603a364f37b5f2c65b25d9dc7f68ff01cbe9c53"
+ },
+ {
+  "name": "models\\mapobjects\\znaki\\znak02.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "554ad3ef268463da082b3af9c3bedda0373fd398"
+ },
+ {
+  "name": "models\\mapobjects\\znaki\\znak03.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f9402d359361b8076c02d7be5104f0e987cb1421"
+ },
+ {
+  "name": "models\\mapobjects\\znaki\\znak04.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "494d1f69208a7bae7c1b655fac26b6e765d37495"
+ },
+ {
+  "name": "models\\mapobjects\\znaki\\znak05.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c7621b08896a079fd498b775e7737ebd6dc46372"
+ },
+ {
+  "name": "models\\mapobjects\\znaki\\znak06.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "650d9721fb904dc379a8574637625b86ae468032"
+ },
+ {
+  "name": "models\\mapobjects\\znaki\\znak07.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "76f5fff6c1c9a220be1d7a92f2cf78eb29fc281e"
+ },
+ {
+  "name": "models\\misc\\deadunit.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "94ad7acb543ec1a6e5f6fbc673fbb2b1c2a9101d"
+ },
+ {
+  "name": "models\\misc\\hlanno.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "194a7f5450b8d0956e856a011f3753c306870557"
+ },
+ {
+  "name": "models\\misc\\lighting_nature.tga",
+  "width": 64,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "fd89e533e1b81e8dc50869e87856c4fc213fd376"
+ },
+ {
+  "name": "models\\misc\\ring.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "ad84fdefe8a0b959491ebd7e85fe53ef19df1369"
+ },
+ {
+  "name": "models\\misc\\ring2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8e8126e8116d52b41e676d010696efca030dff91"
+ },
+ {
+  "name": "models\\misc\\ring_fire.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "89497ac6bef5deaadadd574640f9c47153b9cd90"
+ },
+ {
+  "name": "models\\misc\\svet_far.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c36b86e5597f4d07575e5e5cee4f38329b90a38e"
+ },
+ {
+  "name": "models\\misc\\svet_far_orange.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "46269f528b825c026179e587afcc083c21e37998"
+ },
+ {
+  "name": "models\\misc\\svet_far_red.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c494d7ad6108e3baac607516f177dec7170a7709"
+ },
+ {
+  "name": "models\\planes\\bomber\\b52_blue.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "94e047cdca166b19e2401d234a59b3477c7b2bc7"
+ },
+ {
+  "name": "models\\planes\\bomber\\b52_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ef5b8320d7e5d3279fda20ee81ebf7fada21c44f"
+ },
+ {
+  "name": "models\\planes\\cargo\\cargo_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c2091e3638f76675ad2d191c8e6a11d65a56bf92"
+ },
+ {
+  "name": "models\\planes\\cargo\\cargo_white.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c83781c1fd9207271b6885cb10f9ba3fe9263c6b"
+ },
+ {
+  "name": "models\\planes\\f15\\plane3_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c7004eab691b14f496624b9aac2c62210038a8de"
+ },
+ {
+  "name": "models\\planes\\f15\\plane3_dark.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "af76b4fed005e51cb3ff3dce7d31ed1b6c51cb6b"
+ },
+ {
+  "name": "models\\planes\\mig\\mig_black.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "218410573b807a1416b07d20a69f9c2e88ea6a58"
+ },
+ {
+  "name": "models\\planes\\mig\\mig_black1.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6d35869e5c7c7425f0920823adba9e888e6221e1"
+ },
+ {
+  "name": "models\\planes\\mig\\mig_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "aba91475b0a60177f173448abe6f0df16f369a95"
+ },
+ {
+  "name": "models\\planes\\plane_a\\plane_a_blue.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a309619c81971c4f9b74921acc2df8adeece00f0"
+ },
+ {
+  "name": "models\\planes\\plane_dead.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "104ac40b68da7af892f4bdb9b8bc70f2b641889a"
+ },
+ {
+  "name": "models\\rocket_launcher_big\\rocket_launcher_big_dead.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "55a64d72f749868200228e38fae3edd6adc15c40"
+ },
+ {
+  "name": "models\\rocket_launcher_big\\rocket_launcher_big_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "e588c27b2df458f34616314c632040da0143d209"
+ },
+ {
+  "name": "models\\rocket_launcher_big\\rocket_launcher_big_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ec758dbce8ebcd7ce0cf6c2c00d35e0f8904fa6a"
+ },
+ {
+  "name": "models\\rocket_launcher_big\\rocket_launcher_big_green_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "bda567c40f4dd36263fef07c7cbb1c2b549f7a90"
+ },
+ {
+  "name": "models\\rocket_launcher_big\\rocket_launcher_big_snow.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "745b1b21d3bc0b2d0d24d6e6fa5c4cf800919c7f"
+ },
+ {
+  "name": "models\\rocketlauncher_mobil\\raketnitsa.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e36707d35553ac1377eb8ab6fd7e154eaff2e410"
+ },
+ {
+  "name": "models\\rocketlauncher_mobil\\raketnitsa_lgreen.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e18770dc935ff8cae02bdaf00ce7c94841ab65f3"
+ },
+ {
+  "name": "models\\rocketlauncher_mobil\\raketnitsa_winter.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d4d5363d4557c2d31186e8ec4ceb8b5988ba2946"
+ },
+ {
+  "name": "models\\ships\\apl\\apl.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0bda75217e8c024de8e8b02ba27ca5a35bffbb0c"
+ },
+ {
+  "name": "models\\ships\\avianos\\avianos.tga",
+  "width": 512,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "a540445030363373dcb65a3236c4e6668cebf79d"
+ },
+ {
+  "name": "models\\ships\\avianos\\avianos_dead.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "10d8e5d930ebc5d96ed8c073536f90590e089468"
+ },
+ {
+  "name": "models\\ships\\cutter.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5a07308128aec15087df851cc308791a4a6d42cf"
+ },
+ {
+  "name": "models\\ships\\cutter_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "98b8b81effe36f811feb47d49d6544cfeda8eb41"
+ },
+ {
+  "name": "models\\ships\\cutter_small_guns\\cutter_small_guns.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "164e47c1d4d4f1c374e8ec6ce464ff79acfe83eb"
+ },
+ {
+  "name": "models\\ships\\cutter_small_guns\\cutter_small_guns_blue.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c607ffb0be6a0f3c870da63917032e254f2f9dc2"
+ },
+ {
+  "name": "models\\ships\\cutter_small_guns\\cutter_small_guns_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "0e476de31fb39a603bdb85b7d65028ddf0761b77"
+ },
+ {
+  "name": "models\\ships\\cutter_small_guns\\cutter_small_guns_dead_1.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "e1245959ede4ff178ded9b37e80643fc06ed47e0"
+ },
+ {
+  "name": "models\\ships\\lodka\\lodka.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "832e259d7e59061cd4506cdf8afcca5a94873491"
+ },
+ {
+  "name": "models\\ships\\rocket_boat\\rocket_boat_black.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "f17dc0e27e45dba11dc1459425bc3dbd8b725751"
+ },
+ {
+  "name": "models\\ships\\rocket_boat\\rocket_boat_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "9f8ba79fd303629d61924479dc675fdae8ea3dee"
+ },
+ {
+  "name": "models\\ships\\ship1.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e401fedaf11ca2368b868f960243164f5494c8df"
+ },
+ {
+  "name": "models\\ships\\ship1_black.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0c491e01dd5b6f864134b169888b49a434c657fa"
+ },
+ {
+  "name": "models\\ships\\ship1_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "cd76af2e71dbcb46e6a6cc519433a50860c6e2d0"
+ },
+ {
+  "name": "models\\ships\\ship_big\\ship_big.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "2feb31f910602c6ba18bfe8fbcfc93e2e2c285a0"
+ },
+ {
+  "name": "models\\ships\\ship_big\\ship_big_dead_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "49a3ec5307fe8dad921e13d105cc5f30e6ba459f"
+ },
+ {
+  "name": "models\\ships\\ship_big\\ship_big_zabor.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "7be4103bf299c98eddb490232df271c46fa16ead"
+ },
+ {
+  "name": "models\\ships\\ship_big_helic\\ship_big_helic.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "9f8ba79fd303629d61924479dc675fdae8ea3dee"
+ },
+ {
+  "name": "models\\ships\\ship_big_helic\\ship_big_helic_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1fd01bc7415caf5327aa6b7ba703f53de29f869d"
+ },
+ {
+  "name": "models\\ships\\ship_radar.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "5c1adff4871ec8019ce2b3b188e85dbb8fea6a86"
+ },
+ {
+  "name": "models\\tanks\\bt_2\\bt_2_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "15e783f90de249aed0a9eeee465bff4e5eacedb5"
+ },
+ {
+  "name": "models\\tanks\\bt_2\\bt_2_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "acf030f3416f38d5e56461968606601885a95890"
+ },
+ {
+  "name": "models\\tanks\\bt_2\\bt_2_snow.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "680a5160c1513dd138fb54ed71cf52d9db3e9ca5"
+ },
+ {
+  "name": "models\\tanks\\m113\\m113_blue.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d5c5f133c48a2933d65fc5681238742b234d54f4"
+ },
+ {
+  "name": "models\\tanks\\m113\\m113_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "12d6060590ac350c1ea482ae4e4d35cc16f6ca0d"
+ },
+ {
+  "name": "models\\tanks\\m113\\m113_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "f84fe43b401ee9c94e73b5534ed5c20b0d7207a7"
+ },
+ {
+  "name": "models\\tanks\\sau\\sau_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "8b300c8038c037b34ab0098765696781e285b132"
+ },
+ {
+  "name": "models\\tanks\\sherman\\sherman_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "faa6801fb29cb09d96fa484d9d43fef4b253b4fc"
+ },
+ {
+  "name": "models\\tanks\\sherman\\sherman_snow.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9afe52325c1647e852b770091a885123b0c062cb"
+ },
+ {
+  "name": "models\\tanks\\tank_big_rockets\\tank_big_rockets.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "f63adff503b54266cd237d0eb4b6a837e7617873"
+ },
+ {
+  "name": "models\\tanks\\tank_big_rockets\\tank_big_rockets_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "6e249f82829230733beb47a8276666677b2b6c06"
+ },
+ {
+  "name": "models\\tanks\\tank_big_rockets\\tank_big_rockets_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d98ec01a4d8d753da3bd02008cab6c19be134a53"
+ },
+ {
+  "name": "models\\tanks\\tank_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8ba0bdc5b172e2db66f7dbafc49f1866db0e0c19"
+ },
+ {
+  "name": "models\\tanks\\tank_flame\\tank_flame.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5bad7bee7f45b968f0e968039bfff3cbbdfb834f"
+ },
+ {
+  "name": "models\\tanks\\tank_medium\\tank5_black.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "fd133af7262134ec7bb2d2eb9b63702f13e14eb5"
+ },
+ {
+  "name": "models\\tanks\\tank_medium\\tank5_blue.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "fd133af7262134ec7bb2d2eb9b63702f13e14eb5"
+ },
+ {
+  "name": "models\\tanks\\tank_medium\\tank5_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e31a510e1c8721ba9de5bdd6e74c9a196fbefb2b"
+ },
+ {
+  "name": "models\\tanks\\tank_medium\\tank5_desert.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d38879734ddaae9f60e03d94b143e57c5768c81c"
+ },
+ {
+  "name": "models\\tanks\\tank_medium\\tank5_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "58cf6b22454559f6d52708063b82c31b64aa848b"
+ },
+ {
+  "name": "models\\tanks\\tank_medium_x\\tank_medium_x.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1f4b73dcd41bcb002cb94c5ee5c52dff131084db"
+ },
+ {
+  "name": "models\\tanks\\tank_medium_x\\tank_medium_x_brown.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d108fc314998a84e149b575b950b9c6f4836b168"
+ },
+ {
+  "name": "models\\tanks\\tank_small_shilka\\tank_small_shilka_brown.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "b94382c9e9ec7b26bc82069b704f929e4271a8f3"
+ },
+ {
+  "name": "models\\tanks\\tank_small_shilka\\tank_small_shilka_gray.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "436d4b721712f2655dd76a22f008065c44211f15"
+ },
+ {
+  "name": "models\\tanks\\tank_small_shilka\\tank_small_shilka_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1287c0c50548ac099b24b637ab91bce15ed15693"
+ },
+ {
+  "name": "models\\tanks\\tank_small_shilka\\tank_small_shilka_green_1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4dd64e6bce1490d073de148a002f9f6502a91ec6"
+ },
+ {
+  "name": "models\\tanks\\tank_zsu\\tank_zsu_blue.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "4bac032524f0924131493e88af11a1d2beabcf8f"
+ },
+ {
+  "name": "models\\tanks\\tank_zsu\\tank_zsu_dark_bl.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "5a5524f5cca7ab9d72797df89ee39620e9e7dcf7"
+ },
+ {
+  "name": "models\\tanks\\tank_zsu\\tank_zsu_dark_gr.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "2d82ae8dcc25db55c3caa1a569fe0d2931e49eb0"
+ },
+ {
+  "name": "models\\tanks\\tank_zsu\\tank_zsu_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "3dcb8ae6586b84a876a2b2af0695e55c33dbf1ce"
+ },
+ {
+  "name": "models\\traktor\\dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a03ec0a7b341f451c20a70d2dfddd4f3fc2bf0c4"
+ },
+ {
+  "name": "models\\traktor\\traktor.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "aa1881f9e89e0a23406fda71d0ede77a4553a98b"
+ },
+ {
+  "name": "models\\traktor\\traktor_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3e2252741b58994361e78d63bc862dd32c5b6c52"
+ },
+ {
+  "name": "models\\transport\\truck\\truck01.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "cd8a6b17e136aa27fb2a99ef228f573686103f14"
+ },
+ {
+  "name": "models\\transport\\truck\\truck02.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "60ab39916cbe3bee6d61cd2086135e28e16161fc"
+ },
+ {
+  "name": "models\\transport\\truck\\truck_dead.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "1895c270601ba53c7e8f089b9f44428c15b5000f"
+ },
+ {
+  "name": "models\\truck_medium_kuzov\\truck_medium_kuzov_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "88aefa88886dbbacbde62f0450849f0c335aaa12"
+ },
+ {
+  "name": "models\\truck_medium_oil\\truck_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3ef46dee4cfe00c9829c84bdc0cbf9407bd3827c"
+ },
+ {
+  "name": "models\\truck_medium_oil\\truck_medium_oil.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "41567da8d7d9ab823eba9420be96c183e2a8377f"
+ },
+ {
+  "name": "models\\truck_medium_oil\\truck_medium_oil_black.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ee338bfbbb1cb5e5b7e1cb802cf8a01d98965858"
+ },
+ {
+  "name": "models\\truck_medium_oil\\truck_medium_oil_desert.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "50e7691ac5b81f13fc9f70dfb9ac1f51d2b4bda6"
+ },
+ {
+  "name": "models\\tyagach\\tyagach.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "29e0468494417e0b60497131c67765a845202a8a"
+ },
+ {
+  "name": "models\\tyagach\\tyagach_dead.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "447d083e8a0971c8f39a9ddcd31cc38a8bf176c1"
+ },
+ {
+  "name": "models\\weapons\\abomb\\abomb.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "a956cdb1805a89bcc96041337d52e2b717db39a4"
+ },
+ {
+  "name": "models\\weapons\\bfg\\ballflare.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "607f836efff5964a26d2b282899f8faf68a91c75"
+ },
+ {
+  "name": "models\\weapons\\bfg\\ballflare2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c8afbd69742488d5a6e83168e2a1b7f0392b0f5f"
+ },
+ {
+  "name": "models\\weapons\\bfg\\bfg_plane.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6cc08bbfb909f2f4412b3e7370fe22a71844af0a"
+ },
+ {
+  "name": "models\\weapons\\bfg\\bfgbal2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "f902ca8af168fc4156f9c6b629055f51c7015b19"
+ },
+ {
+  "name": "models\\weapons\\bfg\\bfgball.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "85f23ffda9c636a54f6fecee3b49898e7e7f61c9"
+ },
+ {
+  "name": "models\\weapons\\cherep\\cherep.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "4b4727a1c21faa7ca7650fcb05f24393413b174c"
+ },
+ {
+  "name": "models\\weapons\\clusterbomb\\clusterbomb.tga",
+  "width": 32,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "a9755e3e16731d15e4dbb48194010425ea711bc3"
+ },
+ {
+  "name": "models\\weapons\\fireball\\fireball.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "cfb75148aa4a0cd770caa974adcd141eb9d8972a"
+ },
+ {
+  "name": "models\\weapons\\fireball\\fireball2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9efbb3d8f489c9fb55d309641a3fb115f801a13f"
+ },
+ {
+  "name": "models\\weapons\\impulse\\flare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ba1859a47f2d2b9638229c77fb9516c73a852a34"
+ },
+ {
+  "name": "models\\weapons\\impulse\\igun_flash.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "88b1d5fc4811e91e58d8d3249d0e5c4ad25a5c1e"
+ },
+ {
+  "name": "models\\weapons\\impulse\\impulse.tga",
+  "width": 16,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "1944f665638a6132056d294cad9b9425e2b033c9"
+ },
+ {
+  "name": "models\\weapons\\laser\\biglaser_flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "4fedeead3fd40e52b5c1d892db00f5e36cbcbb79"
+ },
+ {
+  "name": "models\\weapons\\laser\\flare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "0f535bb6de595928062d78ce2bcc282ef91c5473"
+ },
+ {
+  "name": "models\\weapons\\laser\\laser_flash.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a06c808885dd7adaf956f1804bbccc6dde900e9e"
+ },
+ {
+  "name": "models\\weapons\\laser\\plasma_flash.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3b1d896dd94c8e799adad844a490b6baf9d805cf"
+ },
+ {
+  "name": "models\\weapons\\laser\\weapons.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6b32634efdce37cde895b5c715dfa73439873eb1"
+ },
+ {
+  "name": "models\\weapons\\meteorite\\flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "fd44425625e33abdb9be2b57c9a7f6a16f94a6a0"
+ },
+ {
+  "name": "models\\weapons\\meteorite\\meteorite.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "28a44e9e1b5dfe2e2c8b5fcc466e9a83582e30c2"
+ },
+ {
+  "name": "models\\weapons\\mgun\\mgfire.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5c3e851fdb7b7bab83c522ca2a8c7ab0e7133281"
+ },
+ {
+  "name": "models\\weapons\\mgun\\spark.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "74bd82d4596795460d4f2615fe7be2d32025b80e"
+ },
+ {
+  "name": "models\\weapons\\misflare.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "04c371e085221a13954867bfd5f469ad7e8fc3b3"
+ },
+ {
+  "name": "models\\weapons\\misflare_blue.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ff0ea1f86fd9e144ca2a942435f91392c0ce6129"
+ },
+ {
+  "name": "models\\weapons\\misflare_red.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "38f0ba2615f810fdf2a85d6e7a2f9ef1c9f99f63"
+ },
+ {
+  "name": "models\\weapons\\missile_hvost.tga",
+  "width": 16,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c39db43560bc81bef8947c22b564f357ba975a9d"
+ },
+ {
+  "name": "models\\weapons\\missile_hvost2.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3afb788335ae91efc30bf901411928decc1d831f"
+ },
+ {
+  "name": "models\\weapons\\plasma\\bpg2.tga",
+  "width": 128,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "07c42de4fbb53bc30c0a80b65e42cb15c007e118"
+ },
+ {
+  "name": "models\\weapons\\plasma\\bpg_flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ea2ecd6c63f42c8e8cb0dd5757769293767ec430"
+ },
+ {
+  "name": "models\\weapons\\plasma\\plasma.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "02e8417c6ce313a6a71303198ab23ba12cb239a1"
+ },
+ {
+  "name": "models\\weapons\\plasma\\plasma02.tga",
+  "width": 128,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "0d2862545a4d83033943164b1b2df1d8928a05e2"
+ },
+ {
+  "name": "models\\weapons\\plasma\\plasma_flash2.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "6e4ca9f57385b309dfc20d44d876c592591feb1b"
+ },
+ {
+  "name": "models\\weapons\\plasma\\raadgun.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "f122b3d7ccfd6bde9076f7a8eab92b0766e3739b"
+ },
+ {
+  "name": "models\\weapons\\rocket_hvost.tga",
+  "width": 16,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "9d862598de66bb6292deada5a2cce5f8f6cbb229"
+ },
+ {
+  "name": "models\\weapons\\rockets.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "2ee8b165425fd64f0d2b734cbd506ff812cbc7a9"
+ },
+ {
+  "name": "models\\weapons\\satellite\\fball.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "38cdac81e4c33177c854b2304737bd4797fe2381"
+ },
+ {
+  "name": "models\\weapons\\satellite\\satellite.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "5c364386e73f20e2c807791765409b2c4beb5712"
+ },
+ {
+  "name": "models\\weapons\\satellite\\satellite_laser.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "4bf6a016c91e1cf7c29bbae20f6820b169d6c855"
+ },
+ {
+  "name": "models\\weapons\\satellite\\satellite_laser_gun.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "cc2741b57d12154aeb85d403ac863fdc6ce69b3d"
+ },
+ {
+  "name": "models\\weapons\\satellite_strike\\laser.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a46b709c47d934d5be5d69b0c10b84b0a63630bb"
+ },
+ {
+  "name": "models\\weapons\\sharik_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "fe896285c750dbd40748e085d0746f99c654a76c"
+ },
+ {
+  "name": "models\\weapons\\spark\\redspark.tga",
+  "width": 16,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "943de971f05332cd01b045dfb60a669dde1c9752"
+ },
+ {
+  "name": "models\\weapons\\spark\\spark_flare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "465c394e303f341892a0da0b07c8a2d7620f7036"
+ },
+ {
+  "name": "models\\weapons\\wavegun\\flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "87387e917df6d000a9616faab06feafd5c000e16"
+ },
+ {
+  "name": "models\\weapons\\wavegun\\wavegun_hit.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "897034fb90a0fe1f529948c2b28c8cb6bd49ed9c"
+ },
+ {
+  "name": "models\\weapons\\wavegun\\wavegun_hvost.tga",
+  "width": 32,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "db40dcac84f2aa220cda1755e421776a65ae8622"
+ },
+ {
+  "name": "models\\weapons_enemy\\fball.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "d8a7650f30222341b24a0361112ded2175d91670"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\bfg\\bfg_plane.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c8c14acc97d49dbf6d95478fd852cac770e51d1a"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_blue.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "030131f2c35bf171a59d1f801163676e6e9bf34e"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_blue_small.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "7c132e32455dae236bb040606b9e3cd48187f523"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f130e3d22f5ccf663d48bf9fd393bc78a550e064"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_green_small.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "f4f38b314b62f248b6f1c75f1d95da9835f31fec"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_magenta_small.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "56bda3af72c72ed48c03de1569af82a17b9edb02"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_red.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "55bcd7909fa319aa6b4e2c21e73ccb74e6d17e47"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_red_small.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ae8fe72817b65a813996bf93eff63ecfdcdf440a"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_red_small2.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "477829f59489c8939c5a48d131c672ae2426d5a4"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\flare_red_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0c8aa1f605785667199e4571cde85f14f0978b64"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\spark_blue.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "433a00ff640a100b072904cc41c9c7c0b6536301"
+ },
+ {
+  "name": "models\\weapons_enemy\\impulse\\flash.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "5c567e6404017f458ec005290d62f74e3483af2c"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\biglaser_flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "5d6f8a8b699705b9c2deb01b582ab4b17315fd9d"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flash_blue.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "89dc5074e91fe518b9e4a50bcd6e4cd1f3c5be33"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flash_green.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0fb0fb928549bceb0f071b9a71b7fd5d705c9f62"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flash_orange.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "c0335ca3c3a7901f78de4196b079719fa3928db0"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flash_red.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ed919195856d58f5a275b671df3fb1ea4b15c1ff"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flash_red2.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f6aad43cc787fc99815272913f119d0f6377847b"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flashes.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "60f517a90bc62bc88d6fd6cdf07fe61236ca3847"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\hits.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4191c4201f7d5573eb02d3dc061b1ac535711063"
+ },
+ {
+  "name": "models\\weapons_enemy\\missiles\\missile_flare.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "778bee318f7dc2edd51bf53b630121e09c7aa400"
+ },
+ {
+  "name": "models\\weapons_enemy\\missiles\\missile_flare_big.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "6c3cd78402c6fdbf44ecc4972be70b9c54527610"
+ },
+ {
+  "name": "models\\weapons_enemy\\missiles\\missile_hvost2.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "863421591bb7cd3948ef44dee6c2e56fa2bd779c"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e5ddb94c2d0c4f631962418e95088aea03e7bdbd"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "68bd566db83d2d619ff943565b0f97c963bf6567"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_magenta.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8e93e6c55489a2172c8de0cd8e1d23afb32ff30a"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_magenta2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "42fde97de79da68e665afd6168d11eed7c626212"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d65d7eecf16edd6ecf1bc993158250814a84f9d6"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_red1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "85ee234f62843671a0f087c0e4090ed57c6d1581"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_yellow.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "755a9e8373d083af8f3e814fd82d03ba1b8fbcfc"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_blue.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "cd7e29877181bd7930c158b50c272317ce90296e"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_blue_hit.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "cc3a04234040b6921ed32be406f8103b603836e8"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_hit.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "6d1be84d04235ddd160752f9374207aaa2a8dd5c"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_mag_hit.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "a71106b60ef3b46aee6c81bbe7763927eec798df"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_magenta.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "7f9ed0ba8feba63a2e9ad5690e342c968e88f738"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_orange.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "833fd5b19bb9e3217892eab35e8db7fb3a9cd660"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_orange_hit.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "fe820b5077b40659a69ebbfd006886305fde1ae0"
+ },
+ {
+  "name": "models\\weapons_enemy\\tanks_weapons\\ballflare.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "ec19a561e4c925ec02834d6df1ee470eb90ff8cb"
+ },
+ {
+  "name": "models\\weapons_enemy\\tanks_weapons\\ballflare2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "78728f262b70e2d09bdda357aed538f42be8e355"
+ },
+ {
+  "name": "models\\weapons_enemy\\tanks_weapons\\ballflare3.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "cf4ab528bccf810fbb8348909bb4eb7850bcad36"
+ },
+ {
+  "name": "models\\weapons_enemy\\tanks_weapons\\bfgball.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "053e3219bd0dd468284591df187923ddf903bde3"
+ },
+ {
+  "name": "models\\weapons_enemy\\weapons_enemy.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "326f1bf45e50f424ee6510f2a6d631faf5604404"
+ },
+ {
+  "name": "models\\weapons_enemy\\weapons_enemy2.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "83e4bd8ac4999c4c86edd4086fe137c18b708777"
+ },
+ {
+  "name": "models\\weapons_enemy\\weapons_enemy3.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "328df0ec33310c1ec8c50aac0b135736528ce6af"
+ },
+ {
+  "name": "morphmaps\\map1.tga",
+  "width": 7,
+  "height": 7,
+  "hasAlpha": false,
+  "sha1": "56c92a14b02b24ecdad61e9399148e5757bccd2a"
+ },
+ {
+  "name": "morphmaps\\map1_big.tga",
+  "width": 11,
+  "height": 11,
+  "hasAlpha": false,
+  "sha1": "b336e50058fbc68db5a3062cbe9d7127bf2b29c0"
+ },
+ {
+  "name": "morphmaps\\map2.tga",
+  "width": 7,
+  "height": 7,
+  "hasAlpha": false,
+  "sha1": "628da045e4039975b39486cdabf4357f0174e632"
+ },
+ {
+  "name": "morphmaps\\map_medium.tga",
+  "width": 5,
+  "height": 5,
+  "hasAlpha": false,
+  "sha1": "ba4b2298bfaffc53a4a7a10762041d3aba7fc357"
+ },
+ {
+  "name": "morphmaps\\map_small.tga",
+  "width": 4,
+  "height": 4,
+  "hasAlpha": false,
+  "sha1": "6f21b793750e9a0829e405acbb8958425a421ba6"
+ },
+ {
+  "name": "textures\\badlands\\detail.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ddf023dfc85fb0d014366408471f3d7cb7a524ee"
+ },
+ {
+  "name": "textures\\badlands\\texture1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "2e9d460357e967e6b5a4f48c77ef9fefd8052acf"
+ },
+ {
+  "name": "textures\\badlands\\texture2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c3d115bae1e354d169ef48b5311666d513731d92"
+ },
+ {
+  "name": "textures\\badlands\\texture3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "1b5ad42b17fc530fa10d1e445b772067248dfe8f"
+ },
+ {
+  "name": "textures\\badlands\\texture4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ff84b4ce121386722dd56669f4e546a706beaf1f"
+ },
+ {
+  "name": "textures\\desert\\detail.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "3e0fb808cc4210b0604c6c458794d1d53bc3be04"
+ },
+ {
+  "name": "textures\\desert\\texture1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "5b3b64048b751b71eae87eed4c281ef1ee756ca4"
+ },
+ {
+  "name": "textures\\desert\\texture2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "78c0b73814d4a37c68805a4dc9aba7fa0dda35db"
+ },
+ {
+  "name": "textures\\desert\\texture3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "19bc554742f95893538e97488cf67b6c49c4b7f6"
+ },
+ {
+  "name": "textures\\desert\\texture4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "55edb4034bb64fd800bc35bb3c1e48e9ecb556bf"
+ },
+ {
+  "name": "textures\\grass\\detail.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ddf023dfc85fb0d014366408471f3d7cb7a524ee"
+ },
+ {
+  "name": "textures\\grass\\texture1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "99c86e20267923271974ae88f41f0f101b7c5720"
+ },
+ {
+  "name": "textures\\grass\\texture2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "2ef0e582d780be417e53cfccf042235e3a75daa5"
+ },
+ {
+  "name": "textures\\grass\\texture3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "cbb1a6b42418d43b20110f4d290c485af3580778"
+ },
+ {
+  "name": "textures\\grass\\texture4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c05e74e7413fda41ecd378a1c138078b4ce0c281"
+ },
+ {
+  "name": "textures\\rock\\detail.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c05e74e7413fda41ecd378a1c138078b4ce0c281"
+ },
+ {
+  "name": "textures\\rock\\texture1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "1a8fa5967a4f8b236ff3f34f285ffe138de03f65"
+ },
+ {
+  "name": "textures\\rock\\texture2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "957ebc476407e3417932c302d14afa32f2eda0b3"
+ },
+ {
+  "name": "textures\\rock\\texture3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "916644e805c1510c6705a7663a4a3af33f5d0eac"
+ },
+ {
+  "name": "textures\\rock\\texture4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c05e74e7413fda41ecd378a1c138078b4ce0c281"
+ },
+ {
+  "name": "textures\\rock_snow\\detail.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c05e74e7413fda41ecd378a1c138078b4ce0c281"
+ },
+ {
+  "name": "textures\\rock_snow\\texture1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "bb9c220b8bd7aee2a4ad333b5da94c3f6509d928"
+ },
+ {
+  "name": "textures\\rock_snow\\texture2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d59ea711ad8ea19f1c8594da00cbbbfe68b9f04e"
+ },
+ {
+  "name": "textures\\rock_snow\\texture3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "916644e805c1510c6705a7663a4a3af33f5d0eac"
+ },
+ {
+  "name": "textures\\rock_snow\\texture4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c05e74e7413fda41ecd378a1c138078b4ce0c281"
+ },
+ {
+  "name": "textures\\snow\\detail.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ddf023dfc85fb0d014366408471f3d7cb7a524ee"
+ },
+ {
+  "name": "textures\\snow\\texture1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ba56e15178bed03335ee7a58702217dd53aaf0cd"
+ },
+ {
+  "name": "textures\\snow\\texture2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "5bc5fb4ca7e187e0db2982d5e0970eea14d29348"
+ },
+ {
+  "name": "textures\\snow\\texture3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "87ca49f4079597f19c51f662a31b7649bb2c2d23"
+ },
+ {
+  "name": "textures\\snow\\texture4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "19b7df7eb9b3855f6ae4521b012273562f8759aa"
+ },
+ {
+  "name": "tiles\\tiles1.tga",
+  "width": 512,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "fd614e6203a5c8753c97a35ea158d1f65ed5bc84"
+ },
+ {
+  "name": "tiles\\tiles2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "f045d767248ca40d15937c2775e12f4bba1e16d6"
+ },
+ {
+  "name": "tiles\\tiles3.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "852e2a2c08af1c80b3fe24480079a4cd9d78c8be"
+ },
+ {
+  "name": "tiles\\tiles4.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "af5facea7cb3df908671cad568bf5f11b43720d0"
+ },
+ {
+  "name": "tiles\\tiles5.tga",
+  "width": 512,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "94665c3cfe1bf616e9da8b60bb0a862a53c890ab"
+ },
+ {
+  "name": "tiles\\tiles6.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "1083eaa0db2f2c0122a2fef383c0b1a8e07de9ed"
+ },
+ {
+  "name": "tiles\\tiles7.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "e0d3c6ad7b629b32669605160bb46fa4ea828295"
+ },
+ {
+  "name": "tiles\\tiles8.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "e8bfe5a0ab2962f821009e1641ea1b3c2e566fa1"
+ },
+ {
+  "name": "tiles\\tiles9.tga",
+  "width": 512,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "f9e88359e477e46b80ac437325b4c4c408c5120d"
+ }
+]

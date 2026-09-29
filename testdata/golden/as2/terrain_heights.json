@@ -1,0 +1,169 @@
+[
+ {
+  "base_texture_block0_sha1": "a5be0675ffab10f7b4f81af3b1c13674bbc2fca4",
+  "file": "maps/bonus_level.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "bcd3d619de74a2fd327d4f1c1d66e025270c93fb",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "3694ccb27d9ec83e416e4f62c15def1152355630",
+  "file": "maps/bonus_level2.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "1cf9c6209740c87da25e6433364f35373b49209f",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "8eb304869777341cb8fa1416d3fb7e379ac939a2",
+  "file": "maps/intro1.hsc",
+  "height": 128,
+  "textures": "textures\\snow",
+  "vertex_heights_sha1": "0493ffc8b592ed3842ce127ef7a84f0083802c54",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "62d38d50a4ec3e747fb9be8cadf245efaa051791",
+  "file": "maps/intro2.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "64d858674788a0fdd835c93db8e25144616d497a",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "22d26f267edf60415d49dcac6087f1e079047ad4",
+  "file": "maps/level10.hsc",
+  "height": 256,
+  "textures": "textures\\snow",
+  "vertex_heights_sha1": "5a0508fa17e6fb80f8e0be0933ea7d4bd40b879b",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "38b5065d7122104065def8823ef6700e8884a8d3",
+  "file": "maps/level11.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "b0673106735d0adf925a02dee3084041ed0d1cfb",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "0e90dd28aa6821a39a2af42369c48c9bc5decd42",
+  "file": "maps/level14.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "f22bfd88f04b30d33476b7e96ee1b604b0ad22e4",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "d5c50f4d19c1347952e9e2c2104bd1e953ed70fd",
+  "file": "maps/level15.hsc",
+  "height": 256,
+  "textures": "textures\\badlands",
+  "vertex_heights_sha1": "5aee2ad4c52bc505b75f8fe23ab47272c1594651",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "2282f8f5c5d2e03f26f2476ec4a697de7d27b408",
+  "file": "maps/level16.hsc",
+  "height": 256,
+  "textures": "textures\\badlands",
+  "vertex_heights_sha1": "67a1b71e679a715922031c92920dd506004a64f4",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "f95f7fee8fda7fcf80039767fd8056d32ef9e938",
+  "file": "maps/level17.hsc",
+  "height": 256,
+  "textures": "textures\\rock_snow",
+  "vertex_heights_sha1": "4468b222d120f9756df3b677b64522b2bb4ada10",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "6548f237448ad9f0caabcdd7713ac5d14c3d8618",
+  "file": "maps/level1_tutor.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "ff1f644d49eab9357d758f8c261de7104e123325",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "187bcb98fdc57b12d84d169e432a5f9eadd6ef02",
+  "file": "maps/level2.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "bb16ea13aabea883f2c4374dfd59d39016aa112c",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "d7de4d8573b82b0f2339be997695365a9fa8b59e",
+  "file": "maps/level3.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "2f78848f1b9a6fd43e4dea21c5c4b25e4e8e71ce",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "b86160eabc71bf9c295a5603b564cec42c249580",
+  "file": "maps/level4.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "4d036ea546329d7388a39b5fe1d1140381338639",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "56f54247095dd9929a0c5f5f22ace945ef81b63f",
+  "file": "maps/level5.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "dd844f81d035a34343ae29c8faedafd07dafe176",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "c5eb0d8b83b759315282a657b62eaa3ee4f89fd1",
+  "file": "maps/level8.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "994e7d005848795a6078a5e749150e65787c4b1d",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "22c799ceddfd7b64ac6db6705c5a464096136b38",
+  "file": "maps/level9.hsc",
+  "height": 256,
+  "textures": "textures\\rock_snow",
+  "vertex_heights_sha1": "bed3ad5b672e3a56d9e55e2710f4569051cb68e8",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "0baaec80920d9b0897efd6cec200786c1500bee4",
+  "file": "maps/level_boss1.hsc",
+  "height": 256,
+  "textures": "textures\\badlands",
+  "vertex_heights_sha1": "30cfe5c03227af749a803f0a0f3816dbe887be78",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "b6da0f88de04c5a96a3c863be05ee5b923fea096",
+  "file": "maps/level_boss2.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "8ceabebc07cd6d28cc163c6663341b99078f8ffc",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "3cb455a2136e16162de94acaf4b4ebd00ac42d27",
+  "file": "maps/level_boss3.hsc",
+  "height": 256,
+  "textures": "textures\\badlands",
+  "vertex_heights_sha1": "487199448f63c11e7e6ca49588bf105b508a4f29",
+  "width": 32
+ },
+ {
+  "file": "maps/level_konion.hsc",
+  "height": 256,
+  "textures": "",
+  "vertex_heights_sha1": "356a8f4fef3a8ba17a9cce89e8383d90f49ff35a",
+  "width": 32
+ }
+]

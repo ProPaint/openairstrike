@@ -138,6 +138,8 @@ def main():
         for name in existing_by_name:
             if name not in new_by_name:
                 failures.append(f"{name}: in golden {golden_path} but no longer found/decodable")
+    elif failures:
+        print("tga: not writing the golden file while checks fail", file=sys.stderr)
     else:
         os.makedirs(os.path.dirname(golden_path), exist_ok=True)
         with open(golden_path, "w") as f:

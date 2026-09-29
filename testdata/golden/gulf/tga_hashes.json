@@ -1,0 +1,3789 @@
+[
+ {
+  "name": "gfx\\black.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "468986a76911c05c77e05315620460c4b56079e4"
+ },
+ {
+  "name": "gfx\\chrome2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "16a13b0622dea29d0dcab3ac7a1f6e1901f029e9"
+ },
+ {
+  "name": "gfx\\chrome3.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "bf0de121f91071c51a0a733e2a444eb642fec34b"
+ },
+ {
+  "name": "gfx\\clouds\\clouds1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "f4c2dcf943246eb688b3a354a2223e3564d669e8"
+ },
+ {
+  "name": "gfx\\combust2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1fb299dceb3ad06a060365858a65e3bf5378df35"
+ },
+ {
+  "name": "gfx\\effects\\earth_piece.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "09a219a07ac9ae0430bebd12d4e50554730cfb7b"
+ },
+ {
+  "name": "gfx\\effects\\expl1light.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0d171ffdce48a0f18cc45cd18b2e3a5f5086da13"
+ },
+ {
+  "name": "gfx\\effects\\expl_dust.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "31c44c7533b19d4aaca4a1e536ec2fd7f9f18b28"
+ },
+ {
+  "name": "gfx\\effects\\flare_blue.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "645d876f5becc07a01f486ce1c840de9a5e8e7e1"
+ },
+ {
+  "name": "gfx\\effects\\flare_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "eec105adccd406df8bde1aeb84df924380dfb1bd"
+ },
+ {
+  "name": "gfx\\effects\\flare_red.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "36f179c5c045913effcb16cd916cc25c81c49a25"
+ },
+ {
+  "name": "gfx\\effects\\flare_test.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "44ea200f2fc2043b247c074f0f689c12cdcc5930"
+ },
+ {
+  "name": "gfx\\effects\\flash_yellow.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "b08695a690a69f22bbd38fd8e6784a9e0652f983"
+ },
+ {
+  "name": "gfx\\effects\\fonarflare.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "2c4517f72d7eea7e6bc69c2896c7bd560f239ec4"
+ },
+ {
+  "name": "gfx\\effects\\fonarflare_red.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "0a7525428c5f217dcb69a8d8b1d70f16bbf89461"
+ },
+ {
+  "name": "gfx\\effects\\gibflare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "12b91bdbbc813d833485e860e5948a936d418351"
+ },
+ {
+  "name": "gfx\\effects\\gibspark.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "614adec1445a36e7ccf34b4176f708de5f00d4c6"
+ },
+ {
+  "name": "gfx\\effects\\moln.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "64a6f2a0f08f3bf5b126f796d46728192edae367"
+ },
+ {
+  "name": "gfx\\effects\\shell_mag.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "dbf6500cd0a8ba6f7e6a34787faff5fc8eed74ac"
+ },
+ {
+  "name": "gfx\\effects\\shield.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "493560dc700e10c68e3807b36cf024933c365408"
+ },
+ {
+  "name": "gfx\\effects\\shield_boss.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "173a89594645d6ff6a897f7bcd88bf3de0df3f00"
+ },
+ {
+  "name": "gfx\\effects\\whitespark.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6280b1dec18d12fec56bff16099dcc447c85873d"
+ },
+ {
+  "name": "gfx\\envmap1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "df3e9dc5126114aacd522a74294925c6a6095ab3"
+ },
+ {
+  "name": "gfx\\envmap2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "b694e0df4613725c9b618248410b1d167e225c3b"
+ },
+ {
+  "name": "gfx\\envmap3.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "23868888d892cffbc84533d126e8f1c7f5240f6f"
+ },
+ {
+  "name": "gfx\\envmap4.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e9f0c2e2ca229a031c7d368bd45b609246956fc6"
+ },
+ {
+  "name": "gfx\\expl.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "6d7d843babcabb5b68f0cddbfffe44f09ab4f626"
+ },
+ {
+  "name": "gfx\\expl_blue.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "17999004002d067ea41056960c2bcc06be98a39b"
+ },
+ {
+  "name": "gfx\\flare_blue_small.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "cb41d27f330dbc993e0adb9d8d8f78b754e96f88"
+ },
+ {
+  "name": "gfx\\flare_orange_green_small.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "962b2ae00f766ff65507f81c0ed3296509ff1b2e"
+ },
+ {
+  "name": "gfx\\flare_white_red_small.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "eb6a6dc39f34b67c5f28bdda5b2bc13ddb665d70"
+ },
+ {
+  "name": "gfx\\hbar_0.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "3c44bc8f3879ab8f7b35174f968514f49e13c528"
+ },
+ {
+  "name": "gfx\\hbar_1.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "a324f1afe01140c4d58618875715ee545b9f1ecc"
+ },
+ {
+  "name": "gfx\\lightning1.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "7e23cde880d656b26f007e31d7f5c9d658fd3f6e"
+ },
+ {
+  "name": "gfx\\lightning2.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "fadce00db332f524f24f9f5aa3137fa9d7a6e81f"
+ },
+ {
+  "name": "gfx\\lightning_big.tga",
+  "width": 32,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "4b1ccee32df6687f5b2ab3b16aa692744ce3c809"
+ },
+ {
+  "name": "gfx\\logo.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "5eba590b5a4fcd72c9aa394f842300297f699ba4"
+ },
+ {
+  "name": "gfx\\logo\\clouds.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "f05734fff25ee3b5fa1963c91014b2b099ab6806"
+ },
+ {
+  "name": "gfx\\logo\\glow.tga",
+  "width": 512,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "09ead3a37df0db77eaf814e394a992ddddc365e4"
+ },
+ {
+  "name": "gfx\\logo\\lines_gulf.tga",
+  "width": 4,
+  "height": 4,
+  "hasAlpha": true,
+  "sha1": "f6b53ef98f2aad1da40dc8c5caaa06529b760245"
+ },
+ {
+  "name": "gfx\\logo\\logo.tga",
+  "width": 512,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "08ae44c5be34bf9c4121d13c22e6672d9e0b316a"
+ },
+ {
+  "name": "gfx\\logo\\logo_gulf.tga",
+  "width": 512,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "7e24119f2f6f436876b9b715e7e7256d90a89792"
+ },
+ {
+  "name": "gfx\\logo\\two3.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "4daed98e7ec727b8937510bf6ac1dcf8a6487b09"
+ },
+ {
+  "name": "gfx\\mark.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "2208704c4f5a70e17238be1daa7da0854021f7e8"
+ },
+ {
+  "name": "gfx\\marks\\jeepmark1.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "d23457fc6074c9ad62f99e51402c0545e3cb00a6"
+ },
+ {
+  "name": "gfx\\marks\\tankmark1.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "b14dc45ef5880e44b86532e92c4cf114f5687ad0"
+ },
+ {
+  "name": "gfx\\mc_cur.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "74a1d4eb56671685a7e41e8523ffae1978b8ef76"
+ },
+ {
+  "name": "gfx\\pepel.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "c208b2c03f1fb6067b52a5ff29b836c58bf5aca5"
+ },
+ {
+  "name": "gfx\\rain.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "fdfff34297f216721542b7735ba156682fa82831"
+ },
+ {
+  "name": "gfx\\scores.tga",
+  "width": 256,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "12eee5858fa93e904476dce28414dc62dc88c754"
+ },
+ {
+  "name": "gfx\\smoke.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "5719660d49f58837480613f356fd867bae89fcc4"
+ },
+ {
+  "name": "gfx\\smoke2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "3c1f3c9297c88b8c760308cbff04538d225b4376"
+ },
+ {
+  "name": "gfx\\smoke3.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "783d4b5ad12b618337fb65f49bdfd9c694faca81"
+ },
+ {
+  "name": "gfx\\smoke4.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "006c2a2c43d0aac43013b7ad5a45a01b8bb18d5a"
+ },
+ {
+  "name": "gfx\\smoke_green.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "8ce913641eaa73d01a0a88f188c019088eb7c243"
+ },
+ {
+  "name": "gfx\\spice.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "c740326a337cbb3afbc58e280e49092375ac1c29"
+ },
+ {
+  "name": "gfx\\splash.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "d6fb7b9615f3d71f94695da6ae72392d43c68a08"
+ },
+ {
+  "name": "gfx\\splash_ship.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c575929ad6d2f907625f083e9e301029c47df4f7"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_1_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "7c947a9d4381a51df27a69dcdb141f3002023968"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_1_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c6150d1869a10ab12befe832d83df0438d488ca0"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_2_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ce9aacbcd9bdee96d86f5daa5a5172ed292a3c61"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_2_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "77fe014bbbd10eef2090b8fddc344a7013f82f18"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_3_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "61189a79ebb64a8069cc2c5715dcd973e5ee783a"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamedone_3_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "90456929b70ba2a75f79712f026726ab88eb415b"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_1_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "63ddd425b902df3a394bf22040860f781aae0096"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_1_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "13cc689e5bd73a366cf681eacbd6e5de1d9c5f14"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_2_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "833f25252d829f16936cebb613c049abce3802f2"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_2_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d33e435a5379b36104426d4c89119696d8a55c48"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_3_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "5d9158ae658f2269113d47761e3da4b333542047"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gameover_3_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ef57054aa47082f224f6755547d3aa4e58bb3a73"
+ },
+ {
+  "name": "gfx\\ui\\comix\\gamov.tga",
+  "width": 512,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0252fdcb01fbe9c234c2a4db200aaf753ce3a182"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_0_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "081975b1311375dc3c6399b3705287cda9ba623b"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_0_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "7d2b1fdf0c5695bc4f943013821dda10db9318a0"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_0_2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "36e88c78d45577840a6c8616d3b46d2e4b06dbc3"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_0_3.tga",
+  "width": 64,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "527655bddadc3d13e841a2940aa9c1910aed12a1"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_1_0.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "bc8f9ffc5c45cb6f33df426dc2ef2530c1c6e71b"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_1_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "34be430c710e1d511db8c3921ba0a84b8cf57ee5"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_1_2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "a16f8550375f77c438eea95b9554ec11169a77d3"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_1_3.tga",
+  "width": 64,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "293bd44b0eef95bd02a8c011d9bcd8b5301def01"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_2_0.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "b5fbab312bc92ff9c0a1ec0f4fd9d1427df6505d"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_2_1.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ad0b1707a03603c59236a3d5d854275a08f35ee7"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_2_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "782440b304dbcdaa109e71157adad991338f7afa"
+ },
+ {
+  "name": "gfx\\ui\\comix\\loading1_2_3.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "756bcd7bfb8845366413fbde014b51947cadb691"
+ },
+ {
+  "name": "gfx\\ui\\font.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "6497f270237bfa200eeeb2f44d400189b730a5ba"
+ },
+ {
+  "name": "gfx\\ui\\font_alpha.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "8ce08f1a2a6d35e31d4d31c56a505717df5edfd3"
+ },
+ {
+  "name": "gfx\\ui\\grid.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "79d187a785f5978fe3847c71f0250beb725dd07b"
+ },
+ {
+  "name": "gfx\\ui\\helicna.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "309113e5bd13cbf068508a473eb9eae18eae40d4"
+ },
+ {
+  "name": "gfx\\ui\\interface_gulf.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "41efab1cbcd5d86f0b99db37d00088806bc0d66c"
+ },
+ {
+  "name": "gfx\\ui\\items.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "35dd17c2a5cce1afbb0bfb82cfa65c41617b4645"
+ },
+ {
+  "name": "gfx\\ui\\life.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ac15f2b0ada8f55db240f563535a296e747f936f"
+ },
+ {
+  "name": "gfx\\ui\\mainbar2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "1d9676fcc7a42b16961fa75595f52213fe83ac64"
+ },
+ {
+  "name": "gfx\\ui\\missiles.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "2854bcd62474f62e433288683e626829f1a750c7"
+ },
+ {
+  "name": "gfx\\ui\\portraits2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "cedd360a6e8388ff82b6976fb2e789745533401f"
+ },
+ {
+  "name": "gfx\\ui\\snow.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "cc172d2137e1fc813f60a77b404f6072d8477b25"
+ },
+ {
+  "name": "gfx\\ui\\weapons.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9e026ac1ee8486849610b36b6b48954ca87e1072"
+ },
+ {
+  "name": "gfx\\water\\water_ocean_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "aeb84e8497545dc89c6888aa063a24f818aa3098"
+ },
+ {
+  "name": "gfx\\water\\water_ocean_1_shine.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "0794bc3f92271b97cbf5ddd1c6e72ec6bacdb6d0"
+ },
+ {
+  "name": "gfx\\water\\water_sand_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "12dfb4d7400fb3bb5a0be84aa6a361a2db03398e"
+ },
+ {
+  "name": "gfx\\water\\water_sand_1_shine.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "2753e74841351062e4a7bba802db819108f976c1"
+ },
+ {
+  "name": "gfx\\water_spray.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "766f340e19e2dd2a2c75f80230c404a30a734451"
+ },
+ {
+  "name": "gfx\\weapons\\bublik.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "eb81078ae5a22716712d020fff257f20c6563595"
+ },
+ {
+  "name": "gfx\\weapons\\combust_flamefrower.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "974eb9462089f3e2cc2cb55a8634ea69092ad30d"
+ },
+ {
+  "name": "gfx\\weapons\\combust_flamefrower2.tga",
+  "width": 128,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "070c2f62b07785ecce72dace3648c93742d2826a"
+ },
+ {
+  "name": "gfx\\weapons\\combust_flamefrower_2.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "43a026dc56303114b34d534ab267614288e01b12"
+ },
+ {
+  "name": "gfx\\weapons\\combust_flamefrower_3.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "52c42e2d401f2c826b8adbcec2cfeb06157659b1"
+ },
+ {
+  "name": "gfx\\weapons\\expl_missile.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "10236f946df7aba45881a7fb650517fce5428573"
+ },
+ {
+  "name": "gfx\\weapons\\hits.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d551309211fc891037ff364fff27b7f219bddd15"
+ },
+ {
+  "name": "gfx\\weapons\\iskra.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "4af60746fe6d33250f397387020e10e2bd00a24a"
+ },
+ {
+  "name": "gfx\\weapons\\photon2.tga",
+  "width": 128,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "978fd9e66f8dd0d10196024942d6adff7bee68a3"
+ },
+ {
+  "name": "menu\\cursor_1.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "f23c6e939cbf20cb58d95041f459b4276695f2f4"
+ },
+ {
+  "name": "menu\\cursor_2.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "a3a7f3f2dafdd165ae80a18b3e2a9ee8d6a26172"
+ },
+ {
+  "name": "models\\_new\\meteorite.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "95ddcdd36beb25e20670dfe880b85395bc161a62"
+ },
+ {
+  "name": "models\\_new\\stones.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6bcef03baf3d0416e05b8abb0da2627c26917504"
+ },
+ {
+  "name": "models\\bikes\\bike01.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "535c3449eed19e3420fb07f321b15f457ac2250e"
+ },
+ {
+  "name": "models\\bikes\\bike02.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "85eb742fa29cba5aa132134d07816f5f64b87205"
+ },
+ {
+  "name": "models\\bosses\\boss_1\\base.tga",
+  "width": 512,
+  "height": 512,
+  "hasAlpha": false,
+  "sha1": "b4540ee1b561fa38dea839e97b58960ffcad8eae"
+ },
+ {
+  "name": "models\\bosses\\boss_1\\luk.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0f905696001263afa2c9890cbdb04e3496058314"
+ },
+ {
+  "name": "models\\bosses\\boss_1\\minoret.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6024c2c5b1162cdc3913f8378f67f5dd62181dcc"
+ },
+ {
+  "name": "models\\bosses\\boss_1\\pilesos.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "57f41184ba82ac19ff7507614d4a4fb5eb6563ca"
+ },
+ {
+  "name": "models\\bosses\\boss_1\\sphere_core.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "8ee7fde34a318319ea60f82f7409774cfae812a2"
+ },
+ {
+  "name": "models\\bosses\\boss_1\\sphere_shield.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "85f23ffda9c636a54f6fecee3b49898e7e7f61c9"
+ },
+ {
+  "name": "models\\bosses\\boss_1\\spiral.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "d3a91f5b885a2ce2eee78af47019d413626c5d72"
+ },
+ {
+  "name": "models\\bosses\\boss_2\\jeep.tga",
+  "width": 512,
+  "height": 512,
+  "hasAlpha": false,
+  "sha1": "f2cf878a6d8f16239dd15dd10dbcc71e38bf6682"
+ },
+ {
+  "name": "models\\bosses\\boss_2\\rocket.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "5bfbe415a15c6d9eeed0a64b33c79bd7bf4361b5"
+ },
+ {
+  "name": "models\\btrs\\btr_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "94407301fb657ccc1346b96a43100c80ededc55f"
+ },
+ {
+  "name": "models\\btrs\\btr_rocket\\btr_rocket_desert.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8b11ea2b0ee8957c9fa954a4140c3dc52a37d592"
+ },
+ {
+  "name": "models\\btrs\\btr_rocket\\btr_rocket_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "af2f9a3acfd8ee57acedd3bb1fbc42fd71328237"
+ },
+ {
+  "name": "models\\cannons\\aagunvulcan\\aagunvulcan.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "59f72c1bb430556379f9627ce1426c5ff65862fe"
+ },
+ {
+  "name": "models\\cannons\\aarocketlauncher\\aarocketlauncher.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "2f9ba1865f2b11effc2c9004ccf2222969540135"
+ },
+ {
+  "name": "models\\cannons\\cannon4_big\\cannon4_big_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c354a832bd69e4948667e31459c02a5350a73f50"
+ },
+ {
+  "name": "models\\cannons\\machine_gun_x2\\machine_gun_x2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "abd2e573aafae479a00cc57f6d19ed177956dcff"
+ },
+ {
+  "name": "models\\cannons\\machine_gun_x2\\machine_gun_x2_2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1a3b48fac86e25953d89b8abbee40b7a19269c31"
+ },
+ {
+  "name": "models\\cannons\\rocket_launcher\\rocket_launcher.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ab4c47ad3cb1ffebd6fab28503bd84f453f83bbb"
+ },
+ {
+  "name": "models\\cannons\\samsite\\samsite.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "e1d5f17da1150b8d4ade3791e4f20840873cf4ab"
+ },
+ {
+  "name": "models\\dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "f75d0fea0c601e99f235aeca35d0c6d1867e9fd2"
+ },
+ {
+  "name": "models\\gibs\\gib.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0b813503b14654e0bb81b4ad8e700346ef339366"
+ },
+ {
+  "name": "models\\gibs\\gib_koleso.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "c9222bfc01d1f96d52b2a8a04554a3398f4f4904"
+ },
+ {
+  "name": "models\\helics\\cobra\\cobra_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d453139f5240bcc68745773c30ed36ffbb09b5c8"
+ },
+ {
+  "name": "models\\helics\\cobra\\cobra_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "bf185f8322964b2e89803098419e2b97bf6700d1"
+ },
+ {
+  "name": "models\\helics\\cobra\\cobra_jungle.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "7d38a800502e8a8849aa9a46db4cdc1072cbd105"
+ },
+ {
+  "name": "models\\helics\\helic6\\helic6.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "71a4e2b4d00d3dc56744a98411620a3b078a948c"
+ },
+ {
+  "name": "models\\helics\\helic_big1\\heli_big1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b9bf5c60d24330283d552a314523086aea2b20b5"
+ },
+ {
+  "name": "models\\helics\\helic_big1\\heli_big1_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ad1ab2767a81748c522230a43a2209e8c462ccb6"
+ },
+ {
+  "name": "models\\helics\\helic_big1\\heli_big1_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b9bf5c60d24330283d552a314523086aea2b20b5"
+ },
+ {
+  "name": "models\\helics\\helic_big2\\heli_big2_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "14b83556e9423ffa5bdc021607480312eb98b4ce"
+ },
+ {
+  "name": "models\\helics\\helic_big2\\heli_big2_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "99ef8cd592e1ec20d749d058de06bc128a5f9007"
+ },
+ {
+  "name": "models\\helics\\helic_big2\\helic_big2_besert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "14b83556e9423ffa5bdc021607480312eb98b4ce"
+ },
+ {
+  "name": "models\\helics\\helic_dead.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "37f3e19d6692f521d94207d277793a505364fa8b"
+ },
+ {
+  "name": "models\\helics\\helic_small\\helic_small2_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "295b65dd0e7a5b7b25532950e1a2b77e3975e8f5"
+ },
+ {
+  "name": "models\\helics\\helic_small\\helic_small3_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0b35f46783dc035fa7150b7c7a368d55de571469"
+ },
+ {
+  "name": "models\\helics\\helic_small\\helic_small3_yellow.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "468e05055afb7c3db87ad5b24e214c6c476f8eda"
+ },
+ {
+  "name": "models\\helics\\helic_tiger\\helic_tiger.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d6c551a4d996725c383eb1bae782709cc02978db"
+ },
+ {
+  "name": "models\\helics\\k27\\dudejeep copy.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c464426f89e72c89cd80e1194443d711f11af2d0"
+ },
+ {
+  "name": "models\\helics\\k27\\dudejeep_desert copy.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "eaba1873d6396225d5afaee569d780ba4a73c20f"
+ },
+ {
+  "name": "models\\helics\\k27\\k27.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "bab35716bcfff3b404226ff887187ff730ff597c"
+ },
+ {
+  "name": "models\\helics\\k27\\luas_green copy.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "96082c8a7734be7b87a397db81919ac84b7b1207"
+ },
+ {
+  "name": "models\\helics\\k27\\offroad copy.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "5f4ffd8ab242132f8ec7f5cfcc6c8246c124e61d"
+ },
+ {
+  "name": "models\\helics\\k27\\offroad_desert copy.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "0d8937d456d53a6d6d1fc98875785818a2196d43"
+ },
+ {
+  "name": "models\\helics\\k27\\pickup copy.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "de070a420e392190f82a7359269dc529d21b96ed"
+ },
+ {
+  "name": "models\\helics\\kamov\\kamov_black.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "45c4a77e5be20fa9d265f24475a0f5ce10ce88df"
+ },
+ {
+  "name": "models\\helics\\kamov\\kamov_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4d52bef1401f292314dd418be52973b32854fe7b"
+ },
+ {
+  "name": "models\\helics\\mi_24\\mi_24_desert.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1bc24b49090fcda8376cfc54b95765bbfe4cdb49"
+ },
+ {
+  "name": "models\\helics\\mi_24\\mi_24_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "38e1fb73627705a619047e473e26c12d38e92498"
+ },
+ {
+  "name": "models\\helics\\oh1\\oh1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "aad0b1ca35ef76507d3f35231a55743479b0e4ae"
+ },
+ {
+  "name": "models\\helics\\player2\\kabina.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "527106a69c3acf70cc1a579348056d43f0c99436"
+ },
+ {
+  "name": "models\\helics\\player2\\player2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "bc6580decdb54d591c06fe53bc591bbb771af66c"
+ },
+ {
+  "name": "models\\helics\\player2\\vint.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "72b963492c1e1c7992de57dbb4b7edefda363aff"
+ },
+ {
+  "name": "models\\helics\\player3\\kabina.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "e3cba411cdfa28c9a74e0f84a23ff04fb61f0531"
+ },
+ {
+  "name": "models\\helics\\player3\\player3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b1f58c771e052e9efad9b9d4c33ace460a3ac099"
+ },
+ {
+  "name": "models\\helics\\player3\\vint.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "3747eab16dc3317afeaaac8fd50f6aecc41f1a04"
+ },
+ {
+  "name": "models\\helics\\player7\\helic.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c596eb193d2ee53874ec7f1be5b1556c284e6acd"
+ },
+ {
+  "name": "models\\helics\\player7\\vint.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "3747eab16dc3317afeaaac8fd50f6aecc41f1a04"
+ },
+ {
+  "name": "models\\helics\\redflare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "aaa144c121cf9b62d98b4bfc7cd0d0a9b7c00c48"
+ },
+ {
+  "name": "models\\helics\\uh\\uh_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "e001b2ebaec6030d4b657e2d8fb9ae8fcfe53045"
+ },
+ {
+  "name": "models\\helics\\uh\\uh_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "753c1a3a0ec3739c08d9d8cf2484fb0c41ee6703"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_3_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "72b963492c1e1c7992de57dbb4b7edefda363aff"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_4_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "b93c50381156ebbcc3e52654feb890d5b0c57c88"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_4_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "3747eab16dc3317afeaaac8fd50f6aecc41f1a04"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_5_orange.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "90b183c748408fd20f470c8bc36a4e864415c88a"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_5_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "c399c82d0fca0c8cf664fc49ce271edb6369cef9"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_small.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "d841cfa748ce05f716c8c66b2ba071b2d092b38f"
+ },
+ {
+  "name": "models\\helics\\vints\\vint_small2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "d841cfa748ce05f716c8c66b2ba071b2d092b38f"
+ },
+ {
+  "name": "models\\items\\ammo\\bfgbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "5bfea1a5b7fa0df8206e95074d41ce6001fe1f9a"
+ },
+ {
+  "name": "models\\items\\ammo\\flamefrowerbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0bbb74ff93236b252a9b9fef51c917f1f903ca73"
+ },
+ {
+  "name": "models\\items\\ammo\\impulsebox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "3485a4f78ae52d2aa2aeeeb9aabcd4254d2734b4"
+ },
+ {
+  "name": "models\\items\\ammo\\laserbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0b4e0400699cf3972f494fd2fcc4c7beff103950"
+ },
+ {
+  "name": "models\\items\\ammo\\lasergreenbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c59f6f1185c54d4fd505e7aa92e0675299fcd8c8"
+ },
+ {
+  "name": "models\\items\\ammo\\lightinggunbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "6cfe224c45a0009aba63be3821c0f7ddf9ef4ab1"
+ },
+ {
+  "name": "models\\items\\ammo\\machinebox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "db3deded396541e05c34c51e923a87f7e9276ae3"
+ },
+ {
+  "name": "models\\items\\ammo\\missilegunbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "db4f01fe04556dcdefe17e413c14ec83a0816278"
+ },
+ {
+  "name": "models\\items\\ammo\\photongunbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "6af65fac39fb54adc03abd305f41bfa232889422"
+ },
+ {
+  "name": "models\\items\\ammo\\plasmabox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f5db6a5f1ee7fd8d83ec839e6c5a52c4abaa29b5"
+ },
+ {
+  "name": "models\\items\\ammo\\plasmalaserbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "b19ed31b57f8c815a5a846b014c46b3b7fa63c0c"
+ },
+ {
+  "name": "models\\items\\ammo\\wavegunbox.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f9b604f3556ada22d4eed495297754e1f38d905e"
+ },
+ {
+  "name": "models\\items\\anihilator\\cherep.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "4b4727a1c21faa7ca7650fcb05f24393413b174c"
+ },
+ {
+  "name": "models\\items\\armor\\armor.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "32568d108bb2913a0eab682f5424a257c1fdf7ca"
+ },
+ {
+  "name": "models\\items\\bombs\\abomb.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "97128b278982615615dfbc19af7bae0ae8aa791f"
+ },
+ {
+  "name": "models\\items\\bombs\\lightingb.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "5896f66770b0426f6dd3af0d831672f56d2c2e48"
+ },
+ {
+  "name": "models\\items\\bonus.tga",
+  "width": 4,
+  "height": 4,
+  "hasAlpha": false,
+  "sha1": "8cdb3f083f7bcebb3779c6a5616da561e2b4debe"
+ },
+ {
+  "name": "models\\items\\bonuses\\abomb.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "97128b278982615615dfbc19af7bae0ae8aa791f"
+ },
+ {
+  "name": "models\\items\\bonuses\\lightingb.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "5896f66770b0426f6dd3af0d831672f56d2c2e48"
+ },
+ {
+  "name": "models\\items\\life.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "770b0e0294b428a06c755d745051ca9b6b448a6e"
+ },
+ {
+  "name": "models\\items\\points\\points.tga",
+  "width": 4,
+  "height": 4,
+  "hasAlpha": false,
+  "sha1": "5f80f608a25294ec2db9fe20489cc47157279eda"
+ },
+ {
+  "name": "models\\items\\shield\\shield.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "b3a53f6baab3a2bc1e2779e9cf01febd70bfc024"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_car2_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "a531d7aa128b3b095b0b6ec560bf40b16ef60a42"
+ },
+ {
+  "name": "models\\jeeps\\civil\\civil_car_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "4f95b819594769a792cc68fe08e92d36dee3eba2"
+ },
+ {
+  "name": "models\\jeeps\\dead\\dead_truck.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "2bacf991fd9e9f60d725f51811d301793853c3d5"
+ },
+ {
+  "name": "models\\jeeps\\dead\\dead_truck02.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "f6108ab36fb49d4b3fad4c1769091dc398f13b6c"
+ },
+ {
+  "name": "models\\jeeps\\dudejeep\\dudejeep.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "bf3b673473c2a071f15f204446cf995ade572eda"
+ },
+ {
+  "name": "models\\jeeps\\dudejeep\\dudejeep_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d66a6283161ece0afb72b90367b4559875dcb450"
+ },
+ {
+  "name": "models\\jeeps\\jeep_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5f9ddf2b5e3e6f1d4d186dd38aca5ba2c75bda35"
+ },
+ {
+  "name": "models\\jeeps\\jeep_medium_bug\\jeep_medium_bug.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "eecc17a36aa5753d38b4e9dd85a925539b16bafa"
+ },
+ {
+  "name": "models\\jeeps\\jeep_small_rocket\\jeep_small_rocket.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0f9b6d85962c80de5460a02a8bbd33feabeb4342"
+ },
+ {
+  "name": "models\\jeeps\\jeep_small_rocket\\jeep_small_rocket_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "7c199721fb13f7e016bade40869f4bba1c62015f"
+ },
+ {
+  "name": "models\\jeeps\\luas\\luas_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "96082c8a7734be7b87a397db81919ac84b7b1207"
+ },
+ {
+  "name": "models\\jeeps\\luas\\offroad.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "96720e3a67fbf07dd9c31914a0496d036aa1382e"
+ },
+ {
+  "name": "models\\jeeps\\luas\\pickup.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "de070a420e392190f82a7359269dc529d21b96ed"
+ },
+ {
+  "name": "models\\jeeps\\offroad\\offroad.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "af76aad3537f83dababaf434cc999f526925ccd1"
+ },
+ {
+  "name": "models\\jeeps\\offroad\\offroad_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d4be3af6172a7e1dff8f39b1f68d01efba8bfb4f"
+ },
+ {
+  "name": "models\\jeeps\\pickup\\pickup.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "7dab397dd69db9a20308d6a07c207be33ccdd441"
+ },
+ {
+  "name": "models\\jeeps\\uaz\\uaz_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "695ce8c06324d40b5cfc12d4d3f722c907e8f376"
+ },
+ {
+  "name": "models\\jeeps\\uaz\\uaz_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1baf4c1916027da4f3f2986ce87569ec49a850b6"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3152e3995c4c6320fa471a43800bb97abcf1c2cb"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ed2a57ab52cd361d495e5e6ab70b7658f61bdfcc"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar03.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0f6431d4350c1d3d35e658482b5912c0b223f056"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar04.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e7b1b7ff00ff88cb07fb038cb663765e8b369786"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar_1_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "725d9ae137cec1fc554aa3302bf77a1acf71badb"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\angar_2_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a4d0a64218208943aca2641dd769637061d4e890"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\hangar.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ecf62c0a042b2d9bc8750eb2da4deb93ccbf1954"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\hangar_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "2f7ec0f492e842ce9192e111d83e36e33207a18c"
+ },
+ {
+  "name": "models\\mapobjects\\angars\\hangar_windows_a.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "0f8507640a4b048ef6bb1972c30ff3014f19bdf2"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\dom_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "64ddc545ed5390a47ce2f6efe022e58f04b82786"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\dom_2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0e586ea252e49396b030c4387cf152773b84d58a"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\dom_3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c9239583d45736e40217bfe874021c6422babeaf"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\kolodec.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "b273e4c23c524bcdaf6885ff9ff394e774c4fb93"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\minoret.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e2b4ffae39620483087a91e61f0fa4a250062dae"
+ },
+ {
+  "name": "models\\mapobjects\\aziat\\tent.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "2ff38b6fd67f612b448e5364800f1b1b57aa2e2e"
+ },
+ {
+  "name": "models\\mapobjects\\barrel\\barrel.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ceab7965361671224e00f17cddd8071039cb5406"
+ },
+ {
+  "name": "models\\mapobjects\\barrel\\bochka.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "e532ea6dff111cd4451481db6ca24ab5fe0b8eb7"
+ },
+ {
+  "name": "models\\mapobjects\\bridges\\bridge_new.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8be21852be9ae2c005ebb48db7461539443a2722"
+ },
+ {
+  "name": "models\\mapobjects\\bridges\\bridge_new02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "12277788ce1074a97de3d54f1fd9c82f7e4e5097"
+ },
+ {
+  "name": "models\\mapobjects\\bridges\\most_new_wood.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "a763b8606dbcb81b609fda8f819f2c9861466a4b"
+ },
+ {
+  "name": "models\\mapobjects\\budki\\budka01.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8bcea18635e4989283b19ddce066633f309f78df"
+ },
+ {
+  "name": "models\\mapobjects\\budki\\budka_02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8d58e7f226fd2d902b9eb21da1cfa8160685ada7"
+ },
+ {
+  "name": "models\\mapobjects\\budki\\budka_03.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "43735f07ea61cfd6a5599162a8b5e35f9b99b6b2"
+ },
+ {
+  "name": "models\\mapobjects\\budki\\budka_05.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "df4ebad4b5b3d5fad86be832da2116bfc9c4e630"
+ },
+ {
+  "name": "models\\mapobjects\\bushs\\bush.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "dbf32423a7701ffdb715fa383555c29b17814950"
+ },
+ {
+  "name": "models\\mapobjects\\bushs\\bush_new.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "0e2d11ccb04b007f6c2128bbc61302f05541cfc4"
+ },
+ {
+  "name": "models\\mapobjects\\bushs\\bush_new02.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "c8ab3dc5ee02984db6a4b2e029502fe5f5825c66"
+ },
+ {
+  "name": "models\\mapobjects\\bushs\\bush_new03.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "28731715cfed9dc121daff4791b6fc0d6f550502"
+ },
+ {
+  "name": "models\\mapobjects\\cactus\\cactus.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "dfbf18c5f4b5401d0adffa7469b04208911a821d"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\chemical_barrel.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "2d0d4c224e5646a6b1559218c6f058ef7297e42c"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\chemical_barrel_a.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "798b0a128c624aa3e0c0351a0f37229fb1eca5a9"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cistern06.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "67178fbed739f41f72175e25177803aa8b2fb3bd"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cistern07.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4892eb895035acee6e975ffe7e6a75d4c7c81db6"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cistern07_a.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "02b480922121834bb870d6048d7f7897f0ec7b0f"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cistern07_gray.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "110380d495f123d861f40c20fff6e7aecbd5f7f5"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cistern_twice.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "47ff8fe93b8e07ca08ad341173ff4c6e45c21797"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cisterna01.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "26cad48854edb39fb102892354014c0936af26b6"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cisterna02.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "055ef683b003fde1e35bf059297c4cc7a68d310b"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cisterna03.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "de01226f6ceb0f65a933f4c5a0f5ad0e4ecb08bd"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cisterna04.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e8399a856b7ef1ba0f7bd664bfd5cc685fdb75b9"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\cisterna05.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "bee7b70b3e9ebda438b2bc73fff1b367ec9b9f7a"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\lesenka.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "7a8e07356bdb25bb275c84adc558b6a517453f9e"
+ },
+ {
+  "name": "models\\mapobjects\\cisterns\\lestnica.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "b527cfdc1a4e0c40df2f63103ac885fad0de48a2"
+ },
+ {
+  "name": "models\\mapobjects\\docks\\dock_prichal\\dock_prichal.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "988ea1b1e730eefc598c602e9fb2da3928e85095"
+ },
+ {
+  "name": "models\\mapobjects\\elektro\\electro.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "52e6a77b9cf096da4cb0fbf0acb9a1f63e909204"
+ },
+ {
+  "name": "models\\mapobjects\\elektro\\electro_1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d73425c080bb0466e42568bff3b0c0a94e4a70db"
+ },
+ {
+  "name": "models\\mapobjects\\elektro\\energo_budka.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "9834974f610e176713f731e93af1a44264878484"
+ },
+ {
+  "name": "models\\mapobjects\\elektro\\power_plant.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b6ce93904fdc1fea825b0982c9adf262d846324b"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\angar_tank.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b79b519b3a0e86c07a8fb6f61b447391ff1a8184"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\arab_comm\\arab_comm.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6083d9a4915fd4c181496c5a3b3a6772e3d97c98"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\arab_lab.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "3c60b8f4785b10c8ebcde2196d9966cbce512e00"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\arab_lab02.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "80d4cad84f3df208991bebf3cfa7177a4a186b54"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\chemical_tubes\\chemical_tubes.tga",
+  "width": 512,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "297ae19e5fef4b0de91ca75f8d50bd3cd8ef182f"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\chemical_tubes\\chemikal_tubes_d.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "8a60cd84c34ce3f29ae829b00ba6c76532339334"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\flamers\\flamers.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "04ebf4685eeec67546522a1b462c5fc701086ccf"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\flamers\\flamers_dead.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c823fbedc419fc42031e186cc6dfe8fd25aea17c"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\hungar02\\hungar02_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "0b7da1dcced4ea0847b19d7519498cb25f958a10"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\hungar02\\hungar02_kletka.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "ce5e0ba88c0558ad5708a802a61e453029c4beb2"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\laboratory\\cistern_laboratory.tga",
+  "width": 512,
+  "height": 512,
+  "hasAlpha": false,
+  "sha1": "730859eb8e96e17c3bd10f7e8379be2f5454938f"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\laboratory\\cistern_laboratory_d.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4a44b8fd6c7ea2ee0abbd33008cfc4e56e4a1064"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\oil_refinery\\oil_refinery.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "8aabbc51f1196e42469f8dbb9ee393b74f391110"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\oil_refinery\\oil_refinery_dead.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "6be9fd192a85108c4557a564ffaedb793160fcc4"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\power_plant02\\power_plant02.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "745f00104aba07fe31776119b9ede62e4c382d2e"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\power_plant02\\power_plant02_dead.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "05f617422144ef91f36e61ee82057093f90acbdb"
+ },
+ {
+  "name": "models\\mapobjects\\factory\\vetryk\\vetryk.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "aa2e9f4b5d5005cd273eadcf0e2cb823ccf74797"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\house03.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "126ac024d0702d35f2184b011666367a8a8e10aa"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\house03_wh.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "a2af9179618fba77602e31bfb93dd1fdd085b49a"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\house04.tga",
+  "width": 512,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "5583101179e054bea429e8c885be99bc3e8f688c"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\house04_wh.tga",
+  "width": 512,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "05b6b830ad787f92bd9d3afe2dc716ed57f34529"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\house06.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "1365be332f286a6b69fd27e66ad3991f449d7b61"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\house06_wh.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c1e26cbbf283279b4c3bb841f2991a4e011dfab7"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\house09.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1c9d1efacf519754faa12e94530085aad20cb533"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\house09_wh.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9c0af258e8cc27310eccf283c0affd139da231b4"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\house10.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "f584e61f2fca47c71d4eba50dfea3d22ebe739e0"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\house10_wh.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "2e95b93dabc4edc57638fdcddd5a42ad10c1c8e8"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\temple.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "14919d555d6e12709b9c51c56b92a8f3990e9bea"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\temple02.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "97d1fec9679cb29b0ce3bdc47bfc21a4a82a54d7"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\temple02_wh.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ad65f0d6d2b9df1d3b3636b21107d710c3ca2c52"
+ },
+ {
+  "name": "models\\mapobjects\\houses\\temple_wh.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "3a6809224e1f145ee1d941e2fc8d740719bae74f"
+ },
+ {
+  "name": "models\\mapobjects\\kamni\\kamni.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "7ab3e42c240c207fbb6a4ef3b8f24980c8dac69d"
+ },
+ {
+  "name": "models\\mapobjects\\kamni\\kamni_1.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "30ffd920af679365f3cc568cb4c25264065b509a"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\ammo_box.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c24c8c2b78d034e05c311891443c7f0451c72433"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\ammo_box_cargo.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c24c8c2b78d034e05c311891443c7f0451c72433"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\barrel01.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e0f1f79d6c9ce731e2e18267f39e4cc99ae822fd"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\barricade.tga",
+  "width": 128,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "b890c22663963e552528b8a5285cb565edf9e20a"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\box_bresent.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "30407e2cae9367115a986bec2a73ba11ae3c4591"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\boxes.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "27aa1df89cf6063737097a5f9cfad0bebb05cfac"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\helic_a.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "f6853d53a4adde260608e595df2e68adbd495558"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\katushka.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "bd36da59a7c033c8e800e84f5e72a1149d56d9be"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\kotelnya.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "93e9af6ba124536766e80e53d999d800fff8a417"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\loader.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8ce4b70e2cf563be031652a3a1f4fe47ed119a84"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\misc.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3080bf9dbf1842ab62b7d10259259f1273f97e4a"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\promotional_panel.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "11d8dbf0d3c271e8b174c5a497048d05a93f4b5b"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\sand_bags.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "db0098c84d4eea1a2d53e46078d9e2c99295c74d"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\sccs.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "3ca8c3e08fbf7c1b275e6885b9d42b32885472b4"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\sccs02.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5b2f45a61498b3c39cbfd23c59a1dd4bc4e024ad"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\shahta.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "7ca7ad022d750d454301fcf50626d586a3eea157"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\shina.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "18922e631ee341a9e839472f99a30c441b9765bd"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\stolb.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": true,
+  "sha1": "4d62f9b00041e97b6a4f2966e766562072df0a03"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\tent.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c08c14f77dd3b6a924901cf49ed973648fe1f46d"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\vagonetka.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "14c21e8e3d6050a04adc5e1a824933c0004579ca"
+ },
+ {
+  "name": "models\\mapobjects\\misc\\war_hands.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "39ca09706c48ff7a77b5b574276ff4a27e7e4d23"
+ },
+ {
+  "name": "models\\mapobjects\\musor\\musor.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6fdc576ca6cdafebdb90d563f7bfcf0772b783a2"
+ },
+ {
+  "name": "models\\mapobjects\\oilpump2\\oil_pump.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "df68dda0fa9297064fac1261613da08508c32fcd"
+ },
+ {
+  "name": "models\\mapobjects\\oilpump3\\oilpump.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "dc0a5192fec96c82081849eb2ff163da3737b2e4"
+ },
+ {
+  "name": "models\\mapobjects\\palms\\palm01.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "852b4afd17ddf6994f2f886782d0546200986bf9"
+ },
+ {
+  "name": "models\\mapobjects\\radar\\radar.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "bb1bca600b2ba919346eafed4ca802ef82bd5614"
+ },
+ {
+  "name": "models\\mapobjects\\radar\\radar_pod.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "855b5799f5c8cfceb1d3f416e2f2b28b1e183774"
+ },
+ {
+  "name": "models\\mapobjects\\radar\\radar_static\\radar.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d61f82b8dc3269eaffa93a5285945d6c30d2c165"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\house_cannon\\ruindom.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "acfc993fd5c11186d5c5ddbbf6fd445a737a6f17"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\ruin_dom\\pepelishe.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "30a92a3c919c5526a7e18a422f1ce2bb553b1130"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\ruin_dom\\pepelishe_2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9659ceb9bf8ec2fb194c4fdb85c3af5b62ef7a70"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\ruin_dom\\ruin_dom.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4ff5d01f3afdaf1c6d350d081ce02a72811cebf3"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\ruin_dom\\ruin_dom2.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "722d20ed7a7cec04e9aa012972e40dcd7079fb71"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\ruins.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "df9c4f0785175befb50467f169ae944658042605"
+ },
+ {
+  "name": "models\\mapobjects\\ruins\\stroika\\stroika.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "88924cf205c5d3b7e6433f4ce1018f491986197e"
+ },
+ {
+  "name": "models\\mapobjects\\sandbags\\sand_bags.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "db0098c84d4eea1a2d53e46078d9e2c99295c74d"
+ },
+ {
+  "name": "models\\mapobjects\\stones\\stones.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e5918a6238a2d8a8029a3fa490a13b0c4c455c34"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\boxs.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "320c86fa0a6588503e18fe654a4f56bf025a1f21"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\tent_01.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "9d3693d12c521e6e60c02c63bb28cadb83f35e6b"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\tent_02.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "a11675133820f20688aed70f9fbdaa54453ea124"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\tent_03.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "27b63bbfc6e1ff17ff79982d52c57709240dfb92"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\tent_04.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "33f27c87127ad095dba04ef5b4f9b593ecfb73cc"
+ },
+ {
+  "name": "models\\mapobjects\\tents\\water_boxs.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "631d7b92f98aaa1442b98dcffc37d3891873e440"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\palm\\palm.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "8ed98282909729a07cb539a9c8d23f6cdc33c947"
+ },
+ {
+  "name": "models\\mapobjects\\trees\\sosna\\sosna_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "c3c2c98ff7de6b57d2ad9a3cb2c01ab955980d13"
+ },
+ {
+  "name": "models\\mapobjects\\trubes\\truba.tga",
+  "width": 64,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "a501b1cae71a7ad93531b420072fc28ecdf15910"
+ },
+ {
+  "name": "models\\mapobjects\\trubes\\truba_big.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "3d9215864c0f5a4f61e0e7675a67b7ed0f827833"
+ },
+ {
+  "name": "models\\mapobjects\\trubes\\truba_oil.tga",
+  "width": 64,
+  "height": 8,
+  "hasAlpha": false,
+  "sha1": "c96bccda4a952584929819823be43790bfb67092"
+ },
+ {
+  "name": "models\\mapobjects\\vishka\\flare.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "884dfe03573c0399f2cd11e1b45e8e8dd02a8119"
+ },
+ {
+  "name": "models\\mapobjects\\water\\grass2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "358abfb4b8d4cd1ac67ed2add81f92eadcd97d83"
+ },
+ {
+  "name": "models\\mapobjects\\water\\grass2_rty.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "e626b5654453b8c60f4a239e3d1661b2e591f7b8"
+ },
+ {
+  "name": "models\\mapobjects\\water\\grass_hu.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "075c5e8dd5c5ef3e21552215ec66e26b4953d5f7"
+ },
+ {
+  "name": "models\\mapobjects\\water\\grassedf.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "d2d16d98e1e1a8223a0d825022b0ec2d1a410706"
+ },
+ {
+  "name": "models\\mapobjects\\water\\kuvshinka.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "9821fcd205a7f94c7cb3a1b7c68efb55a195d6dd"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\arab\\arka.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "a6ef7f73dafdd3bb7d1e784697e86c2e8d0ff225"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\arab\\zabor.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "43ca415b9b5a0a8bd4db79064c1b76ce696c2e8c"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\yellowflare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "561c3a8c402e4680a56f767123fb1495882b4bd5"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "873e22f174b24ca727dadaa989e9eceb0f02dab8"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_concr\\zabor_concr.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "eedbb5301796b7a91797b9a6bb32ab196245defd"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_new\\zabor_beton.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5b0359dee183f7d58a978c017416e4a5065fa701"
+ },
+ {
+  "name": "models\\mapobjects\\zabors\\zabor_wood.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "b45c7467e8bc278ce601300ff8614d907c278996"
+ },
+ {
+  "name": "models\\misc\\deadunit.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "94ad7acb543ec1a6e5f6fbc673fbb2b1c2a9101d"
+ },
+ {
+  "name": "models\\misc\\hlanno.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "194a7f5450b8d0956e856a011f3753c306870557"
+ },
+ {
+  "name": "models\\misc\\lighting_nature.tga",
+  "width": 64,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "fd89e533e1b81e8dc50869e87856c4fc213fd376"
+ },
+ {
+  "name": "models\\misc\\ring.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "ad84fdefe8a0b959491ebd7e85fe53ef19df1369"
+ },
+ {
+  "name": "models\\misc\\ring2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8e8126e8116d52b41e676d010696efca030dff91"
+ },
+ {
+  "name": "models\\misc\\ring_fire.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "89497ac6bef5deaadadd574640f9c47153b9cd90"
+ },
+ {
+  "name": "models\\misc\\svet_far.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c36b86e5597f4d07575e5e5cee4f38329b90a38e"
+ },
+ {
+  "name": "models\\misc\\svet_far_orange.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "46269f528b825c026179e587afcc083c21e37998"
+ },
+ {
+  "name": "models\\misc\\svet_far_red.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c494d7ad6108e3baac607516f177dec7170a7709"
+ },
+ {
+  "name": "models\\planes\\bomber\\b52_blue.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "94e047cdca166b19e2401d234a59b3477c7b2bc7"
+ },
+ {
+  "name": "models\\planes\\bomber\\b52_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ef5b8320d7e5d3279fda20ee81ebf7fada21c44f"
+ },
+ {
+  "name": "models\\planes\\cargo\\cargo_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c2091e3638f76675ad2d191c8e6a11d65a56bf92"
+ },
+ {
+  "name": "models\\planes\\mig\\mig_black.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "218410573b807a1416b07d20a69f9c2e88ea6a58"
+ },
+ {
+  "name": "models\\planes\\mig\\mig_black1.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6d35869e5c7c7425f0920823adba9e888e6221e1"
+ },
+ {
+  "name": "models\\planes\\mig\\mig_green.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "aba91475b0a60177f173448abe6f0df16f369a95"
+ },
+ {
+  "name": "models\\planes\\plane_a\\plane_a_blue.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a309619c81971c4f9b74921acc2df8adeece00f0"
+ },
+ {
+  "name": "models\\planes\\plane_dead.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "45c913c7144e648010b3a37e4a82b247ea8a3b4a"
+ },
+ {
+  "name": "models\\rocket_launcher_big\\rocket_launcher_big_dead.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "575f97962b2187de5b78803df7be0b5b792a7f54"
+ },
+ {
+  "name": "models\\rocket_launcher_big\\rocket_launcher_big_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "e588c27b2df458f34616314c632040da0143d209"
+ },
+ {
+  "name": "models\\rocket_launcher_big\\rocket_launcher_big_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "ec758dbce8ebcd7ce0cf6c2c00d35e0f8904fa6a"
+ },
+ {
+  "name": "models\\ships\\cutter_small_guns\\cutter_small_guns.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "164e47c1d4d4f1c374e8ec6ce464ff79acfe83eb"
+ },
+ {
+  "name": "models\\ships\\cutter_small_guns\\cutter_small_guns_blue.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c607ffb0be6a0f3c870da63917032e254f2f9dc2"
+ },
+ {
+  "name": "models\\ships\\cutter_small_guns\\cutter_small_guns_dead.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "0e476de31fb39a603bdb85b7d65028ddf0761b77"
+ },
+ {
+  "name": "models\\ships\\cutter_small_guns\\cutter_small_guns_dead_1.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "e1245959ede4ff178ded9b37e80643fc06ed47e0"
+ },
+ {
+  "name": "models\\ships\\lodka\\lodka.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "832e259d7e59061cd4506cdf8afcca5a94873491"
+ },
+ {
+  "name": "models\\ships\\rocket_boat\\rocket_boat.tga",
+  "width": 512,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b79539f3f3ffeaf3030d285ef10daa0215c1481c"
+ },
+ {
+  "name": "models\\ships\\rocket_boat\\rocket_boat_dead.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "09f9375449edd371aa5353a613cc6a9e085678a2"
+ },
+ {
+  "name": "models\\ships\\rocket_boat\\rocket_boat_zabor.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "4963df84da51fbd87638687cb6e927d272875bd7"
+ },
+ {
+  "name": "models\\tanks\\bt_2\\bt_2_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "15e783f90de249aed0a9eeee465bff4e5eacedb5"
+ },
+ {
+  "name": "models\\tanks\\bt_2\\bt_2_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "acf030f3416f38d5e56461968606601885a95890"
+ },
+ {
+  "name": "models\\tanks\\centurion\\centurion.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "07da7b083e83a5ea364385724819e2e2aac91591"
+ },
+ {
+  "name": "models\\tanks\\centurion\\centurion_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "da800e5ee278e93867c2879f64ad412dc56199e2"
+ },
+ {
+  "name": "models\\tanks\\mtlb\\mtlb_guns.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "05cdc8c2dc91296f63dc82856040e2c6913e9651"
+ },
+ {
+  "name": "models\\tanks\\mtlb\\mtlb_rocket.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "67f99a24981ed82a81400cab9f1072fd3a585c77"
+ },
+ {
+  "name": "models\\tanks\\sau\\sau_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "8b300c8038c037b34ab0098765696781e285b132"
+ },
+ {
+  "name": "models\\tanks\\sau\\sau_metal.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "3d7ecfe862b51053914050141095e90837310506"
+ },
+ {
+  "name": "models\\tanks\\sherman\\sherman_desert.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "fd4e62d0d4df91ce46b787f91244a9f51ec995c9"
+ },
+ {
+  "name": "models\\tanks\\sherman\\sherman_green.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "faa6801fb29cb09d96fa484d9d43fef4b253b4fc"
+ },
+ {
+  "name": "models\\tanks\\t72\\t72.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "2bbb6e008243324dfc7f83e9cc7645af273d111e"
+ },
+ {
+  "name": "models\\tanks\\t72\\t72_green.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "f31644ed876978e8c5a1a81942d4644bf1c63f2d"
+ },
+ {
+  "name": "models\\tanks\\tank_dead.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c17e6ab27dfbea48c43cbfbafd282ab9e98816d4"
+ },
+ {
+  "name": "models\\tanks\\tank_medium_x\\tank_medium_x.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "1f4b73dcd41bcb002cb94c5ee5c52dff131084db"
+ },
+ {
+  "name": "models\\tanks\\tank_medium_x\\tank_medium_x_brown.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d108fc314998a84e149b575b950b9c6f4836b168"
+ },
+ {
+  "name": "models\\tanks\\tiger\\tiger.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "d7e9b008b8d44c61e80744f07522de43c8a7901e"
+ },
+ {
+  "name": "models\\tanks\\tiger\\tiger_desert.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "1e38f6fb538bc9f9de7d8078a404bcca896273b0"
+ },
+ {
+  "name": "models\\transport\\radar_car\\radar_car.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9b6b8e0e48a9c66bfa70b1df8118a16649d90fa5"
+ },
+ {
+  "name": "models\\tyagach\\tyagach.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "29e0468494417e0b60497131c67765a845202a8a"
+ },
+ {
+  "name": "models\\tyagach\\tyagach_dead.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "fc0d77458c5b92c52038685899aaf74b68353a46"
+ },
+ {
+  "name": "models\\weapons\\abomb\\abomb.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "a956cdb1805a89bcc96041337d52e2b717db39a4"
+ },
+ {
+  "name": "models\\weapons\\bfg\\ballflare.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "607f836efff5964a26d2b282899f8faf68a91c75"
+ },
+ {
+  "name": "models\\weapons\\bfg\\ballflare2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c8afbd69742488d5a6e83168e2a1b7f0392b0f5f"
+ },
+ {
+  "name": "models\\weapons\\bfg\\bfg_plane.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6cc08bbfb909f2f4412b3e7370fe22a71844af0a"
+ },
+ {
+  "name": "models\\weapons\\bfg\\bfgbal2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "f902ca8af168fc4156f9c6b629055f51c7015b19"
+ },
+ {
+  "name": "models\\weapons\\bfg\\bfgball.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "85f23ffda9c636a54f6fecee3b49898e7e7f61c9"
+ },
+ {
+  "name": "models\\weapons\\cherep\\cherep.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "4b4727a1c21faa7ca7650fcb05f24393413b174c"
+ },
+ {
+  "name": "models\\weapons\\clusterbomb\\clusterbomb.tga",
+  "width": 32,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "a9755e3e16731d15e4dbb48194010425ea711bc3"
+ },
+ {
+  "name": "models\\weapons\\fireball\\fireball.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "cfb75148aa4a0cd770caa974adcd141eb9d8972a"
+ },
+ {
+  "name": "models\\weapons\\fireball\\fireball2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "9efbb3d8f489c9fb55d309641a3fb115f801a13f"
+ },
+ {
+  "name": "models\\weapons\\impulse\\flare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ba1859a47f2d2b9638229c77fb9516c73a852a34"
+ },
+ {
+  "name": "models\\weapons\\impulse\\igun_flash.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "88b1d5fc4811e91e58d8d3249d0e5c4ad25a5c1e"
+ },
+ {
+  "name": "models\\weapons\\impulse\\impulse.tga",
+  "width": 16,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "1944f665638a6132056d294cad9b9425e2b033c9"
+ },
+ {
+  "name": "models\\weapons\\laser\\biglaser_flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "4fedeead3fd40e52b5c1d892db00f5e36cbcbb79"
+ },
+ {
+  "name": "models\\weapons\\laser\\flare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "0f535bb6de595928062d78ce2bcc282ef91c5473"
+ },
+ {
+  "name": "models\\weapons\\laser\\laser_flash.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a06c808885dd7adaf956f1804bbccc6dde900e9e"
+ },
+ {
+  "name": "models\\weapons\\laser\\plasma_flash.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3b1d896dd94c8e799adad844a490b6baf9d805cf"
+ },
+ {
+  "name": "models\\weapons\\laser\\weapons.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "6b32634efdce37cde895b5c715dfa73439873eb1"
+ },
+ {
+  "name": "models\\weapons\\meteorite\\flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "fd44425625e33abdb9be2b57c9a7f6a16f94a6a0"
+ },
+ {
+  "name": "models\\weapons\\meteorite\\meteorite.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "28a44e9e1b5dfe2e2c8b5fcc466e9a83582e30c2"
+ },
+ {
+  "name": "models\\weapons\\mgun\\mgfire.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "5c3e851fdb7b7bab83c522ca2a8c7ab0e7133281"
+ },
+ {
+  "name": "models\\weapons\\mgun\\spark.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "74bd82d4596795460d4f2615fe7be2d32025b80e"
+ },
+ {
+  "name": "models\\weapons\\misflare.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "04c371e085221a13954867bfd5f469ad7e8fc3b3"
+ },
+ {
+  "name": "models\\weapons\\misflare_blue.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ff0ea1f86fd9e144ca2a942435f91392c0ce6129"
+ },
+ {
+  "name": "models\\weapons\\misflare_red.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "38f0ba2615f810fdf2a85d6e7a2f9ef1c9f99f63"
+ },
+ {
+  "name": "models\\weapons\\missile_hvost.tga",
+  "width": 16,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "c39db43560bc81bef8947c22b564f357ba975a9d"
+ },
+ {
+  "name": "models\\weapons\\missile_hvost2.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "3afb788335ae91efc30bf901411928decc1d831f"
+ },
+ {
+  "name": "models\\weapons\\photon\\flare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "2ac4ec94873c327f051a00315c13763ceb1ed88c"
+ },
+ {
+  "name": "models\\weapons\\photon\\flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "a4f1a34f2cf4b63c975f2aa7b4ee067ca6ca2c75"
+ },
+ {
+  "name": "models\\weapons\\photon\\photon.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "027226f4e9d0b8cbb56a14010718a07510a45ebc"
+ },
+ {
+  "name": "models\\weapons\\photon\\photon2.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "c97f8527edc31f6d1fd3bd7f85fe21e20546d920"
+ },
+ {
+  "name": "models\\weapons\\plasma\\bpg2.tga",
+  "width": 128,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "07c42de4fbb53bc30c0a80b65e42cb15c007e118"
+ },
+ {
+  "name": "models\\weapons\\plasma\\bpg_flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ea2ecd6c63f42c8e8cb0dd5757769293767ec430"
+ },
+ {
+  "name": "models\\weapons\\plasma\\plasma.tga",
+  "width": 128,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "02e8417c6ce313a6a71303198ab23ba12cb239a1"
+ },
+ {
+  "name": "models\\weapons\\plasma\\plasma02.tga",
+  "width": 128,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "0d2862545a4d83033943164b1b2df1d8928a05e2"
+ },
+ {
+  "name": "models\\weapons\\plasma\\plasma_flash2.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "6e4ca9f57385b309dfc20d44d876c592591feb1b"
+ },
+ {
+  "name": "models\\weapons\\plasma\\raadgun.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "f122b3d7ccfd6bde9076f7a8eab92b0766e3739b"
+ },
+ {
+  "name": "models\\weapons\\rocket_hvost.tga",
+  "width": 16,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "9d862598de66bb6292deada5a2cce5f8f6cbb229"
+ },
+ {
+  "name": "models\\weapons\\rockets.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "2ee8b165425fd64f0d2b734cbd506ff812cbc7a9"
+ },
+ {
+  "name": "models\\weapons\\satellite\\fball.tga",
+  "width": 16,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "38cdac81e4c33177c854b2304737bd4797fe2381"
+ },
+ {
+  "name": "models\\weapons\\satellite\\satellite.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "5c364386e73f20e2c807791765409b2c4beb5712"
+ },
+ {
+  "name": "models\\weapons\\satellite\\satellite_laser.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "4bf6a016c91e1cf7c29bbae20f6820b169d6c855"
+ },
+ {
+  "name": "models\\weapons\\satellite\\satellite_laser_gun.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "cc2741b57d12154aeb85d403ac863fdc6ce69b3d"
+ },
+ {
+  "name": "models\\weapons\\satellite_strike\\laser.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "a46b709c47d934d5be5d69b0c10b84b0a63630bb"
+ },
+ {
+  "name": "models\\weapons\\sharik_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "fe896285c750dbd40748e085d0746f99c654a76c"
+ },
+ {
+  "name": "models\\weapons\\spark\\redspark.tga",
+  "width": 16,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "943de971f05332cd01b045dfb60a669dde1c9752"
+ },
+ {
+  "name": "models\\weapons\\spark\\spark_flare.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "465c394e303f341892a0da0b07c8a2d7620f7036"
+ },
+ {
+  "name": "models\\weapons\\wavegun\\flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "87387e917df6d000a9616faab06feafd5c000e16"
+ },
+ {
+  "name": "models\\weapons\\wavegun\\wavegun_hit.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "897034fb90a0fe1f529948c2b28c8cb6bd49ed9c"
+ },
+ {
+  "name": "models\\weapons\\wavegun\\wavegun_hvost.tga",
+  "width": 32,
+  "height": 16,
+  "hasAlpha": false,
+  "sha1": "db40dcac84f2aa220cda1755e421776a65ae8622"
+ },
+ {
+  "name": "models\\weapons_enemy\\fball.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "d8a7650f30222341b24a0361112ded2175d91670"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\bfg\\bfg_plane.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "c8c14acc97d49dbf6d95478fd852cac770e51d1a"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_blue.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "030131f2c35bf171a59d1f801163676e6e9bf34e"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_blue_small.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "7c132e32455dae236bb040606b9e3cd48187f523"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f130e3d22f5ccf663d48bf9fd393bc78a550e064"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_green_small.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "f4f38b314b62f248b6f1c75f1d95da9835f31fec"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_magenta_small.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "56bda3af72c72ed48c03de1569af82a17b9edb02"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_red.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "55bcd7909fa319aa6b4e2c21e73ccb74e6d17e47"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_red_small.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ae8fe72817b65a813996bf93eff63ecfdcdf440a"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\fball_red_small2.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "477829f59489c8939c5a48d131c672ae2426d5a4"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\flare_red_green.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0c8aa1f605785667199e4571cde85f14f0978b64"
+ },
+ {
+  "name": "models\\weapons_enemy\\fballs\\spark_blue.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "433a00ff640a100b072904cc41c9c7c0b6536301"
+ },
+ {
+  "name": "models\\weapons_enemy\\impulse\\flash.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "5c567e6404017f458ec005290d62f74e3483af2c"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\biglaser_flash.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "5d6f8a8b699705b9c2deb01b582ab4b17315fd9d"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flash_blue.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "89dc5074e91fe518b9e4a50bcd6e4cd1f3c5be33"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flash_green.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "0fb0fb928549bceb0f071b9a71b7fd5d705c9f62"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flash_orange.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "c0335ca3c3a7901f78de4196b079719fa3928db0"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flash_red.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "ed919195856d58f5a275b671df3fb1ea4b15c1ff"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flash_red2.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "f6aad43cc787fc99815272913f119d0f6377847b"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\flashes.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "60f517a90bc62bc88d6fd6cdf07fe61236ca3847"
+ },
+ {
+  "name": "models\\weapons_enemy\\laser\\hits.tga",
+  "width": 64,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "4191c4201f7d5573eb02d3dc061b1ac535711063"
+ },
+ {
+  "name": "models\\weapons_enemy\\missiles\\missile_flare.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "778bee318f7dc2edd51bf53b630121e09c7aa400"
+ },
+ {
+  "name": "models\\weapons_enemy\\missiles\\missile_flare_big.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "6c3cd78402c6fdbf44ecc4972be70b9c54527610"
+ },
+ {
+  "name": "models\\weapons_enemy\\missiles\\missile_hvost2.tga",
+  "width": 16,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "863421591bb7cd3948ef44dee6c2e56fa2bd779c"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "e5ddb94c2d0c4f631962418e95088aea03e7bdbd"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_blue.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "68bd566db83d2d619ff943565b0f97c963bf6567"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_magenta.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "8e93e6c55489a2172c8de0cd8e1d23afb32ff30a"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_magenta2.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "42fde97de79da68e665afd6168d11eed7c626212"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_red.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "d65d7eecf16edd6ecf1bc993158250814a84f9d6"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_red1.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "85ee234f62843671a0f087c0e4090ed57c6d1581"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\flare_yellow.tga",
+  "width": 128,
+  "height": 128,
+  "hasAlpha": false,
+  "sha1": "755a9e8373d083af8f3e814fd82d03ba1b8fbcfc"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_blue.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "cd7e29877181bd7930c158b50c272317ce90296e"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_blue_hit.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "cc3a04234040b6921ed32be406f8103b603836e8"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_hit.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "6d1be84d04235ddd160752f9374207aaa2a8dd5c"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_mag_hit.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "a71106b60ef3b46aee6c81bbe7763927eec798df"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_magenta.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "7f9ed0ba8feba63a2e9ad5690e342c968e88f738"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_orange.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "833fd5b19bb9e3217892eab35e8db7fb3a9cd660"
+ },
+ {
+  "name": "models\\weapons_enemy\\mortyr\\mortyr_orange_hit.tga",
+  "width": 32,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "fe820b5077b40659a69ebbfd006886305fde1ae0"
+ },
+ {
+  "name": "models\\weapons_enemy\\tanks_weapons\\ballflare.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "ec19a561e4c925ec02834d6df1ee470eb90ff8cb"
+ },
+ {
+  "name": "models\\weapons_enemy\\tanks_weapons\\ballflare2.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "78728f262b70e2d09bdda357aed538f42be8e355"
+ },
+ {
+  "name": "models\\weapons_enemy\\tanks_weapons\\ballflare3.tga",
+  "width": 64,
+  "height": 32,
+  "hasAlpha": false,
+  "sha1": "cf4ab528bccf810fbb8348909bb4eb7850bcad36"
+ },
+ {
+  "name": "models\\weapons_enemy\\tanks_weapons\\bfgball.tga",
+  "width": 64,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "053e3219bd0dd468284591df187923ddf903bde3"
+ },
+ {
+  "name": "models\\weapons_enemy\\weapons_enemy.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "326f1bf45e50f424ee6510f2a6d631faf5604404"
+ },
+ {
+  "name": "models\\weapons_enemy\\weapons_enemy2.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "83e4bd8ac4999c4c86edd4086fe137c18b708777"
+ },
+ {
+  "name": "models\\weapons_enemy\\weapons_enemy3.tga",
+  "width": 32,
+  "height": 64,
+  "hasAlpha": false,
+  "sha1": "328df0ec33310c1ec8c50aac0b135736528ce6af"
+ },
+ {
+  "name": "morphmaps\\map1.tga",
+  "width": 7,
+  "height": 7,
+  "hasAlpha": false,
+  "sha1": "56c92a14b02b24ecdad61e9399148e5757bccd2a"
+ },
+ {
+  "name": "morphmaps\\map1_big.tga",
+  "width": 11,
+  "height": 11,
+  "hasAlpha": false,
+  "sha1": "b336e50058fbc68db5a3062cbe9d7127bf2b29c0"
+ },
+ {
+  "name": "morphmaps\\map2.tga",
+  "width": 7,
+  "height": 7,
+  "hasAlpha": false,
+  "sha1": "628da045e4039975b39486cdabf4357f0174e632"
+ },
+ {
+  "name": "morphmaps\\map_medium.tga",
+  "width": 5,
+  "height": 5,
+  "hasAlpha": false,
+  "sha1": "ba4b2298bfaffc53a4a7a10762041d3aba7fc357"
+ },
+ {
+  "name": "morphmaps\\map_small.tga",
+  "width": 4,
+  "height": 4,
+  "hasAlpha": false,
+  "sha1": "6f21b793750e9a0829e405acbb8958425a421ba6"
+ },
+ {
+  "name": "textures\\desert\\detail.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "3215f5cf02cfa1d6beb3b3c4f63d04346fd040f2"
+ },
+ {
+  "name": "textures\\desert\\texture1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "34cbb28f815bd6485a2e885caaefa36dac078c24"
+ },
+ {
+  "name": "textures\\desert\\texture2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "edefe8c71df94cb97872cc689c32e66999f97dd7"
+ },
+ {
+  "name": "textures\\desert\\texture3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "6fe9fdd473a63e9b3cd9a876c1704daeb721842b"
+ },
+ {
+  "name": "textures\\desert\\texture4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c05e74e7413fda41ecd378a1c138078b4ce0c281"
+ },
+ {
+  "name": "textures\\grass\\detail.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "488e04c5693b0635b766070286bc0555fbf6ae4a"
+ },
+ {
+  "name": "textures\\grass\\texture1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "976e0ec445b8a9881d7df335971a5ac3eb9528f1"
+ },
+ {
+  "name": "textures\\grass\\texture2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "58b4086794aff457f8383471e0390a2e4dc6cbf7"
+ },
+ {
+  "name": "textures\\grass\\texture3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "cbb1a6b42418d43b20110f4d290c485af3580778"
+ },
+ {
+  "name": "textures\\grass\\texture4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c05e74e7413fda41ecd378a1c138078b4ce0c281"
+ },
+ {
+  "name": "textures\\rock\\detail.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c05e74e7413fda41ecd378a1c138078b4ce0c281"
+ },
+ {
+  "name": "textures\\rock\\texture1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "1a8fa5967a4f8b236ff3f34f285ffe138de03f65"
+ },
+ {
+  "name": "textures\\rock\\texture2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "957ebc476407e3417932c302d14afa32f2eda0b3"
+ },
+ {
+  "name": "textures\\rock\\texture3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "b8a7d5bba56367679d2f01b277f8fd364b5164ba"
+ },
+ {
+  "name": "textures\\rock\\texture4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c05e74e7413fda41ecd378a1c138078b4ce0c281"
+ },
+ {
+  "name": "textures\\wasterland\\detail.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "12d5e2372f43ee6150d6c8663c0b26739ab45b35"
+ },
+ {
+  "name": "textures\\wasterland\\texture1.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "bf3563f1aa5f93892a6ae5ef5619b692cb362597"
+ },
+ {
+  "name": "textures\\wasterland\\texture2.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "41481cc52c9e3c354a698e4bb01559cd8afa9c2f"
+ },
+ {
+  "name": "textures\\wasterland\\texture3.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "5ff96adeab5b2562ad3f0463c47c43dce954e9a1"
+ },
+ {
+  "name": "textures\\wasterland\\texture4.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": false,
+  "sha1": "c05e74e7413fda41ecd378a1c138078b4ce0c281"
+ },
+ {
+  "name": "tiles\\tiles1.tga",
+  "width": 512,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "e79e006a6315993fb389addd90f9d989b6687cf5"
+ },
+ {
+  "name": "tiles\\tiles2.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "f045d767248ca40d15937c2775e12f4bba1e16d6"
+ },
+ {
+  "name": "tiles\\tiles3.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "f0ed463071f5549a5f0bca6bf5672a36e6cd0cae"
+ },
+ {
+  "name": "tiles\\tiles4.tga",
+  "width": 256,
+  "height": 128,
+  "hasAlpha": true,
+  "sha1": "af5facea7cb3df908671cad568bf5f11b43720d0"
+ },
+ {
+  "name": "tiles\\tiles5.tga",
+  "width": 512,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "16bc47c0b29b9e70dd3b87652ef89f3aa797609a"
+ },
+ {
+  "name": "tiles\\tiles6.tga",
+  "width": 256,
+  "height": 256,
+  "hasAlpha": true,
+  "sha1": "1083eaa0db2f2c0122a2fef383c0b1a8e07de9ed"
+ },
+ {
+  "name": "tiles\\tiles7.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "e0d3c6ad7b629b32669605160bb46fa4ea828295"
+ },
+ {
+  "name": "tiles\\tiles8.tga",
+  "width": 256,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "ffaa700f0d19dfbe9fd7caafdf2e11064a188a16"
+ },
+ {
+  "name": "tiles\\tiles9.tga",
+  "width": 512,
+  "height": 64,
+  "hasAlpha": true,
+  "sha1": "f9e88359e477e46b80ac437325b4c4c408c5120d"
+ }
+]

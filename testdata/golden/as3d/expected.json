@@ -139,7 +139,8 @@
  "scripts": {
   "files": 339,
   "no_code": [],
-  "builtins": 85
+  "builtins": 85,
+  "mode_pairs": 79
  },
  "sounds": {
   "files": 32

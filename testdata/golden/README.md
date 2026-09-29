@@ -46,6 +46,8 @@ data must give; a change is a finding, not something to paper over.
 | `maps.markers_on_pads` | `end_of_the_level` placements on a helipad centre |
 | `maps.unresolved_names` | `[map, name]` pairs of type or item names with no object definition |
 | `maps.odd_tiles` | cells whose tile index is outside the atlas or whose rotation is not 0, 3, 6, 9 |
+| `maps.odd_waypoints` | optional: `[map, placement, waypoint]` that break the range rules of `test_hmap.py` (a cell outside the map, a delay above 1e6) |
+| `maps.reference_exceptions` | optional: `{map: n}` for maps that are not named by exactly one `maps/levels.txt` block |
 | `text_blocks.files` | brace-block files: `maps/levels.txt` and every `.obj`, `.wpn`, `.ps` |
 | `text_blocks.object_blocks`, `.distinct_object_names` | named blocks in `objects/*.obj`, and distinct names |
 | `definitions.*` | objects, distinct object names, weapons, particle systems, levels after loading |

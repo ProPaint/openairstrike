@@ -278,8 +278,15 @@ bool parseGoldenHashes(const std::string& t, std::vector<std::pair<std::string, 
 }
 } // namespace
 
+// The game under test picks the mock host's tables, as tools/ref/rcsl_vm.py does from --game.
+void selectTablesForGame() {
+    rcsl_tool::selectMockTables(testdata::game().id == as3d::GameId::AirStrike3D ? rcsl_tool::MockTableSet::V170
+                                                                                : rcsl_tool::MockTableSet::Sequel);
+}
+
 TEST_CASE("script: every shipped script reproduces the reference trace") {
     AS3D_REQUIRE_DATA();
+    selectTablesForGame();
     std::ifstream f(testdata::goldenDir() + "/rcsl_trace_hashes.json", std::ios::binary);
     REQUIRE(f.good());
     std::stringstream ss;
@@ -316,6 +323,7 @@ TEST_CASE("script: every shipped script reproduces the reference trace") {
 
 TEST_CASE("script: performance of the standard run over all scripts (no trace sink)") {
     AS3D_REQUIRE_DATA();
+    selectTablesForGame();
     std::vector<std::unique_ptr<ScriptProgram>> progs;
     std::ifstream f(testdata::goldenDir() + "/rcsl_trace_hashes.json", std::ios::binary);
     std::stringstream ss;

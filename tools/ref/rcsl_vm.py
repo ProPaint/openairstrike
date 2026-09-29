@@ -560,6 +560,10 @@ class MockHost(Host):
         self.set_global("self", self.entity_ref(MOCK_SELF))
         self.set_global("player", self.entity_ref(MOCK_PLAYER))
         self.set_global("camera", self.entity_ref(MOCK_CAMERA))
+        if "player1" in self.globals:   # as2 and gulf (rcsl-vm.delta.md, "Globals")
+            self.set_global("player1", self.entity_ref(MOCK_PLAYER))
+            self.set_global("player2", self.entity_ref(MOCK_OTHER))
+            self.set_global("cameramode", f2b(1.0))   # initial value of the executable
         self.set_global("frametime", dt_bits)
 
     def entity_ref(self, n):

@@ -1,0 +1,276 @@
+{
+ "files": {
+  "maps/levels.txt": {
+   "blocks": 20,
+   "statements": 211,
+   "tokens": 718
+  },
+  "objects/_new.obj": {
+   "blocks": 26,
+   "statements": 136,
+   "tokens": 337
+  },
+  "objects/avianos.obj": {
+   "blocks": 7,
+   "statements": 51,
+   "tokens": 145
+  },
+  "objects/boss_1.obj": {
+   "blocks": 21,
+   "statements": 136,
+   "tokens": 381
+  },
+  "objects/boss_2.obj": {
+   "blocks": 16,
+   "statements": 83,
+   "tokens": 232
+  },
+  "objects/boss_3_base.obj": {
+   "blocks": 7,
+   "statements": 39,
+   "tokens": 86
+  },
+  "objects/boss_3_helic.obj": {
+   "blocks": 7,
+   "statements": 46,
+   "tokens": 112
+  },
+  "objects/boss_3_train.obj": {
+   "blocks": 16,
+   "statements": 108,
+   "tokens": 334
+  },
+  "objects/btrs.obj": {
+   "blocks": 44,
+   "statements": 295,
+   "tokens": 910
+  },
+  "objects/buggy.obj": {
+   "blocks": 4,
+   "statements": 25,
+   "tokens": 74
+  },
+  "objects/buildings.obj": {
+   "blocks": 119,
+   "statements": 972,
+   "tokens": 2282
+  },
+  "objects/cannons.obj": {
+   "blocks": 92,
+   "statements": 534,
+   "tokens": 1329
+  },
+  "objects/chinook.obj": {
+   "blocks": 3,
+   "statements": 33,
+   "tokens": 103
+  },
+  "objects/desert_builds.obj": {
+   "blocks": 2,
+   "statements": 10,
+   "tokens": 24
+  },
+  "objects/effects.obj": {
+   "blocks": 77,
+   "statements": 341,
+   "tokens": 920
+  },
+  "objects/effects2.obj": {
+   "blocks": 3,
+   "statements": 24,
+   "tokens": 69
+  },
+  "objects/flora.obj": {
+   "blocks": 76,
+   "statements": 562,
+   "tokens": 1178
+  },
+  "objects/helics.obj": {
+   "blocks": 44,
+   "statements": 459,
+   "tokens": 1183
+  },
+  "objects/intro01.obj": {
+   "blocks": 9,
+   "statements": 81,
+   "tokens": 221
+  },
+  "objects/intro02.obj": {
+   "blocks": 1,
+   "statements": 5,
+   "tokens": 12
+  },
+  "objects/items.obj": {
+   "blocks": 47,
+   "statements": 358,
+   "tokens": 883
+  },
+  "objects/jeeps.obj": {
+   "blocks": 120,
+   "statements": 808,
+   "tokens": 2422
+  },
+  "objects/m113.obj": {
+   "blocks": 10,
+   "statements": 68,
+   "tokens": 196
+  },
+  "objects/mapobjects.obj": {
+   "blocks": 206,
+   "statements": 1173,
+   "tokens": 2803
+  },
+  "objects/misc.obj": {
+   "blocks": 17,
+   "statements": 82,
+   "tokens": 240
+  },
+  "objects/nature.obj": {
+   "blocks": 7,
+   "statements": 22,
+   "tokens": 59
+  },
+  "objects/planes.obj": {
+   "blocks": 32,
+   "statements": 380,
+   "tokens": 978
+  },
+  "objects/player.obj": {
+   "blocks": 48,
+   "statements": 431,
+   "tokens": 1088
+  },
+  "objects/rlbig.obj": {
+   "blocks": 21,
+   "statements": 151,
+   "tokens": 507
+  },
+  "objects/rocketlauncher.obj": {
+   "blocks": 16,
+   "statements": 114,
+   "tokens": 341
+  },
+  "objects/ruins.obj": {
+   "blocks": 31,
+   "statements": 143,
+   "tokens": 319
+  },
+  "objects/ships.obj": {
+   "blocks": 54,
+   "statements": 369,
+   "tokens": 1014
+  },
+  "objects/tanks.obj": {
+   "blocks": 94,
+   "statements": 653,
+   "tokens": 1955
+  },
+  "objects/teera_balst.obj": {
+   "blocks": 2,
+   "statements": 7,
+   "tokens": 19
+  },
+  "objects/transport.obj": {
+   "blocks": 53,
+   "statements": 486,
+   "tokens": 1478
+  },
+  "objects/tyagach.obj": {
+   "blocks": 7,
+   "statements": 50,
+   "tokens": 157
+  },
+  "objects/weapons.obj": {
+   "blocks": 95,
+   "statements": 790,
+   "tokens": 2037
+  },
+  "objects/weapons_enemy.obj": {
+   "blocks": 70,
+   "statements": 641,
+   "tokens": 1649
+  },
+  "objects/weapons_enemy_missiles.obj": {
+   "blocks": 13,
+   "statements": 96,
+   "tokens": 239
+  },
+  "objects/zabors.obj": {
+   "blocks": 16,
+   "statements": 90,
+   "tokens": 203
+  },
+  "particles/_new.ps": {
+   "blocks": 6,
+   "statements": 81,
+   "tokens": 273
+  },
+  "particles/boss2.ps": {
+   "blocks": 2,
+   "statements": 26,
+   "tokens": 95
+  },
+  "particles/explosions.ps": {
+   "blocks": 20,
+   "statements": 278,
+   "tokens": 956
+  },
+  "particles/particles.ps": {
+   "blocks": 41,
+   "statements": 514,
+   "tokens": 1738
+  },
+  "particles/rlbig.ps": {
+   "blocks": 2,
+   "statements": 25,
+   "tokens": 89
+  },
+  "particles/water.ps": {
+   "blocks": 1,
+   "statements": 12,
+   "tokens": 42
+  },
+  "particles/weapons.ps": {
+   "blocks": 26,
+   "statements": 339,
+   "tokens": 1198
+  },
+  "particles/weapons_enemy.ps": {
+   "blocks": 5,
+   "statements": 70,
+   "tokens": 240
+  },
+  "particles/weather.ps": {
+   "blocks": 6,
+   "statements": 80,
+   "tokens": 276
+  },
+  "weapons/e_missiles.wpn": {
+   "blocks": 9,
+   "statements": 23,
+   "tokens": 55
+  },
+  "weapons/e_weapons.wpn": {
+   "blocks": 29,
+   "statements": 84,
+   "tokens": 197
+  },
+  "weapons/enemies.wpn": {
+   "blocks": 1,
+   "statements": 3,
+   "tokens": 7
+  },
+  "weapons/player.wpn": {
+   "blocks": 32,
+   "statements": 86,
+   "tokens": 204
+  }
+ },
+ "summary": {
+  "objects_distinct_names": 1532,
+  "objects_duplicate_names": [
+   "ship_big_helic_dead"
+  ],
+  "objects_total_named_blocks": 1533
+ }
+}

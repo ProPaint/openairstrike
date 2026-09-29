@@ -135,7 +135,16 @@ bool ScriptProgram::load(const u8* data, size_t size, ScriptProgram& out, std::s
     if (cashCount > 0 && !cash.present) return fail("CASH count without CASH section");
     if (defsCount > 0 && !defs.present) return fail("DEFS count without DEFS section");
     if (funcCount > 0 && !func.present) return fail("FUNC count without FUNC section");
-    if (!code.present) return fail("missing CODE section");
+    if (!code.present) {
+        // A script without a CODE section is an empty program (as2 rcsl-container.delta.md,
+        // "Loader behaviour": one file of the third game, all entry points absent). Valid only
+        // when nothing refers to code.
+        if (codeCount != 0) return fail("instruction count without CODE section");
+        for (int k = 0; k < kNumEntryPoints; ++k) {
+            if (header[9 + k] != kNoEntry) return fail("entry point without CODE section");
+        }
+        code = Payload{data, 0, true};
+    }
     if (frameSlots < 16) return fail("frame size below 16");
     if (frameSlots > kMaxFrameSlots) return fail("frame size too large");
 

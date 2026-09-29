@@ -60,6 +60,13 @@ EXPECTED_MARKERS_ON_PADS = EXP["markers_on_pads"]
 MAX_TILE_SET = EXP["tile_sets"]
 PAD_SET, PAD_INDEX = EXP["pad_tile_set"], EXP["pad_tile_index"]
 
+# Waypoints that break the range rules below (a cell outside the map, a delay of 1e7): the
+# rule is kept for every other waypoint. {(map, placement index, waypoint index)}
+EXPECTED_ODD_WAYPOINTS = {tuple(w) for w in EXP.get("odd_waypoints", [])}
+
+# Maps that are not named by exactly one maps/levels.txt block: {map: number of blocks}.
+EXPECTED_REFERENCES = dict(EXP.get("reference_exceptions", {}))
+
 
 def data_available():
     return gamesel.has_data()
@@ -128,12 +135,13 @@ def check_map(name, m, defs, errors, odd_seen):
             if (w0.x, w0.y) != (p.x, p.y - 1):
                 errors.append(f"{tag}: path starts at ({w0.x},{w0.y}), not at the placement cell")
             for k, w in enumerate(p.waypoints):
-                if not (-8 <= w.x <= W + 8 and 0 <= w.y < H):
+                odd_ok = (name, p.index, k) in EXPECTED_ODD_WAYPOINTS
+                if not (-8 <= w.x <= W + 8 and 0 <= w.y < H) and not odd_ok:
                     errors.append(f"{tag}: waypoint {k} ({w.x},{w.y}) far outside the map")
                 if w.unknown8 not in (0, 1, 2):
                     errors.append(f"{tag}: waypoint {k} field +8 = {w.unknown8}")
                 vals = list(w.in_ctrl) + list(w.out_ctrl) + [w.delay]
-                if any(v != v or abs(v) > 1e6 for v in vals):
+                if any(v != v or abs(v) > 1e6 for v in vals) and not odd_ok:
                     errors.append(f"{tag}: waypoint {k} has non-finite floats")
 
     # Helipad / end marker consistency (evidence for the y-1 row convention).
@@ -204,7 +212,7 @@ def main():
             continue
         total_pl += len(m.placements)
         markers_on_pads += check_map(name, m, defs, errors, odd_seen)
-        if refs[name.lower()] != 1:
+        if refs[name.lower()] != EXPECTED_REFERENCES.get(name, 1):
             errors.append(f"{name}: referenced {refs[name.lower()]} times by maps/levels.txt")
         summary.append(summarise(name, m))
     if markers_on_pads != EXPECTED_MARKERS_ON_PADS:

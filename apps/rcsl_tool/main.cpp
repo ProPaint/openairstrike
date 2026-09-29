@@ -127,7 +127,7 @@ int cmdCheck(int argc, char** argv) {
         if (it->is_regular_file()) {
             std::string ext = it->path().extension().string();
             std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
-            if (ext == ".scr") files.push_back(it->path());
+            if (ext == ".scr" || ext == ".sc") files.push_back(it->path()); // the sequels ship one leftover ".sc"
         }
     }
     std::sort(files.begin(), files.end());
@@ -219,6 +219,8 @@ int main(int argc, char** argv) {
         std::fputs(as3d::describeGames(dataRoot()).c_str(), stdout);
         return 0;
     }
+    // The game picks the mock host's tables (24 globals and 85 builtins, or the sequels' 28 and 101).
+    const as3d::GameProfile* profile = nullptr;
     if (!g_game.empty() || !g_paks.empty()) {
         as3d::GameData game;
         std::string error;
@@ -226,7 +228,11 @@ int main(int argc, char** argv) {
             std::cerr << "rcsl_tool: " << error << "\n";
             return 2;
         }
+        profile = game.game;
+    } else if (const char* env = std::getenv("AS3D_GAME")) {
+        if (*env) profile = as3d::findGameProfile(env);
     }
+    if (profile && profile->id != as3d::GameId::AirStrike3D) rcsl_tool::selectMockTables(rcsl_tool::MockTableSet::Sequel);
     if (argc < 2) {
         std::cerr << "usage: rcsl_tool <trace|check|info> ...\n";
         return 2;

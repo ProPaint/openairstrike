@@ -1,0 +1,202 @@
+[
+ {
+  "base_texture_block0_sha1": "a5aa0bf7d5b767f612a8d82241a72716aa8ef8be",
+  "file": "maps/intro.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "21fb440587b96fd258533c1276ab9f6077dfcb3c",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "eb4c8cb5c44fdee4dae6589c9ebbe7eb0d2eff32",
+  "file": "maps/level01.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "790a861c2f9aa8eda2c9bc1632b79d967ce76c65",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "9b03e0e608e2c06e095dcb813e871143d4b4d35d",
+  "file": "maps/level02.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "47df124737c6b013bd35b6bd94986ff44b29f13c",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "084e99cc361c11b7dc5132ad9bd42c56ca707dee",
+  "file": "maps/level03.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "2948c78a562547e0447eedd3a653f451384582ae",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "a8e47c91596835f4fade8f20b6117022e527d36c",
+  "file": "maps/level04.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "b970872c57ac77cc60c72b9ea058e0a4a95057ad",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "4737b4954622a21c469720537865909d39be2a79",
+  "file": "maps/level05.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "b102d39ef5c58b1b88fa6190866bc511f61bcd7e",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "7f33ecb2bc9c7384b6cb052f11b1db28d9e0e2f2",
+  "file": "maps/level06.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "733b9ce85469b0a60d6234f176f750176ef2c202",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "a17815a5f78895b447eb6d2bc38b679db281eafc",
+  "file": "maps/level07.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "3ef45e5e90f01b642990f4f457ddccfe86dfdd54",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "7b3b3e1dba723f195098feaed8b6916fde86e8e7",
+  "file": "maps/level08.hsc",
+  "height": 256,
+  "textures": "textures\\wasterland",
+  "vertex_heights_sha1": "0173409b0b5fa72f92b703b9b7f15a90b3e20459",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "35a0e689b7b5e5f095da98d795b3f00063b235cf",
+  "file": "maps/level09.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "740877595696d587d30a1699bb79b3c2a2d4857e",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "df4ce4a55be7fb03b67db57a97c00abc0fb9c96b",
+  "file": "maps/level10_boss.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "0086cbe9bffba926dba37c43f73ec86abfcf0833",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "b982c613a023c011bbe295045ecebdfe266f00c5",
+  "file": "maps/level11_bonus.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "93de7b1e71326b0ca5aa480e53ac7cdb306c6c31",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "648f93a14884394eea135aecb93c4faf29730299",
+  "file": "maps/level12.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "5f32e9ae66f7839af30a63554c84f6e3a43e04ef",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "07719cd9811f66b77ef2e18cd7083cb2bd4fffb5",
+  "file": "maps/level13.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "728eb615ad929f6e3f432d21cc60d2882f94be8f",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "79dfdb2a6e0a1c1e655560032c4a7ee4eaf606aa",
+  "file": "maps/level14.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "9de443fd201fb7bdcb4dd0a26fd8642290030ec9",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "9a81a73eeab06766b341b4b09b25422990e4e3f5",
+  "file": "maps/level15.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "851ac1dfa66f01e0b7167798eb4cd98872ac173d",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "147371bd0dbc78c330964af427d74279b6bf3346",
+  "file": "maps/level16.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "f483984a80fe2401b0b07724c5b55a2754db9ce9",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "52c4c04400093520ef40695d65396c138b25236a",
+  "file": "maps/level17.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "074d2cc500699f7c4f76158dfc1a1417f0d8c568",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "bdf60856fe37ee8a9630a4a54ab6ff426fd32157",
+  "file": "maps/level18_bonus.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "61cb8311605adb1d3a2ef15958e3f402073bf318",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "2af0a0585ab1fe9398295814dfea8c88c5d89fce",
+  "file": "maps/level19.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "7ebdf6bec0f839db924f7bfeee897104a98b10f4",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "1a2c660c83452ab35e6735d3774b649b2dfa72b5",
+  "file": "maps/level20.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "66ca86920edb7dba4f7e42c9b4220712eec35189",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "e37394228f1d39b1e29e984ea3c9e9329422eb0d",
+  "file": "maps/level21.hsc",
+  "height": 256,
+  "textures": "textures\\grass",
+  "vertex_heights_sha1": "f62ca684fae12d04f44590aaf75bc878600c2968",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "68c8a4d2b09f9b3dbc5107716a1647359fe727a6",
+  "file": "maps/level22.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "4ab6d76bb90878802a7c2cea3132194785815328",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "cac3ad30a025c2b47449a3318443fcdd52d95bd3",
+  "file": "maps/level23.hsc",
+  "height": 256,
+  "textures": "textures\\desert",
+  "vertex_heights_sha1": "6a36f114f3bfe47859a79f2f9e49bd60b34b7b5d",
+  "width": 32
+ },
+ {
+  "base_texture_block0_sha1": "db458cdc63367852017c10a117b909241a05355e",
+  "file": "maps/level24_boss.hsc",
+  "height": 256,
+  "textures": "textures\\rock",
+  "vertex_heights_sha1": "ac31fa07e824ceebb67cfe18d52fad0190902404",
+  "width": 32
+ }
+]

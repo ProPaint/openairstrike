@@ -72,7 +72,9 @@ def main() -> int:
               f"({want['distinct_object_names']})", file=sys.stderr)
 
     gpath = golden_path()
-    if not os.path.exists(gpath):
+    if not os.path.exists(gpath) and failures:
+        print("not writing the golden file while checks fail", file=sys.stderr)
+    elif not os.path.exists(gpath):
         os.makedirs(os.path.dirname(gpath), exist_ok=True)
         with open(gpath, "w") as f:
             json.dump(golden, f, indent=1, sort_keys=True)
