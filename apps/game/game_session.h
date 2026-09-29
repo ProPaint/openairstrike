@@ -50,6 +50,10 @@ struct GameOptions {
     const as3d::GameRules& rules() const { return game ? game->rules : as3d::defaultGameRules(); }
 };
 
+// Mounts the files of `options` into `vfs` as GameSession::init does (the extra files, then the
+// paks in order or the extracted directory). `where` names what was mounted, for messages.
+bool mountGameFiles(const GameOptions& options, as3d::Vfs& vfs, std::string* where, std::string* error);
+
 // Everything a level start takes from the front end (frontend.md 5.1, 5.2).
 struct LevelSetup {
     int mission = 1;               // 1..the game's mission count

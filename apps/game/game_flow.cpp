@@ -150,6 +150,7 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     content.touchMenuButton = config_.touchMenuButton;
     content.screenOption = config_.screenOptionAlways;
     content.handOption = config_.touch;
+    content.changeGame = config_.changeGame;
     screenOverride_ = config_.screenOverride == kScreenWide || config_.screenOverride == kScreen4x3 ? config_.screenOverride : -1;
     lastScreenSetting_ = profile_.settings.screenMode;
 

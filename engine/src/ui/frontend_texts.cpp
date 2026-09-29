@@ -58,6 +58,7 @@ const std::map<std::string, std::string>& defaults() {
             {"plain.configure_controls", "Configure Controls"},
             {"plain.main.start", "Start Game"}, {"plain.main.scores", "Top Scores"},
             {"plain.main.options", "Options"}, {"plain.main.exit", "Exit"},
+            {"menu.change_game", "Change game"},
             {"plain.title.start", "Start Game"}, {"plain.title.scores", "Top Scores"},
             {"plain.title.options", "Options"}, {"plain.title.controls", "Controls"},
             {"plain.title.paused", "Paused"}, {"plain.title.name", "High Score"}, {"plain.title.complete", "Mission Complete"},

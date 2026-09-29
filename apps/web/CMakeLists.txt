@@ -67,7 +67,7 @@ set(AS3D_GAME_DIR ${AS3D_REPO_ROOT}/apps/game)
 add_executable(as3d_web web_main.cpp
   ${AS3D_GAME_DIR}/game_session.cpp ${AS3D_GAME_DIR}/game_view.cpp ${AS3D_GAME_DIR}/audio_bridge.cpp
   ${AS3D_GAME_DIR}/game_flow.cpp ${AS3D_GAME_DIR}/ui_script.cpp ${AS3D_GAME_DIR}/game_loop.cpp
-  ${AS3D_GAME_DIR}/touch_overlay.cpp)
+  ${AS3D_GAME_DIR}/touch_overlay.cpp ${AS3D_GAME_DIR}/game_stack.cpp ${AS3D_GAME_DIR}/launcher_screen.cpp)
 target_include_directories(as3d_web PRIVATE ${AS3D_GAME_DIR})
 target_link_libraries(as3d_web PRIVATE ${AS3D_MODULES} ${AS3D_MODULES})
 target_link_options(as3d_web PRIVATE ${AS3D_WEB_LINK})

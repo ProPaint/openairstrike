@@ -87,6 +87,9 @@ struct FrontendContent {
     // and in touch mode "Controls" (Right / Left).
     bool screenOption = false;
     bool handOption = false;
+    // Ours (docs/spec/issues/163): more than one playable game is present, the main menu offers
+    // "Change game" (GameHost::changeGame). Off: the main menu is exactly as before.
+    bool changeGame = false;
 
     // Ours, for the plain front end (docs/spec/as2/issues/260): what the object definitions
     // named by GameRules::heliObjects say about each helicopter, for its list entry.
@@ -183,7 +186,16 @@ public:
     // Draws the main menu's 3D banner (objects\banner.obj) in the top 200 virtual pixels,
     // between drawUnder and drawOver (frontend.md 3.3 step 5). `mt` is the menu time.
     virtual void drawBanner(float mt) {}
+    // Ours (docs/spec/issues/163): the main menu's "Change game" (FrontendContent::changeGame);
+    // the profile is saved first. The host leaves this game for the game selector.
+    virtual void changeGame() {}
 };
+
+// Id and place of the "Change game" entry of the main menus (docs/spec/issues/163). The first
+// game's: a text button in the free band between the Exit picture (ends at y 423) and the
+// corner rule (y 487). The plain front end's: the left slot of the bottom bar.
+constexpr int kChangeGameItem = 60;
+constexpr RectF kChangeGameRect{310, 440, 180, 32};
 
 // ---------------------------------------------------------------------------
 // Front end
@@ -351,5 +363,59 @@ private:
 // Loading screen (S9, frontend.md 3.16): black, menu\loading.tga unless an intermission level
 // loads, and a progress line. The host calls it at each loading step.
 void drawLoadingScreen(Renderer2D& r, const UiAssets& a, float progress, bool intermission);
+
+// ---------------------------------------------------------------------------
+// The game selector (ours, docs/spec/issues/163): one card per game whose data is present, in
+// the style of the plain front end (black bars, rules, text buttons in the game font, our own
+// rectangles). It must work with any single game's data, so it asks the asset cache for no
+// texture: the font comes from the UiAssets given to draw() (loaded from any present game), and
+// a card shows its game's own logo when the window loaded one (GameCard::logo), else the title
+// in large text. Keyboard (Left / Right / Tab choose, Enter plays, Esc exits), mouse and touch
+// (a click or tap on a card plays it) through the menu system.
+// ---------------------------------------------------------------------------
+struct GameCard {
+    std::string key;                     // the game's key
+    std::string title, version;          // "AirStrike 2", "2.51"
+    std::vector<std::string> saveLines;  // the player's save of that game (as3d/launcher.h)
+    const Texture2D* logo = nullptr;     // the game's own title picture, or null
+};
+
+class GameSelector {
+public:
+    GameSelector(std::vector<GameCard> cards, int preselected);
+    GameSelector(const GameSelector&) = delete;
+    GameSelector& operator=(const GameSelector&) = delete;
+
+    void setTouchMode(bool on);
+    // The part of the virtual 800x600 screen clear of display cutouts (Mapping::toVirt of the
+    // safe insets); cards and buttons stay inside it. Rebuilds the layout when it changes.
+    void setSafeArea(float left, float top, float right, float bottom);
+
+    void update(float dt, const UiInput& input);
+    // The card played (a click, a tap, Enter or the Play button), -1 until then.
+    int chosen() const { return chosen_; }
+    bool exitRequested() const { return exit_; }
+    // The card that Play would start: the focused card, or the last one focused.
+    int current() const { return current_; }
+    void draw(Renderer2D& r, const UiAssets& fontAssets);
+
+    const std::vector<GameCard>& cards() const { return cards_; }
+    RectF cardRect(int index) const;
+    RectF playRect() const { return play_; }
+    RectF exitRect() const { return exitButton_; }
+    MenuSystem& menus() { return menus_; }
+
+private:
+    void build();
+
+    std::vector<GameCard> cards_;
+    MenuSystem menus_;
+    std::vector<RectF> rects_;
+    RectF play_, exitButton_;
+    float safeL_ = 0, safeT_ = 0, safeR_ = 800, safeB_ = 600;
+    int current_ = 0;
+    int chosen_ = -1;
+    bool exit_ = false;
+};
 
 } // namespace as3d::ui

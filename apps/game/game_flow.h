@@ -46,6 +46,9 @@ struct FlowConfig {
     bool webKeys = false;
     bool deferLoads = false;
     std::function<void()> profileSaved;
+    // More than one playable game (docs/spec/issues/163): the main menu offers "Change game";
+    // choosing it sets changeGameRequested() for the window.
+    bool changeGame = false;
 };
 
 // Level-start bits the loop reacts to (renderer and audio are handled inside).
@@ -130,6 +133,9 @@ public:
     void settingsChanged(const as3d::Settings& settings) override;
     void saveProfile(const as3d::Profile& profile) override;
     void quit() override { quit_ = true; }
+    void changeGame() override { changeGame_ = true; }
+    // "Change game" was chosen (the profile is saved): the window goes to the game selector.
+    bool changeGameRequested() const { return changeGame_; }
     void gameOverMusic() override { audio_.gameOverMusic(); }
 
 private:
@@ -150,6 +156,7 @@ private:
     std::unique_ptr<as3d::ui::Frontend> fe_;
     int attract_ = 1;
     bool quit_ = false;
+    bool changeGame_ = false;
     int levelLoads_ = 0;
     float pointerX_ = 400, pointerY_ = 300;
     int screenOverride_ = -1;

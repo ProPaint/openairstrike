@@ -47,6 +47,8 @@ Menu Frontend::buildMainMenu() {
     };
     for (const auto& b : buttons)
         m.addButton(b.id, 240, b.y, 320, b.h, "menu\\mmenu_1.tga", "menu\\mmenu_2.tga", b.uv);
+    // Ours (docs/spec/issues/163): with more than one game, a text entry below the pictures.
+    if (content_.changeGame) m.addTextButton(kChangeGameItem, kChangeGameRect, texts_.get("menu.change_game"));
     m.onItem = [this](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
         switch (it.id) {
@@ -55,6 +57,10 @@ Menu Frontend::buildMainMenu() {
             case 3: optionsInGame_ = false; open(Screen::Options); break;
             case 4: open(Screen::Information); break;
             case 5: open(Screen::Exit); break;
+            case kChangeGameItem:
+                save();
+                host_.changeGame();
+                break;
             default: break;
         }
     };
