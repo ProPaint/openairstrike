@@ -58,6 +58,7 @@ loose files (`gfx`, `menu`, `models`, `morphmaps`, `textures`, `tiles`, `Setting
 
 | Spec | Status | Package | Notes |
 |---|---|---|---|
+| [rcsl-builtins-semantics.delta.md](rcsl-builtins-semantics.delta.md) | verified from code | B3 | 70 same, 15 changed, 16 new; 66 needed for mission 1; wins over rcsl-builtins-table.delta.md for `atan`, `RespawnPlayer`, `G_UsePowerUp` and wherever the two differ; `TerraMorph` needs mutable terrain ([issue 200](issues/200-terramorph-dynamic-terrain.md)) |
 | [symbol-map.md](symbol-map.md) | 522 of 529 named v1.70 functions mapped or marked removed | B1 | overview of what changed in the engine; `re/symbols_as2.csv`, `re/symbols_as2_data.csv`; matching tools in `re/tools/` |
 | [rcsl-container.delta.md](rcsl-container.delta.md) | verified from code | B2 | effectively the same; a script without a CODE section is valid |
 | [rcsl-opcodes.delta.md](rcsl-opcodes.delta.md) | verified from code | B2 | all handlers the same; 7 opcode/mode pairs new to the corpus need no new code |
