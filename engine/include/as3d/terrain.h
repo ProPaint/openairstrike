@@ -102,6 +102,13 @@ public:
     const std::vector<Vec3>& normals() const { return normals_; }
     const std::vector<TerrainVertexColor>& colors() const { return colors_; }
 
+    // Height (z) of vertex (c, r), 0 outside the grid; setVertexZ changes it for every later
+    // query and for the renderer's copy of the positions (the sequels' TerraMorph). Normals,
+    // colours and the raw heights keep their load-time values, as in the original
+    // (as2/rcsl-builtins-semantics.delta.md 95 step 5). False outside the grid.
+    float vertexZ(int c, int r) const;
+    bool setVertexZ(int c, int r, float z);
+
     // Bilinear height at world (x, y) over the *vertex* grid (docs/spec/hmap.md
     // "TerrainHeight"), clamped to the map edges (our deviation; see file header).
     float heightAt(float worldX, float worldY) const;

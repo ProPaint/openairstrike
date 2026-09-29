@@ -76,6 +76,10 @@ Family movementBuiltins();
 Family combatBuiltins();
 Family playerBuiltins();
 Family effectsBuiltins();
+// AirStrike 2 and Gulf Thunder: their new builtins and the sequel versions of the changed
+// ones that no GameRules flag selects (builtins_sequel.cpp). They replace the families'
+// entries of the same name for those games (builtins_table.cpp).
+Family sequelBuiltins();
 
 } // namespace builtins
 } // namespace as3d

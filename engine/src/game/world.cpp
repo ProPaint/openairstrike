@@ -10,6 +10,7 @@
 #include "as3d/model.h"
 #include "as3d/script_host.h"
 #include "as3d/vfs.h"
+#include "as3d/world_def_access.h"
 #include "as3d/world_particles.h"
 #include "world_internal.h"
 #include "world_path.h"
@@ -34,6 +35,21 @@ void Entity::setV3(int k, const Vec3& v) {
 int Entity::flagBits() const { return ftol(f(F_FLAGS)); }
 
 // ---------------------------------------------------------------------------------------
+// Definition values being added to the loader (as3d/world_def_access.h).
+// ---------------------------------------------------------------------------------------
+
+bool objectDefSpeed(const ObjectDef& def, float* out) {
+    // TODO(orchestrator): `return def.hasSpeed ? (*out = def.speed, true) : false;` once
+    // ObjectDef::speed exists (as2/engine-behaviour.delta.md 3.1.3). Temporary: the player
+    // helicopters get 1.0, which is player_1's value.
+    if (def.kind != ObjectKind::Player) return false;
+    *out = 1.0f;
+    return true;
+}
+
+float objectDefClass(const ObjectDef& def) { return static_cast<float>(static_cast<int>(def.kind)); }
+
+// ---------------------------------------------------------------------------------------
 // Construction.
 // ---------------------------------------------------------------------------------------
 
@@ -52,6 +68,14 @@ void World::init(Vfs& vfs, const DefDatabase& db, const WorldConfig& config) {
     db_ = &db;
     config_ = config;
     rules_ = config.rules ? config.rules : &defaultGameRules();
+    game_ = GameId::AirStrike3D;
+    if (config.game >= 0 && config.game < kGameCount) {
+        game_ = static_cast<GameId>(config.game);
+    } else {
+        for (int g = 0; g < kGameCount; ++g) {
+            if (&gameProfile(static_cast<GameId>(g)).rules == rules_) game_ = static_cast<GameId>(g);
+        }
+    }
     const GameRules& rl = *rules_;
     if (const char* god = std::getenv("AS3D_GOD_MODE")) {
         if (god[0] == '1') config_.godMode = true;
@@ -284,13 +308,17 @@ void World::applyDef(int idx, const ObjectDef* def) {
     Entity& e = ents_[static_cast<size_t>(idx)];
     e.def = def;
     e.name = def->name;
-    e.setF(F_CLASS, static_cast<float>(static_cast<int>(def->kind)));
+    e.setF(F_CLASS, objectDefClass(*def));
     e.setF(F_FLAGS, static_cast<float>(def->flags));
     e.setF(F_HEALTH, static_cast<float>(def->health));
     e.setF(F_DAMAGE, static_cast<float>(def->damage));
     e.setF(F_SCORE, static_cast<float>(def->score));
     for (int k = 0; k < 4; ++k) e.setF(F_COLOR + k, 1.0f);
     e.setF(F_SCALE, 0.0f); // field 32 starts at 0; the obj "scale" key never reaches it
+    // The sequels copy the definition's `speed` into field 23 (as2/rcsl-vm.delta.md, field
+    // 23); the first game leaves it at 0.
+    float speed = 0.0f;
+    if (game_ != GameId::AirStrike3D && objectDefSpeed(*def, &speed)) e.setF(F_WP_SPEED, speed);
     e.fields[F_RENDER_TYPE] = static_cast<u32>(def->type);
     e.fields[F_RENDER_FLAGS] = def->rflag;
     e.fields[F_SORT] = static_cast<u32>(def->sort);
@@ -429,6 +457,31 @@ void World::finishCreate(int idx, bool thinkNow) {
     Entity& e = ents_[static_cast<size_t>(idx)];
     if (e.f(F_CLASS) == kClassEnemy && !(e.flagBits() & FL_NONTARGET)) ++enemiesInLevel_;
     if (thinkNow) think(idx);
+}
+
+void World::detachEntity(int idx) {
+    if (!validIndex(idx)) return;
+    Entity& e = ents_[static_cast<size_t>(idx)];
+    // A definition child (in its parent's child array) is left alone: the original would
+    // orphan it (undefined, never done by the shipped scripts; docs/spec/as2/issues/231).
+    if (!e.inList) return;
+    int p = e.parent;
+    if (validIndex(p)) {
+        // 1. The parent's own angles, not the tag's orientation.
+        for (int k = 0; k < 3; ++k) e.fields[F_ANGLES + k] = ents_[static_cast<size_t>(p)].fields[F_ANGLES + k];
+    }
+    // 2. Release the count held on the root of the parent's chain.
+    if (e.countedInRoot) {
+        if (validIndex(p)) {
+            int r = rootOf(p);
+            if (r >= 0) --ents_[static_cast<size_t>(r)].attachRefCount;
+        }
+        e.countedInRoot = false;
+    }
+    // 3. A root from now on; runtime bit 0x20 stays set, as in the original.
+    e.parent = -1;
+    e.tagName.clear();
+    e.absAttach = false;
 }
 
 void World::attachEntity(int child, int parent, const std::string& tag, bool absolute) {
@@ -570,7 +623,9 @@ void World::spawnPlayer(int p) {
     int old = liveIndexFromRef(pr.entityRef);
     if (old >= 0 && ents_[static_cast<size_t>(old)].playerIndex != p) old = -1; // slot reused
     if (old >= 0) removeEntity(old);
-    if (pr.lives < 0.0f) {
+    // The sequels always build a new helicopter; their scripts test p_lives themselves
+    // (as2/engine-behaviour.delta.md 7.4).
+    if (rules_->respawnChecksLives && pr.lives < 0.0f) {
         if (old >= 0) ents_[static_cast<size_t>(old)].setF(F_DEAD, 1.0f);
         return;
     }
@@ -639,6 +694,21 @@ void World::dismissHint() {
 // ---------------------------------------------------------------------------------------
 
 void World::endLevel() {
+    if (rules_->campaignCheckpoint) {
+        // as2/rcsl-builtins-semantics.delta.md 2 steps 1-2 (engine-behaviour.delta.md 10.3):
+        // the checkpoint for the next mission, for both records whatever the number of
+        // players. A level without stars or scored objects would give an infinite or NaN
+        // rank: that term counts 0 here (docs/spec/as2/issues/232).
+        checkpointMission_ = mission_; // the current mission index (0-based) + 1
+        for (PlayerRecord& pr : players_) {
+            pr.checkpointLives = ftol(pr.lives);
+            pr.checkpointScore = ftol(static_cast<float>(pr.banked) + pr.scores);
+            float rank = pr.rankAccumulator;
+            if (maxLevelScore_ != 0.0f) rank += 0.5f * pr.scores / maxLevelScore_;
+            if (starTotal_ != 0) rank += pr.stars / static_cast<float>(starTotal_);
+            pr.checkpointRank = rank;
+        }
+    }
     hudHidden_ = true;
     paused_ = true;
     levelComplete_ = true;
@@ -648,6 +718,12 @@ void World::setGameOver() {
     gameOver_ = true;
     hudHidden_ = true;
     paused_ = true;
+}
+
+void World::gameOverBuiltin() {
+    // Game-over flag, level-end flag and world-stopped flag (as2 GameOver); the menu and the
+    // music belong to the front end.
+    setGameOver();
 }
 
 void World::startQuake(float amplitude) {
@@ -683,6 +759,21 @@ void World::resetLevelState() {
     particles_->reset(config_.seed * 2654435761u + 1u);
 }
 
+void World::applyMissionLoadout(int mission) {
+    if (!rules_->missionLoadout || rules_->missionCount < 1) return;
+    int row = std::min(std::max(mission - 1, 0), rules_->missionCount - 1);
+    const int* values = rules_->missionLoadout[row];
+    int slots = std::min(std::max(rules_->weaponSlots, 0), kMaxWeaponSlots);
+    for (PlayerRecord& pr : players_) {
+        int best = 0;
+        for (int k = 0; k < kMaxWeaponSlots; ++k) {
+            pr.upgrades[k] = k < slots ? values[k] : 0;
+            if (k < slots && values[k] != 0) best = k;
+        }
+        pr.weapon = static_cast<float>(best);
+    }
+}
+
 void World::updateParticles() {
     if (paused_) return;
     particles_->update(*this, frametime_);
@@ -696,9 +787,13 @@ void World::resetPlayersForLevel() {
         pr.stars = 0.0f;
         pr.kills = 0;
         pr.counter[2] = 1.0f;
-        for (int& u : pr.upgrades) u = 0;
-        pr.upgrades[0] = 1;
-        pr.weapon = 0.0f;
+        if (!rules_->missionLoadout) {
+            // The first game: upgrades cleared and the machine gun given at every level
+            // start. The sequels keep them (mission loadout or carried over, 8.2).
+            for (int& u : pr.upgrades) u = 0;
+            pr.upgrades[0] = 1;
+            pr.weapon = 0.0f;
+        }
         pr.action = 0.0f;
         pr.heldInput = 0;
         pr.entityRef = 0;

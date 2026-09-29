@@ -23,8 +23,10 @@ void bShoot(BuiltinArgs& a, void*) {
     if (!vecArg(a, 2, dir)) return;
     int s = selfOf(w);
     if (s < 0) return;
-    // 1. Off-screen or leaving shooters cannot fire.
+    // 1. Off-screen or leaving shooters cannot fire; in the sequels, dead ones neither (field
+    //    4 not exactly 0, a NaN included; as2/rcsl-builtins-semantics.delta.md 46).
     if (!(w.entity(s).rt & RT_COLLIDABLE) || w.entity(s).state == ES_LEAVING) return;
+    if (w.rules().deadShootersBlocked && w.entity(s).f(F_DEAD) != 0.0f) return;
     const char* pointc = strArg(a, 1);
     std::string point = pointc ? pointc : "origin";
     // 2. Muzzle from the shooter's last-think base origin and axis (a missing tag, or no
@@ -95,7 +97,8 @@ void bDamage(BuiltinArgs& a, void*) {
 }
 
 // RadialDamage(center, radius, rate): frametime * rate * (d / radius) * g_damage_factor to
-// every live enemy with health > 0 within radius (grows toward the rim).
+// every live enemy with health > 0 within radius (grows toward the rim); civilians (class 5)
+// too in the sequels (GameRules::civilians; as2/rcsl-builtins-semantics.delta.md 48).
 void bRadialDamage(BuiltinArgs& a, void*) {
     World& w = worldOf(a);
     float c[3];
@@ -105,7 +108,8 @@ void bRadialDamage(BuiltinArgs& a, void*) {
     int attacker = w.attackerFor(selfOf(w));
     for (int i : w.listEntities()) {
         const Entity& e = w.entity(i);
-        if (!e.inUse || (e.rt & RT_REMOVED) || e.f(F_CLASS) != kClassEnemy || !(e.f(F_HEALTH) > 0.0f)) continue;
+        const bool target = e.f(F_CLASS) == kClassEnemy || (w.rules().civilians && e.f(F_CLASS) == kClassCivilian);
+        if (!e.inUse || (e.rt & RT_REMOVED) || !target || !(e.f(F_HEALTH) > 0.0f)) continue;
         float dist = length(e.v3(F_ORIGIN) - Vec3{c[0], c[1], c[2]});
         if (dist > radius) continue;
         w.damageEntity(i, ft(w) * rate * (dist / radius) * w.damageFactor(), attacker);
@@ -119,7 +123,8 @@ bool projectSegment(World& w, BuiltinArgs& a, float s0[3], float s1[3]) {
 }
 
 // TraceLine(from, to, mask) (66): first player (mask 2) or enemy (mask 1) whose screen
-// rectangle the projected segment crosses.
+// rectangle the projected segment crosses; in the sequels mask bit 4 also accepts civilians
+// (GameRules::civilians; as2/rcsl-builtins-semantics.delta.md 66: masks 0 to 3 as before).
 void bTraceLine(BuiltinArgs& a, void*) {
     World& w = worldOf(a);
     float s0[3], s1[3];
@@ -138,10 +143,13 @@ void bTraceLine(BuiltinArgs& a, void*) {
             }
         }
     }
-    if (mask & 1) {
+    const bool civilians = w.rules().civilians && (mask & TOUCH_BIT_CIVILIAN);
+    if ((mask & 1) || civilians) {
         for (int i : w.listEntities()) {
             const Entity& e = w.entity(i);
-            if ((e.rt & RT_REMOVED) || !(e.rt & RT_COLLIDABLE) || e.f(F_CLASS) != kClassEnemy) continue;
+            const float cls = e.f(F_CLASS);
+            const bool accepted = ((mask & 1) && cls == kClassEnemy) || (civilians && cls == kClassCivilian);
+            if ((e.rt & RT_REMOVED) || !(e.rt & RT_COLLIDABLE) || !accepted) continue;
             if (!(e.f(F_HEALTH) > 0.0f)) continue;
             if (World::segmentHitsRect(s0, s1, e.rect)) {
                 a.setReturnBits(w.refOf(i));
@@ -162,6 +170,28 @@ void bTraceLineDamage(BuiltinArgs& a, void*) {
     if (s < 0) return;
     float dmg = a.f32(2);
     int tm = w.entity(s).touchMode;
+    if (w.rules().touchModeBits) {
+        // The sequels: the touch mode as a bit set (as2/rcsl-builtins-semantics.delta.md 67).
+        if (tm == 0) return;
+        if (tm & TOUCH_BIT_PLAYER) {
+            for (int p = 0; p < w.numPlayers(); ++p) {
+                int pi = w.liveIndexFromRef(w.player(p).entityRef);
+                if (pi < 0 || w.entity(pi).f(F_DEAD) != 0.0f) continue;
+                if (World::segmentHitsRect(s0, s1, w.entity(pi).rect)) w.damageEntity(pi, dmg, -1);
+            }
+        }
+        if (tm == TOUCH_BIT_PLAYER) return;
+        for (int i : w.listEntities()) {
+            const Entity& e = w.entity(i);
+            const float cls = e.f(F_CLASS);
+            const bool accepted = ((tm & TOUCH_BIT_ENEMIES) && cls == kClassEnemy) ||
+                                  ((tm & TOUCH_BIT_CIVILIAN) && cls == kClassCivilian);
+            if ((e.rt & RT_REMOVED) || !(e.rt & RT_COLLIDABLE) || !accepted) continue;
+            if (e.fields[F_RENDER_TYPE] != 0 || (e.flagBits() & FL_POINT_COLLISION) || e.f(F_DEAD) != 0.0f) continue;
+            if (World::segmentHitsRect(s0, s1, e.rect)) w.damageEntity(i, dmg, -1);
+        }
+        return;
+    }
     if (tm == 2) {
         for (int p = 0; p < w.numPlayers(); ++p) {
             int pi = w.liveIndexFromRef(w.player(p).entityRef);

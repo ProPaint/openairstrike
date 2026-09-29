@@ -147,6 +147,8 @@ void World::think(int idx) {
     if (!paused_) {
         e.setF(F_AGE, e.f(F_AGE) + frametime_);
         e.sinceDamage += frametime_;
+        // The sequels' Lightning timer (as2/rcsl-vm.delta.md, entity update).
+        if (e.lightningTimer < rules_->lightningTimerCap) e.lightningTimer += frametime_;
         bool parentAllows = !validIndex(e.parent) || ents_[static_cast<size_t>(e.parent)].state != ES_DORMANT;
         if ((e.rt & RT_ACTIVE) && e.state != ES_DORMANT && parentAllows) dispatch(idx, EntryPoint::Main);
     }

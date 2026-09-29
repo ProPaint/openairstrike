@@ -32,7 +32,9 @@ void World::damageEntity(int idx, float amount, int attacker) {
     if (!(e.f(F_HEALTH) <= 0.0f)) return;
     if (e.f(F_CLASS) == kClassEnemy && !(e.flagBits() & FL_NONTARGET) && attacker >= 0 &&
         attacker < config_.players) {
-        ++players_[attacker].kills;
+        // The sequels stop counting at the level's enemy total (as2/engine-behaviour.delta.md
+        // 6.1).
+        if (!rules_->killCapAtEnemyTotal || players_[attacker].kills < enemiesInLevel_) ++players_[attacker].kills;
     }
     e.setF(F_DEAD, 1.0f);
     if (e.drop) {
