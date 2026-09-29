@@ -54,10 +54,15 @@ loose files (`gfx`, `menu`, `models`, `morphmaps`, `textures`, `tiles`, `Setting
   `R_LoadModel` string 0x0048bba4 (function 0x00418270), `Script stall detected.` 0x0048c09c
   (0x0041eb10), `SL_GetExternFunc` 0x0048c6bc (0x00421c30), `G_LoadBin` 0x00489fbc (0x004069e0).
 
+## Implementation notes
+
+Issues 230 to 234 (`issues/`) record choices made while implementing the script host, builtins and player rules.
+
 ## Delta specs
 
 | Spec | Status | Package | Notes |
 |---|---|---|---|
+| [frontend.md](frontend.md) | verified from code and by running the game's own drawing code in an emulator; two-player screens never played | B7 | a full document mirroring the first game's frontend.md: intro comic, new menus in a framed panel, helicopter selection, portrait dialogues, HUD, save; text addresses in `tools/exe_texts/as2.json` (addresses only); quirks and keep-or-fix choices in [issue 240](issues/240-frontend-quirks-and-choices.md); wins over engine-behaviour.delta.md on menu flow |
 | [pak](pak.delta.md), [tga](tga.delta.md), [mdl](mdl.delta.md), [hmap](hmap.delta.md), [obj](obj.delta.md), [levels-txt](levels-txt.delta.md) deltas | verified on all shipped files | B6 | syntax and counts only; the meaning of the new object keywords is in engine-behaviour.delta.md; goldens and expected counts in `testdata/golden/as2/` |
 | [render-pipeline.delta.md](render-pipeline.delta.md) | verified from code; the water look is unconfirmed on a running original | B5 | player-visible differences only: new water (grid, shore fade, waves, two layers), skid marks, boats on waves, shadows multiplied and not clipped at the ground, environment map coordinates, sprite facing; also amends hmap.md's water syntax; issues [220](issues/220-water-surface.md), [221](issues/221-skid-marks.md); corrects `re/symbols_as2.csv` in `re/symbols_as2_render.csv` |
 | [engine-behaviour.delta.md](engine-behaviour.delta.md) | verified from code; co-op read from code only; sections 12 (sound) and 13 (rendering) not checked | B4 | player movement through an acceleration vector, 9 weapon slots with a loadout per mission, campaign checkpoint, civilians, touch mode bits, water, skid trails; its values are in `engine/src/game/game_profiles.cpp`; corrects `re/symbols_as2.csv` in `re/symbols_as2_game.csv`; issues [210](issues/210-skid-trail-details.md), [211](issues/211-load-time-spawn-and-statistics.md) |
