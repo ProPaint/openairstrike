@@ -535,6 +535,27 @@ initial field 23 (3.1.3), which no path-following object sets in its definition.
 1280 units wide, no clamp; leaving handled by the activation states; the player bounded by the
 camera (7.3).
 
+### 4.7 Terrain as the game rules see it (addition; no base section)
+
+- **Height queries**: `R_TerrainHeight` as2@0x41a1e0 has the identical instruction shape of
+  v170@0x416470 (ratio 1.000): bilinear on the 40-unit height grid, 0 outside the map. The grid
+  now holds 12-byte vertices whose z is the height (as2@0x2102e5c), the same array the
+  terrain drawer and the morphing use.
+- **Water height**: 4.2.
+- **Terrain morphing** (`TerraMorph`, `R_TerrainMorph` as2@0x41a670; details in the builtins
+  delta, pending) adds a morph image's values to the z of that same vertex grid, skipping the
+  vertices at or below the water level when the level has water. Every later height query sees
+  the new ground: `FL_ONGROUND` and `FL_ONGROUND_NORMAL` roots follow it from their next think,
+  new placements and drops are put on it, the `TerrainHeight` builtin returns it, skid marks
+  are laid on it. There is no terrain collision in either game, and collision is screen-space
+  (§5), so morphing changes hits only through the heights of the entities that follow the
+  ground. VERIFIED-CODE (the shared array).
+- **Tile sets**: the `as2` data has the atlases `tiles1..tiles9.tga` (v1.70: 1..5); the tile
+  layer, the helipads included, is read only by the terrain loader and drawer
+  (`R_LoadTerrain_Tiles` as2@0x41b780, renderer package); no game rule reads it. A level ends
+  through `eol.scr` or a boss script calling `EndLevel` (VERIFIED-DATA: `eol.scr`,
+  `boss_1_bashnya.scr`, `boss_2_kabina.scr`, `boss_3_helic.scr`).
+
 ---
 
 ## 5. Collision
@@ -595,7 +616,7 @@ and order as v170@0x4055d0.
 
 ### 5.5 Traces: changed (civilians)
 
-`TraceLine` as2@0x420fd0 and `TraceLineDamage` as2@0x421180 now also accept class 5.0 targets
+`TraceLine` as2@0x420fd0 and `TraceLineDamage` as2@0x421180 (v170@0x41bd40, v170@0x41bea0) now also accept class 5.0 targets
 (the 5.0 comparisons at as2@0x420fd0.. and as2@0x421180..). Their exact rules are in the
 builtins semantics delta (pending).
 
@@ -626,13 +647,13 @@ field 35).
 
 | Source | as2 | Change against v1.70 (details: builtins semantics delta, pending) |
 |---|---|---|
-| `Damage` | as2@0x420630 | none |
-| `RadialDamage` | as2@0x4206b0 | also hits class 5.0 (civilians) |
+| `Damage` | as2@0x420630 (v170@0x41b550) | none |
+| `RadialDamage` | as2@0x4206b0 (v170@0x41b5d0) | also hits class 5.0 (civilians) |
 | `RadialDamagePlayer` (new) | as2@0x420840 | the `RadialDamage` shape over the player records instead of the entity list (rcsl-builtins-table.delta.md); used by 7 scripts (explosions, meteorites, the big rocket launcher) |
-| `TraceLine`, `TraceLineDamage` | as2@0x420fd0, 0x421180 | class 5.0 accepted as well as 2.0 |
-| `Lightning` | as2@0x421310 | takes the range as its argument (t0); spawns `wavegun_hit` at most every 0.2 s per target (+0x78) |
-| Particle damage | `G_ParticleDamage` as2@0x40bbc0 | the particle system's touch mode is read as a bit set: bit 0x2 → every player whose rectangle contains the particle; otherwise the first list entity that is alive (health > 0), on screen, and (bit 0x1 and class 2.0) or (bit 0x4 and class 5.0), containing it. Attacker −1 |
-| `Shoot` | as2@0x420190 | the shooter must also be alive (8.1) |
+| `TraceLine`, `TraceLineDamage` | as2@0x420fd0, 0x421180 (v170@0x41bd40, 0x41bea0) | class 5.0 accepted as well as 2.0 |
+| `Lightning` | as2@0x421310 (v170@0x41c000) | takes the range as its argument (t0); spawns `wavegun_hit` at most every 0.2 s per target (+0x78) |
+| Particle damage | `G_ParticleDamage` as2@0x40bbc0 (v170@0x404cb0) | the particle system's touch mode is read as a bit set: bit 0x2 → every player whose rectangle contains the particle; otherwise the first list entity that is alive (health > 0), on screen, and (bit 0x1 and class 2.0) or (bit 0x4 and class 5.0), containing it. Attacker −1 |
+| `Shoot` | as2@0x420190 (v170@0x41b0d0) | the shooter must also be alive (8.1) |
 
 ### 6.3 Difficulty: same
 
@@ -837,7 +858,7 @@ What the code shows (VERIFIED-CODE unless marked; co-op was not played):
   hurt by `RadialDamagePlayer` (explosions, meteorites), whoever caused them; whether a
   player's own A-bomb uses it is a script question (GUESS: `expl_abomb.scr` calls it twice).
 - Mission statistics are **not drawn** in two-player mode (`M_DrawMissionComplete`
-  as2@0x427b60 tests the flag); high scores are only checked in one-player mode (same code).
+  as2@0x427b60 tests the flag; v170@0x426360 drew them); high scores are only checked in one-player mode (same code).
 - New builtins for scripts: `IsMultiplayer`, `IsPlayerInGame(i)` (1 when player i has an
   entity), `GetPlayersDistance` (the y distance from the other player when both have
   p_lives ≥ 0, else −1), the globals `player1` and `player2` (rcsl-vm.delta.md). No shipped
@@ -882,8 +903,8 @@ helicopter cannot fire any more. The corrections of rcsl-builtins-semantics.md f
 
 ### 8.2 Weapon upgrades: changed
 
-- **9 slots** (record +0x11C). `G_GetUpgrade(i)` returns 0 for i > 8 (as2@0x4217c0),
-  `G_SetUpgrade(i, v)` stores for i < 9 (as2@0x421830); both truncate (rcsl-builtins-semantics
+- **9 slots** (record +0x11C). `G_GetUpgrade(i)` returns 0 for i > 8 (as2@0x4217c0; v170@0x41c3d0
+  used 19), `G_SetUpgrade(i, v)` stores for i < 9 (as2@0x421830; v170@0x41c440 used 20); both truncate (rcsl-builtins-semantics
   correction). v1.70: 20 slots.
 - Weapon ids (VERIFIED-DATA, `items\ammo\*.scr` and the player scripts; maximum level from the
   pick-up's cap): 0 machine gun (4), 1 impulse gun (5), 2 plasma gun (7), 3 laser (8), 4 big
@@ -896,7 +917,8 @@ helicopter cannot fire any more. The corrections of rcsl-builtins-semantics.md f
   every slot is set to the row's value and `p_weapon` becomes the highest slot with a non-zero
   value. The row index is the mission index clamped to 0..17. It is applied by `G_NewGame`
   (every start from the menu), the mission-complete **Restart** and the game-over **Restart**
-  (VERIFIED-CODE as2@0x410dc0, as2@0x427a20 case 2, as2@0x428ac0), **not** by "Next" (as2@0x427a20
+  (VERIFIED-CODE as2@0x410dc0, as2@0x427a20 case 2, as2@0x428ac0; v1.70 instead cleared the
+  upgrades at every level start, v170@0x408b30), **not** by "Next" (as2@0x427a20
   case 3 banks and starts the next mission with the upgrades collected so far).
 
 | Mission | 0 MG | 1 impulse | 2 plasma | 3 laser | 4 big laser | 5 lightning | 6 wave | 7 missile | 8 flame |
@@ -1007,8 +1029,9 @@ pixels (our fixed 800×600 deviation).
 
 Fixed camera from the `intermission` line with the same sway (pitch + 0.5·sin(0.5·time), roll +
 1.4·sin(0.75·time), FOV 60; same code, level record +0x1E8..+0x1FC instead of +0x1A8..+0x1BC),
-no players. New: every placed object of the attract level is spawned in the first spawner call,
-during loading (3.4). `as2` has two attract levels, `intro1` (map `intro2.hsc`) and `intro2`
+no players (as2@0x414eb6..0x414f2c against v170@0x40c286..0x40c2fc). New: every placed object of
+the attract level is spawned in the first spawner call, during loading (as2@0x40e815; v1.70
+applied the window, v170@0x407590) (3.4). `as2` has two attract levels, `intro1` (map `intro2.hsc`) and `intro2`
 (map `intro1.hsc`), both with `intermission 150 256 200 -60 0 30` (VERIFIED-DATA).
 
 ### 9.7 Activation handover: changed (first call)
@@ -1132,7 +1155,8 @@ No end-of-level bonus (same as v1.70).
 
 ### 10.5 Save file: changed
 
-`G_SaveBin` as2@0x406c70 / `G_LoadBin` as2@0x4069e0 (same XOR and CRC scheme as v1.70).
+`G_SaveBin` as2@0x406c70 / `G_LoadBin` as2@0x4069e0 (same XOR and CRC scheme as v170@0x4011b0 /
+v170@0x401050).
 Payload of 0x574 bytes: a u32, 15 high scores × 40 bytes, **6** helicopters × 33 bytes,
 **18** missions × 33 bytes; then a second block of 7 dwords XORed with the same key: the
 checkpoint mission and, per player, checkpoint lives, score and rank. **When a cheat was used
@@ -1144,7 +1168,8 @@ content (save package).
 ### 10.6 Unlocking: changed
 
 Completing mission i unlocks mission (i + 1) mod 18 and the helicopter entry named by
-`enableHelic` (0..5, table order of 7.6). Nothing else.
+`enableHelic` (0..5, table order of 7.6) (`G_MissionComplete` as2@0x427f40; v170@0x4269b0: mod 20,
+0..9). Nothing else.
 
 ---
 
@@ -1381,6 +1406,7 @@ threshold 150 and 1 s, lock-on 0.3, activation band +16 / +800 with the 80 and 2
 | 4.4 Attachment to tags | changed: non-model parents (unused by the data); definition children same |
 | 4.5 Waypoint paths | same |
 | 4.6 World bounds | same |
+| (4.7 Terrain, `as2` addition) | new section: height queries same, morphing moves the ground for every height query, tile sets visual only |
 | 5 Collision | changed (5.2, 5.5) |
 | 5.1 Shapes | same (issue 120's overlap rule confirmed for `as2`) |
 | 5.2 Which pairs are tested | changed: bit-set modes, civilians, dead candidates skipped |
