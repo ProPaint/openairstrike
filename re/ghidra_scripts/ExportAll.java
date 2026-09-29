@@ -560,6 +560,31 @@ public class ExportAll extends GhidraScript {
 	 * stride (bytes), where the first field points to a defined string. Appends found runs
 	 * as JSON table objects to {@code tables}. */
 	private void scanBlockForTables(MemoryBlock block, int stride, JsonArray tables) {
+		// Records are only 4-byte aligned, and a table's position relative to the block start
+		// is arbitrary (a 12-byte table in the sequels sits at a phase of 4), so scan every
+		// 4-byte phase of the stride. Phase 0 is scanned first and always emits; runs found at
+		// other phases are dropped when they overlap something already emitted.
+		List<long[]> emitted = new ArrayList<>();
+		for (int phase = 0; phase < stride; phase += 4) {
+			scanBlockPhase(block, stride, phase, tables, emitted);
+		}
+	}
+
+	private void emitRun(MemoryBlock block, Address first, int count, int stride, int phase,
+		JsonArray tables, List<long[]> emitted) {
+		long lo = first.subtract(block.getStart());
+		long hi = lo + (long) count * stride;
+		if (phase != 0) {
+			for (long[] r : emitted) {
+				if (lo < r[1] && r[0] < hi) return;
+			}
+		}
+		emitted.add(new long[] { lo, hi });
+		emitTable(first, count, stride, tables);
+	}
+
+	private void scanBlockPhase(MemoryBlock block, int stride, int phase, JsonArray tables,
+		List<long[]> emitted) {
 		Address start = block.getStart();
 		Address end = block.getEnd();
 		long size = block.getSize();
@@ -569,7 +594,7 @@ public class ExportAll extends GhidraScript {
 		List<Address> runStart = new ArrayList<>();
 		int runLen = 0;
 		Address addr = start;
-		long offset = 0;
+		long offset = phase;
 		Address runFirstAddr = null;
 
 		while (offset + stride <= size) {
@@ -596,14 +621,14 @@ public class ExportAll extends GhidraScript {
 			}
 			else {
 				if (runLen >= 3) {
-					emitTable(runFirstAddr, runLen, stride, tables);
+					emitRun(block, runFirstAddr, runLen, stride, phase, tables, emitted);
 				}
 				runLen = 0;
 			}
 			offset += stride;
 		}
 		if (runLen >= 3) {
-			emitTable(runFirstAddr, runLen, stride, tables);
+			emitRun(block, runFirstAddr, runLen, stride, phase, tables, emitted);
 		}
 	}
 
