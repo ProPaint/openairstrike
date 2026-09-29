@@ -1,6 +1,7 @@
-// Screen-space collision (docs/spec/engine-behaviour.md 5, render-pipeline.md 9.3):
-// rectangles on the fixed 800x600 viewport, projected with the previous frame's
-// matrices; the touch pass; the two-player push-apart.
+// Screen-space collision (docs/spec/engine-behaviour.md 5, render-pipeline.md 9.3, corrected
+// by docs/spec/issues/120): rectangles on the fixed 800x600 viewport, projected with the
+// previous frame's matrices; the on-screen bit 0x08 means "touches the window"; the touch
+// pass; the two-player push-apart.
 #include <algorithm>
 #include <cmath>
 
@@ -26,6 +27,17 @@ bool World::sphereInFrustum(const Vec3& c, float r) const {
         if (!(pl.x * c.x + pl.y * c.y + pl.z * c.z + pl.w + r > 0.0f)) return false;
     }
     return true;
+}
+
+// 0x419920 (issue 120 rule 4): the rectangle overlaps the window, bounds as the original
+// compares them (max >= 0 inclusive, min < size strict).
+bool World::rectTouchesViewport(const ScreenRect& r) {
+    return r.max[0] >= 0.0f && r.min[0] < kCollisionViewportW && r.max[1] >= 0.0f && r.min[1] < kCollisionViewportH;
+}
+
+// 0x4198d0 (issue 120 rule 5): 0 <= p < size.
+bool World::pointOnViewport(const float p[3]) {
+    return p[0] >= 0.0f && p[0] < kCollisionViewportW && p[1] >= 0.0f && p[1] < kCollisionViewportH;
 }
 
 // TYPE_MODEL (render type field 38 = 0) without FL_POINT_COLLISION uses its model box;
@@ -69,9 +81,8 @@ void World::computeScreenBounds(int idx) {
         float depth = projectPoint(org, c) ? c[2] : 0.0f;
         r.min[2] = r.max[2] = depth;
         e.rect = r;
-        if (r.min[0] >= 0.0f && r.min[1] >= 0.0f && r.max[0] <= kCollisionViewportW && r.max[1] <= kCollisionViewportH) {
-            e.rt |= RT_COLLIDABLE;
-        }
+        // Any part of the box on screen: collidable, can fire and be hit (issue 120).
+        if (rectTouchesViewport(r)) e.rt |= RT_COLLIDABLE;
     } else {
         // Point colliders: a segment from this frame's projected origin (min) to the
         // previous frame's (max).
@@ -83,9 +94,7 @@ void World::computeScreenBounds(int idx) {
             e.prevPoint[a] = p[a];
         }
         e.hasPrevPoint = true;
-        if (p[0] > 0.0f && p[1] > 0.0f && p[0] < kCollisionViewportW && p[1] < kCollisionViewportH) {
-            e.rt |= RT_COLLIDABLE;
-        }
+        if (pointOnViewport(p)) e.rt |= RT_COLLIDABLE;
     }
 }
 

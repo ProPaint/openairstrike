@@ -102,7 +102,8 @@ TEST_CASE("collision: screen bounds and the on-screen rule") {
     CHECK(rc.max[0] >= edge[0] - 1.0f);
     CHECK(rc.max[0] <= edge[0] + 30.0f);
 
-    // Partly outside the window: not collidable.
+    // Partly outside the window: still collidable, the box touches the window
+    // (docs/spec/issues/120, rule 4).
     int side = r.create("t_en", {640, 302, 0});
     giveBox(r.e(side), 20);
     float x;
@@ -113,7 +114,18 @@ TEST_CASE("collision: screen bounds and the on-screen rule") {
     }
     r.e(side).setV3(F_BASE_ORIGIN, {x, 302, 0});
     r.world.computeScreenBounds(side);
-    CHECK((r.e(side).rt & RT_COLLIDABLE) == 0);
+    CHECK(r.e(side).rect.max[0] > 800.0f);
+    CHECK((r.e(side).rt & RT_COLLIDABLE) != 0);
+    // Entirely past the right edge (but its sphere still in the frustum): not collidable.
+    for (; x < 1400; x += 1) {
+        r.e(side).setV3(F_BASE_ORIGIN, {x, 302, 0});
+        r.world.computeScreenBounds(side);
+        if (r.e(side).rect.min[0] >= 800.0f || !r.world.sphereInFrustum({x, 302, 0}, r.e(side).radius)) break;
+    }
+    if (r.world.sphereInFrustum({x, 302, 0}, r.e(side).radius)) {
+        CHECK(r.e(side).rect.min[0] >= 800.0f);
+        CHECK((r.e(side).rt & RT_COLLIDABLE) == 0);
+    }
 
     // Scenery (class 0, no touch filter): collidable, no rectangle.
     int sc = r.create("t_scenery", {640, -900, 0});

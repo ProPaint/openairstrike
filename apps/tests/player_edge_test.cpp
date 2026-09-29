@@ -75,10 +75,10 @@ TEST_CASE("player: fires in the middle of the screen (reference for the edge tes
     CHECK(mid.projectiles > 5);
 }
 
-// Expected to fail until the rule of docs/spec/issues/120-player-fire-at-screen-edge.md is
-// implemented: at the clamps the player's box is partly outside the 800x600 window, bit 0x08
-// is clear and Shoot refuses to fire. Remove `should_fail` with the fix.
-TEST_CASE("player: fires at the left, right and bottom limits" * doctest::should_fail()) {
+// docs/spec/issues/120-player-fire-at-screen-edge.md: at the clamps the player's box is
+// partly outside the 800x600 window; the on-screen bit 0x08 is an overlap test, so the
+// player stays collidable and Shoot fires (it did not with the old containment rule).
+TEST_CASE("player: fires at the left, right and bottom limits (issue 120, T4)") {
     AS3D_REQUIRE_DATA();
     const u32 dirs[3] = {ACT_LEFT, ACT_RIGHT, ACT_BACKWARD};
     const char* names[3] = {"left", "right", "bottom"};
@@ -88,5 +88,6 @@ TEST_CASE("player: fires at the left, right and bottom limits" * doctest::should
                       << ".." << r.lastRect.max[0] << " y " << r.lastRect.min[1] << ".." << r.lastRect.max[1]
                       << ", on screen " << r.framesOnScreen << "/" << r.frames);
         CHECK(r.projectiles > 5);
+        CHECK(r.framesOnScreen == r.frames);
     }
 }

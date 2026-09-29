@@ -207,11 +207,16 @@ void World::updateCamera() {
             if (pi < 0) continue;
             Entity& pe = ents_[static_cast<size_t>(pi)];
             if (pe.f(F_DEAD) != 0.0f) continue;
+            // V_ClampToFrustumX (docs/spec/issues/120, finding 3 and rule 8): x_k solves plane
+            // k at the origin's y and z; x is kept in [x_left + 10, x_right - 10], a margin in
+            // world x units, of the collision camera's frustum (planes_ 0 left, 1 right).
             Vec3 o = pe.v3(F_ORIGIN);
             for (int k = 0; k < 2; ++k) {
                 const Vec4& pl = planes_[k];
-                float d = pl.x * o.x + pl.y * o.y + pl.z * o.z + pl.w;
-                if (d < 10.0f && std::fabs(pl.x) > 1e-6f) o.x += (10.0f - d) / pl.x;
+                if (!(std::fabs(pl.x) > 1e-6f)) continue;
+                float xk = (-pl.w - pl.y * o.y - pl.z * o.z) / pl.x;
+                if (pl.x > 0.0f) o.x = std::max(o.x, xk + 10.0f); // left plane: lower bound
+                else o.x = std::min(o.x, xk - 10.0f);              // right plane: upper bound
             }
             pe.setF(F_ORIGIN, o.x);
             sumX += o.x;

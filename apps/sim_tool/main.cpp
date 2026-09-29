@@ -1,6 +1,6 @@
 // as3d_sim: headless simulation of one level (no GL, no SDL, no audio).
 //
-//   as3d_sim --level 1 --frames 3600 [--seed S] [--difficulty D] [--players N]
+//   as3d_sim --level 1 --frames 3600 [--seed S] [--difficulty D] [--players N] [--heli 0..9]
 //            [--dump-state state.json] [--builtin-report report.json] [--data ROOT]
 //            [--bot | --pilot | --input-script FILE] [--record FILE] [--god] [--trace-player FILE]
 //
@@ -51,7 +51,7 @@ bool writeFile(const std::string& path, const std::string& text) {
 
 int usage() {
     std::fprintf(stderr,
-                 "usage: as3d_sim --level N --frames N [--seed S] [--difficulty 0..4] [--players 1|2]\n"
+                 "usage: as3d_sim --level N --frames N [--seed S] [--difficulty 0..4] [--players 1|2] [--heli 0..9]\n"
                  "                [--dump-state FILE] [--builtin-report FILE] [--data ROOT]\n"
                  "                [--bot | --pilot | --input-script FILE] [--record FILE] [--god]\n"
                  "                [--trace-player FILE]\n");
@@ -67,13 +67,14 @@ void tracePlayer(std::FILE* f, const World& w) {
     }
     const Entity& e = w.entity(pi);
     const ScreenRect& r = e.rect;
-    std::fprintf(f, "%u %.3f %.3f %.3f %.3f %d %d %.3f %.3f %.5f %.3f %.3f %.5f %.1f\n", w.frame(),
+    std::fprintf(f, "%u %.3f %.3f %.3f %.3f %d %d %.3f %.3f %.5f %.3f %.3f %.5f %.1f %.3f %.3f %.3f\n", w.frame(),
                  static_cast<double>(w.mapPos()), static_cast<double>(e.f(F_ORIGIN)),
                  static_cast<double>(e.f(F_ORIGIN + 1)), static_cast<double>(e.f(F_ORIGIN + 2)),
                  (e.rt & RT_COLLIDABLE) ? 1 : 0, w.sphereInFrustum(e.v3(F_BASE_ORIGIN), e.radius) ? 1 : 0,
                  static_cast<double>(r.min[0]), static_cast<double>(r.min[1]), static_cast<double>(r.min[2]),
                  static_cast<double>(r.max[0]), static_cast<double>(r.max[1]), static_cast<double>(r.max[2]),
-                 static_cast<double>(e.f(F_HEALTH)));
+                 static_cast<double>(e.f(F_HEALTH)), static_cast<double>(e.f(F_ANGLES)),
+                 static_cast<double>(e.f(F_ANGLES + 1)), static_cast<double>(e.f(F_ANGLES + 2)));
 }
 
 } // namespace
@@ -96,6 +97,7 @@ int main(int argc, char** argv) {
         else if (a == "--seed" && next(v)) cfg.seed = static_cast<u32>(std::strtoul(v, nullptr, 10));
         else if (a == "--difficulty" && next(v)) cfg.difficulty = std::atoi(v);
         else if (a == "--players" && next(v)) cfg.players = std::atoi(v);
+        else if (a == "--heli" && next(v)) cfg.heli[0] = std::atoi(v);
         else if (a == "--dump-state" && next(v)) dumpPath = v;
         else if (a == "--builtin-report" && next(v)) reportPath = v;
         else if (a == "--data" && next(v)) dataRoot = v;
@@ -126,7 +128,7 @@ int main(int argc, char** argv) {
             return 1;
         }
         std::fprintf(trace, "# frame map_pos x y z onscreen08 sphere_in_frustum rect_min_x rect_min_y rect_min_z "
-                            "rect_max_x rect_max_y rect_max_z health (800x600, y up)\n");
+                            "rect_max_x rect_max_y rect_max_z health angles0 angles1 angles2 (800x600, y up)\n");
     }
     if (dataRoot.empty()) {
         const char* env = std::getenv("AS3D_DATA_ROOT");

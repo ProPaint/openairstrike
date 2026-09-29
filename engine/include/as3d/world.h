@@ -383,6 +383,10 @@ public:
     bool sphereInFrustum(const Vec3& c, float r) const;
     void computeScreenBounds(int idx);
     static bool rectsOverlap(const ScreenRect& a, const ScreenRect& b);
+    // The on-screen bit (0x08) tests of docs/spec/issues/120: a model's rectangle touches
+    // the 800x600 window (max >= 0, min < size); a point collider is inside [0, size).
+    static bool rectTouchesViewport(const ScreenRect& r);
+    static bool pointOnViewport(const float p[3]);
     static bool pointInRect(const float p[3], const ScreenRect& r);
     static bool segmentHitsRect(const float a[3], const float b[3], const ScreenRect& r);
     bool isPointCollider(const Entity& e) const;
