@@ -544,7 +544,7 @@ camera (7.3).
 - **Water height**: 4.2.
 - **Terrain morphing** (`TerraMorph`, `R_TerrainMorph` as2@0x41a670; details in the builtins
   delta, pending) adds a morph image's values to the z of that same vertex grid, skipping the
-  vertices at or below the water level when the level has water. Every later height query sees
+  vertices below the water level when the level has water. Every later height query sees
   the new ground: `FL_ONGROUND` and `FL_ONGROUND_NORMAL` roots follow it from their next think,
   new placements and drops are put on it, the `TerrainHeight` builtin returns it, skid marks
   are laid on it. There is no terrain collision in either game, and collision is screen-space
@@ -649,7 +649,7 @@ field 35).
 |---|---|---|
 | `Damage` | as2@0x420630 (v170@0x41b550) | none |
 | `RadialDamage` | as2@0x4206b0 (v170@0x41b5d0) | also hits class 5.0 (civilians) |
-| `RadialDamagePlayer` (new) | as2@0x420840 | the `RadialDamage` shape over the player records instead of the entity list (rcsl-builtins-table.delta.md); used by 7 scripts (explosions, meteorites, the big rocket launcher) |
+| `RadialDamagePlayer` (new) | as2@0x420840 | the `RadialDamage` shape over the player records instead of the entity list (rcsl-builtins-table.delta.md); used by one script, the big rocket launcher's shock wave `rocket_launcher_big\wave.scr` (VERIFIED-DATA) |
 | `TraceLine`, `TraceLineDamage` | as2@0x420fd0, 0x421180 (v170@0x41bd40, 0x41bea0) | class 5.0 accepted as well as 2.0 |
 | `Lightning` | as2@0x421310 (v170@0x41c000) | takes the range as its argument (t0); spawns `wavegun_hit` at most every 0.2 s per target (+0x78) |
 | Particle damage | `G_ParticleDamage` as2@0x40bbc0 (v170@0x404cb0) | the particle system's touch mode is read as a bit set: bit 0x2 → every player whose rectangle contains the particle; otherwise the first list entity that is alive (health > 0), on screen, and (bit 0x1 and class 2.0) or (bit 0x4 and class 5.0), containing it. Attacker −1 |
@@ -854,9 +854,10 @@ What the code shows (VERIFIED-CODE unless marked; co-op was not played):
   Projectiles carry the shooter's index and owner bits (8.1).
 - Push-apart 2000 u/s² (5.4, same).
 - Game over when both p_lives < 0 (same).
-- No friendly fire through touch: player projectiles only have `TOUCH_ENEMIES`. Players can be
-  hurt by `RadialDamagePlayer` (explosions, meteorites), whoever caused them; whether a
-  player's own A-bomb uses it is a script question (GUESS: `expl_abomb.scr` calls it twice).
+- No friendly fire: player projectiles only have `TOUCH_ENEMIES`, the player's blast waves
+  use `RadialDamage` (enemies and civilians only), and the only `RadialDamagePlayer` call is
+  the enemy big rocket launcher's shock wave (VERIFIED-DATA over the 631 scripts). Players are
+  hurt by `TOUCH_PLAYER` objects, that shock wave, traces and particle systems with bit 0x2.
 - Mission statistics are **not drawn** in two-player mode (`M_DrawMissionComplete`
   as2@0x427b60 tests the flag; v170@0x426360 drew them); high scores are only checked in one-player mode (same code).
 - New builtins for scripts: `IsMultiplayer`, `IsPlayerInGame(i)` (1 when player i has an
