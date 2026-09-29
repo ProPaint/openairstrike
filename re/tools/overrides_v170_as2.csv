@@ -1,0 +1,71 @@
+from_address,to_address,confidence,evidence
+# Manual decisions, applied before the automatic anchors. to_address is an
+# address, or "removed" (no counterpart function; the evidence says whether the
+# code was dropped or inlined into another function). Lines starting with # are
+# comments.
+0x00429360,0x0042b340,high,unique string 'UI_PopMenu: Menu stack underflow' (the v1.70 M_ShowMainMenu inlines a copy of it)
+0x00405cc0,0x0040cdc0,medium,called by G_Frame; calls G_ThinkEntity G_FreeEntity G_RemoveEntity R_CullSphere in the same order; G_RunCollisions is inlined (same 2000/-2000 constants and G_TouchEntity call); also called from G_BeginLevel in AS2
+0x004055d0,removed,medium,inlined into G_RunEntities 0x0040cdc0 (its 2000/-2000 constants and G_TouchEntity and VectorNormalize calls appear there)
+0x004050b0,0x0040c000,medium,only callee of G_RunEntities with the 80/200/1280 constants; same size (144 bytes)
+0x00405140,0x0040c090,medium,callee of G_RunEntities; same size (141 bytes) and instruction count
+0x00405c70,0x0040cd70,medium,recursive callee of G_RunEntities; same instruction count (26)
+0x004044b0,removed,medium,merged into G_FreeEntity 0x0040b300 (which now frees itself recursively)
+0x004099a0,removed,medium,inlined into G_InitObject 0x00411e90 (which calls _malloc and PS_CreateInstance directly)
+0x00401000,removed,medium,inlined into G_LoadBin 0x004069e0 and G_SaveBin 0x00406c70 (neither calls a separate XOR routine)
+0x0040c660,0x00415290,medium,callee of G_BeginLevel with the camera constants 42/640/32; gains a '-campos' command-line option
+0x0040d2a0,0x0042fd30,low,callee of G_BeginLevel at the same call position; Direct3D fog set-up replaces the OpenGL glFog calls
+0x0041cdc0,removed,medium,its 'Choosen resolution mode' message is absent; video modes are handled by the Direct3D mode code (0x004012b0)
+0x00421500,removed,medium,its 'detected display refresh rates' messages are absent; replaced by the Direct3D mode enumeration (0x004012b0)
+0x004216c0,removed,medium,its 'Choosen refresh rate' messages and GetDeviceCaps calls are absent; replaced by the Direct3D mode code
+0x004229c0,removed,low,no separate function; inlined into Joy_Frame 0x00416a80 (457 + 526 bytes in v1.70; 964 bytes in AS2); the screenshot call is gone
+0x0041f790,0x0041e980,low,one of two identical std::list length-check instances called by Settings_Parse (0x0041ea20 is the other)
+0x00429f60,0x0042b950,medium,builds the main menu: called by G_Init; calls UI_AddItem and UI_LoadSkinImages; takes three callbacks of which M_MainMenuAction and M_MainMenuKey are matched
+0x004267a0,0x00427db0,medium,menu builder whose draw callback 0x00427b60 holds the 'Enemies destroyed:' / 'Stars collected:' / 'Your current rank:' strings of M_DrawMissionComplete; button images changed
+0x00426360,0x00427b60,medium,only function with the 'Enemies destroyed:' / 'Stars collected:' / 'Your current rank:' strings; draw callback of M_MissionCompleteMenu
+0x0042a260,removed,low,no separate function: G_Init and the other callers call the main-menu builder 0x0042b950 and UI_PushMenu directly
+0x00429c20,0x0042b8c0,medium,the remaining callback of the main-menu builder 0x0042b950 (the other two are M_MainMenuAction and M_MainMenuKey); calls UI_DrawSkinImages and UI_DrawMenu
+0x0040e0d0,0x00430a20,medium,called by G_Frame and G_BeginLevel and by the menu-model draw; calls R_SetFrustum and R_DrawParticles and ends in the 2D pass; same 1000/2000/4 constants; the statistics overlay whose strings made 0x0040aa40 look like the counterpart is now a separate function
+0x0040e070,0x004309b0,medium,2D pass: callee of R_RenderView 0x00430a20 and of the loading/intro/menu frames; calls the 2D mode set-up and the quad drawer
+0x0040df90,0x00430880,medium,only callee of the 2D pass; same 800/600 and -99999/99999 orthographic constants
+0x00401b30,0x004079c0,low,sets up a temporary render entity and calls R_RenderView 0x00430a20 for a model shown in a menu (the 'banner' model name is gone; called by the options/skin screen 0x004291f0)
+0x0040e690,0x00430e50,medium,called by SCR_DrawLoading G_IntroFrame G_Frame; the only one of the two frame brackets that calls the device BeginScene and Clear methods (Direct3D 8 vtable slots 34 and 36)
+0x0040e6f0,0x00431110,medium,called by SCR_DrawLoading G_IntroFrame G_Frame; calls the device EndScene method (vtable slot 35) and the screen-fade drawer 0x00430eb0 (v1.70 draws the fade quad inside R_EndFrame)
+0x00416020,0x00437f80,medium,first draw call of R_RenderView 0x00430a20; same -99999/99999 constants; calls the terrain node drawer 0x00437c60; the detail-texture set-up is inlined
+0x00415730,0x00437c60,medium,recursive terrain node drawer: calls itself and R_CullBox; four 1280 constants as in v1.70
+0x0040d860,0x00430280,low,callee of R_RenderView 0x00430a20 at the same position (after the frustum set-up); same size (185 against 187 bytes)
+0x004160d0,0x00438860,low,callee of R_RenderView after the model pass as in v1.70; 3.14159 and 0.1 constants; the wave set-up (0.4/0.5 constants and sin call) moved to 0x00436440
+0x00410ac0,0x00433f40,medium,model pass: callee of R_RenderView; calls R_DrawLightning and R_LightModel as in v1.70; 0.001 constant
+0x0040cee0,0x0042e1c0,medium,2D quad drawer: only callee of the 2D pass 0x004309b0 besides the 2D mode set-up; sets transforms and render states (Direct3D 8)
+0x00412be0,0x0042fb50,low,Direct3D 8 rewrite of the blend-state switch: called by every draw routine that called GL_SetBlendMode (sprites; particles; models; 2D; shadows); calls only the device SetRenderState method
+0x004184b0,0x004359d0,low,Direct3D 8 counterpart of the texture bind: the only small function that calls the device SetTexture method (vtable slot 61)
+0x004127e0,0x00435e70,low,environment-map stage set-up called by the model pass; sets texture-stage states and the texture transform; 30.0 constant as in v1.70
+0x00410270,0x004336f0,low,callee of the model pass; same size (258 against 261 bytes); line drawing through Direct3D render states
+0x004189d0,0x004380e0,medium,called by R_RegisterTexture and R_RegisterPic; strips the extension and opens the image file; now loads it through the statically linked D3DX loader 0x00450177 (the OpenGL upload GL_UploadTexture has no separate counterpart)
+0x00418dd0,0x004385f0,low,texture table clear called by the two renderer free functions 0x00417e30 (shutdown) and 0x00417e90 (level change) that v1.70 called individually
+0x00418a20,removed,medium,OpenGL texture upload (glTexImage2D and gluBuild2DMipmaps) replaced by D3DX texture creation in 0x004380e0 and 0x00438310; its 'Too many registered textures' message is absent
+0x00412050,removed,high,OpenGL extension probing: none of its extension-name strings exist in AS2
+0x00411fc0,removed,high,OpenGL renderer-name check: its 'gdi generic' string is absent in AS2
+0x004218b0,removed,high,OpenGL pixel-format selection: its ChoosePixelFormat/SetPixelFormat strings are absent and the only GDI32 import of AS2 is PatBlt
+0x00412cc0,removed,low,no counterpart found: blend and fog disabling is done by the Direct3D render-state switch 0x0042fb50
+0x00412720,removed,low,detail-texture stage set-up inlined into R_DrawTerrainPass 0x00437f80 (no separate function among its callees)
+0x00412b70,0x00435a30,low,texture-stage reset called by the model pass after the environment-map stage; sets texture-stage states only
+0x00412530,removed,high,screenshot writer: its 'screenshots' strings are absent in AS2
+0x00407b30,0x0040eb30,medium,same place between IntroImage_Begin 0x0040eb00 and IntroImage_Draw 0x0040eb50 as in v1.70; same 9-instruction shape (duration constant)
+0x00407ce0,0x0040ed40,medium,same place between IntroDivo_Begin 0x0040ed10 and IntroDivo_Draw 0x0040ed60 as in v1.70; same 9-instruction shape (duration constant)
+0x004079e0,0x00401100,low,identical 6-instruction shape; no callers in either export (callback)
+0x0042c7f0,0x004388f0,low,identical 7-instruction shape (frees one string); called from an exception-unwind funclet as in v1.70
+0x0042d1f0,0x004390f0,low,identical 7-instruction shape (frees one buffer); called from an exception-unwind funclet as in v1.70
+0x0042ce30,removed,medium,XML writer helper with no callers in v1.70 (dead code); no counterpart in AS2
+0x0042cf80,removed,medium,XML writer helper with no callers in v1.70 (dead code); no counterpart in AS2
+0x0042d030,removed,medium,XML writer helper with no callers in v1.70 (dead code); no counterpart in AS2
+0x0042d080,removed,medium,XML writer helper with no callers in v1.70 (dead code); no counterpart in AS2
+0x0042d130,removed,medium,only used by the two dead XML writer helpers; no counterpart in AS2
+0x0042cda0,0x00438f00,low,first of three 4-byte stubs at the same place in the XML module (between XML_FreeChildren and XML_Helper) as in v1.70
+0x0042cdb0,0x00438f10,low,second of three 4-byte stubs at the same place in the XML module as in v1.70
+0x0042cdc0,0x00438f20,low,third of three 4-byte stubs at the same place in the XML module as in v1.70
+0x004206c0,removed,medium,video restart (called when the OpenGL mode changed): in AS2 only Sys_Init 0x00405a80 calls MW_Init and S_Init
+0x00427aa0,removed,high,story page: its text strings are absent in AS2 (AS2 tells its story with comic screens)
+0x00427b70,removed,high,story page: its text strings are absent in AS2
+0x00426e70,removed,medium,the v1.70 congratulations text is absent in AS2 ('Congratulations!' alone remains as unreferenced data)
+0x00426c90,removed,medium,exit-confirmation menu: its yes/no button images are absent in AS2
+0x0042beb0,removed,medium,message-box menu builder: its apply/ok button images are absent in AS2
