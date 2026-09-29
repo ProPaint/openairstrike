@@ -76,6 +76,12 @@ struct FrontendContent {
     bool videoOptions = true;                // desktop: resolution, refresh, depth, fullscreen, 3D sound
     int videoModeCount = 9;                  // leading modes of kVideoModeNames the display supports
     std::vector<int> refreshRates;           // extra "N Hz" values of the refresh spinner
+    // What the host supports (docs/spec/issues/130): the Start Game "Game mode" spinner (two
+    // players), the Options "Mouse Control" spinner, and in touch mode the MENU button during
+    // play (false when the host has its own pause control that opens the in-game menu).
+    bool twoPlayerMode = true;
+    bool mouseControlOption = true;
+    bool touchMenuButton = true;
 
     FrontendContent() {
         for (int& e : enableHelic) e = -1;

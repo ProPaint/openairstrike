@@ -3,9 +3,17 @@
 // keyboard and touch input, the fixed 60 Hz step with bounded catch-up, the app lifecycle
 // (background, foreground, GL context loss), pause overlay and frame statistics.
 //
+// With `frontend` the game runs behind the menus (game_flow.h): intro pages, attract level,
+// main menu and the whole mission flow; keys, mouse and fingers go to the menus first.
+// Without it (`--level N`) it starts straight into a mission and moves on by itself.
+//
 // Log markers (through AS3D_INFO, so they reach logcat on Android; the desktop only prints
 // them with the options that enable them):
-//   AS3D_GAME_START size=WxH ...      once the first level is loaded
+//   AS3D_GAME_START size=WxH ...      once the game is up (the first level, or the front end)
+//   AS3D_SCREEN name=S                 with the front end: the top menu screen changed (the
+//                                      names of Frontend::screenName, or intro / playing /
+//                                      paused)
+//   AS3D_VIEW scale=S x=X y=Y          virtual 800x600 to framebuffer pixels (fb = v*S + X/Y)
 //   AS3D_GAME_FRAME n=N mission=M ... every `frameMarkerEvery` simulation frames
 //   AS3D_LEVEL_LOADED mission=M ms=T  after every level load
 //   AS3D_PERF avg_ms=... max_ms=... sim_steps=...   every 5 s with `perfLog`
@@ -18,6 +26,7 @@
 #include <string>
 
 #include "as3d/input.h"
+#include "game_flow.h"
 #include "game_session.h"
 
 namespace as3d_game {
@@ -46,6 +55,9 @@ struct LoopOptions {
     bool rebuildOnResume = false;            // test hook: rebuild every GL resource on resume
     // Framebuffer pixels kept free of controls (display cutouts); queried every frame.
     std::function<as3d::SafeInsets()> safeInsets;
+    // The front end (menus); game.startLevel must then be false.
+    bool frontend = false;
+    FlowConfig flow;
 };
 
 // Runs until the window is closed, Escape, or `frames`. Returns the process exit code.
@@ -80,10 +92,6 @@ private:
 };
 
 bool writeTextFile(const std::string& path, const std::string& text);
-
-// The player's helicopter centre in the virtual 800x600 screen (y down), from its collision
-// rectangle of the last step. False when there is no visible player helicopter.
-bool playerScreenCentre(const as3d::World& w, int player, float& vx, float& vy);
 
 // The world is paused by the player (P, the pause button, back, the app going to the
 // background), as opposed to a hint box or a level-end state holding the pause.

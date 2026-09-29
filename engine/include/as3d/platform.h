@@ -73,4 +73,13 @@ std::unique_ptr<GraphicsContext> createGraphicsContext(const GraphicsConfig& con
 // seeks are cheap. Returns null and logs the reason on failure. Reads are serialised.
 std::unique_ptr<IStream> openPlatformStream(const std::string& path);
 
+// Reads a whole file through the same mechanism (a file path, or an APK asset on Android).
+// Returns false without logging when it does not exist (for optional files). At most 64 MB.
+bool readPlatformFile(const std::string& path, Blob& out);
+
+// Directory for per-user data (the profile), created if missing, with a trailing '/'.
+// Desktop: $XDG_DATA_HOME/airstrike3d, else ~/.local/share/airstrike3d (the current directory
+// when neither can be used). Android: the app's internal files directory. Empty on failure.
+std::string userDataDir();
+
 } // namespace as3d

@@ -56,6 +56,16 @@ PlayerInput FrameInput::toPlayerInput() const {
     return p;
 }
 
+u32 mouseControlBits(float mouseX, float mouseY, float heliX, float heliY) {
+    constexpr float kDeadZone = 20.0f;
+    u32 bits = 0;
+    if (mouseX > heliX + kDeadZone) bits |= ACT_RIGHT;
+    if (mouseX < heliX - kDeadZone) bits |= ACT_LEFT;
+    if (mouseY < heliY - kDeadZone) bits |= ACT_FORWARD;
+    if (mouseY > heliY + kDeadZone) bits |= ACT_BACKWARD;
+    return bits;
+}
+
 FrameInput mergeFrameInput(const FrameInput& a, const FrameInput& b) {
     FrameInput out;
     for (int k = 0; k < kMaxPlayers; ++k) out.held[k] = a.held[k] | b.held[k];

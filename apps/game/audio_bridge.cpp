@@ -107,6 +107,27 @@ void AudioBridge::drain(World& world) {
     }
 }
 
+void AudioBridge::playUi(const std::string& sample) {
+    if (!ok_) return;
+    SoundId id = audio_.loadSound(sample.c_str());
+    if (id == kInvalidSoundId) {
+        ++stats_.missing;
+        return;
+    }
+    audio_.play(id);
+    ++stats_.played;
+}
+
+void AudioBridge::setVolumes(float sfx, float music) {
+    if (!ok_) return;
+    audio_.setSfxVolume(sfx);
+    audio_.setMusicVolume(music);
+}
+
+void AudioBridge::gameOverMusic() {
+    if (ok_) audio_.jumpMusicToOrder(kGameOverMusicOrder);
+}
+
 void AudioBridge::setPaused(bool paused) {
     if (!ok_ || paused == paused_) return;
     paused_ = paused;

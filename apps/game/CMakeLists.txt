@@ -4,11 +4,12 @@
 # as3d_game_shell holds everything the desktop executable and the Android app share: the
 # session, renderer, audio bridge, touch overlay and the windowed game loop (game_loop.h).
 # The session, view and audio bridge sources are also compiled into as3d_tests
-# (apps/tests/game_integration_test.cpp includes them).
+# (apps/tests/game_integration_test.cpp includes them), and so are the flow and the UI script
+# (apps/tests/game_flow_test.cpp).
 get_property(AS3D_MODULES GLOBAL PROPERTY AS3D_MODULES)
 
 add_library(as3d_game_shell STATIC
-  game_session.cpp game_view.cpp audio_bridge.cpp game_loop.cpp touch_overlay.cpp)
+  game_session.cpp game_view.cpp audio_bridge.cpp game_flow.cpp ui_script.cpp game_loop.cpp touch_overlay.cpp)
 target_include_directories(as3d_game_shell PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Listed twice so static libraries resolve regardless of dependency order.
 target_link_libraries(as3d_game_shell PUBLIC ${AS3D_MODULES} ${AS3D_MODULES})

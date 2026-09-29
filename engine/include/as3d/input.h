@@ -84,8 +84,9 @@ constexpr int kMouseButtonCode = 0x10000;
 constexpr int kNoBinding = -1;
 constexpr int kBindingSlots = 2;
 
-// Keys the game handles itself rather than through p_action: Escape quits (there is no
-// in-game menu yet), F12 takes a screenshot.
+// Keys the game handles itself rather than through p_action: Escape quits when the game runs
+// without the front end (`--level N`; with it, Escape goes to the menus), F12 takes a
+// screenshot.
 enum class Hotkey { None, Quit, Screenshot };
 
 class InputMapper {
@@ -125,6 +126,25 @@ private:
 
 // ORs two inputs of the same frame (keyboard plus touch, bot plus touch).
 FrameInput mergeFrameInput(const FrameInput& a, const FrameInput& b);
+
+// The original's key codes (Windows virtual keys extended as in engine-behaviour.md 7.2, the
+// codes of the settings and of the front end) and binding codes of the mapper above.
+// vkToBinding: a keyboard VK gives its SDL scancode (left Ctrl / Shift / Alt for the
+// side-less VK_CONTROL / VK_SHIFT / VK_MENU); 200, 201, 202 (mouse 1, 2, 3) give the left,
+// right and middle mouse buttons; joystick codes (203 to 238, 241 to 244), the wheel and
+// unknown codes give kNoBinding (no joystick support).
+int vkToBinding(int vk);
+// SDL scancode to VK (both sides of Ctrl / Shift / Alt give the side-less VK, keypad Enter
+// gives Return); 0 for keys the original has no code for.
+int scancodeToVk(int scancode);
+// SDL mouse button (1 left, 2 middle, 3 right) to the original's code 200 to 202, else 0.
+int mouseButtonToVk(int button);
+
+// Mouse control (MouseControl = 1, engine-behaviour.md 7.3): the direction bits player 1's
+// p_action gets from the pointer and the helicopter's screen centre, both in the virtual
+// 800x600 screen with y down. A 20-pixel dead zone per axis.
+u32 mouseControlBits(float mouseX, float mouseY, float heliX, float heliY);
+constexpr u32 kDirectionBits = ACT_FORWARD | ACT_BACKWARD | ACT_LEFT | ACT_RIGHT;
 
 // ---------------------------------------------------------------------------------------
 // Touch (docs/android.md "Controls"; the choices are in docs/spec/issues/100).

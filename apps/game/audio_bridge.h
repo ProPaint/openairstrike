@@ -3,8 +3,9 @@
 // (docs/spec/engine-behaviour.md 12).
 //
 // 3D sound is off, as in the shipped config.ini (Sound3D=0): "without 3D sound, sounds play
-// centred at full volume". Volumes are the shipped SfxVolume / MusicVolume (0.5).
-// Not yet: the jump of the music to its game-over section (pattern order 35), F5..F8.
+// centred at full volume". Volumes start at the shipped SfxVolume / MusicVolume (0.5); behind
+// the front end they follow its settings (setVolumes). The front end's menu sounds, the
+// level-name typewriter and the game-over music jump go through playUi / gameOverMusic.
 #pragma once
 
 #include <string>
@@ -34,6 +35,11 @@ public:
     // Processes and clears the world's sound queue; stops loops whose entity is gone.
     void drain(as3d::World& world);
     void setPaused(bool paused);
+    // A 2D sound outside the world's queue (menu sounds, sounds\\type.wav).
+    void playUi(const std::string& sample);
+    void setVolumes(float sfx, float music);
+    // The current module jumps to pattern order 35 (frontend.md 3.10).
+    void gameOverMusic();
     // Null device only: mixes `frames` stereo frames, as the device callback would.
     void pump(int frames);
 
