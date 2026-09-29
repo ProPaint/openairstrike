@@ -1,0 +1,109 @@
+from_address,to_address,confidence,evidence
+# Manual decisions, applied before the automatic anchors. to_address is an
+# address, or "removed" (no counterpart function; the evidence says whether the
+# code was dropped or inlined into another function). Lines starting with # are
+# comments.
+0x00429360,0x0042b340,high,unique string 'UI_PopMenu: Menu stack underflow' (the v1.70 M_ShowMainMenu inlines a copy of it)
+0x00405cc0,0x0040cdc0,medium,called by G_Frame; calls G_ThinkEntity G_FreeEntity G_RemoveEntity R_CullSphere in the same order; G_RunCollisions is inlined (same 2000/-2000 constants and G_TouchEntity call); also called from G_BeginLevel in AS2
+0x004055d0,removed,medium,inlined into G_RunEntities 0x0040cdc0 (its 2000/-2000 constants and G_TouchEntity and VectorNormalize calls appear there)
+0x004050b0,0x0040c000,medium,only callee of G_RunEntities with the 80/200/1280 constants; same size (144 bytes)
+0x00405140,0x0040c090,medium,callee of G_RunEntities; same size (141 bytes) and instruction count
+0x00405c70,0x0040cd70,medium,recursive callee of G_RunEntities; same instruction count (26)
+0x004044b0,removed,medium,merged into G_FreeEntity 0x0040b300 (which now frees itself recursively)
+0x004099a0,removed,medium,inlined into G_InitObject 0x00411e90 (which calls _malloc and PS_CreateInstance directly)
+0x00401000,removed,medium,inlined into G_LoadBin 0x004069e0 and G_SaveBin 0x00406c70 (neither calls a separate XOR routine)
+0x0040c660,0x00415290,medium,callee of G_BeginLevel with the camera constants 42/640/32; gains a '-campos' command-line option
+0x0040d2a0,0x0042fd30,low,callee of G_BeginLevel at the same call position; Direct3D fog set-up replaces the OpenGL glFog calls
+0x0041cdc0,removed,medium,its 'Choosen resolution mode' message is absent; video modes are handled by the Direct3D mode code (0x004012b0)
+0x00421500,removed,medium,its 'detected display refresh rates' messages are absent; replaced by the Direct3D mode enumeration (0x004012b0)
+0x004216c0,removed,medium,its 'Choosen refresh rate' messages and GetDeviceCaps calls are absent; replaced by the Direct3D mode code
+0x004229c0,removed,low,no separate function; inlined into Joy_Frame 0x00416a80 (457 + 526 bytes in v1.70; 964 bytes in AS2); the screenshot call is gone
+0x0041f790,0x0041e980,low,one of two identical std::list length-check instances called by Settings_Parse (0x0041ea20 is the other)
+0x00429f60,0x0042b950,medium,builds the main menu: called by G_Init; calls UI_AddItem and UI_LoadSkinImages; takes three callbacks of which M_MainMenuAction and M_MainMenuKey are matched
+0x004267a0,0x00427db0,medium,menu builder whose draw callback 0x00427b60 holds the 'Enemies destroyed:' / 'Stars collected:' / 'Your current rank:' strings of M_DrawMissionComplete; button images changed
+0x00426360,0x00427b60,medium,only function with the 'Enemies destroyed:' / 'Stars collected:' / 'Your current rank:' strings; draw callback of M_MissionCompleteMenu
+0x00429c20,0x0042b8c0,medium,the remaining callback of the main-menu builder 0x0042b950 (the other two are M_MainMenuAction and M_MainMenuKey); calls UI_DrawSkinImages and UI_DrawMenu
+0x0040e0d0,0x00430a20,medium,called by G_Frame and G_BeginLevel and by the menu-model draw; calls R_SetFrustum and R_DrawParticles and ends in the 2D pass; same 1000/2000/4 constants; the statistics overlay whose strings made 0x0040aa40 look like the counterpart is now a separate function
+0x0040e070,0x004309b0,medium,2D pass: callee of R_RenderView 0x00430a20 and of the loading/intro/menu frames; calls the 2D mode set-up and the quad drawer
+0x0040df90,0x00430880,medium,only callee of the 2D pass; same 800/600 and -99999/99999 orthographic constants
+0x00401b30,0x004079c0,low,sets up a temporary render entity and calls R_RenderView 0x00430a20 for a model shown in a menu (the 'banner' model name is gone; called by the options/skin screen 0x004291f0)
+0x0040e690,0x00430e50,medium,called by SCR_DrawLoading G_IntroFrame G_Frame; the only one of the two frame brackets that calls the device BeginScene and Clear methods (Direct3D 8 vtable slots 34 and 36)
+0x0040e6f0,0x00431110,medium,called by SCR_DrawLoading G_IntroFrame G_Frame; calls the device EndScene method (vtable slot 35) and the screen-fade drawer 0x00430eb0 (v1.70 draws the fade quad inside R_EndFrame)
+0x00416020,0x00437f80,medium,first draw call of R_RenderView 0x00430a20; same -99999/99999 constants; calls the terrain node drawer 0x00437c60; the detail-texture set-up is inlined
+0x00415730,0x00437c60,medium,recursive terrain node drawer: calls itself and R_CullBox; four 1280 constants as in v1.70
+0x0040d860,0x00430280,low,callee of R_RenderView 0x00430a20 at the same position (after the frustum set-up); same size (185 against 187 bytes)
+0x004160d0,0x00438860,low,callee of R_RenderView after the model pass as in v1.70; 3.14159 and 0.1 constants; the wave set-up (0.4/0.5 constants and sin call) moved to 0x00436440
+0x00410ac0,0x00433f40,medium,model pass: callee of R_RenderView; calls R_DrawLightning and R_LightModel as in v1.70; 0.001 constant
+0x0040cee0,0x0042e1c0,medium,2D quad drawer: only callee of the 2D pass 0x004309b0 besides the 2D mode set-up; sets transforms and render states (Direct3D 8)
+0x00412be0,0x0042fb50,low,Direct3D 8 rewrite of the blend-state switch: called by every draw routine that called GL_SetBlendMode (sprites; particles; models; 2D; shadows); calls only the device SetRenderState method
+0x004184b0,0x004359d0,low,Direct3D 8 counterpart of the texture bind: the only small function that calls the device SetTexture method (vtable slot 61)
+0x004127e0,0x00435e70,low,environment-map stage set-up called by the model pass; sets texture-stage states and the texture transform; 30.0 constant as in v1.70
+0x00410270,0x004336f0,low,callee of the model pass; same size (258 against 261 bytes); line drawing through Direct3D render states
+0x004189d0,0x004380e0,medium,called by R_RegisterTexture and R_RegisterPic; strips the extension and opens the image file; now loads it through the statically linked D3DX loader 0x00450177 (the OpenGL upload GL_UploadTexture has no separate counterpart)
+0x00418dd0,0x004385f0,low,texture table clear called by the two renderer free functions 0x00417e30 (shutdown) and 0x00417e90 (level change) that v1.70 called individually
+0x00418a20,removed,medium,OpenGL texture upload (glTexImage2D and gluBuild2DMipmaps) replaced by D3DX texture creation in 0x004380e0 and 0x00438310; its 'Too many registered textures' message is absent
+0x00412050,removed,high,OpenGL extension probing: none of its extension-name strings exist in AS2
+0x00411fc0,removed,high,OpenGL renderer-name check: its 'gdi generic' string is absent in AS2
+0x004218b0,removed,high,OpenGL pixel-format selection: its ChoosePixelFormat/SetPixelFormat strings are absent and the only GDI32 import of AS2 is PatBlt
+0x00412cc0,removed,low,no counterpart found: blend and fog disabling is done by the Direct3D render-state switch 0x0042fb50
+0x00412720,removed,low,detail-texture stage set-up inlined into R_DrawTerrainPass 0x00437f80 (no separate function among its callees)
+0x00412b70,0x00435a30,low,texture-stage reset called by the model pass after the environment-map stage; sets texture-stage states only
+0x00412530,removed,high,screenshot writer: its 'screenshots' strings are absent in AS2
+0x00407b30,0x0040eb30,medium,same place between IntroImage_Begin 0x0040eb00 and IntroImage_Draw 0x0040eb50 as in v1.70; same 9-instruction shape (duration constant)
+0x00407ce0,0x0040ed40,medium,same place between IntroDivo_Begin 0x0040ed10 and IntroDivo_Draw 0x0040ed60 as in v1.70; same 9-instruction shape (duration constant)
+0x004079e0,0x00401100,low,identical 6-instruction shape; no callers in either export (callback)
+0x0042c7f0,0x004388f0,low,identical 7-instruction shape (frees one string); called from an exception-unwind funclet as in v1.70
+0x0042d1f0,0x004390f0,low,identical 7-instruction shape (frees one buffer); called from an exception-unwind funclet as in v1.70
+0x0042ce30,removed,medium,XML writer helper with no callers in v1.70 (dead code); no counterpart in AS2
+0x0042cf80,removed,medium,XML writer helper with no callers in v1.70 (dead code); no counterpart in AS2
+0x0042d030,removed,medium,XML writer helper with no callers in v1.70 (dead code); no counterpart in AS2
+0x0042d080,removed,medium,XML writer helper with no callers in v1.70 (dead code); no counterpart in AS2
+0x0042d130,removed,medium,only used by the two dead XML writer helpers; no counterpart in AS2
+0x0042cda0,0x00438f00,low,first of three 4-byte stubs at the same place in the XML module (between XML_FreeChildren and XML_Helper) as in v1.70
+0x0042cdb0,0x00438f10,low,second of three 4-byte stubs at the same place in the XML module as in v1.70
+0x0042cdc0,0x00438f20,low,third of three 4-byte stubs at the same place in the XML module as in v1.70
+0x004206c0,removed,medium,video restart (called when the OpenGL mode changed): in AS2 only Sys_Init 0x00405a80 calls MW_Init and S_Init
+0x00427aa0,removed,high,story page: its text strings are absent in AS2 (AS2 tells its story with comic screens)
+0x00427b70,removed,high,story page: its text strings are absent in AS2
+0x00426e70,removed,medium,the v1.70 congratulations text is absent in AS2 ('Congratulations!' alone remains as unreferenced data)
+0x0042a260,0x0042bbc0,medium,calls M_BuildMainMenu then UI_PopMenu and UI_PushMenu; called by M_GameCompleteAction as in v1.70 and by the mission-complete action 0x00427a20 (G_Init now calls the builder directly)
+0x00426c90,0x00428090,medium,called by M_MainMenuAction as in v1.70; builds the quit confirmation (YES button); its draw callback 0x00428000 holds 'Are you sure you want to quit?' (the v1.70 yes/no button images are gone)
+0x0042beb0,0x0042dc10,low,message-box builder (Ok button) called by the message box 0x0042dd20 as in v1.70; the apply/ok button images are gone
+0x0042c000,0x0042dd20,low,message box reached from the tutorial-hint builtin PF_ShowTutorialHint (a thunk to it) as in v1.70; calls the message-box builder 0x0042dc10
+0x0042a710,0x0042c3d0,low,callee of M_OptionsMenu as in v1.70; same 10.0 constant; similar size (194 against 290 bytes)
+# Named v1.70 addresses that are not function entries in the v1.70 export
+# (menu callbacks Ghidra left inside a neighbouring function), mapped to AS2
+# functions through the callback pointers of the matched menu builders.
+0x00421ee0,0x00415d20,high,window procedure: the only callback address taken by MW_CreateWindow in both executables; calls DefWindowProcA, G_KeyEvent, G_CharEvent, IN_MouseMove; the v1.70 export has no function at 0x00421ee0 (it lies inside 0x00421ea0)
+0x00426270,0x00427a20,medium,action callback taken by M_MissionCompleteMenu 0x00427db0 (the callback order changed; identified by its calls: G_FreeLevel, G_BeginLevel, G_BankScore, UI_PopMenu)
+0x00426a70,0x00428000,medium,draw callback of the quit confirmation 0x00428090 ('Are you sure you want to quit?' / 'Confirm Exit')
+0x004275e0,0x00428ac0,medium,action callback taken by M_GameOverMenu 0x00428db0: restarts or leaves the level (G_FreeLevel; G_BeginLevel; M_BuildMainMenu; G_CheckHighScore)
+0x00427640,0x00428b60,medium,key callback taken by M_GameOverMenu 0x00428db0 (forwards to UI_MenuKey)
+0x00428d40,0x0042a8c0,medium,action callback taken by M_InGameMenu 0x0042aa20 (restart; quit to main menu; options)
+0x00428e10,0x0042a9e0,medium,draw callback taken by M_InGameMenu 0x0042aa20 (UI_DrawMenu)
+0x0042abb0,0x0042c860,medium,draw callback taken by M_OptionsMenu 0x0042c8d0 (' Options ' title; UI_DrawMenu)
+0x0042b470,0x0042d840,medium,draw callback taken by M_StartGameMenu 0x0042d8b0 ('Start Game' title; UI_DrawMenu)
+0x00423230,0x00423a00,medium,draw callback taken by M_ControlsMenu 0x00423ac0 ('Configure Controls' title; UI_DrawMenu)
+0x0042a8e0,0x0042c560,medium,apart from the resolution-list builder the only caller of M_FillResolutions; called from the options draw callback 0x0042c860 (v1.70: no direct caller; callback)
+# Counterparts that the AS2 export does not define as functions either
+# ("code:" address). In AS2 a menu builder passes its callbacks in the order
+# action, draw, key (v1.70: draw, key, action); the two orders are checked
+# against the callbacks already matched as functions.
+0x004270a0,code:0x00428430,medium,draw callback of M_GameCompleteMenu 0x004289c0 (its key and action callbacks M_GameCompleteKey and M_GameCompleteAction are matched)
+0x00427670,code:0x00428b90,medium,draw callback of M_GameOverMenu 0x00428db0 (its action and key callbacks are matched)
+0x00426330,code:0x00427b30,medium,key callback of M_MissionCompleteMenu 0x00427db0 (its action and draw callbacks are matched)
+0x00428dd0,code:0x0042a9a0,medium,key callback of M_InGameMenu 0x0042aa20 (its action and draw callbacks are matched)
+0x00426a20,code:0x00427fb0,medium,action callback of the quit confirmation 0x00428090 (its draw callback 0x00428000 is matched)
+0x0042b3b0,code:0x0042d7b0,medium,the other callback of M_StartGameMenu 0x0042d8b0 (its draw callback 0x0042d840 is matched)
+0x0042c180,code:0x0042de60,medium,action callback of M_TopScoresMenu 0x0042e0d0 (its draw callback M_DrawTopScores is matched)
+0x00423160,code:0x00423930,medium,first callback of M_ControlsMenu 0x00423ac0; the callback order is unchanged (draw and key-binding drawer at the same positions)
+0x00422ef0,code:0x004236b0,medium,fourth callback of M_ControlsMenu 0x00423ac0; the callback order is unchanged
+0x0042a300,code:0x0042bc10,low,M_NameEntryMenu 0x0042bcd0 callbacks: first position (action in the AS2 order) and lowest address as in v1.70
+0x0042a360,code:0x0042bc70,low,M_NameEntryMenu 0x0042bcd0 callbacks: second position (draw in the AS2 order) and highest address as in v1.70
+0x0042a330,code:0x0042bc40,low,M_NameEntryMenu 0x0042bcd0 callbacks: third position (key in the AS2 order) and middle address as in v1.70
+0x0042bd40,code:0x0042db70,low,message-box builder 0x0042dc10 callbacks keep the v1.70 order (draw; key; action) and the v1.70 address order
+0x0042bd00,code:0x0042db30,low,message-box builder 0x0042dc10 callbacks keep the v1.70 order (draw; key; action) and the v1.70 address order
+0x0042bcc0,code:0x0042daf0,low,message-box builder 0x0042dc10 callbacks keep the v1.70 order (draw; key; action) and the v1.70 address order
+0x0042aa60,code:0x0042c700,low,M_OptionsMenu 0x0042c8d0 callbacks other than the draw callback: the higher address as in v1.70 (M_OptionsApplyAction below M_OptionsAction)
+0x0042a840,code:0x0042c4a0,low,M_OptionsMenu 0x0042c8d0 callbacks other than the draw callback: the lower address as in v1.70
+0x004184e0,removed,low,no function with its shape or constants in AS2; the one the automatic propagation proposed (0x0042f3d0) is a Direct3D format check (IDirect3D8 CheckDeviceFormat); mip levels are made by D3DX
