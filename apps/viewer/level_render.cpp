@@ -596,6 +596,14 @@ bool renderLevel(Vfs& vfs, const DefDatabase& db, ResourceCache& cache, MeshRend
     spriteRenderer.draw(spriteParts.data(), spriteParts.size(), sv);
 
     if (!target.readPixels(out)) { error = "readPixels failed"; return false; }
+    if (opts.brightness > 0.0f) {
+        // Blend (DST_COLOR, SRC_COLOR) of the colour (b, b, b): dst·b + b·dst.
+        const float k = 2.0f * opts.brightness;
+        for (size_t i = 0; i < out.rgba.size(); i++) {
+            if ((i & 3) == 3) continue;
+            out.rgba[i] = static_cast<u8>(std::min(255.0f, std::round(static_cast<float>(out.rgba[i]) * k)));
+        }
+    }
     if (stats) {
         stats->placements = placementsUsed;
         stats->drawnObjects = static_cast<int>(parts.size());

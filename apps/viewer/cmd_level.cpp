@@ -2,7 +2,7 @@
 // [--size WxH] [--overview [--span y]] [--camera 0..3] [--camx x] [--no-objects]
 // [--shadows|--no-shadows] [--marks "x,y[,object];..."|demo|--no-marks] [--lights "x,y,z,r,g,b,radius;..."]
 // [--no-lights] [--no-sprites] [--no-envmap] [--plain] [--time T] [--morph "x,y,stamp;..."]
-// [--skid "x0,y0,x1,y1,width,texture;..."]`: renders a level of the selected game (--game)
+// [--skid "x0,y0,x1,y1,width,texture;..."] [--brightness b]`: renders a level of the selected game (--game)
 // headless, as the game would show it at scroll position `y` (g_map_pos), or, with
 // --overview, from high above. --time sets the game time of the water animation; --morph
 // applies TerraMorph stamps first; --skid lays skid trails (see level_render.h).
@@ -37,6 +37,7 @@ bool parseLights(const std::string& spec, std::vector<as3d::DynamicLight>& out) 
 
 int run(int argc, char** argv) {
     viewer::LevelRenderOptions o;
+    o.brightness = 0.6f; // the game's default setting; --brightness 0 turns the overlay off
     std::string out, level;
     bool sizeGiven = false;
     for (int i = 0; i < argc; i++) {
@@ -72,6 +73,7 @@ int run(int argc, char** argv) {
         else if (a == "--time") { if (!(v = val("--time"))) return 1; o.time = static_cast<float>(std::atof(v)); }
         else if (a == "--morph") { if (!(v = val("--morph"))) return 1; o.morphs = v; }
         else if (a == "--skid") { if (!(v = val("--skid"))) return 1; o.skids = v; }
+        else if (a == "--brightness") { if (!(v = val("--brightness"))) return 1; o.brightness = static_cast<float>(std::atof(v)); }
         else if (a == "--lights") {
             if (!(v = val("--lights"))) return 1;
             if (!parseLights(v, o.extraLights)) { std::fprintf(stderr, "error: bad --lights '%s' (x,y,z,r,g,b,radius;...)\n", v); return 1; }
@@ -83,7 +85,8 @@ int run(int argc, char** argv) {
         std::fprintf(stderr, "usage: as3d_viewer level <level number|id|maps\\x.hsc> --out file.png [--scroll y] [--size WxH] "
                              "[--overview [--span y]] [--camera 0..3] [--camx x] [--no-objects] [--no-shadows] [--marks \"x,y;...\"|demo] "
                              "[--lights \"x,y,z,r,g,b,radius;...\"] [--no-lights] [--no-sprites] [--no-envmap] [--plain] "
-                             "[--time T] [--morph \"x,y,stamp;...\"] [--skid \"x0,y0,x1,y1,width,texture;...\"]\n");
+                             "[--time T] [--morph \"x,y,stamp;...\"] [--skid \"x0,y0,x1,y1,width,texture;...\"] "
+                             "[--brightness b (default 0.6, 0 = off)]\n");
         return 1;
     }
     if (const as3d::GameData* g = viewer::selectedGame()) o.game = g->game->id;

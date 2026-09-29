@@ -51,6 +51,11 @@ struct LevelRenderOptions {
     // section at (x1,y1), one section every 25 units (5/12 s at 60 units/s), ages from that
     // speed; `texture` a path or a name in gfx/marks (jeepmark1, tankmark1).
     std::string skids;
+    // The game's brightness overlay (render-pipeline.md 1.5, drawn after the 2D layer): every
+    // pixel times 2·brightness, clamped. 0 = none (the tests' default); the `level` command
+    // uses the game's default setting 0.6 (config.ini Brightness), so that its pictures have
+    // the brightness of the game's frames and of the originals' screenshots.
+    float brightness = 0.0f;
 };
 
 struct LevelRenderStats {
