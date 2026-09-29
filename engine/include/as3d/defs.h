@@ -307,7 +307,7 @@ private:
 };
 
 // Canonical text serialization of a definition's typed fields, used to hash
-// it for testdata/golden/defs_summary.json. Field order, integer/float/bool
+// it for testdata/golden/<game>/defs_summary.json. Field order, integer/float/bool
 // formatting and the sha1 preimage are specified in docs/spec/obj.md (etc.,
 // "Canonical serialization"); tools/ref/defs.py's canonical_*() functions
 // must produce byte-identical output for the same data. Floats are

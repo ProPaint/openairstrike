@@ -1,6 +1,6 @@
 # RCSL builtin functions
 
-Spec version 1.0. Machine-readable table: `testdata/golden/rcsl_builtins.json` (schema
+Spec version 1.0. Machine-readable table: `testdata/golden/as3d/rcsl_builtins.json` (schema
 below). Related: [rcsl-container.md](rcsl-container.md) (FUNC section, name resolution),
 [rcsl-opcodes-v0.md](rcsl-opcodes-v0.md) (CALL, LCALL, TMO), [rcsl-vm.md](rcsl-vm.md)
 (runtime).
@@ -389,7 +389,7 @@ as `$player`, or a value of unknown kind; none passes a pointer; the code reads 
 argument's fields 5..7). The table records the corrected,
 code-verified type.
 
-## JSON schema (`testdata/golden/rcsl_builtins.json`)
+## JSON schema (`testdata/golden/as3d/rcsl_builtins.json`)
 
 ```
 {"version": 1,

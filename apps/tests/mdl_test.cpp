@@ -2,7 +2,7 @@
 //
 // Four parts:
 //  - a golden-corpus check that loads every shipped .mdl and compares against
-//    testdata/golden/mdl_summary.json (computed independently by tools/ref/test_mdl.py);
+//    testdata/golden/<game>/mdl_summary.json (computed independently by tools/ref/test_mdl.py);
 //  - synthetic in-memory tests for malformed input: truncation at every array boundary,
 //    overflowing counts, out-of-range face indices, and fields with no NUL terminator;
 //  - buildRenderMesh property tests (index validity, triangle count, per-corner data,
@@ -14,6 +14,7 @@
 #include "as3d/model.h"
 #include "test_data.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
@@ -295,6 +296,7 @@ TEST_CASE("mdl: every shipped file loads and matches the golden summary") {
     REQUIRE(!golden.arrayValue.empty());
 
     int okChecked = 0, emptyChecked = 0, brokenChecked = 0;
+    std::vector<std::string> emptyNames, brokenNames;
     for (const JsonValue& entry : golden.arrayValue) {
         std::string path = str(entry.get("path"));
         std::string status = str(entry.get("status"));
@@ -312,12 +314,14 @@ TEST_CASE("mdl: every shipped file loads and matches the golden summary") {
             CHECK(blob.empty());
             CHECK(ok == false);
             emptyChecked++;
+            emptyNames.push_back(path);
         } else if (status == "broken") {
             // Known-corrupt shipped files: loadModel must still not fail outright --
             // it recovers whatever whole arrays fit and reports a warning.
             CHECK(ok == true);
             CHECK(!error.empty());
             brokenChecked++;
+            brokenNames.push_back(path);
         } else {
             REQUIRE(status == "ok");
             CHECK(ok == true);
@@ -391,8 +395,17 @@ TEST_CASE("mdl: every shipped file loads and matches the golden summary") {
     }
 
     CHECK(okChecked + emptyChecked + brokenChecked == static_cast<int>(golden.arrayValue.size()));
-    CHECK(emptyChecked == 4);
-    CHECK(brokenChecked == 2);
+    // The known-empty and known-broken files and the counts are in expected.json ("models").
+    CHECK(golden.arrayValue.size() == static_cast<size_t>(testdata::expectedInt("models.files")));
+    CHECK(okChecked == testdata::expectedInt("models.ok"));
+    std::vector<std::string> wantEmpty = testdata::expectedStrings("models.empty");
+    std::vector<std::string> wantBroken;
+    for (const auto& kv : testdata::expectedNode("models.broken").o) wantBroken.push_back(kv.first);
+    std::sort(emptyNames.begin(), emptyNames.end());
+    std::sort(brokenNames.begin(), brokenNames.end());
+    std::sort(wantEmpty.begin(), wantEmpty.end());
+    CHECK(emptyNames == wantEmpty);
+    CHECK(brokenNames == wantBroken); // std::map keys are sorted
     MESSAGE("mdl: checked ", okChecked, " ok, ", emptyChecked, " empty, ", brokenChecked, " broken");
 }
 

@@ -318,6 +318,7 @@ TEST_CASE("tga: every shipped file matches the golden reference decode") {
         checked++;
     }
     CHECK(checked == static_cast<int>(entries.size()));
+    CHECK(checked == testdata::expectedInt("textures.files"));
     MESSAGE("tga: checked ", checked, " files against golden data");
 }
 

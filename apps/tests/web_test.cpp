@@ -17,6 +17,7 @@
 using namespace as3d;
 
 TEST_CASE("web key bindings: no Ctrl or Alt, Space fires, X missile, C item") {
+    AS3D_REQUIRE_PLAYABLE();
     Settings s = Settings::defaults();
     applyWebKeyBindings(s);
     const Settings d = Settings::defaults();
@@ -55,6 +56,7 @@ TEST_CASE("web key bindings: no Ctrl or Alt, Space fires, X missile, C item") {
 }
 
 TEST_CASE("web: known_files.json matches the owner's game files") {
+    AS3D_REQUIRE_PLAYABLE();
     const std::string list = std::string(AS3D_REPO_ROOT) + "/apps/web/site/known_files.json";
     std::ifstream in(list);
     REQUIRE(in.good());
@@ -65,7 +67,7 @@ TEST_CASE("web: known_files.json matches the owner's game files") {
     const std::regex entry("\"([^\"]+)\": \\{ \"required\": (true|false), \"size\": (\\d+), \"sha256\": \"([0-9a-f]{64})\", "
                            "\"where\": \"([^\"]+)\"");
     int entries = 0, checked = 0, paks = 0;
-    const std::string orig = testdata::originalDir() + "/";
+    const std::string orig = testdata::installDir() + "/";
     for (auto it = std::sregex_iterator(json.begin(), json.end(), entry); it != std::sregex_iterator(); ++it) {
         const std::smatch& m = *it;
         ++entries;

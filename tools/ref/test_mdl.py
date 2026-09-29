@@ -8,7 +8,8 @@ for how to fetch it, and set AS3D_DATA_ROOT to point at a checkout that has it
 
   AS3D_DATA_ROOT=/path/to/airstrike3d python3 tools/ref/test_mdl.py
 
-Set AS3D_MDL_REGENERATE_GOLDEN=1 to overwrite testdata/golden/mdl_summary.json
+`--game <key>` (else $AS3D_GAME, else as3d) picks the game. Set AS3D_MDL_REGENERATE_GOLDEN=1 to
+overwrite testdata/golden/<key>/mdl_summary.json
 with freshly computed data instead of diffing against it (do this deliberately,
 after checking the diff makes sense, and commit the result).
 """
@@ -20,33 +21,33 @@ import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gamesel  # noqa: E402
+
+gamesel.parse_game_arg()
 import mdl  # noqa: E402
 
-REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-GOLDEN_PATH = os.path.join(REPO_ROOT, "testdata", "golden", "mdl_summary.json")
+GOLDEN_PATH = gamesel.golden_path("mdl_summary.json")
 
-# The 4 shipped .mdl files that are exactly zero bytes. None are referenced by
-# any object in assets_extracted/objects/*.obj (checked by hand during
-# development of docs/spec/mdl.md). If this set ever changes, that is a real
-# regression worth looking at, not something to silently paper over.
-EXPECTED_EMPTY = {
-    "models/items/ammo/asec.mdl",
-    "models/items/ammo/bonus.mdl",
-    "models/jeeps/jeep_bug_cannon.mdl",
-    "models/mapobjects/ruins/stone_comb1.mdl",
-}
+# The known-empty and known-broken files of the game, and their counts, are in
+# testdata/golden/<key>/expected.json ("models"); see testdata/golden/README.md.
 
-# The 2 shipped non-empty .mdl files whose own header counts do not add up to
-# their file size: both contain runs of 0xFD/0xDD bytes (classic MSVC debug
-# heap fill patterns) inside what should be vertex data, i.e. these are
-# corrupted source assets, not evidence of a format variant. See
-# docs/spec/mdl.md "Files that do not fit". If this set changes, treat it as
-# a real finding (either a fixed asset, or a new corruption) and update both
-# this test and the spec.
-EXPECTED_BROKEN = {
-    "models/mapobjects/bridges/bridge1.mdl": -24,
-    "models/mapobjects/bridges/japbridge.mdl": -336,
-}
+# Files that are exactly zero bytes ("empty"): none is referenced by an object definition in
+# the first game. If the set changes, that is a real regression worth looking at, not
+# something to silently paper over.
+#
+# Non-empty files whose own header counts do not add up to their file size ("broken"): in the
+# first game both contain runs of 0xFD/0xDD bytes (classic MSVC debug heap fill patterns)
+# inside what should be vertex data, i.e. corrupted source assets, not a format variant (see
+# docs/spec/mdl.md "Files that do not fit"). The value in expected.json is the byte
+# difference the original parser would see. A change of the set is a real finding: update
+# expected.json and the spec.
+def known_empty():
+    return set(gamesel.expected()["models"]["empty"])
+
+
+def known_broken():
+    return dict(gamesel.expected()["models"]["broken"])
+
 
 # Chosen from the data (see docs/spec/mdl.md #normals): flat (per-face)
 # normals are unit length to within float32 rounding in 819/821 shipped
@@ -61,7 +62,7 @@ BBOX_TOL = 0.05  # engine units; bbox is exact in the data, this covers float32 
 
 
 def data_available():
-    return os.path.isfile(os.path.join(mdl.extracted_dir(), "maps", "levels.txt"))
+    return gamesel.has_data()
 
 
 def finite3(t):
@@ -118,10 +119,10 @@ def check_model(relpath, path, size, errors, warnings):
     try:
         m = mdl.parse(data, source=relpath)
     except mdl.MdlError as e:
-        if relpath in EXPECTED_BROKEN:
+        if relpath in known_broken():
             warnings.append(f"KNOWN-BROKEN {relpath}: {e}")
             return {"path": relpath, "size": size, "status": "broken", "note": str(e)}
-        errors.append(f"{relpath}: does not parse and is not in EXPECTED_BROKEN: {e}")
+        errors.append(f"{relpath}: does not parse and is not in known_broken(): {e}")
         return None
 
     nverts, nuvs, nfaces, nnorms, ntags = (
@@ -233,14 +234,14 @@ def main():
         if rec is not None:
             summary.append(rec)
 
-    if seen_empty != EXPECTED_EMPTY:
+    if seen_empty != known_empty():
         errors.append(f"empty-file set changed: now {sorted(seen_empty)}, "
-                       f"expected {sorted(EXPECTED_EMPTY)}")
+                       f"expected {sorted(known_empty())}")
 
     seen_broken = {r["path"] for r in summary if r.get("status") == "broken"}
-    if seen_broken != set(EXPECTED_BROKEN):
+    if seen_broken != set(known_broken()):
         errors.append(f"broken-file set changed: now {sorted(seen_broken)}, "
-                       f"expected {sorted(EXPECTED_BROKEN)}")
+                       f"expected {sorted(known_broken())}")
 
     print(f"test_mdl: {len(entries)} files, "
           f"{sum(1 for r in summary if r['status']=='ok')} ok, "

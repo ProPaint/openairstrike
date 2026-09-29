@@ -3,7 +3,10 @@
 docs/spec/rcsl-opcodes-v0.md) over every shipped .scr file.
 
 Exits non-zero on failure, prints SKIPPED and exits 0 when the game data is absent.
-Set AS3D_REGEN_GOLDEN=1 (or pass --regen) to rewrite testdata/golden/rcsl_summary.json.
+`--game <key>` (else $AS3D_GAME, else as3d) picks the game: its scripts, its (opcode, mode)
+pairs (the base table for as3d; the base table plus the as2 delta's seven new pairs for the
+sequels) and its counts (testdata/golden/<key>/expected.json, "scripts").
+Set AS3D_REGEN_GOLDEN=1 (or pass --regen) to rewrite testdata/golden/<key>/rcsl_summary.json.
 """
 import collections
 import json
@@ -16,11 +19,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(REPO, "tools"))
 
+sys.path.insert(0, HERE)
+import gamesel  # noqa: E402
+
+gamesel.parse_game_arg()
 import rcsl_disasm as R  # noqa: E402
 
-GOLDEN = os.path.join(REPO, "testdata", "golden", "rcsl_summary.json")
+GOLDEN = gamesel.golden_path("rcsl_summary.json")
 OPCODE_DOC = os.path.join(REPO, "docs", "spec", "rcsl-opcodes-v0.md")
-EXPECTED_SCRIPTS = 339
 
 failures = []
 
@@ -52,17 +58,15 @@ def documented_tables():
 
 def main():
     regen = "--regen" in sys.argv or os.environ.get("AS3D_REGEN_GOLDEN") == "1"
-    root = R.scripts_dir()
-    if not os.path.isdir(root):
-        print("=" * 70)
-        print(f"test_rcsl: SKIPPED: no script data at {root}")
-        print("test_rcsl: set AS3D_DATA_ROOT to a checkout with assets_extracted/")
-        print("=" * 70)
+    if gamesel.skip_no_data("test_rcsl"):
         return 0
+    root = R.scripts_dir()
+    want = gamesel.expected()["scripts"]
+    first_game = gamesel.game_key() == "as3d"
 
     files = R.corpus(root)
-    if len(files) != EXPECTED_SCRIPTS:
-        fail(f"expected {EXPECTED_SCRIPTS} scripts, found {len(files)}")
+    if len(files) != want["files"]:
+        fail(f"expected {want['files']} scripts, found {len(files)}")
 
     doc_ops, doc_combos = documented_tables()
     if not doc_ops or not doc_combos:
@@ -72,6 +76,8 @@ def main():
             fail(f"opcode {op:#04x}: module says {mnem}, spec says {doc_ops.get(op)}")
     if doc_combos != R.SEEN_MODES:
         fail("mode-combination table in spec differs from rcsl_disasm.SEEN_MODES")
+    allowed = R.allowed_modes()
+    no_code = []
 
     combos = collections.Counter()
     summary = {}
@@ -120,11 +126,13 @@ def main():
         for k, _, _ in s.data:
             if k not in R.DATA_KINDS:
                 fail(f"{name}: unknown DATA kind {k}")
+        if "CODE" not in s.order:
+            no_code.append(name)
         for ins in s.code:
             combos[(ins.op, ins.mode)] += 1
             if ins.op not in doc_ops:
                 fail(f"{name}: opcode {ins.op:#04x} not documented")
-            elif (ins.op, ins.mode) not in doc_combos:
+            elif (ins.op, ins.mode) not in allowed:
                 fail(f"{name}: opcode {ins.op:#04x} mode {ins.mode:#04x} not documented")
         for p in R.check_bounds(s):
             fail(f"{name}: {p}")
@@ -134,8 +142,13 @@ def main():
         total_instr += len(s.code)
         summary[name] = R.summary(s, raw)
 
-    if dict(combos) != doc_combos:
-        fail("corpus (opcode, mode) counts differ from the documented table")
+    if first_game:
+        if dict(combos) != doc_combos:
+            fail("corpus (opcode, mode) counts differ from the documented table")
+    elif len(combos) != want["mode_pairs"]:
+        fail(f"corpus has {len(combos)} (opcode, mode) pairs, expected {want['mode_pairs']}")
+    if sorted(no_code) != sorted(want["no_code"]):
+        fail(f"scripts without a CODE section: {sorted(no_code)}, expected {sorted(want['no_code'])}")
 
     if regen:
         with open(GOLDEN, "w") as f:

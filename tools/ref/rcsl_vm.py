@@ -29,8 +29,7 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(REPO, "tools"))
 
 import rcsl_disasm as D  # noqa: E402
-
-BUILTINS_JSON = os.path.join(REPO, "testdata", "golden", "rcsl_builtins.json")
+import gamesel  # noqa: E402
 
 # --- constants of the original VM (VERIFIED-CODE, see rcsl-vm.md) -----------------
 STACK_SIZE = 512            # thread stack entries
@@ -40,12 +39,25 @@ ENTRY_NAMES = D.ENTRY_NAMES  # init main damage touch callback
 EV_INIT, EV_MAIN, EV_DAMAGE, EV_TOUCH, EV_CALLBACK = range(5)
 
 # Engine global table order (0x457220). Index = position in that table.
-ENGINE_GLOBALS = [
+ENGINE_GLOBALS_V170 = [
     "self", "other", "cb_msg", "cb_parm1", "cb_parm2", "player", "p_action", "p_scores",
     "p_lives", "p_stars", "p_speedfactor", "p_counter1", "p_counter2", "p_counter3",
     "p_weapon", "l_night", "l_water", "l_waterlevel", "frametime", "time", "camera",
     "g_map_pos", "g_damage_factor", "g_health_factor",
 ]
+# as2 and gulf: 28 names in the order of as2@0x49d908 (docs/spec/as2/rcsl-vm.delta.md, "Globals").
+ENGINE_GLOBALS_AS2 = [
+    "self", "other", "cb_msg", "cb_parm1", "cb_parm2", "player", "player1", "player2",
+    "p_action", "p_maxHealth", "p_scores", "p_lives", "p_stars", "p_speedfactor",
+    "p_counter1", "p_counter2", "p_counter3", "p_weapon", "l_night", "l_water",
+    "l_waterlevel", "frametime", "time", "camera", "cameramode", "g_map_pos",
+    "g_damage_factor", "g_health_factor",
+]
+
+
+def engine_globals():
+    """The engine global table of the selected game (gamesel.game_key())."""
+    return ENGINE_GLOBALS_V170 if gamesel.game_key() == "as3d" else ENGINE_GLOBALS_AS2
 
 # --- mock address space (documented in rcsl-vm.md, "Mock host") ----------------------
 FRAME_BASE = 0x10000000      # frame slot i of the (single) thread: FRAME_BASE + 4*i
@@ -152,8 +164,9 @@ def hx(b):
 
 # --- builtin table -------------------------------------------------------------------
 
-def load_builtins(path=BUILTINS_JSON):
-    with open(path) as f:
+def load_builtins(path=None):
+    """The builtin table of the selected game (gulf reads the as2 table)."""
+    with open(path or gamesel.builtins_path()) as f:
         data = json.load(f)
     return {b["name"]: b for b in data["builtins"]}
 
@@ -540,7 +553,8 @@ class MockHost(Host):
         self.rng = Xorshift32(1)
         self.entities = 0
         self.calls = []
-        self.mem.map(GLOBAL_BASE, 0x10 * len(ENGINE_GLOBALS), "globals")
+        self.globals = engine_globals()
+        self.mem.map(GLOBAL_BASE, 0x10 * len(self.globals), "globals")
         for n in (MOCK_SELF, MOCK_PLAYER, MOCK_CAMERA, MOCK_OTHER):
             self.new_entity()
         self.set_global("self", self.entity_ref(MOCK_SELF))
@@ -560,9 +574,9 @@ class MockHost(Host):
         return ref
 
     def global_address(self, name):
-        if name not in ENGINE_GLOBALS:
+        if name not in self.globals:
             raise VMError(f"unknown global {name}")
-        return GLOBAL_BASE + 0x10 * ENGINE_GLOBALS.index(name)
+        return GLOBAL_BASE + 0x10 * self.globals.index(name)
 
     def set_global(self, name, bits):
         self.mem.write(self.global_address(name), bits)
@@ -689,6 +703,7 @@ def run_script(script, frames=600, dt=1.0 / 60.0, events=STANDARD_EVENTS, init=T
 
 def main(argv):
     import argparse
+    gamesel.parse_game_arg(argv)
     ap = argparse.ArgumentParser(prog="rcsl_vm.py")
     sub = ap.add_subparsers(dest="cmd")
     t = sub.add_parser("trace")

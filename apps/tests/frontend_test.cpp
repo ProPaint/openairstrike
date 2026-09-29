@@ -463,7 +463,7 @@ TEST_CASE("frontend: every screen builds and draws without data") {
 }
 
 TEST_CASE("frontend headless: screens render in the right places") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     AS3D_REQUIRE_GLES();
     Vfs vfs;
     REQUIRE(uitest::mountPaks(vfs));

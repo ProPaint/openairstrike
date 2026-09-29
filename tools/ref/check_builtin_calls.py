@@ -26,11 +26,12 @@ More is allowed: the first game's scripts pass unused arguments to some builtins
 
 Usage:
   check_builtin_calls.py [--game as3d|as2|gulf] [--scripts DIR] [--table JSON] [--quiet]
+(--game defaults to $AS3D_GAME, then as3d.)
 
 Data: $AS3D_DATA_ROOT (default: the repository root); game `as3d` reads
 <root>/assets_extracted/scripts, any other game <root>/assets_extracted_games/<key>/scripts.
-Table: testdata/golden/rcsl_builtins.json for `as3d`, testdata/golden/<key>/rcsl_builtins.json
-otherwise; `gulf` falls back to the `as2` table when it has none of its own.
+Table: testdata/golden/<key>/rcsl_builtins.json; `gulf` falls back to the `as2` table when it
+has none of its own.
 
 Every regular file under the scripts directory is read, whatever its extension (the second
 game ships one script as `.sc`). A file without a CODE section has no call sites.
@@ -74,8 +75,6 @@ def scripts_dir(game):
 
 
 def table_path(game):
-    if game == "as3d":
-        return os.path.join(REPO, "testdata", "golden", "rcsl_builtins.json")
     p = os.path.join(REPO, "testdata", "golden", game, "rcsl_builtins.json")
     if not os.path.exists(p) and game in FALLBACK:
         return table_path(FALLBACK[game])
@@ -190,7 +189,7 @@ def call_sites(h, funcs, code):
 
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--game", default="as3d")
+    ap.add_argument("--game", default=os.environ.get("AS3D_GAME") or "as3d")
     ap.add_argument("--scripts", help="scripts directory (default: from --game)")
     ap.add_argument("--table", help="builtin table JSON (default: from --game)")
     ap.add_argument("--quiet", action="store_true", help="print only the summary and errors")

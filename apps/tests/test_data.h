@@ -1,11 +1,20 @@
 // Helpers for tests that need the original game data, which is never committed.
+//
+// The game the data tests run against comes from $AS3D_GAME (default as3d, see
+// tools/ci.sh, which runs the suite once per game present). Where its data is comes from
+// as3d::locateGameData; its goldens are testdata/golden/<key>/ and its expected counts
+// testdata/golden/<key>/expected.json (apps/tests/expected.h).
 #pragma once
 
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 #include "as3d/core.h"
+#include "as3d/game_data.h"
+#include "as3d/game_profile.h"
+#include "as3d/vfs.h"
 
 namespace testdata {
 
@@ -16,10 +25,34 @@ inline std::string root() {
     return env && *env ? env : AS3D_REPO_ROOT;
 }
 
-inline std::string extractedDir() { return root() + "/assets_extracted"; }
-inline std::string originalDir() { return root() + "/third_party_local/original"; }
+// Key of the game under test: $AS3D_GAME, else as3d.
+inline std::string gameKey() {
+    const char* env = std::getenv("AS3D_GAME");
+    return env && *env ? env : "as3d";
+}
+
+inline const as3d::GameProfile& game() {
+    static const as3d::GameProfile* g = [] {
+        const as3d::GameProfile* p = as3d::findGameProfile(gameKey());
+        if (!p) {
+            std::fprintf(stderr, "AS3D_GAME='%s' names no game (as3d, as2, gulf)\n", gameKey().c_str());
+            std::exit(2);
+        }
+        return p;
+    }();
+    return *g;
+}
+
+inline const as3d::GameData& gameData() {
+    static const as3d::GameData d = as3d::locateGameData(root(), game());
+    return d;
+}
+
+inline std::string extractedDir() { return gameData().extractedDir; }
+// The game's install directory: the executable and data/ with the paks.
+inline std::string installDir() { return gameData().installDir; }
 // Golden files are committed, so they always come from this checkout.
-inline std::string goldenDir() { return std::string(AS3D_REPO_ROOT) + "/testdata/golden"; }
+inline std::string goldenDir() { return std::string(AS3D_REPO_ROOT) + "/testdata/golden/" + gameKey(); }
 
 // Reads an extracted file by game path, e.g. "models\\apache\\apache.mdl".
 inline bool readExtracted(const std::string& gamePath, as3d::Blob& out) {
@@ -36,16 +69,46 @@ inline bool readExtracted(const std::string& gamePath, as3d::Blob& out) {
     return got == out.size();
 }
 
+// Mounts the paks of the game under test, in mount order (later ones override earlier ones).
+// False if the game has none on this machine or one does not open.
+inline bool mountGamePaks(as3d::Vfs& vfs) {
+    const std::vector<std::string>& paks = gameData().paks;
+    if (paks.empty()) return false;
+    for (const std::string& path : paks) {
+        auto src = as3d::makePakSource(as3d::openFileStream(path));
+        if (!src) return false;
+        vfs.mount(std::move(src));
+    }
+    return true;
+}
+
 inline bool available() {
     as3d::Blob b;
     return readExtracted("maps\\levels.txt", b);
 }
 
+// Whether the game under test plays (expected.json, "playable"); defined in expected.h.
+inline bool playable();
+
 } // namespace testdata
 
-// Put at the top of a TEST_CASE that needs game data.
-#define AS3D_REQUIRE_DATA()                                                     \
-    if (!testdata::available()) {                                               \
-        std::fprintf(stderr, "SKIPPED (no game data): %s\n", __FILE__);         \
-        return;                                                                 \
+#include "expected.h"
+
+// Put at the top of a TEST_CASE that needs the data of the game under test: a format or
+// definition test that runs for every game.
+#define AS3D_REQUIRE_DATA()                                                                       \
+    if (!testdata::available()) {                                                                 \
+        std::fprintf(stderr, "SKIPPED (no data for game '%s'): %s\n", testdata::gameKey().c_str(), \
+                     __FILE__);                                                                   \
+        return;                                                                                   \
+    }
+
+// Put at the top of a TEST_CASE that plays the game (simulation, front end, integration): it
+// is skipped, loudly, for a game whose expected.json says "playable": false. Combine with
+// AS3D_REQUIRE_DATA() when the test also needs the game's files.
+#define AS3D_REQUIRE_PLAYABLE()                                                                   \
+    if (!testdata::playable()) {                                                                  \
+        std::fprintf(stderr, "SKIPPED (game '%s' is not playable yet): %s\n",                     \
+                     testdata::gameKey().c_str(), __FILE__);                                      \
+        return;                                                                                   \
     }

@@ -41,7 +41,7 @@ Stats analyse(const Image& img, const unsigned char* bg) {
 } // namespace
 
 TEST_CASE("level renderer draws terrain, water and objects") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     static std::unique_ptr<GraphicsContext> ctx = [] {
         GraphicsConfig cfg;
         cfg.width = 320;
@@ -57,7 +57,7 @@ TEST_CASE("level renderer draws terrain, water and objects") {
 
     Vfs vfs;
     for (const char* name : {"pak0.apk", "pak1.apk", "pak2.apk"}) {
-        auto src = makePakSource(openFileStream(testdata::originalDir() + "/data/" + name));
+        auto src = makePakSource(openFileStream(testdata::installDir() + "/data/" + name));
         REQUIRE(src);
         vfs.mount(std::move(src));
     }

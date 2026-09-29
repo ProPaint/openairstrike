@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Golden test for the text-block reference parser (tools/ref/textblock.py).
 
-Parses all 42 brace-block game text files, checks there are zero parse
-errors, and writes/validates testdata/golden/textblock_counts.json (per-file
+Parses all brace-block game text files (42 in as3d, the count is in
+testdata/golden/<game>/expected.json), checks there are zero parse
+errors, and writes/validates testdata/golden/<game>/textblock_counts.json (per-file
 block/statement/token counts -- metadata only, never game text).
 
-Run directly, or via tools/ci.sh which runs every tools/ref/test_*.py.
+Run directly (`--game <key>`, else $AS3D_GAME, else as3d), or via tools/ci.sh which runs every
+tools/ref/test_*.py once per game.
 Exits 0 on success, non-zero on any failure. If the game data directory is
 missing, prints a loud SKIPPED message and exits 0 (the data is gitignored
 and not present in a fresh checkout or a worktree).
@@ -15,35 +17,26 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import textblock as tb
+import gamesel
 
-GOLDEN_PATH_PARTS = ("testdata", "golden", "textblock_counts.json")
-
-
-def repo_root() -> str:
-    # tools/ref/test_textblock.py -> tools/ref -> tools -> repo root.
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+gamesel.parse_game_arg()
+import textblock as tb  # noqa: E402
 
 
 def golden_path() -> str:
-    return os.path.join(repo_root(), *GOLDEN_PATH_PARTS)
+    return gamesel.golden_path("textblock_counts.json")
 
 
 def main() -> int:
-    root = tb.extracted_dir()
-    if not os.path.isdir(root):
-        print(f"SKIPPED (no game data): {root} does not exist.", file=sys.stderr)
-        print(
-            "SKIPPED: set AS3D_DATA_ROOT or run tools/setup_data.sh + "
-            "tools/paktool.py extract first.",
-            file=sys.stderr,
-        )
+    if gamesel.skip_no_data("test_textblock"):
         return 0
+    root = tb.extracted_dir()
+    want = gamesel.expected()["text_blocks"]
 
     files = tb.list_text_block_files(root)
-    if len(files) != 42:
+    if len(files) != want["files"]:
         print(
-            f"FAIL: expected 42 text-block files, found {len(files)}: {files}",
+            f"FAIL: expected {want['files']} text-block files, found {len(files)}: {files}",
             file=sys.stderr,
         )
         return 1
@@ -71,6 +64,12 @@ def main() -> int:
         ),
     }
     golden = {"files": counts, "summary": summary}
+    if summary["objects_total_named_blocks"] != want["object_blocks"] or \
+            summary["objects_distinct_names"] != want["distinct_object_names"]:
+        failures += 1
+        print(f"FAIL: object blocks {summary['objects_total_named_blocks']} "
+              f"({summary['objects_distinct_names']} distinct), expected {want['object_blocks']} "
+              f"({want['distinct_object_names']})", file=sys.stderr)
 
     gpath = golden_path()
     if not os.path.exists(gpath):

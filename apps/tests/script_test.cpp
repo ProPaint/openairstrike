@@ -1,7 +1,7 @@
 // Tests for the RCSL VM (as3d::script). See docs/script-vm.md and docs/spec/rcsl-*.md.
 //
 //  - golden corpus: the standard run of every shipped script under the mock host must
-//    reproduce testdata/golden/rcsl_trace_hashes.json (sha1 of the trace, instruction and
+//    reproduce testdata/golden/<game>/rcsl_trace_hashes.json (sha1 of the trace, instruction and
 //    builtin call counts), produced by the Python reference interpreter;
 //  - performance sanity;
 //  - unit tests on small synthetic programs built with a tiny assembler;
@@ -286,7 +286,7 @@ TEST_CASE("script: every shipped script reproduces the reference trace") {
     ss << f.rdbuf();
     std::vector<std::pair<std::string, Golden>> golden;
     REQUIRE(parseGoldenHashes(ss.str(), golden));
-    CHECK(golden.size() == 339);
+    CHECK(golden.size() == static_cast<size_t>(testdata::expectedInt("scripts.files")));
 
     int matched = 0;
     for (const auto& kv : golden) {

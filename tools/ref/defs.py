@@ -7,7 +7,7 @@ docs/spec/levels-txt.md for the grammar, enum values and canonical
 serialization this mirrors. The engine implementation
 (engine/src/game/defs.cpp) must produce byte-identical canonical
 serializations (and therefore identical sha1 hashes) for every definition;
-that agreement is what testdata/golden/defs_summary.json checks.
+that agreement is what testdata/golden/<game>/defs_summary.json checks.
 
 Stdlib only.
 """
@@ -24,6 +24,7 @@ from typing import Dict, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import textblock as tb
+import gamesel  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Enum tables (VERIFIED-CODE unless noted; see docs/spec/obj.md &c.)
@@ -711,11 +712,9 @@ def sha1_of(text: str) -> str:
 
 
 def data_root() -> str:
-    env = os.environ.get("AS3D_DATA_ROOT")
-    if env:
-        return env
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    return gamesel.data_root()
 
 
 def extracted_dir() -> str:
-    return os.path.join(data_root(), "assets_extracted")
+    """Extracted files of the selected game (--game, $AS3D_GAME, default as3d)."""
+    return gamesel.extracted_dir()

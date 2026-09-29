@@ -77,7 +77,7 @@ TEST_CASE("health bar: position and fill") {
 }
 
 TEST_CASE("health bar: big enemies show it during mission 1") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     vfs.mount(makeDirSource(testdata::extractedDir()));
     DefDatabase db;

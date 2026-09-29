@@ -1,5 +1,5 @@
 // Minimal local SHA-1 (no third-party dependency), used only to compare a trace against
-// testdata/golden/rcsl_trace_hashes.json. Same algorithm as apps/tests/tga_test.cpp's
+// testdata/golden/<game>/rcsl_trace_hashes.json. Same algorithm as apps/tests/tga_test.cpp's
 // local implementation.
 #pragma once
 

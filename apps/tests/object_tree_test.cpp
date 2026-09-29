@@ -21,7 +21,7 @@ using namespace as3d;
 namespace {
 
 bool mountOriginalPaks(Vfs& vfs) {
-    std::string dataDir = testdata::originalDir() + "/data";
+    std::string dataDir = testdata::installDir() + "/data";
     for (const char* name : {"pak0.apk", "pak1.apk", "pak2.apk"}) {
         auto src = makePakSource(openFileStream(dataDir + "/" + name));
         if (!src) return false;
@@ -213,7 +213,7 @@ TEST_CASE("ObjectTree: default-constructed tree is empty") {
 // ---------------------------------------------------------------------------------
 
 TEST_CASE("ObjectTree: unknown object name yields an empty tree with one warning, no crash") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     REQUIRE(mountOriginalPaks(vfs));
     DefDatabase db;
@@ -226,7 +226,7 @@ TEST_CASE("ObjectTree: unknown object name yields an empty tree with one warning
 }
 
 TEST_CASE("ObjectTree: spot check tank_small_green (turret at tag_turret, guns at tag_guns)") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     REQUIRE(mountOriginalPaks(vfs));
     DefDatabase db;
@@ -260,7 +260,7 @@ TEST_CASE("ObjectTree: spot check tank_small_green (turret at tag_turret, guns a
 }
 
 TEST_CASE("ObjectTree: a helicopter object has rotor ('tag_vint*') children") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     REQUIRE(mountOriginalPaks(vfs));
     DefDatabase db;
@@ -292,7 +292,7 @@ TEST_CASE("ObjectTree: a helicopter object has rotor ('tag_vint*') children") {
 
 TEST_CASE("ObjectTree: every one of the 864 object definitions builds without crashing, "
           "terminates, and only produces documented warning kinds") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     REQUIRE(mountOriginalPaks(vfs));
     DefDatabase db;

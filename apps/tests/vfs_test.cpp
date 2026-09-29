@@ -20,7 +20,7 @@ using as3d::u8;
 
 // ---------------------------------------------------------------------------
 // Minimal self-contained SHA-1 (public-domain algorithm), used only to check
-// bytes read through the Vfs against testdata/golden/pak_manifest.json.
+// bytes read through the Vfs against testdata/golden/<game>/pak_manifest.json.
 // ---------------------------------------------------------------------------
 namespace {
 
@@ -234,32 +234,23 @@ as3d::Blob buildPak(const std::vector<RawEntry>& entries) {
     return data;
 }
 
-bool mountOriginalPaks(as3d::Vfs& vfs) {
-    std::string dataDir = testdata::originalDir() + "/data";
-    for (const char* name : {"pak0.apk", "pak1.apk", "pak2.apk"}) {
-        auto src = as3d::makePakSource(as3d::openFileStream(dataDir + "/" + name));
-        if (!src) return false;
-        vfs.mount(std::move(src));
-    }
-    return true;
-}
-
 } // namespace
 
 // ---------------------------------------------------------------------------
 // 1. Mount pak0/pak1/pak2, check counts and every manifest entry.
 // ---------------------------------------------------------------------------
-TEST_CASE("Vfs merges the three original paks and matches the golden manifest") {
+TEST_CASE("Vfs merges the paks of the game and matches the golden manifest") {
     AS3D_REQUIRE_DATA();
 
     as3d::Vfs vfs;
-    REQUIRE(mountOriginalPaks(vfs));
+    REQUIRE(testdata::mountGamePaks(vfs));
 
     auto names = vfs.list();
-    CHECK(names.size() == 1351);
+    const size_t want = static_cast<size_t>(testdata::expectedInt("paks.files"));
+    CHECK(names.size() == want);
 
     auto manifest = parseManifest(testdata::goldenDir() + "/pak_manifest.json");
-    REQUIRE(manifest.size() == 1351);
+    REQUIRE(manifest.size() == want);
 
     for (const auto& e : manifest) {
         as3d::Blob out;
@@ -278,13 +269,13 @@ TEST_CASE("Vfs read is case- and slash-insensitive") {
     AS3D_REQUIRE_DATA();
 
     as3d::Vfs vfs;
-    REQUIRE(mountOriginalPaks(vfs));
+    REQUIRE(testdata::mountGamePaks(vfs));
 
     as3d::Blob out;
     REQUIRE(vfs.read("MAPS/Levels.txt", out));
     std::string text(out.begin(), out.end());
     CHECK(text.find("name") != std::string::npos);
-    CHECK(text.find("Mission 1") != std::string::npos);
+    if (testdata::gameKey() == "as3d") CHECK(text.find("Mission 1") != std::string::npos);
 }
 
 // ---------------------------------------------------------------------------
@@ -381,12 +372,12 @@ TEST_CASE("DirSource reads extracted files case-insensitively") {
     REQUIRE(src != nullptr);
 
     as3d::Blob out;
-    REQUIRE(src->read(as3d::normalizePath("models\\apache\\apache.mdl"), out));
+    REQUIRE(src->read(as3d::normalizePath("maps\\levels.txt"), out));
 
     auto manifest = parseManifest(testdata::goldenDir() + "/pak_manifest.json");
     std::string want;
     for (const auto& e : manifest) {
-        if (as3d::normalizePath(e.name) == as3d::normalizePath("models\\apache\\apache.mdl")) {
+        if (as3d::normalizePath(e.name) == as3d::normalizePath("maps\\levels.txt")) {
             want = e.sha1;
             break;
         }
