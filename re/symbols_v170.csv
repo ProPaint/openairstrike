@@ -499,3 +499,36 @@ address,name,subsystem,description,confidence,evidence
 00440b1a,atan2,crt,atan2 of the two x87 operands,medium,VectorToAngles yaw and pitch; builtin vec_toyaw
 00440c9c,exp,crt,exponential,medium,V_UpdateQuake decay exp(-2t)
 00440d30,acos,crt,arc cosine,medium,G_PathSegmentYaw (normalised x component to degrees)
+00425750,UI_DrawStringAlpha,ui,correction (WP-26): alpha-font string (font_alpha.tga; alpha blend; honours colour alpha; no markup),high,0x425750 texture and blend
+00423780,UI_InitSlider,ui,correction (WP-26): slider init (min/max/value/step),high,draw uses slider.tga and slidebutt
+004237f0,UI_SliderInput,ui,correction (WP-26): slider keys; click and drag,high,Left/Right step; mouse position
+00423a20,UI_DrawSlider,ui,correction (WP-26): slider draw,high,slider.tga; slidebutt_1/2.tga
+0042b3b0,M_StartGameCallback,menu,Start Game shared callback (Back/Start/game mode; not a Ghidra function),high,objdump; frees level and runs new campaign
+0042b470,M_DrawStartGame,menu,Start Game draw (letterbox; starth header),high,starth textures
+00426270,M_MissionCompleteAction,menu,mission complete buttons (Quit/Restart/Continue),high,objdump; banks on Continue
+00426330,M_MissionCompleteKey,menu,mission complete key (swallows Esc/right click),high,objdump
+004275e0,M_GameOverAction,menu,game over buttons (Restart/Quit),high,objdump; banks on Quit
+00427640,M_GameOverKey,menu,game over key (swallows Esc/right click),high,objdump
+00426a20,M_ExitConfirmAction,menu,exit yes/no callback,high,objdump
+00426a70,M_DrawExitConfirm,menu,exit confirmation draw,high,objdump
+00428d40,M_InGameMenuAction,menu,in-game menu buttons (Resume/Options/Quit),high,objdump
+00428dd0,M_InGameMenuKey,menu,in-game menu key (Esc resumes),high,objdump
+00428e10,M_DrawInGameMenu,menu,in-game menu draw (letterbox),high,objdump
+004289b0,M_DrawInfoMenu,menu,information menu draw and page dispatch,high,objdump; jump table 0x428bcc
+00427a30,M_InfoMenuKey,menu,information keys PgUp/PgDn/Left/Right,high,objdump; table 0x427a98
+00427a10,M_InfoMenuAction,menu,information Back,high,objdump
+0042a300,M_NameEntryAction,menu,name entry OK/Enter: insert high score,high,objdump; calls 0x40be90
+0042a330,M_NameEntryKey,menu,name entry key (swallows Esc/right click),high,objdump
+0042a360,M_DrawNameEntry,menu,name entry draw,high,objdump; string 0x44b278
+0042c180,M_TopScoresAction,menu,top scores Back/Post,high,objdump
+0042abb0,M_DrawOptions,menu,options draw (runs options state update),high,objdump
+0042aa60,M_OptionsAction,menu,options item callback (sliders; camera; mouse control),high,objdump; table 0x42ab90
+0042a840,M_OptionsApplyAction,menu,Apply: commit video/3D sound and restart video,high,objdump; jumps 0x4206c0
+00423230,M_DrawControls,menu,controls menu draw,high,objdump; controlsh textures
+00423160,M_ControlsKey,menu,controls key (capture/unbind),high,objdump
+00422ef0,M_ControlsRowAction,menu,controls row activate: start capture,medium,objdump
+0042bcc0,M_MessageBoxAction,menu,message box OK: unpause; clear actions; pop,high,objdump
+0042bd00,M_MessageBoxKey,menu,message box key (Enter/Esc/Space close),high,objdump
+0042bd40,M_DrawMessageBox,menu,message box draw (grow animation; centred lines; markup),high,objdump
+00425e80,UI_EditKey,ui,edit field keys,medium,jump table
+00424590,UI_SpinnerKey,ui,spinner keys,medium,jump table 0x4245e0
