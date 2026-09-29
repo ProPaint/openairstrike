@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Serves the web spike's page on this machine only (docs/web-spike.md).
+# Serves the web version's site on this machine only (docs/web.md).
 #
 #   tools/web_serve.sh [PORT] [BIND]   default 8080 on 127.0.0.1, then open http://127.0.0.1:PORT/
 #
 # The directory is $AS3D_WEB_SITE, else $AS3D_DATA_ROOT/out/web/site, else out/web/site of
-# this checkout. It holds the original game data, so the default is this machine only.
+# this checkout (the bundled build of tools/web_build.sh; the byo build is in site-byo). The
+# bundled site holds the original game data, so the default is this machine only.
 # BIND (or $AS3D_WEB_BIND) 0.0.0.0 serves it to the local network, for trying it from a
 # phone at home; never do that on a network you do not control, and never publish it.
 set -euo pipefail

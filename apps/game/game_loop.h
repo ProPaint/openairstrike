@@ -69,10 +69,28 @@ struct LoopOptions {
     // The front end (menus); game.startLevel must then be false.
     bool frontend = false;
     FlowConfig flow;
+
+    // Hooks of the web version (apps/web, docs/spec/issues/150); unset elsewhere.
+    std::function<float()> dpiQuery;         // replaces `dpi`, queried with the layout (the page's scale changes)
+    bool autoTouch = false;                  // switch to touch mode at the first finger (hybrid devices)
+    std::function<void(bool touch)> touchModeChanged;
+    std::function<void(const char* screen)> screenChanged; // the names of AS3D_SCREEN
+    // The touch layout changed (size, insets, hand, screen mode), framebuffer pixels.
+    std::function<void(const as3d::TouchLayout& layout, int width, int height)> layoutChanged;
+    std::function<void()> firstFrame;        // after the first frame was presented
+    std::function<void(int code)> finished;  // the browser loop ended (the front end's Exit)
 };
 
 // Runs until the window is closed, Escape, or `frames`. Returns the process exit code.
 int runGameWindow(const LoopOptions& options);
+
+// Lifecycle events a host delivers outside SDL's event queue (the web page, apps/web): they
+// act on the window runGameWindow is running and do nothing without one. Call them from the
+// thread that runs the loop, between frames.
+void hostSetBackground(bool background);   // hidden (pause, silence, save the profile) or shown again
+void hostRequestPause(const char* reason); // during play, the in-game menu (full screen left, portrait)
+void hostGlContextLost();                  // nothing is drawn until restored; play pauses
+void hostGlContextRestored();              // every GL object is gone: rebuild them all
 
 // Where the input of each frame comes from besides the local controls.
 class InputSource {

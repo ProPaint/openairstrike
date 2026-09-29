@@ -80,8 +80,9 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     if (exists) {
         if (!loadProfileFile(config_.profilePath, profile_, &why))
             AS3D_WARN("profile %s: %s; using the defaults", config_.profilePath.c_str(), why.c_str());
-    } else if (config_.twoPlayerMode) {
-        applyDesktopPlayer2Keys(profile_.settings);
+    } else {
+        if (config_.twoPlayerMode) applyDesktopPlayer2Keys(profile_.settings);
+        if (config_.webKeys) applyWebKeyBindings(profile_.settings);
     }
     profile_.settings.clampToRanges();
     if (!config_.showLogo) profile_.settings.showLogo = false;
@@ -140,7 +141,15 @@ void GameFlow::setInputMapper(InputMapper* keys) {
 }
 
 bool GameFlow::playing() const {
-    return fe_ && fe_->state() == FrontendState::Playing && !fe_->menuOpen() && !fe_->paused() && session_.hasLevel();
+    return fe_ && fe_->state() == FrontendState::Playing && !fe_->menuOpen() && !fe_->paused() && session_.hasLevel() &&
+           !loadPending();
+}
+
+void GameFlow::setTouchMode(bool on) {
+    config_.touch = on;
+    if (!fe_) return;
+    fe_->setTouchMode(on);
+    fe_->menus().drawCursor = !on && !profile_.settings.useSystemMouse;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -157,6 +166,30 @@ void GameFlow::levelLoaded(bool intermission) {
 }
 
 void GameFlow::startMission(const ui::MissionStart& ms) {
+    if (config_.deferLoads) {
+        pending_ = PendingLoad::Mission;
+        pendingStart_ = ms;
+        return;
+    }
+    doStartMission(ms);
+}
+
+void GameFlow::loadAttract() {
+    if (config_.deferLoads) {
+        pending_ = PendingLoad::Attract;
+        return;
+    }
+    doLoadAttract();
+}
+
+void GameFlow::runPendingLoad() {
+    const PendingLoad p = pending_;
+    pending_ = PendingLoad::None;
+    if (p == PendingLoad::Mission) doStartMission(pendingStart_);
+    else if (p == PendingLoad::Attract) doLoadAttract();
+}
+
+void GameFlow::doStartMission(const ui::MissionStart& ms) {
     if (loadingHook) loadingHook(0.1f, false);
     LevelSetup s;
     s.mission = ms.mission + 1;
@@ -176,7 +209,7 @@ void GameFlow::startMission(const ui::MissionStart& ms) {
     levelLoaded(false);
 }
 
-void GameFlow::loadAttract() {
+void GameFlow::doLoadAttract() {
     if (loadingHook) loadingHook(0.1f, true);
     const std::string id = "intro" + std::to_string(attract_);
     std::string err;
@@ -221,6 +254,7 @@ void GameFlow::saveProfile(const Profile& p) {
     if (config_.profilePath.empty()) return;
     std::string why;
     if (!saveProfileFile(config_.profilePath, p, &why)) AS3D_ERROR("cannot save the profile: %s", why.c_str());
+    else if (config_.profileSaved) config_.profileSaved();
 }
 
 void GameFlow::saveNow() { saveProfile(profile_); }

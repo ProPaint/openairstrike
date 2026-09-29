@@ -7,6 +7,9 @@
 
 #include <SDL.h>
 #include <GLES3/gl3.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
 
 #include <cstdio>
 #include <memory>
@@ -34,13 +37,21 @@ public:
 
     int width() const override {
         int w = 0, h = 0;
-        SDL_GL_GetDrawableSize(window_, &w, &h);
+        drawableSize(w, h);
         return w;
     }
     int height() const override {
         int w = 0, h = 0;
-        SDL_GL_GetDrawableSize(window_, &w, &h);
+        drawableSize(w, h);
         return h;
+    }
+    void drawableSize(int& w, int& h) const {
+#ifdef __EMSCRIPTEN__
+        // SDL's Emscripten port reports the window size here; the page sizes the canvas'
+        // drawing buffer itself (device pixel ratio, resizes), so ask the canvas.
+        if (emscripten_get_canvas_element_size("#canvas", &w, &h) == EMSCRIPTEN_RESULT_SUCCESS && w > 0 && h > 0) return;
+#endif
+        SDL_GL_GetDrawableSize(window_, &w, &h);
     }
 
     std::string description() const override { return description_; }
@@ -73,7 +84,13 @@ std::unique_ptr<GraphicsContext> createWindowContext(const GraphicsConfig& confi
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+#ifdef __EMSCRIPTEN__
+    // An opaque canvas: with alpha the compositor would blend the page behind it wherever
+    // drawing leaves alpha below 1.
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
+#else
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+#endif
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 

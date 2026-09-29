@@ -119,6 +119,21 @@ Settings Settings::defaults() {
     return s;
 }
 
+void applyWebKeyBindings(Settings& s) {
+    const Action acts[3] = {Action::PrimaryAttack, Action::MissileAttack, Action::UseItem};
+    const int codes[3] = {32, 'X', 'C'}; // Space, X, C
+    for (int p = 0; p < 2; p++)
+        for (int i = 0; i < 3; i++) s.bindKey(p, acts[i], codes[i]);
+    // bindKey moved the old first key (Ctrl, Shift, Space) into the second slot; the second
+    // slot keeps the joystick code of the built-in table instead.
+    const Settings d = Settings::defaults();
+    for (int p = 0; p < 2; p++)
+        for (int i = 0; i < 3; i++) {
+            const int a = static_cast<int>(acts[i]);
+            s.keys[p][a][1] = d.keys[p][a][1];
+        }
+}
+
 void Settings::clampToRanges() {
     const Settings d = defaults();
     auto clampF = [](float v, float lo, float hi, float def) { return std::isfinite(v) ? std::clamp(v, lo, hi) : def; };

@@ -1,0 +1,151 @@
+/* AirStrike 3D web page (docs/web.md): the canvas fills the window or the screen; the
+   overlays are the start screen, the portrait notice, the end and error screens. */
+:root {
+  --bg: #000;
+  --panel: rgba(14, 15, 18, 0.94);
+  --text: #e8e2da;
+  --muted: #a39a90;
+  --accent: #ffa000;
+  --accent-text: #1a0d00;
+  --warn: #ff8a65;
+  --line: rgba(255, 160, 0, 0.35);
+}
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+canvas#canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  width: 100dvw;
+  height: 100dvh;
+  display: block;
+  background: #000;
+  outline: none;
+  touch-action: none;
+}
+/* Reads env(safe-area-inset-*) for the game (app.js). */
+#insets-probe {
+  position: fixed;
+  visibility: hidden;
+  pointer-events: none;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  box-sizing: border-box;
+  background: radial-gradient(ellipse at 50% 40%, #2e2420 0%, #0e0f12 70%);
+  overflow-y: auto;
+  z-index: 10;
+}
+[hidden] { display: none !important; }
+#start.running { background: rgba(0, 0, 0, 0.55); }
+#start.running .panel > :not(#status) { display: none; }
+.panel {
+  max-width: 560px;
+  width: 100%;
+  text-align: center;
+  margin: auto;
+}
+.panel .logo { display: block; margin: 0 auto 4px; border-radius: 16px; }
+h1 { margin: 4px 0 0; font-size: 30px; letter-spacing: 0.04em; font-weight: 700; }
+.sub { margin: 0 0 14px; color: var(--muted); }
+.small { font-size: 13px; color: var(--muted); }
+.warn { color: var(--warn); }
+code { font-size: 12px; color: var(--text); }
+.row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
+
+button, .button {
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 18px;
+  cursor: pointer;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  display: inline-block;
+}
+button:focus-visible, .button:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.play {
+  font-size: 26px;
+  font-weight: 700;
+  padding: 16px 56px;
+  min-width: 220px;
+  border: none;
+  color: var(--accent-text);
+  background: var(--accent);
+  box-shadow: 0 6px 24px rgba(255, 160, 0, 0.25);
+}
+button.play:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
+button.link { border: none; background: none; padding: 0 4px; color: var(--accent); text-decoration: underline; }
+
+#progress { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); overflow: hidden; margin: 10px auto 0; max-width: 360px; }
+#bar { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+#status { min-height: 1.4em; margin: 8px 0; }
+
+#files { text-align: left; }
+#files-list { list-style: none; padding: 0; margin: 8px 0; font-size: 14px; }
+#files-list li { padding: 2px 0; }
+#files-list .ok::before { content: "\2713  "; color: #9ccc65; }
+#files-list .missing::before { content: "\2022  "; color: var(--muted); }
+#files-list .bad::before { content: "\2717  "; color: var(--warn); }
+#drop {
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  text-align: center;
+}
+#drop.over { border-color: var(--accent); background: rgba(255, 160, 0, 0.08); }
+#files-status { min-height: 1.4em; }
+
+/* Touch devices see the touch hint, others the keys. */
+body.touchdev #hint-keys, body:not(.touchdev) #hint-touch { display: none; }
+
+/* The full screen toggle in touch mode, beside the game's pause button (placed by app.js). */
+#fs-toggle {
+  position: fixed;
+  z-index: 5;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  opacity: 0.8;
+}
+#fs-toggle[hidden] { display: none; }
+#fs-toggle svg { width: 60%; height: 60%; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; }
+#fs-toggle .leave, body.fullscreen #fs-toggle .enter { display: none; }
+body.fullscreen #fs-toggle .leave { display: inline; }
+
+#rotate { background: #0e0f12; z-index: 20; }
+#rotate .rot { width: 72px; height: 72px; fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
+#rotate p { font-size: 18px; }
+
+@media (max-height: 480px) {
+  .panel .logo { width: 48px; height: 48px; }
+  h1 { font-size: 24px; }
+  .sub { margin-bottom: 6px; }
+  button.play { font-size: 22px; padding: 12px 44px; }
+}
