@@ -131,8 +131,8 @@ constexpr u32 kEntityAddrEnd = kEntityAddrBase + ((kRefGenMask + 1u) << kRefGenS
 static_assert(static_cast<u32>(kMaxEntitySlots) * kEntityAddrStride <= (1u << kRefGenShift), "slot bits overflow");
 
 // A stable C++ handle: slot index plus the slot's generation at the time the handle was
-// taken. A script reference (a raw address) carries no generation, exactly like the
-// original's entity pointers (see World::refOf).
+// taken. A script reference carries the low 9 bits of the same generation (see
+// World::refOf); the handle carries all 32.
 struct EntityHandle {
     u32 index = 0xFFFFFFFFu;
     u32 generation = 0;
@@ -282,8 +282,8 @@ struct WorldStats {
     script::u64 scriptErrors = 0;
     script::u64 stalls = 0;
     script::u64 spawnRefused = 0;
-    script::u64 entitiesCreated = 0;
-    script::u64 entitiesFreed = 0;
+    script::u64 entitiesCreated = 0; // pool (list) entities
+    script::u64 entitiesFreed = 0;   // pool (list) entities
     int maxListEntities = 0;
     int maxSlotsInUse = 0;
     std::vector<std::string> firstErrors; // at most 16

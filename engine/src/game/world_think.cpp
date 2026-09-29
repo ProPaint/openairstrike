@@ -171,6 +171,7 @@ void World::freeRemoved() {
     for (int i : doomed) {
         unlink(i);
         freeTree(i);
+        ++stats_.entitiesFreed; // pool entities (children are freed with them)
     }
 }
 

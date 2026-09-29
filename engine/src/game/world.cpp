@@ -131,7 +131,6 @@ void World::freeSlot(int idx) {
     e.newer = e.older = -1;
     freeList_.push_back(idx);
     --slotsInUse_;
-    ++stats_.entitiesFreed;
 }
 
 void World::freeTree(int idx) {
