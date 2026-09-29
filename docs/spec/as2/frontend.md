@@ -84,28 +84,28 @@ Gulf Thunder.
 
 | # | Screen | Built by | Shown over | Music | vs base | Gulf |
 |---|---|---|---|---|---|---|
-| S0 | Logo pages | `G_StartIntros` as2@0x410530, `G_IntroFrame` as2@0x410850 | nothing (2D only) | none (GUESS) | same | frame loop same, page list builder changed |
+| S0 | Logo pages | `G_StartIntros` as2@0x410530, `G_IntroFrame` as2@0x410850 | nothing (2D only) | none (GUESS) | same | page draws and frame loop same; page list builder changed |
 | S0b | Intro comic, 4 pages | comic pages as2@0x40f1e0.. (3.2) | nothing (2D only) | `music\track02.mo3` from order 0, started by page 1 | new | changed |
 | S1 | Main menu | `M_BuildMainMenu` as2@0x42b950 | attract level | attract level's `music` (both: `music\track03.mo3`, VERIFIED-DATA) | changed | builder same opcodes, draw changed |
-| S2 | Exit confirmation | as2@0x428090 | attract level | same | changed | same |
+| S2 | Exit confirmation | as2@0x428090 | attract level | same | changed | builder same, draw changed |
 | S3 | Start Game (mission, difficulty, game mode) | `M_StartGameMenu` as2@0x42d8b0 | attract level | same | changed | builder same opcodes, draw changed |
 | S3b | Helicopter selection | `M_ShowHeliSelect` as2@0x4297d0 | attract level (from S3) or the finished mission (from S15) | unchanged | new | builder same, draw changed |
 | S4 | Top Scores | `M_TopScoresMenu` as2@0x42e0d0 | attract level | same | changed | builder same, draw changed |
-| S5 | Name entry | `M_NameEntryMenu` as2@0x42bcd0 | attract level | same | changed | same |
+| S5 | Name entry | `M_NameEntryMenu` as2@0x42bcd0 | attract level | same | changed | builder same (callbacks not compared) |
 | S6 | Options | `M_ShowOptions` as2@0x42cd30 | attract level or the paused mission | unchanged | changed | builder same, draw changed |
 | S7 | Configure controls | `M_ControlsMenu` as2@0x423ac0 | as S6 | unchanged | changed | builder same, draw changed |
-| S8 | Information (8 pages) | `M_InfoMenu` as2@0x42a880 | attract level | same | changed | same |
+| S8 | Information (8 pages) | `M_InfoMenu` as2@0x42a880 | attract level | same | changed | builder and page texts' functions same (draw callback not compared) |
 | S8b | Credits | `M_CreditsMenu` as2@0x423d90 | attract level | same | new (was page 10 of S8) | builder same, draw changed |
 | S9 | Loading screen with comic | `SCR_SelectLoadingComic` as2@0x40acc0, `SCR_DrawLoading` as2@0x40adf0 | replaces everything | none | changed | changed |
 | S9b | Portrait dialogue (mission start) | `M_ShowPortraitDialog` as2@0x4234b0 | mission, paused, HUD visible | mission's music | new | same |
 | S10 | Playing (HUD) | `HUD_Frame` as2@0x40ac80 | mission | mission's `music`, looped | changed | same code |
 | S11 | Pause (P / Pause) | none | mission, frozen | keeps playing (GUESS, as the base) | same | same |
 | S12 | Tutorial hint box | `UI_MessageBox` as2@0x42dd20 | mission, frozen | keeps playing | changed | same |
-| S13 | In-game menu (Esc) | `M_InGameMenu` as2@0x42aa20 | mission, frozen, HUD hidden | keeps playing | changed (Restart added) | builder same opcodes |
+| S13 | In-game menu (Esc) | `M_InGameMenu` as2@0x42aa20 | mission, frozen, HUD hidden | keeps playing | changed (Restart added) | builder same opcodes, action same, draw changed |
 | S13b | Portrait dialogue (mission end) | `M_ShowPortraitDialog` as2@0x4234b0 | mission, frozen, HUD hidden | keeps playing | new | same |
-| S14 | Game over | `M_GameOverMenu` as2@0x428db0 | mission, frozen, HUD hidden | module jumps to order 35 (same as the base) | changed | builder and actions same |
+| S14 | Game over | `M_GameOverMenu` as2@0x428db0 | mission, frozen, HUD hidden | module jumps to order 35 (same as the base) | changed | builder and action same (draw callback not compared) |
 | S15 | Mission complete | `M_MissionCompleteMenu` as2@0x427db0 | mission, frozen, HUD hidden | keeps playing | changed | builder same, draw changed |
-| S16 | Game complete (after mission 18) | `M_GameCompleteMenu` as2@0x4289c0 | black over the frozen mission 18 | keeps playing (GUESS) | changed | same |
+| S16 | Game complete (after mission 18) | `M_GameCompleteMenu` as2@0x4289c0 | black over the frozen mission 18 | keeps playing (GUESS) | changed | builder and action same (draw callback not compared) |
 | — | Statistics overlay (debug) | `R_DrawStats` as2@0x40aa40 | anything | — | moved out of the renderer | same |
 
 There is no mission briefing screen (the portrait dialogues take that role), no shop, no save
@@ -192,8 +192,10 @@ hover started, **+0x118 closing flag (new)**, **+0x11C open value f (new)**, +0x
 callback, +0x124 key callback. Builders now pass the callbacks in the order action (per item,
 item +0x44), draw, key.
 
-**Open value f (new).** Push and pop set f of the new top menu (and of the menu it covers) to 0
-(as2@0x42b2c0, 0x42b340). `UI_Frame` then raises it by 4 × frametime twice per frame while the
+**Open value f (new).** f is 0 whenever a menu becomes the top one: push clears f of the menu it
+covers, pop clears f of the menu it removes, and a menu opened for the first time starts at 0
+(as2@0x42b2c0, 0x42b340); so a menu uncovered by a pop opens again with its animation. `UI_Frame`
+then raises the top menu's f by 4 × frametime twice per frame while the
 closing flag is clear, so a menu opens in **0.125 s**; it is clamped at 1 (as2@0x42b3fe..0x42b4e8;
 (emu): 0.16, 0.32, … 0.96, 1.0 at frametime 0.02). With the closing flag set the two steps cancel
 out and f stays where it is; no code of the export sets that flag (no byte write to +0x118 of a
