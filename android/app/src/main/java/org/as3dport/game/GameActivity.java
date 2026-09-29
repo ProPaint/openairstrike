@@ -31,6 +31,8 @@ import org.libsdl.app.SDLActivity;
  *   difficulty (int)   0..4
  *   no_audio (boolean)
  *   rebuild_on_resume (boolean)  test hook: rebuild every GL resource after a resume
+ *   game (string)      which game: as3d (default), as2, gulf
+ *   allow_unfinished (boolean)  start a game that is not playable yet (development only)
  */
 public class GameActivity extends SDLActivity {
     private static final String TAG = "AS3D";
@@ -50,6 +52,12 @@ public class GameActivity extends SDLActivity {
             if (intent.getBooleanExtra("bot", false)) args.add("--bot");
             if (intent.getBooleanExtra("no_audio", false)) args.add("--no-audio");
             if (intent.getBooleanExtra("rebuild_on_resume", false)) args.add("--rebuild-on-resume");
+            if (intent.getBooleanExtra("allow_unfinished", false)) args.add("--allow-unfinished");
+            String game = intent.getStringExtra("game");
+            if (game != null && game.matches("[a-z0-9]{1,16}")) {
+                args.add("--game");
+                args.add(game);
+            }
             addInt(intent, "level", "--level", args);
             addInt(intent, "frames", "--frames", args);
             addInt(intent, "difficulty", "--difficulty", args);
