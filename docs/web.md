@@ -124,7 +124,7 @@ them.
 
 | What | Where | Size |
 |---|---|---|
-| The profile: settings, key bindings, unlocked missions and helicopters, high scores | IndexedDB, database `/persist` (Emscripten's IDBFS), written after every save | 1 KB |
+| The profile: settings, key bindings, unlocked missions and helicopters, high scores | IndexedDB, database `/persist` (Emscripten's IDBFS), written after every save; the file is `/persist/as3d/profile.bin`, one directory per game | 1 KB |
 | The game files (byo build only) | IndexedDB, database `as3d-game-files` | 25 MB (paks, optional files, the texts; not the executable) |
 
 The profile is saved at the same moments as on the other platforms (leaving Options, after a
@@ -132,6 +132,10 @@ name entry, at the end of a mission, when the game goes to the background), and 
 tab is hidden. The page asks the browser to keep this storage (`navigator.storage.persist()`);
 if the browser says no, the data is still kept but may be evicted under storage pressure.
 Clearing the site's data in the browser removes both.
+
+A profile from before the saves went into a directory per game (`/persist/profile.bin`) is
+loaded on the first start, written to `/persist/as3d/profile.bin` and renamed
+`/persist/profile.v1.bak`; the page syncs the storage right after (docs/spec/issues/160).
 
 ## Tests
 

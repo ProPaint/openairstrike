@@ -21,10 +21,13 @@ u32 crc32(const u8* d, size_t n) {
     return c ^ 0xFFFFFFFFu;
 }
 
-// Rewrites the header's size and CRC after the payload was edited.
+// Version 2 file of the first game: 20 bytes of header, the key length, "as3d", the payload.
+constexpr size_t kPayloadAt = 20 + 1 + 4;
+
+// Rewrites the header's size and CRC (of key and payload) after the payload was edited.
 void fixHeader(std::vector<u8>& f) {
-    const u32 n = static_cast<u32>(f.size() - 20);
-    const u32 c = crc32(f.data() + 20, n);
+    const u32 n = static_cast<u32>(f.size() - kPayloadAt);
+    const u32 c = crc32(f.data() + 21, 4 + n);
     std::memcpy(&f[12], &n, 4);
     std::memcpy(&f[16], &c, 4);
 }
@@ -248,7 +251,7 @@ TEST_CASE("profile file: truncated, corrupt and hostile files fall back to defau
     {
         std::vector<u8> bad = good;
         const u32 huge = 0xFFFFFFF0u;
-        std::memcpy(&bad[24], &huge, 4); // PROG chunk length
+        std::memcpy(&bad[kPayloadAt + 4], &huge, 4); // PROG chunk length
         fixHeader(bad);
         Profile q;
         std::string why;
@@ -258,7 +261,7 @@ TEST_CASE("profile file: truncated, corrupt and hostile files fall back to defau
     }
     {
         std::vector<u8> bad = good;
-        bad[28] = 200; // high-score count
+        bad[kPayloadAt + 8] = 200; // high-score count
         fixHeader(bad);
         Profile q;
         std::string why;
@@ -269,7 +272,7 @@ TEST_CASE("profile file: truncated, corrupt and hostile files fall back to defau
     }
     {
         std::vector<u8> bad = good;
-        bad[29] = 250; // first name length
+        bad[kPayloadAt + 9] = 250; // first name length
         fixHeader(bad);
         Profile q;
         CHECK_FALSE(deserializeProfile(bad.data(), bad.size(), q));
@@ -279,7 +282,7 @@ TEST_CASE("profile file: truncated, corrupt and hostile files fall back to defau
         // Settings: count far above what the chunk can hold.
         std::vector<u8> bad = good;
         size_t at = 0;
-        for (size_t i = 20; i + 4 <= bad.size(); i++)
+        for (size_t i = kPayloadAt; i + 4 <= bad.size(); i++)
             if (std::memcmp(&bad[i], "SETT", 4) == 0) { at = i; break; }
         REQUIRE(at > 0);
         bad[at + 8] = 0xFF;
@@ -294,7 +297,7 @@ TEST_CASE("profile file: truncated, corrupt and hostile files fall back to defau
     // Wrong version, wrong magic, oversized.
     {
         std::vector<u8> bad = good;
-        bad[8] = 2;
+        bad[8] = 3;
         Profile q;
         CHECK_FALSE(deserializeProfile(bad.data(), bad.size(), q));
         bad = good;
@@ -383,7 +386,7 @@ TEST_CASE("profile: a game of 18 missions and 6 helicopters stays inside its cou
     for (int i = 18; i < kMaxMissions; i++) CHECK_FALSE(p.missionUnlocked[i]);
 }
 
-TEST_CASE("profile file: counts follow the game; a file of another game is rejected") {
+TEST_CASE("profile file: counts are data; a file of another game is rejected") {
     static const GameRules rules = smallRules();
     Profile small;
     small.progress = Progress::defaults(rules);
@@ -398,15 +401,19 @@ TEST_CASE("profile file: counts follow the game; a file of another game is rejec
     CHECK(back.progress.missionCount == 18);
     CHECK(back.progress.missionUnlocked[17]);
     CHECK(back.progress.helicopterUnlocked[5]);
-    // Loaded as the first game's profile: the counts differ, progress falls back to defaults.
-    Profile wrong;
+    // Read by the first game (20 missions, 10 helicopters): the file lacks two missions and
+    // four helicopters, which take the defaults; what it has is kept.
+    Profile wide;
     std::string why;
-    CHECK_FALSE(deserializeProfile(bytes.data(), bytes.size(), wrong, &why));
-    CHECK(wrong.progress.missionCount == 20);
-    CHECK_FALSE(wrong.progress.missionUnlocked[17]);
-    // And the other way round.
-    Profile wrong2;
-    wrong2.progress = Progress::defaults(rules);
-    CHECK_FALSE(deserializeProfile(first.data(), first.size(), wrong2, &why));
-    CHECK(wrong2.progress.missionCount == 18);
+    CHECK_MESSAGE(deserializeProfile(bytes.data(), bytes.size(), wide, &why), why);
+    CHECK(wide.progress.missionCount == 20);
+    CHECK(wide.progress.missionUnlocked[17]);
+    CHECK_FALSE(wide.progress.missionUnlocked[19]);
+    CHECK(wide.progress.helicopterUnlocked[5]);
+    // The other way round: the entries beyond the game's counts are ignored.
+    Profile narrow;
+    narrow.progress = Progress::defaults(rules);
+    CHECK(deserializeProfile(first.data(), first.size(), narrow));
+    CHECK(narrow.progress.missionCount == 18);
+    CHECK_FALSE(narrow.progress.missionUnlocked[19]);
 }

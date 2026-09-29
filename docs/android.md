@@ -55,8 +55,10 @@ It also copies, when the data has them, the front end's loose files: `Settings.x
 executable by `tools/extract_exe_texts.py`, issue 080: Information pages, rank names). Without
 them the menus still work. Everything in `android/app/src/main/assets/` is gitignored there.
 
-The profile (unlocks, high scores, settings) is `profile.bin` in the app's internal files
-directory; it is written after a mission, a high score or a settings change and whenever the
+The profile (unlocks, high scores, settings) is `<game key>/profile.bin` (`as3d/profile.bin`
+for this game) in the app's internal files directory, one save per game; a save of an earlier
+release, `profile.bin` beside it, is moved there on the first start and kept as
+`profile.v1.bak` (docs/spec/issues/160). It is written after a mission, a high score or a settings change and whenever the
 app goes to the background. Uninstalling the app removes it.
 
 ## Building

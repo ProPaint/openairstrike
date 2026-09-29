@@ -82,5 +82,13 @@ bool readPlatformFile(const std::string& path, Blob& out);
 // when neither can be used). Android: the app's internal files directory. Web (Emscripten):
 // /persist, which the page backs with browser storage. Empty on failure.
 std::string userDataDir();
+// The environment variable AS3D_USER_DATA_DIR replaces the desktop location (tests).
+
+// The directory of one game's save, <userDataDir()>/<key>/, created, with a trailing '/'.
+// Empty on failure.
+std::string gameDataDir(const char* gameKey);
+
+// mkdir -p; true if the directory exists afterwards.
+bool makeDirectories(const std::string& dir);
 
 } // namespace as3d

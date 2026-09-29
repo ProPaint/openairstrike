@@ -32,10 +32,8 @@ bool readPlatformFile(const std::string& path, Blob& out) {
     return ok;
 }
 
-namespace {
-
 // mkdir -p for an absolute or relative path; true if the directory exists afterwards.
-bool makeDirs(const std::string& dir) {
+bool makeDirectories(const std::string& dir) {
     for (size_t i = 1; i <= dir.size(); ++i) {
         if (i < dir.size() && dir[i] != '/') continue;
         std::string part = dir.substr(0, i);
@@ -44,8 +42,6 @@ bool makeDirs(const std::string& dir) {
     struct stat st;
     return ::stat(dir.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
 }
-
-} // namespace
 
 std::string userDataDir() {
 #ifdef __ANDROID__
@@ -61,18 +57,31 @@ std::string userDataDir() {
     std::string dir = "/persist";
 #else
     std::string dir;
+    const char* over = std::getenv("AS3D_USER_DATA_DIR"); // tests and portable installs
     const char* xdg = std::getenv("XDG_DATA_HOME");
     const char* home = std::getenv("HOME");
-    if (xdg && *xdg == '/') dir = std::string(xdg) + "/airstrike3d";
+    if (over && *over) dir = over;
+    else if (xdg && *xdg == '/') dir = std::string(xdg) + "/airstrike3d";
     else if (home && *home) dir = std::string(home) + "/.local/share/airstrike3d";
     else dir = ".";
 #endif
-    if (!makeDirs(dir)) {
+    if (!makeDirectories(dir)) {
         AS3D_ERROR("userDataDir: cannot create '%s'", dir.c_str());
         return std::string();
     }
     if (dir.back() != '/') dir += '/';
     return dir;
+}
+
+std::string gameDataDir(const char* gameKey) {
+    std::string dir = userDataDir();
+    if (dir.empty() || !gameKey || !*gameKey) return std::string();
+    dir += gameKey;
+    if (!makeDirectories(dir)) {
+        AS3D_ERROR("gameDataDir: cannot create '%s'", dir.c_str());
+        return std::string();
+    }
+    return dir + '/';
 }
 
 } // namespace as3d
