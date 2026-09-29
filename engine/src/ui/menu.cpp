@@ -208,7 +208,7 @@ MenuItem& Menu::addCustom(int id, RectF hit, ItemDrawFn draw, ItemKeyFn onKey) {
 
 MenuItem& Menu::addTextButton(int id, RectF hit, std::string label, u32 flags) {
     MenuItem& it = addCustom(id, hit, [](MenuDrawContext& c, MenuItem& self, bool focused) {
-        drawTextButton(c, self.hit, self.label, focused, self.disabled());
+        drawTextButton(c, self.hit, self.label, focused, self.disabled(), self.textScale);
     });
     it.label = std::move(label);
     it.flags = flags;

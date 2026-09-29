@@ -2,6 +2,7 @@
 #include <cstdio>
 
 #include "as3d/frontend.h"
+#include "plain_layout.h"
 
 namespace as3d::ui {
 
@@ -17,13 +18,15 @@ constexpr RectF kDelButton{532, 282, 52, 22};
 
 Menu Frontend::buildTopScores() {
     Menu m;
-    m.addButton(1, 50, 450, 128, 64, "menu\\back_1.tga", "menu\\back_2.tga");
+    if (plain()) m.addTextButton(1, kPlainLeft, texts_.get("plain.back")).textScale = kPlainButtonScale;
+    else m.addButton(1, 50, 450, 128, 64, "menu\\back_1.tga", "menu\\back_2.tga");
     m.onItem = [this](Menu&, MenuItem& it, int ev) {
         if (ev == kActivate && it.id == 1) menus_.pop();
     };
     m.drawBack = [this](MenuDrawContext& c) {
         widgets::letterbox(c);
-        widgets::header(c, "menu\\topscores", 225, 63, 350, 64);
+        if (c.plain) widgets::plainTitle(c, texts_.get("plain.title.scores"));
+        else widgets::header(c, "menu\\topscores", 225, 63, 350, 64);
         widgets::panel(c, 130, 140, 540, 298);
         c.r.rect(130, 140, 540, 20, packed(0x80000060u), Blend::Alpha);
         widgets::text(c, 138, 142, texts_.get("scores.number"), orange());
@@ -46,7 +49,8 @@ Menu Frontend::buildNameEntry() {
     Menu m;
     m.swallowBack = true; // there is no way to skip; an empty name is accepted
     m.addEdit(kEditId, 275, 285, 250);
-    m.addButton(kOkId, 350, 320, 100, 64, "menu\\apply_ok_1.tga", "menu\\apply_ok_2.tga", {0.6094f, 0, 1, 1});
+    if (plain()) m.addTextButton(kOkId, {350, 322, 100, 36}, texts_.get("plain.ok")).textScale = kPlainButtonScale;
+    else m.addButton(kOkId, 350, 320, 100, 64, "menu\\apply_ok_1.tga", "menu\\apply_ok_2.tga", {0.6094f, 0, 1, 1});
     if (touch_) {
         m.addTextButton(kDelId, kDelButton, texts_.get("touch.del"), itemflag::NoHoverSound);
         for (int row = 0; row < 4; row++)
@@ -93,6 +97,7 @@ Menu Frontend::buildNameEntry() {
     };
     m.drawBack = [this](MenuDrawContext& c) {
         widgets::letterbox(c);
+        if (c.plain) widgets::plainTitle(c, texts_.get("plain.title.name"));
         widgets::panel(c, 210, 220, 380, 160);
         widgets::text(c, 400, 240, texts_.get("label.enter_name"), orange(), Align::Center);
     };

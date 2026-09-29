@@ -59,16 +59,26 @@ FrontendContent loadContent() {
     viewer::mountGameData(vfs);
     as3d::DefDatabase db;
     db.load(vfs);
+    const as3d::GameData* game = viewer::selectedGame();
+    const as3d::GameRules& rules = game && game->game ? game->game->rules : as3d::defaultGameRules();
+    if (game && game->game) c.game = game->game;
     // Levels with a `name` are the missions, in table order (levels-txt.md).
     int i = 0;
     for (const as3d::LevelDef& d : db.levels()) {
-        if (d.name.empty() || i >= as3d::defaultGameRules().missionCount) continue;
+        if (d.name.empty() || i >= rules.missionCount) continue;
         c.missionNames[i] = d.name;
         c.enableHelic[i] = d.enableHelic;
         i++;
     }
+    // The plain front end lists the helicopters with what their definitions say.
+    for (int h = 0; h < rules.helicopterCount && rules.heliObjects; h++)
+        if (const as3d::ObjectDef* o = db.findObject(rules.heliObjects[h])) {
+            c.heli[h].known = true;
+            c.heli[h].health = o->health;
+            c.heli[h].hasSpeed = o->hasSpeed;
+            c.heli[h].speed = o->speed;
+        }
     std::string xml;
-    const as3d::GameData* game = viewer::selectedGame();
     if (game && !game->settingsXml.empty() && readFile(game->settingsXml, xml)) {
         parseSettingsXml(xml, c);
         removeRereleaseBranding(c);
@@ -116,7 +126,15 @@ int run(int argc, char** argv) {
     NullHost host;
     as3d::Profile profile;
     FrontendContent content = loadContent();
-    content.videoOptions = !touch; // a touch device has no video modes to pick
+    const bool plainGame = content.game && content.game->frontend == as3d::FrontendStyle::PlainList;
+    profile.progress = as3d::Progress::defaults(content.game ? content.game->rules : as3d::defaultGameRules(),
+                                                plainGame ? 1 : 2);
+    content.videoOptions = !touch && !plainGame; // a touch device has no video modes to pick; the sequels have none
+    if (plainGame) {
+        content.screenOption = true; // as the game host offers it on wide windows
+        content.handOption = touch;
+        content.twoPlayerMode = false;
+    }
     Frontend fe(host, profile, content, texts);
     fe.setTouchMode(touch);
     fe.menus().setPointer(px, py);

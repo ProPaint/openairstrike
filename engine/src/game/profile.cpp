@@ -59,7 +59,7 @@ double Campaign::highScoreRankValue() const {
 // ---------------------------------------------------------------------------
 // Progress
 // ---------------------------------------------------------------------------
-Progress Progress::defaults(const GameRules& rules) {
+Progress Progress::defaults(const GameRules& rules, int helicoptersUnlocked) {
     Progress p;
     p.missionCount = rules.missionCount;
     p.helicopterCount = rules.helicopterCount;
@@ -72,7 +72,7 @@ Progress Progress::defaults(const GameRules& rules) {
         {"Jennifer", 75000, 1},      {"Turner", 50000, 1},    {"Linda", 30000, 0},
     };
     for (int i = 0; i < kHighScoreCount; i++) p.scores[i] = {t[i].name, t[i].score, t[i].rank};
-    p.helicopterUnlocked[0] = p.helicopterUnlocked[1] = true;
+    for (int i = 0; i < helicoptersUnlocked && i < kMaxHelicopters; i++) p.helicopterUnlocked[i] = true;
     p.missionUnlocked[0] = p.missionUnlocked[1] = true;
     return p;
 }

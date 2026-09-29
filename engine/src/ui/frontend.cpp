@@ -24,6 +24,17 @@ const char* kScreenNames[] = {"main", "exit", "start", "scores", "name", "option
 // Touch mode: the button that stands for Esc during play (docs/spec/issues/090).
 constexpr RectF kTouchMenuButton{360, 6, 80, 22};
 
+// The loading screen is drawn by the hosts through drawLoadingScreen(), which has no front end
+// at hand: the plain front end of a PlainList game leaves what it needs here.
+struct LoadingState {
+    bool plain = false;
+    std::string title, mission;
+};
+LoadingState& loadingState() {
+    static LoadingState s;
+    return s;
+}
+
 } // namespace
 
 const char* screenName(Screen s) { return kScreenNames[static_cast<int>(s)]; }
@@ -39,11 +50,19 @@ Frontend::Frontend(GameHost& host, Profile& profile, FrontendContent content, Te
       campaign_(rules()) {
     menus_.showHints = profile_.settings.showHints;
     menus_.drawCursor = !profile_.settings.useSystemMouse;
+    menus_.plain = plain();
     pending_ = profile_.settings;
     refreshLocks();
+    if (plain()) {
+        heli_[0] = heli_[1] = 0; // as2 engine-behaviour.delta.md 7.6: both players start on entry 0
+        loadingState().plain = true;
+        loadingState().title = content_.game->title;
+    }
 }
 
-Frontend::~Frontend() = default;
+Frontend::~Frontend() {
+    if (plain()) loadingState() = LoadingState{};
+}
 
 void Frontend::setTouchMode(bool on) {
     touch_ = on;
@@ -55,7 +74,7 @@ void Frontend::refreshLocks() {
 }
 
 void Frontend::boot() {
-    heli_[0] = 1;
+    heli_[0] = plain() ? 0 : 1;
     heli_[1] = 0;
     heliAlternator_ = 0;
     paused_ = hudHidden_ = false;
@@ -74,7 +93,7 @@ void Frontend::boot() {
 
 float Frontend::brightness() const { return state_ == FrontendState::Intro ? 0.5f : profile_.settings.brightness; }
 
-bool Frontend::bannerVisible() const { return !menus_.empty() && topScreen() == Screen::MainMenu; }
+bool Frontend::bannerVisible() const { return !plain() && !menus_.empty() && topScreen() == Screen::MainMenu; }
 
 bool Frontend::wantsTextInput() const {
     // Touch mode has its own keyboard on the name-entry screen.
@@ -89,7 +108,23 @@ Screen Frontend::topScreen() const {
 
 void Frontend::open(Screen s) {
     Menu m;
-    switch (s) {
+    if (plain()) {
+        switch (s) {
+            case Screen::MainMenu: m = buildPlainMain(); break;
+            case Screen::Exit: m = buildPlainExit(); break;
+            case Screen::StartGame: m = buildPlainStartGame(); break;
+            case Screen::InGame: m = buildPlainInGame(); break;
+            case Screen::Hint: m = buildPlainHint(); break;
+            case Screen::GameOver: m = buildPlainGameOver(); break;
+            case Screen::MissionComplete: m = buildPlainMissionComplete(); break;
+            case Screen::GameComplete: m = buildPlainGameComplete(); break;
+            case Screen::Information: return; // left out: the sequels' texts are not extracted (issue 260)
+            case Screen::TopScores: m = buildTopScores(); break;
+            case Screen::NameEntry: m = buildNameEntry(); break;
+            case Screen::Options: m = buildOptions(); break;
+            case Screen::Controls: m = buildControls(); break;
+        }
+    } else switch (s) {
         case Screen::MainMenu: m = buildMainMenu(); break;
         case Screen::Exit: m = buildExit(); break;
         case Screen::StartGame: m = buildStartGame(); break;
@@ -145,9 +180,17 @@ void Frontend::startCampaign(int mission, int difficulty, int players) {
     startLevel(false);
 }
 
-void Frontend::startLevel(bool restart) {
+void Frontend::startLevel(bool restart, bool carryUpgrades) {
     MissionStart ms;
     ms.mission = campaign_.mission;
+    if (carryUpgrades && haveCarried_) {
+        ms.carryUpgrades = true;
+        for (int i = 0; i < 2; i++) {
+            ms.weapon[i] = carriedWeapon_[i];
+            for (int k = 0; k < kMaxWeaponSlots; k++) ms.upgrades[i][k] = carriedUpgrades_[i][k];
+        }
+    }
+    if (plain()) loadingState().mission = missionLabel(campaign_.mission);
     ms.difficulty = campaign_.difficulty;
     ms.players = campaign_.players;
     ms.restart = restart;
@@ -166,7 +209,9 @@ void Frontend::continueCampaign() {
     menus_.clear();
     campaign_.bank(report_.players, report_.totals);
     campaign_.mission = campaign_.nextMission();
-    startLevel(false);
+    // "Next" keeps the upgrades collected so far in a game that says so (the first game clears
+    // them at every level start and never sets the flag).
+    startLevel(false, rules().upgradesCarryToNextMission);
 }
 
 void Frontend::quitToMainMenu(bool bank, bool check) {
@@ -187,6 +232,11 @@ void Frontend::highScoreCheck() {
 
 void Frontend::onEndLevel(const MissionReport& report) {
     report_ = report;
+    haveCarried_ = report.hasUpgrades;
+    for (int i = 0; i < 2; i++) {
+        carriedWeapon_[i] = report.weapon[i];
+        for (int k = 0; k < kMaxWeaponSlots; k++) carriedUpgrades_[i][k] = report.upgrades[i][k];
+    }
     setPausedFlag(true);
     hudHidden_ = true;
     const int mission = std::clamp(campaign_.mission, 0, rules().missionCount - 1);
@@ -339,7 +389,7 @@ void Frontend::drawIntro(Renderer2D& r, const UiAssets& a) {
 
 void Frontend::drawTouchPlayButtons(Renderer2D& r, const UiAssets& a) {
     Menu dummy;
-    MenuDrawContext c{r, a, dummy, 0, true, 0};
+    MenuDrawContext c{r, a, dummy, 0, true, 0, plain()};
     drawTextButton(c, kTouchMenuButton, texts_.get("touch.menu"), false, false);
 }
 
@@ -359,6 +409,24 @@ void Frontend::drawOver(Renderer2D& r, const UiAssets& a) {
 
 void drawLoadingScreen(Renderer2D& r, const UiAssets& a, float progress, bool intermission) {
     r.fullscreen({0, 0, 0, 1}, Blend::Opaque);
+    if (loadingState().plain) {
+        // Ours: "Loading", the mission's name (none for an attract level) and a progress bar, in
+        // the game font on black.
+        const float p = std::clamp(progress, 0.0f, 1.0f);
+        Menu dummy;
+        MenuDrawContext c{r, a, dummy, 0, false, 0, true};
+        if (!intermission) {
+            widgets::shadowedText(c, 400, 236, "Loading", orange(), Align::Center, 2.0f);
+            if (!loadingState().mission.empty())
+                widgets::shadowedText(c, 400, 290, loadingState().mission, Color{}, Align::Center);
+            r.rect(250, 330, 300, 14, {0.188f, 0, 0, 1}, Blend::Opaque);
+            r.rect(252, 332, 296 * p, 10, orange(), Blend::Opaque);
+            r.outline(250, 330, 300, 14, rust(), Blend::Opaque);
+        } else {
+            r.rect(10, 595, p * 780, 1, {0.314f, 0, 0, 1}, Blend::Opaque);
+        }
+        return;
+    }
     if (!intermission)
         if (const Texture2D* t = a.texture("menu\\loading.tga")) r.pic(272, 172, *t, Color{}, Blend::Alpha);
     r.rect(10, 595, std::clamp(progress, 0.0f, 1.0f) * 780, 1, {0.314f, 0, 0, 1}, Blend::Opaque);
@@ -377,7 +445,11 @@ bool Frontend::debugSet(std::string_view key, std::string_view value) {
         return true;
     }
     if (key == "players") { twoPlayers_ = n >= 2; campaign_.players = twoPlayers_ ? 2 : 1; return true; }
-    if (key == "mission") { campaign_.mission = std::clamp(n - 1, 0, rules().missionCount - 1); return true; }
+    if (key == "mission") {
+        campaign_.mission = std::clamp(n - 1, 0, rules().missionCount - 1);
+        if (plain()) loadingState().mission = missionLabel(campaign_.mission);
+        return true;
+    }
     if (key == "unlock") {
         for (int i = 0; i < rules().helicopterCount; i++) profile_.progress.helicopterUnlocked[i] = true;
         for (int i = 0; i < rules().missionCount; i++) profile_.progress.missionUnlocked[i] = true;

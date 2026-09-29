@@ -101,6 +101,13 @@ void letterbox(MenuDrawContext& c) {
     const float l = std::min(m.left(), 0.0f), w = std::max(m.right(), 800.0f) - l;
     c.r.rect(l, std::min(m.top(), 0.0f), w, 100 - std::min(m.top(), 0.0f), {0, 0, 0, 1}, Blend::Opaque);
     c.r.rect(l, 500, w, std::max(m.bottom(), 600.0f) - 500, {0, 0, 0, 1}, Blend::Opaque);
+    if (c.plain) {
+        // Two rules where the first game has its corner ornament, at the same rows.
+        const Color rule = packed(0xFF0030C0u);
+        c.r.rect(l, 98, w, 2, rule, Blend::Opaque);
+        c.r.rect(l, 500, w, 2, rule, Blend::Opaque);
+        return;
+    }
     if (const Texture2D* t = c.a.texture("menu\\corner.tga")) {
         c.r.quadSpec(l, 487, w, 16, 0.97f, 0, 0.99f, 0.97f, t, Color{}, Blend::Alpha);
         c.r.quadSpec(l, 97, w, 16, 0.99f, 0.97f, 0.97f, 0, t, Color{}, Blend::Alpha);
@@ -113,6 +120,18 @@ void header(MenuDrawContext& c, std::string_view base, float x, float y, float w
     for (int i = 0; i < 3; i++)
         if (const Texture2D* t = c.a.texture(std::string(base) + suffix[i]))
             c.r.quadSpec(x, y, w, h, 0, 0, 1, 1, t, Color{}, blend[i]);
+}
+
+void plainTitle(MenuDrawContext& c, std::string_view title, float scale) {
+    shadowedText(c, 400, 50.0f - 7.5f * scale, title, orange(), Align::Center, scale);
+}
+
+void shadowedText(MenuDrawContext& c, float x, float y, std::string_view s, Color col, Align al, float scale) {
+    TextStyle st;
+    st.color = col;
+    st.align = al;
+    st.scale = scale;
+    drawTextShadowed(c.r, c.a.uiFont(), x, y, s, st);
 }
 
 void panel(MenuDrawContext& c, float x, float y, float w, float h) {
@@ -129,14 +148,23 @@ void text(MenuDrawContext& c, float x, float y, std::string_view s, Color col, A
 
 } // namespace widgets
 
-void drawTextButton(MenuDrawContext& c, const RectF& hit, std::string_view label, bool focused, bool disabled) {
+void drawTextButton(MenuDrawContext& c, const RectF& hit, std::string_view label, bool focused, bool disabled,
+                    float textScale) {
     c.r.rect(hit.x, hit.y, hit.w, hit.h, packed(kFocusBox), Blend::Alpha);
     Color col = disabled ? kDark : (focused ? orange() : rust());
     if (focused && !disabled) {
         Color p = pulse(2, 0, c.mt);
         c.r.outline(hit.x, hit.y, hit.w, hit.h, {p.r, p.g * 0.63f, 0, 1}, Blend::Add);
     }
-    widgets::text(c, hit.x + hit.w * 0.5f, hit.y + std::floor((hit.h - 15) * 0.5f), label, col, Align::Center);
+    if (textScale == 1) {
+        widgets::text(c, hit.x + hit.w * 0.5f, hit.y + std::floor((hit.h - 15) * 0.5f), label, col, Align::Center);
+        return;
+    }
+    TextStyle st;
+    st.color = col;
+    st.align = Align::Center;
+    st.scale = textScale;
+    drawText(c.r, c.a.uiFont(), hit.x + hit.w * 0.5f, hit.y + std::floor((hit.h - 15 * textScale) * 0.5f), label, st);
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +194,7 @@ bool MenuSystem::widgetKey(Menu& m, int index, int code) {
                     // Touch: tapping the field focuses it (and brings up the keyboard) rather
                     // than submitting it as a click does in the original.
                     return touchMode;
-                default: return nav || code == keys::Tab;
+                default: return !plain && (nav || code == keys::Tab);
             }
         }
         case ItemType::Spinner: {
@@ -185,7 +213,9 @@ bool MenuSystem::widgetKey(Menu& m, int index, int code) {
                 sendEvent(m, index, kActivate);
                 return true;
             }
-            return nav || code == keys::Tab;
+            // The first game's spinners keep Up, Down and Tab (mouse-driven menus); the plain
+            // front end must be operable by keyboard alone, so they move the focus there.
+            return !plain && (nav || code == keys::Tab);
         }
         case ItemType::Slider: {
             float before = it.value;
@@ -305,10 +335,26 @@ void drawList(MenuDrawContext& c, MenuItem& it) {
         }
         widgets::text(c, it.x + 10, ry, le.text, col);
     }
-    const Texture2D* s1 = c.a.texture("menu\\scroller_1.tga");
     const float bx = it.x + it.w - 22;
     const int range = std::max(n - vis, 1);
     const float thumbY = it.y + 28 + static_cast<float>(it.top) * (it.h - 68) / static_cast<float>(range);
+    if (c.plain) {
+        // Scroll bar drawn with rectangles: a track, a thumb and two filled triangles.
+        const Color bar = rust();
+        c.r.rect(bx + 2, it.y + 2, 18, it.h - 4, {0, 0, 0, 0.3f}, Blend::Alpha);
+        c.r.outline(bx + 2, it.y + 2, 18, it.h - 4, {0.376f, 0, 0, 1}, Blend::Alpha);
+        for (int k = 0; k < 9; k++) {
+            const float half = 1.0f + 0.75f * static_cast<float>(k);
+            c.r.rect(bx + 11 - half, it.y + 8 + static_cast<float>(k), 2 * half, 1, bar, Blend::Alpha);
+            c.r.rect(bx + 11 - half, it.y + it.h - 8 - static_cast<float>(k) - 1, 2 * half, 1, bar, Blend::Alpha);
+        }
+        if (n > vis) {
+            c.r.rect(bx + 4, thumbY, 14, 24, {0.376f, 0, 0, 1}, Blend::Alpha);
+            c.r.outline(bx + 4, thumbY, 14, 24, orange(), Blend::Alpha);
+        }
+        return;
+    }
+    const Texture2D* s1 = c.a.texture("menu\\scroller_1.tga");
     struct Piece { float y, h, t0, t1; };
     const Piece up{it.y, 37, 0.711f, 1.0f}, thumb{thumbY, 24, 0.523f, 0.711f}, down{it.y + it.h - 32, 39, 0.219f, 0.523f};
     for (const Piece& p : {up, thumb, down})
@@ -333,6 +379,15 @@ void drawSpinner(MenuDrawContext& c, MenuItem& it, bool focused) {
 void drawSlider(MenuDrawContext& c, MenuItem& it, bool focused) {
     Color col = it.disabled() ? kDark : (focused ? orange() : rust());
     widgets::text(c, it.x - 10, it.y, it.label, col, Align::Right);
+    if (c.plain) {
+        const float kx = knobX(it);
+        c.r.rect(it.x + 8, it.y + 5, 128, 4, {0, 0, 0, 0.5f}, Blend::Alpha);
+        c.r.rect(it.x + 8, it.y + 5, kx - it.x, 4, rust(), Blend::Alpha);
+        c.r.outline(it.x + 8, it.y + 5, 128, 4, {0.376f, 0, 0, 1}, Blend::Alpha);
+        c.r.rect(kx, it.y - 1, 16, 18, focused ? Color{0.376f, 0, 0, 1} : Color{0.188f, 0, 0, 1}, Blend::Alpha);
+        c.r.outline(kx, it.y - 1, 16, 18, col, Blend::Alpha);
+        return;
+    }
     if (const Texture2D* t = c.a.texture("menu\\slider.tga"))
         c.r.quadSpec(it.x + 8, it.y - 2, 128, 16, 0, 0, 1, 1, t, Color{}, Blend::Alpha);
     const float kx = knobX(it);
@@ -404,14 +459,14 @@ void drawGrid(MenuDrawContext& c, MenuItem& it, float px, float py) {
 void MenuSystem::drawBackground(Renderer2D& r, const UiAssets& a) {
     Menu* m = top();
     if (!m || !m->drawBack) return;
-    MenuDrawContext c{r, a, *m, mt_, touchMode, clockMs_};
+    MenuDrawContext c{r, a, *m, mt_, touchMode, clockMs_, plain};
     m->drawBack(c);
 }
 
 void MenuSystem::drawItems(Renderer2D& r, const UiAssets& a) {
     Menu* m = top();
     if (!m) return;
-    MenuDrawContext c{r, a, *m, mt_, touchMode, clockMs_};
+    MenuDrawContext c{r, a, *m, mt_, touchMode, clockMs_, plain};
     for (size_t i = 0; i < m->items.size(); i++) {
         MenuItem& it = m->items[i];
         if (it.hidden()) continue;
@@ -423,7 +478,7 @@ void MenuSystem::drawItems(Renderer2D& r, const UiAssets& a) {
             case ItemType::List: {
                 drawList(c, it);
                 // Arrow highlight under the pointer (frontend.md 2.5).
-                const Texture2D* s2 = a.texture("menu\\scroller_2.tga");
+                const Texture2D* s2 = plain ? nullptr : a.texture("menu\\scroller_2.tga");
                 if (s2 && !touchMode) {
                     const float bx = it.x + it.w - 22;
                     if (px_ >= bx && px_ < bx + 32 && py_ >= it.y && py_ < it.y + 26)

@@ -104,8 +104,10 @@ struct Progress {
     bool helicopterUnlocked[kMaxHelicopters] = {};
     bool missionUnlocked[kMaxMissions] = {};
 
-    // The compiled-in table, helicopters 0-1 and missions 1-2, sized by the game's rules.
-    static Progress defaults(const GameRules& rules = defaultGameRules());
+    // The compiled-in table, missions 1-2 and the first `helicoptersUnlocked` helicopters (the
+    // first game: 2; AirStrike 2 unlocks only entry 0, as2 engine-behaviour.delta.md 7.6, and
+    // GameFlow passes 1 for the games with the plain front end), sized by the game's rules.
+    static Progress defaults(const GameRules& rules = defaultGameRules(), int helicoptersUnlocked = 2);
 
     // Slot the score would take (first entry whose score <= score), or -1 if it does not
     // qualify (frontend.md 3.12).
