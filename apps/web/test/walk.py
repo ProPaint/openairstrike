@@ -17,8 +17,8 @@ Scenarios (each in a fresh browser context, so fresh storage):
              layout in landscape, the rotate notice in portrait.
   complete   the bot with god mode plays mission 1 from the menus to Mission Complete, then
              Continue loads mission 2 (about 4 minutes).
-  gameover   a profile with a low high-score table; the bot without god mode at the hardest
-             difficulty until Game Over, Quit, name entry with the touch keyboard, Top Scores.
+  gameover   a profile with a zero high-score table; mission 2 at the hardest difficulty with
+             nobody flying until Game Over, Quit, name entry with the touch keyboard, Top Scores.
   byo        the bring-your-own site: the owner's files through the file input, stored,
              used again after a reload, removed.
 Screenshots go to DIR; a JSON report beside them (walk_<engine>.json). Exit code 1 on failure.
@@ -139,17 +139,21 @@ def wait_new_screen(p, name, mark, timeout=60):
     return p.wait_line(r"AS3D_SCREEN name=" + name + r"\b", timeout, after=mark)
 
 
-def start_mission(w, p, by="mouse", difficulty_taps=0):
+def start_mission(w, p, by="mouse", difficulty_taps=0, mission_row=1):
     mk = p.mark()
     p.tap_item("main", 1, by)                       # Start Game
     wait_new_screen(p, "start", mk)
     p.page.wait_for_timeout(400)
+    if mission_row > 1:
+        x, y, w_, h_, _ = p.menu_items("start")[3]  # the mission list, rows of 20
+        p.tap_virtual(x + 40, y + 4 + 20 * (mission_row - 1) + 5, by)
+        p.page.wait_for_timeout(250)
     for _ in range(difficulty_taps):
         p.tap_item("start", 4, by)                  # the Difficulty spinner
         p.page.wait_for_timeout(250)
     mk = p.mark()
     p.tap_item("start", 2, by)                      # Start
-    p.wait_line(r"AS3D_LEVEL_LOADED mission=1", 90, after=mk)
+    p.wait_line(r"AS3D_LEVEL_LOADED mission=%d" % mission_row, 90, after=mk)
     wait_new_screen(p, "(playing|hint)", mk, 60)
 
 
@@ -526,7 +530,7 @@ def complete(w, b):
 
 def gameover(w, b):
     # Touch mode, so the name is typed on the front end's own keyboard.
-    p = b.page(w.a.url, "bot=1&menus=1&touch=1", viewport={"width": 1280, "height": 720}, has_touch=True)
+    p = b.page(w.a.url, "touch=1", viewport={"width": 1280, "height": 720}, has_touch=True)
     r = {}
     try:
         p.wait_ready()
@@ -540,7 +544,7 @@ def gameover(w, b):
         p.tap_item("options", 1, "touch")   # Back writes the profile
         p.wait_line(r"AS3D_WEB profile_synced", 10, after=mk)
         prof = read_profile(p)
-        low = [("Low %d" % i, 15 - i, 0) for i in range(15)]
+        low = [("Low %d" % i, 0, 0) for i in range(15)]
         data = profile_with_scores(prof, low)
         p.page.evaluate("(bytes) => { Module.FS.writeFile('/persist/profile.bin', new Uint8Array(bytes));"
                         " return new Promise((ok) => Module.FS.syncfs(false, ok)); }", list(data))
@@ -549,15 +553,21 @@ def gameover(w, b):
         assert parse_profile(read_profile(p))["scores"][0][0] == "Low 0"
         p.page.click("#play")
         to_main_menu(w, p, by="touch")
-        w.step("gameover: the bot without god mode, hardest difficulty")
-        start_mission(w, p, by="touch", difficulty_taps=2)
+        w.step("gameover: mission 2 at the hardest difficulty, nobody flying")
+        start_mission(w, p, by="touch", difficulty_taps=2, mission_row=2)
         t0 = time.time()
-        p.wait_line(r"AS3D_SCREEN name=gameover", 600)
+        try:
+            p.wait_line(r"AS3D_SCREEN name=gameover", 600)
+        finally:
+            r["screens"] = [t for t in p.texts() if "AS3D_SCREEN" in t or "AS3D_PAUSED" in t or "AS3D_WEB" in t][-30:]
+            w.shot(p, "gameover_wait_end")
         r["seconds_to_game_over"] = round(time.time() - t0)
         p.page.wait_for_timeout(2600)   # the buttons appear after 2 s
         w.shot(p, "game_over")
         mk = p.mark()
-        p.tap_item("gameover", 2, "touch")   # Quit: banks, then the high-score check
+        # Quit (banks, then the high-score check); the buttons show up after 2 s, after the
+        # screen's AS3D_MENU line, so by the position of engine/src/ui/screens_game.cpp.
+        p.tap_virtual(542 + 64, 450 + 32, "touch")
         wait_new_screen(p, "name", mk, 30)
         p.page.wait_for_timeout(600)
         w.step("gameover: name entry with the touch keyboard")

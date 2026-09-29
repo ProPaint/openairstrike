@@ -896,7 +896,9 @@ void GameWindow::frame() {
     updateLayout();
     if (flow_ && flow_->loadPending() && pendingShown_ && !glLost_) {
         pendingShown_ = false;
+        const double t0 = nowSeconds();
         flow_->runPendingLoad();
+        if (o_.markers) AS3D_INFO("AS3D_LOAD_MS ms=%.0f mission=%d", 1000.0 * (nowSeconds() - t0), session_.mission());
         last_ = nowSeconds();
         acc_ = 0.0;
         lastPresent_ = -1;

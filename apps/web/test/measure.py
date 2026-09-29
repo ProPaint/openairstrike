@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Measures the web spike in one headless Chromium through Playwright (docs/web-spike.md).
+"""Measures the web version in one headless Chromium through Playwright (docs/web.md).
 
-    measure.py --url http://127.0.0.1:8765/ --query "app=game&level=1&bot=1" --seconds 60 \
+    measure.py --url http://127.0.0.1:8766/ --query "level=1&bot=1&autostart=1" --seconds 60 \
                --out OUTDIR/name [--gl swiftshader|gpu] [--keys] [--touch] [--click]
 
+The query should hold autostart=1 (the page otherwise waits for its Play button).
 Writes OUTDIR/name.json (renderer, timings, frame statistics, memory, console) and
 OUTDIR/name_*.png. Frame statistics come from wrapping requestAnimationFrame: the interval
 between callbacks that drew and the time spent inside each callback.
@@ -88,8 +89,8 @@ def chrome_rss_mb():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--url", default="http://127.0.0.1:8765/")
-    ap.add_argument("--query", default="app=game&level=1&bot=1")
+    ap.add_argument("--url", default="http://127.0.0.1:8766/")
+    ap.add_argument("--query", default="level=1&bot=1&autostart=1")
     ap.add_argument("--seconds", type=float, default=60)
     ap.add_argument("--out", required=True)
     ap.add_argument("--gl", default="swiftshader", choices=["swiftshader", "gpu"])
@@ -125,7 +126,7 @@ def main():
         page.add_init_script(RAF_HOOK)
         page.goto(a.url + "?" + a.query)
         result["gl"] = page.evaluate(GL_PROBE)
-        first = "AS3D_WEB_FIRST_FRAME" if "app=level" in a.query else "AS3D_GAME_START"
+        first = "AS3D_GAME_START"
         deadline = time.time() + 180
         while time.time() < deadline:
             if any(first in c["text"] or "FATAL" in c["text"] or "ABORT" in c["text"] for c in result["console"]):
@@ -135,7 +136,9 @@ def main():
         page.wait_for_timeout(500)
         raf = page.evaluate("window.__raf")
         result["first_raf_end_ms"] = raf[0][1] if raf else None
-        result["runtime_ready_ms"] = page.evaluate("window.as3dRuntimeMs || null")
+        result["runtime_ready_ms"] = page.evaluate("window.as3dState && window.as3dState.runtimeMs")
+        result["page_first_frame_ms"] = page.evaluate("window.as3dState && window.as3dState.firstFrameMs")
+        result["load_lines"] = [c["text"] for c in result["console"] if "AS3D_LEVEL_LOADED" in c["text"] or "AS3D_LOAD_MS" in c["text"]]
         nav = page.evaluate("JSON.stringify(performance.getEntriesByType('navigation')[0])")
         result["navigation"] = json.loads(nav) if nav else None
         res = page.evaluate("performance.getEntriesByType('resource').map(r => ({name: r.name.split('/').pop(),"
@@ -162,13 +165,13 @@ def main():
                 next_shot = el + a.seconds / max(1, a.shots)
             if a.keys:
                 canvas.focus()
-                page.keyboard.down("Control")
+                page.keyboard.down("Space")
                 page.keyboard.down("ArrowLeft" if int(el) % 4 < 2 else "ArrowRight")
                 page.wait_for_timeout(400)
                 page.keyboard.up("ArrowLeft")
                 page.keyboard.up("ArrowRight")
                 if int(el) % 5 == 0:
-                    page.keyboard.press("Shift")
+                    page.keyboard.press("x")
                 page.keyboard.press("Enter")  # confirms a tutorial hint box
             elif a.touch:
                 x0, y0 = box["x"] + box["width"] * 0.5, box["y"] + box["height"] * 0.7
@@ -218,7 +221,8 @@ def main():
     errs = [c["text"] for c in result["console"] if c["type"] in ("error", "pageerror") or "FATAL" in c["text"]
             or "ERROR" in c["text"] or "ABORT" in c["text"]]
     print(json.dumps({"gl": result["gl"], "first_raf_end_ms": result["first_raf_end_ms"],
-                      "runtime_ready_ms": result["runtime_ready_ms"], "frames": result["frames"],
+                      "runtime_ready_ms": result["runtime_ready_ms"], "page_first_frame_ms": result["page_first_frame_ms"],
+                      "load_lines": result["load_lines"], "frames": result["frames"],
                       "audio_before_input": result["audio_state_before_input"], "audio": result["audio_state"], "memory_last": mem[-1] if mem else None,
                       "audio_rms": result["audio_rms"]}, indent=1))
     print("perf lines:", *perf[-4:], sep="\n  ")
