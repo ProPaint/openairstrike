@@ -59,8 +59,10 @@ touch additions of the menus themselves, 100 the touch controls.
 * Every level start re-initialises the world with the campaign's difficulty, player count and
   helicopters, then sets lives-at-start and banked score from the campaign before loading
   (`frontend.md` 5.2). The world's random generator restarts from the configured seed at every
-  level start, so a mission started from the menus plays exactly like `--level N` with the same
-  input.
+  level start, so a mission started from the menus plays like `--level N` with the same input:
+  same entities, positions, scripts and scores. Only the entity slots' generation counters (and
+  so the values of entity references) differ, because the attract level used the slots first;
+  `apps/tests/game_flow_test.cpp` checks this.
 * The level-name typewriter uses `World::time()` as the level clock (it restarts at level load
   and stops while paused).
 * The mission report takes `p_scores`, `p_lives`, `p_stars` and kills from the player records
