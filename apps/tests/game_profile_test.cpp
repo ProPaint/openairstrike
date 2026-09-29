@@ -49,6 +49,20 @@ TEST_CASE("game profiles: keys, lookup, the first game's rules") {
     CHECK(r.cameraModeCount == 4);
     CHECK(r.cameraModes[3].height == 370.0f);
     CHECK_FALSE(r.terraMorph);
+    CHECK(r.weaponSlots == 20);
+    CHECK(r.missionLoadout == nullptr);
+    CHECK(r.respawnChecksLives);
+    CHECK_FALSE(r.accelInput);
+    CHECK_FALSE(r.touchModeBits);
+
+    const GameRules& a = gameProfile(GameId::AirStrike2).rules;
+    CHECK(a.weaponSlots == 9);
+    REQUIRE(a.missionLoadout != nullptr);
+    CHECK(a.missionLoadout[0][0] == 1);
+    CHECK(a.missionLoadout[17][8] == 3);
+    CHECK(std::string(a.heliObjects[2]) == "player_4");
+    CHECK(a.difficulty[4].health == r.difficulty[4].health);
+    CHECK(a.scrollSpeed == r.scrollSpeed);
 }
 
 TEST_CASE("game profiles: every game fits the maximum sizes") {
@@ -67,6 +81,21 @@ TEST_CASE("game profiles: every game fits the maximum sizes") {
         while (paks <= kMaxPaks && p.paks[paks]) ++paks;
         CHECK(paks >= 1);
         CHECK(paks <= kMaxPaks);
+        CHECK(p.rules.weaponSlots >= 1);
+        CHECK(p.rules.weaponSlots <= kMaxWeaponSlots);
+        if (p.rules.missionLoadout) {
+            // Every mission's loadout owns at least one weapon, inside the slots.
+            for (int m = 0; m < p.rules.missionCount; ++m) {
+                int owned = 0;
+                for (int w = 0; w < kMaxWeaponSlots; ++w) {
+                    int level = p.rules.missionLoadout[m][w];
+                    CHECK(level >= 0);
+                    if (w >= p.rules.weaponSlots) CHECK(level == 0);
+                    owned += level > 0;
+                }
+                CHECK(owned >= 1);
+            }
+        }
         for (int m : p.rules.bonusMissions) CHECK(m <= p.rules.missionCount);
         for (int m : p.rules.bossMissions) CHECK(m <= p.rules.missionCount);
     }

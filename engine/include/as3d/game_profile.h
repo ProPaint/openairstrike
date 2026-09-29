@@ -26,6 +26,7 @@ constexpr int kMaxDifficulties = 8;
 constexpr int kMaxCameraModes = 8;
 constexpr int kMaxPaks = 8;
 constexpr int kMaxSpecialMissions = 8;
+constexpr int kMaxWeaponSlots = 20;
 
 // engine-behaviour.md 6.3: factors on enemy health, enemy damage, score and rank.
 struct DifficultyRow {
@@ -63,6 +64,45 @@ struct GameRules {
     const char* starItemObject = nullptr;
     const char* healthBarEmptyObject = nullptr;
     const char* healthBarFullObject = nullptr;
+
+    // Player and weapons (engine-behaviour.md 7 and 8; as2/engine-behaviour.delta.md 7, 8).
+    int weaponSlots = 0;                 // upgrade slots G_GetUpgrade / G_SetUpgrade accept
+    // Upgrade levels given per mission, missionCount rows of weaponSlots values, or nullptr:
+    // then a level start clears the upgrades and gives slot 0 level 1.
+    const int (*missionLoadout)[kMaxWeaponSlots] = nullptr;
+    bool upgradesCarryToNextMission = false; // the loadout applies on new game and restart only
+    bool deathLosesWeaponLevel = false;
+    u32 powerUpCycleSkip = 0;            // bit n set: "next power-up" skips slot n
+    bool accelInput = false;             // the engine builds the vector GetPlayerAccel returns
+    float mouseAccel = 0;                // length of that vector under mouse control
+    bool mouseControlDefault = false;
+    bool respawnChecksLives = false;     // the native respawn refuses without lives
+    bool clampPlayerHealthToMax = false; // health is cut to the definition's every frame
+    bool healthBarScaleFromMax = false;  // HUD fill = health / maximum; else health / 400
+    int lifeIconsMax = 0;
+
+    // Combat and statistics.
+    bool deadShootersBlocked = false;    // Shoot does nothing for a dead shooter
+    bool touchModeBits = false;          // touch modes are a bit set, dead candidates skipped
+    bool killCapAtEnemyTotal = false;
+    bool statsOnlyOnePlayer = false;
+    bool campaignCheckpoint = false;     // EndLevel stores lives, score and rank for "Continue"
+    const char* lightningEffectObject = nullptr; // spawned on a struck target
+    float lightningEffectInterval = 0;   // seconds between two of them on one target
+    float lightningTimerCap = 0;
+
+    // Level start.
+    bool spawnAllOnIntermission = false; // attract levels spawn every placed object at once
+    bool spawnDuringLoad = false;        // one spawner call and entity pass inside level start,
+                                         // before the counters are reset (as2 issue 211)
+
+    // Water and tyre tracks.
+    bool waterFollowsWaves = false;      // FL_ONWATER uses the animated surface
+    int skidTrailPool = 0;
+    float skidNodeInterval = 0;          // seconds between two fixed nodes of a trail
+    int skidMaxNodes = 0;
+    float skidLife = 0, skidFadeStart = 0;
+    float skidHeightOffset = 0;
 
     // Features only some games have.
     bool terraMorph = false; // run-time terrain deformation

@@ -58,6 +58,7 @@ loose files (`gfx`, `menu`, `models`, `morphmaps`, `textures`, `tiles`, `Setting
 
 | Spec | Status | Package | Notes |
 |---|---|---|---|
+| [engine-behaviour.delta.md](engine-behaviour.delta.md) | verified from code; co-op read from code only; sections 12 (sound) and 13 (rendering) not checked | B4 | player movement through an acceleration vector, 9 weapon slots with a loadout per mission, campaign checkpoint, civilians, touch mode bits, water, skid trails; its values are in `engine/src/game/game_profiles.cpp`; corrects `re/symbols_as2.csv` in `re/symbols_as2_game.csv`; issues [210](issues/210-skid-trail-details.md), [211](issues/211-load-time-spawn-and-statistics.md) |
 | [rcsl-builtins-semantics.delta.md](rcsl-builtins-semantics.delta.md) | verified from code | B3 | 70 same, 15 changed, 16 new; 66 needed for mission 1; wins over rcsl-builtins-table.delta.md for `atan`, `RespawnPlayer`, `G_UsePowerUp` and wherever the two differ; `TerraMorph` needs mutable terrain ([issue 200](issues/200-terramorph-dynamic-terrain.md)) |
 | [symbol-map.md](symbol-map.md) | 522 of 529 named v1.70 functions mapped or marked removed | B1 | overview of what changed in the engine; `re/symbols_as2.csv`, `re/symbols_as2_data.csv`; matching tools in `re/tools/` |
 | [rcsl-container.delta.md](rcsl-container.delta.md) | verified from code | B2 | effectively the same; a script without a CODE section is valid |

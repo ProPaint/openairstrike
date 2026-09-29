@@ -13,7 +13,33 @@ const char* const kHeliAs3d[] = {
     "p_apache",        "p_comanche",      "p_apache_white",  "p_apache_impala", "p_comanche_white",
     "p_comanche_lava", "p_apache_blue",   "p_comanche_sand", "p_comanche_blue", "p_comanche_green",
 };
-const char* const kHeliAs2[] = {"player_1", "player_2", "player_3", "player_4", "player_5", "player_6"};
+// The executable's table order (as2/engine-behaviour.delta.md 7.6): `enableHelic n` of
+// levels.txt unlocks entry n.
+const char* const kHeliAs2[] = {"player_1", "player_2", "player_4", "player_6", "player_5", "player_3"};
+
+// as2/engine-behaviour.delta.md 8.2: upgrade levels per mission. Slots: 0 machine gun,
+// 1 impulse gun, 2 plasma gun, 3 laser, 4 big laser, 5 lightning gun, 6 wave gun,
+// 7 missile gun, 8 flamethrower.
+const int kLoadoutAs2[18][kMaxWeaponSlots] = {
+    {1},                         // 1
+    {4, 3},                      // 2
+    {4, 5},                      // 3
+    {4, 5, 3},                   // 4
+    {0, 5, 7},                   // 5
+    {0, 5, 7, 3},                // 6
+    {0, 0, 7, 3, 0, 0, 0, 5},    // 7
+    {0, 0, 7, 3, 0, 0, 0, 5},    // 8
+    {0, 0, 7, 5, 0, 0, 0, 5},    // 9
+    {0, 0, 7, 8, 0, 0, 3, 5},    // 10
+    {0, 0, 7, 8, 0, 0, 4, 5},    // 11
+    {0, 0, 7, 8, 0, 5, 4, 5},    // 12
+    {0, 0, 7, 8, 3, 5, 4, 5},    // 13
+    {0, 0, 7, 8, 5, 5, 4, 5},    // 14
+    {0, 0, 7, 8, 5, 5, 4, 5, 3}, // 15
+    {0, 0, 7, 8, 5, 5, 4, 5, 3}, // 16
+    {0, 0, 7, 8, 5, 5, 4, 5, 3}, // 17
+    {0, 0, 7, 8, 5, 5, 4, 5, 3}, // 18
+};
 const char* const kHeliGulf[] = {"player_1", "player_2", "player_3"};
 
 GameRules rulesAs3d() {
@@ -44,10 +70,15 @@ GameRules rulesAs3d() {
     r.starItemObject = "item_star";
     r.healthBarEmptyObject = "hbar_empty";
     r.healthBarFullObject = "hbar_full";
+    r.weaponSlots = 20;
+    r.deathLosesWeaponLevel = true;
+    r.respawnChecksLives = true;
+    r.lifeIconsMax = 5;
     return r;
 }
 
-// Known from the data; everything else as the first game until docs/spec/as2 says otherwise.
+// docs/spec/as2/engine-behaviour.delta.md, "Values for GameRules". What that delta found
+// unchanged (difficulty table, scroll, camera, clamps, native object names) is inherited.
 GameRules rulesAs2() {
     GameRules r = rulesAs3d();
     r.missionCount = 18;
@@ -64,14 +95,46 @@ GameRules rulesAs2() {
     r.skidMarks = true;
     r.waterFlags = true;
     r.coop = true;
+    r.weaponSlots = 9;
+    r.missionLoadout = kLoadoutAs2;
+    r.upgradesCarryToNextMission = true;
+    r.deathLosesWeaponLevel = false;
+    r.powerUpCycleSkip = (1u << 6) | (1u << 7) | (1u << 9);
+    r.accelInput = true;
+    r.mouseAccel = 2.0f;
+    r.mouseControlDefault = true;
+    r.respawnChecksLives = false;
+    r.clampPlayerHealthToMax = true;
+    r.healthBarScaleFromMax = true;
+    r.lifeIconsMax = 10;
+    r.deadShootersBlocked = true;
+    r.touchModeBits = true;
+    r.killCapAtEnemyTotal = true;
+    r.statsOnlyOnePlayer = true;
+    r.campaignCheckpoint = true;
+    r.lightningEffectObject = "wavegun_hit";
+    r.lightningEffectInterval = 0.2f;
+    r.lightningTimerCap = 5.0f;
+    r.spawnAllOnIntermission = true;
+    r.spawnDuringLoad = true;
+    r.waterFollowsWaves = true;
+    r.skidTrailPool = 64;
+    r.skidNodeInterval = 5.0f / 12.0f;
+    r.skidMaxNodes = 23;
+    r.skidLife = 10.0f;
+    r.skidFadeStart = 5.0f;
+    r.skidHeightOffset = 2.0f;
     return r;
 }
 
+// Until docs/spec/gulf exists: AirStrike 2's rules with Gulf Thunder's counts. Its mission
+// loadout table is not known yet, so none is set.
 GameRules rulesGulf() {
     GameRules r = rulesAs2();
     r.missionCount = 24;
     r.helicopterCount = 3;
     r.heliObjects = kHeliGulf;
+    r.missionLoadout = nullptr;
     for (int& m : r.bonusMissions) m = 0;
     for (int& m : r.bossMissions) m = 0;
     r.bonusMissions[0] = 11;
