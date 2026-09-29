@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include "as3d/game_profile.h"
 #include "as3d/menu.h"
 
 using namespace as3d;
@@ -330,4 +331,43 @@ TEST_CASE("menu key names") {
     CHECK(keys::name(17) == "CTRL");
     CHECK(keys::name(243) == "joyUp");
     CHECK(keys::name(239) == "0xef");
+}
+
+TEST_CASE("menu helicopter grid: a game with 6 helicopters draws 6 cells and ignores the absent ones") {
+    bool locked[kMaxHelicopters] = {};
+    int choice[2] = {1, 0};
+    int alt = 0;
+    bool two = false;
+    auto quads = [&](int count) {
+        MenuSystem ms;
+        Menu m;
+        m.addHeliGrid(7, 224, 304, {choice, &alt, locked, &two, count});
+        ms.setPointer(0, 0);
+        ms.push(std::move(m));
+        UiAssets assets;
+        Renderer2D r;
+        r.begin(800, 600);
+        ms.draw(r, assets);
+        return r.quads().size();
+    };
+    const size_t q10 = quads(10), q6 = quads(6), q16 = quads(kMaxHelicopters);
+    CHECK(q6 > 0);
+    CHECK(q6 < q10);
+    CHECK(q6 * 10 == q10 * 6); // without textures each cell is the same outline
+    CHECK(q16 == q10);         // more than the tables have: no more than 10 cells
+    MenuSystem ms;
+    Menu m;
+    m.addHeliGrid(7, 224, 304, {choice, &alt, locked, &two, 6});
+    ms.setPointer(0, 0);
+    ms.push(std::move(m));
+    ms.update(0, UiInput().tap(224 + 72 * 4 + 10, 304 + 10)); // cell 4: present
+    CHECK(choice[0] == 4);
+    ms.update(0, UiInput().tap(224 + 10, 304 + 72 + 10)); // cell 5: the last one
+    CHECK(choice[0] == 5);
+    ms.update(0, UiInput().tap(224 + 72 + 10, 304 + 72 + 10)); // cell 6: absent
+    CHECK(choice[0] == 5);
+    ms.update(0, UiInput().tap(224 + 72 * 4 + 10, 304 + 72 + 10)); // cell 9: absent
+    CHECK(choice[0] == 5);
+    CHECK(widgets::gridCellAt(ms.top()->items[0], 224 + 72 * 4 + 10, 304 + 72 + 10) == -1);
+    CHECK(widgets::gridCellAt(ms.top()->items[0], 224 + 10, 304 + 72 + 10) == 5);
 }

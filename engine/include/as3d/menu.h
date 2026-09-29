@@ -77,9 +77,14 @@ struct ListEntry {
 struct HeliGridRef {
     int* choice = nullptr;         // [2]: player 1 and player 2
     int* alternator = nullptr;     // which player the next click is for (two players)
-    const bool* locked = nullptr;  // [10]
+    const bool* locked = nullptr;  // [count]
     const bool* twoPlayers = nullptr;
+    int count = 10;                // helicopters of the game: cells drawn and clickable
 };
+// Cells the 5 by 2 grid and its icon tables (menu\\icons_1..3.tga) have. A game with fewer
+// helicopters shows its first cells; one with more shows no more than these.
+// HOOK: a game with its own icon sheet and grid layout replaces cellPos and the icon tables in
+// menu_widgets.cpp per game (HeliGridRef::count is already the game's).
 constexpr int kHelicopters = 10;
 
 struct Menu;

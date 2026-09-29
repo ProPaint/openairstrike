@@ -162,7 +162,7 @@ Menu Frontend::buildMissionComplete() {
     Menu m;
     m.swallowBack = true;
     refreshLocks();
-    m.addHeliGrid(7, 224, 304, {heli_, &heliAlternator_, heliLocked_, &twoPlayers_});
+    m.addHeliGrid(7, 224, 304, {heli_, &heliAlternator_, heliLocked_, &twoPlayers_, rules().helicopterCount});
     m.addButton(2, 64, 470, 210, 64, "menu\\restart_1.tga", "menu\\restart_2.tga", {0, 0, 0.8203f, 1});
     m.addButton(1, 332, 470, 128, 64, "menu\\quit_1.tga", "menu\\quit_2.tga");
     m.addButton(3, 482, 470, 256, 64, "menu\\continue_1.tga", "menu\\continue_2.tga");

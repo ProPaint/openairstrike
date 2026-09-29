@@ -67,9 +67,11 @@ bool GameSession::init(const GameOptions& options, std::string* error) {
         return false;
     }
     world_.reset(new World());
+    // TODO(A1): once WorldConfig::rules exists, set `config.rules = &options.rules()` here, in
+    // startMission(LevelSetup) and in loadAttract().
     world_->init(vfs_, *db_, options.world);
     if (!options.startLevel) return true;
-    return startMission(std::min(std::max(options.mission, 1), kMissionCount), error);
+    return startMission(std::min(std::max(options.mission, 1), options.rules().missionCount), error);
 }
 
 void GameSession::resetFlow() {
@@ -92,13 +94,14 @@ bool GameSession::startMission(const LevelSetup& s, std::string* error) {
     c.heli[0] = s.heli[0];
     c.heli[1] = s.heli[1];
     c.cameraMode = s.camera;
+    // TODO(A1): c.rules = &rules();
     world_->init(vfs_, *db_, c);
     for (int p = 0; p < kMaxPlayers; ++p) {
         PlayerRecord& pr = world_->player(p);
         pr.livesAtStart = s.lives[p];
         pr.banked = static_cast<int>(std::max(-2000000000LL, std::min(2000000000LL, s.banked[p])));
     }
-    mission_ = std::min(std::max(s.mission, 1), kMissionCount);
+    mission_ = std::min(std::max(s.mission, 1), rules().missionCount);
     resetFlow();
     hasLevel_ = world_->loadLevel(std::to_string(mission_), error);
     return hasLevel_;
@@ -107,6 +110,7 @@ bool GameSession::startMission(const LevelSetup& s, std::string* error) {
 bool GameSession::loadAttract(const std::string& id, std::string* error) {
     WorldConfig c = options_.world;
     c.players = 1;
+    // TODO(A1): c.rules = &rules();
     world_->init(vfs_, *db_, c);
     mission_ = 0;
     resetFlow();
@@ -188,7 +192,7 @@ int GameSession::step(const FrameInput& input) {
                 // Continue: bank the score, next mission. After the last mission the
                 // campaign starts over (the congratulations screen is not implemented).
                 bankScores();
-                next = mission_ >= kMissionCount ? 1 : mission_ + 1;
+                next = mission_ >= rules().missionCount ? 1 : mission_ + 1;
             }
             // Game over: Restart reloads the mission with the lives it started with.
             if (!startMission(next, &err)) {

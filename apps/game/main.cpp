@@ -149,11 +149,11 @@ bool parseArgs(int argc, char** argv, Args& a) {
         }
         else return false;
     }
-    if (a.game.mission < 1 || a.game.mission > kMissionCount) return false;
+    if (a.game.mission < 1 || a.game.mission > a.game.rules().missionCount) return false;
     if (a.width < 16 || a.height < 16 || a.width > 8192 || a.height > 8192) return false;
     if (a.frames > 100'000'000 || a.screenshotEvery < 0) return false;
     if (a.headless && a.frames < 0 && a.uiScript.empty()) return false;
-    if (a.attract < 0 || a.attract > 4) return false;
+    if (a.attract < 0 || a.attract > a.game.rules().attractCount) return false;
     if (a.game.dataRoot.empty()) {
         const char* env = std::getenv("AS3D_DATA_ROOT");
         a.game.dataRoot = env && *env ? env : ".";

@@ -26,15 +26,14 @@ struct LevelDef;
 
 namespace as3d_game {
 
-using as3d::kMissionCount; // 20
-
 struct GameOptions {
     std::string dataRoot;          // directory holding assets_extracted/
     // When not empty: the original pak archives to mount instead of assets_extracted/, in
     // this order (later paks override earlier ones, docs/spec/pak.md), opened through
     // as3d::openPlatformStream (file paths on desktop, APK assets on Android).
     std::vector<std::string> paks;
-    int mission = 1;               // 1..20
+    const as3d::GameProfile* game = nullptr; // nullptr = the first game (AirStrike 3D)
+    int mission = 1;               // 1..the game's mission count
     as3d::WorldConfig world;       // difficulty, seed, players (same defaults as as3d_sim)
     bool levelFlow = true;         // restart on game over, continue on mission complete
     int flowDelayFrames = 180;     // frames the finished level stays on screen first
@@ -43,11 +42,13 @@ struct GameOptions {
     // the install's data\gfx): game path -> path for as3d::readPlatformFile. Mounted under
     // everything else.
     std::vector<std::pair<std::string, std::string>> extraFiles;
+
+    const as3d::GameRules& rules() const { return game ? game->rules : as3d::defaultGameRules(); }
 };
 
 // Everything a level start takes from the front end (frontend.md 5.1, 5.2).
 struct LevelSetup {
-    int mission = 1;               // 1..20
+    int mission = 1;               // 1..the game's mission count
     int difficulty = 2;
     int players = 1;
     int heli[2] = {1, 0};
@@ -89,6 +90,8 @@ public:
     as3d::Vfs& vfs() { return vfs_; }
     const as3d::DefDatabase& db() const { return *db_; }
     int mission() const { return mission_; }
+    const as3d::GameProfile* game() const { return options_.game; }
+    const as3d::GameRules& rules() const { return options_.rules(); }
     // The levels.txt entry of the current level, or null.
     const as3d::LevelDef* levelDef() const;
     std::string musicPath() const;

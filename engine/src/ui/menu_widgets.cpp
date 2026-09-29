@@ -72,7 +72,8 @@ void sliderClick(MenuItem& s, float px) {
 }
 
 int gridCellAt(const MenuItem& g, float px, float py) {
-    for (int i = 0; i < kHelicopters; i++) {
+    const int n = std::clamp(g.grid.count, 0, kHelicopters);
+    for (int i = 0; i < n; i++) {
         const float cx = g.x + 72.0f * static_cast<float>(i % 5), cy = g.y + 72.0f * static_cast<float>(i / 5);
         if (px >= cx && px < cx + 64 && py >= cy && py < cy + 64) return i;
     }
@@ -353,7 +354,8 @@ void drawGrid(MenuDrawContext& c, MenuItem& it, float px, float py) {
         cx = it.x + 72.0f * static_cast<float>(i % 5);
         cy = it.y + 72.0f * static_cast<float>(i / 5);
     };
-    for (int i = 0; i < kHelicopters; i++) {
+    const int cells = std::clamp(g.count, 0, kHelicopters);
+    for (int i = 0; i < cells; i++) {
         float cx, cy;
         cellPos(i, cx, cy);
         const bool locked = g.locked && g.locked[i];
@@ -369,7 +371,7 @@ void drawGrid(MenuDrawContext& c, MenuItem& it, float px, float py) {
     const Texture2D* glow = c.a.texture("menu\\icons_2.tga");
     const Texture2D* body = c.a.texture("menu\\icons_1.tga");
     const Texture2D* ninth = c.a.texture("menu\\icons_3.tga");
-    for (int i = 0; i < kHelicopters; i++) {
+    for (int i = 0; i < cells; i++) {
         float cx, cy;
         cellPos(i, cx, cy);
         const bool locked = g.locked && g.locked[i];
@@ -392,8 +394,8 @@ void drawGrid(MenuDrawContext& c, MenuItem& it, float px, float py) {
         st.kind = FontKind::Alpha;
         st.color = packed(0xFF0000FFu);
         float cx, cy;
-        if (p1 >= 0 && p1 < kHelicopters) { cellPos(p1, cx, cy); drawText(c.r, c.a.uiFont(), cx + 3, cy + 48, "P1", st); }
-        if (p2 >= 0 && p2 < kHelicopters) { cellPos(p2, cx, cy); drawText(c.r, c.a.uiFont(), cx + 35, cy + 48, "P2", st); }
+        if (p1 >= 0 && p1 < cells) { cellPos(p1, cx, cy); drawText(c.r, c.a.uiFont(), cx + 3, cy + 48, "P1", st); }
+        if (p2 >= 0 && p2 < cells) { cellPos(p2, cx, cy); drawText(c.r, c.a.uiFont(), cx + 35, cy + 48, "P2", st); }
     }
 }
 

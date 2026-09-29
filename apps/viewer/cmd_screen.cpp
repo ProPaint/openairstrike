@@ -62,7 +62,7 @@ FrontendContent loadContent() {
     // Levels with a `name` are the missions, in table order (levels-txt.md).
     int i = 0;
     for (const as3d::LevelDef& d : db.levels()) {
-        if (d.name.empty() || i >= as3d::kMissionCount) continue;
+        if (d.name.empty() || i >= as3d::defaultGameRules().missionCount) continue;
         c.missionNames[i] = d.name;
         c.enableHelic[i] = d.enableHelic;
         i++;
