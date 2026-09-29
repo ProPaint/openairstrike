@@ -281,7 +281,9 @@ int runWindowed(const Args& a, GameSession& session, const InputScript* script) 
     double acc = 0.0;
     long frame = 0;
     int shots = 0;
+    long rendered = 0;
     bool running = true;
+    bool redraw = true;
     while (running) {
         bool screenshot = false;
         SDL_Event e;
@@ -300,6 +302,7 @@ int runWindowed(const Args& a, GameSession& session, const InputScript* script) 
                 case SDL_WINDOWEVENT:
                     if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) mapper.releaseAll();
                     if (e.window.event == SDL_WINDOWEVENT_CLOSE) running = false;
+                    redraw = true; // exposed, resized, ...
                     break;
                 default: break;
             }
@@ -329,6 +332,12 @@ int runWindowed(const Args& a, GameSession& session, const InputScript* script) 
             if (a.screenshotEvery > 0 && frame % a.screenshotEvery == 0) screenshot = true;
             if (a.frames >= 0 && frame >= a.frames) running = false;
         }
+        // Without interpolation a frame only changes when the simulation stepped.
+        if (steps == 0 && !redraw && !screenshot) {
+            SDL_Delay(1);
+            continue;
+        }
+        redraw = false;
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         view.draw(session, gl->width(), gl->height());
         if (screenshot) {
@@ -355,12 +364,14 @@ int runWindowed(const Args& a, GameSession& session, const InputScript* script) 
             if (writePng(path.c_str(), img)) std::printf("wrote %s\n", path.c_str());
         }
         gl->swapBuffers();
+        ++rendered;
     }
     if (!a.recordPath.empty() && !recorder.script().save(a.recordPath))
         std::fprintf(stderr, "as3d_game: cannot write %s\n", a.recordPath.c_str());
     if (!a.dumpPath.empty() && !writeFile(a.dumpPath, session.world().dumpStateJson()))
         std::fprintf(stderr, "as3d_game: cannot write %s\n", a.dumpPath.c_str());
-    std::printf("quit after %ld frames: mission %d, score %lld\n", frame, session.mission(), session.displayScore(0));
+    std::printf("quit after %ld frames (%ld rendered): mission %d, score %lld\n", frame, rendered, session.mission(),
+                session.displayScore(0));
     return 0;
 }
 
