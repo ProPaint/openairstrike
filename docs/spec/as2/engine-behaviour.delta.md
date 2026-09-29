@@ -1358,6 +1358,170 @@ threshold 150 and 1 s, lock-on 0.3, activation band +16 / +800 with the 80 and 2
 
 ---
 
+## Checked sections
+
+| Base section | Status for `as2` |
+|---|---|
+| 1 Program structure | changed (1.1, 1.3) |
+| 1.1 Start-up | changed: no `play.url`, new debug switches, CD check (dropped) |
+| 1.2 Main loop and timing | same (an inactive play-time counter added) |
+| 1.3 Game states | changed: flag addresses, two attract levels, player-selection start, `GameOver` builtin, checkpoint |
+| 2 Per-frame update order | changed: skid-trail update after the entity pass, statistics overlay split out, level start runs one spawner call, entity pass and render |
+| 3 Entities | changed |
+| 3.1 Object definitions | changed: `civilian`, `speed`, `skid_mark`, water flags, touch bits |
+| 3.2 Entity memory layout | changed: 0x1F4 bytes, aligned layout, timer +0x78, fields 88/89 skid trails, children at 90/91 |
+| 3.3 Pool and lists | same (skid-trail pool added, 3.1.2) |
+| 3.4 Creating entities | changed: intermission levels spawn everything, first call during loading |
+| 3.5 Activation states | same |
+| 3.6 Event entry points | same (touch pairs in 5.2) |
+| 4 Movement and transforms | changed (4.1, 4.2, 4.4) |
+| 4.1 Think order | changed: `Lightning` timer |
+| 4.2 Position and velocity | changed: water height and water alignment |
+| 4.3 Axis from angles | same |
+| 4.4 Attachment to tags | changed: non-model parents (unused by the data); definition children same |
+| 4.5 Waypoint paths | same |
+| 4.6 World bounds | same |
+| 5 Collision | changed (5.2, 5.5) |
+| 5.1 Shapes | same (issue 120's overlap rule confirmed for `as2`) |
+| 5.2 Which pairs are tested | changed: bit-set modes, civilians, dead candidates skipped |
+| 5.3 What a hit triggers | same |
+| 5.4 Two-player push-apart | same |
+| 5.5 Traces | changed: civilians (details pending in the builtins delta) |
+| 6 Damage and death | changed (6.1, 6.2) |
+| 6.1 `G_Damage` | changed: kill counter capped at the enemy total |
+| 6.2 Damage sources | changed: civilians as targets, `RadialDamagePlayer`, `Lightning` range, particle touch bits, `Shoot` dead check |
+| 6.3 Difficulty | same |
+| 6.4 Score award | same |
+| 6.5 Enemy health bar | same |
+| 6.6 Invulnerability | same |
+| 7 The player | changed |
+| 7.1 Player records | changed: 0x164 bytes, new fields |
+| 7.2 Input to `p_action` | changed: acceleration vector, relative mouse control, no screenshot key |
+| 7.3 Movement | changed: `GetPlayerAccel`, friction along the velocity, `speed` factor |
+| 7.4 Spawn, lives and respawn | changed: no lives test in spawn, health from the definition clamped to it, 10 life icons, no downgrade on death, upgrades not reset at level start |
+| 7.5 Two-player mode | changed in details (statistics hidden, new builtins); much not verified in play |
+| 7.6 Helicopter choice | changed: 6 helicopters, table order, unlock bound |
+| 8 Weapons and items | changed |
+| 8.1 Weapon definitions and `Shoot` | changed: dead shooters cannot fire |
+| 8.2 Weapon upgrades | changed: 9 slots, loadout table |
+| 8.3 Missiles and power-ups | changed: kinds, cycling skips 6/7/9 |
+| 8.4 Targeting | same |
+| 9 Scrolling and camera | same except 9.6 and 9.7 |
+| 9.1 The camera structure | same |
+| 9.2 Scrolling | same (`-campos` debug option) |
+| 9.3 Camera modes and placement | same |
+| 9.4 CameraQuake | same |
+| 9.5 Screen and world | same |
+| 9.6 Intermission levels | changed: all objects spawned at load |
+| 9.7 Activation handover | changed: first call at load with the +800 edge |
+| 10 Level flow | changed |
+| 10.1 Level list | same format; 18 missions |
+| 10.2 Level start | changed: comic, skid pool, load-time spawn and entity pass, start dialogue |
+| 10.3 End of level | changed: checkpoint, dialogue before the mission-complete screen, new buttons, `G_NewGame` |
+| 10.4 Scoring and rank | changed: statistics only in one-player mode, zero guard, new-helicopter line; formulas same |
+| 10.5 Save file | changed: 6 helicopters, 18 missions, checkpoint block |
+| 10.6 Unlocking | changed: modulo 18, helicopter table order |
+| 11 HUD and menus | changed (frontend package for the drawing) |
+| 11.1 Coordinates | same |
+| 11.2 One-player HUD | changed: health clamp, bar scale, 10 lives; art not checked |
+| 11.3 Tutorial hints | same |
+| 11.4 Menu tree | changed (not detailed here) |
+| 12 Sound | not checked (volume keys and game-over music jump same) |
+| 13 Rendering order and material state | not checked (skid-trail pass placed, near/far same) |
+| 13.1 Frame render order | not checked (see 13) |
+| 13.2 Material state | not checked |
+| 14 Cheats and debug features | changed: new code words and effects, no screenshot, debug switches |
+| 15 Constants and limits | changed (table above) |
+| Open questions (base) | 1 settled by issue 120 (holds for `as2`); 2 not checked; 3 not decoded for `as2`; 4 model package; 5 same code in `as2`; 6 renderer; 7 not checked; 8 not checked |
+
+---
+
+## What an implementer must change
+
+Against the engine as it runs `as3d`, ordered by how much of `as2` play depends on it:
+
+1. **Player records and movement**: add the acceleration vector (7.2 step 1) and
+   `GetPlayerAccel`; take the relative mouse input (length 2.0, player 1, only when no key);
+   field 23 from the definition's `speed`; clamp the players' health to their maximum health
+   every frame; spawn helicopters from the `as2` table in the order of 7.6; no lives test in
+   `G_SpawnPlayer`.
+2. **Weapons**: 9 upgrade slots; apply the mission loadout table on new game and on both
+   restarts, not at level start and not on "Next"; power-up cycling skips 6, 7, 9.
+3. **Touch pass**: modes as bit sets (`TOUCH_ALL` = 0xF), class 5.0 for bit 0x4, skip
+   candidates whose field 4 is set; the same bit rules in particle damage.
+4. **Civilians**: class 5.0 from `civilian`; excluded from enemy totals, kill credit, lock-on,
+   `Lightning`, health bars; included where 3.1.1 says.
+5. **Campaign checkpoint and level flow**: `EndLevel` writes the checkpoint and goes through
+   the end dialogue to the mission-complete screen; `G_NewGame` restores or resets; unlock
+   modulo 18; the buttons Quit, Restart, Choose Helicopter, Next; save the checkpoint unless a
+   cheat was used.
+6. **Water**: `FL_ONWATER` follows `G_WaterHeight`; `FL_ONWATER_NORMAL` aligns to the water
+   plane; `FL_ONWATER_FLAT` uses the flat level; `G_WaterHeight` falls back to the terrain when
+   the level has no water.
+7. **Level start**: one spawner call, one entity pass and one render inside the level load,
+   before the counters are reset (or the documented alternative of issue 211); kill counter
+   capped at the enemy total; statistics drawn only in one-player mode.
+8. **`Shoot`** refuses dead shooters.
+9. **Skid marks**: parse `skid_mark`, keep up to 64 trails, update them after the entity pass
+   (also while paused), draw them after the decals.
+10. **Intermission levels** spawn all their objects at load.
+11. **Entity layout**: nothing to change for scripts (field indices 0..87 unchanged); the
+    engine-internal fields 88/89 hold the skid trails; the +0x78 timer serves `Lightning`.
+12. **Cheats**: the seven new code words; drop the v1.70 ones for `as2`.
+13. HUD: up to 10 life icons, health bar scaled by the maximum health (frontend package).
+
+---
+
+## Open questions
+
+1. **Two-player play** (medium): only read from the code; the HUD, the camera with one player
+   out of lives for long, and the checkpoint with two players were not seen running.
+2. **Load-time spawn and statistics** (medium): whether to reproduce that rows 0..20 are not
+   counted in the enemy total and the maximum score; issue 211.
+3. **Skid-trail quirks** (low): stale age of a new node, ageing while paused, the node written
+   past the visible end of a full trail; issue 210.
+4. **Portrait dialogues** (low for the rules): how the end dialogue hands over to
+   `G_MissionComplete` (its callbacks as2@0x4231b0 and 0x423050 lie inside another function in
+   the export); the frontend package should read them.
+5. **Non-model attach parents** (low): 4.4; unreachable from the data.
+6. **Water grid bounds** (low): `G_WaterHeight` tests x and y against the grid size × 40 but
+   indexes with the terrain cell size; equal in practice (40), not verified for every map.
+7. **Mission-complete "Choose Helicopter"**: which action the " Accept " button runs
+   (`M_HeliSelectAction` case 1 starts a new game on the current mission index); frontend
+   package.
+
+---
+
+## Corrections to other specs
+
+Listed here, not applied.
+
+| Spec, place | Says | Correct | Evidence |
+|---|---|---|---|
+| symbol-map.md "New functions", `re/symbols_as2.csv` 0x00414850 | `G_UpdatePlayers`, "per-frame update that uses terrain heights and distances" | `G_UpdateSkidTrails`: updates the skid-mark trails (3.1.2); it touches no player record | its only data are the trail pool as2@0x20c5d9c/0x20c5da0 and the draw list as2@0x21a7bc8/0x2113074; constants 10.0, 5/12, 23, 2.0 |
+| same, 0x00414800 | `G_LevelEndHelper` | `G_FreeAllSkidTrails` (returns every live trail to the pool; called by `G_FreeLevel` as2@0x40e660) | as2@0x414800 |
+| same, 0x004138f0 | `G_ResetPlayers`, "resets the per-player state when a game or level starts" | `G_SetMissionLoadout`: sets the 9 upgrade slots and `p_weapon` of both players from the table as2@0x48b3a8 row (mission index clamped to 0..17) | as2@0x4138f0 |
+| same, 0x00430280 / 0x004300e0 | `R_DrawMarks` (counterpart of v170@0x40d860) / `R_DrawMark` | `R_DrawSkidTrails` / `R_DrawSkidTrail` (new, draw the trail list); the counterpart of the v1.70 decal pass v170@0x40d860 is as2@0x42ff70 (`R_DrawGroundPass` in the map), which draws the decal list filled by `R_AddEntityToScene` | as2@0x430280 reads the trail draw list; as2@0x42ff70 reads the decal count as2@0x2112a5c, called between the frustum set-up and the trails in `R_RenderView` |
+| symbol-map.md "Removed", `G_RunCollisions` v170@0x4055d0 | "inlined into G_RunEntities" | still a separate body at as2@0x40c560..0x40c747, entered by a tail jump from `G_RunEntities` (as2@0x40cee7); the export merges it into that function | as2@0x40cee7 |
+| symbol-map.md "undecided", `G_NewCampaign` v170@0x408c40 | no decision | counterpart `G_NewGame` as2@0x410dc0 (adds the checkpoint restore) | 10.3 |
+| `re/symbols_as2_data.csv` 0x0049ddf8 (v170 0x00457660) | `g_missionUnlockTable`, "mission unlock table" | the **helicopter** table {u8 unlocked, name[32]} × 6 (engine-behaviour.md 7.6 for v1.70) | `G_SpawnPlayer` as2@0x413b20 reads object names from it; `G_MissionComplete` unlocks `enableHelic` entries |
+| `re/symbols_as2_vm.csv` 0x00410cd0 | `G_StartLevelState` | `G_BeginLevel` (as in `re/symbols_as2.csv`; counterpart of v170@0x408b30) | same function |
+| rcsl-vm.delta.md, entity update | the +0x78 timer "that `Lightning` resets" | confirmed, and its meaning: seconds since `Lightning` last spawned `wavegun_hit` on the entity (at most every 0.2 s) | as2@0x42144e..0x42146b |
+| rcsl-vm.delta.md, fields 88 and 89 | "new engine-internal dwords" | skid-trail count and trail array | 3.2 |
+| issue 113 §1 | "The specs do not say whether the count is decremented on that detach" | the original decrements the root's reference count when a counted child is detached for a missing tag, in both games; the WP-49 choice is the original behaviour | v170@0x404879..0x404891, as2@0x40b75e..0x40b778 |
+| issue 031 §6 | score digits for a zero award: a choice | the original creates nothing and adds nothing for an award of 0 (both games) | v170@0x40bb20, as2@0x414350: the whole body is guarded by `award ≠ 0` |
+| engine-behaviour.md 7.3, 7.5, 9.3 | "each living player is clamped", "mean x of the living ones" | "living" means p_lives ≥ 0 (not health > 0), in both games | v170@0x40c454..0x40c49b tests record +0x98; as2@0x414e90 tests +0x9C |
+
+---
+
+## Symbols
+
+`re/symbols_as2_game.csv` holds the functions and data named or corrected by this package
+(columns `address,name,subsystem,description,confidence,evidence,v170_address`; rows that
+correct `re/symbols_as2.csv` or `re/symbols_as2_data.csv` say so in the description).
+
+---
+
 ## Changelog
 
 - 1.0 (B4): first version.
