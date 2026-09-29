@@ -131,6 +131,8 @@ class Matcher:
     def apply_overrides(self, path):
         """Manual decisions (re/tools/overrides_<from>_<to>.csv)."""
         self.removed = {}
+        self.extra = {}
+        self.codemap = {}
         if not os.path.exists(path):
             return
         with open(path) as f:
@@ -140,9 +142,20 @@ class Matcher:
             if r["to_address"] == "removed":
                 self.removed[s] = (r["confidence"], r["evidence"])
                 continue
+            if r["to_address"].startswith("code:"):
+                # counterpart is code the target export does not define as a
+                # function (a callback inside another function's range)
+                self.codemap[s] = (int(r["to_address"][5:], 16), r["confidence"], r["evidence"])
+                continue
             d = int(r["to_address"], 16)
-            if d not in self.D or s not in self.S:
-                print("override skipped (not a function):", r, file=sys.stderr)
+            if d not in self.D:
+                print("override skipped (target not a function):", r, file=sys.stderr)
+                continue
+            if s not in self.S:
+                # named source address that the source export does not
+                # define as a function (callback left inside another one)
+                self.extra[s] = (d, r["confidence"], "manual: " + r["evidence"])
+                self.rm[d] = s
                 continue
             if not self.add(s, d, r["confidence"], "manual: " + r["evidence"]):
                 print("override conflict:", r, file=sys.stderr)
@@ -335,12 +348,10 @@ class Matcher:
 
     def coderef_pass(self):
         """Callback addresses taken at the same position by matched pairs with
-        the same number of callback references. Pairs of functions are
-        matched (medium); addresses that are not function entries in the
-        source export are recorded in self.codemap (menu callbacks that Ghidra
-        left inside a neighbouring function)."""
-        if not hasattr(self, "codemap"):
-            self.codemap = {}
+        the same number of callback references. The order of the callbacks
+        of a menu can change between the games, so a pair also needs a shape
+        score of 0.5. Callback addresses that are not function entries in the
+        source export are only matched by hand (overrides file)."""
         n = 0
         for s, d in list(self.m.items()):
             cs, cd = self.S[s].coderefs, self.D[d].coderefs
@@ -351,10 +362,9 @@ class Matcher:
                 if a in self.S and b in self.D:
                     if a in self.m or b in self.rm:
                         continue
-                    if self.sim(a, b) >= 0.3 and self.add(a, b, "medium", ev + " (score %.2f)" % self.sim(a, b)):
+                    sc = self.sim(a, b)
+                    if sc >= 0.5 and self.add(a, b, "medium", ev + " (score %.2f)" % sc):
                         n += 1
-                elif a not in self.S and a not in self.codemap:
-                    self.codemap[a] = (b, b in self.D, ev)
         return n
 
     def global_pass(self, threshold=0.8, min_insn=8):
@@ -394,6 +404,10 @@ def load_src_names(tag):
         for r in csv.DictReader(open(rend)):
             a = int(r["address"], 16)
             old = names.get(a)
+            if old and r["confidence"] == "GUESS" and old[0] != r["name"]:
+                # the hand-made file wins over a guessed render name
+                names[a] = (old[0], old[1], old[2], (old[3] + " " + r["name"]).strip())
+                continue
             alias = old[0] if old and old[0] != r["name"] else ""
             if old and old[3]:
                 alias = (alias + " " + old[3]).strip()
@@ -420,6 +434,163 @@ def load_auto(tag):
 
 
 COLUMNS = ["address", "name", "subsystem", "description", "confidence", "evidence", "v170_address"]
+
+# Address ranges of the target executables (from the function layout):
+# game code first, then the C runtime interleaved with statically linked
+# library code. Used only to label functions that have no other evidence.
+LAYOUT = {
+    "as2": {"game_end": 0x004392F2,
+            "lib": [(0x0044EF00, 0x00478D40,
+                     "Direct3DX 8 static library (texture and image loading; includes libpng 1.0.5, libjpeg and zlib)")]},
+}
+
+
+def load_new_names(path):
+    out = {}
+    if os.path.exists(path):
+        with open(path) as f:
+            rows = [l for l in f if l.strip() and not l.startswith("#")]
+        for r in csv.DictReader(rows):
+            out[int(r["address"], 16)] = r
+    return out
+
+
+def build_rows(M, names_new):
+    """One row per target function."""
+    N = M.names
+    D = M.D
+    lay = LAYOUT.get(M.dst, {"game_end": 1 << 32, "lib": []})
+    # builtins of the target: function -> names
+    bnames = defaultdict(list)
+    for n, v in getattr(M, "builtins_dst", {}).items():
+        bnames[v].append(n)
+    back = {}  # dst -> (src, conf, evidence)
+    for s, d in M.m.items():
+        back[d] = (s, M.info[s][0], M.info[s][1])
+    for s, (d, conf, ev) in M.extra.items():
+        back[d] = (s, conf, ev)
+    rows = {}
+    used = Counter()
+
+    def uniq(name, addr):
+        if used[name]:
+            name = "%s_%06x" % (name, addr & 0xFFFFFF)
+        used[name] += 1
+        return name
+
+    order = sorted(D)
+    for a in order:
+        f = D[a]
+        row = {"address": "0x%08x" % a, "v170_address": ""}
+        blist = bnames.get(a, [])
+        if a in back:
+            s, conf, ev = back[a]
+            row["v170_address"] = "0x%08x" % s
+            row["confidence"], row["evidence"] = conf, ev
+            if s in N:
+                n, sub, desc, alias = N[s]
+                row["name"], row["subsystem"] = n, sub
+                row["description"] = desc + (" (v1.70 alias: %s)" % alias if alias else "")
+            else:
+                sf = M.S[s]
+                if not sf.name.startswith("FUN_"):
+                    row["name"] = sf.name
+                    row["subsystem"] = "crt" if (is_library_name(sf.name) or f.is_thunk) else ""
+                    row["description"] = "v1.70 export name" + (" (library)" if row["subsystem"] == "crt" else "")
+                else:
+                    row["name"] = "FUN_%08x" % a
+                    row["subsystem"] = ""
+                    row["description"] = "counterpart of the unnamed v1.70 function FUN_%08x" % s
+            if f.is_thunk and f.name.startswith("BASS_"):
+                row["subsystem"] = "sound"
+                row["description"] = "import thunk (BASS.DLL)"
+        elif a in names_new:
+            r = names_new[a]
+            for k in ("name", "subsystem", "description", "confidence", "evidence"):
+                row[k] = r[k]
+        elif blist:
+            row["name"] = "PF_" + blist[0]
+            row["subsystem"] = "script-builtin"
+            row["description"] = "builtin '%s' (new in %s)" % (blist[0], M.dst)
+            row["confidence"] = "high"
+            row["evidence"] = "builtin table entry '%s'" % blist[0]
+        elif not f.name.startswith("FUN_") and (is_library_name(f.name) or a >= lay["game_end"]):
+            row["name"] = f.name
+            row["subsystem"] = "crt"
+            row["description"] = "C runtime / compiler support (name from Ghidra function ID)"
+            row["confidence"] = "high" if not f.name.startswith("FID_conflict") else "low"
+            row["evidence"] = "Ghidra function ID name"
+            for lo, hi, what in lay["lib"]:
+                if lo <= a < hi and not f.name.startswith("Unwind@"):
+                    row["subsystem"] = "lib"
+                    row["description"] = what
+        else:
+            row["name"] = "FUN_%08x" % a
+            row["subsystem"] = ""
+            row["description"] = ""
+            row["confidence"] = "none"
+            row["evidence"] = ""
+            if a >= lay["game_end"]:
+                row["subsystem"] = "crt"
+                row["description"] = "C runtime (unnamed)"
+                row["evidence"] = "address range of the runtime and library code"
+                row["confidence"] = "low"
+                for lo, hi, what in lay["lib"]:
+                    if lo <= a < hi:
+                        row["subsystem"] = "lib"
+                        row["description"] = what
+            elif f.name.startswith("Catch_All@") or f.name.startswith("Unwind@"):
+                row["name"] = f.name
+                row["subsystem"] = "crt"
+                row["description"] = "exception-handling funclet"
+                row["evidence"] = "Ghidra name"
+                row["confidence"] = "high"
+            elif set(D[c].name if c in D else "" for c in f.calls) & {"__CxxThrowException@8", "_memmove_s"} \
+                    or any(M.label(back[c][0]).startswith("std_") for c in f.calls if c in back and back[c][0] in M.S):
+                row["subsystem"] = "crt"
+                row["description"] = "C++ standard library template instance"
+                row["evidence"] = "calls std:: helpers / throws length errors"
+                row["confidence"] = "low"
+        if blist:
+            extra = "builtin%s %s" % ("s" if len(blist) > 1 else "", ", ".join("'%s'" % b for b in blist))
+            row["description"] = (row["description"] + "; " if row["description"] else "") + extra
+        row["name"] = uniq(row["name"], a)
+        rows[a] = row
+    # runtime/library range: rows still without a subsystem
+    for a in order:
+        r = rows[a]
+        if not r["subsystem"] and a >= lay["game_end"]:
+            r["subsystem"] = "crt"
+            for lo, hi, what in lay["lib"]:
+                if lo <= a < hi:
+                    r["subsystem"] = "lib"
+                    if not r["description"].startswith("counterpart"):
+                        r["description"] = what
+    # subsystem of unnamed game functions from their neighbours in the layout
+    named = [a for a in order if rows[a]["subsystem"] and a < lay["game_end"]]
+    import bisect
+    for a in order:
+        r = rows[a]
+        if r["subsystem"] or a >= lay["game_end"]:
+            continue
+        i = bisect.bisect_left(named, a)
+        prev = rows[named[i - 1]]["subsystem"] if i > 0 else ""
+        nxt = rows[named[i]]["subsystem"] if i < len(named) else ""
+        r["subsystem"] = prev or nxt
+        note = "subsystem guessed from the neighbouring functions (%s / %s)" % (prev, nxt)
+        r["description"] = (r["description"] + "; " if r["description"] else "") + note
+        if r["confidence"] == "none":
+            r["confidence"] = "low"
+            r["evidence"] = "address layout only"
+    return [rows[a] for a in order]
+
+
+def write_rows(rows, path):
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=COLUMNS, lineterminator="\n")
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: r.get(k, "") for k in COLUMNS})
 
 
 def check(path, dst, removed_doc=None):
@@ -451,41 +622,71 @@ def check(path, dst, removed_doc=None):
     # statistics
     src_named = load_src_names("v170")
     mapped = {int(r["v170_address"], 16): r for r in rows if r["v170_address"]}
+    # removed functions: the overrides file (source of the decisions) and
+    # the table of the symbol-map document
     removed = set()
     removed_doc = removed_doc or os.path.join(REPO, "docs", "spec", dst, "symbol-map.md")
+    ov = os.path.join(os.path.dirname(os.path.abspath(__file__)), "overrides_v170_%s.csv" % dst)
+    codeaddr = {}
+    if os.path.exists(ov):
+        for line in open(ov):
+            m = re.match(r"^(0x[0-9a-fA-F]+),removed,", line)
+            if m:
+                removed.add(int(m.group(1), 16))
+            m = re.match(r"^(0x[0-9a-fA-F]+),code:(0x[0-9a-fA-F]+),(\w+),", line)
+            if m:
+                codeaddr[int(m.group(1), 16)] = m.group(3)
     if os.path.exists(removed_doc):
         for line in open(removed_doc):
             m = re.match(r"^\|\s*`?(0x[0-9a-f]{8})`?\s*\|.*\|\s*removed", line)
             if m:
                 removed.add(int(m.group(1), 16))
+    # builtins: every function pointer of the target builtin table has a row
+    if dst in R.TABLES:
+        exe = os.path.join(R.DATA_ROOT, R.EXES[dst])
+        if os.path.exists(exe):
+            t = R.read_table(R.PE(exe), *R.TABLES[dst]["builtin"])
+            have = {int(r["address"], 16) for r in rows}
+            miss = [(n, hex(v)) for n, v, _ in t if v not in have]
+            print("builtins: %d table entries, %d distinct functions, missing rows: %d"
+                  % (len(t), len({v for _, v, _ in t}), len(miss)))
+            if miss:
+                print("FAIL builtins without a row:", miss)
+                ok = False
     conf = Counter()
     for a in src_named:
         if a in mapped:
             conf[mapped[a]["confidence"]] += 1
         elif a in removed:
             conf["removed"] += 1
+        elif a in codeaddr:
+            conf["code address (%s)" % codeaddr[a]] += 1
         else:
             conf["unaccounted"] += 1
     n = len(src_named)
     print("rows: %d of %d %s functions" % (len(rows), len(D), dst))
     print("v170 named functions (symbols_v170.csv + _render.csv, unique addresses): %d" % n)
-    for k in ("high", "medium", "low", "removed", "unaccounted"):
+    for k in ["high", "medium", "low"] + sorted(k for k in conf if k.startswith("code")) + ["removed", "unaccounted"]:
         print("  %-12s %4d" % (k, conf[k]))
     cov = (n - conf["unaccounted"]) / n * 100
     print("  coverage (mapped or removed): %.1f%%" % cov)
     sub = Counter(r["subsystem"] for r in rows)
     kind = Counter()
-    size_unnamed = 0
+    size = Counter()
     for r in rows:
         a = int(r["address"], 16)
+        lib = r["subsystem"] in ("crt", "lib")
         if r["v170_address"]:
-            kind["matched"] += 1
+            k = "matched"
         elif r["name"].startswith("FUN_"):
-            kind["unnamed"] += 1
-            size_unnamed += D[a]["size"]
+            k = "unnamed " + ("runtime/library" if lib else "game")
         else:
-            kind["new (named)"] += 1
-    print("target rows by kind:", dict(kind), "unnamed total size %d bytes" % size_unnamed)
+            k = "no counterpart, named " + ("runtime/library" if lib else "game")
+        kind[k] += 1
+        size[k] += D[a]["size"]
+    print("target rows by kind (count, bytes):")
+    for k in sorted(kind):
+        print("  %-40s %5d %8d" % (k, kind[k], size[k]))
     print("confidence:", dict(Counter(r["confidence"] for r in rows)))
     print("subsystems:", ", ".join("%s %d" % kv for kv in sorted(sub.items(), key=lambda kv: -kv[1])))
     if cov < 80:
@@ -501,6 +702,7 @@ def main():
     ap.add_argument("--to", dest="dst", default="as2")
     ap.add_argument("--out")
     ap.add_argument("--pairs", help="write raw pair list (json) here")
+    ap.add_argument("--report", help="write markdown tables (removed, undecided, new) here")
     ap.add_argument("--check")
     ap.add_argument("--removed-doc")
     args = ap.parse_args()
@@ -537,8 +739,53 @@ def main():
                                     "sim": round(M.sim(s, d), 3)}
                        for s, d in sorted(M.m.items())}, f, indent=1)
     named = M.names
-    matched_named = sum(1 for a in named if a in M.m)
-    print("v170 named matched: %d of %d" % (matched_named, len(named)), file=sys.stderr)
+    matched_named = sum(1 for a in named if a in M.m or a in M.extra)
+    print("v170 named matched: %d of %d, removed %d" % (matched_named, len(named), len(M.removed)),
+          file=sys.stderr)
+    names_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "names_%s.csv" % args.dst)
+    rows = build_rows(M, load_new_names(names_path))
+    if args.out:
+        write_rows(rows, args.out)
+        print("wrote %s (%d rows)" % (args.out, len(rows)), file=sys.stderr)
+    if args.report:
+        write_report(M, rows, args.report)
+
+
+def write_report(M, rows, path):
+    """Markdown tables for docs/spec/<dst>/symbol-map.md (pasted by hand)."""
+    N = M.names
+    out = []
+    out.append("### Removed v1.70 functions\n")
+    out.append("| v1.70 address | v1.70 name | status | confidence | evidence |")
+    out.append("|---|---|---|---|---|")
+    for s in sorted(M.removed):
+        conf, ev = M.removed[s]
+        out.append("| `0x%08x` | %s | removed | %s | %s |" % (s, N.get(s, ("?",))[0], conf, ev))
+    out.append("\n### Counterparts that are not function entries in the AS2 export\n")
+    out.append("| v1.70 address | v1.70 name | AS2 code address | status | confidence | evidence |")
+    out.append("|---|---|---|---|---|---|")
+    for s in sorted(M.codemap):
+        d, conf, ev = M.codemap[s]
+        out.append("| `0x%08x` | %s | `0x%08x` | code | %s | %s |" % (s, N.get(s, ("?",))[0], d, conf, ev))
+    out.append("\n### Named v1.70 functions without a decision\n")
+    out.append("| v1.70 address | v1.70 name | subsystem |")
+    out.append("|---|---|---|")
+    for s in sorted(N):
+        if s not in M.m and s not in M.extra and s not in M.removed and s not in M.codemap:
+            out.append("| `0x%08x` | %s | %s |" % (s, N[s][0], N[s][1]))
+    out.append("\n### New functions by subsystem\n")
+    by = defaultdict(list)
+    for r in rows:
+        if not r["v170_address"] and r["subsystem"] not in ("crt", "lib"):
+            by[r["subsystem"]].append(r)
+    for sub in sorted(by):
+        out.append("\n#### %s (%d)\n" % (sub, len(by[sub])))
+        out.append("| AS2 address | name | description | confidence |")
+        out.append("|---|---|---|---|")
+        for r in by[sub]:
+            out.append("| `%s` | %s | %s | %s |" % (r["address"], r["name"], r["description"], r["confidence"]))
+    with open(path, "w") as f:
+        f.write("\n".join(out) + "\n")
 
 
 if __name__ == "__main__":

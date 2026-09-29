@@ -22,7 +22,6 @@ from_address,to_address,confidence,evidence
 0x00429f60,0x0042b950,medium,builds the main menu: called by G_Init; calls UI_AddItem and UI_LoadSkinImages; takes three callbacks of which M_MainMenuAction and M_MainMenuKey are matched
 0x004267a0,0x00427db0,medium,menu builder whose draw callback 0x00427b60 holds the 'Enemies destroyed:' / 'Stars collected:' / 'Your current rank:' strings of M_DrawMissionComplete; button images changed
 0x00426360,0x00427b60,medium,only function with the 'Enemies destroyed:' / 'Stars collected:' / 'Your current rank:' strings; draw callback of M_MissionCompleteMenu
-0x0042a260,removed,low,no separate function: G_Init and the other callers call the main-menu builder 0x0042b950 and UI_PushMenu directly
 0x00429c20,0x0042b8c0,medium,the remaining callback of the main-menu builder 0x0042b950 (the other two are M_MainMenuAction and M_MainMenuKey); calls UI_DrawSkinImages and UI_DrawMenu
 0x0040e0d0,0x00430a20,medium,called by G_Frame and G_BeginLevel and by the menu-model draw; calls R_SetFrustum and R_DrawParticles and ends in the 2D pass; same 1000/2000/4 constants; the statistics overlay whose strings made 0x0040aa40 look like the counterpart is now a separate function
 0x0040e070,0x004309b0,medium,2D pass: callee of R_RenderView 0x00430a20 and of the loading/intro/menu frames; calls the 2D mode set-up and the quad drawer
@@ -67,5 +66,43 @@ from_address,to_address,confidence,evidence
 0x00427aa0,removed,high,story page: its text strings are absent in AS2 (AS2 tells its story with comic screens)
 0x00427b70,removed,high,story page: its text strings are absent in AS2
 0x00426e70,removed,medium,the v1.70 congratulations text is absent in AS2 ('Congratulations!' alone remains as unreferenced data)
-0x00426c90,removed,medium,exit-confirmation menu: its yes/no button images are absent in AS2
-0x0042beb0,removed,medium,message-box menu builder: its apply/ok button images are absent in AS2
+0x0042a260,0x0042bbc0,medium,calls M_BuildMainMenu then UI_PopMenu and UI_PushMenu; called by M_GameCompleteAction as in v1.70 and by the mission-complete action 0x00427a20 (G_Init now calls the builder directly)
+0x00426c90,0x00428090,medium,called by M_MainMenuAction as in v1.70; builds the quit confirmation (YES button); its draw callback 0x00428000 holds 'Are you sure you want to quit?' (the v1.70 yes/no button images are gone)
+0x0042beb0,0x0042dc10,low,message-box builder (Ok button) called by the message box 0x0042dd20 as in v1.70; the apply/ok button images are gone
+0x0042c000,0x0042dd20,low,message box reached from the tutorial-hint builtin PF_ShowTutorialHint (a thunk to it) as in v1.70; calls the message-box builder 0x0042dc10
+0x0042a710,0x0042c3d0,low,callee of M_OptionsMenu as in v1.70; same 10.0 constant; similar size (194 against 290 bytes)
+# Named v1.70 addresses that are not function entries in the v1.70 export
+# (menu callbacks Ghidra left inside a neighbouring function), mapped to AS2
+# functions through the callback pointers of the matched menu builders.
+0x00421ee0,0x00415d20,high,window procedure: the only callback address taken by MW_CreateWindow in both executables; calls DefWindowProcA, G_KeyEvent, G_CharEvent, IN_MouseMove; the v1.70 export has no function at 0x00421ee0 (it lies inside 0x00421ea0)
+0x00426270,0x00427a20,medium,action callback taken by M_MissionCompleteMenu 0x00427db0 (the callback order changed; identified by its calls: G_FreeLevel, G_BeginLevel, G_BankScore, UI_PopMenu)
+0x00426a70,0x00428000,medium,draw callback of the quit confirmation 0x00428090 ('Are you sure you want to quit?' / 'Confirm Exit')
+0x004275e0,0x00428ac0,medium,action callback taken by M_GameOverMenu 0x00428db0: restarts or leaves the level (G_FreeLevel; G_BeginLevel; M_BuildMainMenu; G_CheckHighScore)
+0x00427640,0x00428b60,medium,key callback taken by M_GameOverMenu 0x00428db0 (forwards to UI_MenuKey)
+0x00428d40,0x0042a8c0,medium,action callback taken by M_InGameMenu 0x0042aa20 (restart; quit to main menu; options)
+0x00428e10,0x0042a9e0,medium,draw callback taken by M_InGameMenu 0x0042aa20 (UI_DrawMenu)
+0x0042abb0,0x0042c860,medium,draw callback taken by M_OptionsMenu 0x0042c8d0 (' Options ' title; UI_DrawMenu)
+0x0042b470,0x0042d840,medium,draw callback taken by M_StartGameMenu 0x0042d8b0 ('Start Game' title; UI_DrawMenu)
+0x00423230,0x00423a00,medium,draw callback taken by M_ControlsMenu 0x00423ac0 ('Configure Controls' title; UI_DrawMenu)
+0x0042a8e0,0x0042c560,medium,apart from the resolution-list builder the only caller of M_FillResolutions; called from the options draw callback 0x0042c860 (v1.70: no direct caller; callback)
+# Counterparts that the AS2 export does not define as functions either
+# ("code:" address). In AS2 a menu builder passes its callbacks in the order
+# action, draw, key (v1.70: draw, key, action); the two orders are checked
+# against the callbacks already matched as functions.
+0x004270a0,code:0x00428430,medium,draw callback of M_GameCompleteMenu 0x004289c0 (its key and action callbacks M_GameCompleteKey and M_GameCompleteAction are matched)
+0x00427670,code:0x00428b90,medium,draw callback of M_GameOverMenu 0x00428db0 (its action and key callbacks are matched)
+0x00426330,code:0x00427b30,medium,key callback of M_MissionCompleteMenu 0x00427db0 (its action and draw callbacks are matched)
+0x00428dd0,code:0x0042a9a0,medium,key callback of M_InGameMenu 0x0042aa20 (its action and draw callbacks are matched)
+0x00426a20,code:0x00427fb0,medium,action callback of the quit confirmation 0x00428090 (its draw callback 0x00428000 is matched)
+0x0042b3b0,code:0x0042d7b0,medium,the other callback of M_StartGameMenu 0x0042d8b0 (its draw callback 0x0042d840 is matched)
+0x0042c180,code:0x0042de60,medium,action callback of M_TopScoresMenu 0x0042e0d0 (its draw callback M_DrawTopScores is matched)
+0x00423160,code:0x00423930,medium,first callback of M_ControlsMenu 0x00423ac0; the callback order is unchanged (draw and key-binding drawer at the same positions)
+0x00422ef0,code:0x004236b0,medium,fourth callback of M_ControlsMenu 0x00423ac0; the callback order is unchanged
+0x0042a300,code:0x0042bc10,low,M_NameEntryMenu 0x0042bcd0 callbacks: first position (action in the AS2 order) and lowest address as in v1.70
+0x0042a360,code:0x0042bc70,low,M_NameEntryMenu 0x0042bcd0 callbacks: second position (draw in the AS2 order) and highest address as in v1.70
+0x0042a330,code:0x0042bc40,low,M_NameEntryMenu 0x0042bcd0 callbacks: third position (key in the AS2 order) and middle address as in v1.70
+0x0042bd40,code:0x0042db70,low,message-box builder 0x0042dc10 callbacks keep the v1.70 order (draw; key; action) and the v1.70 address order
+0x0042bd00,code:0x0042db30,low,message-box builder 0x0042dc10 callbacks keep the v1.70 order (draw; key; action) and the v1.70 address order
+0x0042bcc0,code:0x0042daf0,low,message-box builder 0x0042dc10 callbacks keep the v1.70 order (draw; key; action) and the v1.70 address order
+0x0042aa60,code:0x0042c700,low,M_OptionsMenu 0x0042c8d0 callbacks other than the draw callback: the higher address as in v1.70 (M_OptionsApplyAction below M_OptionsAction)
+0x0042a840,code:0x0042c4a0,low,M_OptionsMenu 0x0042c8d0 callbacks other than the draw callback: the lower address as in v1.70
