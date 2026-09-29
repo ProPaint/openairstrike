@@ -84,10 +84,11 @@ Every claim carries one of:
 | Audio | `engine/src/audio` | mixer and music decoder; not yet driven by the world's sound queue |
 | Game app | `apps/game`, `engine/src/input`, `engine/src/render/world_render*` | mission 1 plays on desktop and completes under the bot (M6); choices in issue 050; missing: lightning bolts, enemy health bars, particle damage, menus |
 | Menus, progression, save | `engine/src/ui`, `engine/src/game/profile*`, `tools/extract_exe_texts.py` | all screens, state machine, profile file, touch mode; tested against a fake game; not yet wired into `as3d_game` (interface `GameHost` in `frontend.h`) |
-| Android gameplay | `android`, `apps/android_boot` | boot test only |
+| Android gameplay | `android`, `apps/game` (shared loop), `engine/src/input/touch_mapper.cpp`, `docs/android.md` | mission 1 plays on the emulator with touch controls (M8 on the emulator); never run on a real phone; choices in issue 100 |
 | [050](issues/050-game-integration-choices.md) | game integration choices: draw order, controls, audio |
 | [070](issues/070-render-extras-choices.md) | shadows, lights and environment map choices |
 | [090](issues/090-touch-mode-additions.md) | touch-mode additions to the menus |
 | [091](issues/091-frontend-wide-screens-and-small-choices.md) | wide screens and small front end choices |
 | [092](issues/092-information-page-layout.md) | Information page layout; paragraph icons are a guess |
 | [120](issues/120-player-fire-at-screen-edge.md) | the on-screen bit is set when the rectangle overlaps the window, not when it is contained; corrects engine-behaviour 3.3, 5.1, 7.3, render-pipeline 9.3 and `Shoot` step 1; settles 034 (radius, pivot) |
+| [100](issues/100-touch-controls.md) | touch control mapping and button placement |
