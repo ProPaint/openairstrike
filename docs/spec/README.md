@@ -65,6 +65,11 @@ Every claim carries one of:
 The engine runs several games of the same engine family. Each has a key used for data
 directories, tests (`AS3D_GAME`), goldens (`testdata/golden/<key>/`) and saves.
 
+Data on disk, all gitignored: the first game's install is `third_party_local/original/` and
+its extracted files `assets_extracted/`; a sequel's install is `third_party_local/games/<key>/`
+and its extracted files `assets_extracted_games/<key>/` (`tools/setup_data.sh <key>`). Ghidra
+exports are `re/out/v170`, `re/out/as2`, `re/out/gulf` (`re/run_ghidra.sh --game <key>`).
+
 | Key | Game | Executable | Specs |
 |---|---|---|---|
 | `as3d` | AirStrike 3D v1.70 | `AirStrike3D.exe` | the base specs in this directory |
