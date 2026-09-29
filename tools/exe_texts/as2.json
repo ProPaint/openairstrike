@@ -1,0 +1,1648 @@
+{
+ "game": "as2",
+ "exe": "AirStrike3D II.exe",
+ "exe_sha256": "b24b62b2c5b61cfa1cf0aad781788aa777a2e4f4a385c73ba53014b039e46f5b",
+ "image_base": "0x00400000",
+ "address_to_file_offset": "file offset = address - image_base - section virtual address + section raw offset; all texts are in .rdata (virtual address 0x47f000, raw offset 0x7f000, so offset = address - 0x400000); the dialogue records are in .data (virtual 0x498000, raw 0x98000)",
+ "kinds": {
+  "text": "NUL-terminated ASCII string at the address, one line; leading and trailing spaces are part of button captions (they set the button width)",
+  "text_ml": "NUL-terminated ASCII string whose lines are separated by a single LF byte (0x0A); an empty line is LF LF",
+  "u32": "little-endian 32-bit integer at the address (not a text)"
+ },
+ "spec": "docs/spec/as2/frontend.md section 7",
+ "entries": [
+  {
+   "key": "title.start_game",
+   "address": "0x0048ee84",
+   "kind": "text"
+  },
+  {
+   "key": "title.options",
+   "address": "0x0048ebc4",
+   "kind": "text",
+   "note": "Options panel title; same string as button.options"
+  },
+  {
+   "key": "title.controls",
+   "address": "0x0048d728",
+   "kind": "text"
+  },
+  {
+   "key": "title.heli",
+   "address": "0x0048de98",
+   "kind": "text"
+  },
+  {
+   "key": "title.mission_complete",
+   "address": "0x0048d934",
+   "kind": "text"
+  },
+  {
+   "key": "title.top_scores",
+   "address": "0x0048eedc",
+   "kind": "text"
+  },
+  {
+   "key": "title.enter_name",
+   "address": "0x0048ed24",
+   "kind": "text"
+  },
+  {
+   "key": "title.exit",
+   "address": "0x0048d9a0",
+   "kind": "text"
+  },
+  {
+   "key": "title.hint",
+   "address": "0x0048eeb0",
+   "kind": "text"
+  },
+  {
+   "key": "title.game_over",
+   "address": "0x0048dd34",
+   "kind": "text"
+  },
+  {
+   "key": "label.exit",
+   "address": "0x0048d980",
+   "kind": "text"
+  },
+  {
+   "key": "label.difficulty",
+   "address": "0x0048ee90",
+   "kind": "text"
+  },
+  {
+   "key": "label.game_mode",
+   "address": "0x0048ee9c",
+   "kind": "text"
+  },
+  {
+   "key": "label.player",
+   "address": "0x0048deac",
+   "kind": "text"
+  },
+  {
+   "key": "difficulty.0",
+   "address": "0x0048ee78",
+   "kind": "text",
+   "note": "pointer table 0x49e6d8"
+  },
+  {
+   "key": "difficulty.1",
+   "address": "0x0048ee70",
+   "kind": "text",
+   "note": "pointer table 0x49e6d8"
+  },
+  {
+   "key": "difficulty.2",
+   "address": "0x0048ee68",
+   "kind": "text",
+   "note": "pointer table 0x49e6d8"
+  },
+  {
+   "key": "difficulty.3",
+   "address": "0x0048ee60",
+   "kind": "text",
+   "note": "pointer table 0x49e6d8"
+  },
+  {
+   "key": "difficulty.4",
+   "address": "0x0048ee54",
+   "kind": "text",
+   "note": "pointer table 0x49e6d8"
+  },
+  {
+   "key": "mode.0",
+   "address": "0x0048ee44",
+   "kind": "text",
+   "note": "first value of the game mode spinner"
+  },
+  {
+   "key": "mode.1",
+   "address": "0x0048ee38",
+   "kind": "text",
+   "note": "second value (two players)"
+  },
+  {
+   "key": "button.start_game",
+   "address": "0x0048ece8",
+   "kind": "text"
+  },
+  {
+   "key": "button.top_scores",
+   "address": "0x0048ecf8",
+   "kind": "text"
+  },
+  {
+   "key": "button.options",
+   "address": "0x0048ebc4",
+   "kind": "text"
+  },
+  {
+   "key": "button.information",
+   "address": "0x0048ed08",
+   "kind": "text"
+  },
+  {
+   "key": "button.credits",
+   "address": "0x0048ed18",
+   "kind": "text"
+  },
+  {
+   "key": "button.quit",
+   "address": "0x0048ebd0",
+   "kind": "text",
+   "note": "main menu and in-game menu"
+  },
+  {
+   "key": "button.quit_wide",
+   "address": "0x0048d954",
+   "kind": "text",
+   "note": "mission complete and game over"
+  },
+  {
+   "key": "button.yes",
+   "address": "0x0048d9b0",
+   "kind": "text"
+  },
+  {
+   "key": "button.no",
+   "address": "0x0048d9b8",
+   "kind": "text"
+  },
+  {
+   "key": "button.back",
+   "address": "0x0048d794",
+   "kind": "text"
+  },
+  {
+   "key": "button.back_wide",
+   "address": "0x0048d8b0",
+   "kind": "text",
+   "note": "Options, Credits and Information screens"
+  },
+  {
+   "key": "button.next",
+   "address": "0x0048eea8",
+   "kind": "text",
+   "note": "Start Game screen"
+  },
+  {
+   "key": "button.next_wide",
+   "address": "0x0048d974",
+   "kind": "text",
+   "note": "mission complete"
+  },
+  {
+   "key": "button.start",
+   "address": "0x0048dec0",
+   "kind": "text"
+  },
+  {
+   "key": "button.continue",
+   "address": "0x0048dd28",
+   "kind": "text"
+  },
+  {
+   "key": "button.accept",
+   "address": "0x0048deb4",
+   "kind": "text"
+  },
+  {
+   "key": "button.restart",
+   "address": "0x0048d948",
+   "kind": "text"
+  },
+  {
+   "key": "button.resume",
+   "address": "0x0048ebb8",
+   "kind": "text"
+  },
+  {
+   "key": "button.choose_heli",
+   "address": "0x0048d960",
+   "kind": "text"
+  },
+  {
+   "key": "button.configure_controls",
+   "address": "0x0048ee18",
+   "kind": "text"
+  },
+  {
+   "key": "button.apply",
+   "address": "0x0048ee30",
+   "kind": "text"
+  },
+  {
+   "key": "button.ok",
+   "address": "0x0048ed34",
+   "kind": "text"
+  },
+  {
+   "key": "stat.enemies",
+   "address": "0x0048d8c8",
+   "kind": "text"
+  },
+  {
+   "key": "stat.stars",
+   "address": "0x0048d8e4",
+   "kind": "text"
+  },
+  {
+   "key": "stat.rank",
+   "address": "0x0048d900",
+   "kind": "text"
+  },
+  {
+   "key": "msg.new_heli",
+   "address": "0x0048d914",
+   "kind": "text"
+  },
+  {
+   "key": "rank.0",
+   "address": "0x0048b674",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.1",
+   "address": "0x0048b66c",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.2",
+   "address": "0x0048b65c",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.3",
+   "address": "0x0048b654",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.4",
+   "address": "0x0048b644",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.5",
+   "address": "0x0048b638",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.6",
+   "address": "0x0048b630",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "heli.0",
+   "address": "0x0048de58",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.1",
+   "address": "0x0048de4c",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.2",
+   "address": "0x0048de3c",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.3",
+   "address": "0x0048de2c",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.4",
+   "address": "0x0048de24",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.5",
+   "address": "0x0048de18",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.speed",
+   "address": "0x0048de88",
+   "kind": "text"
+  },
+  {
+   "key": "heli.armor",
+   "address": "0x0048de90",
+   "kind": "text"
+  },
+  {
+   "key": "heli.na",
+   "address": "0x0048de78",
+   "kind": "text"
+  },
+  {
+   "key": "scores.number",
+   "address": "0x0048eec0",
+   "kind": "text"
+  },
+  {
+   "key": "scores.name",
+   "address": "0x0048eec4",
+   "kind": "text"
+  },
+  {
+   "key": "scores.score",
+   "address": "0x0048eecc",
+   "kind": "text"
+  },
+  {
+   "key": "scores.rank",
+   "address": "0x0048eed4",
+   "kind": "text"
+  },
+  {
+   "key": "opt.resolution",
+   "address": "0x0048ed90",
+   "kind": "text"
+  },
+  {
+   "key": "opt.refresh",
+   "address": "0x0048ed9c",
+   "kind": "text"
+  },
+  {
+   "key": "opt.depth",
+   "address": "0x0048edac",
+   "kind": "text"
+  },
+  {
+   "key": "opt.fullscreen",
+   "address": "0x0048edbc",
+   "kind": "text"
+  },
+  {
+   "key": "opt.brightness",
+   "address": "0x0048edc8",
+   "kind": "text"
+  },
+  {
+   "key": "opt.sfx",
+   "address": "0x0048edd4",
+   "kind": "text"
+  },
+  {
+   "key": "opt.music",
+   "address": "0x0048ede4",
+   "kind": "text"
+  },
+  {
+   "key": "opt.sound3d",
+   "address": "0x0048edf4",
+   "kind": "text"
+  },
+  {
+   "key": "opt.camera",
+   "address": "0x0048ee00",
+   "kind": "text"
+  },
+  {
+   "key": "opt.mouse",
+   "address": "0x0048ee08",
+   "kind": "text"
+  },
+  {
+   "key": "opt.refresh.default",
+   "address": "0x0048ed80",
+   "kind": "text"
+  },
+  {
+   "key": "opt.off",
+   "address": "0x0048ed7c",
+   "kind": "text"
+  },
+  {
+   "key": "opt.on",
+   "address": "0x0048ed78",
+   "kind": "text"
+  },
+  {
+   "key": "opt.depth.0",
+   "address": "0x0048ed64",
+   "kind": "text"
+  },
+  {
+   "key": "opt.depth.16",
+   "address": "0x0048ed44",
+   "kind": "text"
+  },
+  {
+   "key": "opt.depth.32",
+   "address": "0x0048ed3c",
+   "kind": "text"
+  },
+  {
+   "key": "camera.0",
+   "address": "0x0048ed6c",
+   "kind": "text",
+   "note": "pointer table 0x49e6b4"
+  },
+  {
+   "key": "camera.1",
+   "address": "0x0048ed64",
+   "kind": "text",
+   "note": "pointer table 0x49e6b4"
+  },
+  {
+   "key": "camera.2",
+   "address": "0x0048ed58",
+   "kind": "text",
+   "note": "pointer table 0x49e6b4"
+  },
+  {
+   "key": "camera.3",
+   "address": "0x0048ed4c",
+   "kind": "text",
+   "note": "pointer table 0x49e6b4"
+  },
+  {
+   "key": "ctl.set",
+   "address": "0x0048d784",
+   "kind": "text"
+  },
+  {
+   "key": "ctl.player.1",
+   "address": "0x0048d52c",
+   "kind": "text"
+  },
+  {
+   "key": "ctl.player.2",
+   "address": "0x0048d520",
+   "kind": "text"
+  },
+  {
+   "key": "ctl.row.0",
+   "address": "0x0048d6ec",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.1",
+   "address": "0x0048d6dc",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.2",
+   "address": "0x0048d6d8",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.3",
+   "address": "0x0048d6c8",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.4",
+   "address": "0x0048d6b8",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.5",
+   "address": "0x0048d6d8",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.6",
+   "address": "0x0048d6ac",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.7",
+   "address": "0x0048d6a0",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.8",
+   "address": "0x0048d6d8",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.9",
+   "address": "0x0048d690",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "info.page",
+   "address": "0x0048ebb0",
+   "kind": "text"
+  },
+  {
+   "key": "info.hint.prev",
+   "address": "0x0048eb84",
+   "kind": "text"
+  },
+  {
+   "key": "info.hint.next",
+   "address": "0x0048eb9c",
+   "kind": "text"
+  },
+  {
+   "key": "info.pages.1",
+   "address": "0x0048df10",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.2",
+   "address": "0x0048df08",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.3",
+   "address": "0x0048df00",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.4",
+   "address": "0x0048def8",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.5",
+   "address": "0x0048def0",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.6",
+   "address": "0x0048dee8",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.7",
+   "address": "0x0048dee0",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.8",
+   "address": "0x0048ded8",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.1.title",
+   "address": "0x0048e150",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.0",
+   "address": "0x0048df18",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.1",
+   "address": "0x0048df60",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.2",
+   "address": "0x0048dfa0",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.3",
+   "address": "0x0048dfe0",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.5",
+   "address": "0x0048dff0",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.6",
+   "address": "0x0048e020",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.8",
+   "address": "0x0048e068",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.9",
+   "address": "0x0048e0b0",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.10",
+   "address": "0x0048e0f8",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.11",
+   "address": "0x0048e13c",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.title",
+   "address": "0x0048e340",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.0",
+   "address": "0x0048e15c",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.1",
+   "address": "0x0048e16c",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.2",
+   "address": "0x0048e1a8",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.3",
+   "address": "0x0048e1e4",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.5",
+   "address": "0x0048e200",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.6",
+   "address": "0x0048e210",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.7",
+   "address": "0x0048e24c",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.9",
+   "address": "0x0048e260",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.10",
+   "address": "0x0048e270",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.11",
+   "address": "0x0048e2a4",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.13",
+   "address": "0x0048e2e0",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.14",
+   "address": "0x0048e2f0",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.15",
+   "address": "0x0048e328",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.title",
+   "address": "0x0048e50c",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.0",
+   "address": "0x0048e360",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.1",
+   "address": "0x0048e36c",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.2",
+   "address": "0x0048e3ac",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.3",
+   "address": "0x0048e3e8",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.4",
+   "address": "0x0048e420",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.6",
+   "address": "0x0048e440",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.7",
+   "address": "0x0048e450",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.8",
+   "address": "0x0048e48c",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.10",
+   "address": "0x0048e4bc",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.11",
+   "address": "0x0048e4c8",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.12",
+   "address": "0x0048e4f8",
+   "kind": "text"
+  },
+  {
+   "key": "info.4.title",
+   "address": "0x0048e5d0",
+   "kind": "text"
+  },
+  {
+   "key": "info.4.0",
+   "address": "0x0048e52c",
+   "kind": "text"
+  },
+  {
+   "key": "info.4.1",
+   "address": "0x0048e53c",
+   "kind": "text"
+  },
+  {
+   "key": "info.4.2",
+   "address": "0x0048e578",
+   "kind": "text"
+  },
+  {
+   "key": "info.4.4",
+   "address": "0x0048e5ac",
+   "kind": "text"
+  },
+  {
+   "key": "info.4.5",
+   "address": "0x0048e5bc",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.title",
+   "address": "0x0048e828",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.0",
+   "address": "0x0048e5f0",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.1",
+   "address": "0x0048e604",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.2",
+   "address": "0x0048e640",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.4",
+   "address": "0x0048e680",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.5",
+   "address": "0x0048e690",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.7",
+   "address": "0x0048e6c8",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.8",
+   "address": "0x0048e6e8",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.9",
+   "address": "0x0048e728",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.10",
+   "address": "0x0048e764",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.12",
+   "address": "0x0048e76c",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.13",
+   "address": "0x0048e788",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.14",
+   "address": "0x0048e7c4",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.15",
+   "address": "0x0048e7fc",
+   "kind": "text"
+  },
+  {
+   "key": "info.6.title",
+   "address": "0x0048e8c0",
+   "kind": "text"
+  },
+  {
+   "key": "info.6.0",
+   "address": "0x0048e840",
+   "kind": "text"
+  },
+  {
+   "key": "info.6.1",
+   "address": "0x0048e854",
+   "kind": "text"
+  },
+  {
+   "key": "info.6.2",
+   "address": "0x0048e88c",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.title",
+   "address": "0x0048ea84",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.0",
+   "address": "0x0048e8d8",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.1",
+   "address": "0x0048e8e8",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.2",
+   "address": "0x0048e924",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.4",
+   "address": "0x0048e950",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.5",
+   "address": "0x0048e960",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.7",
+   "address": "0x0048e98c",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.8",
+   "address": "0x0048e99c",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.10",
+   "address": "0x0048e9d8",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.11",
+   "address": "0x0048e9ec",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.12",
+   "address": "0x0048ea24",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.13",
+   "address": "0x0048ea5c",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.title",
+   "address": "0x0048eb70",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.0",
+   "address": "0x0048ea98",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.1",
+   "address": "0x0048eaac",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.2",
+   "address": "0x0048eae0",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.4",
+   "address": "0x0048eb10",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.5",
+   "address": "0x0048eb20",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.6",
+   "address": "0x0048eb4c",
+   "kind": "text"
+  },
+  {
+   "key": "credits.0",
+   "address": "0x0048d79c",
+   "kind": "text"
+  },
+  {
+   "key": "credits.1",
+   "address": "0x0048d7ac",
+   "kind": "text"
+  },
+  {
+   "key": "credits.3",
+   "address": "0x0048d7c0",
+   "kind": "text"
+  },
+  {
+   "key": "credits.4",
+   "address": "0x0048d7cc",
+   "kind": "text"
+  },
+  {
+   "key": "credits.6",
+   "address": "0x0048d7dc",
+   "kind": "text"
+  },
+  {
+   "key": "credits.7",
+   "address": "0x0048d7f8",
+   "kind": "text"
+  },
+  {
+   "key": "credits.8",
+   "address": "0x0048d808",
+   "kind": "text"
+  },
+  {
+   "key": "credits.10",
+   "address": "0x0048d81c",
+   "kind": "text"
+  },
+  {
+   "key": "credits.11",
+   "address": "0x0048d830",
+   "kind": "text"
+  },
+  {
+   "key": "credits.13",
+   "address": "0x0048d840",
+   "kind": "text"
+  },
+  {
+   "key": "credits.14",
+   "address": "0x0048d850",
+   "kind": "text"
+  },
+  {
+   "key": "credits.16",
+   "address": "0x0048d864",
+   "kind": "text"
+  },
+  {
+   "key": "credits.17",
+   "address": "0x0048d86c",
+   "kind": "text"
+  },
+  {
+   "key": "credits.19",
+   "address": "0x0048d888",
+   "kind": "text"
+  },
+  {
+   "key": "credits.20",
+   "address": "0x0048d898",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.0",
+   "address": "0x0048db10",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.2",
+   "address": "0x0048db24",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.3",
+   "address": "0x0048db60",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.4",
+   "address": "0x0048db9c",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.6",
+   "address": "0x0048dbd0",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.7",
+   "address": "0x0048dc14",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.8",
+   "address": "0x0048dc50",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.10",
+   "address": "0x0048dc68",
+   "kind": "text"
+  },
+  {
+   "key": "loading.label",
+   "address": "0x0048a424",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.god_on",
+   "address": "0x0048a018",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.god_off",
+   "address": "0x0048a02c",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.lives",
+   "address": "0x0048a054",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.weapons",
+   "address": "0x0048a07c",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.missiles",
+   "address": "0x0048a0a4",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.powerups",
+   "address": "0x0048a0d0",
+   "kind": "text"
+  },
+  {
+   "key": "dialog.1.start.0",
+   "address": "0x0048d460",
+   "kind": "text_ml",
+   "note": "record at 0x0049d32c"
+  },
+  {
+   "key": "dialog.1.start.0.speaker",
+   "address": "0x0049d32c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.1.start.1",
+   "address": "0x0048d41c",
+   "kind": "text_ml",
+   "note": "record at 0x0049d334"
+  },
+  {
+   "key": "dialog.1.start.1.speaker",
+   "address": "0x0049d334",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.1.end.0",
+   "address": "0x0048d3ec",
+   "kind": "text_ml",
+   "note": "record at 0x0049d344"
+  },
+  {
+   "key": "dialog.1.end.0.speaker",
+   "address": "0x0049d344",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.2.start.0",
+   "address": "0x0048d370",
+   "kind": "text_ml",
+   "note": "record at 0x0049d354"
+  },
+  {
+   "key": "dialog.2.start.0.speaker",
+   "address": "0x0049d354",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.2.start.1",
+   "address": "0x0048d360",
+   "kind": "text",
+   "note": "record at 0x0049d35c"
+  },
+  {
+   "key": "dialog.2.start.1.speaker",
+   "address": "0x0049d35c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.2.end.0",
+   "address": "0x0048d2e0",
+   "kind": "text_ml",
+   "note": "record at 0x0049d36c"
+  },
+  {
+   "key": "dialog.2.end.0.speaker",
+   "address": "0x0049d36c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.3.start.0",
+   "address": "0x0048d258",
+   "kind": "text_ml",
+   "note": "record at 0x0049d37c"
+  },
+  {
+   "key": "dialog.3.start.0.speaker",
+   "address": "0x0049d37c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.3.start.1",
+   "address": "0x0048d1e8",
+   "kind": "text_ml",
+   "note": "record at 0x0049d384"
+  },
+  {
+   "key": "dialog.3.start.1.speaker",
+   "address": "0x0049d384",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.3.start.2",
+   "address": "0x0048d168",
+   "kind": "text_ml",
+   "note": "record at 0x0049d38c"
+  },
+  {
+   "key": "dialog.3.start.2.speaker",
+   "address": "0x0049d38c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.3.end.0",
+   "address": "0x0048d148",
+   "kind": "text",
+   "note": "record at 0x0049d39c"
+  },
+  {
+   "key": "dialog.3.end.0.speaker",
+   "address": "0x0049d39c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.4.end.0",
+   "address": "0x0048d13c",
+   "kind": "text",
+   "note": "record at 0x0049d3ac"
+  },
+  {
+   "key": "dialog.4.end.0.speaker",
+   "address": "0x0049d3ac",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.5.start.0",
+   "address": "0x0048d0a8",
+   "kind": "text_ml",
+   "note": "record at 0x0049d3bc"
+  },
+  {
+   "key": "dialog.5.start.0.speaker",
+   "address": "0x0049d3bc",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.5.end.0",
+   "address": "0x0048d058",
+   "kind": "text_ml",
+   "note": "record at 0x0049d3cc"
+  },
+  {
+   "key": "dialog.5.end.0.speaker",
+   "address": "0x0049d3cc",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.6.start.0",
+   "address": "0x0048cfd8",
+   "kind": "text_ml",
+   "note": "record at 0x0049d3dc"
+  },
+  {
+   "key": "dialog.6.start.0.speaker",
+   "address": "0x0049d3dc",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.6.start.1",
+   "address": "0x0048cf70",
+   "kind": "text_ml",
+   "note": "record at 0x0049d3e4"
+  },
+  {
+   "key": "dialog.6.start.1.speaker",
+   "address": "0x0049d3e4",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.6.end.0",
+   "address": "0x0048cf30",
+   "kind": "text_ml",
+   "note": "record at 0x0049d3f4"
+  },
+  {
+   "key": "dialog.6.end.0.speaker",
+   "address": "0x0049d3f4",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.6.end.1",
+   "address": "0x0048cf0c",
+   "kind": "text_ml",
+   "note": "record at 0x0049d3fc"
+  },
+  {
+   "key": "dialog.6.end.1.speaker",
+   "address": "0x0049d3fc",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.8.start.0",
+   "address": "0x0048ce90",
+   "kind": "text_ml",
+   "note": "record at 0x0049d40c"
+  },
+  {
+   "key": "dialog.8.start.0.speaker",
+   "address": "0x0049d40c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.8.start.1",
+   "address": "0x0048cde8",
+   "kind": "text_ml",
+   "note": "record at 0x0049d414"
+  },
+  {
+   "key": "dialog.8.start.1.speaker",
+   "address": "0x0049d414",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.8.start.2",
+   "address": "0x0048cdb0",
+   "kind": "text_ml",
+   "note": "record at 0x0049d41c"
+  },
+  {
+   "key": "dialog.8.start.2.speaker",
+   "address": "0x0049d41c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.9.end.0",
+   "address": "0x0048cd98",
+   "kind": "text",
+   "note": "record at 0x0049d42c"
+  },
+  {
+   "key": "dialog.9.end.0.speaker",
+   "address": "0x0049d42c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.10.end.0",
+   "address": "0x0048cd70",
+   "kind": "text",
+   "note": "record at 0x0049d43c"
+  },
+  {
+   "key": "dialog.10.end.0.speaker",
+   "address": "0x0049d43c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.10.end.1",
+   "address": "0x0048cd20",
+   "kind": "text_ml",
+   "note": "record at 0x0049d444"
+  },
+  {
+   "key": "dialog.10.end.1.speaker",
+   "address": "0x0049d444",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.11.start.0",
+   "address": "0x0048cc78",
+   "kind": "text_ml",
+   "note": "record at 0x0049d454"
+  },
+  {
+   "key": "dialog.11.start.0.speaker",
+   "address": "0x0049d454",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.11.start.1",
+   "address": "0x0048cc58",
+   "kind": "text_ml",
+   "note": "record at 0x0049d45c"
+  },
+  {
+   "key": "dialog.11.start.1.speaker",
+   "address": "0x0049d45c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.11.end.0",
+   "address": "0x0048cc00",
+   "kind": "text_ml",
+   "note": "record at 0x0049d46c"
+  },
+  {
+   "key": "dialog.11.end.0.speaker",
+   "address": "0x0049d46c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.12.start.0",
+   "address": "0x0048cb58",
+   "kind": "text_ml",
+   "note": "record at 0x0049d47c"
+  },
+  {
+   "key": "dialog.12.start.0.speaker",
+   "address": "0x0049d47c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.12.end.0",
+   "address": "0x0048cb38",
+   "kind": "text",
+   "note": "record at 0x0049d48c"
+  },
+  {
+   "key": "dialog.12.end.0.speaker",
+   "address": "0x0049d48c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.12.end.1",
+   "address": "0x0048cb0c",
+   "kind": "text",
+   "note": "record at 0x0049d494"
+  },
+  {
+   "key": "dialog.12.end.1.speaker",
+   "address": "0x0049d494",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.14.start.0",
+   "address": "0x0048cac8",
+   "kind": "text_ml",
+   "note": "record at 0x0049d4a4"
+  },
+  {
+   "key": "dialog.14.start.0.speaker",
+   "address": "0x0049d4a4",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.14.start.1",
+   "address": "0x0048caa0",
+   "kind": "text",
+   "note": "record at 0x0049d4ac"
+  },
+  {
+   "key": "dialog.14.start.1.speaker",
+   "address": "0x0049d4ac",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.15.start.0",
+   "address": "0x0048ca50",
+   "kind": "text_ml",
+   "note": "record at 0x0049d4bc"
+  },
+  {
+   "key": "dialog.15.start.0.speaker",
+   "address": "0x0049d4bc",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.15.start.1",
+   "address": "0x0048ca44",
+   "kind": "text",
+   "note": "record at 0x0049d4c4"
+  },
+  {
+   "key": "dialog.15.start.1.speaker",
+   "address": "0x0049d4c4",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.15.end.0",
+   "address": "0x0048c9d0",
+   "kind": "text_ml",
+   "note": "record at 0x0049d4d4"
+  },
+  {
+   "key": "dialog.15.end.0.speaker",
+   "address": "0x0049d4d4",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.16.end.0",
+   "address": "0x0048c9a8",
+   "kind": "text_ml",
+   "note": "record at 0x0049d4e4"
+  },
+  {
+   "key": "dialog.16.end.0.speaker",
+   "address": "0x0049d4e4",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.17.start.0",
+   "address": "0x0048c960",
+   "kind": "text_ml",
+   "note": "record at 0x0049d4f4"
+  },
+  {
+   "key": "dialog.17.start.0.speaker",
+   "address": "0x0049d4f4",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.17.start.1",
+   "address": "0x0048c91c",
+   "kind": "text_ml",
+   "note": "record at 0x0049d4fc"
+  },
+  {
+   "key": "dialog.17.start.1.speaker",
+   "address": "0x0049d4fc",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.18.start.0",
+   "address": "0x0048c890",
+   "kind": "text_ml",
+   "note": "record at 0x0049d50c"
+  },
+  {
+   "key": "dialog.18.start.0.speaker",
+   "address": "0x0049d50c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.18.start.1",
+   "address": "0x0048c830",
+   "kind": "text_ml",
+   "note": "record at 0x0049d514"
+  },
+  {
+   "key": "dialog.18.start.1.speaker",
+   "address": "0x0049d514",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  },
+  {
+   "key": "dialog.18.start.2",
+   "address": "0x0048c7f4",
+   "kind": "text_ml",
+   "note": "record at 0x0049d51c"
+  },
+  {
+   "key": "dialog.18.start.2.speaker",
+   "address": "0x0049d51c",
+   "kind": "u32",
+   "note": "0 officer, 1 pilot"
+  }
+ ]
+}
