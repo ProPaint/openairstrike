@@ -1,0 +1,81 @@
+address,name,evidence_string,confidence
+00427820,Armor,Armor:,renamed
+0042b160,Brightness,Brightness:,renamed
+0042b160,Camera,Camera:,also_matches(function already renamed to 'Brightness')
+00412ab0,CryptText,"CryptText: Failed.
+",renamed
+0042c1d0,Difficulty,Difficulty:,renamed
+0042e2f0,Direct3DCreate8,Direct3DCreate8() failed.,renamed
+0040d3a0,ERROR,"ERROR: Unknown level identifier '%s'.
+",ambiguous(4 candidates)
+004105d0,ERROR,"ERROR: Unknown level identifier '%s'.
+",ambiguous(4 candidates)
+004108c0,ERROR,"ERROR: Unknown level identifier '%s'.
+",ambiguous(4 candidates)
+00414060,ERROR,"ERROR: Unknown level identifier '%s'.
+",ambiguous(4 candidates)
+0040a9a0,Enteties,Enteties: ,renamed
+0040a9a0,FPS,FPS: %3i,also_matches(function already renamed to 'Enteties')
+00405fb0,F_Init,"F_Init: No data files were found.
+
+",renamed
+00405e90,F_LoadPackFile,"F_LoadPackFile: Too many paks.
+",renamed
+0042b160,Fullscreen,Fullscreen:,also_matches(function already renamed to 'Brightness')
+00406940,G_LoadBin,"G_LoadBin: Illegal '%s' version. 
+",renamed
+0040d980,G_LoadLevelList,G_LoadLevelList: Couldn't open '\maps\levels.txt',renamed
+00411fa0,G_LoadObjects,"G_LoadObjects: Couldn't find object files.
+",renamed
+0042e2f0,GetDeviceCaps,GetDeviceCaps() failed.,also_matches(function already renamed to 'Direct3DCreate8')
+00412ab0,HttpOpenRequest,"HttpOpenRequest: Failed.
+",also_matches(function already renamed to 'CryptText')
+004287b0,ITEMS,ITEMS (Page 1 of 2),ambiguous(2 candidates)
+00428a20,ITEMS,ITEMS (Page 1 of 2),ambiguous(2 candidates)
+00412ab0,InternetAttemptConnect,"InternetAttemptConnect: Failed.
+",also_matches(function already renamed to 'CryptText')
+00412ab0,InternetConnect,"InternetConnect: Failed.
+",also_matches(function already renamed to 'CryptText')
+00412ab0,InternetOpen,"InternetOpen: Failed.
+",also_matches(function already renamed to 'CryptText')
+00414f70,Joy_Init,"Joy_Init: Joystick disabled by user.
+
+",renamed
+00428430,MISSILES,MISSILES (Page 1 of 2),ambiguous(2 candidates)
+004286b0,MISSILES,MISSILES (Page 1 of 2),ambiguous(2 candidates)
+004141e0,MW_CreateWindow,"MW_CreateWindow: Couldn't register window class.
+",renamed
+004144b0,MW_Init,MW_Init: Couldn't get OS info,renamed
+0040a9a0,Marks,Marks: ,also_matches(function already renamed to 'Enteties')
+0040a9a0,Models,Models: ,also_matches(function already renamed to 'Enteties')
+00428c90,Page,Page:,renamed
+00410fd0,ParseObject,"ParseObject: Too many objects in object files.
+",renamed
+00427b70,Player,Player:,renamed
+00412ab0,PostScore,"PostScore: Succeeded.
+",also_matches(function already renamed to 'CryptText')
+00416ca0,R_LoadModel,"R_LoadModel: Couldn't open model file '%s'.
+",renamed
+0040e170,R_RegisterModel,"R_RegisterModel: Too many registered models.
+",ambiguous(2 candidates)
+004174c0,R_RegisterModel,"R_RegisterModel: Too many registered models.
+",ambiguous(2 candidates)
+00418b20,R_RegisterShadow,"R_RegisterShadow: Too many shadowmaps.
+",renamed
+0042b160,Resolution,Resolution:,also_matches(function already renamed to 'Brightness')
+00420670,SL_GetExternFunc,"SL_GetExternFunc: Built-in function '%s' not supported.
+",renamed
+00420fe0,S_Init,"S_Init: Illegal BASS version.
+",renamed
+00421530,S_RegisterSound,"S_RegisterSound: Too many registered samples.
+",renamed
+00427820,Speed,Speed:,also_matches(function already renamed to 'Armor')
+0040a9a0,Sprites,Sprites: ,also_matches(function already renamed to 'Enteties')
+0040a9a0,TexBinds,TexBinds: ,also_matches(function already renamed to 'Enteties')
+0040a9a0,Triangles,Triangles: ,also_matches(function already renamed to 'Enteties')
+00429830,UI_PopMenu,"UI_PopMenu: Menu stack underflow.
+",renamed
+004297b0,UI_PushMenu,"UI_PushMenu: Menu stack overflowm
+",renamed
+0042e070,error,"error: Could not reset D3D device.
+",renamed

@@ -2,7 +2,9 @@
 // decompiled/*.c + all.c + decompile_errors.txt, per-function disasm/*.asm, and SUMMARY.md
 // for the currently loaded program.
 //
-// Usage (headless): -postScript ExportAll.java <out_dir>
+// Usage (headless): -postScript ExportAll.java <out_dir> <probe.json>
+// <probe.json> is re/probes/<tag>.json: builtin/global name probes, acceptance strings, expected
+// table locations (see re/README.md).
 //
 // Run RenameByErrorStrings.java first (as an earlier -postScript) if you want the naming
 // pass reflected in the exported names.
@@ -54,10 +56,11 @@ public class ExportAll extends GhidraScript {
 	@Override
 	public void run() throws Exception {
 		String[] args = getScriptArgs();
-		if (args.length < 1) {
-			printerr("ExportAll: expected <out_dir> argument");
+		if (args.length < 2) {
+			printerr("ExportAll: expected <out_dir> <probe.json> arguments");
 			return;
 		}
+		loadProbes(new File(args[1]));
 		outDir = new File(args[0]);
 		decompDir = new File(outDir, "decompiled");
 		disasmDir = new File(outDir, "disasm");
@@ -371,10 +374,37 @@ public class ExportAll extends GhidraScript {
 	// ------------------------------------------------------------- data_tables.json
 
 	// Known names to look for, to flag interesting tables specially.
-	private static final String[] BUILTIN_NAMES = { "SetModel", "ClearFlag", "SetFlag",
-		"G_SetUpgrade", "sleep", "create", "remove" };
-	private static final String[] GLOBAL_NAMES = { "g_health_factor", "g_map_pos", "camera",
-		"frametime", "self", "other" };
+	// Loaded from the probe file (re/probes/<tag>.json), see loadProbes().
+	private String[] BUILTIN_NAMES = {};
+	private String[] GLOBAL_NAMES = {};
+	private String[] ACCEPTANCE_STRINGS = {};
+	private String probeTag = "?";
+	private String probeTitle = "?";
+	private JsonObject probeExpected = new JsonObject();
+	// every table found by writeDataTablesJson(), for the probe results in SUMMARY.md
+	private JsonArray foundTables = new JsonArray();
+
+	private static String[] jsonStrings(JsonObject o, String key) {
+		JsonArray a = o.getAsJsonArray(key);
+		String[] r = new String[a.size()];
+		for (int i = 0; i < r.length; i++) r[i] = a.get(i).getAsString();
+		return r;
+	}
+
+	private void loadProbes(File f) throws IOException {
+		JsonObject o;
+		try (Reader r = new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8)) {
+			o = JsonParser.parseReader(r).getAsJsonObject();
+		}
+		probeTag = o.get("tag").getAsString();
+		probeTitle = o.get("title").getAsString();
+		BUILTIN_NAMES = jsonStrings(o, "builtin_names");
+		GLOBAL_NAMES = jsonStrings(o, "global_names");
+		ACCEPTANCE_STRINGS = jsonStrings(o, "acceptance_strings");
+		if (o.has("expected")) probeExpected = o.getAsJsonObject("expected");
+		println("ExportAll: probes " + f + ": tag=" + probeTag + ", " + BUILTIN_NAMES.length +
+			" builtin names, " + GLOBAL_NAMES.length + " global names");
+	}
 
 	/** Ghidra only turns bytes into a Function when it can see how they're reached (control
 	 * flow, or an explicit function-start pattern search). Code that is only reached
@@ -469,6 +499,7 @@ public class ExportAll extends GhidraScript {
 		}
 
 		root.add("tables", tables);
+		foundTables = tables;
 
 		// Targeted lookup: where do the known builtin-function-name and global-variable-name
 		// strings live, and what (if anything) directly references each?
@@ -529,6 +560,31 @@ public class ExportAll extends GhidraScript {
 	 * stride (bytes), where the first field points to a defined string. Appends found runs
 	 * as JSON table objects to {@code tables}. */
 	private void scanBlockForTables(MemoryBlock block, int stride, JsonArray tables) {
+		// Records are only 4-byte aligned, and a table's position relative to the block start
+		// is arbitrary (a 12-byte table in the sequels sits at a phase of 4), so scan every
+		// 4-byte phase of the stride. Phase 0 is scanned first and always emits; runs found at
+		// other phases are dropped when they overlap something already emitted.
+		List<long[]> emitted = new ArrayList<>();
+		for (int phase = 0; phase < stride; phase += 4) {
+			scanBlockPhase(block, stride, phase, tables, emitted);
+		}
+	}
+
+	private void emitRun(MemoryBlock block, Address first, int count, int stride, int phase,
+		JsonArray tables, List<long[]> emitted) {
+		long lo = first.subtract(block.getStart());
+		long hi = lo + (long) count * stride;
+		if (phase != 0) {
+			for (long[] r : emitted) {
+				if (lo < r[1] && r[0] < hi) return;
+			}
+		}
+		emitted.add(new long[] { lo, hi });
+		emitTable(first, count, stride, tables);
+	}
+
+	private void scanBlockPhase(MemoryBlock block, int stride, int phase, JsonArray tables,
+		List<long[]> emitted) {
 		Address start = block.getStart();
 		Address end = block.getEnd();
 		long size = block.getSize();
@@ -538,7 +594,7 @@ public class ExportAll extends GhidraScript {
 		List<Address> runStart = new ArrayList<>();
 		int runLen = 0;
 		Address addr = start;
-		long offset = 0;
+		long offset = phase;
 		Address runFirstAddr = null;
 
 		while (offset + stride <= size) {
@@ -565,14 +621,14 @@ public class ExportAll extends GhidraScript {
 			}
 			else {
 				if (runLen >= 3) {
-					emitTable(runFirstAddr, runLen, stride, tables);
+					emitRun(block, runFirstAddr, runLen, stride, phase, tables, emitted);
 				}
 				runLen = 0;
 			}
 			offset += stride;
 		}
 		if (runLen >= 3) {
-			emitTable(runFirstAddr, runLen, stride, tables);
+			emitRun(block, runFirstAddr, runLen, stride, phase, tables, emitted);
 		}
 	}
 
@@ -868,7 +924,7 @@ public class ExportAll extends GhidraScript {
 	private void writeSummary() throws IOException {
 		File f = new File(outDir, "SUMMARY.md");
 		try (PrintWriter pw = new PrintWriter(new FileWriter(f))) {
-			pw.println("# AirStrike3D v1.70 Ghidra export summary");
+			pw.println("# " + probeTitle + " Ghidra export summary");
 			pw.println();
 			pw.println("Generated by re/ghidra_scripts/ExportAll.java. Gitignored (re/out/), for the");
 			pw.println("orchestrator and later agents; not a spec document.");
@@ -951,12 +1007,7 @@ public class ExportAll extends GhidraScript {
 
 			pw.println("## Acceptance-check strings");
 			pw.println();
-			String[] checks = {
-				"R_LoadModel ('%s'): Illegal model version.",
-				"Script stall detected.",
-				"SL_GetExternFunc: Built-in function '%s' not supported.",
-				"G_LoadBin: Illegal '%s' version. ",
-			};
+			String[] checks = ACCEPTANCE_STRINGS;
 			for (String needle : checks) {
 				pw.println("- `" + needle + "`:");
 				boolean found = false;
@@ -995,7 +1046,116 @@ public class ExportAll extends GhidraScript {
 					"` size=" + fn.getBody().getNumAddresses() +
 					(texts.isEmpty() ? "" : " strings=" + texts));
 			}
+			pw.println();
+			writeProbeResults(pw);
 		}
+	}
+
+	/** Probe results: the probe lists (re/probes/<tag>.json) checked against the tables the
+	 * scan found, plus the imports per DLL. */
+	private void writeProbeResults(PrintWriter pw) {
+		pw.println("## Probe results (" + probeTag + ")");
+		pw.println();
+		pw.println("- image base: " + addrStr(currentProgram.getImageBase()) +
+			", executable format: " + currentProgram.getExecutableFormat());
+		probeTable(pw, "builtin", "builtin_function_table", 8, BUILTIN_NAMES,
+			"builtin_table", "builtin_count");
+		probeTable(pw, "global", "global_variable_name_table", 12, GLOBAL_NAMES,
+			"global_table", "global_count");
+		pw.println();
+		pw.println("### Imports");
+		pw.println();
+		Map<String, Integer> perDll = new TreeMap<>();
+		FunctionIterator extIt = fm.getExternalFunctions();
+		int total = 0;
+		while (extIt.hasNext()) {
+			Function ef = extIt.next();
+			String dll = "UNKNOWN";
+			try {
+				if (ef.getExternalLocation() != null &&
+					ef.getExternalLocation().getLibraryName() != null) {
+					dll = ef.getExternalLocation().getLibraryName();
+				}
+			}
+			catch (Exception ex) {
+				// UNKNOWN
+			}
+			perDll.merge(dll, 1, Integer::sum);
+			total++;
+		}
+		pw.println("- total imported functions: " + total);
+		for (Map.Entry<String, Integer> e : perDll.entrySet()) {
+			pw.println("- " + e.getKey() + ": " + e.getValue());
+		}
+	}
+
+	private void probeTable(PrintWriter pw, String label, String kind, int stride,
+		String[] names, String expAddrKey, String expCountKey) {
+		Set<String> probe = new LinkedHashSet<>(Arrays.asList(names));
+		JsonObject best = null;
+		int bestMatches = -1;
+		for (int i = 0; i < foundTables.size(); i++) {
+			JsonObject t = foundTables.get(i).getAsJsonObject();
+			if (t.get("entry_stride").getAsInt() != stride) continue;
+			int m = 0;
+			for (var el : t.getAsJsonArray("entries")) {
+				JsonElement st = el.getAsJsonObject().get("string_text");
+				if (st != null && !st.isJsonNull() && probe.contains(st.getAsString())) m++;
+			}
+			if (m > bestMatches) {
+				bestMatches = m;
+				best = t;
+			}
+		}
+		pw.println();
+		pw.println("### " + label + " table (stride " + stride + ")");
+		pw.println();
+		String expAddr = probeExpected.has(expAddrKey) ? probeExpected.get(expAddrKey).getAsString() : "?";
+		int expCount = probeExpected.has(expCountKey) ? probeExpected.get(expCountKey).getAsInt() : -1;
+		if (best == null) {
+			pw.println("- NO table with stride " + stride + " found");
+			return;
+		}
+		Set<String> seen = new HashSet<>();
+		String firstMatchAddr = null;
+		int firstMatchIdx = -1, lastMatchIdx = -1, idx = 0, nonMatching = 0;
+		List<String> nonMatchingNames = new ArrayList<>();
+		for (var el : best.getAsJsonArray("entries")) {
+			JsonObject e = el.getAsJsonObject();
+			JsonElement st = e.get("string_text");
+			String txt = (st == null || st.isJsonNull()) ? null : st.getAsString();
+			if (txt != null && probe.contains(txt)) {
+				seen.add(txt);
+				if (firstMatchIdx < 0) {
+					firstMatchIdx = idx;
+					firstMatchAddr = e.get("record_address").getAsString();
+				}
+				lastMatchIdx = idx;
+			}
+			else {
+				nonMatching++;
+				nonMatchingNames.add(txt);
+			}
+			idx++;
+		}
+		int span = firstMatchIdx < 0 ? 0 : lastMatchIdx - firstMatchIdx + 1;
+		List<String> missing = new ArrayList<>();
+		for (String n : probe) if (!seen.contains(n)) missing.add(n);
+		pw.println("- detected run: " + best.get("address").getAsString() + ", " +
+			best.get("entry_count").getAsInt() + " records, kind_guess=" +
+			best.get("kind_guess").getAsString() + " (expected kind " + kind + ")");
+		pw.println("- first record matching a probe name: " + firstMatchAddr +
+			" (run start plus " + Math.max(firstMatchIdx, 0) + " records); matching span " + span +
+			" records, of which " + seen.size() + " are probe names");
+		pw.println("- records in the run that are not probe names: " + nonMatching + " " +
+			nonMatchingNames);
+		pw.println("- probe names found: " + seen.size() + " of " + probe.size());
+		pw.println("- probe names MISSING: " + (missing.isEmpty() ? "none" : missing));
+		pw.println("- expected (probe file): table at " + expAddr + ", " + expCount + " entries; " +
+			"table address " + (expAddr.equalsIgnoreCase(firstMatchAddr) ||
+				expAddr.equalsIgnoreCase(best.get("address").getAsString()) ? "CONFIRMED" :
+				"DIFFERS (found " + firstMatchAddr + ")") + ", entry count " +
+			(span == expCount ? "CONFIRMED" : "DIFFERS (matching span " + span + ")"));
 	}
 
 	private void writeEntryAndWinMain(PrintWriter pw) {
