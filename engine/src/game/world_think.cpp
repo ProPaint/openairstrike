@@ -176,6 +176,13 @@ void World::freeRemoved() {
 
 void World::runEntities() {
     freeRemoved();
+    // A new pass: every entity may think once (runtime bit 0x02). Entities created before
+    // this point in the frame (map spawns, their inits' creates) think again here; ones
+    // created during the pass are newer than the walk and keep the bit from their
+    // immediate think (GUESS for where the original clears the bit: issue 031).
+    for (Entity& e : ents_) {
+        if (e.inUse) e.rt &= ~RT_THOUGHT;
+    }
     for (int i = newest_; i != -1;) {
         Entity& e = ents_[static_cast<size_t>(i)];
         int older = e.older;
@@ -201,9 +208,6 @@ void World::runEntities() {
         i = older;
     }
     runCollisions();
-    for (Entity& e : ents_) {
-        if (e.inUse) e.rt &= ~RT_THOUGHT;
-    }
 }
 
 } // namespace as3d

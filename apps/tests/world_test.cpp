@@ -75,6 +75,49 @@ TEST_CASE("world: removed entities are skipped for the rest of the frame") {
     CHECK(r.e(a).f(F_AGE) == age);
 }
 
+TEST_CASE("world: stale references read as dead, ignore writes, and do nothing in builtins") {
+    Rig r;
+    // callback: t0 = IsValidTarget(self[20] as a stored reference); self[21] = t0;
+    //           stored[34] = 5 (a write through the stale reference); self[22] = stored[4]
+    Asm s;
+    s.entry(EntryPoint::Callback);
+    s.getSelf(0, 20);
+    s.call("IsValidTarget", 1);
+    s.setSelfSlot(21, 1);
+    s.getSelf(2, 20);
+    s.leaSlot(3, 2, 34);
+    s.storeImm(3, 5.0f);
+    s.leaSlot(3, 2, 4);
+    s.load(4, 3);
+    s.setSelfSlot(22, 4);
+    s.getSelf(0, 20);
+    s.call("remove", 5);
+    s.end();
+    r.script("scripts\\stale.scr", s);
+    r.obj("t_holder {\n flag FL_TEMPORARY\n script \"scripts\\stale.scr\"\n}\n"
+          "t_target {\n flag FL_TEMPORARY\n health 10\n}\n");
+    r.start();
+    int holder = r.create("t_holder");
+    int target = r.create("t_target");
+    u32 ref = r.world.refOf(target);
+    r.e(holder).fields[20] = ref;
+    r.world.runCallback(holder, 0, 0, 0);
+    CHECK(r.e(holder).f(21) == 1.0f);      // live and healthy
+    CHECK(r.e(target).f(F_HEALTH) == 5.0f); // live write went through
+    CHECK(r.e(holder).f(22) == 0.0f);
+    CHECK((r.e(target).rt & RT_REMOVED) != 0);
+    r.step(); // freed
+    int other = r.create("t_target"); // reuses the slot with a new generation
+    CHECK(other == target);
+    CHECK(r.world.refOf(other) != ref);
+    CHECK(r.world.liveIndexFromRef(ref) == -1);
+    r.world.runCallback(holder, 0, 0, 0);
+    CHECK(r.e(holder).f(21) == 0.0f);        // stale: not a valid target
+    CHECK(r.e(holder).f(22) == 1.0f);        // stale reads see dead = 1.0
+    CHECK(r.e(other).f(F_HEALTH) == 10.0f);  // the write did not reach the new occupant
+    CHECK((r.e(other).rt & RT_REMOVED) == 0); // remove(stale) did nothing
+}
+
 TEST_CASE("world: a root with AttachEntity children is freed only after they are removed") {
     Rig r;
     r.obj("t_plain {\n flag FL_TEMPORARY\n}\n");
@@ -296,9 +339,14 @@ TEST_CASE("world: activation states") {
     // then is removed once its sphere leaves the view frustum.
     int in = r.create("t_static", {640, 300, 0});
     int behind = r.create("t_static", {640, -400, 0});
+    EntityHandle hb = r.world.handleOf(behind);
     r.step();
     CHECK(r.e(in).state == ES_ACTIVE);
-    CHECK((r.e(behind).rt & RT_REMOVED) != 0); // leaving and already out of view
+    CHECK(r.e(behind).state == ES_LEAVING);
+    r.step();
+    CHECK((r.e(behind).rt & RT_REMOVED) != 0); // leaving and out of view: removed
+    r.step();
+    CHECK(r.world.get(hb) == nullptr); // freed at the next pass
     // Dormant entities wake up once inside the band [map_pos + 16, map_pos + 800].
     int far = r.create("t_static", {640, 1000, 0});
     r.world.entity(far).state = ES_DORMANT;
@@ -378,7 +426,7 @@ TEST_CASE("world: determinism on synthetic scripts") {
         s.entry(EntryPoint::Main);
         s.call("crandom", 0);
         s.setSelfSlot(20, 0);
-        s.leaGlobal(1, "self", 20);
+        s.leaGlobal(0, "self", 20);
         s.call("move", 2);
         s.end();
         r.script("scripts\\rnd.scr", s);
@@ -465,19 +513,29 @@ TEST_CASE("world corpus: two runs with the same seed give identical state dumps"
 
 TEST_CASE("world corpus: map-spawned health scales with difficulty") {
     AS3D_REQUIRE_DATA();
-    float totals[2] = {0, 0};
-    for (int k = 0; k < 2; ++k) {
-        DataRig r;
-        WorldConfig cfg;
-        cfg.difficulty = k == 0 ? 0 : 4;
-        REQUIRE(r.load("1", cfg));
-        PlayerInput in;
-        r.world.step(in);
-        for (int i : r.world.listEntities()) {
-            const Entity& e = r.world.entity(i);
-            if (e.f(F_CLASS) == kClassEnemy && e.state == ES_DORMANT) totals[k] += e.maxHealth;
-        }
+    // Run Very Easy until the first map enemy exists, then Nightmare for as many frames,
+    // and compare the maximum health of the same map-spawned enemies (same slots).
+    DataRig easy, hard;
+    WorldConfig ce, ch;
+    ce.difficulty = 0;
+    ch.difficulty = 4;
+    REQUIRE(easy.load("1", ce));
+    REQUIRE(hard.load("1", ch));
+    PlayerInput in;
+    int frames = 0;
+    while (easy.world.enemiesInLevel() == 0 && frames < 3600) {
+        easy.world.step(in);
+        hard.world.step(in);
+        ++frames;
     }
-    REQUIRE(totals[0] > 0.0f);
-    CHECK(totals[1] / totals[0] == doctest::Approx(2.0f / 0.3f).epsilon(1e-3));
+    int compared = 0;
+    for (int i : easy.world.listEntities()) {
+        const Entity& a = easy.world.entity(i);
+        if (a.f(F_CLASS) != kClassEnemy || a.maxHealth <= 0.0f) continue;
+        const Entity& b = hard.world.entity(i);
+        REQUIRE(b.name == a.name);
+        CHECK(b.maxHealth / a.maxHealth == doctest::Approx(2.0f / 0.3f).epsilon(1e-3));
+        ++compared;
+    }
+    CHECK(compared > 0);
 }
