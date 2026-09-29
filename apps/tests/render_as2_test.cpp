@@ -336,18 +336,18 @@ TEST_CASE("water: grid chunk geometry and the two texture layers") {
     CHECK(idx[1] == 10);
     CHECK(idx[2] == 33 + 10);
     CHECK(idx[5] == 33 + 9);
-    // Layers at T = 5 (t = π/2): base 2·(c/4, r/4) + (0.4 sin(π/4) + 0.2, −0.2 sin(π/8) − 0.3),
-    // shine 1.5·(c/4, r/4) + (0.4, 0.4 sin(π/4)).
+    // Layers at T = 5 (t = π/2), as2/render-corrections.md C1: base 1.5·(c/4, r/4) + (0.4,
+    // 0.4 sin(π/4)), shine 2·(c/4, r/4) + (0.4 sin(π/4) + 0.2, −0.2 sin(π/8) − 0.3).
     WaterGridFrame f = computeWaterGridFrame(5.0f);
-    CHECK(f.baseOffset.x == doctest::Approx(0.48284271f));
-    CHECK(f.baseOffset.y == doctest::Approx(-0.37653669f));
-    CHECK(f.shineOffset.x == doctest::Approx(0.4f));
-    CHECK(f.shineOffset.y == doctest::Approx(0.28284271f));
+    CHECK(f.shineOffset.x == doctest::Approx(0.48284271f));
+    CHECK(f.shineOffset.y == doctest::Approx(-0.37653669f));
+    CHECK(f.baseOffset.x == doctest::Approx(0.4f));
+    CHECK(f.baseOffset.y == doctest::Approx(0.28284271f));
     Vec2 b = waterBaseUv(4, 8, f), sh = waterShineUv(4, 8, f);
-    CHECK(b.x == doctest::Approx(2.0f + 0.48284271f));
-    CHECK(b.y == doctest::Approx(4.0f - 0.37653669f));
-    CHECK(sh.x == doctest::Approx(1.5f + 0.4f));
-    CHECK(sh.y == doctest::Approx(3.0f + 0.28284271f));
+    CHECK(sh.x == doctest::Approx(2.0f + 0.48284271f));
+    CHECK(sh.y == doctest::Approx(4.0f - 0.37653669f));
+    CHECK(b.x == doctest::Approx(1.5f + 0.4f));
+    CHECK(b.y == doctest::Approx(3.0f + 0.28284271f));
 }
 
 // ---------------------------------------------------------------------------------------

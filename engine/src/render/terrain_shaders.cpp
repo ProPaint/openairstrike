@@ -120,9 +120,9 @@ void main() {
 }
 )";
 
-// The sequels' water grid (as2/render-pipeline.delta.md 12.5, as3d/water.h): the wave of the
-// deep vertices, alpha = weight × opacity, two scrolled layers blended by the shine alpha,
-// unlit, fogged.
+// The sequels' water grid (as2/render-pipeline.delta.md 12.5 as corrected by
+// as2/render-corrections.md C1, as3d/water.h): the wave of the deep vertices, alpha = weight ×
+// opacity, the base layer over the shine layer by the base texture's alpha, unlit, fogged.
 const char* const kWaterGridVertexSrc = R"(#version 300 es
 precision highp float;
 layout(location = 0) in vec4 aGrid; // column, row, terrain height, depth weight
@@ -146,8 +146,8 @@ void main() {
     vec4 eye = uView * vec4(c * 40.0, r * 40.0, z, 1.0);
     vDepth = -eye.z;
     vec2 cr = vec2(c, r) * 0.25;
-    vUvBase = 2.0 * cr + uBaseOffset;
-    vUvShine = 1.5 * cr + uShineOffset;
+    vUvBase = 1.5 * cr + uBaseOffset;
+    vUvShine = 2.0 * cr + uShineOffset;
     vAlpha = w * uOpacity;
     gl_Position = uProj * eye;
 }
@@ -168,7 +168,7 @@ out vec4 fragColor;
 void main() {
     vec4 b = texture(uBase, vUvBase);
     vec4 s = texture(uShine, vUvShine);
-    vec3 rgb = mix(b.rgb, s.rgb, s.a);
+    vec3 rgb = mix(s.rgb, b.rgb, b.a);
     float f = clamp((uFogEnd - vDepth) / max(uFogEnd - uFogStart, 1e-3), 0.0, 1.0);
     fragColor = vec4(mix(uFogColor, rgb, f), vAlpha);
 }

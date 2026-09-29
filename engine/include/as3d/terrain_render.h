@@ -142,10 +142,12 @@ void buildWaterChunk(const WaterSurface& surface, const TerrainGridView& grid, i
                      std::vector<WaterGridVertex>& vertices, std::vector<u16>& indices);
 
 // Per-frame values of the grid water at game time T (seconds): t = T·π·0.1 drives the scroll.
+// The layers as the original binds them (as2/render-corrections.md C1): the shine texture in
+// the first stage (×2 matrix), the base in the second (×1.5), colour lerp(shine, base, base.a).
 struct WaterGridFrame {
     float waveTime = 0.0f; // T, for the wave term
-    Vec2 baseOffset;       // (0.4 sin(t/2) + 0.2, −0.2 sin(t/4) − 0.3), added to 2·(c/4, r/4)
-    Vec2 shineOffset;      // (0.4 sin t, 0.4 sin(t/2)), added to 1.5·(c/4, r/4)
+    Vec2 baseOffset;       // (0.4 sin t, 0.4 sin(t/2)), added to 1.5·(c/4, r/4)
+    Vec2 shineOffset;      // (0.4 sin(t/2) + 0.2, −0.2 sin(t/4) − 0.3), added to 2·(c/4, r/4)
 };
 WaterGridFrame computeWaterGridFrame(float timeSeconds);
 // Texture coordinates of grid vertex (c, r) for the two layers (Direct3D v, which is this
