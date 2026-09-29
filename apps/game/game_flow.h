@@ -156,6 +156,10 @@ private:
 // rectangle of the last step. False when there is no visible player helicopter.
 bool playerScreenCentre(const as3d::World& w, int player, float& vx, float& vy);
 
+// The campaign checkpoint of a completed level into a mission report (hasCheckpoint false
+// for a game without it, before EndLevel and for a level that is not a mission).
+void fillCheckpoint(const as3d::World& w, as3d::ui::MissionReport& r);
+
 // Profile path of the platform: <userDataDir()>/profile.bin, "" if there is none. It is the
 // first game's location before the saves went into a directory per game: GameFlow::init turns
 // it into <userDataDir()>/<game key>/profile.bin and migrates the old file (issue 160).

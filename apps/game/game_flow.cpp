@@ -231,19 +231,19 @@ void GameFlow::doStartMission(const ui::MissionStart& ms) {
         s.banked[p] = ms.banked[p];
     }
     s.camera = profile_.settings.camera;
+    // "Next" in a game whose upgrades carry over (as2 engine-behaviour.delta.md 8.2): the
+    // session starts the level with them instead of the mission's loadout; a new game and a
+    // Restart get the loadout.
+    s.carryUpgrades = ms.carryUpgrades;
+    for (int p = 0; p < 2; ++p) {
+        for (int k = 0; k < kMaxWeaponSlots; ++k) s.upgrades[p][k] = ms.upgrades[p][k];
+        s.weapon[p] = ms.weapon[p];
+        s.rankAccumulator[p] = ms.rankAccumulator[p];
+    }
     std::string err;
     if (!session_.startMission(s, &err)) {
         AS3D_ERROR("cannot start mission %d: %s", s.mission, err.c_str());
         return;
-    }
-    if (ms.carryUpgrades) {
-        // "Next" in a game whose upgrades carry over (as2 engine-behaviour.delta.md 8.2): the
-        // upgrades of the last mission in place of the loadout the level start gave.
-        World& w = session_.world();
-        for (int p = 0; p < 2; ++p) {
-            for (int k = 0; k < kMaxWeaponSlots; ++k) w.player(p).upgrades[k] = ms.upgrades[p][k];
-            w.player(p).weapon = static_cast<float>(ms.weapon[p]);
-        }
     }
     levelLoaded(false);
 }
@@ -317,7 +317,23 @@ ui::MissionReport GameFlow::report() const {
         r.weapon[p] = static_cast<int>(w.player(p).weapon);
         for (int k = 0; k < kMaxWeaponSlots; ++k) r.upgrades[p][k] = w.player(p).upgrades[k];
     }
+    fillCheckpoint(w, r);
     return r;
+}
+
+void fillCheckpoint(const World& w, ui::MissionReport& r) {
+    // EndLevel's checkpoint (as2 engine-behaviour.delta.md 10.3): World::checkpointMission()
+    // is the 1-based number of the completed mission, i.e. the 0-based index of the next.
+    r.hasCheckpoint = w.rules().campaignCheckpoint && w.levelComplete() && w.checkpointMission() > 0;
+    if (!r.hasCheckpoint) return;
+    // After the last mission it is the mission count, which no start matches (as the original).
+    r.checkpointMission = w.checkpointMission();
+    for (int p = 0; p < 2; ++p) {
+        const PlayerRecord& pr = w.player(p);
+        r.checkpointLives[p] = pr.checkpointLives;
+        r.checkpointScore[p] = pr.checkpointScore;
+        r.checkpointRank[p] = pr.checkpointRank;
+    }
 }
 
 // ---------------------------------------------------------------------------------------
