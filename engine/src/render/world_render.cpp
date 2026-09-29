@@ -1,6 +1,7 @@
 // WorldRenderer (as3d/world_render.h): the live world in the pass order of
 // docs/spec/render-pipeline.md 1.1, using the entity fields the way section 3 describes
-// (base origin 41..43, axis rows 44..52, scale 32, colour 28..31, frame 33, skin, FL_NODRAW).
+// (base origin 41..43, axis rows 44..52, scale 32, colour 28..31, frame 33, model handle,
+// skin, FL_NODRAW). Every pass is one of the engine's renderers, fed from the entities.
 //
 // as3d/defs.h and as3d/gfx.h both define as3d::BlendMode; defs.h's is renamed locally for
 // this file, as in engine/src/render/material.cpp.
@@ -10,11 +11,17 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <map>
 #include <unordered_map>
 
+#include "as3d/dynamic_lights.h"
+#include "as3d/ground_marks.h"
 #include "as3d/particle_render.h"
 #include "as3d/scene.h"
+#include "as3d/shadow_render.h"
+#include "as3d/sprite_render.h"
 #include "as3d/terrain_render.h"
 #include "as3d/vfs.h"
 
@@ -60,180 +67,60 @@ Camera cameraFromView(const WorldView& wv, float aspect) {
     return cam;
 }
 
-// List capacities of render-pipeline.md 1.2.
+// List capacities of render-pipeline.md 1.2 (sprites and marks are bounded by their
+// renderers: kMaxSprites, GroundMarkRenderer::kMaxMarks).
 constexpr int kOpaqueCap = 512;
 constexpr int kTransCap = 128;
 constexpr int kEffectCap = 256;
-constexpr int kSpriteCap = 512;
-constexpr int kMarkCap = 128;
 
 // ---------------------------------------------------------------------------------------
-// Unlit batch for sprites, marks and 2D quads (interim, see as3d/world_render.h).
+// Brightness overlay (render-pipeline.md 1.5): one untextured quad, blend (DST_COLOR,
+// SRC_COLOR), colour (b, b, b).
 // ---------------------------------------------------------------------------------------
 
-const char* const kBatchVertexSrc = R"(#version 300 es
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec2 aUv;
-layout(location = 2) in vec4 aColor;
-uniform mat4 uView;
-uniform mat4 uProj;
-out vec2 vUv;
-out vec4 vColor;
-out float vDepth;
-void main() {
-    vec4 eye = uView * vec4(aPos, 1.0);
-    vDepth = -eye.z;
-    vUv = aUv;
-    vColor = aColor;
-    gl_Position = uProj * eye;
-}
+const char* const kBrightnessVertexSrc = R"(#version 300 es
+layout(location = 0) in vec2 aPos;
+void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
 )";
 
-// uTexMode 0: vertex colour only; 1: texture * colour (GL_MODULATE).
-const char* const kBatchFragmentSrc = R"(#version 300 es
-precision highp float;
-in vec2 vUv;
-in vec4 vColor;
-in float vDepth;
-uniform sampler2D uTex;
-uniform int uTexMode;
-uniform vec3 uFogColor;
-uniform float uFogStart;
-uniform float uFogEnd;
+const char* const kBrightnessFragmentSrc = R"(#version 300 es
+precision mediump float;
+uniform vec3 uColor;
 out vec4 fragColor;
-void main() {
-    vec4 c = clamp(vColor, 0.0, 1.0);
-    vec4 o = uTexMode == 1 ? texture(uTex, vUv) * c : c;
-    float f = clamp((uFogEnd - vDepth) / max(uFogEnd - uFogStart, 1e-3), 0.0, 1.0);
-    o.rgb = mix(uFogColor, o.rgb, f);
-    fragColor = o;
-}
+void main() { fragColor = vec4(uColor, 1.0); }
 )";
 
-struct BatchVertex {
-    float x, y, z;
-    float u, v;
-    float r, g, b, a;
-};
-
-enum class QuadBlend { None, Alpha, Add, Filter, Modulate2x };
-
-struct QuadBatch {
-    const Texture2D* texture = nullptr; // null: untextured
-    QuadBlend blend = QuadBlend::None;
-    bool depthTest = true;
-    bool depthWrite = true;
-    bool polygonOffset = false;
-    bool cull = true;
-    size_t first = 0;
-    size_t count = 0;
-};
-
-QuadBlend quadBlendOf(AS3D_DEFS_BlendMode b) {
-    switch (b) {
-        case AS3D_DEFS_BlendMode::None: return QuadBlend::None;
-        case AS3D_DEFS_BlendMode::Alpha: return QuadBlend::Alpha;
-        case AS3D_DEFS_BlendMode::Add: return QuadBlend::Add;
-        case AS3D_DEFS_BlendMode::Filter: return QuadBlend::Filter;
-    }
-    return QuadBlend::None;
-}
-
-class QuadRenderer {
+class BrightnessPass {
 public:
     bool init(std::string* error) {
-        if (!program_.compile(kBatchVertexSrc, kBatchFragmentSrc, error)) return false;
-        BatchVertex dummy{};
-        vbo_.upload(&dummy, sizeof dummy, true);
+        if (!program_.compile(kBrightnessVertexSrc, kBrightnessFragmentSrc, error)) return false;
+        const float quad[12] = {-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1};
+        vbo_.upload(quad, sizeof quad);
         VertexLayout layout;
-        layout.strideBytes = static_cast<int>(sizeof(BatchVertex));
-        layout.attribs = {{0, 3, 0, false}, {1, 2, 3 * sizeof(float), false}, {2, 4, 5 * sizeof(float), false}};
+        layout.strideBytes = static_cast<int>(2 * sizeof(float));
+        layout.attribs = {{0, 2, 0, false}};
         vao_.create(vbo_, layout);
         return true;
     }
-
-    void clear() {
-        verts_.clear();
-        batches_.clear();
-    }
-
-    // Starts (or continues) a batch with this state and appends one quad as two triangles.
-    void quad(const QuadBatch& state, const BatchVertex q[4]) {
-        if (batches_.empty() || !sameState(batches_.back(), state)) {
-            QuadBatch b = state;
-            b.first = verts_.size();
-            b.count = 0;
-            batches_.push_back(b);
-        }
-        verts_.insert(verts_.end(), {q[0], q[1], q[2], q[0], q[2], q[3]});
-        batches_.back().count += 6;
-    }
-
-    bool empty() const { return batches_.empty(); }
-
-    void draw(const Mat4& view, const Mat4& proj, const Vec3& fogColour, float fogStart, float fogEnd) {
-        if (batches_.empty() || !program_.valid()) return;
-        vbo_.upload(verts_.data(), verts_.size() * sizeof(BatchVertex), true);
+    void draw(float b) {
+        if (!program_.valid()) return;
         program_.use();
-        program_.setMat4("uView", view);
-        program_.setMat4("uProj", proj);
-        program_.setFloat("uFogStart", fogStart);
-        program_.setFloat("uFogEnd", fogEnd);
-        program_.setInt("uTex", 0);
+        program_.setVec3("uColor", Vec3{b, b, b});
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_DST_COLOR, GL_SRC_COLOR);
+        setDepth(false, false);
+        setCull(CullMode::Off);
         vao_.bind();
-        for (const QuadBatch& b : batches_) {
-            Vec3 fog = fogColour;
-            switch (b.blend) {
-                case QuadBlend::None: glDisable(GL_BLEND); break;
-                case QuadBlend::Alpha:
-                    glEnable(GL_BLEND);
-                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                    break;
-                case QuadBlend::Add:
-                    glEnable(GL_BLEND);
-                    glBlendFunc(GL_ONE, GL_ONE);
-                    fog = {0, 0, 0};
-                    break;
-                case QuadBlend::Filter:
-                    glEnable(GL_BLEND);
-                    glBlendFunc(GL_DST_COLOR, GL_ZERO);
-                    fog = {1, 1, 1};
-                    break;
-                case QuadBlend::Modulate2x:
-                    glEnable(GL_BLEND);
-                    glBlendFunc(GL_DST_COLOR, GL_SRC_COLOR);
-                    break;
-            }
-            setDepth(b.depthTest, b.depthWrite);
-            setCull(b.cull ? CullMode::Back : CullMode::Off);
-            if (b.polygonOffset) {
-                glEnable(GL_POLYGON_OFFSET_FILL);
-                glPolygonOffset(-1.0f, -1.0f);
-            } else {
-                glDisable(GL_POLYGON_OFFSET_FILL);
-            }
-            program_.setVec3("uFogColor", fog);
-            program_.setInt("uTexMode", b.texture ? 1 : 0);
-            if (b.texture) b.texture->bind(0);
-            glDrawArrays(GL_TRIANGLES, static_cast<GLint>(b.first), static_cast<GLsizei>(b.count));
-        }
-        glDisable(GL_POLYGON_OFFSET_FILL);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
         glDisable(GL_BLEND);
         setDepth(true, true);
         setCull(CullMode::Back);
     }
 
 private:
-    static bool sameState(const QuadBatch& a, const QuadBatch& b) {
-        return a.texture == b.texture && a.blend == b.blend && a.depthTest == b.depthTest &&
-               a.depthWrite == b.depthWrite && a.polygonOffset == b.polygonOffset && a.cull == b.cull;
-    }
-
     ShaderProgram program_;
     VertexBuffer vbo_;
     VertexArray vao_;
-    std::vector<BatchVertex> verts_;
-    std::vector<QuadBatch> batches_;
 };
 
 struct MeshRecord {
@@ -241,6 +128,45 @@ struct MeshRecord {
     const Material* material;
     Mat4 model;
     Vec4 colour;
+};
+
+DecalBlend decalBlendOf(AS3D_DEFS_BlendMode b) {
+    switch (b) {
+        case AS3D_DEFS_BlendMode::Alpha: return DecalBlend::Alpha;
+        case AS3D_DEFS_BlendMode::Add: return DecalBlend::Add;
+        case AS3D_DEFS_BlendMode::Filter: return DecalBlend::Filter;
+        default: return DecalBlend::None;
+    }
+}
+
+struct ShadowSpec {
+    bool any = false;
+    ShadowKind kind = ShadowKind::Planar;
+    ShadowQuality quality = ShadowQuality::Normal;
+};
+
+// obj.md "shadow" after the parser's remap (render-pipeline.md 5.1).
+ShadowSpec shadowSpecOf(ShadowMode m) {
+    switch (m) {
+        case ShadowMode::Projected: return {true, ShadowKind::Projected, ShadowQuality::Normal};
+        case ShadowMode::ProjectedLow: return {true, ShadowKind::Projected, ShadowQuality::Low};
+        case ShadowMode::ProjectedHigh: return {true, ShadowKind::Projected, ShadowQuality::High};
+        case ShadowMode::Planar: return {true, ShadowKind::Planar, ShadowQuality::Normal};
+        case ShadowMode::PlanarLow: return {true, ShadowKind::Planar, ShadowQuality::Low};
+        case ShadowMode::PlanarHigh: return {true, ShadowKind::Planar, ShadowQuality::High};
+        default: return {};
+    }
+}
+
+int wrapSteps(int s) { return ((s % 12) + 12) % 12; }
+
+// Per entity slot: what the renderer remembers about the entity since it first saw it
+// (the original builds mark and projected-shadow display lists once, at spawn).
+struct SlotMemory {
+    u32 generation = 0;
+    bool seen = false;
+    Vec3 spawnOrigin;
+    int shadowSteps = 0;
 };
 
 } // namespace
@@ -255,17 +181,30 @@ struct WorldRenderer::Impl {
     std::unique_ptr<ResourceCache> cache;
     MeshRenderer meshes;
     ParticleRenderer particles;
-    QuadRenderer quads;
-    QuadRenderer overlay;
+    SpriteRenderer sprites;
+    GroundMarkRenderer marks;
+    ShadowRenderer shadows;
+    BrightnessPass brightness;
     std::unique_ptr<TerrainRenderer> terrain;
     std::unique_ptr<WaterRenderer> water;
     const Terrain* terrainOf = nullptr;
-    // Materials by (definition, skin override); unique_ptr keeps addresses stable.
+    Vec3 towardsSun{0.0f, 0.0f, 1.0f};
+    // Materials by (definition, model, skin); unique_ptr keeps addresses stable.
     std::map<std::pair<const ObjectDef*, std::string>, std::unique_ptr<Material>> materials;
+    // Shadow maps by model|skin|kind|quality|steps; null when generation failed.
+    std::unordered_map<std::string, std::unique_ptr<ShadowMap>> shadowMaps;
+    int lateShadowMaps = 0;
+    std::vector<SlotMemory> memory;
+    // Frame scratch.
     std::vector<MeshRecord> opaque, trans, effect;
+    std::vector<ShadowInstance> shadowList;
+    std::vector<SpriteInstance> spriteList;
     std::vector<const ParticleEmitter*> emitters;
     std::vector<int> order;
     std::vector<char> visited;
+    DynamicLightList lights;
+    // Marks: rebuilt only when the set (or a colour) changes.
+    std::vector<std::pair<GroundMarkDesc, std::uint64_t>> markDescs, lastMarkDescs;
     int dropped = 0;
 
     const Material& materialFor(const ObjectDef& def, const std::string& skinOverride) {
@@ -282,6 +221,40 @@ struct WorldRenderer::Impl {
         materials.emplace(key, std::move(m));
         return ref;
     }
+
+    // The silhouette of a model record (render-pipeline.md 5.2), generated on first request.
+    const ShadowMap* shadowMap(const GpuMesh& mesh, const std::string& modelPath, const Material& mat,
+                               const std::string& skinKey, const ShadowSpec& ss, int steps, bool late) {
+        if (ss.kind == ShadowKind::Planar) steps = 0;
+        std::string key = modelPath + "|" + skinKey + "|" + std::to_string(static_cast<int>(ss.kind)) + "|" +
+                          std::to_string(static_cast<int>(ss.quality)) + "|" + std::to_string(steps);
+        auto it = shadowMaps.find(key);
+        if (it != shadowMaps.end()) return it->second.get();
+        std::unique_ptr<ShadowMap> map(new ShadowMap());
+        if (!shadows.generate(mesh.model, mat.texture, ss.kind, towardsSun, steps, ss.quality, *map)) map.reset();
+        if (late) ++lateShadowMaps;
+        const ShadowMap* p = map.get();
+        shadowMaps.emplace(key, std::move(map));
+        return p;
+    }
+
+    // Level-load precache of the shadows of every placed object and its attachments.
+    void precacheShadows(const ObjectDef* def, int steps, bool night, int depth) {
+        if (!def || depth > kMaxAttachDepth) return;
+        ShadowSpec ss = shadowSpecOf(def->shadow);
+        if (ss.any && def->type == ObjectType::Model && !def->model.empty() && def->sort != SortMode::Effect) {
+            const GpuMesh& mesh = cache->mesh(def->model);
+            if (mesh.valid) {
+                const Material& mat = materialFor(*def, std::string());
+                shadowMap(mesh, normalizePath(def->model), mat, std::string(), ss, steps, false);
+            }
+        }
+        for (const AttachDef& at : def->attachments) {
+            if (at.nightOnly && !night) continue;
+            if (db->findParticleSystem(at.targetName)) continue;
+            precacheShadows(db->findObject(at.targetName), steps, night, depth + 1);
+        }
+    }
 };
 
 WorldRenderer::WorldRenderer() : impl_(new Impl) {}
@@ -292,10 +265,13 @@ bool WorldRenderer::init(Vfs& vfs, const DefDatabase& db, std::string* error) {
     im.vfs = &vfs;
     im.db = &db;
     im.cache.reset(new ResourceCache(vfs));
+    im.memory.assign(static_cast<size_t>(kMaxEntitySlots), SlotMemory());
     if (!im.meshes.init(error)) return false;
     if (!im.particles.init(vfs, error)) return false;
-    if (!im.quads.init(error)) return false;
-    if (!im.overlay.init(error)) return false;
+    if (!im.sprites.init(error)) return false;
+    if (!im.marks.init(error)) return false;
+    if (!im.shadows.init(error)) return false;
+    if (!im.brightness.init(error)) return false;
     return true;
 }
 
@@ -304,6 +280,11 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     im.terrain.reset();
     im.water.reset();
     im.terrainOf = nullptr;
+    im.shadowMaps.clear();
+    im.lateShadowMaps = 0;
+    im.memory.assign(static_cast<size_t>(kMaxEntitySlots), SlotMemory());
+    im.marks.clear();
+    im.lastMarkDescs.clear();
     particles_.reset(1);
     const Terrain* t = world.terrain();
     if (!t) return true; // an empty test level: nothing to build
@@ -314,8 +295,21 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     im.terrain = std::move(tr);
     im.water = std::move(wr);
     im.terrainOf = t;
+    const TerrainStyle& st = t->style();
+    Vec3 sun{st.sun[3], st.sun[4], st.sun[5]};
+    im.towardsSun = length(sun) > 1e-6f ? normalize(sun) : Vec3{0.0f, 0.0f, 1.0f};
+    // Shadow silhouettes of the map objects, at level load like the original's precache
+    // (engine-behaviour.md 10.2 step 7). Objects created later by scripts get theirs on
+    // first sight (counted in lateShadowMaps()).
+    if (const LevelData* level = t->level()) {
+        for (const Placement& p : level->placements)
+            im.precacheShadows(im.db->findObject(level->typeName(p)), p.rotationSteps, st.night, 0);
+    }
     return true;
 }
+
+int WorldRenderer::shadowMapCount() const { return static_cast<int>(impl_->shadowMaps.size()); }
+int WorldRenderer::lateShadowMaps() const { return impl_->lateShadowMaps; }
 
 // ---------------------------------------------------------------------------------------
 // Frame.
@@ -323,16 +317,7 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
 
 namespace {
 
-struct FrameContext {
-    const World* world;
-    ResourceCache* cache;
-    QuadRenderer* sprites;
-    int* dropped;
-    Vec3 camRight, camUp;
-    int spriteCount = 0, markCount = 0;
-};
-
-Mat4 entityMatrix(const Entity& e, bool applyScale) {
+Mat4 entityMatrix(const Entity& e) {
     Vec3 a0 = e.v3(F_AXIS), a1 = e.v3(F_AXIS + 3), a2 = e.v3(F_AXIS + 6), o = e.v3(F_BASE_ORIGIN);
     Mat4 m;
     m.at(0, 0) = a0.x; m.at(0, 1) = a0.y; m.at(0, 2) = a0.z; m.at(0, 3) = 0.0f;
@@ -340,119 +325,11 @@ Mat4 entityMatrix(const Entity& e, bool applyScale) {
     m.at(2, 0) = a2.x; m.at(2, 1) = a2.y; m.at(2, 2) = a2.z; m.at(2, 3) = 0.0f;
     m.at(3, 0) = o.x;  m.at(3, 1) = o.y;  m.at(3, 2) = o.z;  m.at(3, 3) = 1.0f;
     float s = e.f(F_SCALE);
-    if (applyScale && s > 0.001f) m = m * scale(Vec3{s, s, s});
+    if (s > 0.001f) m = m * scale(Vec3{s, s, s});
     return m;
 }
 
 const std::string& skinOf(const Entity& e) { return e.skinPath.empty() ? e.def->skin : e.skinPath; }
-
-// Sprite texture coordinates of render-pipeline.md 3.3, converted to this engine's
-// v = 1 - t. out: s0, v0 (corner x0,y0) and s1, v1 (corner x1,y1).
-void spriteUv(const ObjectDef& def, const Entity& e, float& s0, float& v0, float& s1, float& v1) {
-    float t0 = def.bboxMin[3], t1 = def.bboxMax[3];
-    s0 = def.bboxMin[2];
-    s1 = def.bboxMax[2];
-    if (def.hasFrames && def.frameStart > 0) {
-        int cols = def.frameStart;
-        int rows = def.frameEnd > 0 ? def.frameEnd : 1;
-        float fr = e.f(F_FRAME);
-        int f = (fr > -1.0e7f && fr < 1.0e7f) ? static_cast<int>(fr) : 0;
-        if (f < 0) f = 0;
-        float du = 1.0f / static_cast<float>(cols), dv = 1.0f / static_cast<float>(rows);
-        s0 = static_cast<float>(f % cols) * du;
-        s1 = s0 + du;
-        t0 = 1.0f - dv - static_cast<float>(f / cols) * dv;
-        t1 = t0 + dv;
-    }
-    v0 = 1.0f - t0;
-    v1 = 1.0f - t1;
-}
-
-void addSprite(FrameContext& fc, const Entity& e) {
-    const ObjectDef& def = *e.def;
-    if (fc.spriteCount >= kSpriteCap) {
-        ++*fc.dropped;
-        return;
-    }
-    const std::string& skin = skinOf(e);
-    if (skin.empty()) return;
-    ResourceCache::LoadedTexture tex = fc.cache->texture(skin);
-    float s0, v0, s1, v1;
-    spriteUv(def, e, s0, v0, s1, v1);
-    float x0 = def.bboxMin[0], y0 = def.bboxMin[1], x1 = def.bboxMax[0], y1 = def.bboxMax[1];
-    Vec3 o = e.v3(F_BASE_ORIGIN);
-    float yaw = e.f(F_ANGLES + 2);
-    Vec3 X, Y;
-    float sc = 1.0f;
-    if (def.type == ObjectType::Sprite) {
-        // Billboard, rotated in the view plane by the yaw (counter-clockwise), scaled.
-        float a = degToRad(yaw), c = std::cos(a), s = std::sin(a);
-        X = fc.camRight * c + fc.camUp * s;
-        Y = fc.camRight * -s + fc.camUp * c;
-        float es = e.f(F_SCALE);
-        if (es > 0.001f) sc = es;
-    } else {
-        float a = degToRad(yaw), c = std::cos(a), s = std::sin(a);
-        X = Vec3{c, s, 0.0f};
-        Y = def.type == ObjectType::HSprite ? Vec3{-s, c, 0.0f} : Vec3{0.0f, 0.0f, 1.0f};
-    }
-    auto P = [&](float x, float y) { return o + X * (x * sc) + Y * (y * sc); };
-    float r = e.f(F_COLOR), g = e.f(F_COLOR + 1), b = e.f(F_COLOR + 2), al = e.f(F_COLOR + 3);
-    Vec3 p0 = P(x0, y0), p1 = P(x1, y0), p2 = P(x1, y1), p3 = P(x0, y1);
-    BatchVertex q[4] = {
-        {p0.x, p0.y, p0.z, s0, v0, r, g, b, al},
-        {p1.x, p1.y, p1.z, s1, v0, r, g, b, al},
-        {p2.x, p2.y, p2.z, s1, v1, r, g, b, al},
-        {p3.x, p3.y, p3.z, s0, v1, r, g, b, al},
-    };
-    QuadBatch st;
-    st.texture = tex.texture;
-    st.blend = quadBlendOf(def.blend);
-    st.depthTest = !(def.rflag & RF_NODEPTHTEST);
-    st.depthWrite = !(def.rflag & RF_NODEPTHWRITE);
-    fc.sprites->quad(st, q);
-    ++fc.spriteCount;
-}
-
-// TYPE_MARK (render-pipeline.md 3.4): a decal over origin.xy + [min, max] following the
-// terrain. The original clips the terrain triangles to the rectangle; this interim version
-// samples the terrain height on a 10-unit grid over the rectangle.
-void addMark(FrameContext& fc, const Entity& e, QuadRenderer& marks) {
-    const ObjectDef& def = *e.def;
-    if (fc.markCount >= kMarkCap) {
-        ++*fc.dropped;
-        return;
-    }
-    const std::string& skin = skinOf(e);
-    if (skin.empty()) return;
-    ResourceCache::LoadedTexture tex = fc.cache->texture(skin);
-    Vec3 o = e.v3(F_BASE_ORIGIN);
-    float X0 = o.x + def.bboxMin[0], X1 = o.x + def.bboxMax[0];
-    float Y0 = o.y + def.bboxMin[1], Y1 = o.y + def.bboxMax[1];
-    if (!(X1 > X0) || !(Y1 > Y0)) return;
-    int nx = std::min(std::max(static_cast<int>((X1 - X0) / 10.0f), 1), 40);
-    int ny = std::min(std::max(static_cast<int>((Y1 - Y0) / 10.0f), 1), 40);
-    float r = e.f(F_COLOR), g = e.f(F_COLOR + 1), b = e.f(F_COLOR + 2);
-    QuadBatch st;
-    st.texture = tex.texture;
-    st.blend = quadBlendOf(def.blend);
-    st.depthWrite = false;
-    st.polygonOffset = true;
-    const World& w = *fc.world;
-    auto V = [&](int i, int j) {
-        float x = X0 + (X1 - X0) * static_cast<float>(i) / static_cast<float>(nx);
-        float y = Y0 + (Y1 - Y0) * static_cast<float>(j) / static_cast<float>(ny);
-        float s = (x - X0) / (X1 - X0), t = (y - Y0) / (Y1 - Y0);
-        return BatchVertex{x, y, w.terrainHeight(x, y), s, 1.0f - t, r, g, b, 1.0f};
-    };
-    for (int j = 0; j < ny; ++j) {
-        for (int i = 0; i < nx; ++i) {
-            BatchVertex q[4] = {V(i, j), V(i + 1, j), V(i + 1, j + 1), V(i, j + 1)};
-            marks.quad(st, q);
-        }
-    }
-    ++fc.markCount;
-}
 
 int rootOfEntity(const World& w, int i) {
     for (int guard = 0; guard < 64 && w.validIndex(i) && w.entity(i).parent >= 0; ++guard) i = w.entity(i).parent;
@@ -477,11 +354,26 @@ void visitThinkOrder(const World& w, int i, std::vector<int>& order, std::vector
     }
 }
 
+std::uint64_t colourKey(const Vec3& c) {
+    u32 r, g, b;
+    std::memcpy(&r, &c.x, 4);
+    std::memcpy(&g, &c.y, 4);
+    std::memcpy(&b, &c.z, 4);
+    return (static_cast<std::uint64_t>(r) << 32) ^ (static_cast<std::uint64_t>(g) << 16) ^ b;
+}
+
+bool sameMarks(const std::vector<std::pair<GroundMarkDesc, std::uint64_t>>& a, const std::vector<std::pair<GroundMarkDesc, std::uint64_t>>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (a[i].second != b[i].second || colourKey(a[i].first.colour) != colourKey(b[i].first.colour) ||
+            a[i].first.texture != b[i].first.texture)
+            return false;
+    }
+    return true;
+}
+
 } // namespace
 
-// Entities in the order the entity pass thinks them, which is the order they submit their
-// render records (render-pipeline.md 1.2): newest pool entity first, each followed by its
-// definition children; an attached pool entity after its root.
 void worldRenderOrder(const World& world, std::vector<int>& order, std::vector<char>& visited) {
     order.clear();
     visited.assign(static_cast<size_t>(kMaxEntitySlots), 0);
@@ -495,6 +387,7 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
     const float aspect = static_cast<float>(width) / static_cast<float>(height);
     const WorldView wv = worldViewOf(world, aspect);
     const Terrain* terrain = world.terrain();
+    const bool haveTerrain = terrain && im.terrain && im.terrainOf == terrain;
 
     // Lighting and fog from the level (render-pipeline.md 2.2, 2.3).
     SceneLighting light;
@@ -514,63 +407,151 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
         light.fogEnd = 2.0e8f;
     }
     const Camera cam = cameraFromView(wv, aspect);
+    Vec3 camRight, camUp;
+    spriteBillboardAxes(wv.view, camRight, camUp);
 
-    // Pass 0: clear to the fog colour (black without fog).
-    setViewport(0, 0, width, height);
-    Vec3 cc = hasFog ? light.fogColor : Vec3{0, 0, 0};
-    clear({cc.x, cc.y, cc.z, 1.0f}, true);
-    setDepth(true, true);
-    setCull(CullMode::Back);
+    // Dynamic lights (2.4): the PlaceLight queue of this frame, then the definition lights
+    // of the drawn entities; the first 32 are kept.
+    im.lights.clear();
+    if (options.lights) {
+        for (const QueuedLight& q : world.lights()) im.lights.add(DynamicLight::point(q.pos, q.color, q.radius));
+    }
 
-    // Render records from the entity pass order: newest root first, parents before
-    // children (render-pipeline.md 1.2).
+    // Render records in the order the entity pass submits them (1.2).
     im.opaque.clear();
     im.trans.clear();
     im.effect.clear();
-    im.quads.clear();
+    im.shadowList.clear();
+    im.spriteList.clear();
+    im.markDescs.clear();
     im.dropped = 0;
-    QuadRenderer& markBatch = im.overlay; // reused: marks are drawn before the overlay pass
-    markBatch.clear();
-    FrameContext fc{&world, im.cache.get(), &im.quads, &im.dropped, Vec3{wv.view.at(0, 0), wv.view.at(1, 0), wv.view.at(2, 0)},
-                    Vec3{wv.view.at(0, 1), wv.view.at(1, 1), wv.view.at(2, 1)}};
     worldRenderOrder(world, im.order, im.visited);
     for (int i : im.order) {
-        {
-            const Entity& e = world.entity(i);
-            if (!e.def || (e.flagBits() & FL_NODRAW)) continue;
-            const ObjectDef& def = *e.def;
-            switch (def.type) {
-                case ObjectType::Model: {
-                    // The entity's model handle: SetModel swaps it (damaged helicopters).
-                    if (!options.models || !e.model || e.modelPath.empty()) break;
-                    const GpuMesh& mesh = im.cache->mesh(e.modelPath);
-                    if (!mesh.valid) break;
-                    std::vector<MeshRecord>* list = &im.opaque;
-                    int cap = kOpaqueCap;
-                    if (def.sort == SortMode::Trans) {
-                        list = &im.trans;
-                        cap = kTransCap;
-                    } else if (def.sort == SortMode::Effect) {
-                        list = &im.effect;
-                        cap = kEffectCap;
-                    }
-                    if (static_cast<int>(list->size()) >= cap) {
-                        ++im.dropped;
-                        break;
-                    }
-                    const Material& mat = im.materialFor(def, e.skinPath);
-                    list->push_back({&mesh, &mat, entityMatrix(e, true),
-                                     Vec4{e.f(F_COLOR), e.f(F_COLOR + 1), e.f(F_COLOR + 2), e.f(F_COLOR + 3)}});
+        const Entity& e = world.entity(i);
+        if (!e.def || (e.flagBits() & FL_NODRAW)) continue;
+        const ObjectDef& def = *e.def;
+        SlotMemory& mem = im.memory[static_cast<size_t>(i)];
+        if (!mem.seen || mem.generation != e.generation) {
+            mem.seen = true;
+            mem.generation = e.generation;
+            mem.spawnOrigin = e.v3(F_BASE_ORIGIN);
+            // Projected shadow key: the root's yaw in 30 degree steps (a map object's
+            // placement byte; docs/spec/issues/050).
+            int r = rootOfEntity(world, i);
+            float yaw = world.validIndex(r) ? world.entity(r).f(F_ANGLES + 2) : 0.0f;
+            mem.shadowSteps = (yaw > -1.0e6f && yaw < 1.0e6f) ? wrapSteps(static_cast<int>(std::lround(yaw / 30.0f))) : 0;
+        }
+        const Vec4 colour{e.f(F_COLOR), e.f(F_COLOR + 1), e.f(F_COLOR + 2), e.f(F_COLOR + 3)};
+        const Vec3 origin = e.v3(F_BASE_ORIGIN);
+        if (options.lights && (def.hasLight || def.hasLightDir) && def.lightRadius > 0) {
+            Vec3 col{def.lightColor[0], def.lightColor[1], def.lightColor[2]};
+            float radius = static_cast<float>(def.lightRadius);
+            if (def.hasLightDir) {
+                Vec3 d = e.v3(F_AXIS) * def.lightDir[0] + e.v3(F_AXIS + 3) * def.lightDir[1] +
+                         e.v3(F_AXIS + 6) * def.lightDir[2];
+                im.lights.add(DynamicLight::spotLight(origin, col, radius, d, def.lightConeAngle));
+            } else {
+                im.lights.add(DynamicLight::point(origin, col, radius));
+            }
+        }
+        switch (def.type) {
+            case ObjectType::Model: {
+                // The entity's model handle: SetModel swaps it (damaged helicopters).
+                if (!options.models || !e.model || e.modelPath.empty()) break;
+                const GpuMesh& mesh = im.cache->mesh(e.modelPath);
+                if (!mesh.valid) break;
+                std::vector<MeshRecord>* list = &im.opaque;
+                int cap = kOpaqueCap;
+                if (def.sort == SortMode::Trans) {
+                    list = &im.trans;
+                    cap = kTransCap;
+                } else if (def.sort == SortMode::Effect) {
+                    list = &im.effect;
+                    cap = kEffectCap;
+                }
+                if (static_cast<int>(list->size()) >= cap) {
+                    ++im.dropped;
                     break;
                 }
-                case ObjectType::Mark:
-                    if (options.sprites) addMark(fc, e, markBatch);
+                const Material& mat = im.materialFor(def, e.skinPath);
+                list->push_back({&mesh, &mat, entityMatrix(e), colour});
+                // Shadows (5.3): opaque and transparent records only.
+                ShadowSpec ss = shadowSpecOf(def.shadow);
+                if (options.shadows && ss.any && def.sort != SortMode::Effect) {
+                    const ShadowMap* map = im.shadowMap(mesh, e.modelPath, mat, e.skinPath, ss, mem.shadowSteps, true);
+                    if (map) {
+                        ShadowInstance si;
+                        si.map = map;
+                        if (ss.kind == ShadowKind::Projected) {
+                            si.origin = mem.spawnOrigin; // baked at spawn, never moves
+                        } else {
+                            si.origin = origin;
+                            Vec3 fw = e.v3(F_AXIS); // heading of the local X axis (issue 070)
+                            si.yawDegrees = radToDeg(std::atan2(fw.y, fw.x));
+                        }
+                        im.shadowList.push_back(si);
+                    }
+                }
+                break;
+            }
+            case ObjectType::Mark: {
+                if (!options.sprites || !def.hasBbox) break;
+                if (im.markDescs.size() >= GroundMarkRenderer::kMaxMarks) {
+                    ++im.dropped;
                     break;
-                case ObjectType::Sprite:
-                case ObjectType::HSprite:
-                case ObjectType::VSprite:
-                    if (options.sprites) addSprite(fc, e);
+                }
+                const std::string& skin = skinOf(e);
+                if (skin.empty()) break;
+                GroundMarkDesc d;
+                d.origin = mem.spawnOrigin; // the decal is fixed where it spawned (3.4)
+                d.minX = def.bboxMin[0];
+                d.minY = def.bboxMin[1];
+                d.maxX = def.bboxMax[0];
+                d.maxY = def.bboxMax[1];
+                d.texture = im.cache->texture(skin).texture;
+                d.blend = decalBlendOf(def.blend);
+                d.colour = Vec3{colour.x, colour.y, colour.z};
+                im.markDescs.push_back({d, (static_cast<std::uint64_t>(i) << 32) | e.generation});
+                break;
+            }
+            case ObjectType::Sprite:
+            case ObjectType::HSprite:
+            case ObjectType::VSprite: {
+                if (!options.sprites || !def.hasBbox) break;
+                if (im.spriteList.size() >= kMaxSprites) {
+                    ++im.dropped;
                     break;
+                }
+                const std::string& skin = skinOf(e);
+                if (skin.empty()) break;
+                SpriteInstance sp;
+                sp.kind = def.type == ObjectType::Sprite    ? SpriteKind::Billboard
+                          : def.type == ObjectType::HSprite ? SpriteKind::Horizontal
+                                                            : SpriteKind::Vertical;
+                sp.origin = origin;
+                sp.yawDegrees = e.f(F_ANGLES + 2);
+                sp.scale = e.f(F_SCALE);
+                sp.colour = colour;
+                sp.minX = def.bboxMin[0];
+                sp.minY = def.bboxMin[1];
+                sp.minS = def.bboxMin[2];
+                sp.minT = def.bboxMin[3];
+                sp.maxX = def.bboxMax[0];
+                sp.maxY = def.bboxMax[1];
+                sp.maxS = def.bboxMax[2];
+                sp.maxT = def.bboxMax[3];
+                if (def.hasFrames && def.frameStart > 0) {
+                    sp.frameCols = def.frameStart; // columns and rows (render-pipeline.md 11.3)
+                    sp.frameRows = std::max(def.frameEnd, 1);
+                    float fr = e.f(F_FRAME);
+                    sp.frame = (fr > -1.0e7f && fr < 1.0e7f) ? static_cast<int>(fr) : 0;
+                }
+                sp.texture = im.cache->texture(skin).texture;
+                sp.blend = decalBlendOf(def.blend);
+                sp.noDepthTest = (def.rflag & RF_NODEPTHTEST) != 0;
+                sp.noDepthWrite = (def.rflag & RF_NODEPTHWRITE) != 0;
+                im.spriteList.push_back(sp);
+                break;
             }
         }
     }
@@ -584,21 +565,47 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
     tv.fogEnd = light.fogEnd;
     tv.time = world.time();
     tv.mapPos = world.mapPos();
+    tv.lights = im.lights.data();
+    tv.lightCount = im.lights.size();
+    DecalViewParams dv;
+    dv.view = wv.view;
+    dv.projection = wv.projection;
+    dv.fogColour = light.fogColor;
+    dv.fogStart = light.fogStart;
+    dv.fogEnd = light.fogEnd;
+    im.meshes.setDynamicLights(im.lights.data(), im.lights.size());
+    im.meshes.setTime(world.time());
+
+    // Pass 0: clear to the fog colour (black without fog).
+    setViewport(0, 0, width, height);
+    Vec3 cc = hasFog ? light.fogColor : Vec3{0, 0, 0};
+    clear({cc.x, cc.y, cc.z, 1.0f}, true);
+    setDepth(true, true);
+    setCull(CullMode::Back);
 
     // Pass 2: terrain.
-    if (options.terrain && im.terrain && im.terrainOf == terrain) {
+    if (options.terrain && haveTerrain) {
         im.terrain->render(tv);
         stats_.terrainChunks = im.terrain->lastVisibleChunks();
     }
     setDepth(true, true);
-    // Pass 4: ground marks. (Pass 5, shadows: not yet.)
-    markBatch.draw(wv.view, wv.projection, light.fogColor, light.fogStart, light.fogEnd);
+    // Pass 4: ground marks. Their geometry is cut from the terrain when the set changes.
+    if (haveTerrain) {
+        if (!sameMarks(im.markDescs, im.lastMarkDescs)) {
+            im.marks.clear();
+            for (const auto& m : im.markDescs) im.marks.addMark(*terrain, m.first);
+            im.lastMarkDescs = im.markDescs;
+        }
+        if (!im.markDescs.empty()) im.marks.draw(dv);
+        // Pass 5: shadows.
+        if (!im.shadowList.empty()) im.shadows.draw(*terrain, im.shadowList.data(), im.shadowList.size(), dv);
+    }
     // Pass 6: opaque list.
     im.meshes.begin(cam, light);
     for (const MeshRecord& r : im.opaque) im.meshes.submit(*r.mesh, *r.material, r.model, r.colour);
     im.meshes.end();
     // Pass 7: water.
-    if (options.terrain && im.water && im.terrainOf == terrain) im.water->render(tv);
+    if (options.terrain && haveTerrain && im.water) im.water->render(tv);
     // Passes 8 and 9: transparent then effect list.
     im.meshes.begin(cam, light);
     for (const MeshRecord& r : im.trans) im.meshes.submit(*r.mesh, *r.material, r.model, r.colour);
@@ -621,52 +628,29 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
         stats_.particles = im.particles.lastParticleCount();
     }
     // Pass 12: sprites.
-    im.quads.draw(wv.view, wv.projection, light.fogColor, light.fogStart, light.fogEnd);
+    SpriteViewParams sv;
+    sv.view = wv.view;
+    sv.projection = wv.projection;
+    sv.fogColour = light.fogColor;
+    sv.fogStart = light.fogStart;
+    sv.fogEnd = light.fogEnd;
+    if (!im.spriteList.empty()) im.sprites.draw(im.spriteList.data(), im.spriteList.size(), sv);
+    glDisable(GL_BLEND);
+    setDepth(true, true);
+    setCull(CullMode::Back);
 
     stats_.models = static_cast<int>(im.opaque.size() + im.trans.size() + im.effect.size());
-    stats_.sprites = fc.spriteCount;
-    stats_.marks = fc.markCount;
+    stats_.sprites = static_cast<int>(im.spriteList.size());
+    stats_.marks = static_cast<int>(im.markDescs.size());
+    stats_.shadows = static_cast<int>(im.shadowList.size());
+    stats_.lights = static_cast<int>(im.lights.size());
     stats_.dropped = im.dropped;
-
-    // Pass 14: brightness, dst * b + b * dst over the whole screen (render-pipeline.md 1.5).
-    if (options.brightness > 0.0f) {
-        float b = options.brightness;
-        im.overlay.clear();
-        QuadBatch st;
-        st.blend = QuadBlend::Modulate2x;
-        st.depthTest = false;
-        st.depthWrite = false;
-        st.cull = false;
-        BatchVertex q[4] = {{-1, -1, 0, 0, 0, b, b, b, 1}, {1, -1, 0, 0, 0, b, b, b, 1},
-                            {1, 1, 0, 0, 0, b, b, b, 1}, {-1, 1, 0, 0, 0, b, b, b, 1}};
-        im.overlay.quad(st, q);
-        im.overlay.draw(Mat4::identity(), Mat4::identity(), Vec3{0, 0, 0}, 1.0e8f, 2.0e8f);
-    }
-    setDepth(true, true);
 }
 
-void WorldRenderer::drawOverlay(const OverlayRect* rects, size_t count, int width, int height) {
-    Impl& im = *impl_;
-    if (!count || width <= 0 || height <= 0) return;
+void WorldRenderer::drawBrightness(int width, int height, float brightness) {
+    if (brightness <= 0.0f || width <= 0 || height <= 0) return;
     setViewport(0, 0, width, height);
-    im.overlay.clear();
-    QuadBatch st;
-    st.blend = QuadBlend::Alpha;
-    st.depthTest = false;
-    st.depthWrite = false;
-    st.cull = false;
-    for (size_t i = 0; i < count; ++i) {
-        const OverlayRect& r = rects[i];
-        const Vec4& c = r.colour;
-        BatchVertex q[4] = {{r.x, r.y, 0, 0, 0, c.x, c.y, c.z, c.w},
-                            {r.x + r.w, r.y, 0, 0, 0, c.x, c.y, c.z, c.w},
-                            {r.x + r.w, r.y + r.h, 0, 0, 0, c.x, c.y, c.z, c.w},
-                            {r.x, r.y + r.h, 0, 0, 0, c.x, c.y, c.z, c.w}};
-        im.overlay.quad(st, q);
-    }
-    // Virtual 800x600, y down (render-pipeline.md 8.1).
-    im.overlay.draw(Mat4::identity(), ortho(0.0f, 800.0f, 600.0f, 0.0f, -1.0f, 1.0f), Vec3{0, 0, 0}, 1.0e8f, 2.0e8f);
-    setDepth(true, true);
+    impl_->brightness.draw(brightness);
 }
 
 } // namespace as3d

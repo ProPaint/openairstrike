@@ -307,7 +307,7 @@ TEST_CASE("mission 1 with the bot renders sensible frames") {
     int rotorChanges = 0;
     float lastRotorYaw = 0.0f;
     bool haveRotor = false;
-    int maxSprites = 0, maxEmitters = 0, maxParticles = 0, minModels = 1 << 30;
+    int maxSprites = 0, maxEmitters = 0, maxParticles = 0, maxShadows = 0, maxLights = 0, minModels = 1 << 30;
     for (u32 f = 0; f < 1200; ++f) {
         s.step(botInput(f));
         view.step(s);
@@ -344,11 +344,17 @@ TEST_CASE("mission 1 with the bot renders sensible frames") {
         CHECK(rs.dropped == 0);
         minModels = std::min(minModels, rs.models);
         maxSprites = std::max(maxSprites, rs.sprites);
+        maxShadows = std::max(maxShadows, rs.shadows);
+        maxLights = std::max(maxLights, rs.lights);
         maxEmitters = std::max(maxEmitters, rs.emitters);
         maxParticles = std::max(maxParticles, rs.particles);
     }
     CHECK(minModels > 20);      // the player, its attachments and the placed objects
     CHECK(maxSprites > 0);      // projectiles, flares
+    CHECK(maxShadows > 0);      // the player's planar shadow, buildings
+    CHECK(maxLights > 0);       // PlaceLight from weapons and lamps
+    CHECK(view.hudAvailable());
+    CHECK(view.renderer().shadowMapCount() > 0);
     CHECK(maxEmitters > 0);
     CHECK(maxParticles > 0);
     CHECK(rotorChanges > 1000); // spinning nearly every frame

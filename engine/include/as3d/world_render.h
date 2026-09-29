@@ -1,9 +1,8 @@
-// Draws the live game world (as3d/world.h) each frame: terrain, ground marks, the entity
-// lists, water, particles, sprites and the brightness overlay, in the pass order of
+// Draws the live game world (as3d/world.h) each frame in the pass order of
 // docs/spec/render-pipeline.md 1.1, seen through the world's own camera structure
-// (engine-behaviour.md 9). Reuses the engine's renderers (TerrainRenderer, WaterRenderer,
-// MeshRenderer, ParticleRenderer); the renderer only reads the world, so rendering can
-// never change the simulation.
+// (engine-behaviour.md 9). Every pass is one of the engine's renderers (terrain, water,
+// meshes, ground marks, shadows, particles, sprites) fed from the entity fields; the
+// renderer only reads the world, so rendering can never change the simulation.
 //
 // Particle emitters: the world keeps emitter *holders* (entities whose `emitter` is set)
 // but does not simulate particles. WorldParticles mirrors every holder with one
@@ -11,10 +10,9 @@
 // step (render-pipeline.md 6.3, 6.4). Its random numbers come from its own as3d::Rng, never
 // from the world's.
 //
-// Interim parts, until the dedicated renderers land (another package owns sprites, marks,
-// shadows, dynamic lights and environment maps in engine/src/render): sprites and marks are
-// drawn here by a small unlit batch (SpriteBatch); shadows, dynamic lights, environment maps
-// and lightning bolts are not drawn.
+// Passes: terrain (with dynamic lights), ground marks, shadows, the opaque list, water, the
+// transparent and effect lists (lit, dynamic lights, environment maps), particles, sprites,
+// and the brightness overlay after the 2D layer. Not drawn yet: lightning bolts (7.1).
 //
 // Needs a current GLES 3.0 context for everything except WorldParticles.
 #pragma once
@@ -107,29 +105,24 @@ private:
 // ---------------------------------------------------------------------------------------
 
 struct WorldRenderOptions {
-    // config.ini Brightness (render-pipeline.md 1.5); 0.5 is neutral, the default 0.6
-    // brightens by 1.2x. Values <= 0 skip the overlay.
-    float brightness = 0.6f;
     bool terrain = true;
     bool models = true;
+    bool shadows = true;
+    bool lights = true;    // dynamic lights (PlaceLight and definition lights)
     bool particles = true;
-    bool sprites = true;
+    bool sprites = true;   // sprites and ground marks
 };
 
 struct WorldRenderStats {
-    int models = 0;       // mesh draws submitted
+    int models = 0;       // mesh records submitted
     int dropped = 0;      // records dropped because a list was full (render-pipeline.md 1.2)
     int sprites = 0;
     int marks = 0;
+    int shadows = 0;
+    int lights = 0;
     int emitters = 0;
     int particles = 0;
     int terrainChunks = 0;
-};
-
-// A 2D rectangle in the virtual 800x600 screen (origin top-left, y down).
-struct OverlayRect {
-    float x = 0, y = 0, w = 0, h = 0;
-    Vec4 colour{1, 1, 1, 1};
 };
 
 class WorldRenderer {
@@ -141,22 +134,27 @@ public:
 
     // Compiles shaders. `vfs` and `db` must outlive the renderer.
     bool init(Vfs& vfs, const DefDatabase& db, std::string* error);
-    // Builds the terrain and water of the world's current level; resets the particles.
-    // Call after every World::loadLevel.
+    // Builds the terrain and water of the world's current level, generates the shadow
+    // silhouettes of the placed objects and resets the particles. Call after every
+    // World::loadLevel.
     bool beginLevel(const World& world, std::string* error);
 
     // Advances the particles by one fixed step (see WorldParticles::update).
     void step(const World& world, float dt) { particles_.update(world, dt); }
 
-    // Draws the world into the currently bound framebuffer with viewport (0, 0, width,
-    // height). Leaves depth test on, blending off.
+    // Draws the world (3D passes 0 to 12 of render-pipeline.md 1.1) into the currently bound
+    // framebuffer with viewport (0, 0, width, height). Leaves depth test on, blending off.
     void render(const World& world, int width, int height, const WorldRenderOptions& options = {});
-    // Flat-colour rectangles over everything (alpha blended, no depth), in the virtual
-    // 800x600 screen stretched over (width, height).
-    void drawOverlay(const OverlayRect* rects, size_t count, int width, int height);
+    // Pass 14, after the 2D layer: dst * b + b * dst over the whole framebuffer
+    // (render-pipeline.md 1.5; config.ini Brightness, 0.5 neutral, default 0.6).
+    void drawBrightness(int width, int height, float brightness);
 
     const WorldRenderStats& lastStats() const { return stats_; }
     const WorldParticles& particles() const { return particles_; }
+    // Shadow silhouettes held, and how many were generated after the level load (entities
+    // created by scripts whose model no placement uses).
+    int shadowMapCount() const;
+    int lateShadowMaps() const;
 
 private:
     struct Impl;
