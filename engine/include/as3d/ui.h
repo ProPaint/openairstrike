@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "as3d/core.h"
+#include "as3d/game_profile.h"
 #include "as3d/gfx.h"
 #include "as3d/vfs.h"
 
@@ -234,16 +235,26 @@ float numberWidth(std::string_view digits, float scale);
 // ---------------------------------------------------------------------------
 // Assets
 // ---------------------------------------------------------------------------
+struct HudLayout;
+
 struct UiAssets {
+    // `mainbar` is the HUD layout's bar atlas (mainbar.tga; the sequels' mainbar2.tga);
+    // `panel` and `panelNoise` the sequels' hint panel pieces (interface.tga, and snow.tga
+    // with repeat wrapping). A texture the game's layout does not name stays invalid.
     Texture2D font, fontAlpha, mainbar, life, weapons, missiles, items, cursor1, cursor2, mcCursor;
+    Texture2D panel, panelNoise;
     bool fontLoaded = false;
     int missing = 0; // textures that could not be loaded (their draws are skipped)
+    GameId game = GameId::AirStrike3D;
 
-    // Loads gfx\ui\*.tga, gfx\mc_cur.tga and menu\cursor_*.tga from the VFS and keeps the VFS
-    // for texture() below. Returns false only if the font is missing (nothing can be drawn
-    // without it). The VFS must outlive this object.
-    bool load(Vfs& vfs, std::string* error = nullptr);
+    // Loads the font, the atlases the game's HUD layout names (as3d/hud_layout.h) and
+    // menu\cursor_*.tga from the VFS and keeps the VFS for texture() below. Returns false
+    // only if the font is missing (nothing can be drawn without it). The VFS must outlive
+    // this object.
+    bool load(Vfs& vfs, std::string* error = nullptr, GameId game = GameId::AirStrike3D);
     Font uiFont() const;
+    // The HUD layout of the assets' game.
+    const HudLayout& hudLayout() const;
 
     // Any other picture by game path (e.g. "menu\\mmenu_1.tga"), loaded on first use and
     // cached; null if it cannot be loaded or no VFS was given (CPU-only tests). The first
@@ -256,23 +267,30 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// HUD (frontend.md 4)
+// HUD (frontend.md 4; the sequels as2/frontend.md 4). What is drawn where comes from the
+// HudLayout of the assets' game (as3d/hud_layout.h).
 // ---------------------------------------------------------------------------
 constexpr int kMissileTypes = 5;
 constexpr int kPowerupSlots = 16;
 constexpr int kPowerupIconKinds = 4;  // slots 4..15 have a frame but no icon
 constexpr int kWeaponSlots = 20;      // entries 10..19 of the icon table have no picture
-constexpr float kFullHealth = 400.0f; // the health bar scale
+constexpr float kFullHealth = 400.0f; // the first game's health bar scale
 
 struct HudPlayer {
-    float health = kFullHealth;       // entity health; the fill is health / 400 clamped to [0, 1]
-    int lives = 2;                    // p_lives; at most 5 icons are drawn
+    float health = kFullHealth;       // entity health; the fill is health / maxHealth clamped to [0, 1]
+    float maxHealth = kFullHealth;    // the bar's scale: 400 in the first game, the helicopter's
+                                      // maximum health in the sequels (GameRules::healthBarScaleFromMax)
+    int lives = 2;                    // p_lives; at most HudLayout::lifeIconsMax icons (5; sequels 10)
     std::int64_t score = 0;           // as shown: ftol(p_scores) + banked score
     int weapon = 0;                   // p_weapon, index into the icon table (4.4)
-    int upgrades[kWeaponSlots] = {};  // the weapon table (0 = not owned); only the touch overlay's next-weapon preview reads it
+    int upgrades[kWeaponSlots] = {};  // upgrade level per weapon slot (0 = not owned): the sequels'
+                                      // level pips show upgrades[weapon]; the touch overlay's
+                                      // next-weapon preview reads it too
     int missiles[kMissileTypes] = {}; // rounds per type; types with 0 are not shown
     int missileSelected = 0;          // type index
-    int powerups[kPowerupSlots] = {}; // count per slot (slot = kind); 0 = not shown
+    int powerups[kPowerupSlots] = {}; // count per slot (slot = kind); 0 = not shown. The sequels'
+                                      // timer power-ups (slots 6, 7, 9) hold the seconds left, set
+                                      // by their scripts every frame: a count-down on the HUD
     int powerupSelected = 0;          // slot index
 };
 
@@ -287,14 +305,16 @@ struct HudState {
     float mouseX = 0, mouseY = 0;
 };
 
-// Icon UVs (spec convention, t = 1 at the top) of the HUD atlases, frontend.md 4.4.
+// Icon UVs (spec convention, t = 1 at the top) of the HUD atlases of `game` (frontend.md 4.4,
+// as2/frontend.md 4.4), from its HudLayout; the atlases are the UiAssets weapons, missiles
+// and items loaded for that game. Empty where the game's table has no picture.
 struct SpecUv {
     float s0 = 0, t0 = 0, s1 = 0, t1 = 0;
     bool empty() const { return s0 == s1 || t0 == t1; }
 };
-SpecUv weaponIconUv(int weapon);   // empty for 10..19 and out of range
-SpecUv missileIconUv(int type);    // 0..4
-SpecUv powerupIconUv(int kind);    // 0..3
+SpecUv weaponIconUv(int weapon, GameId game = GameId::AirStrike3D); // first game 0..9 (10..19 empty); sequels 0..8
+SpecUv missileIconUv(int type, GameId game = GameId::AirStrike3D);  // 0..4
+SpecUv powerupIconUv(int kind, GameId game = GameId::AirStrike3D);  // first game 0..3; sequels 0..9
 
 // Visible part and grey level of the level-name typewriter (frontend.md 4.5): starts 1 s in,
 // 8 characters per second, holds 3 s, fades over 1 s.
@@ -311,13 +331,20 @@ bool typewriterTypes(std::string_view name, float tPrev, float tNow);
 float messageAlpha(float age); // 1 until 2 s, fades to 0 at 3 s
 
 // Draws the whole HUD (one or two players by state.playerCount) plus the level name, message
-// line and mouse-control cursor. Call between Renderer2D::begin() and flush().
+// line and mouse-control cursor, in the layout of the assets' game. Call between
+// Renderer2D::begin() and flush().
 void drawHud(Renderer2D& r, const UiAssets& assets, const HudState& state);
 
 // ---------------------------------------------------------------------------
-// Tutorial hint box (frontend.md 3.15). The interactive box is a front-end screen (menu.h);
-// these functions hold its layout and drawing so the HUD viewer can show it too.
+// Tutorial hint box (frontend.md 3.15; the sequels as2/frontend.md 3.15). The interactive box
+// is a front-end screen (menu.h); these functions hold its layout and drawing so the HUD
+// viewer can show it too. The look follows the assets' game (HudLayout::hint).
 // ---------------------------------------------------------------------------
+enum class HintStyle : u8 {
+    V170Box,     // frontend.md 3.15: a growing black box and the OK picture
+    SequelPanel, // as2/frontend.md 3.15: UI_DrawPanel titled "Tutorial Tip" and a text button
+};
+
 struct RectF {
     float x = 0, y = 0, w = 0, h = 0;
     bool contains(float px, float py) const { return px >= x && px < x + w && py >= y && py < y + h; }
@@ -329,12 +356,16 @@ struct HintLayout {
     float textTop = 0;              // y of the first line (top + 20)
 };
 constexpr float kHintOpenSeconds = 0.3f;
-HintLayout layoutHint(const FontMetrics& m, std::string_view text);
-// The panel and text at box time u (seconds since it opened): while u < 0.3 only the growing
-// fill is drawn. Returns true once the opening animation is over.
+// SequelPanel: height max(160, 18 n + 60), the lines centred vertically in it, the Ok button
+// ((W + 46) x 30) centred at (400, 520) whatever the box size.
+HintLayout layoutHint(const FontMetrics& m, std::string_view text, HintStyle style = HintStyle::V170Box);
+// The panel and text at box time u (seconds since it opened). First game: while u < 0.3 only
+// the growing fill is drawn. Sequels: the panel opens over 0.125 s, the lines show once it is
+// open. Returns true once the opening animation is over.
 bool drawHintPanel(Renderer2D& r, const UiAssets& assets, const HintLayout& layout, float boxTime);
 // The OK picture of the box (right 100 texels of menu\apply_ok_1.tga), highlighted with
-// apply_ok_2.tga in Pulse(2, 0) when focused.
+// apply_ok_2.tga in Pulse(2, 0) when focused. Sequels: the "  Ok  " text button of
+// interface.tga, its caption green (orange when focused).
 void drawHintOk(Renderer2D& r, const UiAssets& assets, const HintLayout& layout, bool focused, float mt);
 // Fully opened box with its OK button (for previews).
 void drawHint(Renderer2D& r, const UiAssets& assets, std::string_view text);

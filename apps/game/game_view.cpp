@@ -30,7 +30,8 @@ bool GameView::init(GameSession& session, std::string* error, bool level) {
     if (!renderer_.init(session.vfs(), session.db(), error)) return false;
     // The HUD is optional: without its textures the game still runs (a warning is logged).
     std::string hudError;
-    hudReady_ = r2d_.init(&hudError) && assets_.load(session.vfs(), &hudError);
+    const GameId game = session.game() ? session.game()->id : GameId::AirStrike3D;
+    hudReady_ = r2d_.init(&hudError) && assets_.load(session.vfs(), &hudError, game);
     if (!hudReady_) AS3D_WARN("HUD unavailable: %s", hudError.c_str());
     // The main menu's banner; optional like the HUD.
     banner_.reset();
@@ -63,6 +64,7 @@ void GameView::step(const GameSession& session) {
 
 ui::HudState hudStateOf(const GameSession& session) {
     const World& w = session.world();
+    const GameRules& rules = w.rules();
     ui::HudState hs;
     hs.playerCount = std::min(std::max(w.numPlayers(), 1), 2);
     for (int p = 0; p < hs.playerCount; ++p) {
@@ -70,9 +72,17 @@ ui::HudState hudStateOf(const GameSession& session) {
         ui::HudPlayer& hp = hs.players[p];
         int pi = w.playerEntityIndex(p);
         hp.health = pi >= 0 ? std::max(w.entity(pi).f(F_HEALTH), 0.0f) : 0.0f;
+        // The sequels measure the bar against the helicopter's maximum health (entity +0x70,
+        // from its definition; as2/engine-behaviour.delta.md 7.4, 11.2); the first game against 400.
+        hp.maxHealth = ui::kFullHealth;
+        if (rules.healthBarScaleFromMax && pi >= 0 && w.entity(pi).maxHealth > 0.0f) hp.maxHealth = w.entity(pi).maxHealth;
         hp.lives = pr.lives > 0.0f ? static_cast<int>(std::min(pr.lives, 99.0f)) : 0;
         hp.score = session.displayScore(p);
-        hp.weapon = (pr.weapon >= 0.0f && pr.weapon < 64.0f) ? static_cast<int>(pr.weapon) : 0;
+        // The sequels round p_weapon (as2/frontend.md 4.2), the first game truncates.
+        if (pr.weapon >= 0.0f && pr.weapon < 64.0f)
+            hp.weapon = w.game() != GameId::AirStrike3D ? static_cast<int>(std::lround(pr.weapon)) : static_cast<int>(pr.weapon);
+        else
+            hp.weapon = 0;
         for (int k = 0; k < ui::kWeaponSlots; ++k) hp.upgrades[k] = std::max(pr.upgrades[k], 0);
         hp.missileSelected = pr.currentMissile;
         for (int t = 0; t < ui::kMissileTypes; ++t) hp.missiles[t] = std::max(pr.missiles[t], 0);
