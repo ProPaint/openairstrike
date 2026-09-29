@@ -362,3 +362,531 @@ then x, y and colour on the stack.
 Two drawers replace the base's letterbox, three-layer headers and panel fills: the **panel**
 `UI_DrawPanel` as2@0x426ae0 and the **title logo** `UI_DrawMenuHeader` as2@0x42b610. They are
 specified in 3.1, with the `interface.tga` atlas table.
+
+## 3. Screens in detail
+
+Relation to the base §3: **changed**; every screen is redrawn. Subsections keep the base's
+numbers; 3.18 to 3.21 are new screens.
+
+### 3.1 Shared frame elements
+
+Relation: **changed**. The base's letterbox bars, corner rules, three-layer headers and plain
+panel fills are gone (no AS2 code draws them; their `menu\*.tga` files are not shipped,
+VERIFIED-DATA: `menu/` holds only the two cursors). Two drawers replace them.
+
+**Atlas `gfx\ui\interface.tga`** (256×256 RGBA, registered by `UI_LoadAssets` as2@0x42b1f0).
+Every piece the front end uses, checked on the image:
+
+| Piece | Texel (x, y, w, h) | Used by |
+|---|---|---|
+| `bar_top_left_titled` | (9, 9, 67, 28) | panel top bar, left end, when the panel has a title |
+| `bar_top_left` | (9, 9, 20, 28) | panel top bar, left end, without title |
+| `bar_top_body` | (76, 9, 111, 28) | panel top bar, repeated |
+| `bar_top_right` | (187, 9, 61, 28) | panel top bar, right end, titled |
+| `bar_top_right_short` | (228, 9, 20, 28) | panel top bar, right end, without title |
+| `bar_bottom_left` | (9, 42, 67, 31) | panel bottom bar, left end |
+| `bar_bottom_body` | (76, 42, 111, 31) | panel bottom bar, repeated |
+| `bar_bottom_right` | (187, 42, 61, 31) | panel bottom bar, right end |
+| `cable` | (0, 82, 9, 90) | the vertical chains above and below a panel (cut to length from its top) |
+| `title_left` | (105, 180, 65, 39) | panel title tab, left end |
+| `title_body` | (170, 180, 64, 39) | panel title tab, repeated |
+| `title_right` | (234, 180, 15, 39) | panel title tab, right end |
+| `button_left` | (18, 79, 23, 30) | text button (2.5) |
+| `button_body` | (41, 79, 40, 30) | text button, repeated |
+| `button_right` | (80, 79, 23, 30) | text button |
+| `rivet_low` | (0, 230, 26, 15) | text button, below |
+| `rivet_high` | (0, 215, 26, 15) | text button, above |
+| `slider_bar` | (107, 89, 128, 11) | slider (2.5) |
+| `slider_knob` | (239, 87, 6, 15) | slider |
+| `arrow_left` | (110, 113, 16, 40) | helicopter selection |
+| `arrow_right` | (130, 113, 16, 40) | helicopter selection |
+| `scroll_up` | (153, 113, 15, 15) | list |
+| `scroll_thumb` | (153, 130, 15, 6) | list |
+| `scroll_track` | (153, 138, 15, 15) | list |
+| `scroll_down` | (153, 154, 15, 15) | list |
+
+The atlas also holds three larger bevelled boxes (texel y 115..220) and a second bar with bolts
+(texel (105, 180) row, used by the title tab) that nothing else draws.
+
+**Panel `UI_DrawPanel(x, y, w, h, f)`** (as2@0x426ae0; title string in EDI, or none;
+VERIFIED-CODE, geometry (emu) at several sizes and f values). f is the opening value, clamped to
+0..1; screens pass their menu's open value (2.1), the portrait dialogue its own fade value, the
+game-over screen `mt`. With yt = (y − 15) − (1 − f)·y and yb = (y + h − 13) + (1 − f)·(600 − y − h)
+(the bars slide in from the screen edges):
+
+1. **Static fill:** `gfx\ui\snow.tga` (256×256 greyscale noise) over (x, cy − H/2, w, H) with
+   cy = y + h/2 and H = f²·h + 600·f·(1 − f) (the fill overshoots while opening, then settles on
+   the panel), blend **FILTER** (the scene is multiplied by the noise), white. UVs (r1, r2,
+   r1 + w/256, r2 + H/256) with r1 and r2 = rand()/32767 drawn anew **every frame**, so the noise
+   flickers.
+2. **Top bar** at y = yt, white, ALPHA: with a title `bar_top_left_titled` at x − 4, the body
+   from x + 63 over w − 120 in pieces of at most 111 (the last one cut), `bar_top_right` at
+   x + w − 57; without a title `bar_top_left` at x − 4, the body from x + 16 over w − 32,
+   `bar_top_right_short` at x + w − 16.
+3. **Bottom bar** at y = yb: `bar_bottom_left` at x − 4, body from x + 63 over w − 120,
+   `bar_bottom_right` at x + w − 57.
+4. **Cables** (`cable`, white, ALPHA), drawn in pieces of at most 90 from their top end, the last
+   piece cut: with a title, two cables above the panel, at x + 46 from y = −40 down to yt − 25 and
+   at x + w − 50 from y = −15 down to yt; always, two cables below it at x + 46 and x + w − 50
+   from yb + 31 down to 600.
+5. **Title tab** (titled panels only) at (x − 4, yt − 32): `title_left`, then `title_body`
+   repeated from x + 61 over the title width Wt (pieces of at most 64), then `title_right` at
+   x + 61 + Wt; white, ALPHA. The title text is drawn centred on x + 33 + Wt/2 (so it starts at
+   x + 33) at y = yt − 20, orange, additive font.
+
+Most screens draw their items first and the panel after them ((emu): items, panel, title logo
+for Start Game, Options, Controls, Mission Complete, the helicopter selection, the exit
+confirmation and the tutorial box), so the static fill also multiplies the widgets' own pixels
+by the noise. Keep that order to look like the original.
+
+**Title logo `UI_DrawMenuHeader`** (as2@0x42b610, VERIFIED-CODE, (emu)); drawn at the top of the
+main menu and of most screens. With T the logo clock (as2@0x2219184, advanced by 0.5 × frametime
+each time the logo is drawn):
+
+1. `gfx\logo\glow.tga` (512×128) at its natural size at (124, 0), blend ADD, white.
+2. `gfx\logo\two3.tga` (128×128, the crosshair "2" emblem) as a rotated quad: with
+   g = 15 + 15·sin(T + 0.2), rectangle (580 − g, −g, 128 + 2g, 128 + 2g), UV (0, 0, 1, 1), blend
+   ALPHA, white, rotated by 20 + 15·sin(2T) degrees about its centre. It pulses between 128 and
+   188 px around the point (644, 64).
+3. `gfx\logo\logo.tga` (512×128, the word "AIRSTRIKE") at (124, 0, 512, 128), UV (0, 0, 1, 1),
+   blend ALPHA, white, with the second texture `gfx\logo\clouds.tga` at UV
+   (0.1T, 0, 0.1T + 2, 1) combined by ADD (render-pipeline.delta.md 8.2, combine mode 2): the
+   letters show clouds scrolling to the left at 0.05 texture widths per second.
+
+The attract level shows through everywhere else; there is no letterbox.
+
+### 3.2 Logo pages and intro comic (S0, S0b)
+
+Relation: logo pages **same**; comic **new**. VERIFIED-CODE `G_StartIntros` as2@0x410530,
+`G_IntroFrame` as2@0x410850, comic functions below; layouts (emu).
+
+- Pages come from Settings.xml `<Intros>` as in the base (`BuiltIn` DivoGames, `Image` with
+  `BackColor`; the new tag `Video` is parsed and ignored, VERIFIED-CODE as2@0x41e130). After
+  them, **four comic pages are always appended** (as2@0x4106ad..0x4107d0). With `ShowLogo` = 0
+  neither the logo pages nor the comic run.
+- Shipped Settings.xml: an ignored `ImageTemp` and the DivoGames page (VERIFIED-DATA). So the
+  sequence is DivoGames (8.5 s), then comic pages 1 to 4 (7 + 7 + 20 + 11 s): 53.5 s at normal
+  speed.
+- Logo pages: the base §3.2 geometry, fades and durations (VERIFIED-CODE, same constants).
+- Frame loop, speed and skipping: as the base. Each page's clock advances by speed × frametime;
+  every key press or mouse button press multiplies the speed by 4 (as2@0x41111c, 0x416055);
+  speed is reset to 1 at every new page (as2@0x410984). There is no instant skip. After the last
+  page: the pages are freed, sound is stopped, the brightness restored, and the attract level
+  starts.
+
+**Comic pages** (2D only; every draw starts with an opaque black full-screen fill; tiles are
+drawn with `R_Add2DPic` at their natural size, opaque unless stated; the page clock t starts at
+0). Tile files are `gfx\ui\comix\intro\Frame#<name>.tga` (named with a capital F in the code,
+lower-case on disk; the file system is case-insensitive). Captions and speech bubbles are
+painted into the tiles: the comic has no text in the executable.
+
+| Page | Begin, Draw, Done | Tiles and positions | Animation | Ends |
+|---|---|---|---|---|
+| 1 | as2@0x40f1e0, 0x40f020, 0x40f000 | `1_0_0..1_0_3` at y 150 and `1_1_0..1_1_3` at y 406, columns at x 0, 256, 512, 768 (widths 256, 256, 256, 64; rows 256 and 64 high): one 832×320 picture at (0, 150), its right 32 px off-screen | t < 2: white full-screen fill with alpha (2 − t)/2 over it (fade from white); t > 5: white fill with alpha (t − 5)/2 | t ≥ 7 |
+| 2 | as2@0x40f280, same Draw and Done | `2_*`, same layout | fade from white (t < 2), fade to **black** (t > 5) | t ≥ 7 |
+| 3 | as2@0x40f310, 0x40f410, 0x40f3f0 | panel A `3_1_0_0..3` at (0, 0), (256, 0), (512, 0), (768, 0) (832×256, opaque); B `3_2_0_0`, `3_2_0_1`, `3_2_1_0`, `3_2_1_1` at (0, 162), (256, 162), (0, 418), (256, 418); C `3_3_0_0`, `3_3_0_1` at (190, 147), (446, 147); D `3_4_0_0`, `3_4_0_1`, `3_4_1_0`, `3_4_1_1` at (472, 100), (728, 100), (472, 356), (728, 356); E `3_5_0_0`, `3_5_0_1` at (264, 384), (520, 384); B to E blend ALPHA (their tiles carry shaped alpha) | A slides up: drawn at y = ftol((1 − t/2)·200) while t < 2; B, C, D, E fade in (white, alpha t − start) over t 3..4, 5..6, 10..11, 12..13; black fill with alpha (2 − t)/2 while t < 2 and (t − 18)/2 for 18 ≤ t < 20 | t ≥ 20 |
+| 4 | as2@0x4100b0, 0x410160, 0x410140 | `4_1_0_0..3` at y 90 and `4_1_1_0..3` at y 346 (x 0, 256, 512, 768; 832×512); overlay `4_2_0_0` (256 wide) at (39, 120) and `4_2_0_1` (128 wide) at (295, 120), ALPHA | overlay fades in over t 3..4 (alpha t − 3); black fade from (t < 2) and to (9 ≤ t < 11) | t ≥ 11 |
+
+Page 1's Begin starts the sound system and `music\track02.mo3` from order 0 (as2@0x40f1ee;
+string as2@0x48a590). The Frame#1 and Frame#2 pages are panoramas whose tiles join seamlessly
+(the 64-px column holds black filler), and the pieces of page 3 overlap panel A (VERIFIED-DATA:
+composites of the tiles were looked at). The 42 intro files are exactly these tiles; 42 of the
+AS2 TGAs have no TGA footer, all of them intro tiles (render-pipeline.delta.md 9.1).
+
+### 3.3 Main menu (S1; VERIFIED-CODE as2@0x42b950, 0x42b8c0, 0x42b7c0, 0x42b890; (emu))
+
+Relation: **changed** (text buttons, title logo, Credits added, no 3D banner).
+
+Six text buttons, centred on x = 400 (flag 0x4000), minimum width 200, so all are 246 wide:
+
+| id | Caption (address) | y | Action |
+|---|---|---|---|
+| 1 | " Start Game " (as2@0x48ece8) | 230 | builds and pushes Start Game (3.4) |
+| 2 | " Top Scores " (as2@0x48ecf8) | 275 | builds and pushes Top Scores (3.11); the builder's Post button is disabled at once (dropped feature) |
+| 3 | " Options " (as2@0x48ebc4) | 320 | `M_ShowOptions` (3.6) |
+| 4 | " Information " (as2@0x48ed08) | 365 | `M_InfoMenu` (3.14) |
+| 7 | " Credits " (as2@0x48ed18) | 410 | builds and pushes Credits (3.20) |
+| 5 | " Quit " (as2@0x48ebd0) | 455 | pushes the exit confirmation (3.5) |
+
+Action id 6 (the dormant purchase command, 3.21) exists in the callback but no item has that id.
+Keys: Esc and right click swallowed (as2@0x42b890), everything else generic.
+
+Drawing order (as2@0x42b8c0): the Settings.xml `<Logotypes>` pictures (`UI_DrawSkinImages`
+as2@0x422eb0, same rules as the base; the shipped file lists only an ignored `ImageTemp`,
+VERIFIED-DATA); the title logo (3.1); the buttons; the Settings.xml `<Info>` version at (20, 580)
+left-aligned and copyright at (780, 580) right-aligned, grey 0x808080, each only if non-empty
+(shipped: "v 2.51" and a DivoGames copyright line, VERIFIED-DATA). There is no 3D banner object
+(the base's `objects\banner.obj` pass is gone) and no letterbox.
+
+### 3.4 Start Game (S3; VERIFIED-CODE as2@0x42d8b0, draw 0x42d840, callback 0x42d7b0; (emu))
+
+Relation: **changed** (no helicopter grid; "Next" leads to the helicopter selection).
+
+| Element | Type, id | Position | Content |
+|---|---|---|---|
+| mission list | list | (190, 200, 420, 144), 7 rows | one entry per mission table record (as2@0x49df60, 18 × 33 bytes) whose level exists, labelled with the level's `name` from `levels.txt` ("Mission 1: Tutorial" …); locked missions disabled (grey) |
+| Difficulty: | spinner, id 3 | (400, 375) | Very Easy, Easy, Normal, Hard, Nightmare (pointer table as2@0x49e6d8); set to Normal at every opening |
+| Game mode: | spinner, id 4 | (400, 405) | "Single Player", "Cooperative" (table as2@0x49e6f0); starts from the two-player flag; changing it sets the flag at once |
+| " Back " | text button, id 1 | left 40, y 520 | pops |
+| " Next " | text button, id 2 | left 645, y 520 | see below |
+
+- Initial list selection: the checkpoint mission (as2@0x49ddf4) when it is 1..17, otherwise the
+  item keeps its last value (GUESS: 0 on the first opening).
+- Draw: items, then `UI_DrawPanel(150, 180, 500, 270, f)` titled "Start Game" (as2@0x48ee84),
+  then the title logo.
+- Next: difficulty index (as2@0x49ded4) = spinner; mission index (as2@0x2219140) = list
+  selection; two-player flag and player count (1 or 2) from the Game mode spinner; then the
+  helicopter selection in start mode (3.18). Nothing is loaded yet.
+- Keys: generic (Esc pops).
+
+### 3.5 Exit confirmation (S2; VERIFIED-CODE as2@0x428090, draw 0x428000, action 0x427fb0; (emu))
+
+Relation: **changed** (panel, text labels).
+
+`UI_DrawPanel(210, 230, 380, 160, f)` titled "Confirm Exit" (as2@0x48d9a0); "Are you sure you want
+to quit?" (as2@0x48d980) centred at (400, 250), green; text labels (type 0, centred) " YES "
+(as2@0x48d9b0) id 1 at (300, 330) and " NO " id 2 at (500, 330); title logo. YES: when the game is
+ready, frees the level and saves `game.bin`, then posts WM_CLOSE (the exit path writes
+`config.ini`, 6.2). NO and Esc pop.
+
+### 3.6 Options (S6; VERIFIED-CODE `M_OptionsMenu` as2@0x42c8d0, `M_ShowOptions` as2@0x42cd30, draw as2@0x42c860, update as2@0x42c560, action as2@0x42c700, Apply as2@0x42c4a0; (emu))
+
+Relation: **changed** layout, **same** logic as the base §3.6.
+
+`M_ShowOptions` builds the resolution strings once per run (as2@0x42bda0), the refresh list for the
+current mode (as2@0x42bfa0), then builds and pushes the menu. Draw: per-frame update, items,
+`UI_DrawPanel(210, 180, 380, 290, f)` titled " Options " (as2@0x48ebc4), title logo. Labels
+right-aligned on x = 400 (drawn to x 390), values at 410. No key callback (Esc pops).
+
+| y | Item | Type, id | Values or range | Takes effect |
+|---|---|---|---|---|
+| 200 | Resolution: | spinner, 0 | every enumerated mode as "%dx%d" (as2@0x489960), 6.2 | Apply |
+| 220 | Refresh rate: | spinner, 0 | "default", then "%d Hz" per rate of the chosen mode; back to "default" when the resolution changes | Apply |
+| 240 | Color Depth: | spinner, 0 | Default, 16 bit, 32 bit; disabled and forced to Default while Fullscreen is Off | Apply |
+| 260 | Fullscreen: | spinner, 0 | Off, On | Apply |
+| 280 | Brightness: | slider, 3 | 2..10 (Brightness × 10) | immediately |
+| 320 | Sound Volume: | slider, 4 | 0..10 | immediately |
+| 340 | Music Volume: | slider, 5 | 0..10 | immediately |
+| 360 | 3D Sound: | spinner, 0 | Off, On | Apply |
+| 400 | Camera: | spinner, 6 | Low Pitch, Default, High Pitch, Top-Down | immediately |
+| 440 | Mouse Control: | spinner, 8 | Off, On | immediately, with the base's rebinding rule and quirk (mouse 1–3 on, joy 1–3 off; `M_SetBinding` as2@0x42c690) |
+| — | " Configure Controls " | text button, 2, centred at (400, 520) | | pushes S7 |
+| — | "  Back  " | text button, 1, left 50, y 520 | | pops; pending values dropped |
+| — | " Apply " | text button, 0, left 620, y 520 | shown only while a pending resolution, refresh, fullscreen, 3D sound or depth value differs from the live one (hidden: flags 2 and 4, so it slides out below the screen) | video restart (6.3) |
+
+During a mission (intermission flag as2@0x54329a clear) Resolution, Refresh rate, Color Depth,
+Fullscreen and 3D Sound are disabled (grey), as in the base. The rows are the base's rows moved
+down 40 px; the base's Resolution tooltip is gone.
+
+### 3.7 Configure controls (S7; VERIFIED-CODE `M_ControlsMenu` as2@0x423ac0, draw 0x423a00, row draw 0x4236d0, row action 0x4236b0, key 0x423930, action 0x4238c0; (emu))
+
+Relation: **changed** look, **same** logic as the base §3.7 (capture, cancel, unbind, the
+display-only duplicate removal quirk, key names: `In_KeyName` as2@0x423560 and its 50-entry table
+as2@0x49d198 are identical to v1.70).
+
+- Draw: items; `UI_DrawPanel(190, 165, 420, 320, f)` titled "Configure Controls"
+  (as2@0x48d728); an outline (200, 205, 400, 270) in the green outline colour, blend ALPHA; title
+  logo. The builder still registers `menu\controlsh_0/1/2.tga`, which are neither drawn nor
+  shipped.
+- "Controls Set:" spinner (id 2) at (400, 180), "Player 1" / "Player 2", always opening on
+  Player 1. " Back " text button id 1, left 50, y 520.
+- Rows (table as2@0x49d080, 20-byte records), label right-aligned at x 392, keys from x 408, hit
+  area x 220..580, y − 2..y + 18: Primary Attack 210, Switch Weapon 230, Missile Attack 270, Switch
+  Missiles 290, Use Item 330, Switch Item 350, Move Forward 390, Move Backward 410, Move Left 430,
+  Move Right 450 (the base's y + 30); same action bits.
+- Row colours: green; orange when focused, on a dark-green box (the base: dark red); grey when
+  disabled; the blinking "=" while capturing, as the base. " or %s" (as2@0x48d720) joins the two
+  key names.
+
+### 3.8 Mission complete (S15; VERIFIED-CODE `G_MissionComplete` as2@0x427f40, builder 0x427db0, draw 0x427b60, action 0x427a20, key 0x427b30; (emu))
+
+Relation: **changed** (panel with the statistics inside, new buttons, no title picture, no grid).
+
+Pushed by `G_MissionComplete` after the end dialogue (5.3). Over the frozen mission, HUD hidden.
+
+- **Statistics**, one-player mode only, orange, label left-aligned at x 240, value right-aligned
+  at x 560; rows appear with `mt` as in the base:
+
+| Appears when | y | Label (address) | Value |
+|---|---|---|---|
+| mt > 1.0 | 220 | "Enemies destroyed:" (as2@0x48d8c8) | "N%" = kills × 100 / enemy total, integer division; the value is omitted when the total is 0 |
+| mt > 1.4 | 250 | "Stars collected:" (as2@0x48d8e4) | "a/b" = ftol(p_stars) / star total |
+| mt > 1.8 | 280 | "Your current rank:" (as2@0x48d900) | rank name of the value of 5.8 |
+
+  All player 1's. Kills are capped at the enemy total (engine-behaviour.delta.md 6.1), so the
+  percentage never exceeds 100.
+- **"New helicopter is available."** (as2@0x48d914) centred at (400, 400), white, in both modes,
+  whenever the finished level's `enableHelic` is 0..5, even if that helicopter was already
+  unlocked.
+- Panel `UI_DrawPanel(180, 160, 440, 200, f)` titled "Mission Complete" (as2@0x48d934); title logo.
+- Buttons (text buttons, centred):
+
+| id | Caption (address) | Centre x, y | Action |
+|---|---|---|---|
+| 4 | " Choose Helicopter " (as2@0x48d960) | 400, 440 | opens the helicopter selection in accept mode over this screen (3.18) |
+| 2 | " Restart " (as2@0x48d948) | 120, 520 | free the level, pop, apply the mission's weapon loadout, restart the same mission |
+| 1 | "  Quit  " (as2@0x48d954) | 400, 520 | free the level, load the attract level, pop, main menu; no banking, no high-score check |
+| 3 | "  Next  " (as2@0x48d974) | 680, 520 | pop all, free the level, bank (5.4), mission index + 1 (mod 18), start it; upgrades kept |
+
+- Keys: Esc and right click swallowed.
+
+### 3.9 Game complete (S16; VERIFIED-CODE builder as2@0x4289c0, draw 0x428430, typewriter 0x4281c0, action 0x428140, key 0x428190; (emu))
+
+Relation: **changed** (comic panorama, 11 typed lines, no statistics box, no title).
+
+After mission 18's end dialogue, `G_MissionComplete` pushes this screen instead of S15.
+
+| Phase | Drawn |
+|---|---|
+| mt < 2 | only a black full-screen fill with alpha mt/2, blend ALPHA: the frozen mission fades to black |
+| 2 ≤ mt < 4 | opaque black fill; the six `gfx\ui\comix\gamedone_*` tiles fade in (ALPHA, white, alpha (mt − 2)/2) |
+| mt ≥ 4 | opaque black fill; opaque tiles; the Continue button; the typewriter |
+
+Tiles, stretched from 256 to 267 wide, UVs inset half a texel: `gamedone_1_1` (0, 80, 267, 267),
+`gamedone_1_2` (0, 347, 267, 133), `gamedone_2_1` (267, 80, 267, 267), `gamedone_2_2`
+(267, 347, 267, 133), `gamedone_3_1` (534, 80, 267, 267), `gamedone_3_2` (534, 347, 267, 133):
+one panorama over (0, 80, 801, 400) (VERIFIED-DATA, looked at).
+
+Typewriter (from mt > 4): 11 lines (keys `congrats.0` … `congrats.10`, section 7; lines 1, 5 and 9
+are a single space), line i centred on x 400 at y = 160 + 18i with the full line's width (braces
+skipped), so each line types out from its final left edge; 8 characters per second; the current
+line starts when the previous one is complete; `sounds\type.wav` for each newly shown non-space
+character except a line's first; white additive text over a black alpha-font shadow at (+2, +2).
+This is the base's rule with 11 lines and a start at 4 s.
+
+Button: " Continue " (as2@0x48dd28), id 1, centred at (400, 520), drawn from mt = 4 (its hit
+rectangle exists from the start; GUESS that it can be clicked earlier). Action: free the level,
+bank, load the attract level, pop, main menu, high-score check. Esc and right click swallowed.
+
+### 3.10 Game over (S14; VERIFIED-CODE `G_GameOver` as2@0x410e70, builder 0x428db0, draw 0x428b90, action 0x428ac0, key 0x428b60; (emu))
+
+Relation: **changed** (comic art; no red tint; buttons usable at once).
+
+`G_GameOver` sets the game-over, HUD-hidden and paused flags, makes the current module jump to
+pattern order 35 (as the base), builds and pushes this screen.
+
+- Comic: three panels, each `gfx\ui\comix\gameover_k_1.tga` (256×256) over `gameover_k_2.tga`
+  (256×128): column k at x = 16 + 256(k − 1), tiles at y 108 and 364; together (16, 108, 768,
+  384). While mt < 1 they are blend ALPHA, white with alpha mt (a 1 s fade-in); then opaque.
+- `gfx\ui\comix\gamov.tga` (512×64, the "GAME OVER" lettering) at its natural size at
+  (144, 260), blend ADD, grey level mt until mt = 1, then white.
+- `UI_DrawPanel(16, 108, 768, 384, mt)` titled "Game Over" (as2@0x48dd34): the frame slides in
+  with `mt` over the first second.
+- Buttons (text buttons, centred, y 520): " Restart " (as2@0x48d948) id 1 at x 550; "  Quit  "
+  (as2@0x48d954) id 2 at x 250. Usable from the first frame (the base hid them for 2 s; the AS2
+  draw still clears their hide bits after 2 s, without effect).
+- Restart: free the level, pop, apply the mission's weapon loadout, restart the mission with the
+  lives it began with. Quit: free the level, bank, load the attract level, main menu, high-score
+  check (5.4).
+- Esc and right click swallowed. No red FILTER tint (the base had one), no title picture of the
+  base.
+
+### 3.11 Top Scores (S4; VERIFIED-CODE `M_TopScoresMenu` as2@0x42e0d0, draw 0x42deb0; (emu))
+
+Relation: **changed** (panel, colours), same table.
+
+`UI_DrawPanel(120, 170, 560, 318, f)` titled "Top Scores" (as2@0x48eedc); a column bar
+(130, 180, 540, 20) in dark green, blend ALPHA; column titles at y 182, orange: "#" at x 138,
+"Name" 168, "Score" 393 (as2@0x48eecc), "Rank" 533. Rows i = 0..14 at y = 204 + 18i: position
+i + 1 at 138 (orange), name at 168 (green), score with the number font scale 1 at 393 (green),
+rank name at 533 (green). " Back " text button id 1, left 30, y 520, pops. Title logo. The
+" Post Scores " button (as2@0x48eee8) belongs to the dropped online scores. The new entry is not
+highlighted. Esc pops.
+
+### 3.12 High-score check and name entry (S5; VERIFIED-CODE `G_CheckHighScore` as2@0x414610, `M_NameEntryMenu` as2@0x42bcd0, callbacks 0x42bc10, 0x42bc40, 0x42bc70; (emu))
+
+Relation: **changed** look, **same** logic as the base §3.12 (one-player only; slot = first entry
+the banked score is ≥ to; insert moves the rest down; name up to 31 characters; rank index of
+accumulator × rank factor, 0 if a cheat was used).
+
+`UI_DrawPanel(210, 220, 380, 160, f)` titled "Enter Your Name" (as2@0x48ed24) (the base's "Please
+enter your name:" line is gone); edit field id 2 at (275, 285), width 250, focused by the check;
+"  Ok  " (as2@0x48ed34) text button id 1 centred at (400, 520). Enter in the field or Ok: pop,
+insert the entry (as2@0x4146c0), which shows Top Scores. Esc and right click swallowed. No title
+logo.
+
+### 3.13 In-game menu (S13; VERIFIED-CODE `M_InGameMenu` as2@0x42aa20, action 0x42a8c0, draw 0x42a9e0, key 0x42a9a0)
+
+Relation: **changed** (text buttons, new Restart).
+
+Opened by Esc during play (HUD hidden, paused). Text buttons centred on x 400, minimum width 160;
+draw: items and title logo, no panel.
+
+| id | Caption (address) | y | Action |
+|---|---|---|---|
+| 1 | " Resume " (as2@0x48ebb8) | 250 | pop; `p_action` = 0 for both players; paused and HUD-hidden cleared |
+| 2 | " Options " (as2@0x48ebc4) | 295 | `M_ShowOptions` over this menu (video items disabled) |
+| 4 | " Restart " (as2@0x48d948) | 340 | free the level, pop, apply the mission's loadout, restart the mission |
+| 3 | " Quit " (as2@0x48ebd0) | 385 | free the level, load the attract level, main menu replaces the stack; no banking, no high-score check |
+
+Esc and right click do what Resume does (the key callback clears the flags, the generic handler
+pops).
+
+### 3.14 Information (S8; VERIFIED-CODE `M_InfoMenu` as2@0x42a880, builder 0x42a7b0, draw 0x42a6e0, key 0x429820, action 0x429800; page builders 0x429890..0x42a550; (emu))
+
+Relation: **changed**: 8 pages (the story pages are gone, the credits have their own screen, a
+second items page is new), new positions, explicit icons.
+
+"Page:" spinner at (400, 520) with "1 of 8" … "8 of 8" (table as2@0x49e684); "  Back  " text
+button id 1, left 50, y 520; grey 0x808080 hints "PgUp - Previous Page" (as2@0x48eb84) at
+(570, 520) and "PgDown - Next Page" (as2@0x48eb9c) at (570, 540). Keys: PgUp or Left previous
+page, PgDn or Right next page, both wrapping (as2@0x429820, the base's table); others generic.
+No panel, no title logo: the attract level shows behind the text.
+
+Page layout: title at (60, 120), white (additive); body lines from y = 184 every 18 px, orange;
+pages with icons put the text at x = 140 with markup (so `{…}` names are white) and draw one icon
+per paragraph at (60, y_icon, 66, 35) from the HUD atlases with the HUD's UVs and blend (4.4).
+
+| Page | Title (address) | Body lines | Icons: atlas entry (4.4) at y_icon |
+|---|---|---|---|
+| 1 | OVERVIEW (as2@0x48e150) | 10 lines and 2 blank slots, text at x 60, no markup | none |
+| 2 | PRIMARY WEAPONS (Page 1 of 3) (as2@0x48e340) | Machine Gun, Impulse Gun, Plasma Cannon, Quantum Gun paragraphs | weapon 0 at 194, 1 at 286, 2 at 358, 3 at 430 (ADD) |
+| 3 | PRIMARY WEAPONS (Page 2 of 3) (as2@0x48e50c) | Big Laser, Lightning Gun, Wave Gun | weapon 4 at 194, 5 at 295, 6 at 365 (ADD) |
+| 4 | PRIMARY WEAPONS (Page 3 of 3) (as2@0x48e5d0) | Missile Gun, Flamethrower | weapon 7 at 194, 8 at 260 (ADD) |
+| 5 | MISSILES (Page 1 of 2) (as2@0x48e828) | Small, Big, Small Heat Seeking, Big Heat Seeking Missiles | missile 0 at 194, 1 at 260, 2 at 328, 3 at 418 (ALPHA) |
+| 6 | MISSILES (Page 2 of 2) (as2@0x48e8c0) | M.A.D. Missiles | missile 4 at 194 (ALPHA) |
+| 7 | ITEMS (Page 1 of 2) (as2@0x48ea84) | Annihilator, Nuclear Bomb, Rocket Strike, Lightning Bomb | power-up 4 at 194, 1 at 256, 2 at 310 (ALPHA), 0 at 378 (ADD) |
+| 8 | ITEMS (Page 2 of 2) (as2@0x48eb70) | Satellite Strike, Air Support | power-up 5 at 194, 8 at 256 (ALPHA) |
+
+Because every paragraph heading sits next to the icon the page draws for it, these pages name
+the HUD's icon cells: they confirm the weapon order of 4.4 (VERIFIED-CODE). Blank lines are a
+one-space string (as2@0x48b728) drawn in their slot. The line slot of every string is in section 7.
+
+### 3.15 Tutorial hint box (S12; VERIFIED-CODE `ShowTutorialHint` as2@0x4218b0 → `UI_MessageBox` as2@0x42dd20, callbacks 0x42daf0, 0x42db30, 0x42db70; (emu))
+
+Relation: **changed** look, **same** rules as the base §3.15 (pauses without hiding the HUD; lines
+cut at `^`, at most 16 lines of 63 characters; closing clears paused and `p_action` of both
+players; the right button pops without unpausing, the base's quirk).
+
+- Box: W = max(360, widest line + 40), H = max(160, 18 × lines + **60**), left = (800 − W)/2,
+  top = (600 − H)/2 (widths without braces). Drawn as `UI_DrawPanel(left, top, W, H, f)` titled
+  "Tutorial Tip" (as2@0x48eeb0); the base's growing black box is replaced by the panel's opening.
+- Lines, only once f ≥ 1: centred on x 400 at y = top + (H − 18n)/2 + 18i, orange, markup on.
+- "  Ok  " text button id 1 centred at (400, 520), whatever the box size (it slides up).
+- Close: Enter, Esc or Space (key callback) or Ok.
+
+### 3.16 Loading screen (S9; VERIFIED-CODE `SCR_SelectLoadingComic` as2@0x40acc0, `SCR_DrawLoading` as2@0x40adf0; (emu))
+
+Relation: **changed** (comic, orange bar, "Loading" label).
+
+- At the start of `G_StartLevel` the comic set is chosen by the mission index (0-based,
+  as2@0x2219140): 0..6 (missions 1–7) `loading1`, 7..12 (missions 8–13) `loading2`, 13..17
+  (missions 14–18) `loading3`; no random choice. Its six tiles `gfx\ui\comix\loadingN_k_1` and
+  `loadingN_k_2` (k = 1..3; named without extension, they resolve to `.tga`) are registered.
+  Progress is reset to 0.
+- Each loading step: full-screen black, opaque. Unless the level is an intermission level, the
+  comic: column k at x = 0, 267, 534, width 267: tile `_k_1` at (x, 135, 267, 264) and `_k_2` at
+  (x, 399, 267, 66), opaque, white, UVs inset half a texel (one continuous picture of about
+  801×330 over y 135..465, VERIFIED-DATA). Then a progress bar: orange outline (340, 500, 200, 10)
+  and orange fill (340, 500, progress × 200, 10), opaque; "Loading" (as2@0x48a424) at (260, 496),
+  orange, left-aligned.
+- Intermission levels: black, bar and label only.
+
+### 3.17 Pause (S11)
+
+Relation: **same** (P or Pause toggles the paused flag when no menu is open; nothing drawn;
+unpausing clears `p_action`; VERIFIED-CODE `G_SetPause` as2@0x410cb0).
+
+### 3.18 Helicopter selection (S3b, new; VERIFIED-CODE `M_ShowHeliSelect` as2@0x4297d0, `M_HeliSelectMenu` 0x429530, draw 0x4291f0, backdrop 0x4290c0, action 0x428fb0, preview 0x428f10, view 0x4079c0 and 0x407850; (emu))
+
+Opened in **start mode** from Start Game (Next) or in **accept mode** from mission complete
+(Choose Helicopter); the mode flag is as2@0x20fedb7. `gfx\ui\grid.tga` is registered.
+
+Items:
+
+| Item | Type, id | Position | Details |
+|---|---|---|---|
+| next arrow | picture, 6 | (600, 278, 16, 40) | `arrow_right` |
+| previous arrow | picture, 7 | (180, 278, 20, 44) | `arrow_left`, stretched |
+| start button | text button, 1 (8 in accept mode), right-aligned on x 760, y 520 | | " Accept " (as2@0x48deb4) in accept mode; else " Continue " (as2@0x48dd28) when the mission index is > 0 and equals the checkpoint mission (5.1); else " Start " (as2@0x48dec0) |
+| " Back " | text button, 2, left 40, y 520 | | start mode only |
+| Player: | spinner, 5, (400, 435) | | "Player 1", "Player 2" (table as2@0x49e678); two-player mode only; selects whose helicopter the screen shows |
+
+Draw (items other than the buttons and arrows only once f ≥ 1):
+
+1. Backdrop: `grid.tga` (128×128, a dot grid) tiled in 120-px squares over (210, 190, 381, 231),
+   last row and column cut, blend ADD, colour (0, 0.376, 0). The original passes zero UV divisors
+   to the tiling helper (as2@0x4290c0), so its UVs are degenerate; GUESS for the intended look:
+   each 120-px tile shows texels 0..120.
+2. The 2D list is flushed and the render lists cleared, then:
+   - **unlocked** helicopter: a 3D view (as2@0x4079c0): viewport (170, 160, 460, 270) in virtual
+     pixels scaled to the window, FOV 60, cleared depth; the preview entity at origin (0, 0, −100)
+     with angles (100 + 5·sin(2·mt), spin − 120, 0) degrees, spin = +60°/s (as2@0x221917c, never
+     reset); attached children drawn with it (as2@0x407850). The preview entity is the selected
+     helicopter's object (helicopter table as2@0x49ddf9) built by `G_InitObject` without its
+     script (as2@0x428f10), rebuilt at every change;
+   - **locked** helicopter: `gfx\ui\helicna.tga` (256×128, a dark helicopter silhouette) at its
+     natural size at (272, 241), ALPHA, tinted (0, 0.376, 0); "NOT AVAILABLE" (as2@0x48de78)
+     centred at (400, 300), red 0x000000FF.
+3. Name at (220, 200), green, from table as2@0x49cbec by helicopter index (6 names, section 7).
+4. "Speed:" (as2@0x48de88) at (220, 378) and "Armor:" (as2@0x48de90) at (220, 398), green. Bars
+   in 0x6000FF00 (green, alpha 0.376), blend ALPHA: outlines (300, 381, 280, 10) and
+   (300, 401, 280, 10); fills from the same left edge, width speed × 280 / 1.5 and maximum health
+   × 280 / 800 of the preview entity (the definition's `speed` field and maximum health). Shown for
+   locked helicopters too.
+5. The start/Accept button is disabled (grey) while player 1's selection is locked, or in
+   two-player mode while either player's is.
+6. Items; `UI_DrawPanel(160, 160, 480, 290, f)` (height 310 in two-player mode) titled "Choose
+   Helicopter" (as2@0x48de98); title logo.
+
+Actions: the arrows set the shown player's helicopter index to (index ± 1) mod 6, **write it to the
+player record at once** and rebuild the preview (locked helicopters can be browsed); the Player
+spinner switches the shown player; Back and Accept pop; Start/Continue frees the level, pops every
+menu, loads the selected mission and runs `G_NewGame` (5.1). No key callback: Esc pops. Quirks
+(issue 240): leaving with Esc keeps a locked choice in the record; the shown player starts from
+the spinner's stale value of the previous opening.
+
+### 3.19 Portrait dialogues (S9b, S13b, new; VERIFIED-CODE `M_ShowPortraitDialog` as2@0x4234b0, draw 0x4231b0, key 0x423050; (emu))
+
+`M_ShowPortraitDialog(mission, isEnd)` is called by level start (start dialogue) and `EndLevel`
+(end dialogue). Dialogue table as2@0x49d530: 36 pointers indexed mission × 2 + isEnd; each points
+to {speaker, text} pairs (8 bytes), ended by a pair with a null text. Speaker 0 is the officer,
+1 the pilot. Start dialogues: missions 1, 2, 3, 5, 6, 8, 11, 12, 14, 15, 17, 18; end dialogues:
+1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 15, 16; 40 pages in all (section 7).
+
+- No dialogue: a start slot does nothing (the mission runs unpaused); an end slot pauses and calls
+  `G_MissionComplete` at once.
+- Otherwise: paused; `gfx\ui\portraits2.tga` registered; an item-less menu is pushed.
+- Opening: the fade value rises by 4 × frametime (0.25 s); only the panel is drawn meanwhile.
+- Open: portrait at (120, 420, 80, 120), ALPHA, white: officer texel (0, 8, 80, 120), pilot texel
+  (80, 8, 80, 120) (checked on the atlas). Text typed at one character per 0.05 s (at most one per
+  frame), no sound; lines split at '\n', left-aligned at x 220 from y 430, 20 px apart, white,
+  additive, no markup. A complete page stays 3 s, then the next page starts; after the last one
+  the dialogue closes.
+- Every frame: `UI_DrawPanel(100, 400, 600, 160, fade)` without title, then the (empty) items.
+- Keys: Enter, Esc, Space, left and right button complete a page that is still typing, or skip to
+  the next page (the timer is set to 4 s); they never close the dialogue at once and are ignored
+  while it closes. Other keys go to the generic handler.
+- Closing: the fade value falls at the same rate; at 0 the menu pops; an end dialogue then calls
+  `G_MissionComplete` (the game stays paused); a start dialogue clears paused and `p_action` of
+  both players.
+- HUD: visible behind a start dialogue, hidden behind an end dialogue.
+
+### 3.20 Credits (S8b, new screen; VERIFIED-CODE `M_CreditsMenu` as2@0x423d90, draw `M_PageCredits` as2@0x423ca0; (emu))
+
+Relation: replaces page 10 of the base's Information screen. Title logo; 21 lines centred on x 400
+from y 120, 18 px apart, orange with markup (the names are in braces, so white): seven role/name
+groups separated by one-space lines (keys `credits.0` … `credits.20`, section 7). "  Back  " text
+button id 1, left 50, y 520, pops. No panel. Esc pops.
+
+### 3.21 Demo nag screen, purchase button, play-time limit (dropped)
+
+Relation: **new in the data, dead in the code**. VERIFIED-CODE unless stated.
+
+- Settings.xml `<Demo><Purchase showButtonInMainMenu shellCommand>` and `<NagScreen show>` are
+  parsed (as2@0x41e130; flags as2@0x22192a0, 0x22192a1; command as2@0x2219284). The two flags are
+  never read (a raw scan of the executable for their addresses finds only the parser and the
+  free routine). The command is read only by main-menu action id 6 (stop sound, shell-execute the
+  command, save `game.bin`, close), and no builder adds an item with id 6. The shipped file sets
+  both flags to 1 with the command `Register.url` and says in a comment that only the demo build
+  uses the tag (VERIFIED-DATA).
+- The nag texts (a heading and eight feature lines, pointer table as2@0x49cc10) and three
+  end-of-demo lines (table as2@0x49df48, after the attract-level names) are unreferenced data.
+- The demo play-time counter (1 h, written to the registry every 60 s) never runs: its gate byte
+  as2@0x2219138 is never set (engine-behaviour.delta.md 1.2).
+- New tag `<AtExit shellCommand>`: shell-executes a command after `config.ini` is written at exit
+  (as2@0x405bf0); absent from the shipped file.
+
+What we do: drop all of them (the purchase command, nag screen, demo lines, play-time counter and
+AtExit launch), as we dropped online scores and the CD check. Nothing visible is lost with the
+full version's data.
