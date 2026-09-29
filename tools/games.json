@@ -1,0 +1,38 @@
+{
+  "comment": "The games the engine runs, for the shell and Python tools. Same keys, titles and pak lists as engine/src/game/game_profiles.cpp; apps/tests/game_profile_test.cpp checks that both agree. zip_member is the game's directory inside binaries/AirStrike.zip.",
+  "games": [
+    {
+      "key": "as3d",
+      "title": "AirStrike 3D",
+      "version": "1.70",
+      "exe": "AirStrike3D.exe",
+      "zip_member": "AirStrike/AirStrike_3D",
+      "paks": ["pak0.apk", "pak1.apk", "pak2.apk"],
+      "texts": "texts_v170.txt",
+      "missions": 20,
+      "helicopters": 10
+    },
+    {
+      "key": "as2",
+      "title": "AirStrike 2",
+      "version": "2.51",
+      "exe": "AirStrike3D II.exe",
+      "zip_member": "AirStrike/AirStrike 2",
+      "paks": ["pak0.apk", "pak1.apk", "pak2.apk"],
+      "texts": "texts_as2.txt",
+      "missions": 18,
+      "helicopters": 6
+    },
+    {
+      "key": "gulf",
+      "title": "AirStrike II: Gulf Thunder",
+      "version": "2.71",
+      "exe": "AirStrike3D II - Gulf.exe",
+      "zip_member": "AirStrike/AirStrike II Gulf Thunder",
+      "paks": ["pak0.apk", "pak1.apk", "pak2.apk", "pak4.apk"],
+      "texts": "texts_gulf.txt",
+      "missions": 24,
+      "helicopters": 3
+    }
+  ]
+}
