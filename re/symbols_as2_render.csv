@@ -1,0 +1,38 @@
+address,name,subsystem,description,confidence,evidence,v170_address
+0x0042f620,D3D_SetDefaultStates,render,lighting off; solid fill; cull clockwise; linear min/mag; mip point or linear by TextureFilter; fog when the level has fog,high,decoded render and texture-stage states (re/tools/d3d8_annotate.py),
+0x0042fb50,GL_SetBlendMode,gl,blend state cache: 0 off; 1 alpha; 2 add (fog black); 3 filter (fog white); 4 dest-colour/src-colour,high,decoded blend factors and fog colour writes,0x00412be0
+0x0042fd30,R_SetupFog,frame,linear table fog; colour also used as clear colour,high,decoded fog states; called by level start as2@0x40e1e0,0x0040d2a0
+0x00430a20,R_RenderView,frame,scene render: terrain; frustum; marks; skid marks; shadows; opaque; water; trans; effect; particles; sprites; 2D,high,call order read,0x0040e0d0
+0x0042ff70,R_DrawMarks,decal,CORRECTION of symbols_as2.csv (R_DrawGroundPass): TYPE_MARK pass; depth write off; depth bias 2; per-mark blend; entity RGBA,high,walks the TYPE_MARK list filled by as2@0x430740,0x0040d860
+0x00430280,R_DrawSkidMarks,decal,CORRECTION of symbols_as2.csv (R_DrawMarks): new skid-mark pass; alpha blend; depth bias 3; write off; Gouraud,high,walks the track list as2@0x2113074 filled by as2@0x414850,
+0x004300e0,R_DrawSkidMarkStrip,decal,CORRECTION of symbols_as2.csv (R_DrawMark): one track as a strip; alpha 1 to 5 s then fade to 0 at 10 s; v = distance / width,high,constants 5.0 10.0 and 1/width,
+0x00414850,G_UpdateSkidMarks,game,CORRECTION of symbols_as2.csv (G_UpdatePlayers): per-frame track update; new section every 0.41667 s; 23 sections; terrain height + 2,high,constant 0.4166667; trail pool as2@0x20c5da8 (64 x 0x64c),
+0x00414800,G_FreeSkidMarks,game,CORRECTION of symbols_as2.csv (G_LevelEndHelper): returns every track to the free list,medium,walks as2@0x20c5da0 into as2@0x20c5d9c; called at level end,
+0x00430440,R_DrawShadows,shadow,shadow pass: FILTER blend; white vertex colour; depth bias 4; write off,high,decoded blend mode 3 and states,0x0040db20
+0x004366f0,R_GenerateShadowMap,shadow,silhouette into a 512x512 target; 0.6 grey add; no ground-erase quad; linear 2:1 copy into a single-level texture; max 256x256,high,constants 0xff999999 and 512; single copy quad,0x00414a70
+0x00438260,R_RegisterShadowTexture,shadow,CORRECTION of symbols_as2.csv (R_ShadowMapHelper): registers the generated shadow texture in the texture registry,medium,copies the name and size into the 2048-slot registry,
+0x00430eb0,R_DrawBrightness,frame,CORRECTION of symbols_as2.csv (R_DrawFadeOverlay): brightness quad dest-colour/src-colour over 800x600,high,blend mode 4 and the Brightness value,0x0040e6f0
+0x00433e60,R_ComputeEnvCoords,material,CORRECTION of symbols_as2.csv (R_SetupModelLight): environment coordinates 0.5 + 0.5 * normal in view space,high,normals x (world x view); writes the second UV array,
+0x00435e70,GL_SetupEnvMap,material,environment stages: GLITTER add; CHROME blend by skin alpha; QUAD modulate with a rotating texture matrix,high,decoded texture-stage states,0x004127e0
+0x00435ad0,R_SetTextureStage,render,stage 0 texture x diffuse (colour and alpha); stage 1 off,high,decoded texture-stage states,
+0x004362a0,R_SetupTerrainStages,terrain,terrain stages: map texture x diffuse; detail add-signed (else modulate 2x; else modulate),high,decoded texture-stage states and caps test,0x00412720
+0x00436440,R_SetupWaterStages,terrain,water stages: base texture; shine blended by its alpha; alpha from the vertex; two scrolled texture matrices (x2; x1.5),high,decoded texture-stage states; constants 2.0 1.5 0.4 0.2 0.25 -0.2 0.3,
+0x0041d8d0,R_WaterWaveVertices,terrain,water grid: waves 16 x weight x 0.5 x (sin(0.75 row + T) + sin(col + T)); normals; unused sun colour,high,constants 16.0 6.0 0.125 0.0001,
+0x0041bb60,R_BuildWaterStrips,terrain,CORRECTION of symbols_as2.csv (R_LoadTerrain_Copy): water depth weights clamp((level - z)/16) and per-chunk strips of wet cells,high,writes the weight array as2@0x2102e74 and strip lists,
+0x0041b2e0,R_BuildTerrainNormals,terrain,vertex normals from central differences,high,read,
+0x0041b580,R_BuildTerrainColors,terrain,static vertex colours: clamp(N.L; 0; 1) x sun + ambient; underwater factor,high,read,0x00416fd0
+0x0041b780,R_BuildTerrainStripsAndTiles,terrain,terrain strips (flat underwater runs skipped) and tile overlay lists sorted by atlas,high,read,
+0x0041b020,R_TileCoords,terrain,tile rectangle in the atlas with a half-texel inset; rotation 3/6/9,high,read,0x00416d00
+0x004377d0,R_DrawTerrainPatch,terrain,tile overlays of a chunk: alpha blend; write off; depth bias 1,high,decoded states,0x00415730
+0x00438860,R_DrawWater,terrain,water pass: alpha blend; t += dt x pi x 0.1; Gouraud,high,read,0x004160d0
+0x0042fe80,R_DrawSprites,sprite,sprite pass with culling off; billboard axes from the view matrix,high,decoded cull states,0x0040d7a0
+0x004371e0,R_DrawSprite,sprite,one sprite quad; v = 1 - t,high,read,0x0040d370
+0x00435070,R_DrawParticleSystem,particle,particle quads with the view-matrix axes; frame div rows quirk kept; FILTER adds texture and colour,high,disassembly read,0x00413a50
+0x004380e0,R_LoadTextureFile,texture,loads data\<name> (else .tga; else .jpg) with the Direct3DX file loader; full mip chain or one level,high,read,0x004187e0
+0x004359d0,GL_Bind,gl,SetTexture; index 0 unsets the texture; -notex disables binds,high,read,0x004184b0
+0x0040c750,G_SyncRenderRecord,game,clamps the colour; FL_ONWATER z from the water surface; FL_ONWATER_FLAT the fixed level; FL_ONWATER_NORMAL aligns to the surface,high,read,0x004057c0
+0x0041d6d0,G_AlignToWater,terrain,axis from the water plane through three samples; yaw kept,high,read,
+0x0040bd70,G_DrawHealthBar,game,adds the hbar_empty and hbar_full sprites when maximum health > 150,high,strings hbar_full hbar_empty; same structure as v1.70,0x00404e30
+0x0040aa40,R_DrawStats,hud,debug statistics text in the 2D layer,high,strings,
+0x0042e1c0,R_Draw2DQuad,2d,2D item: -0.5 pixel shift; optional rotation; optional second texture and combine mode,high,read,0x0040cee0
+0x00435bf0,R_Setup2DStages,2d,second 2D texture combine: 1 blend by its alpha; 2 add; 3 modulate; else replace,high,decoded texture-stage states,
