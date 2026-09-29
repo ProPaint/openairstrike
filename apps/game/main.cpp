@@ -78,7 +78,7 @@ struct Args {
 int usage() {
     std::fprintf(stderr,
                  "usage: as3d_game [--level N] [--difficulty 0..4] [--seed S] [--data ROOT] [--size WxH]\n"
-                 "                 [--input-script FILE] [--record FILE] [--bot] [--frames N] [--no-audio]\n"
+                 "                 [--input-script FILE] [--record FILE] [--bot] [--god] [--frames N] [--no-audio]\n"
                  "                 [--touch] [--perf] [--fullscreen] [--paks DIR]\n"
                  "                 [--profile FILE] [--attract 1..4] [--no-logo]\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
@@ -117,6 +117,7 @@ bool parseArgs(int argc, char** argv, Args& a) {
             if (std::sscanf(v, "%dx%d", &a.width, &a.height) != 2) return false;
         } else if (s == "--headless") a.headless = true;
         else if (s == "--bot") a.bot = true;
+        else if (s == "--god") a.game.world.godMode = true;
         else if (s == "--quiet") a.quiet = true;
         else if (s == "--no-audio") a.noAudio = true;
         else if (s == "--touch") a.touch = true;
