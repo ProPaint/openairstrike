@@ -2,7 +2,8 @@
 binaries/
 third_party_local/
 assets_extracted/
-# (per game: third_party_local/games/<key>/ and assets_extracted/<key>/ are covered by the two lines above)
+# The sequels' extracted data, per game key (the first game's stays in assets_extracted/)
+assets_extracted_games/
 android/app/src/main/assets/*.apk
 # Launcher icon rendered from the game data at build time (tools/android_build.sh)
 android/app/src/icon_from_data/
