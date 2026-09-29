@@ -1,5 +1,7 @@
 // `as3d_viewer level <level number | levels.txt id | maps\x.hsc> --out file.png [--scroll y]
-// [--size WxH] [--overview [--span y]] [--camera 0..3] [--camx x] [--no-objects]`: renders a
+// [--size WxH] [--overview [--span y]] [--camera 0..3] [--camx x] [--no-objects]
+// [--shadows|--no-shadows] [--marks "x,y[,object];..."|demo|--no-marks] [--lights "x,y,z,r,g,b,radius;..."]
+// [--no-lights] [--no-sprites] [--no-envmap] [--plain]`: renders a
 // level of the original game headless, as the game would show it at scroll position `y`
 // (g_map_pos), or, with --overview, from high above.
 #include <algorithm>
@@ -13,6 +15,22 @@
 #include "viewer_scene.h"
 
 namespace {
+
+// "x,y,z,r,g,b,radius;..." -> extra dynamic lights; false on a malformed item.
+bool parseLights(const std::string& spec, std::vector<as3d::DynamicLight>& out) {
+    size_t i = 0;
+    while (i < spec.size()) {
+        size_t j = spec.find(';', i);
+        if (j == std::string::npos) j = spec.size();
+        std::string item = spec.substr(i, j - i);
+        i = j + 1;
+        if (item.empty()) continue;
+        float f[7];
+        if (std::sscanf(item.c_str(), "%f,%f,%f,%f,%f,%f,%f", &f[0], &f[1], &f[2], &f[3], &f[4], &f[5], &f[6]) != 7) return false;
+        out.push_back(as3d::DynamicLight::point({f[0], f[1], f[2]}, {f[3], f[4], f[5]}, f[6]));
+    }
+    return true;
+}
 
 int run(int argc, char** argv) {
     viewer::LevelRenderOptions o;
@@ -40,12 +58,25 @@ int run(int argc, char** argv) {
         }
         else if (a == "--overview") o.overview = true;
         else if (a == "--no-objects") o.objects = false;
+        else if (a == "--shadows") o.shadows = true;
+        else if (a == "--no-shadows") o.shadows = false;
+        else if (a == "--no-sprites") o.sprites = false;
+        else if (a == "--no-marks") o.marks = false;
+        else if (a == "--no-lights") o.dataLights = false;
+        else if (a == "--no-envmap") o.envmaps = false;
+        else if (a == "--plain") { o.shadows = o.sprites = o.marks = o.dataLights = o.envmaps = false; }
+        else if (a == "--marks") { if (!(v = val("--marks"))) return 1; o.extraMarks = v; }
+        else if (a == "--lights") {
+            if (!(v = val("--lights"))) return 1;
+            if (!parseLights(v, o.extraLights)) { std::fprintf(stderr, "error: bad --lights '%s' (x,y,z,r,g,b,radius;...)\n", v); return 1; }
+        }
         else if (level.empty()) level = a;
         else { std::fprintf(stderr, "error: unexpected argument '%s'\n", a.c_str()); return 1; }
     }
     if (level.empty() || out.empty()) {
         std::fprintf(stderr, "usage: as3d_viewer level <level number|id|maps\\x.hsc> --out file.png [--scroll y] [--size WxH] "
-                             "[--overview [--span y]] [--camera 0..3] [--camx x] [--no-objects]\n");
+                             "[--overview [--span y]] [--camera 0..3] [--camx x] [--no-objects] [--no-shadows] [--marks \"x,y;...\"|demo] "
+                             "[--lights \"x,y,z,r,g,b,radius;...\"] [--no-lights] [--no-sprites] [--no-envmap] [--plain]\n");
         return 1;
     }
     if (o.overview && !sizeGiven) {
@@ -68,6 +99,8 @@ int run(int argc, char** argv) {
     std::printf("wrote %s (%dx%d): level %s, %d placements, %d object parts, %d terrain chunks, water %s, %d missing terrain textures\n",
                 out.c_str(), img.width, img.height, stats.levelId.c_str(), stats.placements, stats.drawnObjects,
                 stats.visibleChunks, stats.hasWater ? "yes" : "no", stats.missingTextures);
+    std::printf("  shadows %d, sprites %d, marks %d, lights %d, env-mapped parts %d\n", stats.shadowsDrawn,
+                stats.spritesDrawn, stats.marksDrawn, stats.lightsUsed, stats.envParts);
     return 0;
 }
 

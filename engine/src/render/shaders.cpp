@@ -80,6 +80,7 @@ void main() {
 
 const char* const kMeshFragmentSrc = R"(#version 300 es
 precision highp float;
+precision highp int;
 
 in vec3 vLight;
 in vec2 vUv;

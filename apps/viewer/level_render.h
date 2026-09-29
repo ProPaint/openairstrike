@@ -6,7 +6,9 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
+#include "as3d/dynamic_lights.h"
 #include "as3d/image.h"
 #include "as3d/scene.h"
 #include "as3d/vfs.h"
@@ -23,6 +25,16 @@ struct LevelRenderOptions {
     float span = 0.0f;        // overview only: world y length shown from `scroll`; 0 = whole map
     bool objects = true;
     int msaa = 4;
+    // WP-35 passes, all on by default; the --no-* options switch them off for before/after pairs.
+    bool shadows = true;   // baked silhouette shadows under objects that declare `shadow`
+    bool sprites = true;   // TYPE_SPRITE / HSPRITE / VSPRITE objects
+    bool marks = true;     // TYPE_MARK objects the map places
+    bool dataLights = true; // `light` / `light_dir` of placed objects (night lights included)
+    bool envmaps = true;   // environment-mapped materials
+    // Extra lights (--lights "x,y,z,r,g,b,radius;...") and extra ground marks (--marks
+    // "x,y[,object];..." or "demo"; the object defaults to "mark").
+    std::vector<as3d::DynamicLight> extraLights;
+    std::string extraMarks;
 };
 
 struct LevelRenderStats {
@@ -31,6 +43,11 @@ struct LevelRenderStats {
     int visibleChunks = 0;
     int missingTextures = 0; // terrain/water textures that fell back to magenta
     bool hasWater = false;
+    int shadowsDrawn = 0;    // shadow instances submitted
+    int spritesDrawn = 0;
+    int marksDrawn = 0;
+    int lightsUsed = 0;      // dynamic lights in the frame's list (max 32)
+    int envParts = 0;        // drawn object parts with an environment map
     std::string levelId;
 };
 
