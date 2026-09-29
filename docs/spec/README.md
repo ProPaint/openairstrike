@@ -98,3 +98,4 @@ Every claim carries one of:
 | [112](issues/112-shadow-key-and-music-jump.md) | shadow rotation key for spawned entities, game-over music jump |
 | [113](issues/113-all-missions-findings.md) | findings of the all-missions run: missing files in the shipped data, boss part leaving in mission 20, pinned roots |
 | [130](issues/130-frontend-game-integration.md) | front end integration choices |
+| [140](issues/140-android-polish.md) | launcher icon, Wide / 4:3 setting, touch overlay, touch speed (drag gain only; the helicopter's own speed is untouched), FPS counter |
