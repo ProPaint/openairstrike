@@ -51,7 +51,7 @@
    "level23.hsc",
    "level24_boss.hsc"
   ],
-  "tile_sets": 9,
+  "tile_sets": 6,
   "pad_tile_set": 6,
   "pad_tile_index": 5,
   "markers_on_pads": 22,
