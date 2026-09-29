@@ -67,9 +67,11 @@ bool GameSession::init(const GameOptions& options, std::string* error) {
         return false;
     }
     world_.reset(new World());
-    // TODO(A1): once WorldConfig::rules exists, set `config.rules = &options.rules()` here, in
-    // startMission(LevelSetup) and in loadAttract().
-    world_->init(vfs_, *db_, options.world);
+    {
+        WorldConfig c = options.world;
+        c.rules = &options.rules();
+        world_->init(vfs_, *db_, c);
+    }
     if (!options.startLevel) return true;
     return startMission(std::min(std::max(options.mission, 1), options.rules().missionCount), error);
 }
@@ -94,7 +96,7 @@ bool GameSession::startMission(const LevelSetup& s, std::string* error) {
     c.heli[0] = s.heli[0];
     c.heli[1] = s.heli[1];
     c.cameraMode = s.camera;
-    // TODO(A1): c.rules = &rules();
+    c.rules = &rules();
     world_->init(vfs_, *db_, c);
     for (int p = 0; p < kMaxPlayers; ++p) {
         PlayerRecord& pr = world_->player(p);
@@ -110,7 +112,7 @@ bool GameSession::startMission(const LevelSetup& s, std::string* error) {
 bool GameSession::loadAttract(const std::string& id, std::string* error) {
     WorldConfig c = options_.world;
     c.players = 1;
-    // TODO(A1): c.rules = &rules();
+    c.rules = &rules();
     world_->init(vfs_, *db_, c);
     mission_ = 0;
     resetFlow();
