@@ -1,0 +1,69 @@
+address,name,subsystem,description,confidence,evidence,v170_address
+0041a670,G_TerraMorph,terrain,apply an 8-bit stamp additively to terrain vertex heights (128 neutral; (hmax-hmin)/255 per level; skips underwater and off-grid vertices),high,only callee of PF_TerraMorph; writes vertex array 0x2102e5c,
+0041a560,G_FindMorphMap,terrain,"find or load a morph stamp by name (64 per level, 8 bpp only; name gets .tga)",high,compares with records at 0x2103cd8; loads through 0x41c3d0,
+0041c3d0,Img_LoadTGARaw,image,"read an uncompressed TGA (types 1,2,3) into a record: width +0x80, height +0x84, bpp +0x88, pixels +0x90",medium,"message Illegal image format in '%s'",
+00422c60,COM_StripExtension,common,cut a path at the last '.' after the last slash or backslash,medium,used before appending .tga,
+0041bd90,G_LoadTerrain,terrain,build terrain vertex grid and derived data for a level; resets the morph stamp table,medium,writes 0x2102db8/0x2102dbc/0x2102e5c,00416fd0
+0041a1e0,G_TerrainHeight,terrain,bilinear height of the vertex grid (0 outside),high,called by PF_TerrainHeight,00416470
+0041d530,G_WaterHeight,terrain,bilinear height of the water surface grid 0x2102e6c; terrain height without water,high,called by PF_WaterHeight,
+0041d8d0,R_UpdateWaterChunk,render,per visible chunk: water surface heights and normals (waves) from terrain and water weights,medium,called by R_DrawTerrainNode,
+0041a7d0,R_LightTerrainChunk,render,per visible chunk: static vertex colours plus dynamic lights using load-time normals,medium,called by R_DrawTerrainNode,
+00437c60,R_DrawTerrainNode,render,recursive terrain tree draw; copies vertex positions from 0x2102e5c every frame,medium,self-recursive,
+00413c50,G_PlayerInput,game,per frame: action-bit keys; player acceleration vectors (+0x14c) from p_action or mouse; game-over when all p_lives < 0,high,writes 0x20c5c1c,
+00416dc0,VectorSetLength,math,scale vector (ESI) to a given length if non-zero,high,called with 1.0 and 2.0,
+00416d40,VectorNormalize,math,normalise a vector,high,identical to v1.70,0041e220
+00417010,VectorToAngles,math,direction to (-pitch 0 yaw-90),high,identical to v1.70 (D6),0041e4f0
+00416eb0,AnglesToAxis,math,angles to 3x3 axis (D7),high,identical to v1.70,0041e390
+00417250,MatrixInverse3,math,3x3 inverse with the element-7 defect (D8),high,identical to v1.70,0041e730
+0040b580,G_GetMuzzle,game,muzzle position from tag and last-think transform,high,called by PF_Shoot,004046a0
+00415630,G_FindWeapon,game,first weapon block with this name,high,message ERROR: Unknown weapon,0040c990
+0040b260,G_AddRootRef,game,increase the attachment count of the root of a parent chain (null-safe),high,called by PF_Shoot for the flash,
+0040b280,G_RemoveEntity,game,set removed bit recursively; stop emitter; release root count,high,called by PF_remove,00404410
+004124c0,G_SpawnObject,game,build object from definition; ground/water snap; mark decal (no init),high,callers create/spawner/Lightning,0040a080
+00411ba0,G_FindObjectDef,game,first object definition with this name,high,called before G_InitObject,00409860
+00431ef0,R_BuildDecal,render,terrain triangles under a rectangle for a mark decal (reads vertex array once),medium,called by G_SpawnObject,0040f070
+00432120,R_BakeEntityShadow,render,bake a projected shadow on the terrain at spawn,medium,called by PF_create,0040f2a0
+00414c50,G_LockTarget,game,nearest enemy ahead of its player (LockTarget),high,layout-only diff to v1.70,0040c020
+00417650,G_SegmentHitsRect,game,2D segment against a screen rectangle (D9),high,identical to v1.70,0040ca10
+0041cee0,R_ProjectToScreen,render,project a point with previous frame's Direct3D matrices,medium,callers TraceLine/TraceLineDamage,00419540
+00413710,G_UsePowerUpRecord,game,consume one selected power-up,high,called by PF_G_UsePowerUp,0040b150
+00413680,G_SelectNextPowerUp,game,next power-up kind with a count; skips 6 7 9,high,called by G_UsePowerUpRecord and G_PlayerInput,0040b0d0
+00413800,G_UseMissileRecord,game,consume one selected missile,high,called by PF_G_UseMissile,0040b220
+00413780,G_SelectNextMissile,game,next missile type with a count (mod 5),high,called by G_UseMissileRecord,0040b1b0
+004234b0,UI_LevelEndSequence,ui,level end: picks a debriefing or ends (level index; flag),medium,called by PF_EndLevel,004269b0
+00428db0,UI_BuildGameOverMenu,ui,build the game-over menu (Restart ...),medium,string ' Restart ',
+00422880,S_GameOverMusic,sound,stop current module and load another (game over),low,BASS_ChannelStop/BASS_MusicLoad,
+00430740,R_AddEntityToScene,render,queue a render record,medium,called by PF_Lightning,0040de50
+0040c750,G_SetupTransform,game,ground/water snap and axis each think,medium,calls G_TerrainHeight,004057c0
+00410fd0,G_RunFrame,game,frame: camera; spawner; player input; entity pass,medium,calls 0x413c50 then 0x40cdc0,
+00415290,V_SetCameraMode,camera,clamp camera mode 0..3 and apply table row,medium,writes 0x49db68,
+0047cce0,_CIatan,crt,arctangent,medium,used by PF_atan,
+0047ce8a,_CIatan2,crt,two-argument arctangent,medium,used by PF_atan2,
+0047cc6a,_CIfmod,crt,floating remainder,medium,used by PF_fmod and PF_floor2,
+00479410,floor,crt,floor,medium,used by PF_floor and G_TerrainHeight,00440e40
+0043b442,_copysign,crt,copy sign,high,Ghidra library match,
+0047cdc0,_CIsqrt,crt,square root,medium,used for distances,00440a50
+02102db8,g_terrainVertsX,data,terrain vertex columns (W+1),high,G_LoadTerrain,
+02102dbc,g_terrainVertsY,data,terrain vertex rows (H+1),high,G_LoadTerrain,
+02102dc0,g_terrainCellSize,data,cell size 40,high,G_LoadTerrain,
+02102dc4,g_terrainHMin,data,level hmin,high,G_LoadTerrain,
+02102dc8,g_terrainHMax,data,level hmax,high,G_LoadTerrain,
+02102dcc,g_terrainNormals,data,vertex normals (load time),medium,R_LightTerrainChunk,
+02102e5c,g_terrainVerts,data,vertex positions x y z (12 bytes each),high,G_LoadTerrain; G_TerraMorph,
+02102e6c,g_waterVerts,data,water surface grid,medium,G_WaterHeight,
+02103ca4,g_levelHasWater,data,level water flag,high,G_LoadTerrain,
+02103cb0,g_waterLevel,data,level water level,high,G_LoadTerrain,
+02103cd4,g_morphMapCount,data,loaded morph stamps (max 64),high,G_FindMorphMap,
+02103cd8,g_morphMaps,data,"morph stamp records, 0x94 bytes (name; width +0x80; height +0x84; bpp +0x88; pixels +0x90)",high,G_FindMorphMap,
+02106334,g_wavegunHitDef,data,definition index of wavegun_hit (Lightning hit effect),high,set at level start 0x410f5f,
+02219145,g_twoPlayers,data,two-player mode flag,high,IsMultiplayer; Shoot,01fdb2c7
+0049ded0,g_numPlayers,data,number of players,high,player loops,
+005432c0,g_levelEnemyTotal,data,enemies counted at spawn and create; caps kill counters,high,G_Damage 0x40bb4c,004d52f8
+005432c4,g_levelScoreTotal,data,sum of placed objects' score (GUESS),low,spawner 0x40e7e0; EndLevel,
+00543294,g_levelStarCount,data,number of star items placed (GUESS),low,map loader 0x4113c0; EndLevel,
+00543298,g_worldStopped,data,level ended or game over: no main no input,medium,EndLevel; GameOver,
+00543299,g_gameOver,data,game-over flag,medium,GameOver; G_PlayerInput,
+0054329b,g_levelEnding,data,level-end flag,medium,EndLevel; GameOver,
+0049db68,g_cameraMode,data,engine camera mode 0..3,high,V_SetCameraMode,
+0049db2c,g_cameraModeTable,data,"per mode: pitch, height, y offset, fov (16 bytes)",high,V_UpdateCamera; GetMapPosOfs,
+0049ddf9,g_playerHeliNames,data,player_1.. names 33 bytes each,high,G_SpawnPlayer,
