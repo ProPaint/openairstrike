@@ -1,0 +1,97 @@
+// The Android app's native entry point (SDL_main, run by SDLActivity on its own thread).
+// Starts straight into mission 1 (menus are not implemented yet) with touch controls, the
+// original pak archives read in place from the APK's assets, and the shared game loop
+// (game_loop.h). docs/android.md describes the controls, the intent extras and the log
+// markers the smoke test waits for.
+//
+// Arguments come from GameActivity.getArguments(), built from the launching intent's
+// extras: --bot, --level N, --frames N, --difficulty D, --no-audio, --rebuild-on-resume.
+#include <SDL.h>
+#include <jni.h>
+
+#include <atomic>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+
+#include "as3d/core.h"
+#include "game_loop.h"
+
+namespace {
+
+// Display cutout insets in window pixels, set from the UI thread by GameActivity.
+std::atomic<int> g_insets[4] = {{0}, {0}, {0}, {0}};
+
+as3d::SafeInsets currentInsets() {
+    as3d::SafeInsets s;
+    s.left = g_insets[0].load();
+    s.top = g_insets[1].load();
+    s.right = g_insets[2].load();
+    s.bottom = g_insets[3].load();
+    return s;
+}
+
+} // namespace
+
+extern "C" JNIEXPORT void JNICALL Java_org_as3dport_game_GameActivity_nativeSetSafeInsets(JNIEnv*, jclass, jint left,
+                                                                                           jint top, jint right,
+                                                                                           jint bottom) {
+    g_insets[0] = left;
+    g_insets[1] = top;
+    g_insets[2] = right;
+    g_insets[3] = bottom;
+}
+
+int main(int argc, char* argv[]) {
+    using namespace as3d_game;
+    LoopOptions o;
+    o.touch = true;
+    o.mobile = true;
+    o.markers = true;
+    o.perfLog = true;
+    o.frameMarkerEvery = 600;
+    o.logTouches = true;
+    o.quiet = true;
+    o.game.paks = {"pak0.apk", "pak1.apk", "pak2.apk"};
+    o.safeInsets = currentInsets;
+    for (int i = 1; i < argc; ++i) {
+        const char* s = argv[i];
+        const char* v = i + 1 < argc ? argv[i + 1] : nullptr;
+        if (!std::strcmp(s, "--bot")) o.bot = true;
+        else if (!std::strcmp(s, "--no-audio")) o.noAudio = true;
+        else if (!std::strcmp(s, "--rebuild-on-resume")) o.rebuildOnResume = true;
+        else if (!std::strcmp(s, "--level") && v) {
+            int m = std::atoi(v);
+            if (m >= 1 && m <= kMissionCount) o.game.mission = m;
+            ++i;
+        } else if (!std::strcmp(s, "--difficulty") && v) {
+            int d = std::atoi(v);
+            if (d >= 0 && d <= 4) o.game.world.difficulty = d;
+            ++i;
+        } else if (!std::strcmp(s, "--frames") && v) {
+            long f = std::strtol(v, nullptr, 10);
+            if (f > 0) o.frames = f;
+            ++i;
+        } else {
+            AS3D_WARN("unknown argument '%s' ignored", s);
+        }
+    }
+    AS3D_INFO("AS3D_ARGS bot=%d mission=%d frames=%ld audio=%d rebuild_on_resume=%d", o.bot ? 1 : 0, o.game.mission,
+              o.frames, o.noAudio ? 0 : 1, o.rebuildOnResume ? 1 : 0);
+
+    // Back is a game key (it pauses), not "finish the activity". Touches must not also
+    // arrive as synthetic mouse clicks. Landscape only, either way round. Keep the screen on.
+    SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
+        AS3D_ERROR("FATAL: SDL_Init: %s", SDL_GetError());
+        return 1;
+    }
+    SDL_DisableScreenSaver();
+    int rc = runGameWindow(o);
+    SDL_Quit();
+    // SDLActivity finishes the activity when main returns; the process may be reused, and
+    // nothing here keeps state between runs except the cutout insets.
+    return rc;
+}

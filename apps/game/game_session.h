@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "as3d/core.h"
 #include "as3d/input.h"
@@ -24,6 +25,10 @@ constexpr int kMissionCount = 20;
 
 struct GameOptions {
     std::string dataRoot;          // directory holding assets_extracted/
+    // When not empty: the original pak archives to mount instead of assets_extracted/, in
+    // this order (later paks override earlier ones, docs/spec/pak.md), opened through
+    // as3d::openPlatformStream (file paths on desktop, APK assets on Android).
+    std::vector<std::string> paks;
     int mission = 1;               // 1..20
     as3d::WorldConfig world;       // difficulty, seed, players (same defaults as as3d_sim)
     bool levelFlow = true;         // restart on game over, continue on mission complete

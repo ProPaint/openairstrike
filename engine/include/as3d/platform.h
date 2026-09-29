@@ -5,12 +5,15 @@
 // Two backends exist behind createGraphicsContext(): a headless EGL context (renders
 // into a pbuffer surface; the actual pixels are read back through as3d::RenderTarget,
 // see as3d/gfx.h) and an SDL2 window (desktop only for now). Which one you get is
-// selected by GraphicsConfig::headless. Both, when creation succeeds, leave a current
+// selected by GraphicsConfig::headless. On Android only the window backend exists (a
+// full-screen SDL window). Both, when creation succeeds, leave a current
 // OpenGL ES 3.0 context ready for the `render` module to use.
 #pragma once
 
 #include <memory>
 #include <string>
+
+#include "as3d/vfs.h"
 
 namespace as3d {
 
@@ -18,8 +21,10 @@ struct GraphicsConfig {
     int width = 640;
     int height = 480;
     // true: EGL pbuffer context, no window system, no visible output.
-    // false: an on-screen SDL2 window (desktop only; returns null elsewhere).
+    // false: an on-screen SDL2 window (on Android always full screen, immersive).
     bool headless = true;
+    bool fullscreen = false;   // desktop: full-screen desktop mode
+    bool resizable = false;
     bool vsync = true;
     const char* title = "as3d";
 };
@@ -51,10 +56,21 @@ public:
     // window (e.g. clicked the close button); the headless backend has no events and
     // always returns true. Callers that only render headless never need to call this.
     virtual bool pumpEvents() { return true; }
+
+    // The windowed backend on Android: after SDL_RENDER_DEVICE_RESET (SDL replaced a lost
+    // EGL context with a new, current one), take over the new context. Every GL object of
+    // the old context is gone and must be recreated by the caller.
+    virtual void adoptCurrentContext() {}
 };
 
 // Creates a context per `config`. Returns null and logs the reason (AS3D_ERROR) on
 // failure -- e.g. no EGL device available, or no display for the windowed backend.
 std::unique_ptr<GraphicsContext> createGraphicsContext(const GraphicsConfig& config);
+
+// A read-only byte stream through SDL_RWops (engine/src/platform/rw_stream.cpp). On desktop
+// `path` is a file path. On Android a relative path names an APK asset, read in place
+// through the asset manager (no copy to storage); keep such assets stored uncompressed so
+// seeks are cheap. Returns null and logs the reason on failure. Reads are serialised.
+std::unique_ptr<IStream> openPlatformStream(const std::string& path);
 
 } // namespace as3d

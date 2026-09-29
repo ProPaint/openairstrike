@@ -1,10 +1,10 @@
-# Android-specific CMake glue for WP-18.
+# Android-specific CMake glue: builds SDL2 from source, the repository's engine/ tree, and
+# the game (apps/game) into the "main" shared library that SDLActivity loads.
 #
-# This file is intentionally NOT part of the root CMake tree (root
-# CMakeLists.txt is owned by the orchestrator and skips apps/ when ANDROID is
-# set). It builds SDL2 from source, pulls in the repository's engine/ tree for
-# as3d_core, and compiles apps/android_boot's sources directly into the
-# "main" shared library that SDLActivity.getLibraries() loads.
+# This file is not part of the root CMake tree (the root CMakeLists.txt skips apps/ when
+# ANDROID is set), so it adds apps/game itself; apps/game/CMakeLists.txt builds the shared
+# game library as3d_game_shell (also linked by the desktop executable) and, on Android,
+# the "main" library around apps/game/android_main.cpp.
 cmake_minimum_required(VERSION 3.22)
 project(as3d_android_glue LANGUAGES C CXX)
 
@@ -20,35 +20,20 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# SDL2's own CMake project produces the SDL2 (shared) and SDL2main (static,
-# contains the JNI SDL_android_main entry point) targets we need.
+# SDL2's own CMake project produces the SDL2 (shared) and SDL2main (static, contains the
+# JNI SDL_android_main entry point) targets we need.
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
 set(SDL_SHARED ON CACHE BOOL "" FORCE)
 set(SDL_STATIC OFF CACHE BOOL "" FORCE)
 add_subdirectory(${AS3D_SDL2_SOURCE_DIR} ${CMAKE_BINARY_DIR}/sdl2)
 
-# The repository's engine/ tree (as3d_core etc). Root CMakeLists.txt skips
-# apps/ automatically because ANDROID is set by the NDK toolchain file, so
-# this only builds engine modules, not the desktop apps.
+# The repository's engine/ tree. The root CMakeLists.txt skips apps/ because ANDROID is set
+# by the NDK toolchain file, and tests are not built for the device.
+set(AS3D_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(${AS3D_REPO_ROOT} ${CMAKE_BINARY_DIR}/as3d_repo)
+# engine/src/render/module.cmake finds stb through CMAKE_SOURCE_DIR, which is this directory
+# here, not the repository root.
+target_include_directories(as3d_render PRIVATE ${AS3D_REPO_ROOT}/third_party/stb)
 
-add_library(main SHARED
-    ${AS3D_REPO_ROOT}/apps/android_boot/src/main.cpp
-    ${AS3D_REPO_ROOT}/apps/android_boot/src/sdl_stream.cpp
-)
-
-target_include_directories(main PRIVATE
-    ${AS3D_REPO_ROOT}/apps/android_boot/src
-)
-
-target_link_libraries(main PRIVATE
-    as3d_core
-    as3d_vfs
-    as3d_audio
-    SDL2
-    SDL2main
-    GLESv3
-    EGL
-    log
-    android
-)
+# The game: as3d_game_shell and the "main" library.
+add_subdirectory(${AS3D_REPO_ROOT}/apps/game ${CMAKE_BINARY_DIR}/as3d_game_app)
