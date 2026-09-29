@@ -27,7 +27,9 @@ void addCount(int* counts, u32 n, int& current, u32 type, i32 c) {
 // G_UsePowerUp / G_UseMissile (0x40b150 / 0x40b220): nothing selected or the selected
 // count < 1: return 0, no change. Otherwise decrement; when it drops below 1, set it to 0
 // and select the next kind with a non-zero count (sel+1, sel+2, ... mod n; -1 if none).
-int useSelected(int* counts, int n, int& current) {
+// The sequels skip a candidate whose value before the wrap-around has its bit in
+// `skipMask` (GameRules::powerUpCycleSkip; as2/rcsl-builtins-semantics.delta.md 80).
+int useSelected(int* counts, int n, int& current, u32 skipMask = 0u) {
     if (current < 0 || current >= n) return 0;
     if (counts[current] < 1) return 0;
     --counts[current];
@@ -35,7 +37,9 @@ int useSelected(int* counts, int n, int& current) {
         counts[current] = 0;
         int next = -1;
         for (int k = 1; k <= n; ++k) {
-            int t = (current + k) % n;
+            const int value = current + k;
+            if (value < 32 && (skipMask & (1u << value))) continue;
+            int t = value % n;
             if (counts[t] != 0) {
                 next = t;
                 break;
@@ -52,7 +56,7 @@ void bAddPowerUp(BuiltinArgs& a, void*) {
 }
 void bUsePowerUp(BuiltinArgs& a, void*) {
     PlayerRecord& p = selfPlayer(worldOf(a));
-    a.setReturnFloat(static_cast<float>(useSelected(p.powerups, 16, p.currentPowerup)));
+    a.setReturnFloat(static_cast<float>(useSelected(p.powerups, 16, p.currentPowerup, worldOf(a).rules().powerUpCycleSkip)));
 }
 void bGetPowerUp(BuiltinArgs& a, void*) {
     a.setReturnFloat(static_cast<float>(selfPlayer(worldOf(a)).currentPowerup));
@@ -69,15 +73,23 @@ void bGetMissiles(BuiltinArgs& a, void*) {
     a.setReturnFloat(static_cast<float>(selfPlayer(worldOf(a)).currentMissile));
 }
 
+// Upgrade slots: 20 in the first game, 9 in the sequels (GameRules::weaponSlots).
+u32 upgradeSlots(World& w) {
+    int n = w.rules().weaponSlots;
+    return static_cast<u32>(n < 0 ? 0 : (n > kMaxWeaponSlots ? kMaxWeaponSlots : n));
+}
+
 void bGetUpgrade(BuiltinArgs& a, void*) {
-    PlayerRecord& p = selfPlayer(worldOf(a));
+    World& w = worldOf(a);
+    PlayerRecord& p = selfPlayer(w);
     u32 i = uintArg(a, 0);
-    a.setReturnFloat(i <= 19u ? static_cast<float>(p.upgrades[i]) : 0.0f);
+    a.setReturnFloat(i < upgradeSlots(w) ? static_cast<float>(p.upgrades[i]) : 0.0f);
 }
 void bSetUpgrade(BuiltinArgs& a, void*) {
-    PlayerRecord& p = selfPlayer(worldOf(a));
+    World& w = worldOf(a);
+    PlayerRecord& p = selfPlayer(w);
     u32 i = uintArg(a, 0);
-    if (i < 20u) p.upgrades[i] = intArg(a, 1);
+    if (i < upgradeSlots(w)) p.upgrades[i] = intArg(a, 1);
 }
 
 void bPlayerFreezeHealth(BuiltinArgs& a, void*) {
@@ -105,7 +117,9 @@ void bRespawnPlayer(BuiltinArgs& a, void*) {
     if (p2) w.spawnPlayer(1);
 }
 
-// EndLevel(): HUD hidden, paused, mission complete (the complete screen is UI).
+// EndLevel(): HUD hidden, paused, mission complete (the complete screen is UI). The sequels
+// first store the checkpoint statistics (GameRules::campaignCheckpoint, World::endLevel);
+// their end dialogue and level-end sequence belong to the front end.
 void bEndLevel(BuiltinArgs& a, void*) { worldOf(a).endLevel(); }
 
 void bCameraQuake(BuiltinArgs& a, void*) { worldOf(a).startQuake(a.f32(0)); }

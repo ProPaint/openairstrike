@@ -34,6 +34,7 @@ float ParticleDamage::amount(float age, float lifeTime) const {
 struct WorldParticles::Instance {
     std::unique_ptr<ParticleEmitter> emitter;
     ParticleDamage damage;
+    int touchBits = 0;       // the sequels: the system's touch mode as a bit set
     int slot = -1;           // holder slot while attached, -1 once orphaned
     u32 generation = 0;      // holder generation
     bool wasActive = true;
@@ -107,6 +108,7 @@ void WorldParticles::update(World& world, float dt) {
             inst->slot = i;
             inst->generation = e.generation;
             inst->damage = ParticleDamage::fromDef(*e.emitter);
+            inst->touchBits = e.emitter->hasDamage ? (static_cast<int>(e.emitter->damageTouch) & 0xF) : 0;
             inst->emitter.reset(new ParticleEmitter(*descOf(e.emitter), rng_.next(), e.v3(F_BASE_ORIGIN), e.absAttach));
             bySlot_[static_cast<size_t>(i)] = inst.get();
             instances_.push_back(std::move(inst));
@@ -134,7 +136,7 @@ void WorldParticles::update(World& world, float dt) {
     //    then free orphans that have finished.
     for (auto it = instances_.rbegin(); it != instances_.rend(); ++it) {
         (*it)->emitter->update(dt);
-        if ((*it)->damage.touch != 0) applyDamage(world, **it);
+        if (world.rules().touchModeBits ? (*it)->touchBits != 0 : (*it)->damage.touch != 0) applyDamage(world, **it);
     }
     instances_.erase(std::remove_if(instances_.begin(), instances_.end(),
                                     [](const std::unique_ptr<Instance>& in) {
@@ -142,6 +144,11 @@ void WorldParticles::update(World& world, float dt) {
                                     }),
                      instances_.end());
 }
+
+namespace {
+void applyDamageBits(World& world, int bits, const float win[3], float amount, std::vector<int>& list,
+                     float& damageToPlayers_, float& damageToEnemies_);
+} // namespace
 
 void WorldParticles::applyDamage(World& world, const Instance& inst) {
     const ParticleEmitter& em = *inst.emitter;
@@ -156,6 +163,10 @@ void WorldParticles::applyDamage(World& world, const Instance& inst) {
         if (!world.projectPoint(em.worldPosition(p), win)) continue;
         const float amount = d.amount(p.age, life);
         if (!(amount > 0.0f)) continue;
+        if (world.rules().touchModeBits) {
+            applyDamageBits(world, inst.touchBits, win, amount, list, damageToPlayers_, damageToEnemies_);
+            continue;
+        }
         if (d.touch == 2) {
             // TOUCH_PLAYER: every player whose rectangle contains the particle.
             for (int pl = 0; pl < world.numPlayers(); ++pl) {
@@ -183,6 +194,40 @@ void WorldParticles::applyDamage(World& world, const Instance& inst) {
         }
     }
 }
+
+// The sequels' G_ParticleDamage (as2/engine-behaviour.delta.md 6.2): the touch mode as a bit
+// set. Bit 0x2: every player whose rectangle contains the particle; otherwise the first list
+// entity that is alive (health > 0), on screen and (bit 0x1 and class 2) or (bit 0x4 and
+// class 5), containing it. Attacker -1.
+namespace {
+void applyDamageBits(World& world, int bits, const float win[3], float amount, std::vector<int>& list,
+                     float& damageToPlayers_, float& damageToEnemies_) {
+    if (bits & TOUCH_BIT_PLAYER) {
+        for (int pl = 0; pl < world.numPlayers(); ++pl) {
+            int pi = world.playerEntityIndex(pl);
+            if (pi < 0) continue;
+            const Entity& pe = world.entity(pi);
+            if (pe.f(F_DEAD) != 0.0f || !(pe.rt & RT_COLLIDABLE)) continue;
+            if (!World::pointInRect(win, pe.rect)) continue;
+            world.damageEntity(pi, amount, -1);
+            damageToPlayers_ += amount;
+        }
+        return;
+    }
+    if (list.empty()) list = world.listEntities();
+    for (int i : list) {
+        if (!world.validIndex(i)) continue;
+        const Entity& e = world.entity(i);
+        if ((e.rt & RT_REMOVED) || !(e.rt & RT_COLLIDABLE) || !(e.f(F_HEALTH) > 0.0f)) continue;
+        const float cls = e.f(F_CLASS);
+        if (!(((bits & TOUCH_BIT_ENEMIES) && cls == kClassEnemy) || ((bits & TOUCH_BIT_CIVILIAN) && cls == kClassCivilian))) continue;
+        if (!World::pointInRect(win, e.rect)) continue;
+        world.damageEntity(i, amount, -1);
+        damageToEnemies_ += amount;
+        break;
+    }
+}
+} // namespace
 
 void WorldParticles::collect(std::vector<const ParticleEmitter*>& out) const {
     out.clear();

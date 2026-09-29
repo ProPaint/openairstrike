@@ -99,6 +99,11 @@ enum EntityState : int { ES_ACTIVE = 0, ES_DORMANT = 1, ES_LEAVING = 2 };
 constexpr float kClassPlayer = 1.0f;
 constexpr float kClassEnemy = 2.0f;
 constexpr float kClassProjectile = 4.0f;
+constexpr float kClassCivilian = 5.0f; // as2/engine-behaviour.delta.md 3.1.1 (`civilian`)
+
+// Touch mode bits of the sequels (as2/engine-behaviour.delta.md 5.2): the first game's
+// modes 1, 2 and 3 read as a bit set, plus civilians.
+enum TouchBit : int { TOUCH_BIT_ENEMIES = 0x1, TOUCH_BIT_PLAYER = 0x2, TOUCH_BIT_CIVILIAN = 0x4 };
 
 // p_action bits (engine-behaviour.md 7.2).
 enum ActionBit : u32 {
@@ -193,6 +198,10 @@ struct Entity {
     float bboxScale[3] = {0.7f, 0.7f, 0.7f}; // +0x5F
     float maxHealth = 0.0f;                  // +0x6B
     float sinceDamage = 0.0f;                // +0x6F
+    // as2 + 0x78: seconds since Lightning last spawned its hit effect on this entity; grows
+    // by frametime while below GameRules::lightningTimerCap (as2/rcsl-vm.delta.md, entity
+    // update). Stays 0 in a game without the cap.
+    float lightningTimer = 0.0f;
     int playerIndex = 0;                     // +0x77
 
     const ModelData* model = nullptr;        // +0x153
@@ -243,7 +252,23 @@ struct PlayerRecord {
     float rankAccumulator = 0.0f;
     int kills = 0;
     u32 heldInput = 0;          // last programmatic input, for press/release edges
+
+    // AirStrike 2 additions (as2/engine-behaviour.delta.md 7.1).
+    float maxHealthGlobal = 0.0f; // p_maxHealth: a script-owned cell; nothing native reads it
+    float accel[3] = {0, 0, 0};   // +0x14C: steering vector built each frame, GetPlayerAccel
+    int checkpointLives = 0;      // +0x158..+0x160: what EndLevel stores for the next mission
+    int checkpointScore = 0;
+    float checkpointRank = 0.0f;
 };
+
+// A rectangle of terrain vertices whose heights changed (TerraMorph), inclusive, in vertex
+// columns (x) and rows (y). World::takeTerrainChanges hands them to whoever mirrors the
+// heights (the terrain renderer) and clears the list.
+struct TerrainChange {
+    int c0 = 0, r0 = 0, c1 = -1, r1 = -1;
+};
+constexpr size_t kMaxTerrainChanges = 64; // more in one frame merge into their bounding box
+constexpr int kMaxTerraMorphStamps = 64;  // distinct stamps per level (as2 TerraMorph step 1)
 
 // Programmatic input (a test or a bot fills it in): the held action bits per player.
 // Presses OR bits into p_action and releases clear them (engine-behaviour.md 7.2).
@@ -290,6 +315,9 @@ struct WorldConfig {
     // Native rules of the game being run (game_profile.h). nullptr = defaultGameRules().
     // Must outlive the World.
     const GameRules* rules = nullptr;
+    // The game (GameId as an int) whose builtin and global tables the scripts see; -1: the
+    // game whose profile holds `rules` (gameProfile(id).rules), the first game otherwise.
+    int game = -1;
 };
 
 struct CameraState {
@@ -325,6 +353,9 @@ public:
     // Level runtime (level_runtime.cpp). `ref` as for loadLevelByRef ("1" = mission1).
     // Resets everything, loads map and terrain, builds paths, spawns the players.
     bool loadLevel(const std::string& ref, std::string* error);
+    // The part of loadLevel after the files are read: starts `level` as mission `mission`
+    // (1-based; 0 = not a mission, for the loadout table). For tests with synthetic levels.
+    bool startLevel(std::unique_ptr<LoadedLevel> level, int mission);
     // A level with no map (flat terrain at height 0, no placements): for tests.
     void startEmptyLevel(bool spawnPlayers);
 
@@ -375,6 +406,8 @@ public:
     void runInit(int idx);                              // entity then children (recursive)
     void runCallback(int idx, float msg, float p1, float p2);
     void runTouch(int idx, int otherIdx);
+    // DetachEntity (as2/rcsl-builtins-semantics.delta.md 39): the undo of attachEntity.
+    void detachEntity(int idx);
     int currentEntity() const { return current_; }
     int currentPlayerIndex() const;
 
@@ -402,6 +435,18 @@ public:
 
     // --- movement helpers used by builtins ---------------------------------------
     float terrainHeight(float x, float y) const;
+    // G_WaterHeight (as2/engine-behaviour.delta.md 4.2): the terrain height without water;
+    // with water, the water level over flooded vertices (no wave term: that animation
+    // belongs to the renderer), the terrain elsewhere.
+    float waterHeight(float x, float y) const;
+    // TerraMorph (as2/rcsl-builtins-semantics.delta.md 95): adds the stamp `name` (an 8-bit
+    // greyscale TGA, 128 neutral) to the vertex heights around (x, y). False if nothing
+    // could be applied (no terrain, stamp missing or not 8-bit, 64 stamps already loaded).
+    bool terraMorph(float x, float y, const char* name);
+    // Vertex rectangles changed since the last call, oldest first; clears the list.
+    std::vector<TerrainChange> takeTerrainChanges();
+    const std::vector<TerrainChange>& terrainChanges() const { return terrainChanges_; }
+    int terraMorphStampCount() const { return static_cast<int>(stamps_.size()); }
     void setupTransform(int idx);
     void attachToTag(int idx);
     bool tagLocal(int idx, const std::string& tag, Vec3& out) const; // tag in idx's model
@@ -434,6 +479,16 @@ public:
     const PlayerRecord& player(int p) const { return players_[p]; }
     int playerEntityIndex(int p) const;    // in-use slot of the player's entity, or -1
     int numPlayers() const { return config_.players; }
+    // The mission loadout (as2/engine-behaviour.delta.md 8.2): both players' upgrade slots
+    // from the rules' table row of `mission` (1-based, clamped to the table), p_weapon the
+    // highest owned slot. Nothing without a table. loadLevel applies it unless
+    // carryUpgradesToNextLevel() was called before (the campaign's "Next").
+    void applyMissionLoadout(int mission);
+    void carryUpgradesToNextLevel() { carryUpgrades_ = true; }
+    // Mission number of the running level (1-based; 0: not a mission) and the checkpoint
+    // mission EndLevel stored (as2 10.3; -1: none).
+    int mission() const { return mission_; }
+    int checkpointMission() const { return checkpointMission_; }
 
     // --- state --------------------------------------------------------------------
     CameraState& camera() { return camera_; }
@@ -455,6 +510,7 @@ public:
     int starTotal() const { return starTotal_; }
     const WorldConfig& config() const { return config_; }
     const GameRules& rules() const { return *rules_; }
+    GameId game() const { return game_; }
     Rng& rng() { return rng_; }
     const DefDatabase& db() const { return *db_; }
     Vfs& vfs() { return *vfs_; }
@@ -474,6 +530,7 @@ public:
     u32 selfBits = 0, otherBits = 0, cbMsgBits = 0, cbParm1Bits = 0, cbParm2Bits = 0;
     float lNight = 0.0f, lWater = 0.0f, lWaterLevel = 0.0f;
     float frametimeGlobal = 0.0f, timeGlobal = 0.0f;
+    float cameraModeGlobal = 1.0f; // `cameramode` (as2): initial 1.0, nothing native reads it
 
     // Used by the host.
     void noteScriptError(const char* scriptName, const char* message);
@@ -485,6 +542,8 @@ public:
     // Level-flow actions (builtins EndLevel etc.).
     void endLevel();
     void setGameOver();
+    // The GameOver builtin (as2): game over, level ended, world stopped.
+    void gameOverBuiltin();
     // Camera quake (CameraQuake builtin).
     void startQuake(float amplitude);
 
@@ -520,11 +579,15 @@ private:
     void resetCamera();
     void resetLevelState();
     void resetPlayersForLevel();
+    void computeAccel();          // as2 G_PlayerFrame step 1 (GameRules::accelInput)
+    void clampPlayerHealth();     // as2 HUD clamp (GameRules::clampPlayerHealthToMax)
+    void noteTerrainChange(const TerrainChange& c);
 
     Vfs* vfs_ = nullptr;
     const DefDatabase* db_ = nullptr;
     WorldConfig config_;
     const GameRules* rules_ = &defaultGameRules();
+    GameId game_ = GameId::AirStrike3D;
     Rng rng_{1};
     std::unique_ptr<GameScriptHost> host_;
     std::unique_ptr<WorldParticles> particles_;
@@ -555,6 +618,18 @@ private:
     bool night_ = false;
     bool intermission_ = false;
     float intermissionCam_[6] = {};
+    int mission_ = 0;
+    int checkpointMission_ = -1;
+    bool carryUpgrades_ = false;
+
+    // TerraMorph stamps of this level (name as stored, pixels in file order).
+    struct Stamp {
+        std::string name;
+        int w = 0, h = 0;
+        std::vector<u8> pixels; // w * h, row j of the file at j * w
+    };
+    std::vector<Stamp> stamps_;
+    std::vector<TerrainChange> terrainChanges_;
 
     float mapPos_ = 32.0f;
     float frametime_ = 0.0f;

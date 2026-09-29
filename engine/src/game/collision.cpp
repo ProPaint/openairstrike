@@ -136,6 +136,7 @@ void World::touchEntity(int idx) {
     Entity& t = ents_[static_cast<size_t>(idx)];
     int tm = t.touchMode;
     bool tPoint = isPointCollider(t);
+    const bool bits = rules_->touchModeBits;
     if (tm & 2) { // TOUCH_PLAYER or TOUCH_ALL
         for (int p = 0; p < config_.players; ++p) {
             int pi = playerEntityIndex(p);
@@ -150,12 +151,23 @@ void World::touchEntity(int idx) {
             }
         }
     }
-    if (tm & 1) { // TOUCH_ENEMIES or TOUCH_ALL
+    // The first game: enemies for mode bit 0x1. The sequels (as2/rcsl-vm.delta.md, touch
+    // dispatch): every mode but exactly 2 scans the list for (bit 0x1, class 2) or (bit 0x4,
+    // class 5) candidates that are not dead.
+    if (bits ? tm != TOUCH_BIT_PLAYER : (tm & 1) != 0) {
         for (int c = newest_; c != -1; c = ents_[static_cast<size_t>(c)].older) {
             if (c == idx) continue;
             const Entity& ce = ents_[static_cast<size_t>(c)];
             if (ce.rt & (RT_REMOVED | RT_HEALTH_FROZEN)) continue;
-            if (!(ce.rt & RT_COLLIDABLE) || ce.f(F_CLASS) != kClassEnemy) continue;
+            if (!(ce.rt & RT_COLLIDABLE)) continue;
+            if (bits) {
+                const float cls = ce.f(F_CLASS);
+                const bool accepted = ((tm & TOUCH_BIT_ENEMIES) && cls == kClassEnemy) ||
+                                      ((tm & TOUCH_BIT_CIVILIAN) && cls == kClassCivilian);
+                if (!accepted || ce.f(F_DEAD) != 0.0f) continue;
+            } else if (ce.f(F_CLASS) != kClassEnemy) {
+                continue;
+            }
             bool cPoint = isPointCollider(ce);
             bool hit;
             if (!tPoint && !cPoint) hit = rectsOverlap(t.rect, ce.rect);

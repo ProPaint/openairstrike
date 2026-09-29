@@ -2,7 +2,9 @@
 // spawner and the player frame (docs/spec/engine-behaviour.md 1.2, 2, 3.4, 7, 9, 10.2;
 // docs/spec/hmap.md "Objects: spawning and activation").
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <cstdlib>
 
 #include "as3d/defs.h"
 #include "as3d/game_camera.h"
@@ -21,6 +23,18 @@ Vec4 planeFromRows(const Mat4& m, int row, float sign) {
     float len = std::sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
     if (len > 0.0f) p = p * (1.0f / len);
     return p;
+}
+
+// Mission number of a level reference: "7" or "mission7" -> 7; anything else 0.
+int missionOfRef(const std::string& ref) {
+    std::string r = ref;
+    for (char& c : r) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (r.compare(0, 7, "mission") == 0) r.erase(0, 7);
+    if (r.empty() || r.size() > 6) return 0;
+    for (char c : r) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) return 0;
+    }
+    return std::atoi(r.c_str());
 }
 } // namespace
 
@@ -65,10 +79,19 @@ bool World::loadLevel(const std::string& ref, std::string* error) {
     }
     std::unique_ptr<LoadedLevel> lvl(new LoadedLevel());
     if (!loadLevelByRef(*vfs_, ref, *lvl, error)) return false;
+    return startLevel(std::move(lvl), missionOfRef(ref));
+}
 
+bool World::startLevel(std::unique_ptr<LoadedLevel> lvl, int mission) {
+    if (!lvl || !db_) return false;
     // G_BeginLevel (10.2): difficulty, flags, per-player state.
     resetLevelState();
     resetPlayersForLevel();
+    mission_ = std::max(mission, 0);
+    // The sequels: the mission's loadout on a new game or a restart, the upgrades collected
+    // so far on "Next" (as2/engine-behaviour.delta.md 8.2).
+    if (!carryUpgrades_) applyMissionLoadout(mission_ > 0 ? mission_ : 1);
+    carryUpgrades_ = false;
 
     // G_StartLevel.
     level_ = std::move(lvl);
@@ -77,6 +100,8 @@ bool World::loadLevel(const std::string& ref, std::string* error) {
     intermission_ = st.hasIntermission;
     for (int k = 0; k < 6; ++k) intermissionCam_[k] = st.intermission[k];
     hmin_ = st.hmin;
+    stamps_.clear(); // the level loader empties the TerraMorph stamp table
+    terrainChanges_.clear();
     hasWater_ = st.hasWater;
     waterLevel_ = st.waterLevel;
     night_ = st.night;
@@ -117,8 +142,13 @@ bool World::loadLevel(const std::string& ref, std::string* error) {
 void World::startEmptyLevel(bool spawnPlayers) {
     resetLevelState();
     resetPlayersForLevel();
+    mission_ = 0;
+    if (!carryUpgrades_) applyMissionLoadout(1);
+    carryUpgrades_ = false;
     level_.reset();
     terrainValid_ = false;
+    stamps_.clear();
+    terrainChanges_.clear();
     gamePaths_.clear();
     static const std::vector<Placement> kNone;
     cursor_.build(kNone);
@@ -161,7 +191,21 @@ void World::step(const PlayerInput& input) {
     runEntities();
     updateParticles();
     renderPass();
+    clampPlayerHealth();
     ++frame_;
+}
+
+// The sequels' HUD cuts each player's health to its maximum every frame it is drawn (not on
+// intermission levels, not while hidden); we do it at the same point of the frame, after
+// the render (as2/engine-behaviour.delta.md 7.4).
+void World::clampPlayerHealth() {
+    if (!rules_->clampPlayerHealthToMax || intermission_ || hudHidden_) return;
+    for (int p = 0; p < config_.players; ++p) {
+        int pi = playerEntityIndex(p);
+        if (pi < 0) continue;
+        Entity& e = ents_[static_cast<size_t>(pi)];
+        if (e.f(F_HEALTH) > e.maxHealth) e.setF(F_HEALTH, e.maxHealth);
+    }
 }
 
 void World::applyInput(const PlayerInput& input) {
@@ -353,7 +397,7 @@ void World::playerFrame() {
         u32 a = static_cast<u32>(ftol(pr.action));
         bool found = false;
         if (a & ACT_NEXT_POWERUP) {
-            const int t = nextOwnedIndex(pr.powerups, kPowerupKindsOwned, pr.currentPowerup, &found);
+            const int t = nextPowerupSlot(*rules_, pr.powerups, pr.currentPowerup, &found);
             if (found) pr.currentPowerup = t;
             a &= ~ACT_NEXT_POWERUP;
         }
@@ -363,7 +407,7 @@ void World::playerFrame() {
             a &= ~ACT_NEXT_MISSILE;
         }
         if (a & ACT_NEXT_WEAPON) {
-            const int t = nextOwnedIndex(pr.upgrades, kWeaponKindsOwned, ftol(pr.weapon), &found);
+            const int t = nextWeaponIndex(*rules_, pr.upgrades, ftol(pr.weapon), &found);
             if (found) pr.weapon = static_cast<float>(t);
             a &= ~ACT_NEXT_WEAPON;
         }
@@ -373,6 +417,35 @@ void World::playerFrame() {
         bool over = players_[0].lives < 0.0f;
         if (config_.players == 2) over = over && players_[1].lives < 0.0f;
         if (over) setGameOver();
+    }
+    // The sequels' G_PlayerFrame returns here while paused, then builds the acceleration
+    // vectors (as2/engine-behaviour.delta.md 7.2).
+    if (rules_->accelInput && !paused_ && !gameOver_) computeAccel();
+}
+
+// as2/engine-behaviour.delta.md 7.2 step 1 (VERIFIED-CODE as2@0x413d6b): per player, (0, 0,
+// 0) and, unless the player's actions are disabled, +x right, +y forward, -x left, -y back;
+// a diagonal is scaled to length 1. Mouse control (step 2) is not wired: keys, touch and
+// the bot all produce direction bits.
+void World::computeAccel() {
+    for (int p = 0; p < kMaxPlayers; ++p) {
+        PlayerRecord& pr = players_[p];
+        float ax = 0.0f, ay = 0.0f;
+        if (p < config_.players && !pr.actionsDisabled) {
+            u32 a = static_cast<u32>(ftol(pr.action));
+            if (a & ACT_RIGHT) ax += 1.0f;
+            if (a & ACT_FORWARD) ay += 1.0f;
+            if (a & ACT_LEFT) ax -= 1.0f;
+            if (a & ACT_BACKWARD) ay -= 1.0f;
+            if (ax != 0.0f && ay != 0.0f) {
+                float len = std::sqrt(ax * ax + ay * ay);
+                ax /= len;
+                ay /= len;
+            }
+        }
+        pr.accel[0] = ax;
+        pr.accel[1] = ay;
+        pr.accel[2] = 0.0f;
     }
 }
 

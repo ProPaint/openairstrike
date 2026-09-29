@@ -310,6 +310,16 @@ const BuiltinMeta* findBuiltinMeta(const char* name);
 size_t builtinMetaCount();
 const BuiltinMeta& builtinMetaAt(size_t index);
 
+// The same per game, by the builtin set of its profile (GameProfile::builtinSet): "v170" (the
+// 85 above, also for an unknown or null set), "v251" and "v271" (the 101 of AirStrike 2 and
+// Gulf Thunder, docs/spec/as2/rcsl-builtins-table.delta.md), in the executable's table order.
+struct BuiltinMetaTable {
+    const BuiltinMeta* rows;
+    size_t count;
+};
+BuiltinMetaTable builtinMetaTable(const char* builtinSet);
+const BuiltinMeta* findBuiltinMeta(const char* builtinSet, const char* name);
+
 // Aggregates per-builtin call counts and implementation status across a run, and logs
 // the first call to any auto-generated stub once. A host or tool owns one and passes it
 // (optionally -- pass nullptr to ScriptThread for zero overhead) to every ScriptThread

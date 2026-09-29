@@ -258,6 +258,17 @@ float Terrain::heightAt(float worldX, float worldY) const {
     return h0 + fy * (h1 - h0);
 }
 
+float Terrain::vertexZ(int c, int r) const {
+    if (c < 0 || r < 0 || c > width() || r > height() || positions_.empty()) return 0.0f;
+    return positions_[static_cast<size_t>(r) * static_cast<size_t>(vertsWide()) + static_cast<size_t>(c)].z;
+}
+
+bool Terrain::setVertexZ(int c, int r, float z) {
+    if (c < 0 || r < 0 || c > width() || r > height() || positions_.empty()) return false;
+    positions_[static_cast<size_t>(r) * static_cast<size_t>(vertsWide()) + static_cast<size_t>(c)].z = z;
+    return true;
+}
+
 Vec3 Terrain::normalAt(float worldX, float worldY) const {
     if (normals_.empty()) return {0.0f, 0.0f, 1.0f};
     int w = width(), h = height();
