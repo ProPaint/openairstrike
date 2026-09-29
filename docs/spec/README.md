@@ -35,6 +35,7 @@ Every claim carries one of:
 | [obj.md](obj.md), [wpn.md](wpn.md), [ps.md](ps.md), [levels-txt.md](levels-txt.md) | 1.0 | verified from parsers; some sub-field names guessed |
 | [engine-behaviour.md](engine-behaviour.md) | 1.0 | verified from code; collision projection is settled in render-pipeline.md; corrections to sections 4.3, 6.2 and 8.1 to 8.4 are listed in rcsl-builtins-semantics.md, which wins where they differ |
 | [render-pipeline.md](render-pipeline.md) | 1.0 | verified from code; lists corrections to obj, ps, mdl and levels-txt specs in section 11.3 |
+| [frontend.md](frontend.md) | 1.0 | menus, HUD, mission flow, save and settings, verified from code; wins over engine-behaviour.md section 11 and render-pipeline.md section 8.3 where they differ; answers issue 060 in its section 4.9 |
 | [rcsl-vm.md](rcsl-vm.md) | 1.1 | verified from code; C++ VM (`engine/src/script`) reproduces the reference trace of all 339 scripts |
 | [rcsl-builtins-table.md](rcsl-builtins-table.md) | 1.0 | signatures verified; behaviour is in rcsl-builtins-semantics.md, which wins where they differ |
 | [rcsl-builtins-semantics.md](rcsl-builtins-semantics.md) | 1.0 | all 85 builtins, core behaviour verified from code; 62 are needed for mission 1; also lists corrections to engine-behaviour, rcsl-vm, hmap and wpn specs; checked by `tools/ref/check_builtin_semantics.py` |
@@ -52,6 +53,9 @@ Every claim carries one of:
 | Collision rectangles | window pixels of the actual video mode, previous frame's matrices | same formulas on a fixed 800x600 viewport |
 | Entity reference of 0 or to a freed entity | crashes, or acts on whatever now occupies the slot | references carry a generation count; a builtin given a null or stale reference does nothing and returns 0 |
 | Uninitialised values (`MoveToNextWP` bank on straight stretches, `Shoot` muzzle offset without a model) | whatever is on the stack | interpolated table value; zero offset |
+| Texts compiled into the executable (Information pages, congratulations, rank names, labels) | in the exe | a data setup tool reads them from the user's own exe into a gitignored text file that ships with the game data; short generic labels have built-in English defaults so the game runs without it (issue 080) |
+| Right-click on the tutorial hint box | closes the box, game stays paused | closes the box and resumes |
+| Wide screens | everything stretched | 4:3 play-field and 2D layer centred, bars at the sides |
 | Online high scores, CD check | present | dropped |
 
 ## Open spec issues
@@ -60,6 +64,7 @@ Every claim carries one of:
 |---|---|
 | [001](issues/001-lcall-nan-timeout.md) | NaN timeout in LCALL; resolved in rcsl-vm.md 1.1 |
 | [010](issues/010-particle-prev-origin.md) | particle emitter previous origin and yaw of oriented emitters; check once emitters move in game |
+| [080](issues/080-frontend-texts-in-exe.md) | decided: import step from the user's exe, see deviations table |
 | [030](issues/030-collision-segment-details.md) | collision segment end point; points behind the eye |
 | [031](issues/031-entity-pass-details.md) | entity pass details: think bit, leaving test, dormant entities, two-player assignment |
 | [032](issues/032-shared-return-register.md) | return register is per thread in our VM, shared in the original; no shipped script seen to depend on it |
