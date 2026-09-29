@@ -890,3 +890,178 @@ Relation: **new in the data, dead in the code**. VERIFIED-CODE unless stated.
 What we do: drop all of them (the purchase command, nag screen, demo lines, play-time counter and
 AtExit launch), as we dropped online scores and the CD check. Nothing visible is lost with the
 full version's data.
+
+## 4. HUD
+
+Relation to the base §4: **changed**: new art (`gfx\ui\mainbar2.tga`), segmented health bar
+scaled by the helicopter's maximum health, weapon level pips, up to 10 lives, timer power-ups,
+dimmed unselected icons; the level-name typewriter, messages and number routine are the same.
+Every layout below was confirmed by running `HUD_Draw1P` and `HUD_Draw2P` in the emulator with
+chosen player records ((emu), VERIFIED-CODE at those addresses); every atlas rectangle was checked
+on the image.
+
+### 4.1 When and in what order (VERIFIED-CODE `HUD_Frame` as2@0x40ac80, `G_Frame` as2@0x410fd0)
+
+Same rule as the base: nothing on an intermission level (as2@0x54329a) or while the HUD is hidden
+(as2@0x54329b); pause does not hide it. `HUD_Frame` draws the level-name typewriter
+(as2@0x407ab0), then `HUD_Draw2P` (as2@0x408b00) when the two-player flag (as2@0x2219145) is set,
+else `HUD_Draw1P` (as2@0x407d20), then the cheat message (as2@0x406f80). **No mouse-control
+cursor any more.** Nothing is drawn for portrait dialogues. `G_Frame` then calls the (dead) fade
+overlay and the debug statistics overlay (4.8), then renders.
+
+HUD textures (`CL_LoadHudAssets` as2@0x4077b0): `gfx\ui\mainbar2.tga` (256×256 RGBA, new),
+`gfx\ui\life.tga` (32×32, paletted, black background), `gfx\ui\weapons.tga`, `missiles.tga`,
+`items.tga` (256×128), `gfx\ui\font.tga` numbers, `sounds\type.wav`; `gfx\mc_cur.tga` and
+`gfx\lightning2.tga` are registered but not drawn by the HUD.
+
+**Atlas `gfx\ui\mainbar2.tga`** (VERIFIED-DATA, each rectangle seen on the image):
+
+| Piece | Texel (x, y, w, h) | Content |
+|---|---|---|
+| `bar_fill` | (0, 0, 5n + 17, 34) | full width 227: the bolt cap (17 px) and 42 segments of 5 px, red to green |
+| `bar_frame` | (0, 34, 232, 34) | the same bar, empty |
+| `score_frame` | (0, 68, 232, 34) | a plain frame |
+| `box` | (0, 102, 87, 60) | the weapon, missile and power-up box |
+| `level_on` | (16, 164, 7k, 6) | bright red pips, 7 px apart |
+| `level_max` | (16, 176, 7k, 6) | dim pips |
+| `sel_line` | (21, 190, 53, 1) | the green selection line |
+
+`level_on`, `level_max` and `sel_line` have alpha 0 everywhere and are drawn with ADD, so they
+show only if the ADD blend ignores the texture's alpha (source × 1 + destination). A green eagle
+emblem near texel (98, 108) is not drawn by any code.
+
+Colours (VERIFIED-CODE): frames, fill and boxes white, ALPHA (the base: grey, ADD); lives grey
+0.627, ADD; counts (0.816, 0.251, 0) for the selected type, (0.502, 0.031, 0) for the others, ADD;
+score (0.753, 0.188, 0), ADD (these three as the base).
+
+### 4.2 One-player HUD (VERIFIED-CODE as2@0x407d20, (emu))
+
+Values are player 1's record (as2@0x20c5ad0; offsets engine-behaviour.delta.md 7.1). In drawing
+order:
+
+| Element | Rectangle | Content |
+|---|---|---|
+| Lives | (15 + 32i, 555, 32, 32) for i < min(`p_lives`, **10**) | `life.tga` whole, ADD, grey 0.627 |
+| Health frame | (0, 6, 232, 34) | `bar_frame`, ALPHA |
+| (clamp) | | if the player entity's health exceeds its maximum health (entity +0x70), health = maximum (engine-behaviour.delta.md 7.4) |
+| Health fill | (0, 6, 5n + 17, 34) with n = ftol(health / maximum × 42) | `bar_fill` of the same width, ALPHA; the original lets n go negative for a negative health: clamp n to 0..42 |
+| Weapon box | (0, 40, 87, 60) | `box`, ALPHA |
+| Weapon level (new) | from (18, 51): `level_max` 7 × maxLevel[w] wide, then `level_on` 7 × level wide, both 6 high, ADD | w = round(`p_weapon`); maxLevel from table as2@0x49e1c4 = {4, 5, 7, 8, 5, 5, 4, 5, 3}; level = the player's upgrade level of slot w. Drawn even when the weapon has no icon |
+| Weapon icon | (15, 57, 66, 35) | `weapons.tga` UVs of slot w (4.4), ADD, white; only if w < 9 |
+| Missile column | per missile type 0..4 with a count ≠ 0, packed in type order; frame top F = 100, 160, 220 … (step 60) | `box` at (0, F); icon (15, F + 17, 66, 35) ALPHA, white with alpha 0.251 unless it is the selected type (then alpha 1); if selected, `sel_line` at (22, F + 5, 53, 1) ADD; count always, number font scale 0.75 at x = ftol(80 − 10.5 × digits), y = F + 13 |
+| Score frame | covering (568, 6, 232, 34), mirrored | `score_frame` |
+| Score | number font scale 1 at (600, 17), left-aligned | ftol(`p_scores`) + banked score |
+| Power-up column | per power-up slot 0..15 with a count ≠ 0, packed; frame top F = 44, 104, … (step 60) | `box` mirrored covering (713, F, 87, 60); when the count is > 0: if selected, `sel_line` mirrored covering (725, F + 5, 53, 1), ADD, then the count at x = ftol(782 − 10.5 × digits), y = F + 13, scale 0.75, colours as the missiles; then the icon at (721, F + 17, 66, 35) (4.4) |
+
+"Mirrored" means the original draws the quad from the right edge with a negative width, which
+flips the picture horizontally. Counts show from 1 upwards (the base: power-up counts only above
+1). There is no boss bar, no star counter and no lives number (boss health stays the 3D sprite
+bar, base §4.2).
+
+### 4.3 Two-player HUD (VERIFIED-CODE as2@0x408b00, (emu))
+
+Player 2's record is as2@0x20c5c34. Both players' health is clamped to their maximum. Same pieces
+and colours as 4.2.
+
+| Element | Player 1 | Player 2 |
+|---|---|---|
+| Lives (max 10) | (15 + 32i, 555) | (753 − 32i, 555) |
+| Health frame | (0, 6) | mirrored, covering (568, 6, 232, 34) |
+| Health fill | (0, 6, w, 34) | mirrored, from x = 800 leftwards, same UVs |
+| Score frame | (0, 40), not mirrored | mirrored, covering (568, 40, 232, 34) |
+| Score | right-aligned: x = 200 − 14 × digits, y 51 | (600, 51), left-aligned |
+| Weapon box | (0, 74) | mirrored, covering (713, 74, 87, 60) |
+| Level pips | from (18, 85) | mirrored, right end at x 782, y 85 |
+| Weapon icon | (15, 91) | (719, 91) |
+| Missile frames, top F | from 134, step 60 | same F, frames mirrored at 713 |
+| Missile icon | (15, F + 13) | (719, F + 13) |
+| Missile selection line | (22, F + 5) | mirrored, x 725..778, F + 5 |
+| Missile count, y = F + 13 | right end at x 80 | right end at x 780 |
+| Power-ups | below the missiles in the same column: frame (0, F′), icon (15, F′ + 17), line at F′ + 5, count right end at 80, y F′ + 13 | frames mirrored at 713, icon (721, F′ + 17), line x 725..778, count right end at 782 |
+
+There are no "P1"/"P2" labels.
+
+### 4.4 Icon atlases (VERIFIED-CODE, tables read from the executable; cell names confirmed by the Information pages, 3.14)
+
+All cells are 66×35, drawn at 66×35.
+
+Weapons (`weapons.tga`, UV table as2@0x49e1e8, 9 entries, ADD):
+
+| Slot | Weapon (Information page heading) | UV (s0, t0, s1, t1) | Texel |
+|---|---|---|---|
+| 0 | Machine Gun | (0, 0.727, 0.258, 1) | (0, 0, 66, 35) |
+| 1 | Impulse Gun | (0.516, 0.727, 0.774, 1) | (132, 0, 66, 35) |
+| 2 | Plasma Cannon | (0.774, 0.453, 1, 0.727) | (198, 35, 58, 35) |
+| 3 | Quantum Gun (laser) | (0, 0.453, 0.258, 0.727) | (0, 35, 66, 35) |
+| 4 | Big Laser | (0.258, 0.453, 0.516, 0.727) | (66, 35, 66, 35) |
+| 5 | Lightning Gun | (0.516, 0.453, 0.774, 0.727) | (132, 35, 66, 35) |
+| 6 | Wave Gun | (0.258, 0.727, 0.516, 1) | (66, 0, 66, 35) |
+| 7 | Missile Gun | (0.774, 0.727, 1, 1) | (198, 0, 58, 35) |
+| 8 | Flamethrower | (0, 0.18, 0.258, 0.453) | (0, 70, 66, 35) |
+
+(The slot numbers are the weapon ids of engine-behaviour.delta.md 8.2; cells narrower than 66
+texels are stretched.)
+
+Missiles (`missiles.tga`, table as2@0x49e278, same values as the base; ALPHA): 0 Small
+(0, 0, 66, 35); 1 Big (132, 0, 66, 35); 2 Small Heat Seeking (66, 0, 66, 35); 3 Big Heat Seeking
+(198, 0, 57, 35); 4 M.A.D. (0, 35, 66, 29) stretched to 35 high.
+
+Power-ups (`items.tga`, a switch at as2@0x408838 over slots 0 to 9; slots 10 to 15 have no icon):
+
+| Slot | Power-up | Texel | Blend and colour |
+|---|---|---|---|
+| 0 | lightning bomb | (0, 35, 66, 35) | ADD; the cell's alpha is 0; grey 0.251 when not selected, white when selected |
+| 1 | nuclear bomb | (198, 0, 57, 35) | ALPHA |
+| 2 | rocket strike | (66, 0, 66, 35) | ALPHA |
+| 3 | cluster bomb | (132, 0, 66, 35) | ALPHA |
+| 4 | annihilator | (66, 35, 66, 35) | ALPHA |
+| 5 | satellite strike | (132, 35, 66, 35) | ALPHA |
+| 6 | speed-up (timer) | (0, 0, 66, 35) | ALPHA, always opaque white |
+| 7 | slow-down (timer) | (0, 70, 66, 35) | ALPHA, always opaque white |
+| 8 | air support | (198, 35, 57, 35) | ALPHA |
+| 9 | shield (timer) | (66, 70, 66, 35) | ALPHA, always opaque white |
+
+The other ALPHA icons are white with alpha 0.251 unless selected (then 1).
+
+**Timer power-ups (slots 6, 7, 9).** They are the ones power-up cycling skips
+(engine-behaviour.delta.md 8.3). The item scripts set their count every frame to the seconds left
+through `G_SetPowerUpCount` (speed-up 15 s, slow-down 10 s, shield 20 s, VERIFIED-DATA), so the HUD
+shows them in the power-up column with a count-down number and an always-opaque icon; they are
+never "selected".
+
+### 4.5 Level-name typewriter (VERIFIED-CODE as2@0x407ab0)
+
+Same as the base §4.5 (same constants and positions) except that the centring width skips `{` and
+`}` (2.8). Level names come from `levels.txt`.
+
+### 4.6 Messages (VERIFIED-CODE as2@0x406f80)
+
+Same code as the base §4.6 (3 s, fade in the last second, white at y 555 with a black shadow).
+Only the cheat handler posts messages; the six texts are compiled in (section 7, `cheat.*`).
+
+### 4.7 Tutorial hints
+
+A menu, not part of the HUD: 3.15.
+
+### 4.8 Overlays
+
+- The full-screen fade overlay (as2@0x40b1c0) has the base's shape and is still dead: its inputs
+  are never written (VERIFIED-CODE). Omit it.
+- **Statistics overlay** (debug, as2@0x40aa40, moved out of the renderer): additive font, white;
+  labels at x 20, values at x 150, from y 200. `[Debug] ShowFPS` draws "FPS: %3i" (frames counted
+  over 0.5 s × 2, as2@0x40a9e0); `ShowTris` and `ShowTexBinds` add a line each and advance 25;
+  `ShowCounters` draws Models, Sprites, Marks and entities at y, +20, +40, +60 (the entity label
+  is misspelt in the executable). Our engine may keep its own FPS counter instead (issue 140).
+
+### 4.9 Issue 060 points for AS2
+
+1. Blend modes: frames, fill and boxes ALPHA white; lives, pips, selection line, numbers ADD;
+   weapon icons ADD; missile icons ALPHA; power-up icons ALPHA except slot 0 (ADD).
+2. Cell size 66×35; weapon UVs from the table of 4.4 (9 entries).
+3. Box: 87×60 from `mainbar2.tga` (0, 102).
+4. Slots packed in type order; the selected entry is marked by the green line and full alpha
+   (no longer by drawing its frame twice).
+5. Counts: scale 0.75, top at F + 13, right end at x 80 / 782 (one player).
+6. Typewriter and messages: as the base.
+7. Weapon level: shown (new pips); stars and boss bar: not shown.
+8. Two-player layout: 4.3.
