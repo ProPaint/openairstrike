@@ -102,6 +102,24 @@ FrameInput botInput(const World& w, u32 frame) {
     float tx = cx + 50.0f * std::sin(static_cast<float>(frame) * kTwoPi / 480.0f);
     float ty = mp + 95.0f + 25.0f * std::sin(static_cast<float>(frame) * kTwoPi / 900.0f);
 
+    // Aim: line up under the toughest on-screen enemy ahead (bosses and their parts are
+    // often attached children, so every slot is looked at), the nearest among equals.
+    float bestHealth = 0.0f, bestDist = 1.0e9f;
+    for (int i = 0; i < kMaxEntitySlots; ++i) {
+        if (!w.validIndex(i)) continue;
+        const Entity& e = w.entity(i);
+        if ((e.rt & RT_REMOVED) || !(e.rt & RT_COLLIDABLE) || e.f(F_CLASS) != kClassEnemy) continue;
+        if (e.f(F_DEAD) != 0.0f || !(e.f(F_HEALTH) > 0.0f)) continue;
+        Vec3 r = e.v3(F_BASE_ORIGIN) - o;
+        if (r.y < 40.0f || r.y > 450.0f || std::fabs(e.f(F_BASE_ORIGIN) - cx) > 200.0f) continue;
+        float d = std::sqrt(r.x * r.x + r.y * r.y);
+        if (e.maxHealth > bestHealth || (e.maxHealth == bestHealth && d < bestDist)) {
+            bestHealth = e.maxHealth;
+            bestDist = d;
+            tx = e.f(F_BASE_ORIGIN) + 12.0f * std::sin(static_cast<float>(frame) * kTwoPi / 120.0f);
+        }
+    }
+
     // Pick-ups ahead and not far to the side: fly over the nearest.
     float best = 1.0e9f;
     const std::vector<int> list = w.listEntities();
@@ -114,7 +132,7 @@ FrameInput botInput(const World& w, u32 frame) {
         if (d < best) {
             best = d;
             tx = e.f(F_ORIGIN);
-            ty = std::max(mp + 40.0f, std::min(e.f(F_ORIGIN + 1), mp + 250.0f));
+            ty = std::max(mp + 40.0f, std::min(e.f(F_ORIGIN + 1), mp + 170.0f));
         }
     }
 

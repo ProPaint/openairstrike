@@ -152,6 +152,7 @@ int main(int argc, char** argv) {
     PlayerInput input;
     InputRecorder recorder;
     int maxList = world.listCount();
+    long completeFrame = -1, gameOverFrame = -1;
     for (long f = 0; f < frames; ++f) {
         if (bot || pilot) {
             FrameInput in = bot ? botInput(static_cast<u32>(f)) : botInput(world, static_cast<u32>(f));
@@ -175,6 +176,8 @@ int main(int argc, char** argv) {
         }
         world.step(input);
         if (trace) tracePlayer(trace, world);
+        if (completeFrame < 0 && world.levelComplete()) completeFrame = f + 1;
+        if (gameOverFrame < 0 && world.gameOver()) gameOverFrame = f + 1;
         maxList = std::max(maxList, world.listCount());
     }
     if (trace) std::fclose(trace);
@@ -192,6 +195,7 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(st.spawnRefused), static_cast<unsigned long long>(st.scriptErrors),
                 static_cast<unsigned long long>(st.stalls));
     for (const std::string& e : st.firstErrors) std::printf("  error: %s\n", e.c_str());
+    std::printf("level complete at frame %ld, game over at frame %ld (-1: never)\n", completeFrame, gameOverFrame);
     std::printf("paused %d, game over %d, level complete %d, p_lives %.0f, p_scores %.0f\n", world.paused() ? 1 : 0,
                 world.gameOver() ? 1 : 0, world.levelComplete() ? 1 : 0, static_cast<double>(world.player(0).lives),
                 static_cast<double>(world.player(0).scores));
