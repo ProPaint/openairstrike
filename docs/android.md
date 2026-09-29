@@ -1,8 +1,11 @@
 # Android
 
 The game (`apps/game`) runs on Android as a native SDL2 + OpenGL ES 3.0 app with touch
-controls. It starts straight into mission 1 (the menus are not written yet) and moves on to
-the next mission when one is complete, like `as3d_game --level N` on desktop.
+controls. It opens on the original's front end in touch mode (intro pages, main menu over the
+attract level, Start Game, the in-game menu, Mission Complete, Game Over, Top Scores, Options,
+Information; `docs/spec/frontend.md`, touch additions in issue 090, integration choices in
+issue 130). With the `level` or `bot` extra it starts straight into a mission and moves on to
+the next one by itself, like `as3d_game --level N` on desktop.
 
 **Copyright.** The APK contains the original AirStrike 3D game data (the three pak archives,
 copied from your own copy of the game). It is for the owner's personal use only: do not
@@ -22,8 +25,9 @@ debug keystore is Android's default one in `~/.android/`, outside the repository
   `apps/game` (whose `CMakeLists.txt` makes the `main` shared library on Android).
 - `apps/game/`: the game. `game_loop.cpp` is the windowed main loop shared by the desktop
   executable and the Android app (session, renderer, audio, keyboard and touch input,
-  lifecycle, loading screen, frame statistics); `android_main.cpp` is the Android entry point;
-  `touch_overlay.cpp` draws the buttons with the 2D layer.
+  lifecycle, loading screen, frame statistics); `game_flow.cpp` puts the game behind the front
+  end (`engine/src/ui`); `android_main.cpp` is the Android entry point; `touch_overlay.cpp`
+  draws the buttons with the 2D layer.
 - `engine/src/input/touch_mapper.cpp`: the platform-independent `TouchMapper`
   (`as3d/input.h`), unit-tested on desktop (`apps/tests/touch_test.cpp`).
 - `engine/src/platform/rw_stream.cpp`: `as3d::openPlatformStream`, an SDL_RWops byte stream;
@@ -45,8 +49,15 @@ the offsets of the pak's file table: nothing is extracted to storage. They are m
 name order (later paks override earlier ones). About 25 MB of data; the APK with both ABIs
 is about 45 MB.
 
-Not bundled: `texts_v170.txt` (texts from the original executable, issue 080; nothing reads
-it yet) and the loose `gfx/logo2s.tga`.
+It also copies, when the data has them, the front end's loose files: `Settings.xml` and
+`gfx/logo2s.tga` from the same directory (intro pages, version line, the main menu's logo) and
+`$AS3D_DATA_ROOT/assets_extracted/texts_v170.txt` (the texts imported from the original
+executable by `tools/extract_exe_texts.py`, issue 080: Information pages, rank names). Without
+them the menus still work. Everything in `android/app/src/main/assets/` is gitignored there.
+
+The profile (unlocks, high scores, settings) is `profile.bin` in the app's internal files
+directory; it is written after a mission, a high score or a settings change and whenever the
+app goes to the background. Uninstalling the app removes it.
 
 ## Building
 
@@ -88,8 +99,9 @@ Any arm64 phone with Android 8.0 or later and OpenGL ES 3.0 should run it. To re
 
 | Extra | Meaning |
 |---|---|
-| `--ez bot true` | the scripted test pilot plays (same as `as3d_game --bot`); touch still works |
-| `--ei level N` | first mission, 1..20 |
+| (none) | the front end: intro pages, then the main menu |
+| `--ez bot true` | no menus: the scripted test pilot plays (same as `as3d_game --bot`); touch still works |
+| `--ei level N` | no menus: start in mission N, 1..20 |
 | `--ei frames N` | quit after N simulation frames |
 | `--ei difficulty D` | 0..4 |
 | `--ez no_audio true` | no sound |
@@ -102,6 +114,12 @@ The activity is `singleInstance`: extras only apply when the app is not already 
 
 Landscape only (either way round), full screen, the screen stays on.
 
+**Menus**: tap. Spinners go back with a tap left of their value; the Start Game list scrolls
+with its arrows; the name entry has its own keyboard; Configure keys has Clear and Cancel
+(issue 090). The **Back** key is the original's Esc (back one screen; on the main menu it
+asks whether to quit; it closes a hint box). Two players, mouse control and the video options
+are not offered on Android.
+
 - **Move: drag anywhere** outside the buttons. The movement is relative: the helicopter moves
   by the finger's displacement (times 1.5), it does not jump to the finger, so your finger
   never has to cover it. Lift and put the finger down again to continue from wherever the
@@ -110,9 +128,10 @@ Landscape only (either way round), full screen, the screen stays on.
 - **Buttons** (right-hand column, bottom up): missile (red rocket), power-up (yellow
   diamond), next missile type, next weapon, next power-up. They can be pressed while another
   finger drags.
-- **Pause**: the pause button (top left on wide screens, top centre on 4:3), or the Back
-  key. A tap anywhere continues.
-- A tap also closes a tutorial hint box.
+- **Pause**: the pause button (top left on wide screens, top centre on 4:3) or the Back key
+  opens the in-game menu (Resume, Options, Quit); it is the only pause control. Without the
+  menus (`level` / `bot` extras) it pauses and a tap anywhere continues.
+- A tutorial hint box closes with its OK button (without the menus: a tap anywhere).
 
 On screens wider than 4:3 (most phones) the buttons sit outside the 4:3 play-field, at the
 sides; on 4:3 tablets they are drawn translucent inside it. They stay clear of display
@@ -124,13 +143,15 @@ keyboard keeps working.
 
 ## App lifecycle
 
-- Home, the app switcher or a call: the game pauses, fingers are released, sound stops.
-  Coming back shows the paused game; tap to continue.
+- Home, the app switcher or a call: during play the in-game menu opens (without the menus:
+  the game pauses), fingers are released, sound stops, the profile is saved. Coming back shows
+  the paused game under the in-game menu (without the menus: tap to continue).
 - If the GL context is lost while in the background, every GL resource (renderer, HUD
   textures, shadow silhouettes) is rebuilt from the paks before the first frame.
 - The simulation runs at a fixed 60 Hz, independent of the display rate; after a stall at
   most 5 steps are caught up, the rest is dropped.
-- Level loads show a loading bar.
+- Level loads show the original's loading screen (a plain bar before the front end's pictures
+  are loaded, and without the menus).
 
 ## Log markers and the smoke test
 
@@ -139,7 +160,9 @@ The app logs under the tag `AS3D` (`adb logcat -s AS3D:*`):
 | Marker | When |
 |---|---|
 | `AS3D_ARGS` | at start: the arguments from the intent |
-| `AS3D_GAME_START size=WxH load_ms=...` | the first level is loaded and playing |
+| `AS3D_GAME_START size=WxH load_ms=...` | the game is up (the first level, or the front end) |
+| `AS3D_SCREEN name=main|start|ingame|...|playing|paused|intro frame=N mission=M` | with the menus: the top screen changed (names of `Frontend::screenName`) |
+| `AS3D_VIEW scale=S x=X y=Y` | virtual 800x600 to screen pixels (`px = v * S + X`), with the layout |
 | `AS3D_LAYOUT size=... insets=... buttons=outside|inside missile=x,y ...` | button centres in pixels, when the screen or the insets change |
 | `AS3D_GAME_FRAME n=600 mission=1 score=...` | every 600 simulation frames (10 s of game time) |
 | `AS3D_PERF avg_ms max_ms fps work_ms sim_steps dropped_steps` | every 5 s: frame interval average and maximum, CPU time per frame, steps run and dropped |
@@ -154,17 +177,19 @@ The app logs under the tag `AS3D` (`adb logcat -s AS3D:*`):
 (`-no-window -no-audio -no-boot-anim -no-snapshot-save -memory 2048 -gpu
 swiftshader_indirect`, only with at least 5 GB of host memory available; the AVD belongs to
 another project and is never wiped or reconfigured). It installs the APK, launches it with
-the bot pilot and `rebuild_on_resume`, waits for `AS3D_GAME_FRAME n=600`, injects a drag, a
-missile and a next-weapon tap, the pause button and a tap, the Back key and a tap, sends the
-app to the background and brings it back (checking `AS3D_GL_REBUILD`), taps to continue,
-and plays on to frame 3600. It fails on a `FATAL` marker, a Java exception or a native
+the bot pilot in mission 1 and `rebuild_on_resume`, waits for `AS3D_GAME_FRAME n=600`,
+injects a drag, a missile and a next-weapon tap, the pause button and a tap, the Back key and
+a tap, sends the app to the background and brings it back (checking `AS3D_GL_REBUILD`), taps
+to continue, and plays on to frame 3600. Then it restarts the app on the front end and taps
+through it by the `AS3D_SCREEN` markers: main menu, Start Game, Start, 600 frames of mission
+1, the pause button (in-game menu), Resume, pause again, Quit to the main menu, Back (exit
+confirmation), No; screenshots `menu_*.png`. It fails on a `FATAL` marker, a Java exception or a native
 crash, and on timeouts. Screenshots and the logcat capture go to
 `$AS3D_DATA_ROOT/out/m8/` (gitignored). `adb shell input` has no multi-touch, so
 multi-touch is covered by the unit tests only.
 
 ## Known limits
 
-- No menus: the app starts in mission 1; after mission 20 the campaign restarts. No save.
 - Model textures load on first draw; a new enemy type can cause a short hitch on a slow
   device (`AS3D_HITCH`). Terrain, water and the map objects' shadow silhouettes are built at
   level load.
@@ -179,8 +204,10 @@ multi-touch is covered by the unit tests only.
   6.5 s. `-gpu host` does not start headless on the development machine (no X display), so
   `AS3D_EMU_GPU=host` only helps where a display is available. On desktop (GTX 1060) the
   same loop holds 60 fps with 1.3 to 2.9 ms of work per frame.
-- A pause request (button, P, Back) is ignored while a tutorial hint box holds the pause,
-  as in the original; the smoke test retries it.
+- Without the menus a pause request (button, P, Back) is ignored while a tutorial hint box
+  holds the pause, as in the original; with them the first tap on the pause button closes an
+  open hint box. The smoke test retries either way.
+- The on-screen keyboard of the name entry is the front end's own (issue 090), not Android's.
 - Under heavy load the emulator's System UI may show "isn't responding"; the smoke test
   closes system dialogs before tapping.
 - No app icon yet.

@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # Plays mission 1 of the game APK on a device or emulator, unattended (the bot pilot,
-# through the `bot` intent extra), and checks it in logcat:
+# through the `bot` intent extra), then goes through the menus, and checks it in logcat:
 #
-#   1. launches with --ez bot true --ez rebuild_on_resume true and waits for
-#      AS3D_GAME_START and AS3D_GAME_FRAME n=600;
+#   1. launches with --ez bot true --ei level 1 --ez rebuild_on_resume true (straight into
+#      the mission, no menus) and waits for AS3D_GAME_START and AS3D_GAME_FRAME n=600;
 #   2. injects touch gestures with `adb shell input`: a drag in the play-field, taps on the
 #      missile and next-weapon buttons, the pause button then a tap to continue, the back key
 #      then a tap;
 #   3. sends the app to the background (HOME), brings it back, checks it resumes paused with
 #      its GL resources rebuilt, taps to continue and waits for more frames;
-#   4. waits for AS3D_GAME_FRAME n=3600 and prints the AS3D_PERF lines.
+#   4. waits for AS3D_GAME_FRAME n=3600;
+#   5. restarts the app without extras (the front end) and taps through it, waiting for the
+#      AS3D_SCREEN markers: main menu (after the intro pages), Start Game, Start, 600 frames of
+#      mission 1, the pause button (the in-game menu), Resume, pause again, Quit to the main
+#      menu, the back key (exit confirmation), No; screenshots menu_*.png;
+#   6. prints the AS3D_PERF lines.
 #
 # Fails on a FATAL marker, a Java exception or a native crash, or a timeout. Screenshots and
 # the logcat capture go to $AS3D_SMOKE_OUT (default: <AS3D_DATA_ROOT or repo>/out/m8).
@@ -191,7 +196,7 @@ dismiss_dialogs() {
 tap() { dismiss_dialogs; adb -s "${SERIAL}" shell input tap "$1" "$2"; }
 
 echo "== launch (bot pilot) =="
-adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" --ez bot true --ez rebuild_on_resume true || fail "am start failed"
+adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" --ez bot true --ei level 1 --ez rebuild_on_resume true || fail "am start failed"
 wait_for "AS3D_GAME_START" "${START_TIMEOUT}"
 wait_for "AS3D_LAYOUT" 30
 grep -E "AS3D_GAME_START|AS3D_LAYOUT|AS3D_INSETS" "${LOG_FILE}" | tail -n 4
@@ -278,8 +283,63 @@ wait_for "AS3D_GAME_FRAME n=3600 " 600
 shot 07_frame3600
 check_crash
 
+# ---------------------------------------------------------------------------------------
+echo "== menus: main menu, Start Game, Start, play, pause, in-game menu, quit =="
+adb -s "${SERIAL}" shell am force-stop "${APP_ID}"
+sleep 2
+BEFORE="$(count "AS3D_SCREEN name=main")"
+adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" || fail "am start (menus) failed"
+# Intro pages (about 16 s), then the attract level loads.
+wait_more "AS3D_SCREEN name=main" "${BEFORE}" "${START_TIMEOUT}"
+grep -qE "AS3D_ARGS .*menus=1" "${LOG_FILE}" || fail "the app did not start on the front end"
+VIEW="$(grep -E "AS3D_VIEW" "${LOG_FILE}" | tail -n1)"
+read -r VSCALE VX VY <<<"$(echo "${VIEW}" | sed -nE 's/.*scale=([0-9.]+) x=([0-9.-]+) y=([0-9.-]+).*/\1 \2 \3/p')"
+[ -n "${VY:-}" ] || fail "no AS3D_VIEW line"
+# vtap X Y: taps the point (X, Y) of the virtual 800x600 screen.
+vtap() {
+    local p
+    p="$(awk -v x="$1" -v y="$2" -v s="${VSCALE}" -v ox="${VX}" -v oy="${VY}" 'BEGIN { printf "%d %d", x * s + ox, y * s + oy }')"
+    # shellcheck disable=SC2086
+    tap ${p}
+}
+sleep 3
+shot menu_01_main
+try_until "AS3D_SCREEN name=start" 3 vtap 400 266       # Start Game
+sleep 2
+shot menu_02_start
+try_until "AS3D_SCREEN name=playing" 3 vtap 680 482     # Start
+PLAY_FROM="$(grep -E "AS3D_SCREEN name=playing" "${LOG_FILE}" | tail -n1 | sed -nE 's/.* frame=([0-9]+).*/\1/p')"
+echo "android_smoke: mission 1 started at frame ${PLAY_FROM}"
+# 600 frames of play: a frame marker of mission 1 at least 600 frames later.
+DEADLINE=$((SECONDS + 300))
+while :; do
+    check_crash
+    LAST="$(grep -E "AS3D_GAME_FRAME n=[0-9]+ mission=1 " "${LOG_FILE}" | tail -n1 | sed -nE 's/.*AS3D_GAME_FRAME n=([0-9]+).*/\1/p')"
+    if [ -n "${LAST}" ] && [ "${LAST}" -ge "$((PLAY_FROM + 600))" ]; then break; fi
+    [ "${SECONDS}" -lt "${DEADLINE}" ] || fail "mission 1 did not run 600 frames"
+    sleep 2
+done
+shot menu_03_playing
+LAYOUT="$(grep -E "AS3D_LAYOUT" "${LOG_FILE}" | tail -n1)"
+read -r PAUSE_X PAUSE_Y <<<"$(pos pause)"
+# The pause button opens the in-game menu (a first tap may close a tutorial hint box).
+try_until "AS3D_SCREEN name=ingame" 4 tap "${PAUSE_X}" "${PAUSE_Y}"
+sleep 2
+shot menu_04_ingame
+try_until "AS3D_SCREEN name=playing" 3 vtap 400 287     # Resume
+sleep 2
+try_until "AS3D_SCREEN name=ingame" 4 tap "${PAUSE_X}" "${PAUSE_Y}"
+try_until "AS3D_SCREEN name=main" 3 vtap 400 357        # Quit
+sleep 3
+shot menu_05_main_after_quit
+try_until "AS3D_SCREEN name=exit" 3 adb -s "${SERIAL}" shell input keyevent KEYCODE_BACK
+sleep 1
+shot menu_06_exit_confirmation
+try_until "AS3D_SCREEN name=main" 3 vtap 507 352        # No
+check_crash
+
 echo "== summary =="
-grep -E "AS3D_(ARGS|GAME_START|LAYOUT|INSETS|LEVEL_LOADED|GL_REBUILD|PAUSED|RESUMED|BACKGROUND|FOREGROUND|HITCH)|GL_RENDERER" "${LOG_FILE}" | sed -E 's/^[0-9-]+ [0-9:.]+ //' | head -n 40
+grep -E "AS3D_(ARGS|GAME_START|LAYOUT|INSETS|LEVEL_LOADED|GL_REBUILD|PAUSED|RESUMED|BACKGROUND|FOREGROUND|HITCH|SCREEN|VIEW)|GL_RENDERER" "${LOG_FILE}" | sed -E 's/^[0-9-]+ [0-9:.]+ //' | head -n 80
 echo "-- frame markers --"
 grep -E "AS3D_GAME_FRAME" "${LOG_FILE}" | sed -E 's/^[0-9-]+ [0-9:.]+ //'
 echo "-- performance (emulator numbers if this ran on the emulator) --"

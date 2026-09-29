@@ -1,0 +1,4 @@
+# Everything here is copied from the original game data by tools/android_build.sh and must
+# never be committed.
+*
+!.gitignore
