@@ -51,6 +51,14 @@ PlayerInput FrameInput::toPlayerInput() const {
     return p;
 }
 
+FrameInput mergeFrameInput(const FrameInput& a, const FrameInput& b) {
+    FrameInput out;
+    for (int k = 0; k < kMaxPlayers; ++k) out.held[k] = a.held[k] | b.held[k];
+    out.confirm = a.confirm || b.confirm;
+    out.pausePressed = a.pausePressed || b.pausePressed;
+    return out;
+}
+
 FrameInput botInput(u32 frame) {
     // Must stay identical to the pilot of apps/sim_tool/main.cpp (--bot).
     FrameInput in;
