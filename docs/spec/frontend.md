@@ -813,6 +813,59 @@ See §3.15; the hint box is a menu, not part of the HUD.
 A full-screen fade overlay (0x404370) is called every frame but its inputs are never
 written; it never shows (VERIFIED-CODE). Omit it.
 
+### 4.9 Answers to issue 060 (HUD gaps), point by point
+
+Issue 060 (`docs/spec/issues/060-hud-gaps.md` on main) lists the choices the HUD
+implementation made. The original's behaviour, all VERIFIED-CODE at the cited addresses:
+
+1. **Blend modes** (060 choice 1). Frames (mainbar pieces), health fill, lives and all numbers:
+   ADD. Weapon icons: ADD. Missile icons: ALPHA. Power-up icons: kind 0 ADD, kinds 1–3 ALPHA.
+   Mouse-control cursor: ADD. Colours in §4.1 (frames grey 0.502, lives grey 0.627, fill and
+   icons white; count numbers (0.816, 0.251, 0) selected / (0.502, 0.031, 0) other; score
+   (0.753, 0.188, 0)). 0x401ed0, 0x402a90, 0x4041b0.
+2. **Cell sizes and the weapon table** (060 choice 2, "to establish" 1). Icon cells are 66×35
+   texels (s step 0.258, t step 0.2734 of a 256×128 texture), drawn at 66×35. The weapon icon
+   is **not** cell = index: it comes from the 20-entry UV table at 0x457ae0 (§4.4); weapon 4
+   and 9 sit in the third row, 5–8 in the second. Missile table 0x457c20, item UVs
+   hard-coded (§4.4). The tables hold UVs only; no frame colour depends on the weapon.
+3. **Weapon box frame** (060 choice 3): mainbar texels x 0–70, rows 42–80 (UV (0, 0.375,
+   0.2734, 0.6719)); confirmed.
+4. **Slots** (060 choice 4). Packed in type order (missiles 0..4, power-up slots 0..15),
+   skipping types with a zero count, not in order of acquisition and not at fixed positions
+   per type. Power-up frames are drawn mirrored at x = 720 (one player). The selected entry's
+   frame is drawn twice with ADD (so it looks brighter); its count uses the "selected" colour.
+   Power-up counts are shown only when > 1, missile counts always.
+5. **Count position** (060 choice 5): number font scale 0.75 (glyph 24×12, advance 10.5),
+   top at frame y + 3, right-aligned so that its right end is at x = 76 (frame x + 66) for the
+   left column, 786 for the right column (x = ftol(right − 10.5 × digits)).
+6. **Typewriter and message** (060 choice 6). Typewriter: white (additive font), y = 500,
+   black alpha-font shadow at +2, +2 (§4.5). Message line: white, centred at y = 555, shadow
+   at +2, +2, 3 s with a 1 s fade (§4.6). Not y = 110, not yellow.
+7. **Stars, upgrade level, boss bar** (060 choice 7): none of them exists on the original
+   HUD. Stars are only reported on the Mission Complete tally (§3.8). The weapon upgrade level
+   is not shown anywhere. Boss and big-enemy health use the 3D sprite bar above the entity
+   (§4.2). A reimplementation that adds them deviates from the original.
+8. **Two-player layout** (060 choice 8): §4.3. Both scores are shown (under each health
+   bar), both lives rows, no stars. Player 1's score is right-aligned at x 170; weapon boxes
+   at y = 54; power-up columns at x 82 (player 1) and 648 (player 2).
+9. **Screen mapping** (060 choice 9): the original stretches the 800×600 space over the
+   whole window, non-uniformly (render-pipeline.md §8.1); keeping 4:3 centred is our choice.
+10. **Bytes 0x80–0xFF** (060 choice 10): the original draws a 30×15 quad per such byte with
+    the handle of `font_rus.tga`; the failed registration returns handle 0 (0x418d60), and
+    handle 0 is an untextured filled rectangle, so each such byte becomes a solid rectangle
+    in the text colour, additive, and the pen advances by the table value (0 for most of
+    0x80–0xBF, so those rectangles overlap). No shipped text (level names, hint scripts)
+    contains such bytes (VERIFIED-DATA), so drawing nothing is a safe deviation.
+11. **Tutorial hint** (060 choice 11): §3.15. The original cuts lines only at `^` (no width
+    wrapping; the ten shipped hints have 2–4 lines of at most 50 characters, widest 506 px
+    measured with braces, so the widest box is 546 × 160, VERIFIED-DATA), panel
+    0x50000000 black at alpha 0.31 without border texture, orange text with white `{}`
+    spans, OK button = right 100 texels of `menu\apply_ok_1.tga` (hover overlay
+    `apply_ok_2.tga`, ADD, pulsing), placed at (350, top + H − 60, 100, 64).
+12. **Mouse cursors**: in menus, `menu\cursor_1.tga` ALPHA then `menu\cursor_2.tga` ADD at
+    (mouse − (4, 2)), unless `UseSystemMouse` (§2.7); during play with MouseControl,
+    `gfx\mc_cur.tga` ADD at (mouse − (7, 7)); neither on a touch device needs to be drawn.
+
 ## 5. Mission flow and progression
 
 ### 5.1 What a campaign is
@@ -992,11 +1045,141 @@ Normal or above. (Arithmetic from the formulas above.)
 
 ## 6. Save file and settings
 
-<!-- SECTION-6 -->
+The original keeps progress in `game.bin` and settings in `config.ini`. Our engine writes its
+own formats (spec README); this section says what must be persisted, when, and with which
+defaults, and records the original layouts for an optional importer.
+
+### 6.1 Progress (`game.bin`, VERIFIED-CODE 0x401050, 0x4011b0)
+
+What is persisted: the 15-entry high-score table, the helicopter unlock flags (10), the
+mission unlock flags (20). Nothing else: no campaign in progress, no current mission, no
+score, no lives, no difficulty, no helicopter choice. Closing the program in the middle of a
+campaign loses it; only unlocks and high scores survive.
+
+When it is written: at program exit (Exit → Yes, window close), before the video restart of
+Options → Apply (0x4206c0), and before the fatal-error message box (0x4204f0). It is read
+once at start-up (`Sys_Init`). Unlocks and new high scores only live in memory until then
+(a crash loses them). VERIFIED-CODE. Recommendation for our engine (not original
+behaviour): write after every change (mission complete, high-score insert), which matters on
+Android where the process can be killed.
+
+Original layout (1858 bytes, engine-behaviour.md §10.5): float 1.0; 256-byte random XOR
+key; u32 holding a CRC-16/CCITT of the encrypted payload; 0x63A-byte payload XORed with
+key[i & 0xFF]. Payload: u32 (unused), 15 × {char name[32], i32 score, i32 rank index}, 10 ×
+{u8 unlocked, char object name[32]}, 20 × {u8 unlocked, char level id[32]}. A file with a
+wrong version or CRC is ignored (defaults kept, a log line written).
+
+Fresh-install defaults (compiled in, VERIFIED-CODE, tables 0x4573e0, 0x457660, 0x457838):
+
+| # | Name | Score | Rank |
+|---|---|---|---|
+| 1 | Divo Master | 1,000,000 | 6 Elite |
+| 2 | Dennis | 900,000 | 5 Berserker |
+| 3 | Terminator | 800,000 | 5 |
+| 4 | Walter | 700,000 | 4 Master Pilot |
+| 5 | Phil | 600,000 | 4 |
+| 6 | James | 500,000 | 3 Pilot |
+| 7 | Marianne | 400,000 | 3 |
+| 8 | Chris | 300,000 | 3 |
+| 9 | Smasher | 250,000 | 2 Junior Pilot |
+| 10 | Greg Gizmo | 200,000 | 2 |
+| 11 | Alex. B. Blom | 150,000 | 2 |
+| 12 | Sam | 100,000 | 1 Rookie |
+| 13 | Jennifer | 75,000 | 1 |
+| 14 | Turner | 50,000 | 1 |
+| 15 | Linda | 30,000 | 0 Cheater |
+
+Helicopters 0–1 and missions 1–2 unlocked, all others locked.
+
+### 6.2 Settings (`config.ini`, VERIFIED-CODE 0x41cef0, 0x41d810, 0x41dd60)
+
+When: read at start-up (if missing, written with defaults and re-read); written at program
+exit only (Options, Apply and the F-keys change memory only). The first run (`FirstRun` =
+1, the default) and the `-setup` switch show a Windows setup dialog (video mode 16/32 bit,
+fullscreen, vsync, system mouse, FPS display, texture filter); `-setup` exits after it. Our
+engine drops the dialog.
+
+| Section / key | Default if missing | Range and meaning | Changed in game by |
+|---|---|---|---|
+| System ShowHints | 0 | 0/1: menu tooltips | — (file only) |
+| System FirstRun | 1 | 0/1: show setup dialog | setup dialog |
+| System ShowLogo | 1 | 0/1: intro pages (read only, never written) | — |
+| System UseSystemMouse | 0 | 0/1: OS cursor instead of the drawn one | — |
+| System Camera | 1 | 0..3: Low Pitch, Default, High Pitch, Top-Down | Options, F9 |
+| System MouseControl | 0 | 0/1 (§3.6) | Options |
+| Display VideoMode | 1 | 0..8: 640×480, 800×600, 1024×768, 1152×864, 1280×960, 1280×1024, 1600×1200, 1920×1440, 2048×1536; other values become 1 | Options (Apply) |
+| Display RefreshRate | 0 | 0 = default, else Hz | Options (Apply) |
+| Display ColorDepth | 0 | 0 desktop, 16, 32 | Options (Apply) |
+| Display Fullscreen | 1 | 0/1 | Options (Apply) |
+| Display ForceFullscreen | 0 | 0/1 | — |
+| Display WaitVSync | 0 | 0/1 | — |
+| Display Brightness | 0.6 | 0.2..1.0 in the menu (full-screen modulate quad, engine-behaviour.md §13.2) | Options |
+| Graphics TextureFilter | 0 | 0 bilinear, 1 trilinear | — |
+| Graphics AllowSoftware, Disable* (5 keys) | 0 | renderer switches (read only) | — |
+| Debug ShowFPS, ShowTris, ShowTexBinds, ShowCounters | 0 | debug counters (only ShowFPS written) | — |
+| Sound SfxVolume | 0.5 | 0..1 (values ≥ 1 become 1) | Options, F5/F6 (±0.1) |
+| Sound MusicVolume | 0.5 | 0..1 | Options, F7/F8 (±0.1) |
+| Sound Sound3D | 0 | 0/1 | Options (Apply) |
+| Controls, Controls2: 10 keys | see below | two key codes per action, "k1 k2"; 0 means unbound | Configure controls, Mouse Control |
+| Joystick JoystickDisabled | 0 | read only | — |
+| Joystick JoystickThresholdX/Y | 0.3 | stick dead zone (read only) | — |
+
+Binding defaults when the keys are missing (both players alike): Move Forward 38 243 (Up,
+stick up); Move Backward 40 244; Move Left 37 241; Move Right 39 242; Primary Attack 17 203
+(Ctrl, joy1); Switch Weapon 50 206 ('2', joy4); Missile Attack 16 204 (Shift, joy2); Switch
+Missiles 49 211 ('1', Joy5); Use Power-Up 32 205 (Space, joy3); Switch Power-Up 50 212 ('2',
+Joy6). The shipped `config.ini` differs (mouse buttons for player 1's fire keys, '3'/'4' for
+the power-up switch; VERIFIED-DATA), and the manual lists Z / X / C for the three switch keys
+(VERIFIED-DATA, `manual\default-controls.html`): the three sources disagree.
+
+The `F5`/`F6` keys lower/raise the effects volume and `F7`/`F8` the music volume by 0.1
+(clamped to 0..1); the manual says F5 raises. F9 cycles the camera. VERIFIED-CODE 0x408f10.
+
+### 6.3 Settings that exist only for the PC original
+
+Resolution, refresh rate, colour depth, fullscreen, vsync, texture filter, renderer switches,
+the setup dialog and `UseSystemMouse` have no meaning on Android and can be dropped or
+replaced; the video restart of Apply (which also resets the attract level and helicopter
+choices) need not be reproduced.
 
 ## 7. Touch adaptation notes
 
-<!-- SECTION-7 -->
+Facts only: which inputs of the original each screen depends on, and which of them a
+landscape Android device without keyboard or mouse lacks. Pointer input is "left click" on
+PC; a tap can deliver it, but there is no hover (focus-follows-mouse, hover sound, tooltip)
+and no right button. Coordinates are in the virtual 800×600 space, so hit areas scale with
+the screen.
+
+| Screen | Inputs used by the original | Missing on touch-only |
+|---|---|---|
+| Intro pages | any key or click speeds up ×4 | none (tap) |
+| Main menu | click or Enter on 5 buttons; hover focus with sound | hover highlight only appears on focus; the pulse needs a focused item |
+| Exit confirmation | click Yes/No; Esc / right click = No | Esc and right click (back); Android has a system Back gesture |
+| Start Game | list: click a row, arrows, PgUp/PgDn/Home/End, click scroll arrows and track; spinners: click cycles forward only, Left/wheel down cycles back; helicopter grid: click only (two players: alternating clicks); Back/Start buttons | reverse cycling of spinners (keyboard Left or wheel); list scrolling by keys; the list's 32-px scroll arrows are small (26-px zone); list rows are 20 px high |
+| Options | spinners as above; sliders: click position, drag the knob, Left/Right steps | reverse spinner cycling; drag works only while the pointer stays over the slider row (hover-based) |
+| Configure controls | click a row then press a key/button; Backspace/Delete unbinds; Esc cancels | the whole screen depends on a keyboard or gamepad; nothing to bind with touch |
+| Top Scores | click Back; Esc | Esc |
+| Name entry | type characters, Backspace/Delete/Home/End/arrows/Insert, Enter or click OK; Esc swallowed | a text input method is required (on-screen keyboard) |
+| Information | click the page spinner (forward only); PgUp/PgDn/Left/Right; Back; Esc | going back a page (keys only) |
+| In-game menu | opened by Esc; Resume/Options/Quit buttons; Esc/right click resume | a way to open it (no Esc) and to resume without the button |
+| Pause | P / Pause key | a pause control |
+| Playing | held bits: 4 directions, primary fire, missile, power-up; one-shot: next weapon, next missile, next power-up (engine-behaviour.md §7.2); optional MouseControl (helicopter flies toward the pointer, dead zone 20 px) | all ten actions need touch controls; MouseControl's "fly toward the pointer" maps onto a finger position but the three fire buttons (mouse 1–3) then need other controls |
+| Hotkeys | F5–F8 volumes, F9 camera, F12 screenshot | no keys (the Options sliders and Camera spinner cover volumes and camera) |
+| Cheats | typed words (WM_CHAR) outside intermission levels | a text input method |
+| Tutorial hint | OK button, Enter, Esc, Space | none (tap OK) |
+| Game over | Restart/Quit buttons after 2 s; Esc swallowed | none |
+| Mission complete | helicopter grid (tap), Restart/Quit/Continue; Esc swallowed | none |
+| Game complete | Continue; Esc swallowed | none |
+| Two players | two keyboard binding sets on one keyboard (or joystick for player 2) | a second input device or a split touch layout |
+
+Other facts relevant to touch:
+
+- Every activation in the original happens on the button **press**, not the release
+  (0x429190 passes presses only), and the item under the pointer at that moment is
+  hit-tested.
+- Focus is taken from the pointer position every frame; with touch there is no pointer
+  between taps, so the "focused item" is simply the last one tapped.
+- The original virtual screen is 4:3; phones in landscape are wider (§8, question 3).
 
 ## 8. Open questions
 
