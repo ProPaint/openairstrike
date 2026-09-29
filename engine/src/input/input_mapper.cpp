@@ -124,6 +124,67 @@ void InputMapper::releaseAll() {
     for (int c : codes) press(c, false);
 }
 
+namespace {
+
+// Windows virtual key -> SDL scancode for every key the original can bind or name
+// (frontend.md 3.7), both directions of the mapping.
+struct VkKey {
+    int vk;
+    int sc;
+};
+constexpr VkKey kVkKeys[] = {
+    {8, SDL_SCANCODE_BACKSPACE}, {9, SDL_SCANCODE_TAB}, {12, SDL_SCANCODE_CLEAR}, {13, SDL_SCANCODE_RETURN},
+    {16, SDL_SCANCODE_LSHIFT}, {17, SDL_SCANCODE_LCTRL}, {18, SDL_SCANCODE_LALT}, {19, SDL_SCANCODE_PAUSE},
+    {20, SDL_SCANCODE_CAPSLOCK}, {27, SDL_SCANCODE_ESCAPE}, {32, SDL_SCANCODE_SPACE}, {33, SDL_SCANCODE_PAGEUP},
+    {34, SDL_SCANCODE_PAGEDOWN}, {35, SDL_SCANCODE_END}, {36, SDL_SCANCODE_HOME}, {37, SDL_SCANCODE_LEFT},
+    {38, SDL_SCANCODE_UP}, {39, SDL_SCANCODE_RIGHT}, {40, SDL_SCANCODE_DOWN}, {45, SDL_SCANCODE_INSERT},
+    {46, SDL_SCANCODE_DELETE}, {48, SDL_SCANCODE_0}, {96, SDL_SCANCODE_KP_0}, {106, SDL_SCANCODE_KP_MULTIPLY},
+    {107, SDL_SCANCODE_KP_PLUS}, {109, SDL_SCANCODE_KP_MINUS}, {110, SDL_SCANCODE_KP_PERIOD},
+    {111, SDL_SCANCODE_KP_DIVIDE}, {144, SDL_SCANCODE_NUMLOCKCLEAR}, {145, SDL_SCANCODE_SCROLLLOCK},
+    {186, SDL_SCANCODE_SEMICOLON}, {187, SDL_SCANCODE_EQUALS}, {188, SDL_SCANCODE_COMMA},
+    {189, SDL_SCANCODE_MINUS}, {190, SDL_SCANCODE_PERIOD}, {191, SDL_SCANCODE_SLASH}, {192, SDL_SCANCODE_GRAVE},
+    {219, SDL_SCANCODE_LEFTBRACKET}, {220, SDL_SCANCODE_BACKSLASH}, {221, SDL_SCANCODE_RIGHTBRACKET},
+    {222, SDL_SCANCODE_APOSTROPHE},
+};
+
+} // namespace
+
+int vkToBinding(int vk) {
+    if (vk >= 'A' && vk <= 'Z') return SDL_SCANCODE_A + (vk - 'A');
+    if (vk >= '1' && vk <= '9') return SDL_SCANCODE_1 + (vk - '1');
+    if (vk >= 97 && vk <= 105) return SDL_SCANCODE_KP_1 + (vk - 97); // NumPad1..9
+    if (vk >= 112 && vk <= 123) return SDL_SCANCODE_F1 + (vk - 112);
+    if (vk >= 124 && vk <= 135) return SDL_SCANCODE_F13 + (vk - 124);
+    if (vk == 200) return kMouseLeft;
+    if (vk == 201) return kMouseRight;
+    if (vk == 202) return kMouseMiddle;
+    for (const VkKey& k : kVkKeys)
+        if (k.vk == vk) return k.sc;
+    return kNoBinding;
+}
+
+int scancodeToVk(int sc) {
+    if (sc >= SDL_SCANCODE_A && sc <= SDL_SCANCODE_Z) return 'A' + (sc - SDL_SCANCODE_A);
+    if (sc >= SDL_SCANCODE_1 && sc <= SDL_SCANCODE_9) return '1' + (sc - SDL_SCANCODE_1);
+    if (sc >= SDL_SCANCODE_KP_1 && sc <= SDL_SCANCODE_KP_9) return 97 + (sc - SDL_SCANCODE_KP_1);
+    if (sc >= SDL_SCANCODE_F1 && sc <= SDL_SCANCODE_F12) return 112 + (sc - SDL_SCANCODE_F1);
+    if (sc >= SDL_SCANCODE_F13 && sc <= SDL_SCANCODE_F24) return 124 + (sc - SDL_SCANCODE_F13);
+    if (sc == SDL_SCANCODE_RSHIFT) return 16;
+    if (sc == SDL_SCANCODE_RCTRL) return 17;
+    if (sc == SDL_SCANCODE_RALT) return 18;
+    if (sc == SDL_SCANCODE_KP_ENTER) return 13;
+    for (const VkKey& k : kVkKeys)
+        if (k.sc == sc) return k.vk;
+    return 0;
+}
+
+int mouseButtonToVk(int button) {
+    if (button == 1) return 200;
+    if (button == 3) return 201;
+    if (button == 2) return 202;
+    return 0;
+}
+
 FrameInput InputMapper::takeFrame() {
     FrameInput out = state_;
     for (int p = 0; p < kMaxPlayers; ++p) {

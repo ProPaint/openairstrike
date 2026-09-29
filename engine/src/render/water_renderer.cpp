@@ -101,7 +101,7 @@ void WaterRenderer::render(const TerrainViewParams& params) {
     Mat4 m = params.projection * params.view;
     float width = static_cast<float>(im.terrain->width()) * kHmapCellSize;
     setCull(CullMode::Off);
-    setBlend(BlendMode::AlphaBlend);
+    setBlend(GlBlend::AlphaBlend);
     setDepth(true, true); // render-pipeline.md 1.1 pass 7: water writes depth
     im.program.use();
     im.program.setMat4("uView", params.view);
@@ -136,7 +136,7 @@ void WaterRenderer::render(const TerrainViewParams& params) {
         if (anyIn) glDrawArrays(GL_TRIANGLES, k * 6, 6);
     }
     setDepth(true, true);
-    setBlend(BlendMode::Off);
+    setBlend(GlBlend::Off);
 }
 
 } // namespace as3d

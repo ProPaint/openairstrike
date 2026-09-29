@@ -28,8 +28,10 @@ Menu Frontend::buildStartGame() {
     }
     difficultyChoice_ = kDefaultDifficulty; // reset to Normal on every opening
     m.addSpinner(4, 160, 184, texts_.get("label.difficulty"), diffs, difficultyChoice_);
+    if (!content_.twoPlayerMode) twoPlayers_ = false;
     m.addSpinner(5, 160, 224, texts_.get("label.game_mode"), {texts_.get("label.players.1"), texts_.get("label.players.2")},
                  twoPlayers_ ? 1 : 0);
+    if (!content_.twoPlayerMode) m.items.back().setShown(false);
     m.addHeliGrid(6, 224, 304, {heli_, &heliAlternator_, heliLocked_, &twoPlayers_});
     m.addButton(1, 50, 450, 128, 64, "menu\\back_1.tga", "menu\\back_2.tga");
     m.addButton(2, 605, 450, 150, 64, "menu\\start_1.tga", "menu\\start_2.tga");

@@ -31,9 +31,6 @@ add_subdirectory(${AS3D_SDL2_SOURCE_DIR} ${CMAKE_BINARY_DIR}/sdl2)
 # by the NDK toolchain file, and tests are not built for the device.
 set(AS3D_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(${AS3D_REPO_ROOT} ${CMAKE_BINARY_DIR}/as3d_repo)
-# engine/src/render/module.cmake finds stb through CMAKE_SOURCE_DIR, which is this directory
-# here, not the repository root.
-target_include_directories(as3d_render PRIVATE ${AS3D_REPO_ROOT}/third_party/stb)
 
 # The game: as3d_game_shell and the "main" library.
 add_subdirectory(${AS3D_REPO_ROOT}/apps/game ${CMAKE_BINARY_DIR}/as3d_game_app)

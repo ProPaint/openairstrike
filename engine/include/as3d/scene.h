@@ -3,17 +3,8 @@
 // and draws submitted meshes with one GLSL ES 3.00 program. See docs/graphics.md for
 // the coordinate-system, winding and material-state-table writeups this implements.
 //
-// A note on why `Material::fromObjectDef` takes `const ObjectDef&` by reference but
-// this header never #includes as3d/defs.h: as3d/defs.h and as3d/gfx.h both declare an
-// unrelated `enum class as3d::BlendMode` with different enumerators (defs.h: obj.md's
-// None/Alpha/Add/Filter; gfx.h: Off/AlphaBlend/Additive, a GL blend-state helper). The
-// two cannot both be #included in the same translation unit -- it is a hard redefinition
-// error. This header only needs a forward declaration of `ObjectDef` (used solely by
-// reference), so it stays gfx.h-only and never triggers the collision; the
-// implementation (engine/src/render/material.cpp) that *does* need both headers at once
-// works around it locally (see that file's top comment). This is a pre-existing
-// conflict between two public headers this package may not edit; see the WP-30/33 final
-// report for the proposed fix (rename one of the two enums).
+// `Material::fromObjectDef` takes `const ObjectDef&` by reference, so this header only needs a
+// forward declaration of ObjectDef.
 #pragma once
 
 #include <memory>

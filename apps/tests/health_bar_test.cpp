@@ -2,10 +2,7 @@
 #include "doctest.h"
 
 #include "as3d/health_bar.h"
-// as3d/defs.h and as3d/gfx.h both define as3d::BlendMode.
-#define BlendMode AS3D_DEFS_BlendMode
 #include "as3d/defs.h"
-#undef BlendMode
 #include "as3d/input.h"
 #include "as3d/vfs.h"
 #include "as3d/world.h"

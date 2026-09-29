@@ -10,6 +10,33 @@ namespace as3d_game {
 
 using namespace as3d;
 
+namespace {
+
+// Serves single files through as3d::readPlatformFile (GameOptions::extraFiles).
+class PlatformFileSource final : public IFileSource {
+public:
+    explicit PlatformFileSource(const std::vector<std::pair<std::string, std::string>>& files) {
+        for (const auto& f : files) files_.emplace_back(normalizePath(f.first), f.second);
+    }
+    bool exists(const std::string& path) override {
+        Blob b;
+        return read(path, b);
+    }
+    bool read(const std::string& path, Blob& out) override {
+        for (const auto& f : files_)
+            if (f.first == path) return readPlatformFile(f.second, out);
+        return false;
+    }
+    void list(std::vector<std::string>& out) override {
+        for (const auto& f : files_) out.push_back(f.first);
+    }
+
+private:
+    std::vector<std::pair<std::string, std::string>> files_;
+};
+
+} // namespace
+
 GameSession::GameSession() = default;
 GameSession::~GameSession() {
     world_.reset(); // before the definitions it points into
@@ -19,6 +46,7 @@ bool GameSession::init(const GameOptions& options, std::string* error) {
     options_ = options;
     std::string root = options.dataRoot.empty() ? "." : options.dataRoot;
     std::string where = root + "/assets_extracted";
+    if (!options.extraFiles.empty()) vfs_.mount(std::unique_ptr<IFileSource>(new PlatformFileSource(options.extraFiles)));
     if (options.paks.empty()) {
         vfs_.mount(makeDirSource(where));
     } else {
@@ -40,15 +68,50 @@ bool GameSession::init(const GameOptions& options, std::string* error) {
     }
     world_.reset(new World());
     world_->init(vfs_, *db_, options.world);
+    if (!options.startLevel) return true;
     return startMission(std::min(std::max(options.mission, 1), kMissionCount), error);
+}
+
+void GameSession::resetFlow() {
+    flowTimer_ = 0;
+    wasComplete_ = wasGameOver_ = false;
+    hintsSeen_ = world_->hintsShown();
 }
 
 bool GameSession::startMission(int mission, std::string* error) {
     mission_ = mission;
-    flowTimer_ = 0;
-    wasComplete_ = wasGameOver_ = false;
-    hintsSeen_ = world_->hintsShown();
-    return world_->loadLevel(std::to_string(mission), error);
+    resetFlow();
+    hasLevel_ = world_->loadLevel(std::to_string(mission), error);
+    return hasLevel_;
+}
+
+bool GameSession::startMission(const LevelSetup& s, std::string* error) {
+    WorldConfig c = options_.world;
+    c.difficulty = s.difficulty;
+    c.players = s.players;
+    c.heli[0] = s.heli[0];
+    c.heli[1] = s.heli[1];
+    c.cameraMode = s.camera;
+    world_->init(vfs_, *db_, c);
+    for (int p = 0; p < kMaxPlayers; ++p) {
+        PlayerRecord& pr = world_->player(p);
+        pr.livesAtStart = s.lives[p];
+        pr.banked = static_cast<int>(std::max(-2000000000LL, std::min(2000000000LL, s.banked[p])));
+    }
+    mission_ = std::min(std::max(s.mission, 1), kMissionCount);
+    resetFlow();
+    hasLevel_ = world_->loadLevel(std::to_string(mission_), error);
+    return hasLevel_;
+}
+
+bool GameSession::loadAttract(const std::string& id, std::string* error) {
+    WorldConfig c = options_.world;
+    c.players = 1;
+    world_->init(vfs_, *db_, c);
+    mission_ = 0;
+    resetFlow();
+    hasLevel_ = world_->loadLevel(id, error);
+    return hasLevel_;
 }
 
 const LevelDef* GameSession::levelDef() const {

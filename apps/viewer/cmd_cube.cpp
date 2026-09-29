@@ -148,7 +148,7 @@ int run(int argc, char** argv) {
         as3d::setViewport(0, 0, width, height);
         as3d::setDepth(true, true);
         as3d::setCull(as3d::CullMode::Back);
-        as3d::setBlend(as3d::BlendMode::Off);
+        as3d::setBlend(as3d::GlBlend::Off);
         as3d::clear({0.08f, 0.09f, 0.12f, 1.0f}, /*depth=*/true);
 
         // A fixed, well-chosen rotation in headless mode (one frame of "a rotating

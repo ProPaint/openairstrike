@@ -259,7 +259,7 @@ bool Frontend::handlePlayingInput(const UiInput& input) {
                 took = true;
                 break;
             case keys::Mouse1:
-                if (touch_ && kTouchMenuButton.contains(menus_.pointerX(), menus_.pointerY())) {
+                if (touch_ && content_.touchMenuButton && kTouchMenuButton.contains(menus_.pointerX(), menus_.pointerY())) {
                     menus_.playSound("sounds\\menu1.wav");
                     setPausedFlag(true);
                     hudHidden_ = true;
@@ -352,7 +352,7 @@ void Frontend::drawUnder(Renderer2D& r, const UiAssets& a) {
 
 void Frontend::drawOver(Renderer2D& r, const UiAssets& a) {
     if (state_ == FrontendState::Intro) return;
-    if (state_ == FrontendState::Playing && menus_.empty() && touch_) drawTouchPlayButtons(r, a);
+    if (state_ == FrontendState::Playing && menus_.empty() && touch_ && content_.touchMenuButton) drawTouchPlayButtons(r, a);
     menus_.drawItems(r, a);
 }
 

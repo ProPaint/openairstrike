@@ -57,6 +57,7 @@ Menu Frontend::buildOptions() {
     m.addButton(kApply, 600, 450, 160, 64, "menu\\apply_ok_1.tga", "menu\\apply_ok_2.tga", {0, 0, 0.625f, 1},
                 itemflag::Disabled | itemflag::Hidden);
 
+    if (!content_.mouseControlOption) m.find(kMouse)->setShown(false);
     // Video items: disabled during a mission, absent where there is no video mode to choose.
     for (int id : {kResolution, kRefresh, kDepth, kFullscreen, kSound3D}) {
         MenuItem* it = m.find(id);

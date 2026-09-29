@@ -380,7 +380,7 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
 
     setCull(CullMode::Off);
     setDepth(true, true);
-    setBlend(BlendMode::Off);
+    setBlend(GlBlend::Off);
 
     im.program.use();
     im.program.setMat4("uView", params.view);
@@ -431,7 +431,7 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
     }
 
     if (options.tiles && !options.wireframe) {
-        setBlend(BlendMode::AlphaBlend);
+        setBlend(GlBlend::AlphaBlend);
         setDepth(true, false);
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(-1.0f, -1.0f);
@@ -448,7 +448,7 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
         glDisable(GL_POLYGON_OFFSET_FILL);
     }
     setDepth(true, true);
-    setBlend(BlendMode::Off);
+    setBlend(GlBlend::Off);
 }
 
 } // namespace as3d

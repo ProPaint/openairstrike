@@ -6,8 +6,10 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <vector>
 
+#include "as3d/frontend.h"
 #include "as3d/gfx.h"
 #include "as3d/platform.h"
 #include "as3d/ui.h"
@@ -61,16 +63,6 @@ bool writeTextFile(const std::string& path, const std::string& text) {
     return std::fclose(f) == 0 && ok;
 }
 
-bool playerScreenCentre(const World& w, int player, float& vx, float& vy) {
-    int pi = w.playerEntityIndex(player);
-    if (pi < 0) return false;
-    const ScreenRect& r = w.entity(pi).rect;
-    if (!(r.max[0] > r.min[0]) || !(r.max[1] > r.min[1])) return false;
-    vx = 0.5f * (r.min[0] + r.max[0]);
-    vy = ui::kVirtualHeight - 0.5f * (r.min[1] + r.max[1]); // window y up -> screen y down
-    return vx > -200.0f && vx < 1000.0f && vy > -200.0f && vy < 800.0f;
-}
-
 bool pausedByPlayer(const World& w) {
     return w.paused() && !w.hintShowing() && !w.levelComplete() && !w.gameOver();
 }
@@ -122,10 +114,16 @@ public:
 private:
     bool initGl(std::string* err);
     void rebuildGl(const char* why);
-    void presentLoading(float progress);
+    void presentLoading(float progress, bool intermission = false);
     void warmUp();
     bool loadLevelView();
     void handleEvent(const SDL_Event& e);
+    bool handleFlowEvent(const SDL_Event& e);
+    void uiFrame();
+    void logScreen();
+    float virtX(float fbX) const;
+    float virtY(float fbY) const;
+    void windowToFb(SDL_Window* win, float& x, float& y) const;
     void pauseGame(const char* reason);
     void setBackground(bool bg);
     void updatePauseState();
@@ -168,6 +166,21 @@ private:
         return hitch;
     }
     SafeInsets layoutInsets_;
+
+    // With the front end.
+    std::unique_ptr<GameFlow> flow_;
+    ui::UiInput uiIn_;
+    struct PendingInput {
+        bool mouse;  // mouse button (else a scancode)
+        int code;
+        bool down;
+    };
+    std::vector<PendingInput> pending_;     // keys and buttons for the mapper, after the UI had them
+    std::map<long long, bool> uiFingers_;   // fingers that went down on the UI (not the controls)
+    double lastUi_ = -1;
+    bool textInput_ = false;
+    int loadsSeen_ = 0;
+    std::string screen_;                    // last AS3D_SCREEN name
 };
 
 void GameWindow::updateLayout() {
@@ -182,6 +195,8 @@ void GameWindow::updateLayout() {
     touch_.setScreen(w, h, in);
     redraw_ = true;
     if (!o_.markers) return;
+    const ui::Mapping m = ui::computeMapping(w, h);
+    AS3D_INFO("AS3D_VIEW scale=%.4f x=%.1f y=%.1f", m.scaleX, m.offsetX, m.offsetY);
     // Button centres in framebuffer pixels, for tools/android_smoke.sh to tap.
     const TouchLayout& L = touch_.layout();
     std::string line;
@@ -207,13 +222,16 @@ bool GameWindow::initGl(std::string* err) {
     return true;
 }
 
-void GameWindow::presentLoading(float progress) {
+void GameWindow::presentLoading(float progress, bool intermission) {
     if (!overlay_) return;
     // Both buffers of the swap chain, so the bar stays up however long the next step takes.
     for (int i = 0; i < 2; ++i) {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         overlay_->begin(fbWidth(), fbHeight());
-        drawLoadingScreen(*overlay_, progress);
+        // Behind the front end: the original's loading screen (frontend.md 3.16) once its
+        // pictures are loaded; before that (and without the front end) a plain bar.
+        if (flow_ && view_ && view_->hudAvailable()) ui::drawLoadingScreen(*overlay_, view_->assets(), progress, intermission);
+        else drawLoadingScreen(*overlay_, progress);
         overlay_->flush();
         gl_->swapBuffers();
     }
@@ -225,9 +243,9 @@ void GameWindow::presentLoading(float progress) {
 void GameWindow::warmUp() {
     if (!view_) return;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    view_->draw(session_, fbWidth(), fbHeight());
+    if (session_.hasLevel()) view_->draw(session_, fbWidth(), fbHeight());
     glFinish();
-    presentLoading(1.0f);
+    presentLoading(1.0f, session_.hasLevel() && session_.world().intermission());
 }
 
 bool GameWindow::loadLevelView() {
@@ -257,11 +275,12 @@ void GameWindow::rebuildGl(const char* why) {
     }
     presentLoading(0.3f);
     view_.reset(new GameView());
-    if (!view_->init(session_, &err)) {
+    if (!view_->init(session_, &err, session_.hasLevel())) {
         AS3D_ERROR("FATAL: cannot rebuild the renderer after %s: %s", why, err.c_str());
         running_ = false;
         return;
     }
+    if (flow_) flow_->setView(view_.get());
     warmUp();
     if (o_.markers) AS3D_INFO("AS3D_GL_REBUILD reason=%s ms=%.0f", why, 1000.0 * (nowSeconds() - t0));
     lastPresent_ = -1;
@@ -283,7 +302,15 @@ void GameWindow::setBackground(bool bg) {
     background_ = bg;
     if (bg) {
         if (o_.markers) AS3D_INFO("AS3D_BACKGROUND frame=%ld", frame_);
-        pauseGame("background");
+        if (flow_) {
+            // The in-game menu opens (the game comes back paused); the profile is saved, the
+            // process may be killed in the background.
+            flow_->onBackground();
+            uiFingers_.clear();
+            logScreen();
+        } else {
+            pauseGame("background");
+        }
         keys_.releaseAll();
         touch_.releaseAll();
         mouseFinger_ = false;
@@ -298,6 +325,12 @@ void GameWindow::setBackground(bool bg) {
 }
 
 void GameWindow::updatePauseState() {
+    if (flow_) {
+        // The front end owns the pause; music and sounds go on under the menus (frontend.md
+        // 1.2), only the background silences them.
+        audio_.setPaused(background_);
+        return;
+    }
     bool p = pausedByPlayer(session_.world());
     if (p != lastPaused_) {
         lastPaused_ = p;
@@ -306,7 +339,181 @@ void GameWindow::updatePauseState() {
     audio_.setPaused(p || background_);
 }
 
+float GameWindow::virtX(float fbX) const { return ui::computeMapping(fbWidth(), fbHeight()).toVirtX(fbX); }
+float GameWindow::virtY(float fbY) const { return ui::computeMapping(fbWidth(), fbHeight()).toVirtY(fbY); }
+
+void GameWindow::windowToFb(SDL_Window* win, float& x, float& y) const {
+    int ww = 1, wh = 1;
+    if (win) SDL_GetWindowSize(win, &ww, &wh);
+    x = x * static_cast<float>(fbWidth()) / static_cast<float>(std::max(ww, 1));
+    y = y * static_cast<float>(fbHeight()) / static_cast<float>(std::max(wh, 1));
+}
+
+// Input with the front end: everything goes to the menus first (frontend.md 1.4); keys and
+// buttons reach the mapper after the UI frame, and only while playing (see uiFrame). Fingers
+// go to the menus when a menu (or the intro) is up, to the touch controls during play; the
+// touch pause button stands for Esc. Returns true when the event was handled.
+bool GameWindow::handleFlowEvent(const SDL_Event& e) {
+    using ui::UiEvent;
+    switch (e.type) {
+        case SDL_KEYDOWN:
+        case SDL_KEYUP: {
+            const bool down = e.type == SDL_KEYDOWN;
+            const int sc = e.key.keysym.scancode;
+            if (sc == SDL_SCANCODE_AC_BACK) {
+                if (down && !e.key.repeat) flow_->back();
+                logScreen();
+                return true;
+            }
+            if (down && sc == SDL_SCANCODE_F12 && !e.key.repeat) screenshot_ = true;
+            const int vk = scancodeToVk(sc);
+            if (vk) {
+                // Autorepeat reaches the menus only (list scrolling, Backspace in a name).
+                if (down && (!e.key.repeat || flow_->frontend().menuOpen())) uiIn_.press(vk);
+                if (!down) uiIn_.release(vk);
+            }
+            if (!e.key.repeat) pending_.push_back({false, sc, down});
+            return true;
+        }
+        case SDL_TEXTINPUT:
+            uiIn_.text(e.text.text);
+            return true;
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP: {
+            if (e.button.which == SDL_TOUCH_MOUSEID) return true; // synthesized from a finger
+            if (o_.touch) return false; // the left button is a finger (handled below)
+            const bool down = e.type == SDL_MOUSEBUTTONDOWN;
+            float x = static_cast<float>(e.button.x), y = static_cast<float>(e.button.y);
+            windowToFb(SDL_GetWindowFromID(e.button.windowID), x, y);
+            uiIn_.move(virtX(x), virtY(y));
+            if (int vk = mouseButtonToVk(e.button.button)) {
+                if (down) uiIn_.press(vk);
+                else uiIn_.release(vk);
+            }
+            pending_.push_back({true, e.button.button, down});
+            return true;
+        }
+        case SDL_MOUSEMOTION: {
+            if (e.motion.which == SDL_TOUCH_MOUSEID || o_.touch) return false;
+            float x = static_cast<float>(e.motion.x), y = static_cast<float>(e.motion.y);
+            windowToFb(SDL_GetWindowFromID(e.motion.windowID), x, y);
+            uiIn_.move(virtX(x), virtY(y));
+            return true;
+        }
+        case SDL_MOUSEWHEEL:
+            if (e.wheel.y > 0) uiIn_.key(ui::keys::WheelUp);
+            if (e.wheel.y < 0) uiIn_.key(ui::keys::WheelDown);
+            return true;
+        default: break;
+    }
+    // Fingers (and on desktop with --touch the left mouse button as finger -1).
+    long long id = 0;
+    TouchPhase ph = TouchPhase::Move;
+    float nx = 0, ny = 0;
+    if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION) {
+        id = static_cast<long long>(e.tfinger.fingerId);
+        ph = e.type == SDL_FINGERDOWN ? TouchPhase::Down : e.type == SDL_FINGERUP ? TouchPhase::Up : TouchPhase::Move;
+        nx = e.tfinger.x;
+        ny = e.tfinger.y;
+    } else if (o_.touch && (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) &&
+               e.button.button == SDL_BUTTON_LEFT) {
+        id = -1;
+        ph = e.type == SDL_MOUSEBUTTONDOWN ? TouchPhase::Down : TouchPhase::Up;
+        int ww = 1, wh = 1;
+        SDL_GetWindowSize(SDL_GetWindowFromID(e.button.windowID), &ww, &wh);
+        nx = static_cast<float>(e.button.x) / static_cast<float>(std::max(ww, 1));
+        ny = static_cast<float>(e.button.y) / static_cast<float>(std::max(wh, 1));
+        mouseFinger_ = ph == TouchPhase::Down;
+    } else if (o_.touch && e.type == SDL_MOUSEMOTION && mouseFinger_) {
+        id = -1;
+        int ww = 1, wh = 1;
+        SDL_GetWindowSize(SDL_GetWindowFromID(e.motion.windowID), &ww, &wh);
+        nx = static_cast<float>(e.motion.x) / static_cast<float>(std::max(ww, 1));
+        ny = static_cast<float>(e.motion.y) / static_cast<float>(std::max(wh, 1));
+    } else {
+        return false;
+    }
+    const float vx = virtX(nx * static_cast<float>(fbWidth())), vy = virtY(ny * static_cast<float>(fbHeight()));
+    const bool onUi = uiFingers_.count(id) != 0;
+    const char* on = "field";
+    if (ph == TouchPhase::Down) {
+        const TouchLayout& L = touch_.layout();
+        const bool onPause = L.hit[static_cast<int>(TouchButton::Pause)].contains(nx, ny);
+        for (int b = 0; b < kTouchButtonCount; ++b)
+            if (L.hit[b].contains(nx, ny)) on = touchButtonName(static_cast<TouchButton>(b));
+        if (!flow_->playing() || onPause) {
+            // A menu is up (or the pause button: Esc, the in-game menu).
+            uiFingers_[id] = onPause;
+            if (onPause) {
+                uiIn_.key(ui::keys::Escape);
+            } else {
+                uiIn_.move(vx, vy);
+                uiIn_.press(ui::keys::Mouse1);
+                on = "menu";
+            }
+        } else {
+            touch_.touchEvent(id, ph, nx, ny);
+        }
+    } else if (onUi) {
+        const bool pauseFinger = uiFingers_[id];
+        if (!pauseFinger) {
+            uiIn_.move(vx, vy);
+            if (ph == TouchPhase::Up) uiIn_.release(ui::keys::Mouse1);
+        }
+        if (ph == TouchPhase::Up) uiFingers_.erase(id);
+    } else {
+        touch_.touchEvent(id, ph, nx, ny);
+    }
+    if (o_.logTouches && o_.markers && ph != TouchPhase::Move)
+        AS3D_INFO("AS3D_TOUCH %s id=%lld x=%.3f y=%.3f on=%s", ph == TouchPhase::Down ? "down" : "up", id, nx, ny,
+                  onUi || ph != TouchPhase::Down ? (onUi ? "menu" : "field") : on);
+    redraw_ = true;
+    return true;
+}
+
+void GameWindow::logScreen() {
+    if (!flow_ || !o_.markers) return;
+    const ui::Frontend& fe = flow_->frontend();
+    std::string s;
+    if (fe.state() == ui::FrontendState::Intro) s = "intro";
+    else if (fe.menuOpen()) s = ui::screenName(fe.topScreen());
+    else if (fe.state() == ui::FrontendState::Playing) s = fe.paused() ? "paused" : "playing";
+    else s = "none";
+    if (s == screen_) return;
+    screen_ = s;
+    AS3D_INFO("AS3D_SCREEN name=%s frame=%ld mission=%d", s.c_str(), frame_, session_.hasLevel() ? session_.mission() : 0);
+}
+
+// One front-end frame with the events gathered since the last one, then the keys and buttons
+// the UI did not take go to the mapper (releases always, so nothing sticks).
+void GameWindow::uiFrame() {
+    const double now = nowSeconds();
+    const float dt = lastUi_ < 0 ? 0.0f : static_cast<float>(std::min(0.1, now - lastUi_));
+    lastUi_ = now;
+    const bool took = flow_->uiFrame(dt, uiIn_);
+    uiIn_.events.clear();
+    const bool live = flow_->playing() && !took;
+    for (const PendingInput& p : pending_) {
+        if (p.down && !live) continue;
+        if (p.mouse) keys_.mouseButtonEvent(p.code, p.down);
+        else keys_.keyEvent(p.code, p.down, false);
+    }
+    pending_.clear();
+    // Desktop: the system text input while a name is typed (touch mode draws its own keys).
+    const bool wantText = flow_->frontend().wantsTextInput();
+    if (wantText != textInput_) {
+        textInput_ = wantText;
+        if (wantText) SDL_StartTextInput();
+        else SDL_StopTextInput();
+    }
+    if (flow_->quitRequested()) running_ = false;
+    // Menus animate on the menu time: they are redrawn with every simulation step (60 Hz), the
+    // intro pages (no world steps) at the same rate by the step count of the loop.
+    logScreen();
+}
+
 void GameWindow::handleEvent(const SDL_Event& e) {
+    if (flow_ && handleFlowEvent(e)) return;
     switch (e.type) {
         case SDL_QUIT:
         case SDL_APP_TERMINATING: running_ = false; break;
@@ -393,20 +600,27 @@ void GameWindow::handleEvent(const SDL_Event& e) {
 void GameWindow::simulate(int steps) {
     const World& cw = session_.world();
     for (int s = 0; s < steps && running_; ++s) {
+        if (flow_ && !flow_->worldRunning()) break; // intro pages: no level yet
         float px = 0, py = 0;
         bool valid = playerScreenCentre(cw, 0, px, py);
         touch_.setPlayerScreen(valid, px, py);
-        touch_.setPaused(pausedByPlayer(cw));
+        touch_.setPaused(flow_ ? false : pausedByPlayer(cw));
         FrameInput local = keys_.takeFrame();
         FrameInput fromTouch = touch_.takeFrame();
         FrameInput in = source_.next(static_cast<u32>(frame_), local);
         in = mergeFrameInput(in, fromTouch);
         recorder_.record(static_cast<u32>(frame_), in);
         double t0 = nowSeconds();
-        int ev = session_.step(in);
+        const int loads = flow_ ? flow_->levelLoads() : 0;
+        int ev = flow_ ? flow_->step(in) : session_.step(in);
         double ts = nowSeconds() - t0;
         if (isHitch(ts, stepAvg_)) AS3D_INFO("AS3D_HITCH part=step frame=%ld ms=%.0f", frame_, 1000.0 * ts);
-        if (ev & GameSession::kLevelStarted) {
+        if (flow_) {
+            // A bot or script confirm may close a hint box; the flow loads levels itself.
+            if (flow_->levelLoads() != loads) redraw_ = true;
+            else view_->step(session_);
+            logScreen();
+        } else if (ev & GameSession::kLevelStarted) {
             loadLevelView();
             if (!o_.noAudio) audio_.startLevel(session_.musicPath());
         } else {
@@ -454,6 +668,15 @@ void GameWindow::saveScreenshot() {
 void GameWindow::draw() {
     int w = fbWidth(), h = fbHeight();
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (flow_) {
+        flow_->draw(w, h);
+        if (o_.touch && flow_->playing()) {
+            overlay_->begin(w, h);
+            drawTouchControls(*overlay_, touch_);
+            overlay_->flush();
+        }
+        return;
+    }
     view_->draw(session_, w, h);
     bool paused = pausedByPlayer(session_.world());
     if (o_.touch || paused) {
@@ -495,24 +718,46 @@ int GameWindow::run() {
     }
     presentLoading(0.3f);
     view_.reset(new GameView());
-    if (!view_->init(session_, &err)) {
+    if (!view_->init(session_, &err, session_.hasLevel())) {
         std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
         AS3D_ERROR("FATAL: renderer: %s", err.c_str());
         return 1;
     }
-    warmUp();
+    if (session_.hasLevel()) warmUp();
     if (!o_.noAudio) {
         audio_.init(session_.vfs(), false);
         audio_.startLevel(session_.musicPath());
     }
     updateLayout();
+    if (o_.frontend) {
+        flow_.reset(new GameFlow(session_, audio_));
+        if (!flow_->init(o_.flow, &err)) {
+            std::fprintf(stderr, "as3d_game: %s\n", err.c_str());
+            AS3D_ERROR("FATAL: front end: %s", err.c_str());
+            return 1;
+        }
+        flow_->setView(view_.get());
+        flow_->setInputMapper(&keys_);
+        flow_->loadingHook = [this](float progress, bool intermission) { presentLoading(progress, intermission); };
+        flow_->levelLoadedHook = [this]() {
+            warmUp();
+            status_.update(session_, GameSession::kLevelStarted);
+            if (o_.markers)
+                AS3D_INFO("AS3D_LEVEL_LOADED mission=%d shadow_maps=%d", session_.mission(), view_->renderer().shadowMapCount());
+        };
+        // The front end draws its own cursor (frontend.md 2.7) unless UseSystemMouse.
+        if (!o_.touch && !flow_->profile().settings.useSystemMouse) SDL_ShowCursor(SDL_DISABLE);
+        SDL_StopTextInput();
+        flow_->boot();
+        logScreen();
+    }
     {
         const TouchLayout& L = touch_.layout();
         if (o_.markers) AS3D_INFO("AS3D_GAME_START size=%dx%d mission=%d load_ms=%.0f touch=%d buttons=%s gl=\"%s\"", fbWidth(),
                   fbHeight(), session_.mission(), 1000.0 * (nowSeconds() - t0), o_.touch ? 1 : 0,
                   L.outside ? "outside" : "inside", gl_->description().c_str());
     }
-    status_.update(session_, GameSession::kLevelStarted);
+    if (!flow_) status_.update(session_, GameSession::kLevelStarted);
 
     const double dt = session_.world().config().dt;
     const int kMaxCatchUp = 5; // steps per displayed frame; the rest of a long stall is dropped
@@ -532,6 +777,17 @@ int GameWindow::run() {
             continue;
         }
         updateLayout();
+        if (flow_) {
+            const int loads = flow_->levelLoads();
+            uiFrame();
+            if (!running_) break;
+            if (flow_->levelLoads() != loads) {
+                // A level was loaded (seconds, behind the loading screen): not a frame time.
+                last = nowSeconds();
+                acc = 0.0;
+                lastPresent_ = -1;
+            }
+        }
 
         double now = nowSeconds();
         acc += std::min(0.25, now - last);
@@ -570,6 +826,7 @@ int GameWindow::run() {
         lastPresent_ = t;
         perf_.maybeLog(t, o_.perfLog);
     }
+    if (flow_) flow_->saveNow();
     if (!o_.recordPath.empty() && !recorder_.script().save(o_.recordPath))
         std::fprintf(stderr, "as3d_game: cannot write %s\n", o_.recordPath.c_str());
     if (!o_.dumpPath.empty() && !writeTextFile(o_.dumpPath, session_.world().dumpStateJson()))

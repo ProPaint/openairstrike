@@ -1,8 +1,9 @@
 // The Android app's native entry point (SDL_main, run by SDLActivity on its own thread).
-// Starts straight into mission 1 (menus are not implemented yet) with touch controls, the
-// original pak archives read in place from the APK's assets, and the shared game loop
-// (game_loop.h). docs/android.md describes the controls, the intent extras and the log
-// markers the smoke test waits for.
+// Opens on the front end (intro pages, main menu over the attract level, the whole mission
+// flow) in touch mode, with touch controls during play, the original pak archives read in
+// place from the APK's assets, and the shared game loop (game_loop.h). With --level N or
+// --bot it starts straight into a mission as before the menus existed. docs/android.md
+// describes the controls, the intent extras and the log markers the smoke test waits for.
 //
 // Arguments come from GameActivity.getArguments(), built from the launching intent's
 // extras: --bot, --level N, --frames N, --difficulty D, --no-audio, --rebuild-on-resume.
@@ -45,6 +46,7 @@ extern "C" JNIEXPORT void JNICALL Java_org_as3dport_game_GameActivity_nativeSetS
 int main(int argc, char* argv[]) {
     using namespace as3d_game;
     LoopOptions o;
+    bool direct = false;
     o.touch = true;
     o.mobile = true;
     o.markers = true;
@@ -57,12 +59,16 @@ int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; ++i) {
         const char* s = argv[i];
         const char* v = i + 1 < argc ? argv[i + 1] : nullptr;
-        if (!std::strcmp(s, "--bot")) o.bot = true;
+        if (!std::strcmp(s, "--bot")) {
+            o.bot = true;
+            direct = true;
+        }
         else if (!std::strcmp(s, "--no-audio")) o.noAudio = true;
         else if (!std::strcmp(s, "--rebuild-on-resume")) o.rebuildOnResume = true;
         else if (!std::strcmp(s, "--level") && v) {
             int m = std::atoi(v);
             if (m >= 1 && m <= kMissionCount) o.game.mission = m;
+            direct = true;
             ++i;
         } else if (!std::strcmp(s, "--difficulty") && v) {
             int d = std::atoi(v);
@@ -76,8 +82,24 @@ int main(int argc, char* argv[]) {
             AS3D_WARN("unknown argument '%s' ignored", s);
         }
     }
-    AS3D_INFO("AS3D_ARGS bot=%d mission=%d frames=%ld audio=%d rebuild_on_resume=%d", o.bot ? 1 : 0, o.game.mission,
-              o.frames, o.noAudio ? 0 : 1, o.rebuildOnResume ? 1 : 0);
+    if (!direct) {
+        // The front end in touch mode (docs/spec/issues/090, 130): no two-player mode, no
+        // mouse control, no video options; the touch overlay's pause button opens the
+        // in-game menu. Settings.xml, the menu logo and the texts imported from the exe are
+        // copied into the APK's assets by tools/android_build.sh when the data has them.
+        o.frontend = true;
+        o.game.startLevel = false;
+        o.game.levelFlow = false;
+        o.game.extraFiles.push_back({"gfx\\logo2s.tga", "logo2s.tga"});
+        o.flow.touch = true;
+        o.flow.twoPlayerMode = false;
+        o.flow.mouseControlOption = false;
+        o.flow.touchMenuButton = false;
+        o.flow.settingsXml = "Settings.xml";
+        o.flow.textsPath = "texts_v170.txt";
+    }
+    AS3D_INFO("AS3D_ARGS bot=%d mission=%d frames=%ld audio=%d rebuild_on_resume=%d menus=%d", o.bot ? 1 : 0,
+              o.game.mission, o.frames, o.noAudio ? 0 : 1, o.rebuildOnResume ? 1 : 0, o.frontend ? 1 : 0);
 
     // Back is a game key (it pauses), not "finish the activity". Touches must not also
     // arrive as synthetic mouse clicks. Landscape only, either way round. Keep the screen on.
@@ -89,6 +111,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     SDL_DisableScreenSaver();
+    // The profile lives in the app's internal files directory (needs SDL's Android glue).
+    if (o.frontend) o.flow.profilePath = defaultProfilePath();
     int rc = runGameWindow(o);
     SDL_Quit();
     // SDLActivity finishes the activity when main returns; the process may be reused, and

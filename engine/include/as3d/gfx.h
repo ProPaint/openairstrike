@@ -247,10 +247,10 @@ private:
 // ---------------------------------------------------------------------------
 // Small state helpers (no hidden state beyond what GL itself tracks)
 // ---------------------------------------------------------------------------
-enum class BlendMode { Off, AlphaBlend, Additive };
+enum class GlBlend { Off, AlphaBlend, Additive }; // GL blend state (defs.h BlendMode is the obj.md field)
 enum class CullMode { Off, Back, Front };
 
-void setBlend(BlendMode mode);
+void setBlend(GlBlend mode);
 void setDepth(bool test, bool write);
 void setCull(CullMode mode);
 void setViewport(int x, int y, int w, int h);

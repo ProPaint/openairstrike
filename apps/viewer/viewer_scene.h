@@ -1,6 +1,4 @@
-// Shared plumbing for the model/object/sheet/top viewer commands (WP-30/33). Includes
-// as3d/scene.h and as3d/defs.h together, which needs the BlendMode macro guard described
-// in engine/src/render/material.cpp (both headers declare a different as3d::BlendMode).
+// Shared plumbing for the model/object/sheet/top viewer commands (WP-30/33).
 #pragma once
 
 #include <memory>
@@ -12,9 +10,7 @@
 #include "as3d/platform.h"
 #include "as3d/scene.h"
 
-#define BlendMode AS3D_DEFS_BlendMode
 #include "as3d/defs.h"
-#undef BlendMode
 
 namespace viewer {
 

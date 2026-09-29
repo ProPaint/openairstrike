@@ -1,13 +1,8 @@
 // Implements as3d::SceneLighting::fromMission1 (as3d/scene.h) from docs/spec/levels-txt.md's
-// "sun"/"fog" statements. See material.cpp's top comment for the full explanation of
-// why the BlendMode macro guard below is needed: this file also needs both
-// as3d/scene.h (-> as3d/gfx.h) and as3d/defs.h in one translation unit, and the two
-// declare incompatible `enum class as3d::BlendMode`s.
+// "sun"/"fog" statements.
 #include "as3d/scene.h"
 
-#define BlendMode AS3D_DEFS_BlendMode
 #include "as3d/defs.h"
-#undef BlendMode
 
 namespace as3d {
 

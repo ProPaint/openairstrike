@@ -496,13 +496,13 @@ bool RenderTarget::readPixels(Image& out) const {
 // ---------------------------------------------------------------------------
 // State helpers
 // ---------------------------------------------------------------------------
-void setBlend(BlendMode mode) {
-    if (mode == BlendMode::Off) {
+void setBlend(GlBlend mode) {
+    if (mode == GlBlend::Off) {
         glDisable(GL_BLEND);
         return;
     }
     glEnable(GL_BLEND);
-    if (mode == BlendMode::AlphaBlend) {
+    if (mode == GlBlend::AlphaBlend) {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     } else { // Additive
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
