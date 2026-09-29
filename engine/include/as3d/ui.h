@@ -249,6 +249,7 @@ struct HudPlayer {
     int lives = 2;                    // p_lives; at most 5 icons are drawn
     std::int64_t score = 0;           // as shown: ftol(p_scores) + banked score
     int weapon = 0;                   // p_weapon, index into the icon table (4.4)
+    int upgrades[kWeaponSlots] = {};  // the weapon table (0 = not owned); only the touch overlay's next-weapon preview reads it
     int missiles[kMissileTypes] = {}; // rounds per type; types with 0 are not shown
     int missileSelected = 0;          // type index
     int powerups[kPowerupSlots] = {}; // count per slot (slot = kind); 0 = not shown

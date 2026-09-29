@@ -154,6 +154,11 @@ on 20:9, a column on 16:9); on 16:10 and 4:3 tablets they are drawn translucent 
 clear of the HUD. They stay clear of display cutouts. The design and the reasons are in
 `docs/spec/issues/100-touch-controls.md` and `140-android-polish.md`.
 
+The three small "next" buttons show the item a press will select (icon, its count for missiles
+and power-ups, and a small double-arrow badge); with nothing to switch to they are dimmed to the
+arrow alone. The rule is `as3d/player_select.h`, shared with the simulation
+(`docs/spec/issues/141-next-item-preview.md`).
+
 **Settings of our own** in Options (in the original's style, stored in the profile):
 
 - **Screen: Wide / 4:3**. Wide (default): the 3D world fills the screen. 4:3: the world and

@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <string>
 
+#include "as3d/player_select.h"
+
 namespace as3d_game {
 
 using namespace as3d;
@@ -122,6 +124,63 @@ const Color kOrange{1.0f, 0.63f, 0.0f, 1.0f};   // ui::orange()
 const Color kCount{1.0f, 0.72f, 0.25f, 1.0f};
 const Color kGreyIcon{0.5f, 0.5f, 0.52f, 1.0f};
 
+enum class ItemKind { Weapon, Missile, Powerup };
+
+// The face of an item button: the item's icon as large as the round button allows, its count
+// on a dark backing below, and for a "next" button (`next`) a small double arrow badge. A next
+// button that would change nothing (`active` false) is dimmed to the arrow alone. `n` is the
+// count to show (`counted`); an item that is not owned (n = 0) is greyed, as on the HUD.
+void itemFace(ui::Renderer2D& r, const ui::UiAssets* as, const Box& box, float x, float y, float rad, float a,
+              ItemKind kind, int idx, int n, bool counted, bool next, bool active = true) {
+    if (next && !active) {
+        nextGlyph(r, Box{x - rad * 0.5f, y - rad * 0.5f, rad, rad}, withAlpha(Color{0.75f, 0.76f, 0.8f, 1}, 0.32f * a));
+        return;
+    }
+    const bool owned = !counted || n > 0;
+    const Color ic = owned ? withAlpha(Color{}, a) : withAlpha(kGreyIcon, 0.4f * a);
+    // Vertical layout: the icon above centre, the count row (or the badge) below.
+    const float iconY = y - rad * (next ? 0.24f : 0.22f);
+    const float iconW = rad * (next ? 1.75f : 1.85f);
+    const Texture2D* tex = nullptr;
+    ui::SpecUv uv;
+    Blend blend = Blend::Alpha;
+    if (as) {
+        switch (kind) {
+            case ItemKind::Weapon: tex = &as->weapons; uv = ui::weaponIconUv(idx); blend = Blend::Add; break;
+            case ItemKind::Missile: tex = &as->missiles; uv = ui::missileIconUv(idx); break;
+            case ItemKind::Powerup:
+                tex = &as->items;
+                uv = idx < ui::kPowerupIconKinds ? ui::powerupIconUv(idx) : ui::SpecUv{};
+                if (idx == 0) blend = Blend::Add;
+                break;
+        }
+    }
+    if (tex && tex->valid() && !uv.empty()) {
+        atlasIcon(r, *tex, uv, x, iconY, iconW, ic, blend);
+    } else {
+        // No picture in the atlas (or no atlas): a drawn symbol.
+        const Box ib{x - rad, iconY - rad * 0.5f, 2 * rad, rad};
+        switch (kind) {
+            case ItemKind::Weapon: bulletsIcon(r, ib, 0.2f, 0.0f, 0.8f, 1.0f, withAlpha(Color{0.92f, 0.93f, 0.97f, 1}, a)); break;
+            case ItemKind::Missile: missileIcon(r, ib, 0.3f, -0.4f, 0.7f, 1.4f, withAlpha(Color{0.95f, 0.35f, 0.15f, 1}, a)); break;
+            case ItemKind::Powerup: diamondIcon(r, ib, 0.3f, -0.2f, 0.7f, 1.2f, withAlpha(Color{1.0f, 0.85f, 0.2f, 1}, owned ? a : 0.4f * a)); break;
+        }
+    }
+    const float rowY = y + rad * 0.22f;
+    const float rowH = rad * (next ? 0.46f : 0.44f);
+    if (next) {
+        // Count at the left, arrow badge at the right; the arrow alone is centred.
+        if (counted && as) {
+            countText(r, *as, x - rad * 0.3f, rowY, n, rowH, withAlpha(owned ? kCount : kGreyIcon, a));
+            nextGlyph(r, Box{x + rad * 0.0f, rowY - rad * 0.08f, rad * 0.7f, rad * 0.6f}, withAlpha(kOrange, a));
+        } else {
+            nextGlyph(r, Box{x - rad * 0.35f, rowY - rad * 0.08f, rad * 0.7f, rad * 0.6f}, withAlpha(kOrange, a));
+        }
+    } else if (counted && as) {
+        countText(r, *as, x, rowY, n, rowH, withAlpha(owned ? kCount : kGreyIcon, a));
+    }
+}
+
 } // namespace
 
 void drawTouchControls(ui::Renderer2D& r, const TouchMapper& touch, const TouchOverlayState& st) {
@@ -150,49 +209,52 @@ void drawTouchControls(ui::Renderer2D& r, const TouchMapper& touch, const TouchO
         r.ring(x, y, rad * 0.9f, std::max(rad * 0.025f, px), Color{1, 1, 1, 0.10f * a});
         if (held) r.ring(x, y, rad * 1.12f, rad * 0.14f, Color{1.0f, 0.55f, 0.1f, 0.55f}, Blend::Add, rad * 0.10f);
 
-        const float iconW = rad * 1.35f;
         const Box box{x - rad, y - rad, 2 * rad, 2 * rad};
         const Color light = withAlpha(Color{0.92f, 0.93f, 0.97f, 1}, a);
         switch (id) {
-            case TouchButton::Missile: {
-                const int t = p ? std::min(std::max(p->missileSelected, 0), ui::kMissileTypes - 1) : 0;
-                const int n = p ? p->missiles[t] : 1;
-                const Color ic = n > 0 ? withAlpha(Color{}, a) : withAlpha(kGreyIcon, 0.4f * a);
-                if (as && p && as->missiles.valid()) {
-                    atlasIcon(r, as->missiles, ui::missileIconUv(t), x, y - rad * 0.16f, iconW, ic, Blend::Alpha);
-                    countText(r, *as, x, y + rad * 0.22f, n, rad * 0.42f, withAlpha(n > 0 ? kCount : kGreyIcon, a));
+            case TouchButton::Missile:
+                if (p) {
+                    const int t = std::min(std::max(p->missileSelected, 0), ui::kMissileTypes - 1);
+                    itemFace(r, as, box, x, y, rad, a, ItemKind::Missile, t, p->missiles[t], true, false);
                 } else {
                     missileIcon(r, box, 0.25f, 0.15f, 0.75f, 0.85f, withAlpha(Color{0.95f, 0.35f, 0.15f, 1}, a));
                 }
                 break;
-            }
-            case TouchButton::PowerUp: {
-                const int k = p ? std::min(std::max(p->powerupSelected, 0), ui::kPowerupSlots - 1) : 0;
-                const int n = p ? p->powerups[k] : 1;
-                const Color ic = n > 0 ? withAlpha(Color{}, a) : withAlpha(kGreyIcon, 0.4f * a);
-                if (as && p && as->items.valid() && k < ui::kPowerupIconKinds) {
-                    atlasIcon(r, as->items, ui::powerupIconUv(k), x, y - rad * 0.16f, iconW, ic,
-                              k == 0 ? Blend::Add : Blend::Alpha);
+            case TouchButton::PowerUp:
+                if (p) {
+                    const int k = std::min(std::max(p->powerupSelected, 0), ui::kPowerupSlots - 1);
+                    itemFace(r, as, box, x, y, rad, a, ItemKind::Powerup, k, p->powerups[k], true, false);
                 } else {
-                    diamondIcon(r, box, 0.3f, 0.12f, 0.7f, 0.52f,
-                                n > 0 ? withAlpha(Color{1.0f, 0.85f, 0.2f, 1}, a) : withAlpha(kGreyIcon, 0.4f * a));
+                    diamondIcon(r, box, 0.3f, 0.12f, 0.7f, 0.52f, withAlpha(Color{1.0f, 0.85f, 0.2f, 1}, a));
                 }
-                if (as && p) countText(r, *as, x, y + rad * 0.22f, n, rad * 0.42f, withAlpha(n > 0 ? kCount : kGreyIcon, a));
                 break;
-            }
             case TouchButton::NextWeapon:
-                if (as && p && as->weapons.valid() && !ui::weaponIconUv(p->weapon).empty()) {
-                    atlasIcon(r, as->weapons, ui::weaponIconUv(p->weapon), x, y - rad * 0.2f, rad * 1.45f,
-                              withAlpha(Color{}, 0.9f * a), Blend::Add);
-                    nextGlyph(r, Box{x - rad * 0.45f, y + rad * 0.12f, rad * 0.9f, rad * 0.6f}, withAlpha(kOrange, a));
+                if (p) {
+                    // The big icon is the weapon one press selects; no count (a weapon is a level).
+                    const int nw = nextWeaponIndex(p->upgrades, p->weapon);
+                    itemFace(r, as, box, x, y, rad, a, ItemKind::Weapon, nw, 0, false, true, nw != p->weapon);
                 } else {
                     bulletsIcon(r, box, 0.22f, 0.2f, 0.78f, 0.6f, light);
                     nextGlyph(r, Box{x - rad * 0.45f, y + rad * 0.15f, rad * 0.9f, rad * 0.6f}, withAlpha(kOrange, a));
                 }
                 break;
             case TouchButton::NextMissile:
+                if (p) {
+                    const int nm = nextMissileType(p->missiles, p->missileSelected);
+                    itemFace(r, as, box, x, y, rad, a, ItemKind::Missile, nm, p->missiles[nm], true, true,
+                             nm != p->missileSelected);
+                } else {
+                    nextGlyph(r, Box{x - rad * 0.5f, y - rad * 0.5f, rad * 1.0f, rad * 1.0f}, withAlpha(light, 0.9f));
+                }
+                break;
             case TouchButton::NextPowerUp:
-                nextGlyph(r, Box{x - rad * 0.5f, y - rad * 0.5f, rad * 1.0f, rad * 1.0f}, withAlpha(light, 0.9f));
+                if (p) {
+                    const int nk = nextPowerupSlot(p->powerups, p->powerupSelected);
+                    itemFace(r, as, box, x, y, rad, a, ItemKind::Powerup, nk, p->powerups[nk], true, true,
+                             nk != p->powerupSelected);
+                } else {
+                    nextGlyph(r, Box{x - rad * 0.5f, y - rad * 0.5f, rad * 1.0f, rad * 1.0f}, withAlpha(light, 0.9f));
+                }
                 break;
             case TouchButton::Pause:
                 fillRectU(r, box, 0.34f, 0.3f, 0.45f, 0.7f, light);
