@@ -442,7 +442,7 @@ TEST_CASE("Culling: CullMode::Back (this engine's chosen setting) shows a CCW-wo
 
 namespace {
 bool mountOriginalPaks(Vfs& vfs) {
-    std::string dataDir = testdata::originalDir() + "/data";
+    std::string dataDir = testdata::installDir() + "/data";
     for (const char* name : {"pak0.apk", "pak1.apk", "pak2.apk"}) {
         auto src = makePakSource(openFileStream(dataDir + "/" + name));
         if (!src) return false;
@@ -464,7 +464,7 @@ int countCloseTo(const Image& img, int r, int g, int b, int tol) {
 
 TEST_CASE("Smoke test: 20 assorted real objects render visibly with no unexpected placeholder texture") {
     AS3D_REQUIRE_HEADLESS_GL(ctx);
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
 
     Vfs vfs;
     REQUIRE(mountOriginalPaks(vfs));

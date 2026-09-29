@@ -338,7 +338,7 @@ TEST_CASE("polish: the 2D layer's circle and ring are round, anti-aliased and ho
 }
 
 TEST_CASE("polish: the simulation does not depend on the Screen setting") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     POLISH_REQUIRE_GL();
     std::string dumps[2];
     int barPixels[2] = {0, 0};
@@ -482,7 +482,7 @@ TEST_CASE("touch speed: the setting scales the drag gain and the lead") {
 }
 
 TEST_CASE("touch speed: a fast swipe on the real helicopter goes further and arrives sooner") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     // The finger moves 200 virtual px in 0.1 s; the helicopter's own top speed (150 units/s,
     // about 8.2 px a frame) is the script's and is not changed.
     SwipeResult r[kTouchSpeedSteps];

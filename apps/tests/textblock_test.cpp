@@ -47,7 +47,7 @@ std::string slurpFile(const std::string& path) {
     return ss.str();
 }
 
-// Minimal, purpose-built reader for testdata/golden/textblock_counts.json:
+// Minimal, purpose-built reader for testdata/golden/<game>/textblock_counts.json:
 // the file is produced by tools/ref/test_textblock.py with a known, simple
 // shape, so a couple of regexes are enough without pulling in a JSON lib.
 std::map<std::string, Counts> loadGoldenCounts(const std::string& jsonText) {
@@ -73,27 +73,18 @@ int extractIntField(const std::string& jsonText, const std::string& key) {
     return -1;
 }
 
-// The 42 files that use this syntax (see docs/spec/text-blocks.md), as
-// game paths for testdata::readExtracted.
-const std::vector<std::string>& allTextBlockFiles() {
-    static const std::vector<std::string> files = {
-        "maps\\levels.txt",
-        "objects\\banner.obj", "objects\\boss1.obj", "objects\\boss2.obj",
-        "objects\\boss3.obj", "objects\\btrs.obj", "objects\\buildings.obj",
-        "objects\\cannons.obj", "objects\\desert_builds.obj", "objects\\effects.obj",
-        "objects\\effects2.obj", "objects\\flora.obj", "objects\\futuristic.obj",
-        "objects\\helics.obj", "objects\\items.obj", "objects\\jeeps.obj",
-        "objects\\mapobjects.obj", "objects\\misc.obj", "objects\\nature.obj",
-        "objects\\planes.obj", "objects\\player.obj", "objects\\rocketlauncher.obj",
-        "objects\\ruins.obj", "objects\\ships.obj", "objects\\tanks.obj",
-        "objects\\trains.obj", "objects\\transport.obj", "objects\\weapons.obj",
-        "objects\\weapons_enemy.obj", "objects\\weapons_enemy_missiles.obj",
-        "objects\\zabors.obj",
-        "particles\\explosions.ps", "particles\\particles.ps", "particles\\water.ps",
-        "particles\\weapons.ps", "particles\\weapons_enemy.ps", "particles\\weather.ps",
-        "weapons\\bosses.wpn", "weapons\\e_missiles.wpn", "weapons\\e_weapons.wpn",
-        "weapons\\enemies.wpn", "weapons\\player.wpn",
-    };
+// The files that use this syntax (see docs/spec/text-blocks.md: maps/levels.txt and every
+// .obj, .wpn and .ps file; 42 in the first game) are the keys of the golden counts, as game
+// paths for testdata::readExtracted. Their number is checked against expected.json.
+std::vector<std::string> allTextBlockFiles(const std::map<std::string, Counts>& golden) {
+    std::vector<std::string> files;
+    for (const auto& kv : golden) {
+        std::string p = kv.first;
+        for (char& c : p) {
+            if (c == '/') c = '\\';
+        }
+        files.push_back(p);
+    }
     return files;
 }
 
@@ -109,22 +100,20 @@ std::string toGoldenKey(const std::string& gamePath) {
 
 } // namespace
 
-TEST_CASE("all 42 game text files parse with zero errors and match the golden counts") {
+TEST_CASE("all game text files parse with zero errors and match the golden counts") {
     AS3D_REQUIRE_DATA();
 
-    // The golden file is checked into *this* repository (worktree), unlike
-    // the gitignored game data: read it relative to AS3D_REPO_ROOT, not
-    // testdata::goldenDir() (which follows AS3D_DATA_ROOT and, in a
-    // worktree, points at a checkout that may be on a different branch).
-    std::string goldenText = slurpFile(std::string(AS3D_REPO_ROOT) + "/testdata/golden/textblock_counts.json");
+    // The golden file is checked into *this* repository (worktree), unlike the gitignored game
+    // data; goldenDir() is relative to AS3D_REPO_ROOT.
+    std::string goldenText = slurpFile(testdata::goldenDir() + "/textblock_counts.json");
     REQUIRE(!goldenText.empty());
     std::map<std::string, Counts> golden = loadGoldenCounts(goldenText);
-    REQUIRE(golden.size() == 42);
+    REQUIRE(golden.size() == static_cast<size_t>(testdata::expectedInt("text_blocks.files")));
 
     int totalNamedObjectBlocks = 0;
     std::map<std::string, int> objectNameCounts;
 
-    for (const auto& gamePath : allTextBlockFiles()) {
+    for (const auto& gamePath : allTextBlockFiles(golden)) {
         Blob blob;
         REQUIRE(testdata::readExtracted(gamePath, blob));
         TextFile tf = parseTextBlocks(blob.data(), blob.size());
@@ -153,10 +142,10 @@ TEST_CASE("all 42 game text files parse with zero errors and match the golden co
     CHECK(totalNamedObjectBlocks == expectedTotal);
     CHECK(distinctObjectNames == expectedDistinct);
 
-    // VERIFIED-DATA (see docs/spec/text-blocks.md): matches the original
-    // game's "G_LoadObjects: 864 objects parsed succefully" log line exactly.
-    CHECK(totalNamedObjectBlocks == 864);
-    CHECK(distinctObjectNames == 863);
+    // VERIFIED-DATA (see docs/spec/text-blocks.md): the first game's 864 blocks (863 names) match
+    // its "G_LoadObjects: 864 objects parsed succefully" log line exactly.
+    CHECK(totalNamedObjectBlocks == testdata::expectedInt("text_blocks.object_blocks"));
+    CHECK(distinctObjectNames == testdata::expectedInt("text_blocks.distinct_object_names"));
 }
 
 TEST_CASE("TextToken number classification") {
@@ -484,7 +473,14 @@ TEST_CASE("a file that is nothing but stray junk still terminates cleanly") {
 TEST_CASE("fuzz: mutated real file and random bytes never crash or hang") {
     AS3D_REQUIRE_DATA();
     Blob seed;
-    REQUIRE(testdata::readExtracted("objects\\tanks.obj", seed));
+    // tanks.obj where the game has it, else its first object file.
+    std::string seedFile = "objects\\tanks.obj";
+    if (!testdata::readExtracted(seedFile, seed)) {
+        for (const auto& f : allTextBlockFiles(loadGoldenCounts(slurpFile(testdata::goldenDir() + "/textblock_counts.json")))) {
+            if (f.rfind("objects\\", 0) == 0) { seedFile = f; break; }
+        }
+    }
+    REQUIRE(testdata::readExtracted(seedFile, seed));
 
     std::mt19937 rng(12345);
     std::uniform_int_distribution<int> byteDist(0, 255);

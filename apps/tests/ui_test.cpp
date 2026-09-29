@@ -46,7 +46,7 @@ FontMetrics synthetic() {
 }
 
 bool mountPaks(Vfs& vfs) {
-    std::string dir = testdata::originalDir() + "/data";
+    std::string dir = testdata::installDir() + "/data";
     bool any = false;
     for (const char* n : {"pak0.apk", "pak1.apk", "pak2.apk"}) {
         auto src = makePakSource(openFileStream(dir + "/" + n));
@@ -269,7 +269,7 @@ TEST_CASE("ui hud: state to quads, typewriter and hint layout") {
 }
 
 TEST_CASE("ui headless: text and HUD render non-empty, upright, in the right places") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     GraphicsContext* ctx = uiContext();
     if (!ctx) {
         std::fprintf(stderr, "SKIPPED (no headless GLES context available): %s\n", __FILE__);

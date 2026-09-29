@@ -436,7 +436,7 @@ The mock host makes runs deterministic and reproducible by a C++ implementation:
   handler whose entry point is absent is not run. dt = 1/60 rounded to float
   (0x3c888889).
 - Builtins: each reads its documented argument slots t0..t(n−1) (from
-  testdata/golden/rcsl_builtins.json); vector arguments are dereferenced (3 floats must be
+  testdata/golden/as3d/rcsl_builtins.json); vector arguments are dereferenced (3 floats must be
   readable), string arguments must be STRG string starts. Return register: `random` =
   u, `crandom` = 2u − 1 (computed in float), where u comes from xorshift32 (state seeded
   with 1; `x ^= x << 13; x ^= x >> 17; x ^= x << 5`, 32-bit) as

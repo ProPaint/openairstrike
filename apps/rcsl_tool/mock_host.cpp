@@ -11,11 +11,12 @@ namespace {
 
 constexpr Addr kGlobalBase = 0x2000'0000u;
 constexpr Addr kEntityBase = 0x3000'0000u;
-constexpr int kNumGlobals = 24;
+
+MockTableSet g_tableSet = MockTableSet::V170;
 
 // Engine global table order (0x457220), rcsl-vm.md "Globals". Index order matters: it is
 // how a global's address is computed (kGlobalBase + 0x10 * index).
-const char* const kEngineGlobals[kNumGlobals] = {
+const char* const kEngineGlobals[] = {
     "self",          "other",         "cb_msg",     "cb_parm1", "cb_parm2",
     "player",        "p_action",      "p_scores",   "p_lives",  "p_stars",
     "p_speedfactor", "p_counter1",    "p_counter2", "p_counter3", "p_weapon",
@@ -23,9 +24,28 @@ const char* const kEngineGlobals[kNumGlobals] = {
     "camera",        "g_map_pos",     "g_damage_factor", "g_health_factor",
 };
 
+// The sequels' 28 names, in the order of the table of the AirStrike 2 executable
+// (docs/spec/as2/rcsl-vm.delta.md, "Globals"); same list as tools/ref/rcsl_vm.py.
+const char* const kEngineGlobalsSequel[] = {
+    "self",       "other",       "cb_msg",         "cb_parm1",      "cb_parm2",
+    "player",     "player1",     "player2",        "p_action",      "p_maxHealth",
+    "p_scores",   "p_lives",     "p_stars",        "p_speedfactor", "p_counter1",
+    "p_counter2", "p_counter3",  "p_weapon",       "l_night",       "l_water",
+    "l_waterlevel", "frametime", "time",           "camera",        "cameramode",
+    "g_map_pos",  "g_damage_factor", "g_health_factor",
+};
+
+bool sequelTables() { return g_tableSet == MockTableSet::Sequel; }
+
+int numGlobals() {
+    return sequelTables() ? static_cast<int>(sizeof(kEngineGlobalsSequel) / sizeof(kEngineGlobalsSequel[0]))
+                          : static_cast<int>(sizeof(kEngineGlobals) / sizeof(kEngineGlobals[0]));
+}
+
 int globalIndex(const char* name) {
-    for (int i = 0; i < kNumGlobals; ++i) {
-        if (std::strcmp(kEngineGlobals[i], name) == 0) return i;
+    const char* const* names = sequelTables() ? kEngineGlobalsSequel : kEngineGlobals;
+    for (int i = 0; i < numGlobals(); ++i) {
+        if (std::strcmp(names[i], name) == 0) return i;
     }
     return -1;
 }
@@ -141,6 +161,29 @@ constexpr MockBuiltinMeta kMockBuiltins[] = {
 };
 constexpr size_t kMockBuiltinCount = sizeof(kMockBuiltins) / sizeof(kMockBuiltins[0]);
 
+// The sequels' table (docs/spec/as2/rcsl-builtins-table.delta.md; same names and types as
+// testdata/golden/as2/rcsl_builtins.json): the 85 above, "Lightning" with its new radius
+// argument, and 16 more. Gulf Thunder has the same 101.
+constexpr MockBuiltinMeta kSequelLightning = {"Lightning", 1, {AK::Float}, RK::None};
+constexpr MockBuiltinMeta kSequelExtra[] = {
+    {"GameOver", 0, {}, RK::None},
+    {"atan2", 2, {AK::Float, AK::Float}, RK::Float},
+    {"copysign", 2, {AK::Float, AK::Float}, RK::Float},
+    {"floor", 1, {AK::Float}, RK::Float},
+    {"floor2", 2, {AK::Float, AK::Float}, RK::Float},
+    {"fmod", 2, {AK::Float, AK::Float}, RK::Float},
+    {"DetachEntity", 1, {AK::Entity}, RK::None},
+    {"RadialDamagePlayer", 3, {AK::Vec, AK::Float, AK::Float}, RK::None},
+    {"WaterHeight", 2, {AK::Float, AK::Float}, RK::Float},
+    {"G_SetPowerUpCount", 2, {AK::Int, AK::Int}, RK::None},
+    {"TerraMorph", 2, {AK::Vec, AK::StringArg}, RK::None},
+    {"IsMultiplayer", 0, {}, RK::IntAsFloat},
+    {"IsPlayerInGame", 1, {AK::Int}, RK::IntAsFloat},
+    {"GetMapPosOfs", 0, {}, RK::Float},
+    {"GetPlayerAccel", 1, {AK::VecOut}, RK::None},
+    {"GetPlayersDistance", 0, {}, RK::Float},
+};
+
 // One generic implementation drives every documented builtin, exactly as the reference
 // VM's MockHost.call_builtin does (docs/spec/rcsl-vm.md, "Mock host"): the mock does not
 // simulate gameplay, it only validates argument shapes and produces a value from the
@@ -195,25 +238,39 @@ void genericMockBuiltin(BuiltinArgs& args, void* userData) {
     }
 }
 
+BuiltinDesc mockDesc(const MockBuiltinMeta& m) {
+    BuiltinDesc d;
+    d.name = m.name;
+    d.argCount = m.arity;
+    d.fn = &genericMockBuiltin;
+    d.userData = const_cast<void*>(static_cast<const void*>(&m));
+    d.status = BuiltinStatus::Implemented;
+    return d;
+}
+
 const std::vector<BuiltinDesc>& mockDescs() {
-    static const std::vector<BuiltinDesc> descs = [] {
+    static const std::vector<BuiltinDesc> v170 = [] {
         std::vector<BuiltinDesc> v;
         v.reserve(kMockBuiltinCount);
-        for (const MockBuiltinMeta& m : kMockBuiltins) {
-            BuiltinDesc d;
-            d.name = m.name;
-            d.argCount = m.arity;
-            d.fn = &genericMockBuiltin;
-            d.userData = const_cast<void*>(static_cast<const void*>(&m));
-            d.status = BuiltinStatus::Implemented;
-            v.push_back(d);
-        }
+        for (const MockBuiltinMeta& m : kMockBuiltins) v.push_back(mockDesc(m));
         return v;
     }();
-    return descs;
+    static const std::vector<BuiltinDesc> sequel = [] {
+        std::vector<BuiltinDesc> v;
+        v.reserve(kMockBuiltinCount + sizeof(kSequelExtra) / sizeof(kSequelExtra[0]));
+        for (const MockBuiltinMeta& m : kMockBuiltins) {
+            v.push_back(mockDesc(std::strcmp(m.name, "Lightning") == 0 ? kSequelLightning : m));
+        }
+        for (const MockBuiltinMeta& m : kSequelExtra) v.push_back(mockDesc(m));
+        return v;
+    }();
+    return sequelTables() ? sequel : v170;
 }
 
 } // namespace
+
+void selectMockTables(MockTableSet set) { g_tableSet = set; }
+MockTableSet mockTables() { return g_tableSet; }
 
 MockHost::MockHost(float dt) {
     newEntity(); // 0 = self
@@ -223,12 +280,17 @@ MockHost::MockHost(float dt) {
     setGlobal("self", entityRef(kMockSelf));
     setGlobal("player", entityRef(kMockPlayer));
     setGlobal("camera", entityRef(kMockCamera));
+    if (sequelTables()) { // as2 and gulf: the two player globals and the executable's initial camera mode
+        setGlobal("player1", entityRef(kMockPlayer));
+        setGlobal("player2", entityRef(kMockOther));
+        setGlobal("cameramode", floatToBits(1.0f));
+    }
     setGlobal("frametime", floatToBits(dt));
 }
 
 bool MockHost::mapped(Addr addr) const {
     if (addr & 3u) return false;
-    if (addr >= kGlobalBase && addr < kGlobalBase + 0x10u * kNumGlobals) return true;
+    if (addr >= kGlobalBase && addr < kGlobalBase + 0x10u * static_cast<u32>(numGlobals())) return true;
     if (addr >= kEntityBase) {
         u32 rel = addr - kEntityBase;
         u32 n = rel / 0x1000u;

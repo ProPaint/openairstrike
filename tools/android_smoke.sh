@@ -20,6 +20,17 @@
 #      screenshot of the launcher's app list when the emulator's launcher shows one;
 #   8. prints the AS3D_PERF lines.
 #
+# Optional stage 0, AS3D_SMOKE_MIGRATION=1: the save of the PREVIOUS app build survives the
+# update (docs/spec/issues/160, 162). It installs an old APK (AS3D_SMOKE_OLD_APK, else built
+# from the commit AS3D_SMOKE_OLD_COMMIT, default 7753c66, in a scratch git worktree under
+# $AS3D_SMOKE_OUT with tools/android_build.sh; that takes as long as a build), starts it on
+# the front end, switches Screen to 4:3 in Options (Back writes the version 1 profile), stops
+# it and keeps a copy of files/profile.bin. Then it installs the new APK over it (adb install
+# -r), starts it, and checks through run-as that files/profile.bin is gone,
+# files/profile.v1.bak is byte for byte the old file, files/as3d/profile.bin exists (version
+# 2, key as3d), and that the game comes up with Screen still 4:3 (AS3D_LAYOUT screen=4x3).
+# The normal walk goes on from the updated app.
+#
 # Every tap on a touch button uses the centre the game logs in AS3D_LAYOUT (name=x,y,r in
 # framebuffer pixels, from the layout code), never hard-coded coordinates.
 #
@@ -148,9 +159,35 @@ adb -s "${SERIAL}" shell settings put secure immersive_mode_confirmations confir
 # would swallow the taps. (The emulator's data partition is temporary.)
 adb -s "${SERIAL}" shell settings put global hide_error_dialogs 1 >/dev/null 2>&1 || true
 
+MIGRATION="${AS3D_SMOKE_MIGRATION:-0}"
+OLD_APK=""
+if [ "${MIGRATION}" = "1" ]; then
+    OLD_APK="${AS3D_SMOKE_OLD_APK:-}"
+    if [ -z "${OLD_APK}" ]; then
+        OLD_COMMIT="${AS3D_SMOKE_OLD_COMMIT:-7753c66}"
+        OLD_TREE="${OUT_DIR}/prev-build-${OLD_COMMIT}"
+        OLD_APK="${OLD_TREE}/android/app/build/outputs/apk/debug/app-debug.apk"
+        if [ ! -f "${OLD_APK}" ]; then
+            echo "== building the previous app (${OLD_COMMIT}) in ${OLD_TREE} =="
+            if [ ! -d "${OLD_TREE}" ]; then
+                git -C "${REPO_ROOT}" worktree add --detach "${OLD_TREE}" "${OLD_COMMIT}" >/dev/null || fail "cannot check out ${OLD_COMMIT}"
+            fi
+            # The old build script has no per-game layout; it needs the same data root.
+            ( cd "${OLD_TREE}" && AS3D_DATA_ROOT="${DATA_ROOT}" tools/android_build.sh >"${OUT_DIR}/prev_build.log" 2>&1 ) \
+                || fail "building ${OLD_COMMIT} failed (see ${OUT_DIR}/prev_build.log)"
+        fi
+    fi
+    [ -f "${OLD_APK}" ] || fail "no old APK at ${OLD_APK}"
+fi
+
 echo "== install =="
 adb -s "${SERIAL}" uninstall "${APP_ID}" >/dev/null 2>&1 || true
-adb -s "${SERIAL}" install -r "${APK}" || fail "adb install failed"
+if [ -n "${OLD_APK}" ]; then
+    echo "android_smoke: installing the OLD app first: ${OLD_APK}"
+    adb -s "${SERIAL}" install -r "${OLD_APK}" || fail "adb install (old) failed"
+else
+    adb -s "${SERIAL}" install -r "${APK}" || fail "adb install failed"
+fi
 
 # ---------------------------------------------------------------------------------------
 adb -s "${SERIAL}" logcat -c
@@ -202,6 +239,101 @@ dismiss_dialogs() {
 }
 tap() { dismiss_dialogs; adb -s "${SERIAL}" shell input tap "$1" "$2"; }
 
+# try_until PATTERN TRIES COMMAND...: runs the command until PATTERN occurs once more. The
+# game ignores a pause request while a tutorial hint box holds the pause (the bot closes
+# those one frame later), so a single tap can legitimately do nothing.
+try_until() {
+    local pattern="$1" tries="$2" before
+    shift 2
+    before="$(count "${pattern}")"
+    for _ in $(seq 1 "${tries}"); do
+        "$@"
+        for _ in $(seq 1 8); do
+            check_crash
+            if [ "$(count "${pattern}")" -gt "${before}" ]; then return 0; fi
+            sleep 1
+        done
+    done
+    fail "no new /${pattern}/ after ${tries} attempts"
+}
+
+# The virtual 800x600 screen of the front end in framebuffer pixels: from the last AS3D_VIEW.
+read_view() {
+    local view
+    view="$(grep -E "AS3D_VIEW" "${LOG_FILE}" | tail -n1)"
+    read -r VSCALE VX VY <<<"$(echo "${view}" | sed -nE 's/.*scale=([0-9.]+) x=([0-9.-]+) y=([0-9.-]+).*/\1 \2 \3/p')"
+    [ -n "${VY:-}" ] || fail "no AS3D_VIEW line"
+}
+# vtap X Y: taps the point (X, Y) of the virtual 800x600 screen.
+vtap() {
+    local p
+    p="$(awk -v x="$1" -v y="$2" -v s="${VSCALE}" -v ox="${VX}" -v oy="${VY}" 'BEGIN { printf "%d %d", x * s + ox, y * s + oy }')"
+    # shellcheck disable=SC2086
+    tap ${p}
+}
+
+# ---------------------------------------------------------------------------------------
+# Stage 0 (AS3D_SMOKE_MIGRATION=1): the previous build's save moves to the new location.
+# ---------------------------------------------------------------------------------------
+run_as() { adb -s "${SERIAL}" shell run-as "${APP_ID}" "$@"; }
+if [ -n "${OLD_APK}" ]; then
+    echo "== migration: the old app, Screen set to 4:3, stopped =="
+    BEFORE="$(count "AS3D_SCREEN name=main")"
+    adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" || fail "am start (old app) failed"
+    wait_more "AS3D_SCREEN name=main" "${BEFORE}" "${START_TIMEOUT}"
+    read_view
+    sleep 3
+    try_until "AS3D_SCREEN name=options" 3 vtap 400 335     # Options
+    sleep 1
+    try_until "AS3D_LAYOUT .*screen=4x3" 3 vtap 440 168     # Screen: 4:3
+    sleep 1
+    try_until "AS3D_SCREEN name=main" 3 vtap 114 482        # Back (writes the profile)
+    sleep 2
+    adb -s "${SERIAL}" shell am force-stop "${APP_ID}"
+    sleep 2
+    echo "-- files of the old app --"
+    run_as ls -la files | tee "${OUT_DIR}/migration_before.txt"
+    run_as cat files/profile.bin > "${OUT_DIR}/old_profile.bin" 2>/dev/null
+    [ -s "${OUT_DIR}/old_profile.bin" ] || fail "the old app wrote no files/profile.bin"
+    OLD_VERSION="$(od -An -tu4 -j8 -N4 "${OUT_DIR}/old_profile.bin" | tr -d ' ')"
+    [ "${OLD_VERSION}" = "1" ] || fail "the old profile is version ${OLD_VERSION}, expected 1"
+    echo "android_smoke: old files/profile.bin: $(stat -c %s "${OUT_DIR}/old_profile.bin") bytes, version 1"
+
+    echo "== migration: installing the new app over it (adb install -r), starting it =="
+    cp "${LOG_FILE}" "${OUT_DIR}/logcat_old_app.txt"
+    kill "${LOGCAT_PID}" >/dev/null 2>&1 || true
+    adb -s "${SERIAL}" install -r "${APK}" || fail "adb install -r (new over old) failed"
+    adb -s "${SERIAL}" logcat -c
+    adb -s "${SERIAL}" logcat -v time >"${LOG_FILE}" 2>/dev/null &
+    LOGCAT_PID=$!
+    adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" || fail "am start (new app) failed"
+    wait_for "AS3D_SCREEN name=main" "${START_TIMEOUT}"
+    wait_for "AS3D_LAYOUT .*screen=4x3" 30
+    sleep 3
+    echo "-- files after the update --"
+    run_as ls -la files files/as3d | tee "${OUT_DIR}/migration_after.txt"
+    run_as ls files/profile.bin >/dev/null 2>&1 && fail "files/profile.bin still exists"
+    run_as cat files/profile.v1.bak > "${OUT_DIR}/bak_profile.bin" 2>/dev/null
+    cmp -s "${OUT_DIR}/old_profile.bin" "${OUT_DIR}/bak_profile.bin" || fail "files/profile.v1.bak is not the old file"
+    run_as cat files/as3d/profile.bin > "${OUT_DIR}/new_profile.bin" 2>/dev/null
+    [ -s "${OUT_DIR}/new_profile.bin" ] || fail "no files/as3d/profile.bin"
+    NEW_VERSION="$(od -An -tu4 -j8 -N4 "${OUT_DIR}/new_profile.bin" | tr -d ' ')"
+    KEYLEN="$(od -An -tu1 -j20 -N1 "${OUT_DIR}/new_profile.bin" | tr -d ' ')"
+    KEY="$(dd if="${OUT_DIR}/new_profile.bin" bs=1 skip=21 count="${KEYLEN}" 2>/dev/null)"
+    [ "${NEW_VERSION}" = "2" ] && [ "${KEY}" = "as3d" ] || fail "new profile: version ${NEW_VERSION}, key '${KEY}', expected 2 / as3d"
+    grep -E "profile|AS3D_ARGS" "${LOG_FILE}" | grep -iE "warn|error|cannot" && fail "the app logged a profile problem"
+    shot migration_after_update
+    echo "android_smoke: migration OK: profile.bin -> profile.v1.bak (same bytes), as3d/profile.bin is version 2, Screen still 4:3"
+    adb -s "${SERIAL}" shell am force-stop "${APP_ID}"
+    sleep 2
+    # The rest of the walk starts from a clean log.
+    kill "${LOGCAT_PID}" >/dev/null 2>&1 || true
+    cp "${LOG_FILE}" "${OUT_DIR}/logcat_migration.txt"
+    adb -s "${SERIAL}" logcat -c
+    adb -s "${SERIAL}" logcat -v time >"${LOG_FILE}" 2>/dev/null &
+    LOGCAT_PID=$!
+fi
+
 echo "== launch (bot pilot) =="
 adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" --ez bot true --ei level 1 --ez rebuild_on_resume true || fail "am start failed"
 wait_for "AS3D_GAME_START" "${START_TIMEOUT}"
@@ -239,23 +371,6 @@ grep -qE "AS3D_TOUCH down .* on=next_weapon" "${LOG_FILE}" || fail "the next-wea
 shot 02_after_touch
 
 echo "== pause button, then a tap to continue =="
-# try_until PATTERN TRIES COMMAND...: runs the command until PATTERN occurs once more. The
-# game ignores a pause request while a tutorial hint box holds the pause (the bot closes
-# those one frame later), so a single tap can legitimately do nothing.
-try_until() {
-    local pattern="$1" tries="$2" before
-    shift 2
-    before="$(count "${pattern}")"
-    for _ in $(seq 1 "${tries}"); do
-        "$@"
-        for _ in $(seq 1 8); do
-            check_crash
-            if [ "$(count "${pattern}")" -gt "${before}" ]; then return 0; fi
-            sleep 1
-        done
-    done
-    fail "no new /${pattern}/ after ${tries} attempts"
-}
 try_until "AS3D_PAUSED" 3 tap "${PAUSE_X}" "${PAUSE_Y}"
 sleep 2
 shot 03_paused
@@ -300,16 +415,7 @@ adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" || fail "am start (menus) 
 # Intro pages (about 16 s), then the attract level loads.
 wait_more "AS3D_SCREEN name=main" "${BEFORE}" "${START_TIMEOUT}"
 grep -qE "AS3D_ARGS .*menus=1" "${LOG_FILE}" || fail "the app did not start on the front end"
-VIEW="$(grep -E "AS3D_VIEW" "${LOG_FILE}" | tail -n1)"
-read -r VSCALE VX VY <<<"$(echo "${VIEW}" | sed -nE 's/.*scale=([0-9.]+) x=([0-9.-]+) y=([0-9.-]+).*/\1 \2 \3/p')"
-[ -n "${VY:-}" ] || fail "no AS3D_VIEW line"
-# vtap X Y: taps the point (X, Y) of the virtual 800x600 screen.
-vtap() {
-    local p
-    p="$(awk -v x="$1" -v y="$2" -v s="${VSCALE}" -v ox="${VX}" -v oy="${VY}" 'BEGIN { printf "%d %d", x * s + ox, y * s + oy }')"
-    # shellcheck disable=SC2086
-    tap ${p}
-}
+read_view
 sleep 3
 shot menu_01_main
 try_until "AS3D_SCREEN name=start" 3 vtap 400 266       # Start Game

@@ -8,20 +8,21 @@ is not available.
 
   AS3D_DATA_ROOT=/path/to/airstrike3d python3 tools/ref/test_hmap.py
 
-Set AS3D_HMAP_REGENERATE_GOLDEN=1 to overwrite testdata/golden/hmap_summary.json
+`--game <key>` (else $AS3D_GAME, else as3d) picks the game. Set AS3D_HMAP_REGENERATE_GOLDEN=1 to
+overwrite testdata/golden/<key>/hmap_summary.json
 instead of diffing against it (check the diff, then commit it).
 
 Checks, for every maps/*.hsc (see docs/spec/hmap.md for the rules):
   - magic, version, parsed length == file length (inside hmap.parse)
-  - the set of shipped maps is exactly the 24 expected files
+  - the set of shipped maps is exactly the expected files (expected.json, "maps")
   - type/item indices in range, rotation < 12, placements inside the grid
   - every type and item name resolves to an objects/*.obj block
-    (EXPECTED_UNRESOLVED lists documented exceptions; it is empty)
+    (expected.json lists the documented exceptions)
   - every per-placement script file exists
   - grid layers inside the documented ranges; tile set 0 => no index/rotation;
     tile indices outside their atlas only in the documented cells
   - every waypoint path starts at its placement's cell (x, y-1)
-  - every end_of_the_level marker next to a tiles5 helipad sits on its centre
+  - every end_of_the_level marker next to a helipad (tile set "pad_tile_set") sits on its centre
   - each map is referenced by exactly one maps/levels.txt block
   - golden summary (header fields, names, per-layer sha1/min/max,
     placement counts per type, sha1 of the canonical placement list)
@@ -32,46 +33,43 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gamesel  # noqa: E402
+
+gamesel.parse_game_arg()
 import hmap  # noqa: E402
 
-REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-GOLDEN_PATH = os.path.join(REPO_ROOT, "testdata", "golden", "hmap_summary.json")
+GOLDEN_PATH = gamesel.golden_path("hmap_summary.json")
+EXP = gamesel.expected()["maps"]
 
-EXPECTED_MAPS = {
-    "intro.hsc", "intro2.hsc", "intro3.hsc", "intro4.hsc",
-    "level1.hsc", "level3.hsc", "level3_2.hsc", "level4.hsc", "level4_2.hsc", "level5.hsc",
-    "level8.hsc", "level9.hsc", "level10.hsc", "level11.hsc", "level12.hsc", "level13.hsc",
-    "level14.hsc", "level15.hsc", "level16.hsc", "level17.hsc", "level18.hsc", "level19.hsc",
-    "level20.hsc", "level21.hsc",
-}
+EXPECTED_MAPS = set(EXP["names"])
 
-# Names in a type or item table that do not match any objects/*.obj block.
-# VERIFIED-DATA: none in the shipped data. Format: {(map, name), ...}
-EXPECTED_UNRESOLVED = set()
+# Names in a type or item table that do not match any objects/*.obj block: {(map, name), ...}.
+EXPECTED_UNRESOLVED = {(m, n) for m, n in EXP["unresolved_names"]}
 
-# Cells whose tile index lies outside the atlas, or whose rotation byte is not
-# one of 0/3/6/9 (editor garbage; the engine wraps the UVs, see spec).
+# Cells whose tile index lies outside the atlas, or whose rotation byte is not one of
+# 0/3/6/9 (editor garbage; the engine wraps the UVs, see spec).
 # {(map, col, row): (set, index, rotation)}
-EXPECTED_ODD_TILES = {
-    ("level12.hsc", 10, 64): (2, 32, 49),
-    ("level12.hsc", 11, 64): (2, 54, 0),
-    ("level12.hsc", 18, 192): (2, 32, 49),
-    ("level12.hsc", 19, 192): (2, 54, 0),
-    ("level18.hsc", 17, 179): (2, 32, 49),
-    ("level18.hsc", 18, 179): (2, 54, 0),
-}
+EXPECTED_ODD_TILES = {(t["map"], t["col"], t["row"]): (t["set"], t["index"], t["rotation"])
+                      for t in EXP["odd_tiles"]}
 
 TILE_ATLAS_TILES = {}  # set -> number of 64x64 tiles, filled from the data
 
-# end_of_the_level markers within 3 cells of a 3x3 tiles5 helipad: all of them
-# sit exactly on the pad's centre cell (x, y-1). 17 levels have such a pad
-# (level3_2 has a second marker at y=256 with no pad; the three boss levels
-# have neither).
-EXPECTED_MARKERS_ON_PADS = 17
+# end_of_the_level markers within 3 cells of a 3x3 helipad (centre tile: set pad_tile_set,
+# index pad_tile_index): all of them sit exactly on the pad's centre cell (x, y-1).
+EXPECTED_MARKERS_ON_PADS = EXP["markers_on_pads"]
+MAX_TILE_SET = EXP["tile_sets"]
+PAD_SET, PAD_INDEX = EXP["pad_tile_set"], EXP["pad_tile_index"]
+
+# Waypoints that break the range rules below (a cell outside the map, a delay of 1e7): the
+# rule is kept for every other waypoint. {(map, placement index, waypoint index)}
+EXPECTED_ODD_WAYPOINTS = {tuple(w) for w in EXP.get("odd_waypoints", [])}
+
+# Maps that are not named by exactly one maps/levels.txt block: {map: number of blocks}.
+EXPECTED_REFERENCES = dict(EXP.get("reference_exceptions", {}))
 
 
 def data_available():
-    return os.path.isfile(os.path.join(hmap.extracted_dir(), "maps", "levels.txt"))
+    return gamesel.has_data()
 
 
 def atlas_tiles(s):
@@ -105,8 +103,8 @@ def check_map(name, m, defs, errors, odd_seen):
             if idx or rot:
                 errors.append(f"{name}: cell ({c},{r}) has no tile set but index/rot {idx}/{rot}")
             continue
-        if not 1 <= s <= 5:
-            errors.append(f"{name}: cell ({c},{r}) tile set {s} outside 1..5")
+        if not 1 <= s <= MAX_TILE_SET:
+            errors.append(f"{name}: cell ({c},{r}) tile set {s} outside 1..{MAX_TILE_SET}")
             continue
         n_tiles = atlas_tiles(s)
         if n_tiles == 0:
@@ -137,18 +135,19 @@ def check_map(name, m, defs, errors, odd_seen):
             if (w0.x, w0.y) != (p.x, p.y - 1):
                 errors.append(f"{tag}: path starts at ({w0.x},{w0.y}), not at the placement cell")
             for k, w in enumerate(p.waypoints):
-                if not (-8 <= w.x <= W + 8 and 0 <= w.y < H):
+                odd_ok = (name, p.index, k) in EXPECTED_ODD_WAYPOINTS
+                if not (-8 <= w.x <= W + 8 and 0 <= w.y < H) and not odd_ok:
                     errors.append(f"{tag}: waypoint {k} ({w.x},{w.y}) far outside the map")
                 if w.unknown8 not in (0, 1, 2):
                     errors.append(f"{tag}: waypoint {k} field +8 = {w.unknown8}")
                 vals = list(w.in_ctrl) + list(w.out_ctrl) + [w.delay]
-                if any(v != v or abs(v) > 1e6 for v in vals):
+                if any(v != v or abs(v) > 1e6 for v in vals) and not odd_ok:
                     errors.append(f"{tag}: waypoint {k} has non-finite floats")
 
     # Helipad / end marker consistency (evidence for the y-1 row convention).
     pads = set()
     for i in range(W * H):
-        if cells[4 * i + 1] == 5 and cells[4 * i + 2] == 5:  # centre tile of the 3x3 pad
+        if cells[4 * i + 1] == PAD_SET and cells[4 * i + 2] == PAD_INDEX:  # centre tile of the 3x3 pad
             pads.add((i % W, i // W))
     on_pad = 0
     for p in m.placements:
@@ -183,13 +182,7 @@ def summarise(name, m):
 
 
 def main():
-    if not data_available():
-        print("=" * 70, file=sys.stderr)
-        print("SKIPPED test_hmap.py: game data not found "
-              f"(looked under {hmap.extracted_dir()})", file=sys.stderr)
-        print("Set AS3D_DATA_ROOT to a checkout with assets_extracted/, see README.md.",
-              file=sys.stderr)
-        print("=" * 70, file=sys.stderr)
+    if gamesel.skip_no_data("test_hmap"):
         return 0
 
     errors = []
@@ -219,7 +212,7 @@ def main():
             continue
         total_pl += len(m.placements)
         markers_on_pads += check_map(name, m, defs, errors, odd_seen)
-        if refs[name.lower()] != 1:
+        if refs[name.lower()] != EXPECTED_REFERENCES.get(name, 1):
             errors.append(f"{name}: referenced {refs[name.lower()]} times by maps/levels.txt")
         summary.append(summarise(name, m))
     if markers_on_pads != EXPECTED_MARKERS_ON_PADS:

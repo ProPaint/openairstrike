@@ -2,7 +2,7 @@
 //
 // Three parts:
 //  - a golden-corpus check that loads every shipped .hsc and compares against
-//    testdata/golden/hmap_summary.json (computed independently by tools/ref/test_hmap.py
+//    testdata/golden/<game>/hmap_summary.json (computed independently by tools/ref/test_hmap.py
 //    / tools/ref/hmap.py), including a byte-exact reproduction of the reference's
 //    canonical placement sha1 (which needs a C++ replica of Python's float.hex());
 //  - synthetic in-memory tests for malformed input: truncation at every structure
@@ -411,7 +411,8 @@ TEST_CASE("hmap: every shipped level loads and matches the golden summary") {
     std::string goldenPath = testdata::goldenDir() + "/hmap_summary.json";
     JsonValue golden;
     REQUIRE_MESSAGE(loadGolden(goldenPath, golden), "missing/unparseable golden file: ", goldenPath);
-    REQUIRE(golden.arrayValue.size() == 24);
+    const size_t wantMaps = static_cast<size_t>(testdata::expectedInt("maps.files"));
+    REQUIRE(golden.arrayValue.size() == wantMaps);
 
     int checked = 0;
     for (const JsonValue& entry : golden.arrayValue) {
@@ -497,7 +498,7 @@ TEST_CASE("hmap: every shipped level loads and matches the golden summary") {
 
         checked++;
     }
-    CHECK(checked == 24);
+    CHECK(checked == static_cast<int>(wantMaps));
     MESSAGE("hmap: checked ", checked, " levels against the golden summary");
 }
 
@@ -728,7 +729,11 @@ TEST_CASE("hmap: out-of-range type/item indices do not crash the accessors") {
 TEST_CASE("fuzz: mutated real .hsc file never crashes") {
     AS3D_REQUIRE_DATA();
     Blob seed;
-    REQUIRE(testdata::readExtracted("maps\\level1.hsc", seed));
+    // level1.hsc where the game has it, else its first map.
+    std::vector<std::string> maps = testdata::expectedStrings("maps.names");
+    std::string seedName = maps.empty() ? "" : maps[0];
+    for (const std::string& n : maps) if (n == "level1.hsc") seedName = n;
+    REQUIRE(testdata::readExtracted("maps\\" + seedName, seed));
     REQUIRE(!seed.empty());
 
     std::mt19937 rng(20020101);

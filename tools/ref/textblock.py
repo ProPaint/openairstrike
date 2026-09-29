@@ -20,7 +20,11 @@ import dataclasses
 import glob
 import os
 import re
+import sys
 from typing import List, Optional, Tuple
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gamesel  # noqa: E402
 
 _NUMBER_RE = re.compile(r"^-?[0-9]+(\.[0-9]+)?$")
 
@@ -241,15 +245,12 @@ def parse_text_blocks(data: bytes) -> TextFile:
 # ---------------------------------------------------------------------------
 
 def data_root() -> str:
-    env = os.environ.get("AS3D_DATA_ROOT")
-    if env:
-        return env
-    # tools/ref/textblock.py -> tools/ref -> tools -> repo root (two levels up).
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    return gamesel.data_root()
 
 
 def extracted_dir() -> str:
-    return os.path.join(data_root(), "assets_extracted")
+    """Extracted files of the selected game (--game, $AS3D_GAME, default as3d)."""
+    return gamesel.extracted_dir()
 
 
 def list_text_block_files(root: Optional[str] = None) -> List[str]:

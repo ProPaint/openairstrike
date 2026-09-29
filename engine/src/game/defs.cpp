@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <set>
 #include <unordered_map>
 
 #include "defs_enums.h"
@@ -54,8 +55,19 @@ AttachDef parseAttach(const std::vector<TextToken>& args, int line) {
     return ad;
 }
 
+// Logs a keyword no loader knows, once per kind and keyword.
+void noteUnknownKey(std::set<std::string>& seen, std::vector<std::string>& warnings, const char* kind,
+                    const std::string& file, const std::string& key, int line) {
+    if (!seen.insert(std::string(kind) + ":" + key).second) return;
+    warnings.push_back(file + ": unknown " + kind + " keyword '" + key + "' at line " + std::to_string(line) +
+                       " (further uses not reported)");
+}
+
+// Cap of skid_mark statements kept per object (the sequels' data has at most a handful).
+constexpr size_t kMaxSkidMarks = 64;
+
 void loadObjectsFile(const TextFile& tf, const std::string& baseName, std::vector<ObjectDef>& out,
-                      std::vector<std::string>& warnings) {
+                      std::vector<std::string>& warnings, std::set<std::string>& unknown) {
     using namespace defs_detail;
     for (const auto& b : tf.blocks) {
         ObjectDef o;
@@ -92,9 +104,31 @@ void loadObjectsFile(const TextFile& tf, const std::string& baseName, std::vecto
             } else if (key == "score") {
                 o.score = intAt(a, 0);
             } else if (key == "flag") {
-                if (!a.empty()) o.flags |= parseFlag(textAt(a, 0));
+                if (!a.empty()) {
+                    o.flags |= parseFlag(textAt(a, 0));
+                    o.sequelFlags |= parseSequelFlag(textAt(a, 0));
+                }
             } else if (key == "touch") {
-                o.touch = parseTouchMode(textAt(a, 0));
+                // TOUCH_CIVILIAN is recorded on its own: it must not reset the mode of an
+                // earlier "touch" statement to None.
+                if (u32 civ = parseSequelTouch(textAt(a, 0))) o.sequelTouch |= civ;
+                else o.touch = parseTouchMode(textAt(a, 0));
+            } else if (key == "civilian") {
+                o.civilian = true;
+            } else if (key == "speed") {
+                o.hasSpeed = true;
+                o.speed = numAt(a, 0);
+            } else if (key == "skid_mark") {
+                if (o.skidMarks.size() < kMaxSkidMarks) {
+                    SkidMarkDef m;
+                    m.x = numAt(a, 0);
+                    m.y = numAt(a, 1);
+                    m.width = numAt(a, 2);
+                    m.texture = textAt(a, 3);
+                    o.skidMarks.push_back(std::move(m));
+                } else {
+                    capped = true;
+                }
             } else if (key == "player") {
                 o.kind = ObjectKind::Player;
             } else if (key == "enemy") {
@@ -142,20 +176,21 @@ void loadObjectsFile(const TextFile& tf, const std::string& baseName, std::vecto
                 } else {
                     capped = true;
                 }
+            } else {
+                noteUnknownKey(unknown, warnings, "object", baseName, key, s.line);
             }
-            // Any other key would be genuinely unrecognized; none occur in
-            // the shipped data (VERIFIED-DATA, tools/ref/test_defs.py).
         }
         if (capped) {
             warnings.push_back(baseName + ": object '" + b.name + "' at line " +
                                 std::to_string(b.line) +
-                                ": too many attach statements (>64), extra ones dropped");
+                                ": too many attach or skid_mark statements (>64), extra ones dropped");
         }
         out.push_back(std::move(o));
     }
 }
 
-void loadWeaponsFile(const TextFile& tf, std::vector<WeaponDef>& out) {
+void loadWeaponsFile(const TextFile& tf, const std::string& baseName, std::vector<WeaponDef>& out,
+                     std::vector<std::string>& warnings, std::set<std::string>& unknown) {
     for (const auto& b : tf.blocks) {
         WeaponDef w;
         w.name = b.name;
@@ -170,13 +205,16 @@ void loadWeaponsFile(const TextFile& tf, std::vector<WeaponDef>& out) {
                 w.flashName = textAt(a, 0);
             } else if (key == "speed") {
                 w.speed = numAt(a, 0);
+            } else {
+                noteUnknownKey(unknown, warnings, "weapon", baseName, key, s.line);
             }
         }
         out.push_back(std::move(w));
     }
 }
 
-void loadParticleSystemsFile(const TextFile& tf, std::vector<ParticleSystemDef>& out) {
+void loadParticleSystemsFile(const TextFile& tf, const std::string& baseName, std::vector<ParticleSystemDef>& out,
+                             std::vector<std::string>& warnings, std::set<std::string>& unknown) {
     using namespace defs_detail;
     for (const auto& b : tf.blocks) {
         ParticleSystemDef p;
@@ -233,13 +271,16 @@ void loadParticleSystemsFile(const TextFile& tf, std::vector<ParticleSystemDef>&
                 p.damageAmount = numAt(a, 1);
                 p.damageParam2 = numAt(a, 2);
                 p.damageParam3 = numAt(a, 3);
+            } else {
+                noteUnknownKey(unknown, warnings, "particle system", baseName, key, s.line);
             }
         }
         out.push_back(std::move(p));
     }
 }
 
-void loadLevelsFile(const TextFile& tf, std::vector<LevelDef>& out) {
+void loadLevelsFile(const TextFile& tf, const std::string& baseName, std::vector<LevelDef>& out,
+                    std::vector<std::string>& warnings, std::set<std::string>& unknown) {
     for (const auto& b : tf.blocks) {
         LevelDef lv;
         lv.line = b.line;
@@ -282,6 +323,8 @@ void loadLevelsFile(const TextFile& tf, std::vector<LevelDef>& out) {
             } else if (key == "intermission") {
                 lv.hasIntermission = true;
                 for (int i = 0; i < 6; i++) lv.intermission[i] = numAt(a, static_cast<size_t>(i));
+            } else {
+                noteUnknownKey(unknown, warnings, "level", baseName, key, s.line);
             }
         }
         out.push_back(std::move(lv));
@@ -319,27 +362,28 @@ bool DefDatabase::load(Vfs& vfs) {
     // correctness does not depend on this (TextFile's vectors are moved,
     // not copied, on any reallocation, so TextBlock addresses stay valid).
     sourceFiles_.reserve(objFiles.size() + wpnFiles.size() + psFiles.size() + 1);
+    std::set<std::string> unknownKeys; // kind:key pairs already reported
 
     for (auto& path : objFiles) {
         Blob blob;
         if (!vfs.read(path, blob)) continue;
         sourceFiles_.push_back(parseTextBlocks(blob.data(), blob.size()));
         for (auto& e : sourceFiles_.back().errors) warnings_.push_back(path + ": " + e);
-        loadObjectsFile(sourceFiles_.back(), basenameOf(path), objects_, warnings_);
+        loadObjectsFile(sourceFiles_.back(), basenameOf(path), objects_, warnings_, unknownKeys);
     }
     for (auto& path : wpnFiles) {
         Blob blob;
         if (!vfs.read(path, blob)) continue;
         sourceFiles_.push_back(parseTextBlocks(blob.data(), blob.size()));
         for (auto& e : sourceFiles_.back().errors) warnings_.push_back(path + ": " + e);
-        loadWeaponsFile(sourceFiles_.back(), weapons_);
+        loadWeaponsFile(sourceFiles_.back(), basenameOf(path), weapons_, warnings_, unknownKeys);
     }
     for (auto& path : psFiles) {
         Blob blob;
         if (!vfs.read(path, blob)) continue;
         sourceFiles_.push_back(parseTextBlocks(blob.data(), blob.size()));
         for (auto& e : sourceFiles_.back().errors) warnings_.push_back(path + ": " + e);
-        loadParticleSystemsFile(sourceFiles_.back(), particleSystems_);
+        loadParticleSystemsFile(sourceFiles_.back(), basenameOf(path), particleSystems_, warnings_, unknownKeys);
     }
     {
         Blob blob;
@@ -348,7 +392,7 @@ bool DefDatabase::load(Vfs& vfs) {
             for (auto& e : sourceFiles_.back().errors) {
                 warnings_.push_back(std::string("maps\\levels.txt: ") + e);
             }
-            loadLevelsFile(sourceFiles_.back(), levels_);
+            loadLevelsFile(sourceFiles_.back(), "levels.txt", levels_, warnings_, unknownKeys);
         } else {
             warnings_.push_back("maps\\levels.txt not found");
         }
@@ -547,6 +591,20 @@ std::string canonicalObject(const ObjectDef& o) {
         line(out, (p + "id").c_str(), a.idName);
         line(out, (p + "abs").c_str(), a.absolute ? "1" : "0");
         line(out, (p + "night").c_str(), a.nightOnly ? "1" : "0");
+    }
+    // Sequel syntax: lines only for what is present, so the first game's text is unchanged
+    // (docs/spec/as2/obj.delta.md, "Canonical serialization").
+    if (o.civilian) line(out, "civilian", "1");
+    if (o.hasSpeed) line(out, "speed", fhex(o.speed));
+    if (o.sequelFlags) line(out, "sequelFlags", uhex(o.sequelFlags));
+    if (o.sequelTouch) line(out, "sequelTouch", uhex(o.sequelTouch));
+    if (!o.skidMarks.empty()) {
+        line(out, "skidMarkCount", std::to_string(o.skidMarks.size()));
+        for (size_t i = 0; i < o.skidMarks.size(); i++) {
+            const auto& m = o.skidMarks[i];
+            line(out, ("skidMark" + std::to_string(i)).c_str(),
+                 fhex(m.x) + "," + fhex(m.y) + "," + fhex(m.width) + "," + m.texture);
+        }
     }
     return out;
 }

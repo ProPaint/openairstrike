@@ -27,6 +27,9 @@ import struct
 import sys
 from typing import Dict, List, Optional, Sequence, Tuple
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gamesel  # noqa: E402
+
 MAGIC = b"HMAP"
 VERSION = 2
 HEADER_FMT = "<4s6I"
@@ -229,14 +232,12 @@ def parse_file(path: str) -> HmapFile:
 # ---------------------------------------------------------------------------
 
 def data_root() -> str:
-    env = os.environ.get("AS3D_DATA_ROOT")
-    if env:
-        return env
-    return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    return gamesel.data_root()
 
 
 def extracted_dir() -> str:
-    return os.path.join(data_root(), "assets_extracted")
+    """Extracted files of the selected game (--game, $AS3D_GAME, default as3d)."""
+    return gamesel.extracted_dir()
 
 
 def asset_path(game_path: str) -> str:

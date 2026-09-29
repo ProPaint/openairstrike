@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generates testdata/golden/terrain_heights.json from tools/ref/hmap.py.
+"""Generates testdata/golden/<game>/terrain_heights.json from tools/ref/hmap.py (`--game <key>`,
+else $AS3D_GAME, else as3d).
 
 For every shipped map: the sha1 of the resampled (W+1)x(H+1) raw vertex heights
 (hmap.vertex_heights) and the sha1 of the generated 256x256 RGB base texture of block 0
@@ -16,10 +17,12 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gamesel  # noqa: E402
+
+gamesel.parse_game_arg()
 import hmap  # noqa: E402
 
-REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-OUT = os.path.join(REPO_ROOT, "testdata", "golden", "terrain_heights.json")
+OUT = gamesel.golden_path("terrain_heights.json")
 
 
 def base_texture_block(m, tex_dir, block):

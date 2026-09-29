@@ -72,7 +72,7 @@ ApacheCase apacheAt(float camX, float x) {
 } // namespace
 
 TEST_CASE("on-screen bit: T1 bottom limit (Apache, 800x600)") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     ApacheCase c = apacheAt(640.0f, 640.0f);
     INFO("rect " << c.rect.min[0] << ", " << c.rect.min[1] << " .. " << c.rect.max[0] << ", " << c.rect.max[1]);
     CHECK(c.radius == doctest::Approx(44.07f).epsilon(0.001));
@@ -84,7 +84,7 @@ TEST_CASE("on-screen bit: T1 bottom limit (Apache, 800x600)") {
 }
 
 TEST_CASE("on-screen bit: T2 right limit, T3 left limit (Apache, 800x600)") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     ApacheCase r = apacheAt(702.0f, 803.59f);
     INFO("right rect " << r.rect.min[0] << ", " << r.rect.min[1] << " .. " << r.rect.max[0] << ", " << r.rect.max[1]);
     CHECK(r.rect.min[0] == doctest::Approx(690.9f).epsilon(0.002));
@@ -101,7 +101,7 @@ TEST_CASE("on-screen bit: the player's x clamp is at the worked example's limits
     // Rule 8: origin.x within [x_left + 10, x_right - 10] of the collision camera's frustum
     // at the origin's y and z. Holding right (left) with the camera at its clamp ends at the
     // worked example's 803.59 (476.41) at the bottom of the band.
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     vfs.mount(makeDirSource(testdata::extractedDir()));
     DefDatabase db;

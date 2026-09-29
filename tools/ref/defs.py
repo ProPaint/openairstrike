@@ -7,7 +7,7 @@ docs/spec/levels-txt.md for the grammar, enum values and canonical
 serialization this mirrors. The engine implementation
 (engine/src/game/defs.cpp) must produce byte-identical canonical
 serializations (and therefore identical sha1 hashes) for every definition;
-that agreement is what testdata/golden/defs_summary.json checks.
+that agreement is what testdata/golden/<game>/defs_summary.json checks.
 
 Stdlib only.
 """
@@ -24,6 +24,7 @@ from typing import Dict, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import textblock as tb
+import gamesel  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Enum tables (VERIFIED-CODE unless noted; see docs/spec/obj.md &c.)
@@ -70,6 +71,13 @@ PS_RFLAGS = {
     "RF_NODEPTHTEST": RF_NODEPTHTEST,
     "RF_NODEPTHWRITE": RF_NODEPTHWRITE,
 }
+
+# Sequel-only syntax (docs/spec/as2/obj.delta.md): kept as written, one of our own bits per
+# keyword value (not the executable's flag values); meaning is specified in
+# engine-behaviour.delta.md (pending). Mirrors SequelFlagBits / SequelTouchBits in as3d/defs.h.
+SEQUEL_FLAGS = {"FL_ONWATER_NORMAL": 0x1, "FL_ONWATER_FLAT": 0x2}
+SEQUEL_TOUCH = {"TOUCH_CIVILIAN": 0x1}
+MAX_SKID_MARKS = 64
 
 FL_ONGROUND, FL_ONGROUND_NORMAL_EXTRA, FL_ONWATER = 0x1, 0x2, 0x4
 FL_NODRAW, FL_TEMPORARY, FL_NONTARGET, FL_POINT_COLLISION = 0x10, 0x20, 0x100, 0x1000
@@ -151,6 +159,13 @@ class ObjectDef:
     light_cone_angle: float = 0.0
     script: str = ""
     attachments: List[AttachDef] = dataclasses.field(default_factory=list)
+    # Sequel syntax; defaults mean "absent" and add nothing to the canonical text.
+    civilian: bool = False
+    has_speed: bool = False
+    speed: float = 0.0
+    sequel_flags: int = 0
+    sequel_touch: int = 0
+    skid_marks: List[tuple] = dataclasses.field(default_factory=list)  # (x, y, width, texture)
     block: object = None  # the source TextBlock
 
 
@@ -230,6 +245,7 @@ class DefDatabase:
         self.particle_systems: List[ParticleSystemDef] = []
         self.levels: List[LevelDef] = []
         self.warnings: List[str] = []
+        self._unknown_seen = set()
         self._object_by_name: Dict[str, ObjectDef] = {}
         self._ps_by_name: Dict[str, ParticleSystemDef] = {}
         self._weapon_by_name: Dict[str, WeaponDef] = {}
@@ -277,6 +293,14 @@ class DefDatabase:
         with open(path, "rb") as f:
             return tb.parse_text_blocks(f.read())
 
+    def _unknown(self, kind: str, base: str, key: str, line: int) -> None:
+        """A keyword no loader knows: one warning per kind and keyword."""
+        if (kind, key) in self._unknown_seen:
+            return
+        self._unknown_seen.add((kind, key))
+        self.warnings.append(f"{base}: unknown {kind} keyword '{key}' at line {line} "
+                             "(further uses not reported)")
+
     def _num(self, tok) -> float:
         return tok.as_float() if tok is not None else 0.0
 
@@ -318,8 +342,27 @@ class DefDatabase:
                 elif key == "flag":
                     if a:
                         o.flags |= OBJ_FLAGS.get(a[0].text, 0)
+                        o.sequel_flags |= SEQUEL_FLAGS.get(a[0].text, 0)
                 elif key == "touch":
-                    o.touch = TOUCH_MODES.get(a[0].text, 0) if a else 0
+                    # TOUCH_CIVILIAN is recorded on its own: it must not reset the mode of an
+                    # earlier "touch" statement to none.
+                    if a and a[0].text in SEQUEL_TOUCH:
+                        o.sequel_touch |= SEQUEL_TOUCH[a[0].text]
+                    else:
+                        o.touch = TOUCH_MODES.get(a[0].text, 0) if a else 0
+                elif key == "civilian":
+                    o.civilian = True
+                elif key == "speed":
+                    o.has_speed = True
+                    o.speed = self._num(a[0] if a else None)
+                elif key == "skid_mark":
+                    if len(o.skid_marks) < MAX_SKID_MARKS:
+                        o.skid_marks.append((self._num(a[0] if len(a) > 0 else None),
+                                             self._num(a[1] if len(a) > 1 else None),
+                                             self._num(a[2] if len(a) > 2 else None),
+                                             a[3].text if len(a) > 3 else ""))
+                    else:
+                        attach_count_capped = True
                 elif key == "player":
                     o.kind = OBJECT_KIND_PLAYER
                 elif key == "enemy":
@@ -358,12 +401,11 @@ class DefDatabase:
                         o.attachments.append(self._parse_attach(a, s.line))
                     else:
                         attach_count_capped = True
-                # "{"/"}" already excluded by the block parser; any other
-                # key is genuinely unrecognized (never observed).
-                elif key not in ("scale", "frames"):
-                    pass
+                # "{"/"}" already excluded by the block parser.
+                else:
+                    self._unknown("object", base, key, s.line)
             if attach_count_capped:
-                self.warnings.append(f"{base}: object '{b.name}' at line {b.line}: too many attach statements (>64), extra ones dropped")
+                self.warnings.append(f"{base}: object '{b.name}' at line {b.line}: too many attach or skid_mark statements (>64), extra ones dropped")
             self.objects.append(o)
 
     def _parse_attach(self, args, line: int) -> AttachDef:
@@ -393,6 +435,7 @@ class DefDatabase:
 
     def _load_weapons(self, path: str) -> None:
         tf = self._parse(path)
+        base = os.path.basename(path)
         for b in tf.blocks:
             w = WeaponDef(name=b.name, line=b.line, block=b)
             for s in b.statements:
@@ -404,10 +447,13 @@ class DefDatabase:
                     w.flash = a[0].text if a else ""
                 elif key == "speed":
                     w.speed = self._num(a[0] if a else None)
+                else:
+                    self._unknown("weapon", base, key, s.line)
             self.weapons.append(w)
 
     def _load_particle_systems(self, path: str) -> None:
         tf = self._parse(path)
+        base = os.path.basename(path)
         for b in tf.blocks:
             p = ParticleSystemDef(name=b.name, line=b.line, block=b)
             for s in b.statements:
@@ -459,10 +505,13 @@ class DefDatabase:
                     p.damage_amount = self._num(a[1] if len(a) > 1 else None)
                     p.damage_param2 = self._num(a[2] if len(a) > 2 else None)
                     p.damage_param3 = self._num(a[3] if len(a) > 3 else None)
+                else:
+                    self._unknown("particle system", base, key, s.line)
             self.particle_systems.append(p)
 
     def _load_levels(self, path: str) -> None:
         tf = self._parse(path)
+        base = os.path.basename(path)
         for b in tf.blocks:
             lv = LevelDef(line=b.line, block=b)
             for s in b.statements:
@@ -501,6 +550,8 @@ class DefDatabase:
                 elif key == "intermission":
                     lv.has_intermission = True
                     lv.intermission = [self._num(a[i] if i < len(a) else None) for i in range(6)]
+                else:
+                    self._unknown("level", base, key, s.line)
             self.levels.append(lv)
 
     # -- lookup --------------------------------------------------------
@@ -637,6 +688,20 @@ def canonical_object(o: ObjectDef) -> str:
         lines.append(f"attach{i}.id={a.id}")
         lines.append(f"attach{i}.abs={int(a.absolute)}")
         lines.append(f"attach{i}.night={int(a.night)}")
+    # Sequel syntax: lines only for what is present, so the first game's text is unchanged
+    # (docs/spec/as2/obj.delta.md, "Canonical serialization").
+    if o.civilian:
+        lines.append("civilian=1")
+    if o.has_speed:
+        lines.append(f"speed={fhex(o.speed)}")
+    if o.sequel_flags:
+        lines.append(f"sequelFlags={uhex(o.sequel_flags)}")
+    if o.sequel_touch:
+        lines.append(f"sequelTouch={uhex(o.sequel_touch)}")
+    if o.skid_marks:
+        lines.append(f"skidMarkCount={len(o.skid_marks)}")
+        for i, (x, y, w, tex) in enumerate(o.skid_marks):
+            lines.append(f"skidMark{i}={fhex(x)},{fhex(y)},{fhex(w)},{tex}")
     return "\n".join(lines)
 
 
@@ -711,11 +776,9 @@ def sha1_of(text: str) -> str:
 
 
 def data_root() -> str:
-    env = os.environ.get("AS3D_DATA_ROOT")
-    if env:
-        return env
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    return gamesel.data_root()
 
 
 def extracted_dir() -> str:
-    return os.path.join(data_root(), "assets_extracted")
+    """Extracted files of the selected game (--game, $AS3D_GAME, default as3d)."""
+    return gamesel.extracted_dir()

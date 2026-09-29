@@ -29,7 +29,7 @@ inline as3d::GraphicsContext* context() {
 }
 
 inline bool mountPaks(as3d::Vfs& vfs) {
-    const std::string dir = testdata::originalDir() + "/data";
+    const std::string dir = testdata::installDir() + "/data";
     bool any = false;
     for (const char* n : {"pak0.apk", "pak1.apk", "pak2.apk"}) {
         auto src = as3d::makePakSource(as3d::openFileStream(dir + "/" + n));

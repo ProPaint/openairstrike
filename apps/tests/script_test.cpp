@@ -1,7 +1,7 @@
 // Tests for the RCSL VM (as3d::script). See docs/script-vm.md and docs/spec/rcsl-*.md.
 //
 //  - golden corpus: the standard run of every shipped script under the mock host must
-//    reproduce testdata/golden/rcsl_trace_hashes.json (sha1 of the trace, instruction and
+//    reproduce testdata/golden/<game>/rcsl_trace_hashes.json (sha1 of the trace, instruction and
 //    builtin call counts), produced by the Python reference interpreter;
 //  - performance sanity;
 //  - unit tests on small synthetic programs built with a tiny assembler;
@@ -278,15 +278,22 @@ bool parseGoldenHashes(const std::string& t, std::vector<std::pair<std::string, 
 }
 } // namespace
 
+// The game under test picks the mock host's tables, as tools/ref/rcsl_vm.py does from --game.
+void selectTablesForGame() {
+    rcsl_tool::selectMockTables(testdata::game().id == as3d::GameId::AirStrike3D ? rcsl_tool::MockTableSet::V170
+                                                                                : rcsl_tool::MockTableSet::Sequel);
+}
+
 TEST_CASE("script: every shipped script reproduces the reference trace") {
     AS3D_REQUIRE_DATA();
+    selectTablesForGame();
     std::ifstream f(testdata::goldenDir() + "/rcsl_trace_hashes.json", std::ios::binary);
     REQUIRE(f.good());
     std::stringstream ss;
     ss << f.rdbuf();
     std::vector<std::pair<std::string, Golden>> golden;
     REQUIRE(parseGoldenHashes(ss.str(), golden));
-    CHECK(golden.size() == 339);
+    CHECK(golden.size() == static_cast<size_t>(testdata::expectedInt("scripts.files")));
 
     int matched = 0;
     for (const auto& kv : golden) {
@@ -316,6 +323,7 @@ TEST_CASE("script: every shipped script reproduces the reference trace") {
 
 TEST_CASE("script: performance of the standard run over all scripts (no trace sink)") {
     AS3D_REQUIRE_DATA();
+    selectTablesForGame();
     std::vector<std::unique_ptr<ScriptProgram>> progs;
     std::ifstream f(testdata::goldenDir() + "/rcsl_trace_hashes.json", std::ios::binary);
     std::stringstream ss;

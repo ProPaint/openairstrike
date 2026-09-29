@@ -179,10 +179,10 @@ using Addr = u32;
 // ScriptThread (never routed through IScriptHost). A script has no way to obtain another
 // thread's frame address, so every ScriptThread may safely reuse the same window; a host
 // must not resolve any global, entity field or other address inside it. Frame size is at
-// most 81 slots in the shipped corpus (rcsl-container.md), so the window is kept well
-// clear of that with room to spare.
+// most 81 slots in the first game's corpus (rcsl-container.md) and 296 in the sequels'
+// (as2/rcsl-container.delta.md), so the window is kept clear of that with room to spare.
 constexpr Addr kFrameBase = 0x1000'0000u;
-constexpr u32 kMaxFrameSlots = 256;
+constexpr u32 kMaxFrameSlots = 512;
 constexpr Addr kFrameWindowEnd = kFrameBase + 4 * kMaxFrameSlots;
 // Frame slots 0..15 are temporaries: saved and restored around event handlers other than
 // main (rcsl-container.md, "Frame slots").

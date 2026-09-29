@@ -251,41 +251,32 @@ std::string slurpFile(const std::string& path) {
     return ss.str();
 }
 
-bool mountOriginalPaks(Vfs& vfs) {
-    std::string dataDir = testdata::originalDir() + "/data";
-    for (const char* name : {"pak0.apk", "pak1.apk", "pak2.apk"}) {
-        auto src = makePakSource(openFileStream(dataDir + "/" + name));
-        if (!src) return false;
-        vfs.mount(std::move(src));
-    }
-    return true;
-}
-
 } // namespace
 
-TEST_CASE("DefDatabase loads all 42 files from the real paks with the documented counts") {
+TEST_CASE("DefDatabase loads every definition file from the real paks with the documented counts") {
     AS3D_REQUIRE_DATA();
 
     Vfs vfs;
-    REQUIRE(mountOriginalPaks(vfs));
+    REQUIRE(testdata::mountGamePaks(vfs));
 
     DefDatabase db;
     REQUIRE(db.load(vfs));
 
-    CHECK(db.objects().size() == 864);
-    CHECK(db.weapons().size() == 63);
-    CHECK(db.particleSystems().size() == 80);
-    CHECK(db.levels().size() == 24);
+    // The counts are in expected.json ("definitions").
+    CHECK(db.objects().size() == static_cast<size_t>(testdata::expectedInt("definitions.objects")));
+    CHECK(db.weapons().size() == static_cast<size_t>(testdata::expectedInt("definitions.weapons")));
+    CHECK(db.particleSystems().size() == static_cast<size_t>(testdata::expectedInt("definitions.particle_systems")));
+    CHECK(db.levels().size() == static_cast<size_t>(testdata::expectedInt("definitions.levels")));
 
     std::set<std::string> distinctNames;
     for (const auto& o : db.objects()) distinctNames.insert(o.name);
-    CHECK(distinctNames.size() == 863);
+    CHECK(distinctNames.size() == static_cast<size_t>(testdata::expectedInt("definitions.distinct_object_names")));
 }
 
 TEST_CASE("duplicate object name: first definition wins name lookup (VERIFIED-CODE)") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE(); // the first game's definitions
     Vfs vfs;
-    REQUIRE(mountOriginalPaks(vfs));
+    REQUIRE(testdata::mountGamePaks(vfs));
     DefDatabase db;
     REQUIRE(db.load(vfs));
 
@@ -303,9 +294,9 @@ TEST_CASE("duplicate object name: first definition wins name lookup (VERIFIED-CO
 }
 
 TEST_CASE("spot check: tank_small_green") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE(); // the first game's definitions
     Vfs vfs;
-    REQUIRE(mountOriginalPaks(vfs));
+    REQUIRE(testdata::mountGamePaks(vfs));
     DefDatabase db;
     REQUIRE(db.load(vfs));
 
@@ -335,9 +326,9 @@ TEST_CASE("spot check: tank_small_green") {
 }
 
 TEST_CASE("spot check: mission 1's fog, sun and water") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE(); // the first game's definitions
     Vfs vfs;
-    REQUIRE(mountOriginalPaks(vfs));
+    REQUIRE(testdata::mountGamePaks(vfs));
     DefDatabase db;
     REQUIRE(db.load(vfs));
 
@@ -361,13 +352,12 @@ TEST_CASE("spot check: mission 1's fog, sun and water") {
 TEST_CASE("golden summary: hashes and unresolved references match tools/ref/defs.py") {
     AS3D_REQUIRE_DATA();
     Vfs vfs;
-    REQUIRE(mountOriginalPaks(vfs));
+    REQUIRE(testdata::mountGamePaks(vfs));
     DefDatabase db;
     REQUIRE(db.load(vfs));
     db.validate(vfs);
 
-    std::string goldenText =
-        slurpFile(std::string(AS3D_REPO_ROOT) + "/testdata/golden/defs_summary.json");
+    std::string goldenText = slurpFile(testdata::goldenDir() + "/defs_summary.json");
     REQUIRE(!goldenText.empty());
     Json golden = JsonParser(goldenText).parse();
 
@@ -420,6 +410,10 @@ TEST_CASE("golden summary: hashes and unresolved references match tools/ref/defs
         }
     }
     CHECK(actualUnresolved == goldenUnresolved);
-    CHECK(golden["summary"]["total_objects"].asInt() == 864);
-    CHECK(golden["summary"]["distinct_object_names"].asInt() == 863);
+    // The known unresolved references of the game are in expected.json as well.
+    std::set<std::string> wantUnresolved;
+    for (const auto& e : testdata::expectedStrings("definitions.unresolved_references")) wantUnresolved.insert(e);
+    CHECK(actualUnresolved == wantUnresolved);
+    CHECK(golden["summary"]["total_objects"].asInt() == testdata::expectedInt("definitions.objects"));
+    CHECK(golden["summary"]["distinct_object_names"].asInt() == testdata::expectedInt("definitions.distinct_object_names"));
 }

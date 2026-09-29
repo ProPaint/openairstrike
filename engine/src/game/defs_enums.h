@@ -91,6 +91,19 @@ inline u32 parseFlag(const std::string& s) {
     return 0;
 }
 
+// Sequel-only "flag" and "touch" values (see SequelFlagBits, SequelTouchBits in as3d/defs.h):
+// 0 for every other spelling.
+inline u32 parseSequelFlag(const std::string& s) {
+    if (eq(s, "FL_ONWATER_NORMAL")) return SEQ_FL_ONWATER_NORMAL;
+    if (eq(s, "FL_ONWATER_FLAT")) return SEQ_FL_ONWATER_FLAT;
+    return 0;
+}
+
+inline u32 parseSequelTouch(const std::string& s) {
+    if (eq(s, "TOUCH_CIVILIAN")) return SEQ_TOUCH_CIVILIAN;
+    return 0;
+}
+
 inline CoordMode parseCoordMode(const std::string& s) {
     if (eq(s, "COORD_DECART")) return CoordMode::Decart;
     if (eq(s, "COORD_CILINDER")) return CoordMode::Cilinder;

@@ -11,7 +11,7 @@
 using namespace as3d;
 
 TEST_CASE("shadow key: map objects keep their placement byte") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     Vfs vfs;
     vfs.mount(makeDirSource(testdata::extractedDir()));
     DefDatabase db;

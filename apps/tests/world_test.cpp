@@ -464,7 +464,7 @@ struct DataRig {
 } // namespace
 
 TEST_CASE("world corpus: level 1 runs 3600 frames headless") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     DataRig r;
     REQUIRE(r.load("1", WorldConfig()));
     CHECK(r.world.playerEntityIndex(0) >= 0);
@@ -493,7 +493,7 @@ TEST_CASE("world corpus: level 1 runs 3600 frames headless") {
 }
 
 TEST_CASE("world corpus: two runs with the same seed give identical state dumps") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     std::string dumps[2];
     for (int k = 0; k < 2; ++k) {
         DataRig r;
@@ -512,7 +512,7 @@ TEST_CASE("world corpus: two runs with the same seed give identical state dumps"
 }
 
 TEST_CASE("world corpus: map-spawned health scales with difficulty") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     // Run Very Easy until the first map enemy exists, then Nightmare for as many frames,
     // and compare the maximum health of the same map-spawned enemies (same slots).
     DataRig easy, hard;

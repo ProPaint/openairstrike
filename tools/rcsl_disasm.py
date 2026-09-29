@@ -4,13 +4,16 @@
 See docs/spec/rcsl-container.md and docs/spec/rcsl-opcodes-v0.md.
 
 Usage:
-  rcsl_disasm.py dump      <file.scr>     readable listing
-  rcsl_disasm.py stats     [dir]          corpus statistics (default: <data>/scripts)
-  rcsl_disasm.py roundtrip <file.scr>...  parse, re-serialise, check byte identity
-  rcsl_disasm.py summary   <out.json> [dir]  metadata summary (golden file format)
+  rcsl_disasm.py [--game K] dump      <file.scr>     readable listing
+  rcsl_disasm.py [--game K] stats     [dir]          corpus statistics (default: <data>/scripts)
+  rcsl_disasm.py [--game K] roundtrip <file.scr>...  parse, re-serialise, check byte identity
+  rcsl_disasm.py [--game K] summary   <out.json> [dir]  metadata summary (golden file format)
 
-Data is located through AS3D_DATA_ROOT (default: the repository root), then
-<root>/assets_extracted/scripts.
+The game K (as3d, as2, gulf) comes from --game, then $AS3D_GAME, then as3d. It selects the
+builtin table used to annotate calls (testdata/golden/<K>/rcsl_builtins.json; gulf uses the
+as2 table) and the scripts directory: data is located through AS3D_DATA_ROOT (default: the
+repository root), then <root>/assets_extracted/scripts for as3d and
+<root>/assets_extracted_games/<K>/scripts for the others.
 """
 import collections
 import hashlib
@@ -19,6 +22,9 @@ import math
 import os
 import struct
 import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "ref"))
+import gamesel  # noqa: E402
 
 MAGIC = 0x4C534352          # "RCSL"
 HEADER_SIZE = 0x38          # 14 u32
@@ -136,19 +142,38 @@ CAMERA_FIELDS = {0: "position", 3: "angles", 6: "vel_x", 7: "scroll_speed",
 ENTITY_GLOBALS = ("self", "other", "player")
 
 
+# (opcode, mode) pairs of the sequels' corpora that the v1.70 corpus does not have: the seven
+# of docs/spec/as2/rcsl-opcodes.delta.md, "Mode combinations". Pairs of the third game that no
+# delta lists yet are in its expected.json ("scripts", "extra_mode_pairs").
+AS2_NEW_MODES = {
+    (0x01, 0x22): 4, (0x02, 0x01): 6, (0x03, 0x21): 3, (0x07, 0x22): 1,
+    (0x0E, 0x02): 8, (0x0E, 0x10): 1, (0x10, 0x00): 2,
+}
+# Pairs of the v1.70 corpus that the as2 corpus does not have (delta, same section).
+AS2_ABSENT_MODES = {(0x0B, 0x22), (0x0C, 0x22), (0x0E, 0x22), (0x10, 0x02)}
+
+
+def allowed_modes(game=None):
+    """The (opcode, mode) pairs the documents of the game list: base table plus the deltas."""
+    game = game or gamesel.game_key()
+    modes = set(SEEN_MODES)
+    if game in ("as2", "gulf"):
+        modes |= set(AS2_NEW_MODES)
+    if game == "gulf":
+        modes |= {tuple(p) for p in gamesel.expected(game)["scripts"].get("extra_mode_pairs", [])}
+    return modes
+
+
 class RcslError(ValueError):
     pass
 
 
 def data_root():
-    env = os.environ.get("AS3D_DATA_ROOT")
-    if env:
-        return env
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return gamesel.data_root()
 
 
 def scripts_dir():
-    return os.path.join(data_root(), "assets_extracted", "scripts")
+    return os.path.join(gamesel.extracted_dir(), "scripts")
 
 
 def f32(raw):
@@ -284,7 +309,11 @@ def parse(d):
         raise RcslError("STRG not NUL-terminated")
     p = payloads.get("CODE")
     if p is None:
-        raise RcslError("no CODE section")
+        # A script without a CODE section is an empty program (as2 rcsl-container.delta.md,
+        # "Loader behaviour"; one file of the third game). Only valid when nothing points at code.
+        if h[8] != 0 or any(e != NO_ENTRY for e in s.entries):
+            raise RcslError("no CODE section but an instruction count or entry point")
+        p = b""
     if len(p) != INSTR_SIZE * h[8]:
         raise RcslError("CODE length != 14 * instruction count")
     s.code = [Instr(*struct.unpack_from("<BBiii", p, i)) for i in range(0, len(p), INSTR_SIZE)]
@@ -487,11 +516,10 @@ _BUILTINS = None
 
 
 def builtin_info():
-    """Builtin signatures from testdata/golden/rcsl_builtins.json (empty if missing)."""
+    """Builtin signatures of the selected game (gamesel.builtins_path; empty if missing)."""
     global _BUILTINS
     if _BUILTINS is None:
-        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "testdata", "golden", "rcsl_builtins.json")
+        path = gamesel.builtins_path()
         try:
             with open(path) as f:
                 _BUILTINS = {b["name"]: b for b in json.load(f)["builtins"]}
@@ -592,7 +620,7 @@ def corpus(root=None):
     for dp, dn, fn in os.walk(root):
         dn.sort()
         for f in sorted(fn):
-            if f.lower().endswith(".scr"):
+            if f.lower().endswith((".scr", ".sc")):  # as2 and gulf ship one leftover ".sc"
                 out.append(os.path.join(dp, f))
     out.sort(key=lambda p: os.path.relpath(p, root).lower())
     return out
@@ -700,6 +728,7 @@ def stats(root=None, out=sys.stdout):
 
 
 def main(argv):
+    gamesel.parse_game_arg(argv)
     if len(argv) < 2:
         print(__doc__)
         return 2

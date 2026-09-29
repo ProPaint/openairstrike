@@ -69,7 +69,7 @@ TEST_CASE("lightning: two crossed quads 16 units wide, texture along the bolt") 
 }
 
 TEST_CASE("lightning: a bolt is drawn additively over the scene") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     GraphicsContext* ctx = lightningContext();
     if (!ctx) {
         std::fprintf(stderr, "SKIPPED (no headless GLES context available): %s\n", __FILE__);

@@ -219,12 +219,12 @@ TEST_CASE("wav: unsupported format tag (e.g. ADPCM) is rejected cleanly") {
     CHECK_FALSE(as3d::audio::parseWav(Blob(out.begin(), out.end()), s));
 }
 
-TEST_CASE("wav: all 32 shipped sound files load") {
-    AS3D_REQUIRE_DATA();
+TEST_CASE("wav: all shipped sound files load") {
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     as3d::Vfs vfs;
     vfs.mount(as3d::makeDirSource(testdata::extractedDir()));
     auto names = vfs.list("sounds\\");
-    CHECK(names.size() == 32);
+    CHECK(names.size() == static_cast<size_t>(testdata::expectedInt("sounds.files")));
     int loaded = 0;
     for (auto& n : names) {
         Blob data;
@@ -392,7 +392,7 @@ as3d::Vfs makeGameVfs() {
 }  // namespace
 
 TEST_CASE("music: each of the five tracks loads and renders plausible audio") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     for (int i = 1; i <= 5; ++i) {
         char path[64];
         std::snprintf(path, sizeof(path), "music\\track%02d.mo3", i);
@@ -423,7 +423,7 @@ TEST_CASE("music: each of the five tracks loads and renders plausible audio") {
 }
 
 TEST_CASE("music: rendering is deterministic across independent instances") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     const int frames = 44100 * 5;
     std::vector<float> a(static_cast<size_t>(frames) * 2), b(static_cast<size_t>(frames) * 2);
 
@@ -448,7 +448,7 @@ TEST_CASE("music: rendering is deterministic across independent instances") {
 }
 
 TEST_CASE("music: looping restarts playback after the track ends") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     as3d::Vfs vfs = makeGameVfs();
     as3d::Audio audio;
     REQUIRE(audio.init(vfs, as3d::AudioBackend::Null, 44100));
@@ -474,7 +474,7 @@ TEST_CASE("music: looping restarts playback after the track ends") {
 }
 
 TEST_CASE("music: title metadata is readable") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     as3d::Vfs vfs = makeGameVfs();
     as3d::Audio audio;
     REQUIRE(audio.init(vfs, as3d::AudioBackend::Null, 44100));
@@ -483,7 +483,7 @@ TEST_CASE("music: title metadata is readable") {
 }
 
 TEST_CASE("music: the game-over jump to pattern order 35 (or 0 for a shorter module)") {
-    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     as3d::Vfs vfs = makeGameVfs();
     as3d::Audio audio;
     REQUIRE(audio.init(vfs, as3d::AudioBackend::Null, 44100));

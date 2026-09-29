@@ -594,7 +594,7 @@ loudly instead of being silently absorbed.
 
 ## Golden data
 
-`testdata/golden/mdl_summary.json` has one entry per shipped `.mdl` file
+`testdata/golden/as3d/mdl_summary.json` has one entry per shipped `.mdl` file
 (`status` is `"ok"`, `"empty"`, or `"broken"`). For `"ok"` entries it records the
 5 counts, the bounding box, the tag names, and two hashes, with no vertex data
 embedded in the JSON itself:

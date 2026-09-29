@@ -63,7 +63,7 @@ bool loadLevelByRef(Vfs& vfs, const std::string& ref, LoadedLevel& out, std::str
 // Reads a `sw` x `sh` window of 8-bit samples starting at `src[srcOffset]` (row stride
 // `sw`) and writes a `dw` x `dh` resampled window to `dst`. Must match
 // tools/ref/hmap.py's `resample()` bit for bit; apps/tests/terrain_test.cpp and
-// testdata/golden/terrain_heights.json check this for every shipped level.
+// testdata/golden/as3d/terrain_heights.json check this for every shipped level.
 void resampleHeightField(const u8* src, int sw, int sh, size_t srcOffset, u8* dst, int dw, int dh);
 
 // One terrain vertex's static colour, stored as unsigned bytes (VERIFIED-CODE: the

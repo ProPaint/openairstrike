@@ -10,7 +10,8 @@
 // --game KEY (extra `game`: as3d, as2 or gulf; default as3d), --allow-unfinished (extra
 // `allow_unfinished`). A game that does not play yet is refused without the latter, so that
 // nothing half-working reaches a phone by accident. The paks are read from the APK's assets
-// under the names of the game's profile.
+// under assets/<key>/ (tools/android_build.sh, AS3D_ANDROID_GAMES), with the names of the game's
+// profile.
 #include <SDL.h>
 #include <jni.h>
 
@@ -62,6 +63,7 @@ int main(int argc, char* argv[]) {
     o.safeInsets = currentInsets;
     const as3d::GameProfile* profile = &as3d::gameProfile(as3d::GameId::AirStrike3D);
     bool allowUnfinished = false, badGame = false;
+    int level = 0, difficulty = -1; // as given; checked against the game's rules once it is known
     for (int i = 1; i < argc; ++i) {
         const char* s = argv[i];
         const char* v = i + 1 < argc ? argv[i + 1] : nullptr;
@@ -81,13 +83,11 @@ int main(int argc, char* argv[]) {
         else if (!std::strcmp(s, "--no-audio")) o.noAudio = true;
         else if (!std::strcmp(s, "--rebuild-on-resume")) o.rebuildOnResume = true;
         else if (!std::strcmp(s, "--level") && v) {
-            int m = std::atoi(v);
-            if (m >= 1 && m <= o.game.rules().missionCount) o.game.mission = m;
+            level = std::atoi(v); // range-checked against the chosen game below
             direct = true;
             ++i;
         } else if (!std::strcmp(s, "--difficulty") && v) {
-            int d = std::atoi(v);
-            if (d >= 0 && d < o.game.rules().difficultyCount) o.game.world.difficulty = d;
+            difficulty = std::atoi(v);
             ++i;
         } else if (!std::strcmp(s, "--frames") && v) {
             long f = std::strtol(v, nullptr, 10);
@@ -104,9 +104,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     o.game.game = profile;
-    for (const char* const* p = profile->paks; *p; ++p) o.game.paks.push_back(*p);
-    // The level range depends on the game: check what was read before it was known.
-    if (o.game.mission > profile->rules.missionCount) o.game.mission = 1;
+    const std::string dir = std::string(profile->key) + "/"; // this game's directory in the APK's assets
+    for (const char* const* p = profile->paks; *p; ++p) o.game.paks.push_back(dir + *p);
+    // The level and difficulty ranges are the game's own.
+    if (level >= 1 && level <= profile->rules.missionCount) o.game.mission = level;
+    else if (level != 0) AS3D_WARN("--level %d is outside 1..%d, ignored", level, profile->rules.missionCount);
+    if (difficulty >= 0 && difficulty < profile->rules.difficultyCount) o.game.world.difficulty = difficulty;
+    else if (difficulty != -1) AS3D_WARN("--difficulty %d is outside 0..%d, ignored", difficulty, profile->rules.difficultyCount - 1);
     if (o.game.world.difficulty >= profile->rules.difficultyCount) o.game.world.difficulty = profile->rules.defaultDifficulty;
     if (!direct) {
         // The front end in touch mode (docs/spec/issues/090, 130): no two-player mode, no
@@ -116,13 +120,13 @@ int main(int argc, char* argv[]) {
         o.frontend = true;
         o.game.startLevel = false;
         o.game.levelFlow = false;
-        o.game.extraFiles.push_back({"gfx\\logo2s.tga", "logo2s.tga"});
+        o.game.extraFiles.push_back({"gfx\\logo2s.tga", dir + "logo2s.tga"});
         o.flow.touch = true;
         o.flow.twoPlayerMode = false;
         o.flow.mouseControlOption = false;
         o.flow.touchMenuButton = false;
-        o.flow.settingsXml = "Settings.xml";
-        o.flow.textsPath = profile->textsFile;
+        o.flow.settingsXml = dir + "Settings.xml";
+        o.flow.textsPath = dir + profile->textsFile;
         o.flow.screenOptionAlways = true; // Options offers Screen (Wide / 4:3) on every device
     }
     AS3D_INFO("AS3D_ARGS bot=%d mission=%d frames=%ld audio=%d rebuild_on_resume=%d menus=%d", o.bot ? 1 : 0,

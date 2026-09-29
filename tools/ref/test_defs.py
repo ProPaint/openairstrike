@@ -3,11 +3,13 @@
 
 Loads objects/*.obj, weapons/*.wpn, particles/*.ps and maps/levels.txt,
 validates every reference, and writes/validates
-testdata/golden/defs_summary.json: per definition, its name and a sha1 over
+testdata/golden/<game>/defs_summary.json: per definition, its name and a sha1 over
 its canonical serialization (see docs/spec/obj.md &c., "Canonical
 serialization"), plus totals and the full list of unresolved references.
 
-Run directly, or via tools/ci.sh which runs every tools/ref/test_*.py.
+Run directly (`--game <key>`, else $AS3D_GAME, else as3d), or via tools/ci.sh which runs every
+tools/ref/test_*.py once per game. The counts and the known unresolved references are in
+testdata/golden/<game>/expected.json ("definitions").
 Exits 0 on success, non-zero on any failure. Prints a loud SKIPPED message
 and exits 0 if the game data directory is missing.
 """
@@ -16,29 +18,21 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import defs
+import gamesel
 
-GOLDEN_PATH_PARTS = ("testdata", "golden", "defs_summary.json")
-
-
-def repo_root() -> str:
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+gamesel.parse_game_arg()
+import defs  # noqa: E402
 
 
 def golden_path() -> str:
-    return os.path.join(repo_root(), *GOLDEN_PATH_PARTS)
+    return gamesel.golden_path("defs_summary.json")
 
 
 def main() -> int:
-    root = defs.extracted_dir()
-    if not os.path.isdir(root):
-        print(f"SKIPPED (no game data): {root} does not exist.", file=sys.stderr)
-        print(
-            "SKIPPED: set AS3D_DATA_ROOT or run tools/setup_data.sh + "
-            "tools/paktool.py extract first.",
-            file=sys.stderr,
-        )
+    if gamesel.skip_no_data("test_defs"):
         return 0
+    root = defs.extracted_dir()
+    want = gamesel.expected()["definitions"]
 
     db = defs.DefDatabase()
     if not db.load(root):
@@ -83,21 +77,24 @@ def main() -> int:
 
     failures = 0
 
-    if summary["total_objects"] != 864:
+    for key, field in (("objects", "total_objects"), ("distinct_object_names", "distinct_object_names"),
+                       ("weapons", "total_weapons"), ("particle_systems", "total_particle_systems"),
+                       ("levels", "total_levels")):
+        if summary[field] != want[key]:
+            failures += 1
+            print(f"FAIL: expected {want[key]} {key}, got {summary[field]}", file=sys.stderr)
+    if sorted(unresolved) != sorted(want["unresolved_references"]):
         failures += 1
-        print(f"FAIL: expected 864 objects, got {summary['total_objects']}", file=sys.stderr)
-    if summary["total_weapons"] != 63:
-        failures += 1
-        print(f"FAIL: expected 63 weapons, got {summary['total_weapons']}", file=sys.stderr)
-    if summary["total_particle_systems"] != 80:
-        failures += 1
-        print(f"FAIL: expected 80 particle systems, got {summary['total_particle_systems']}", file=sys.stderr)
-    if summary["total_levels"] != 24:
-        failures += 1
-        print(f"FAIL: expected 24 levels, got {summary['total_levels']}", file=sys.stderr)
+        print("FAIL: unresolved references differ from expected.json:", file=sys.stderr)
+        for u in sorted(set(unresolved) - set(want["unresolved_references"])):
+            print(f"  unexpected: {u}", file=sys.stderr)
+        for u in sorted(set(want["unresolved_references"]) - set(unresolved)):
+            print(f"  gone: {u}", file=sys.stderr)
 
     gpath = golden_path()
-    if not os.path.exists(gpath):
+    if not os.path.exists(gpath) and failures:
+        print("not writing the golden file while checks fail", file=sys.stderr)
+    elif not os.path.exists(gpath):
         os.makedirs(os.path.dirname(gpath), exist_ok=True)
         with open(gpath, "w") as f:
             json.dump(golden, f, indent=1, sort_keys=True)

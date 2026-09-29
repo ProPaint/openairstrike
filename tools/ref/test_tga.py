@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Decodes every shipped .tga with tga.py, cross-checks against PIL, and maintains the
 golden hash file used by apps/tests/tga_test.cpp. See docs/spec/tga.md.
+`--game <key>` (else $AS3D_GAME, else as3d) picks the game; its goldens are in testdata/golden/<key>/.
 
-For every .tga found under <AS3D_DATA_ROOT>/assets_extracted (AS3D_DATA_ROOT defaults to
-the repository root, two levels above this file):
+For every .tga found under the game's extracted directory (gamesel.extracted_dir):
   - decode with tga.py's independent pure-Python decoder;
   - decode with PIL (`Image.open(path).convert("RGBA")`) and require the two to agree
     pixel-for-pixel, after PIL's own top-down normalisation;
-  - fold the result into testdata/golden/tga_hashes.json: on first run this writes the
+  - fold the result into testdata/golden/<key>/tga_hashes.json: on first run this writes the
     file, on later runs it validates every entry still matches (so a change in decoded
     output for a file already in the golden set is treated as a regression, not silently
     accepted).
@@ -32,17 +32,10 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gamesel  # noqa: E402
+
+gamesel.parse_game_arg()
 import tga  # noqa: E402
-
-
-def repo_root():
-    # tools/ref/test_tga.py -> tools/ref -> tools -> repo root.
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-
-def data_root():
-    env = os.environ.get("AS3D_DATA_ROOT")
-    return env if env else repo_root()
 
 
 def find_tga_files(extracted_dir):
@@ -56,15 +49,10 @@ def find_tga_files(extracted_dir):
 
 
 def main():
-    extracted = os.path.join(data_root(), "assets_extracted")
-    if not os.path.isdir(extracted):
-        print("=" * 70, file=sys.stderr)
-        print("SKIPPED: tga: assets_extracted/ not found under AS3D_DATA_ROOT", file=sys.stderr)
-        print(f"         (looked in {extracted})", file=sys.stderr)
-        print("         Set AS3D_DATA_ROOT to a checkout with the game data extracted,", file=sys.stderr)
-        print("         see README.md.", file=sys.stderr)
-        print("=" * 70, file=sys.stderr)
+    if gamesel.skip_no_data("test_tga"):
         return 0
+    extracted = gamesel.extracted_dir()
+    want = gamesel.expected()["textures"]
 
     try:
         from PIL import Image
@@ -133,7 +121,9 @@ def main():
 
     golden.sort(key=lambda e: e["name"])
 
-    golden_path = os.path.join(repo_root(), "testdata", "golden", "tga_hashes.json")
+    if len(files) != want["files"]:
+        failures.append(f"expected {want['files']} textures, found {len(files)}")
+    golden_path = gamesel.golden_path("tga_hashes.json")
     if os.path.exists(golden_path):
         with open(golden_path) as f:
             existing = json.load(f)
@@ -148,6 +138,8 @@ def main():
         for name in existing_by_name:
             if name not in new_by_name:
                 failures.append(f"{name}: in golden {golden_path} but no longer found/decodable")
+    elif failures:
+        print("tga: not writing the golden file while checks fail", file=sys.stderr)
     else:
         os.makedirs(os.path.dirname(golden_path), exist_ok=True)
         with open(golden_path, "w") as f:

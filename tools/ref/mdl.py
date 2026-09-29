@@ -19,6 +19,9 @@ import os
 import struct
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gamesel  # noqa: E402
+
 MAGIC = b"MDL!"
 KNOWN_VERSIONS = (2, 3)  # 3 is accepted by the v1.70 loader but never seen in shipped data
 
@@ -71,16 +74,13 @@ class Model:
 
 
 def data_root():
-    """Root that holds assets_extracted/, per AS3D_DATA_ROOT (see README.md)."""
-    env = os.environ.get("AS3D_DATA_ROOT")
-    if env:
-        return env
-    # tools/ref/mdl.py -> repo root is two levels up.
-    return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    """Root that holds the game data, per AS3D_DATA_ROOT (see README.md)."""
+    return gamesel.data_root()
 
 
 def extracted_dir():
-    return os.path.join(data_root(), "assets_extracted")
+    """Extracted files of the selected game (--game, $AS3D_GAME, default as3d)."""
+    return gamesel.extracted_dir()
 
 
 def parse(data, source="<bytes>"):
