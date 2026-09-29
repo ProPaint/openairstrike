@@ -1,6 +1,6 @@
 // Implements as3d::MeshRenderer (as3d/scene.h): begin()/submit()/end() with the
-// SORT_OPAQUE, SORT_TRANS (back-to-front), SORT_EFFECT ordering from docs/spec/obj.md's
-// "sort" statement, drawing through the one shared shader program in shaders.cpp.
+// SORT_OPAQUE, SORT_TRANS, SORT_EFFECT list order (no depth sorting, render-pipeline.md 1.2),
+// drawing through the one shared shader program in shaders.cpp.
 #include "as3d/scene.h"
 
 #include <GLES3/gl3.h>
@@ -38,29 +38,21 @@ void MeshRenderer::submit(const GpuMesh& mesh, const Material& material, const M
 }
 
 void MeshRenderer::end() {
-    // SORT_OPAQUE (0) < SORT_TRANS (2) < SORT_EFFECT (3) in bucket order; within a
-    // bucket, Trans/Effect draw back-to-front by distance to the camera (the usual
-    // fix for correct blending of overlapping translucent geometry), Opaque keeps
-    // submission order (depth testing makes ordering within it irrelevant to
-    // correctness).
+    // docs/spec/render-pipeline.md 1.2: the original never sorts. The three lists (opaque,
+    // SORT_TRANS, SORT_EFFECT) are drawn in that order, each in submission order.
     std::stable_sort(items_.begin(), items_.end(), [](const DrawItem& a, const DrawItem& b) {
-        int ba = static_cast<int>(a.material->sortBucket);
-        int bb = static_cast<int>(b.material->sortBucket);
-        if (ba != bb) return ba < bb;
-        if (a.material->sortBucket == SortBucket::Opaque) return false;
-        return a.distanceToCamera > b.distanceToCamera; // farther first
+        return static_cast<int>(a.material->sortBucket) < static_cast<int>(b.material->sortBucket);
     });
 
     if (!initialized_) return; // caller forgot init(); fail safe rather than crash.
     program_.use();
     program_.setMat4("uViewProj", camera_.viewProjMatrix());
+    program_.setMat4("uView", camera_.viewMatrix());
     program_.setVec3("uSunDir", lighting_.sunDirection);
     program_.setVec3("uSunColor", lighting_.sunColor);
     program_.setVec3("uAmbientColor", lighting_.ambientColor);
-    program_.setVec3("uFogColor", lighting_.fogColor);
     program_.setFloat("uFogStart", lighting_.fogStart);
     program_.setFloat("uFogEnd", lighting_.fogEnd);
-    program_.setVec3("uCameraPos", camera_.eye);
     program_.setInt("uTex", 0);
 
     for (const DrawItem& item : items_) draw(item);
@@ -70,12 +62,14 @@ void MeshRenderer::draw(const DrawItem& item) {
     const Material& mat = *item.material;
     applyMaterialState(mat);
 
-    Mat3 normalMat = transpose(inverse(mat3FromMat4(item.model)));
+    // Fog colour follows the blend mode (spec 2.2): additive fades to black, filter to white.
+    Vec3 fog = lighting_.fogColor;
+    if (mat.blend == MaterialBlend::Add) fog = Vec3{0.0f, 0.0f, 0.0f};
+    else if (mat.blend == MaterialBlend::Filter) fog = Vec3{1.0f, 1.0f, 1.0f};
+    program_.setVec3("uFogColor", fog);
     program_.setMat4("uModel", item.model);
-    program_.setMat3("uNormalMat", normalMat);
     program_.setVec4("uColor", item.colour);
     program_.setInt("uNoLighting", mat.noLighting ? 1 : 0);
-    program_.setInt("uAlphaTest", mat.alphaTest ? 1 : 0);
     if (mat.texture) mat.texture->bind(0);
 
     item.mesh->vao.bind();

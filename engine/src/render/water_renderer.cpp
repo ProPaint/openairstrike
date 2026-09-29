@@ -102,7 +102,7 @@ void WaterRenderer::render(const TerrainViewParams& params) {
     float width = static_cast<float>(im.terrain->width()) * kHmapCellSize;
     setCull(CullMode::Off);
     setBlend(BlendMode::AlphaBlend);
-    setDepth(true, false);
+    setDepth(true, true); // render-pipeline.md 1.1 pass 7: water writes depth
     im.program.use();
     im.program.setMat4("uView", params.view);
     im.program.setMat4("uProj", params.projection);
