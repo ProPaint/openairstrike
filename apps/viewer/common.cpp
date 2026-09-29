@@ -112,16 +112,40 @@ int runScene(const SceneArgs& args, const char* title, const SetupFn& setup, con
     return 0;
 }
 
+namespace {
+std::string g_key, g_paksDir, g_dataRoot;
+as3d::GameData g_game;
+bool g_resolved = false, g_ok = false;
+} // namespace
+
 std::string dataRoot() {
+    if (!g_dataRoot.empty()) return g_dataRoot;
     const char* env = std::getenv("AS3D_DATA_ROOT");
     return env && *env ? env : AS3D_REPO_ROOT;
 }
 
+void setGameSelection(const std::string& key, const std::string& paksDir, const std::string& root) {
+    g_key = key;
+    g_paksDir = paksDir;
+    g_dataRoot = root;
+    g_resolved = false;
+}
+
+const as3d::GameData* selectedGame() {
+    if (!g_resolved) {
+        std::string error;
+        g_ok = as3d::chooseGameData(dataRoot(), g_key, g_paksDir, &g_game, &error);
+        if (!g_ok) std::fprintf(stderr, "error: %s\n", error.c_str());
+        g_resolved = true;
+    }
+    return g_ok ? &g_game : nullptr;
+}
+
 bool mountGameData(as3d::Vfs& vfs) {
-    std::string dataDir = dataRoot() + "/third_party_local/original/data";
+    const as3d::GameData* game = selectedGame();
+    if (!game) return false;
     bool any = false;
-    for (const char* name : {"pak0.apk", "pak1.apk", "pak2.apk"}) {
-        std::string path = dataDir + "/" + name;
+    for (const std::string& path : game->paks) {
         auto stream = as3d::openFileStream(path);
         if (!stream) {
             AS3D_WARN("mountGameData: cannot open %s", path.c_str());
@@ -135,8 +159,13 @@ bool mountGameData(as3d::Vfs& vfs) {
         vfs.mount(std::move(src));
         any = true;
     }
+    if (!any && game->hasExtracted) {
+        vfs.mount(as3d::makeDirSource(game->extractedDir));
+        any = true;
+    }
     if (!any) {
-        AS3D_ERROR("mountGameData: no paks could be mounted under %s (set AS3D_DATA_ROOT?)", dataDir.c_str());
+        AS3D_ERROR("mountGameData: no data for %s under %s (set AS3D_DATA_ROOT?)", game->game->key,
+                   game->dataDir.c_str());
     }
     return any;
 }

@@ -8,6 +8,11 @@
       "exe": "AirStrike3D.exe",
       "zip_member": "AirStrike/AirStrike_3D",
       "paks": ["pak0.apk", "pak1.apk", "pak2.apk"],
+      "pak_sha256": {
+        "pak0.apk": "86745b285a6d31d7c1a9d1ee50c6afeb1b78163a75e5a52a39191095c7a6b3df",
+        "pak1.apk": "548d8f1ad37cd3c2864ee1626dc4a592ba3640130ed8c0ec6155a99321a8d94a",
+        "pak2.apk": "c992f0a28add309cedef544534c1a77d3cdf1415322ddffc9b3030766a6919d3"
+      },
       "texts": "texts_v170.txt",
       "missions": 20,
       "helicopters": 10
@@ -19,6 +24,11 @@
       "exe": "AirStrike3D II.exe",
       "zip_member": "AirStrike/AirStrike 2",
       "paks": ["pak0.apk", "pak1.apk", "pak2.apk"],
+      "pak_sha256": {
+        "pak0.apk": "9df601a5ebe1fec171a5089f054bdcc550268080b262043db30fb22c9f77250f",
+        "pak1.apk": "858f176fd875f7c84439fb2398b1d37d1292afb708f0b63c0f2faa96efe46952",
+        "pak2.apk": "bc29cf7375e5557f3e9e19278e5318e77324d3f32d57f64116387712050c6175"
+      },
       "texts": "texts_as2.txt",
       "missions": 18,
       "helicopters": 6
@@ -30,6 +40,12 @@
       "exe": "AirStrike3D II - Gulf.exe",
       "zip_member": "AirStrike/AirStrike II Gulf Thunder",
       "paks": ["pak0.apk", "pak1.apk", "pak2.apk", "pak4.apk"],
+      "pak_sha256": {
+        "pak0.apk": "0fde2db91134fdb2b97bed1797bc826f468fc9ad4f83198a2cb8fcbecc8d38f8",
+        "pak1.apk": "34dcddcbfb9b501f71a0a27c192431893345850843314eb2686e2b46d4f410c0",
+        "pak2.apk": "4c7513ebcf969da5127e7db7953414bcfff36b3cafe628c9bba679100697f930",
+        "pak4.apk": "836cf9c2d8e917ddc8cb442f2ff3e1d21b764b781bed4fe1cb95ece879552b6b"
+      },
       "texts": "texts_gulf.txt",
       "missions": 24,
       "helicopters": 3

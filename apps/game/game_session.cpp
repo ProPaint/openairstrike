@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "as3d/defs.h"
+#include "as3d/game_data.h"
 #include "as3d/platform.h"
 
 namespace as3d_game {
@@ -45,7 +46,9 @@ GameSession::~GameSession() {
 bool GameSession::init(const GameOptions& options, std::string* error) {
     options_ = options;
     std::string root = options.dataRoot.empty() ? "." : options.dataRoot;
-    std::string where = root + "/assets_extracted";
+    std::string where = options.extractedDir;
+    if (where.empty())
+        where = options.game ? locateGameData(root, *options.game).extractedDir : root + "/assets_extracted";
     if (!options.extraFiles.empty()) vfs_.mount(std::unique_ptr<IFileSource>(new PlatformFileSource(options.extraFiles)));
     if (options.paks.empty()) {
         vfs_.mount(makeDirSource(where));

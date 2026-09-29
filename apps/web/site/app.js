@@ -55,6 +55,8 @@
     return Number.isFinite(v) ? String(clamp(v, lo, hi)) : null;
   };
   if (intParam('level', 1, 20)) args.push('--level', intParam('level', 1, 20));
+  if (/^[a-z0-9]+$/.test(q.get('game') || '')) args.push('--game', q.get('game'));
+  if (q.get('unfinished') === '1') args.push('--unfinished');
   if (q.get('bot') === '1') args.push('--bot');
   if (q.get('menus') === '1') args.push('--menus');
   if (q.get('god') === '1') args.push('--god');

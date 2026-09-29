@@ -10,6 +10,9 @@
 //   --level N, --bot            straight into a mission, no menus (tests); --bot --menus: the
 //                               menus, and the bot plays the missions started from them
 //   --god, --no-audio, --frames N, --difficulty D, --fps
+//   --game KEY, --unfinished    the game (?game=as3d|as2|gulf, default as3d, its files in /data
+//                               under the names of its profile); a game that does not play yet
+//                               is refused unless ?unfinished=1
 //
 // Calls from the page (exported, see site/app.js):
 //   as3d_web_set_insets(l, t, r, b)  safe-area insets in framebuffer pixels
@@ -28,6 +31,7 @@
 #include <cstring>
 
 #include "as3d/core.h"
+#include "as3d/game_data.h"
 #include "game_loop.h"
 
 namespace {
@@ -103,11 +107,21 @@ int main(int argc, char* argv[]) {
     o.frameMarkerEvery = 600;
     o.quiet = true;
     o.logTouches = true;
-    o.game.paks = {"/data/pak0.apk", "/data/pak1.apk", "/data/pak2.apk"};
+    const as3d::GameProfile* profile = &as3d::gameProfile(as3d::GameId::AirStrike3D);
+    bool allowUnfinished = false, badGame = false;
     for (int i = 1; i < argc; ++i) {
         const char* s = argv[i];
         const char* v = i + 1 < argc ? argv[i + 1] : nullptr;
-        if (!std::strcmp(s, "--bot")) {
+        if (!std::strcmp(s, "--game") && v) {
+            profile = as3d::findGameProfile(v);
+            if (!profile) {
+                AS3D_ERROR("unknown game '%s' (as3d, as2, gulf)", v);
+                badGame = true;
+                profile = &as3d::gameProfile(as3d::GameId::AirStrike3D);
+            }
+            ++i;
+        } else if (!std::strcmp(s, "--unfinished")) allowUnfinished = true;
+        else if (!std::strcmp(s, "--bot")) {
             o.bot = true;
             direct = true;
         } else if (!std::strcmp(s, "--menus")) menus = true;
@@ -136,6 +150,15 @@ int main(int argc, char* argv[]) {
             AS3D_WARN("unknown argument '%s' ignored", s);
         }
     }
+    if (badGame) return 1;
+    if (!as3d::gameIsPlayable(*profile) && !allowUnfinished) {
+        AS3D_ERROR("game '%s' (%s) is not playable yet; add ?unfinished=1 to run it anyway", profile->key, profile->title);
+        return 1;
+    }
+    o.game.game = profile;
+    for (const char* const* p = profile->paks; *p; ++p) o.game.paks.push_back(std::string("/data/") + *p);
+    if (o.game.mission > profile->rules.missionCount) o.game.mission = 1;
+    if (o.game.world.difficulty >= profile->rules.difficultyCount) o.game.world.difficulty = profile->rules.defaultDifficulty;
     if (menus && !level) direct = false;
     o.safeInsets = [] { return g_insets; };
     o.dpiQuery = [] { return g_dpi; };
@@ -164,7 +187,7 @@ int main(int argc, char* argv[]) {
         o.flow.mouseControlOption = !o.touch;
         o.flow.touchMenuButton = false;
         o.flow.settingsXml = "/data/Settings.xml";
-        o.flow.textsPath = "/data/texts_v170.txt";
+        o.flow.textsPath = std::string("/data/") + profile->textsFile;
         o.flow.screenOptionAlways = true;
         o.flow.webKeys = true;
         o.flow.deferLoads = true;

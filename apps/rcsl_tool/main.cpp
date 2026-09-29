@@ -3,10 +3,14 @@
 // mismatch against tools/ref/rcsl_vm.py.
 //
 //   rcsl_tool trace <file.scr> [--frames N] [--dt D] [--events SPEC] [--no-init] [--out FILE]
-//   rcsl_tool check <dir>
+//   rcsl_tool check [<dir>]      (no dir: the scripts of the chosen game)
 //   rcsl_tool info <file.scr>
+//   rcsl_tool --list-games
+// --game KEY (as3d, as2, gulf; default $AS3D_GAME, then as3d), --paks DIR and --data ROOT
+// (default $AS3D_DATA_ROOT) choose the game whose files `check` reads (as3d/game_data.h).
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -15,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "as3d/game_data.h"
 #include "as3d/script.h"
 #include "mock_host.h"
 #include "runner.h"
@@ -92,12 +97,29 @@ int cmdTrace(int argc, char** argv) {
     return 0;
 }
 
+std::string g_game, g_paks, g_data;
+
+std::string dataRoot() {
+    if (!g_data.empty()) return g_data;
+    const char* env = std::getenv("AS3D_DATA_ROOT");
+    return env && *env ? env : ".";
+}
+
 int cmdCheck(int argc, char** argv) {
-    if (argc < 1) {
-        std::cerr << "usage: rcsl_tool check <dir>\n";
-        return 2;
+    fs::path root;
+    if (argc >= 1) {
+        root = argv[0];
+    } else {
+        as3d::GameData game;
+        std::string error;
+        if (!as3d::chooseGameData(dataRoot(), g_game, g_paks, &game, &error) || !game.hasExtracted) {
+            std::cerr << "usage: rcsl_tool check [<dir>]\n";
+            if (!error.empty()) std::cerr << "rcsl_tool: " << error << "\n";
+            else std::cerr << "rcsl_tool: no extracted files for " << game.game->key << " (" << game.extractedDir << ")\n";
+            return 2;
+        }
+        root = game.extractedDir + "/scripts";
     }
-    fs::path root = argv[0];
     std::vector<fs::path> files;
     std::error_code ec;
     for (auto it = fs::recursive_directory_iterator(root, ec); !ec && it != fs::recursive_directory_iterator();
@@ -181,6 +203,30 @@ int cmdInfo(int argc, char** argv) {
 } // namespace
 
 int main(int argc, char** argv) {
+    std::vector<char*> args;
+    args.push_back(argv[0]);
+    bool listGames = false;
+    for (int i = 1; i < argc; ++i) {
+        if (!std::strcmp(argv[i], "--game") && i + 1 < argc) g_game = argv[++i];
+        else if (!std::strcmp(argv[i], "--paks") && i + 1 < argc) g_paks = argv[++i];
+        else if (!std::strcmp(argv[i], "--data") && i + 1 < argc) g_data = argv[++i];
+        else if (!std::strcmp(argv[i], "--list-games")) listGames = true;
+        else args.push_back(argv[i]);
+    }
+    argc = static_cast<int>(args.size());
+    argv = args.data();
+    if (listGames) {
+        std::fputs(as3d::describeGames(dataRoot()).c_str(), stdout);
+        return 0;
+    }
+    if (!g_game.empty() || !g_paks.empty()) {
+        as3d::GameData game;
+        std::string error;
+        if (!as3d::chooseGameData(dataRoot(), g_game, g_paks, &game, &error)) {
+            std::cerr << "rcsl_tool: " << error << "\n";
+            return 2;
+        }
+    }
     if (argc < 2) {
         std::cerr << "usage: rcsl_tool <trace|check|info> ...\n";
         return 2;

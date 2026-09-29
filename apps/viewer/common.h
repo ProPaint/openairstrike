@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "as3d/core.h"
+#include "as3d/game_data.h"
 #include "as3d/image.h"
 #include "as3d/vfs.h"
 
@@ -36,14 +37,20 @@ using SetupFn = std::function<bool(std::string& error)>;
 // the headless path if no display is available. Returns a process exit code.
 int runScene(const SceneArgs& args, const char* title, const SetupFn& setup, const DrawFn& draw);
 
-// $AS3D_DATA_ROOT, or the repository root if unset -- same rule as
+// --data, else $AS3D_DATA_ROOT, or the repository root if unset -- same rule as
 // apps/tests/test_data.h, reimplemented here so the viewer does not pull in a
 // test-only header.
 std::string dataRoot();
 
-// Mounts third_party_local/original/data/pak{0,1,2}.apk (in that order, so pak2 wins
-// on a name clash, per docs/spec/pak.md) from dataRoot() into `vfs`. Returns false if
-// none of the three could be opened.
+// The game the commands work on: --game KEY, --paks DIR and --data ROOT given before or after
+// the command name (main.cpp strips them), else $AS3D_GAME, then as3d if present. Null after
+// printing the reason to stderr when there is none.
+void setGameSelection(const std::string& key, const std::string& paksDir, const std::string& dataRoot);
+const as3d::GameData* selectedGame();
+
+// Mounts the selected game's paks (in the profile's order, so later ones win on a name
+// clash, per docs/spec/pak.md), or its extracted directory if it has no paks, into `vfs`.
+// Returns false if nothing could be mounted.
 bool mountGameData(as3d::Vfs& vfs);
 
 // A cell x cell checkerboard of colorA/colorB, opaque, used as a background.

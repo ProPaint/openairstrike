@@ -4,7 +4,9 @@
 //            [--dump-state state.json] [--builtin-report report.json] [--data ROOT]
 //            [--bot | --pilot | --input-script FILE] [--record FILE] [--god] [--trace-player FILE]
 //
-// Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT.
+// Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT; --game KEY
+// (as3d, as2, gulf; default $AS3D_GAME, then as3d) picks the game, --paks DIR mounts its paks
+// instead, --list-games prints the games found (as3d/game_data.h).
 // Prints a summary: entity counts, script errors, and the builtin call counts sorted by
 // count, stubs marked.
 //
@@ -24,6 +26,8 @@
 
 #include "as3d/core.h"
 #include "as3d/defs.h"
+#include "as3d/game_data.h"
+#include "as3d/platform.h"
 #include "as3d/input.h"
 #include "as3d/script.h"
 #include "as3d/vfs.h"
@@ -54,7 +58,7 @@ int usage() {
                  "usage: as3d_sim --level N --frames N [--seed S] [--difficulty 0..4] [--players 1|2] [--heli 0..9]\n"
                  "                [--dump-state FILE] [--builtin-report FILE] [--data ROOT]\n"
                  "                [--bot | --pilot | --input-script FILE] [--record FILE] [--god]\n"
-                 "                [--trace-player FILE]\n");
+                 "                [--trace-player FILE] [--game as3d|as2|gulf] [--paks DIR] [--list-games]\n");
     return 2;
 }
 
@@ -80,7 +84,8 @@ void tracePlayer(std::FILE* f, const World& w) {
 } // namespace
 
 int main(int argc, char** argv) {
-    std::string level = "1", dumpPath, reportPath, dataRoot, inputPath, tracePath, recordPath;
+    std::string level = "1", dumpPath, reportPath, dataRoot, inputPath, tracePath, recordPath, gameKey, paksDir;
+    bool listGames = false;
     long frames = 600;
     bool bot = false, pilot = false;
     WorldConfig cfg;
@@ -101,6 +106,9 @@ int main(int argc, char** argv) {
         else if (a == "--dump-state" && next(v)) dumpPath = v;
         else if (a == "--builtin-report" && next(v)) reportPath = v;
         else if (a == "--data" && next(v)) dataRoot = v;
+        else if (a == "--game" && next(v)) gameKey = v;
+        else if (a == "--paks" && next(v)) paksDir = v;
+        else if (a == "--list-games") listGames = true;
         else if (a == "--input-script" && next(v)) inputPath = v;
         else if (a == "--trace-player" && next(v)) tracePath = v;
         else if (a == "--record" && next(v)) recordPath = v;
@@ -109,6 +117,23 @@ int main(int argc, char** argv) {
         else if (a == "--god") cfg.godMode = true;
         else return usage();
     }
+    if (dataRoot.empty()) {
+        const char* env = std::getenv("AS3D_DATA_ROOT");
+        dataRoot = env && *env ? env : ".";
+    }
+    if (listGames) {
+        std::fputs(describeGames(dataRoot).c_str(), stdout);
+        return 0;
+    }
+    GameData data;
+    {
+        std::string gerr;
+        if (!chooseGameData(dataRoot, gameKey, paksDir, &data, &gerr)) {
+            std::fprintf(stderr, "as3d_sim: %s\n", gerr.c_str());
+            return 2;
+        }
+    }
+    cfg.rules = &data.game->rules;
     if (frames < 0 || frames > 10'000'000) return usage();
     if ((bot ? 1 : 0) + (pilot ? 1 : 0) + (inputPath.empty() ? 0 : 1) > 1) return usage();
     InputScript script;
@@ -130,16 +155,26 @@ int main(int argc, char** argv) {
         std::fprintf(trace, "# frame map_pos x y z onscreen08 sphere_in_frustum rect_min_x rect_min_y rect_min_z "
                             "rect_max_x rect_max_y rect_max_z health angles0 angles1 angles2 (800x600, y up)\n");
     }
-    if (dataRoot.empty()) {
-        const char* env = std::getenv("AS3D_DATA_ROOT");
-        dataRoot = env && *env ? env : ".";
-    }
 
     Vfs vfs;
-    vfs.mount(makeDirSource(dataRoot + "/assets_extracted"));
+    std::string where = data.extractedDir;
+    if (paksDir.empty() && data.hasExtracted) {
+        vfs.mount(makeDirSource(data.extractedDir));
+    } else {
+        where = "the paks of " + std::string(data.game->key);
+        for (const std::string& pak : data.paks) { // mount order: later ones override
+            std::unique_ptr<IFileSource> src;
+            if (auto stream = openFileStream(pak)) src = makePakSource(std::move(stream));
+            if (!src) {
+                std::fprintf(stderr, "as3d_sim: cannot mount %s\n", pak.c_str());
+                return 1;
+            }
+            vfs.mount(std::move(src));
+        }
+    }
     DefDatabase db;
     if (!db.load(vfs)) {
-        std::fprintf(stderr, "as3d_sim: cannot load definitions from %s/assets_extracted\n", dataRoot.c_str());
+        std::fprintf(stderr, "as3d_sim: cannot load definitions from %s\n", where.c_str());
         return 1;
     }
     World world;
