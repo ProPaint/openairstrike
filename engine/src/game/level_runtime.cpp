@@ -8,14 +8,11 @@
 #include "as3d/game_camera.h"
 #include "as3d/world.h"
 #include "world_internal.h"
+#include "world_path.h"
 
 namespace as3d {
 
 namespace {
-// Path heading (as3d/terrain.h: 0 = travelling along +y, 90 = along +x) to entity yaw
-// (field 16, models face +y at yaw 0: Shoot and vec_toangles subtract 90 from atan2).
-float headingToYaw(float heading) { return -heading; }
-
 Vec4 planeFromRows(const Mat4& m, int row, float sign) {
     Vec4 r3{m.at(0, 3), m.at(1, 3), m.at(2, 3), m.at(3, 3)};
     Vec4 r{m.at(0, row), m.at(1, row), m.at(2, row), m.at(3, row)};
@@ -84,13 +81,13 @@ bool World::loadLevel(const std::string& ref, std::string* error) {
     night_ = st.night;
 
     const std::vector<Placement>& pls = level_->data.placements;
-    paths_.clear();
-    paths_.resize(pls.size());
+    gamePaths_.clear();
+    gamePaths_.resize(pls.size());
     starTotal_ = 0;
     for (size_t i = 0; i < pls.size(); ++i) {
         if (pls[i].waypoints.size() >= 2) {
-            std::unique_ptr<WaypointPath> wp(new WaypointPath());
-            if (wp->build(pls[i])) paths_[i] = std::move(wp);
+            std::unique_ptr<GamePath> gp(new GamePath());
+            if (gp->build(pls[i])) gamePaths_[i] = std::move(gp);
         }
         const std::string* item = level_->data.itemName(pls[i]);
         if (item && *item == "item_star") ++starTotal_;
@@ -121,7 +118,7 @@ void World::startEmptyLevel(bool spawnPlayers) {
     resetPlayersForLevel();
     level_.reset();
     terrainValid_ = false;
-    paths_.clear();
+    gamePaths_.clear();
     static const std::vector<Placement> kNone;
     cursor_.build(kNone);
     intermission_ = false;
@@ -144,6 +141,8 @@ void World::startEmptyLevel(bool spawnPlayers) {
 // ---------------------------------------------------------------------------------------
 
 void World::step(const PlayerInput& input) {
+    if (input.confirm && hintShowing_) dismissHint(); // the hint box's OK button
+    lights_.clear(); // R_BeginFrame clears the dynamic light list
     frametime_ = config_.dt;
     frametimeGlobal = frametime_;
     time_ += frametime_;
@@ -302,13 +301,13 @@ void World::spawnPlacement(const Placement& pl) {
     // 5. Yaw, path.
     e.setF(F_ANGLES + 2, pl.yawDegrees());
     size_t pi = static_cast<size_t>(&pl - level_->data.placements.data());
-    if (pi < paths_.size() && paths_[pi]) {
-        const WaypointPath* path = paths_[pi].get();
+    if (const GamePath* path = pathOfPlacement(pi)) {
         e.path = path;
         e.pathDistance = 0.0f;
+        e.pathLastNode = 0;
         e.pathFinished = false;
-        e.setF(F_ANGLES + 2, headingToYaw(path->sampleAtDistance(0.0f).headingDegrees));
-        e.setF(F_WP_WAIT, path->waypointDelay(0));
+        e.setF(F_ANGLES + 2, path->headingAtStart());
+        e.setF(F_WP_WAIT, path->delay(0));
     }
     // 6. init.
     runInit(idx);

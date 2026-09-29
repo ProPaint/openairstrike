@@ -1,6 +1,6 @@
-// Screen-space collision (docs/spec/engine-behaviour.md 5): rectangles on the fixed
-// 800x600 viewport, projected with the previous frame's matrices; the touch pass; the
-// two-player push-apart.
+// Screen-space collision (docs/spec/engine-behaviour.md 5, render-pipeline.md 9.3):
+// rectangles on the fixed 800x600 viewport, projected with the previous frame's
+// matrices; the touch pass; the two-player push-apart.
 #include <algorithm>
 #include <cmath>
 
@@ -20,16 +20,18 @@ bool World::projectPoint(const Vec3& p, float out[3]) const {
     return true;
 }
 
+// Visible when dot(plane, origin) + radius > 0 for all six planes (0x419970).
 bool World::sphereInFrustum(const Vec3& c, float r) const {
     for (const Vec4& pl : planes_) {
-        if (pl.x * c.x + pl.y * c.y + pl.z * c.z + pl.w < -r) return false;
+        if (!(pl.x * c.x + pl.y * c.y + pl.z * c.z + pl.w + r > 0.0f)) return false;
     }
     return true;
 }
 
+// TYPE_MODEL (render type field 38 = 0) without FL_POINT_COLLISION uses its model box;
+// everything else is a point (a swept segment).
 bool World::isPointCollider(const Entity& e) const {
-    bool model = e.def && e.def->type == ObjectType::Model;
-    return !model || (e.flagBits() & FL_POINT_COLLISION);
+    return e.fields[F_RENDER_TYPE] != 0 || (e.flagBits() & FL_POINT_COLLISION);
 }
 
 void World::computeScreenBounds(int idx) {
@@ -44,28 +46,30 @@ void World::computeScreenBounds(int idx) {
     Vec3 org = e.v3(F_BASE_ORIGIN);
     if (!sphereInFrustum(org, e.radius)) return;
     if (!isPointCollider(e)) {
-        // Model box scaled by bbox_scale about its centre (GUESS for the pivot, spec 5.1),
-        // placed with the entity transform.
-        float s = e.f(F_SCALE);
-        float k = s > 0.01f ? s : 1.0f;
-        Vec3 c = (e.boundsMin + e.boundsMax) * 0.5f;
-        Vec3 h = (e.boundsMax - e.boundsMin) * 0.5f;
-        h = {h.x * e.bboxScale[0], h.y * e.bboxScale[1], h.z * e.bboxScale[2]};
+        // R_ProjectEntityBounds (render-pipeline.md 9.3): corners are bbox_scale times the
+        // MDL box bounds component-wise (pivot = model origin), transformed by the axis
+        // and origin without the entity scale.
         Vec3 fw = e.v3(F_AXIS), lf = e.v3(F_AXIS + 3), up = e.v3(F_AXIS + 6);
         ScreenRect r;
+        r.min[0] = r.min[1] = 9999.0f;
+        r.max[0] = r.max[1] = -9999.0f;
         for (int i = 0; i < 8; ++i) {
-            Vec3 lc{c.x + ((i & 1) ? h.x : -h.x), c.y + ((i & 2) ? h.y : -h.y), c.z + ((i & 4) ? h.z : -h.z)};
-            lc = lc * k;
+            Vec3 lc{e.bboxScale[0] * ((i & 1) ? e.boundsMax.x : e.boundsMin.x),
+                    e.bboxScale[1] * ((i & 2) ? e.boundsMax.y : e.boundsMin.y),
+                    e.bboxScale[2] * ((i & 4) ? e.boundsMax.z : e.boundsMin.z)};
             Vec3 w = org + fw * lc.x + lf * lc.y + up * lc.z;
             float p[3];
-            if (!projectPoint(w, p)) return;
-            for (int a = 0; a < 3; ++a) {
-                if (i == 0 || p[a] < r.min[a]) r.min[a] = p[a];
-                if (i == 0 || p[a] > r.max[a]) r.max[a] = p[a];
+            if (!projectPoint(w, p)) return; // behind the eye: not on screen
+            for (int a = 0; a < 2; ++a) {
+                r.min[a] = std::min(r.min[a], p[a]);
+                r.max[a] = std::max(r.max[a], p[a]);
             }
         }
+        float c[3];
+        float depth = projectPoint(org, c) ? c[2] : 0.0f;
+        r.min[2] = r.max[2] = depth;
         e.rect = r;
-        if (r.min[0] >= 0.0f && r.min[1] >= 0.0f && r.max[0] < kCollisionViewportW && r.max[1] < kCollisionViewportH) {
+        if (r.min[0] >= 0.0f && r.min[1] >= 0.0f && r.max[0] <= kCollisionViewportW && r.max[1] <= kCollisionViewportH) {
             e.rt |= RT_COLLIDABLE;
         }
     } else {
@@ -79,7 +83,7 @@ void World::computeScreenBounds(int idx) {
             e.prevPoint[a] = p[a];
         }
         e.hasPrevPoint = true;
-        if (p[0] >= 0.0f && p[1] >= 0.0f && p[0] < kCollisionViewportW && p[1] < kCollisionViewportH) {
+        if (p[0] > 0.0f && p[1] > 0.0f && p[0] < kCollisionViewportW && p[1] < kCollisionViewportH) {
             e.rt |= RT_COLLIDABLE;
         }
     }
@@ -93,12 +97,11 @@ bool World::pointInRect(const float p[3], const ScreenRect& r) {
     return p[0] >= r.min[0] && p[0] <= r.max[0] && p[1] >= r.min[1] && p[1] <= r.max[1];
 }
 
+// G_SegmentHitsRect (0x40ca10): a segment shorter than sqrt(0.5) pixel tests its end
+// point (rcsl-builtins-semantics.md D9; which end is issue 030: we use `b`).
 bool World::segmentHitsRect(const float a[3], const float b[3], const ScreenRect& r) {
     float dx = b[0] - a[0], dy = b[1] - a[1];
-    if (std::sqrt(dx * dx + dy * dy) < 0.7f) {
-        float m[3] = {(a[0] + b[0]) * 0.5f, (a[1] + b[1]) * 0.5f, 0.0f};
-        return pointInRect(m, r);
-    }
+    if (dx * dx + dy * dy < 0.5f) return pointInRect(b, r);
     // Liang-Barsky clip of the 2D segment against the rectangle.
     float t0 = 0.0f, t1 = 1.0f;
     const float p[4] = {-dx, dx, -dy, dy};

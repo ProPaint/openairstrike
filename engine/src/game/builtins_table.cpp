@@ -14,6 +14,7 @@ const std::vector<script::BuiltinDesc>& table() {
         const builtins::Family families[] = {
             builtins::mathBuiltins(),   builtins::vectorBuiltins(), builtins::entityBuiltins(),
             builtins::movementBuiltins(), builtins::combatBuiltins(), builtins::playerBuiltins(),
+            builtins::effectsBuiltins(),
         };
         for (const builtins::Family& f : families) {
             for (size_t i = 0; i < f.count; ++i) v.push_back(f.table[i]);

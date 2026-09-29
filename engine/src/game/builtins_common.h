@@ -75,6 +75,7 @@ Family entityBuiltins();
 Family movementBuiltins();
 Family combatBuiltins();
 Family playerBuiltins();
+Family effectsBuiltins();
 
 } // namespace builtins
 } // namespace as3d

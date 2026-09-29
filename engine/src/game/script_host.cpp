@@ -49,18 +49,27 @@ Addr GameScriptHost::resolveGlobal(const char* name) {
 
 const script::BuiltinDesc* GameScriptHost::resolveBuiltin(const char* name) { return findGameBuiltin(name); }
 
+namespace {
+// Field index of an entity-window address, and the reference it belongs to.
+bool entityField(Addr addr, u32& ref, int& k) {
+    int slot;
+    u32 gen, off;
+    if (!World::decodeEntityAddr(addr, slot, gen, off)) return false;
+    if (off < kEntityRefOffset || (off - kEntityRefOffset) % 4 != 0) return false;
+    u32 f = (off - kEntityRefOffset) / 4;
+    if (f >= static_cast<u32>(kEntityFieldCount)) return false;
+    k = static_cast<int>(f);
+    ref = addr - 4u * f;
+    return true;
+}
+} // namespace
+
 bool GameScriptHost::readWord(Addr addr, u32& out) {
     World& w = world_;
-    if (addr >= kEntityAddrBase && addr < kEntityAddrBase + kEntityAddrStride * kMaxEntitySlots) {
-        u32 slot = (addr - kEntityAddrBase) / kEntityAddrStride;
-        u32 ref = w.refOf(static_cast<int>(slot));
-        if (addr < ref) return false;
-        u32 off = addr - ref;
-        if (off % 4 != 0 || off / 4 >= static_cast<u32>(kEntityFieldCount)) return false;
-        // Freed slots stay readable, like the original's freed pool memory.
-        out = w.entity(static_cast<int>(slot)).fields[off / 4];
-        return true;
-    }
+    u32 ref;
+    int k;
+    if (entityField(addr, ref, k)) return w.readRefField(ref, k, out); // stale: tombstone
+    if (addr >= kEntityAddrBase && addr < kEntityAddrEnd) return false;
     if (addr >= kCameraAddrBase && addr < kCameraAddrBase + 4u * kCameraFieldCount) {
         if ((addr - kCameraAddrBase) % 4 != 0) return false;
         out = fbits(w.camera().field[(addr - kCameraAddrBase) / 4]);
@@ -103,15 +112,14 @@ bool GameScriptHost::readWord(Addr addr, u32& out) {
 
 bool GameScriptHost::writeWord(Addr addr, u32 bits) {
     World& w = world_;
-    if (addr >= kEntityAddrBase && addr < kEntityAddrBase + kEntityAddrStride * kMaxEntitySlots) {
-        u32 slot = (addr - kEntityAddrBase) / kEntityAddrStride;
-        u32 ref = w.refOf(static_cast<int>(slot));
-        if (addr < ref) return false;
-        u32 off = addr - ref;
-        if (off % 4 != 0 || off / 4 >= static_cast<u32>(kEntityFieldCount)) return false;
-        w.entity(static_cast<int>(slot)).fields[off / 4] = bits;
+    u32 ref;
+    int k;
+    if (entityField(addr, ref, k)) {
+        int i = w.liveIndexFromRef(ref);
+        if (i >= 0) w.entity(i).fields[k] = bits; // writes through a stale reference are ignored
         return true;
     }
+    if (addr >= kEntityAddrBase && addr < kEntityAddrEnd) return false;
     if (addr >= kCameraAddrBase && addr < kCameraAddrBase + 4u * kCameraFieldCount) {
         if ((addr - kCameraAddrBase) % 4 != 0) return false;
         w.camera().field[(addr - kCameraAddrBase) / 4] = bitsf(bits);

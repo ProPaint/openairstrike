@@ -28,6 +28,7 @@ struct ModelData;
 class DefDatabase;
 class Vfs;
 class GameScriptHost;
+class GamePath;
 
 // ---------------------------------------------------------------------------------------
 // Limits and layouts.
@@ -113,12 +114,21 @@ enum ActionBit : u32 {
 
 // Script-visible address layout used by GameScriptHost (rcsl-vm.md "Entity references"):
 // an entity reference is entity base + 0x7B, field k lives at reference + 4k and field 0
-// holds the base. Slot i's base is kEntityAddrBase + i * kEntityAddrStride.
+// holds the base. Slot i's base is kEntityAddrBase + gen << kRefGenShift + i * stride,
+// where gen is the low 9 bits of the slot's generation: references carry a generation
+// count (docs/spec/README.md, engine decisions). A builtin given a 0 or stale reference
+// does nothing and returns 0; reading fields through a stale reference sees the freed
+// entity's last fields with field 4 (dead) = 1.0 ("removed, dead, no thread",
+// rcsl-builtins-semantics.md D2); writes through it are ignored.
 constexpr u32 kGlobalAddrBase = 0x2000'0000u;   // global g at + 16g
 constexpr u32 kCameraAddrBase = 0x2100'0000u;   // camera field n at + 4n
 constexpr u32 kEntityAddrBase = 0x4000'0000u;
 constexpr u32 kEntityAddrStride = 0x200u;
 constexpr u32 kEntityRefOffset = 0x7Bu;
+constexpr u32 kRefGenShift = 21;
+constexpr u32 kRefGenMask = 0x1FFu;
+constexpr u32 kEntityAddrEnd = kEntityAddrBase + ((kRefGenMask + 1u) << kRefGenShift);
+static_assert(static_cast<u32>(kMaxEntitySlots) * kEntityAddrStride <= (1u << kRefGenShift), "slot bits overflow");
 
 // A stable C++ handle: slot index plus the slot's generation at the time the handle was
 // taken. A script reference (a raw address) carries no generation, exactly like the
@@ -166,8 +176,9 @@ struct Entity {
     const ParticleSystemDef* emitter = nullptr;  // +0x1BB: emitter holder
 
     // Waypoint path (+0x4B/+0x4F/+0x53).
-    const WaypointPath* path = nullptr;
+    const GamePath* path = nullptr;
     float pathDistance = 0.0f;
+    int pathLastNode = 0;
     bool pathFinished = false;
 
     // Script thread (+0x57).
@@ -184,6 +195,8 @@ struct Entity {
 
     const ModelData* model = nullptr;        // +0x153
     std::string modelPath;
+    std::string skinPath;                    // +0x157 (setskin; empty = definition skin)
+    std::string loopSound;                   // +0x73 looping sample (empty = none)
     Vec3 boundsMin, boundsMax;               // model (or sprite) box, model space
     float radius = 0.0f;                     // +0x1BF
 
@@ -228,6 +241,22 @@ struct PlayerRecord {
 // Presses OR bits into p_action and releases clear them (engine-behaviour.md 7.2).
 struct PlayerInput {
     u32 action[kMaxPlayers] = {0, 0};
+    bool confirm = false; // the OK button of a tutorial hint box
+};
+
+// A dynamic light queued by PlaceLight for this frame (at most 32, cleared each frame).
+struct QueuedLight {
+    Vec3 pos;
+    Vec3 color;
+    float radius = 0.0f;
+};
+
+// A sound request for the audio layer (StartSound / StartLoopingSound /
+// StopLoopingSound); drained by whoever plays sounds. Bounded.
+struct SoundEvent {
+    enum class Kind : u8 { Play, Loop, StopLoop } kind = Kind::Play;
+    EntityHandle entity;
+    std::string sample;
 };
 
 struct WorldConfig {
@@ -285,7 +314,7 @@ public:
     int createEntity(const std::string& defName, const Vec3& pos, int creator = -1);
     // Builds a pool entity at `pos` (ground/water snapping, state active) without
     // running init or a think: the common first half of create, Shoot and the spawners.
-    int spawnRoot(const ObjectDef* def, const Vec3& pos);
+    int spawnRoot(const ObjectDef* def, const Vec3& pos, bool snap = true);
     // AttachEntity semantics (rcsl-builtins-table.md): child keeps its pool slot.
     void attachEntity(int child, int parent, const std::string& tag, bool absolute);
     void removeEntity(int idx);   // deferred (engine-behaviour.md 3.3)
@@ -295,11 +324,19 @@ public:
     const Entity& entity(int idx) const { return ents_[static_cast<size_t>(idx)]; }
     EntityHandle handleOf(int idx) const;
     Entity* get(EntityHandle h);
-    u32 refOf(int idx) const { return kEntityAddrBase + static_cast<u32>(idx) * kEntityAddrStride + kEntityRefOffset; }
-    // Slot index of a script reference (any slot, in use or not), or -1.
-    int indexFromRef(u32 ref) const;
-    // In-use slot index of a script reference, or -1.
+    u32 refOf(int idx) const {
+        return kEntityAddrBase + ((ents_[static_cast<size_t>(idx)].generation & kRefGenMask) << kRefGenShift) +
+               static_cast<u32>(idx) * kEntityAddrStride + kEntityRefOffset;
+    }
+    // Decodes an entity-window address into slot, generation bits and byte offset from
+    // the slot base; false outside the window.
+    static bool decodeEntityAddr(u32 addr, int& slot, u32& gen, u32& offset);
+    // In-use slot index of a script reference whose generation matches, or -1 (0, stale,
+    // malformed).
     int liveIndexFromRef(u32 ref) const;
+    // Reads field k through a reference (live, or stale: the tombstone), false if the
+    // reference is not an entity reference at all.
+    bool readRefField(u32 ref, int k, u32& out) const;
     // Newest-first list of pool entities (a snapshot).
     std::vector<int> listEntities() const;
     int listCount() const { return listCount_; }
@@ -338,6 +375,20 @@ public:
     bool tagLocal(int idx, const std::string& tag, Vec3& out) const; // tag in idx's model
     Vec3 tagWorldPosition(int idx, const std::string& tag) const;
     void think(int idx);
+
+    // --- effects, sound, hints -----------------------------------------------------
+    const std::vector<QueuedLight>& lights() const { return lights_; }
+    void placeLight(const Vec3& pos, const Vec3& color, float radius);
+    std::vector<SoundEvent>& soundEvents() { return sounds_; }
+    void queueSound(SoundEvent::Kind kind, int idx, const std::string& sample);
+    const std::string& hintText() const { return hintText_; }
+    bool hintShowing() const { return hintShowing_; }
+    void showHint(const std::string& text);
+    void dismissHint();
+    script::u64 hintsShown() const { return hintsShown_; }
+
+    // --- paths (world_path.cpp) ---------------------------------------------------
+    const GamePath* pathOfPlacement(size_t placementIndex) const;
 
     // --- players ------------------------------------------------------------------
     void spawnPlayer(int p);
@@ -450,7 +501,6 @@ private:
     std::unique_ptr<LoadedLevel> level_;
     Terrain terrain_;
     bool terrainValid_ = false;
-    std::vector<std::unique_ptr<WaypointPath>> paths_;          // per placement (null if none)
     SpawnCursor cursor_;
     bool levelLoaded_ = false;
     float hmin_ = -1.0e9f;
@@ -480,6 +530,14 @@ private:
 
     Mat4 prevViewProj_;
     Vec4 planes_[6]; // left, right, bottom, top, near, far of prevViewProj_
+
+    std::vector<std::vector<u32>> tombs_;  // per slot: fields at free time, dead = 1
+    std::vector<QueuedLight> lights_;
+    std::vector<SoundEvent> sounds_;
+    std::string hintText_;
+    bool hintShowing_ = false;
+    script::u64 hintsShown_ = 0;
+    std::vector<std::unique_ptr<GamePath>> gamePaths_; // per placement (null if none)
 
     std::map<std::string, std::unique_ptr<ModelData>> models_;
     std::map<std::string, bool> modelMissing_;

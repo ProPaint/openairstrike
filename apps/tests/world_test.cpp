@@ -35,8 +35,8 @@ TEST_CASE("world: entity lifecycle, deferred free and handle reuse") {
     CHECK(r.world.listCount() == 1);
     // Script-visible reference: field 0 holds the base, reference = base + 0x7B.
     CHECK(r.e(a).fields[F_SELF] + kEntityRefOffset == r.world.refOf(a));
-    CHECK(r.world.indexFromRef(r.world.refOf(a)) == a);
-    CHECK(r.world.indexFromRef(r.world.refOf(a) + 4) == -1);
+    CHECK(r.world.liveIndexFromRef(r.world.refOf(a)) == a);
+    CHECK(r.world.liveIndexFromRef(r.world.refOf(a) + 4) == -1);
 
     r.world.removeEntity(a);
     // Deferred: still in use (and still resolvable) until the next entity pass.

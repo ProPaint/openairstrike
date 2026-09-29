@@ -10,6 +10,7 @@
 #include "as3d/script_host.h"
 #include "as3d/vfs.h"
 #include "world_internal.h"
+#include "world_path.h"
 
 namespace as3d {
 
@@ -45,7 +46,9 @@ constexpr DifficultyRow kDifficulty[5] = {
 };
 } // namespace
 
-World::World() : ents_(static_cast<size_t>(kMaxEntitySlots)) {}
+World::World()
+    : ents_(static_cast<size_t>(kMaxEntitySlots)),
+      tombs_(static_cast<size_t>(kMaxEntitySlots), std::vector<u32>(static_cast<size_t>(kEntityFieldCount), 0u)) {}
 
 World::~World() {
     // Threads reference programs owned by the host: destroy them first.
@@ -115,8 +118,11 @@ int World::allocSlot() {
 void World::freeSlot(int idx) {
     Entity& e = ents_[static_cast<size_t>(idx)];
     if (!e.inUse) return;
-    // Fields stay as they were (the original's freed pool memory stays readable through
-    // stale references until the slot is reused).
+    // Stale references read this snapshot: "removed, dead, no thread"
+    // (rcsl-builtins-semantics.md D2), the entity's last fields with field 4 = 1.0.
+    std::vector<u32>& tomb = tombs_[static_cast<size_t>(idx)];
+    std::copy(e.fields, e.fields + kEntityFieldCount, tomb.begin());
+    tomb[F_DEAD] = fbits(1.0f);
     e.thread.reset();
     e.program = nullptr;
     e.children.clear();
@@ -186,18 +192,35 @@ Entity* World::get(EntityHandle h) {
     return &e;
 }
 
-int World::indexFromRef(u32 ref) const {
-    if (ref < kEntityAddrBase + kEntityRefOffset) return -1;
-    u32 off = ref - kEntityAddrBase;
-    if (off % kEntityAddrStride != kEntityRefOffset) return -1;
-    u32 slot = off / kEntityAddrStride;
-    if (slot >= static_cast<u32>(kMaxEntitySlots)) return -1;
-    return static_cast<int>(slot);
+bool World::decodeEntityAddr(u32 addr, int& slot, u32& gen, u32& offset) {
+    if (addr < kEntityAddrBase || addr >= kEntityAddrEnd) return false;
+    u32 rel = addr - kEntityAddrBase;
+    gen = rel >> kRefGenShift;
+    u32 low = rel & ((1u << kRefGenShift) - 1u);
+    u32 s = low / kEntityAddrStride;
+    if (s >= static_cast<u32>(kMaxEntitySlots)) return false;
+    slot = static_cast<int>(s);
+    offset = low % kEntityAddrStride;
+    return true;
 }
 
 int World::liveIndexFromRef(u32 ref) const {
-    int i = indexFromRef(ref);
-    return (i >= 0 && ents_[static_cast<size_t>(i)].inUse) ? i : -1;
+    int slot;
+    u32 gen, off;
+    if (!decodeEntityAddr(ref, slot, gen, off) || off != kEntityRefOffset) return -1;
+    const Entity& e = ents_[static_cast<size_t>(slot)];
+    if (!e.inUse || (e.generation & kRefGenMask) != gen) return -1;
+    return slot;
+}
+
+bool World::readRefField(u32 ref, int k, u32& out) const {
+    int slot;
+    u32 gen, off;
+    if (k < 0 || k >= kEntityFieldCount || !decodeEntityAddr(ref, slot, gen, off) || off != kEntityRefOffset) return false;
+    const Entity& e = ents_[static_cast<size_t>(slot)];
+    if (e.inUse && (e.generation & kRefGenMask) == gen) out = e.fields[k];
+    else out = tombs_[static_cast<size_t>(slot)][static_cast<size_t>(k)];
+    return true;
 }
 
 int World::rootOf(int idx) const {
@@ -267,7 +290,7 @@ void World::applyDef(int idx, const ObjectDef* def) {
     e.setF(F_DAMAGE, static_cast<float>(def->damage));
     e.setF(F_SCORE, static_cast<float>(def->score));
     for (int k = 0; k < 4; ++k) e.setF(F_COLOR + k, 1.0f);
-    e.setF(F_SCALE, def->scale);
+    e.setF(F_SCALE, 0.0f); // field 32 starts at 0; the obj "scale" key never reaches it
     e.fields[F_RENDER_TYPE] = static_cast<u32>(def->type);
     e.fields[F_RENDER_FLAGS] = def->rflag;
     e.fields[F_SORT] = static_cast<u32>(def->sort);
@@ -365,7 +388,7 @@ int World::createEntity(const std::string& defName, const Vec3& pos, int creator
     return createEntity(db_ ? db_->findObject(defName) : nullptr, pos, creator, true);
 }
 
-int World::spawnRoot(const ObjectDef* def, const Vec3& pos) {
+int World::spawnRoot(const ObjectDef* def, const Vec3& pos, bool snap) {
     if (!def) return -1;
     if (listCount_ >= kMaxListEntities) {
         ++stats_.spawnRefused; // the original crashes here (engine-behaviour.md 3.3)
@@ -378,7 +401,7 @@ int World::spawnRoot(const ObjectDef* def, const Vec3& pos) {
     Entity& e = ents_[static_cast<size_t>(idx)];
     setStateRecursive(idx, ES_ACTIVE);
     e.setV3(F_ORIGIN, pos);
-    snapToGround(e);
+    if (snap) snapToGround(e);
     return idx;
 }
 
@@ -440,7 +463,7 @@ void World::removeEntity(int idx) {
 // ---------------------------------------------------------------------------------------
 
 int World::currentPlayerIndex() const {
-    int i = indexFromRef(selfBits);
+    int i = liveIndexFromRef(selfBits);
     if (i < 0) return 0;
     int p = ents_[static_cast<size_t>(i)].playerIndex;
     return (p == 1) ? 1 : 0;
@@ -562,13 +585,44 @@ void World::spawnPlayer(int p) {
     linkNewest(idx);
     Entity& e = ents_[static_cast<size_t>(idx)];
     setStateRecursive(idx, ES_ACTIVE);
-    float x = 0.0f;
-    if (config_.players == 2) x = (p == 0) ? -100.0f : 100.0f;
-    e.setV3(F_ORIGIN, {x, 0.0f, 0.0f});
-    snapToGround(e);
+    e.setV3(F_ORIGIN, {0.0f, 0.0f, 0.0f}); // no ground snap (G_SpawnPlayer)
     setPlayerIndexRecursive(idx, p);
     pr.entityRef = refOf(idx);
+    pr.freezeCount = 0;
+    pr.actionsDisabled = false;
     runInit(idx);
+    // Two-player offset, applied after init (rcsl-builtins-semantics.md RespawnPlayer).
+    if (config_.players == 2) e.setF(F_ORIGIN, e.f(F_ORIGIN) + (p == 0 ? -100.0f : 100.0f));
+}
+
+// ---------------------------------------------------------------------------------------
+// Effects, sound, hints.
+// ---------------------------------------------------------------------------------------
+
+void World::placeLight(const Vec3& pos, const Vec3& color, float radius) {
+    if (lights_.size() >= 32) return;
+    lights_.push_back({pos, color, radius});
+}
+
+void World::queueSound(SoundEvent::Kind kind, int idx, const std::string& sample) {
+    if (sounds_.size() >= 1024) sounds_.erase(sounds_.begin()); // nobody drains it headless
+    SoundEvent ev;
+    ev.kind = kind;
+    ev.entity = handleOf(idx);
+    ev.sample = sample;
+    sounds_.push_back(ev);
+}
+
+void World::showHint(const std::string& text) {
+    hintText_ = text;
+    hintShowing_ = true;
+    paused_ = true;
+    ++hintsShown_;
+}
+
+void World::dismissHint() {
+    hintShowing_ = false;
+    paused_ = false;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -606,6 +660,10 @@ void World::resetLevelState() {
     enemiesInLevel_ = 0;
     maxLevelScore_ = 0.0f;
     starTotal_ = 0;
+    hintShowing_ = false;
+    hintText_.clear();
+    lights_.clear();
+    sounds_.clear();
     frame_ = 0;
     time_ = 0.0f;
     levelClock_ = 0.0f;

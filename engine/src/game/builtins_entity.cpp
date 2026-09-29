@@ -13,11 +13,13 @@ namespace builtins {
 
 namespace {
 
-// create(name, pos): spawns the definition at pos with self's angles and player index,
-// runs its init and one think, returns the reference (0.0 on failure).
+// create(name, pos) (rcsl-builtins-semantics.md 25): spawns the definition at pos with
+// self's angles and player index, runs its init (recursive) and one think, returns the
+// reference (0.0 on failure).
 // Not reproduced: the original writes the reference into the (engine-global) return
 // register *before* the new entity's init runs, so a RET in that init changes what the
-// caller receives (rcsl-vm.md quirk 9). Our VM keeps one return register per thread.
+// caller receives (rcsl-vm.md quirk 9). Our VM keeps one return register per thread; see
+// the WP-42a report.
 void bCreate(BuiltinArgs& a, void*) {
     World& w = worldOf(a);
     float pos[3];
@@ -61,6 +63,7 @@ void bAttachEntity(BuiltinArgs& a, void*) {
     int child = entityArg(w, a, 0);
     if (child < 0) return;
     int parent = entityArg(w, a, 1);
+    if (parent < 0) return; // 0 or stale parent: nothing (engine decision)
     const char* tag = strArg(a, 2);
     w.attachEntity(child, parent, tag ? tag : "", intArg(a, 3) != 0);
 }
@@ -109,13 +112,12 @@ void bParentCallback(BuiltinArgs& a, void*) {
     w.runCallback(p, a.f32(0), a.f32(1), a.f32(2));
 }
 
-// IsValidTarget reads the fields through the reference itself (any slot, like the
-// original reading possibly freed memory).
+// IsValidTarget: 1.0 if the reference is live, field 4 = 0 and health > 0. The removed
+// bit is not tested; a 0 or stale reference gives 0.0 (engine decision).
 void bIsValidTarget(BuiltinArgs& a, void*) {
     World& w = worldOf(a);
-    u32 ref = a.bits(0);
-    int i = w.indexFromRef(ref);
-    bool ok = ref != 0 && i >= 0 && w.entity(i).f(F_DEAD) == 0.0f && w.entity(i).f(F_HEALTH) > 0.0f;
+    int i = entityArg(w, a, 0);
+    bool ok = i >= 0 && w.entity(i).f(F_DEAD) == 0.0f && w.entity(i).f(F_HEALTH) > 0.0f;
     a.setReturnFloat(ok ? 1.0f : 0.0f);
 }
 
@@ -127,24 +129,29 @@ void bFreezeHealth(BuiltinArgs& a, void*) {
     else w.entity(e).rt &= ~RT_HEALTH_FROZEN;
 }
 
-// SetModel(name): self's model = model lookup of name. Only the collision-relevant part
-// (box, radius, tags) exists in this headless world.
+// SetModel(path) (rcsl-builtins-semantics.md 84): only the model handle changes; the
+// bounding radius and the definition are kept. Collision boxes and tags follow the new
+// model. A model that fails to load gives "no model" (no tags, empty box).
 void bSetModel(BuiltinArgs& a, void*) {
     World& w = worldOf(a);
     int s = selfOf(w);
     const char* name = strArg(a, 0);
     if (s < 0 || !name) return;
     const ModelData* m = w.loadModel(name);
-    if (!m) return;
     Entity& e = w.entity(s);
     e.model = m;
     e.modelPath = normalizePath(name);
-    e.boundsMin = m->boundsMin;
-    e.boundsMax = m->boundsMax;
-    float x = std::max(std::fabs(m->boundsMin.x), std::fabs(m->boundsMax.x));
-    float y = std::max(std::fabs(m->boundsMin.y), std::fabs(m->boundsMax.y));
-    float z = std::max(std::fabs(m->boundsMin.z), std::fabs(m->boundsMax.z));
-    e.radius = std::sqrt(x * x + y * y + z * z);
+    e.boundsMin = m ? m->boundsMin : Vec3{};
+    e.boundsMax = m ? m->boundsMax : Vec3{};
+}
+
+// setskin(ent, name): the entity's skin texture (a render-side value here: the path).
+void bSetskin(BuiltinArgs& a, void*) {
+    World& w = worldOf(a);
+    int e = entityArg(w, a, 0);
+    const char* name = strArg(a, 1);
+    if (e < 0) return;
+    w.entity(e).skinPath = name ? normalizePath(name) : std::string();
 }
 
 const BuiltinDesc kTable[] = {
@@ -161,7 +168,8 @@ const BuiltinDesc kTable[] = {
     {"ParentCallback", 3, bParentCallback, nullptr, BuiltinStatus::Implemented},
     {"IsValidTarget", 1, bIsValidTarget, nullptr, BuiltinStatus::Implemented},
     {"FreezeHealth", 2, bFreezeHealth, nullptr, BuiltinStatus::Implemented},
-    {"SetModel", 1, bSetModel, nullptr, BuiltinStatus::Approximate},
+    {"SetModel", 1, bSetModel, nullptr, BuiltinStatus::Implemented},
+    {"setskin", 2, bSetskin, nullptr, BuiltinStatus::Implemented},
 };
 
 } // namespace
