@@ -37,17 +37,6 @@ int Entity::flagBits() const { return ftol(f(F_FLAGS)); }
 // Construction.
 // ---------------------------------------------------------------------------------------
 
-namespace {
-// engine-behaviour.md 6.3.
-struct DifficultyRow {
-    float health, damage, score, rank;
-};
-constexpr DifficultyRow kDifficulty[5] = {
-    {0.3f, 0.5f, 0.6f, 0.7f},  {0.5f, 0.7f, 0.8f, 0.85f}, {0.75f, 0.8f, 1.0f, 1.07f},
-    {1.5f, 1.25f, 1.2f, 1.2f}, {2.0f, 1.4f, 1.4f, 1.3f},
-};
-} // namespace
-
 World::World()
     : particles_(new WorldParticles()),
       ents_(static_cast<size_t>(kMaxEntitySlots)),
@@ -62,14 +51,16 @@ void World::init(Vfs& vfs, const DefDatabase& db, const WorldConfig& config) {
     vfs_ = &vfs;
     db_ = &db;
     config_ = config;
+    rules_ = config.rules ? config.rules : &defaultGameRules();
+    const GameRules& rl = *rules_;
     if (const char* god = std::getenv("AS3D_GOD_MODE")) {
         if (god[0] == '1') config_.godMode = true;
     }
     config_.players = std::min(std::max(config_.players, 1), kMaxPlayers);
-    config_.difficulty = std::min(std::max(config_.difficulty, 0), 4);
-    config_.cameraMode = std::min(std::max(config_.cameraMode, 0), 3);
+    config_.difficulty = std::min(std::max(config_.difficulty, 0), std::max(rl.difficultyCount - 1, 0));
+    config_.cameraMode = std::min(std::max(config_.cameraMode, 0), std::max(rl.cameraModeCount - 1, 0));
     if (!(config_.dt > 0.0f) || config_.dt > 0.1f) config_.dt = 1.0f / 60.0f;
-    for (int p = 0; p < kMaxPlayers; ++p) config_.heli[p] = std::min(std::max(config_.heli[p], 0), 9);
+    for (int p = 0; p < kMaxPlayers; ++p) config_.heli[p] = std::min(std::max(config_.heli[p], 0), std::max(rl.helicopterCount - 1, 0));
     rng_ = Rng(config_.seed);
     retreg_ = 0;
     for (Entity& e : ents_) e.thread.reset();
@@ -79,6 +70,8 @@ void World::init(Vfs& vfs, const DefDatabase& db, const WorldConfig& config) {
     for (int p = 0; p < kMaxPlayers; ++p) {
         players_[p] = PlayerRecord();
         players_[p].heli = config_.heli[p];
+        players_[p].livesAtStart = rl.startLives;
+        players_[p].lives = static_cast<float>(rl.startLives);
     }
     resetPools();
     resetCamera();
@@ -553,13 +546,6 @@ void World::noteScriptError(const char* scriptName, const char* message) {
 // Players (engine-behaviour.md 7.4).
 // ---------------------------------------------------------------------------------------
 
-namespace {
-const char* const kHeliNames[10] = {
-    "p_apache",        "p_comanche",      "p_apache_white", "p_apache_impala", "p_comanche_white",
-    "p_comanche_lava", "p_apache_blue",   "p_comanche_sand", "p_comanche_blue", "p_comanche_green",
-};
-} // namespace
-
 bool World::isPlayerEntity(int idx, int* playerOut) const {
     if (idx < 0) return false;
     for (int p = 0; p < config_.players; ++p) {
@@ -595,7 +581,7 @@ void World::spawnPlayer(int p) {
         players_[q].currentMissile = -1;
         players_[q].currentPowerup = -1;
     }
-    const ObjectDef* def = db_->findObject(kHeliNames[std::min(std::max(pr.heli, 0), 9)]);
+    const ObjectDef* def = db_->findObject(rules_->heliObjects[std::min(std::max(pr.heli, 0), std::max(rules_->helicopterCount - 1, 0))]);
     if (!def || listCount_ >= kMaxListEntities) return;
     int idx = buildEntity(def, 0);
     if (idx < 0) return;
@@ -671,7 +657,7 @@ void World::startQuake(float amplitude) {
 }
 
 void World::resetLevelState() {
-    const DifficultyRow& d = kDifficulty[config_.difficulty];
+    const DifficultyRow& d = rules_->difficulty[config_.difficulty];
     healthFactor_ = d.health;
     damageFactor_ = d.damage;
     scoreFactor_ = d.score;

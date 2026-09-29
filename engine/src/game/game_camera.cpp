@@ -7,9 +7,14 @@ namespace as3d {
 
 GameCamera computeGameCamera(int mode, float mapPos, float cameraX, float aspect, bool hasFog, float fogEnd) {
     mode = std::min(std::max(mode, 0), 3);
-    const CameraPreset& p = kGameCameraPresets[mode];
+    return computeGameCamera(kGameCameraPresets[mode], kGameCameraMinX, kGameCameraMaxX, mapPos, cameraX, aspect,
+                             hasFog, fogEnd);
+}
+
+GameCamera computeGameCamera(const CameraPreset& p, float minX, float maxX, float mapPos, float cameraX, float aspect,
+                             bool hasFog, float fogEnd) {
     GameCamera cam;
-    cameraX = std::min(std::max(cameraX, kGameCameraMinX), kGameCameraMaxX);
+    cameraX = std::min(std::max(cameraX, minX), maxX);
     cam.position = {cameraX, mapPos + p.yOffset, p.height};
     cam.farPlane = hasFog ? std::max(fogEnd, 1000.0f) : 2000.0f;
     // Pitch is the angle from straight down, tilted toward +y. Forward = (0, sin t, -cos t);
