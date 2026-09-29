@@ -1,0 +1,668 @@
+#!/usr/bin/env python3
+"""Scripted walks through the web version in a headless browser (docs/web.md, "Tests").
+
+    walk.py --url http://127.0.0.1:8766/ [--byo-url http://127.0.0.1:8767/] --shots DIR
+            [--engine chromium|firefox] [--gl gpu|swiftshader] [--only NAME,...]
+
+Scenarios (each in a fresh browser context, so fresh storage):
+  desktop    mouse and keyboard at 1280x720: Play, intro, main menu, Options (Show FPS),
+             Top Scores, Information, Start Game, play with keys, Esc, in-game menu, Resume,
+             F full screen, context loss and restore, tab hidden and shown, reload: the
+             profile (settings, web key bindings) survived.
+  phone      a 20:9 Android phone (touch, dpr 2.625) in landscape: Play asks for full screen
+             and the landscape lock, the menus by synthesized touch, multi-touch in play (one
+             finger drags while another holds the missile button), the pause button, the full
+             screen toggle, leaving full screen pauses, portrait shows the rotate notice.
+  iphone     an iPhone profile (Chromium with the iPhone viewport, touch and user agent): the
+             layout in landscape, the rotate notice in portrait.
+  complete   the bot with god mode plays mission 1 from the menus to Mission Complete, then
+             Continue loads mission 2 (about 4 minutes).
+  gameover   a profile with a low high-score table; the bot without god mode at the hardest
+             difficulty until Game Over, Quit, name entry with the touch keyboard, Top Scores.
+  byo        the bring-your-own site: the owner's files through the file input, stored,
+             used again after a reload, removed.
+Screenshots go to DIR; a JSON report beside them (walk_<engine>.json). Exit code 1 on failure.
+"""
+import argparse
+import os
+import re
+import struct
+import sys
+import time
+import traceback
+import zlib
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from webtest import Browser, dump  # noqa: E402
+
+DATA_ROOT = os.environ.get("AS3D_DATA_ROOT", os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+
+class Walk:
+    def __init__(self, a):
+        self.a = a
+        self.results = {}
+        self.steps = []
+
+    def step(self, text):
+        line = f"[{time.strftime('%H:%M:%S')}] {text}"
+        print(line, flush=True)
+        self.steps.append(line)
+
+    def shot(self, p, name):
+        path = os.path.join(self.a.shots, f"{self.a.engine}_{name}.png")
+        p.shot(path)
+        return path
+
+
+# ------------------------------------------------------------------------------------------
+# Profile helpers (docs: engine/include/as3d/profile.h, file format version 1)
+# ------------------------------------------------------------------------------------------
+def parse_profile(b):
+    assert b[:8] == b"AS3DPROF", "not a profile"
+    size, crc = struct.unpack_from("<II", b, 12)
+    payload = b[20:20 + size]
+    assert zlib.crc32(payload) == crc, "profile CRC"
+    chunks, o = {}, 0
+    while o + 8 <= len(payload):
+        tag = payload[o:o + 4].decode()
+        n = struct.unpack_from("<I", payload, o + 4)[0]
+        chunks[tag] = payload[o + 8:o + 8 + n]
+        o += 8 + n
+    settings = {}
+    s = chunks.get("SETT", b"")
+    if s:
+        count, o = struct.unpack_from("<H", s, 0)[0], 2
+        for _ in range(count):
+            k = s[o + 1:o + 1 + s[o]].decode()
+            o += 1 + s[o]
+            settings[k] = struct.unpack_from("<i", s, o)[0]
+            o += 4
+    scores = []
+    p = chunks.get("PROG", b"")
+    if p:
+        o = 1
+        for _ in range(p[0]):
+            name = p[o + 1:o + 1 + p[o]].decode("latin-1")
+            o += 1 + p[o]
+            score, rank = struct.unpack_from("<qB", p, o)
+            o += 9
+            scores.append((name, score, rank))
+    return {"version": struct.unpack_from("<I", b, 8)[0], "chunks": chunks, "settings": settings, "scores": scores}
+
+
+def profile_with_scores(b, scores):
+    """The profile `b` with its high-score table replaced (keeps the flags and settings)."""
+    prof = parse_profile(b)
+    prog = prof["chunks"]["PROG"]
+    o = 1
+    for _ in range(prog[0]):
+        o += 1 + prog[o] + 9
+    rest = prog[o:]
+    newp = bytes([len(scores)])
+    for name, score, rank in scores:
+        nb = name.encode("latin-1")
+        newp += bytes([len(nb)]) + nb + struct.pack("<qB", score, rank)
+    newp += rest
+    payload = b""
+    for tag, data in prof["chunks"].items():
+        data = newp if tag == "PROG" else data
+        payload += tag.encode() + struct.pack("<I", len(data)) + data
+    return b"AS3DPROF" + struct.pack("<III", prof["version"], len(payload), zlib.crc32(payload)) + payload
+
+
+def read_profile(p):
+    arr = p.page.evaluate("(() => { try { return Array.from(Module.FS.readFile('/persist/profile.bin')); }"
+                          " catch (e) { return null; } })()")
+    return bytes(arr) if arr else None
+
+
+# ------------------------------------------------------------------------------------------
+# Common steps
+# ------------------------------------------------------------------------------------------
+def to_main_menu(w, p, by="mouse"):
+    """From the start of the game (intro pages or main menu) to the main menu."""
+    m = p.wait_line(r"AS3D_SCREEN name=(intro|main)\b", 90)
+    for _ in range(12):
+        if any(re.search(r"AS3D_SCREEN name=main\b", t) for t in p.texts()):
+            break
+        box = p.page.locator("#canvas").bounding_box()
+        p.tap_css(box["x"] + box["width"] / 2, box["y"] + box["height"] * 0.9, by)
+        p.page.wait_for_timeout(500)
+    p.wait_screen("main", 30)
+    p.wait_line(r"AS3D_LEVEL_LOADED", 60)
+    p.page.wait_for_timeout(800)
+    return m
+
+
+def wait_new_screen(p, name, mark, timeout=60):
+    return p.wait_line(r"AS3D_SCREEN name=" + name + r"\b", timeout, after=mark)
+
+
+def start_mission(w, p, by="mouse", difficulty_taps=0):
+    mk = p.mark()
+    p.tap_item("main", 1, by)                       # Start Game
+    wait_new_screen(p, "start", mk)
+    p.page.wait_for_timeout(400)
+    for _ in range(difficulty_taps):
+        p.tap_item("start", 4, by)                  # the Difficulty spinner
+        p.page.wait_for_timeout(250)
+    mk = p.mark()
+    p.tap_item("start", 2, by)                      # Start
+    p.wait_line(r"AS3D_LEVEL_LOADED mission=1", 90, after=mk)
+    wait_new_screen(p, "(playing|hint)", mk, 60)
+
+
+def resize(p, size):
+    """Headless Chromium really enters full screen, and then refuses viewport changes: leave
+    it first (a real phone turned sideways keeps full screen; the page only sees a resize)."""
+    if p.state()["fullscreen"]:
+        p.page.evaluate("document.exitFullscreen()")
+        p.page.wait_for_function("!document.fullscreenElement")
+        p.page.wait_for_timeout(300)
+    p.page.set_viewport_size(size)
+
+
+def touch_layout(p):
+    m = None
+    for t in p.texts():
+        mm = re.search(r"AS3D_LAYOUT size=(\d+)x(\d+) .*", t)
+        if mm:
+            m = mm
+    assert m, "no AS3D_LAYOUT"
+    btn = {k: tuple(int(v) for v in vals.split(",")) for k, vals in re.findall(r" (\w+)=(-?\d+,-?\d+,-?\d+(?:,-?\d+)?)", m.group(0))}
+    return btn
+
+
+# ------------------------------------------------------------------------------------------
+# Scenarios
+# ------------------------------------------------------------------------------------------
+def desktop(w, b):
+    p = b.page(w.a.url, "", viewport={"width": 1280, "height": 720})
+    r = {}
+    try:
+        p.wait_ready()
+        w.shot(p, "desktop_start")
+        st = p.state()
+        assert not st["touch"], "desktop started in touch mode"
+        w.step("desktop: Play (mouse)")
+        p.page.click("#play")
+        to_main_menu(w, p)
+        st = p.state()
+        r["canvas"] = st["canvas"]
+        assert st["fullscreenRequests"] == 0, "Play asked for full screen on the desktop"
+        w.shot(p, "desktop_main")
+
+        w.step("desktop: Options, Show FPS on, Back")
+        mk = p.mark()
+        p.tap_item("main", 3)
+        wait_new_screen(p, "options", mk)
+        p.page.wait_for_timeout(400)
+        items = p.menu_items("options")
+        r["options_items"] = sorted(items)
+        assert 20 not in items and 23 not in items, "video options offered on the web"
+        p.tap_item("options", 43)   # Show FPS: Off -> On
+        p.page.wait_for_timeout(300)
+        w.shot(p, "desktop_options")
+        mk = p.mark()
+        p.tap_item("options", 1)    # Back (saves)
+        wait_new_screen(p, "main", mk)
+        p.wait_line(r"AS3D_WEB profile_synced", 10, after=mk)
+        prof = parse_profile(read_profile(p))
+        r["profile_after_options"] = {k: prof["settings"].get(k) for k in ("showFps", "key0.0.0", "key0.2.0", "key0.4.0")}
+        assert prof["settings"].get("showFps") == 1, "Show FPS not saved"
+        assert prof["settings"].get("key0.0.0") == 32, "fire is not Space on a fresh web profile"
+
+        w.step("desktop: Top Scores, Information")
+        mk = p.mark()
+        p.tap_item("main", 2)
+        wait_new_screen(p, "scores", mk)
+        p.page.wait_for_timeout(500)
+        w.shot(p, "desktop_scores")
+        mk = p.mark()
+        p.tap_item("scores", 1)
+        wait_new_screen(p, "main", mk)
+        mk = p.mark()
+        p.tap_item("main", 4)
+        wait_new_screen(p, "info", mk)
+        p.page.wait_for_timeout(500)
+        w.shot(p, "desktop_info")
+        mk = p.mark()
+        p.key("Escape")
+        wait_new_screen(p, "main", mk)
+
+        w.step("desktop: Controls screen shows the web keys")
+        mk = p.mark()
+        p.tap_item("main", 3)
+        wait_new_screen(p, "options", mk)
+        p.page.wait_for_timeout(300)
+        mk = p.mark()
+        p.tap_item("options", 2)
+        wait_new_screen(p, "controls", mk)
+        p.page.wait_for_timeout(500)
+        w.shot(p, "desktop_controls")
+        mk = p.mark()
+        p.key("Escape")
+        wait_new_screen(p, "options", mk)
+        mk = p.mark()
+        p.key("Escape")
+        wait_new_screen(p, "main", mk)
+
+        w.step("desktop: Start Game, play with keys")
+        start_mission(w, p)
+        if p.state()["screen"] == "hint":
+            p.key("Enter")
+        p.page.wait_for_timeout(1500)
+        canvas = p.page.locator("#canvas")
+        canvas.focus()
+        score0 = None
+        for k in range(6):
+            p.page.keyboard.down("Space")
+            p.page.keyboard.down("ArrowLeft" if k % 2 else "ArrowRight")
+            p.page.wait_for_timeout(500)
+            p.page.keyboard.up("ArrowLeft")
+            p.page.keyboard.up("ArrowRight")
+            p.page.keyboard.up("Space")
+            if p.state()["screen"] == "hint":
+                p.key("Enter")
+        w.shot(p, "desktop_play")
+        w.step("desktop: F asks for full screen, the layout follows a screen-sized viewport")
+        n0 = p.state()["fullscreenRequests"]
+        p.key("f")
+        p.page.wait_for_timeout(500)
+        st = p.state()
+        r["fullscreen_after_f"] = st["fullscreen"]
+        assert st["fullscreenRequests"] == n0 + 1, "F did not ask for full screen"
+        if st["fullscreen"]:
+            r["canvas_fullscreen"] = st["canvas"]
+            w.shot(p, "desktop_fullscreen")
+            mk = p.mark()
+            p.page.evaluate("document.exitFullscreen()")
+            p.wait_line(r"AS3D_WEB fullscreen=0", 5, after=mk)
+            p.wait_line(r"AS3D_SCREEN name=ingame", 5, after=mk)
+            r["fullscreen_exit_paused"] = True
+            p.page.wait_for_timeout(500)
+            mk = p.mark()
+            p.tap_item("ingame", 1)
+            wait_new_screen(p, "playing", mk)
+        p.page.set_viewport_size({"width": 1920, "height": 1080})
+        p.page.wait_for_timeout(1200)
+        st = p.state()
+        r["canvas_1080"] = st["canvas"]
+        assert st["canvas"]["h"] == 1080 and st["canvas"]["w"] == 1920, st["canvas"]
+        p.wait_line(r"AS3D_VIEW scale=1\.8000", 5)
+        w.shot(p, "desktop_play_1080")
+        p.page.set_viewport_size({"width": 1280, "height": 720})
+        p.page.wait_for_timeout(600)
+
+        w.step("desktop: Esc, in-game menu, Resume")
+        mk = p.mark()
+        p.key("Escape")
+        wait_new_screen(p, "ingame", mk)
+        p.page.wait_for_timeout(400)
+        w.shot(p, "desktop_ingame")
+        mk = p.mark()
+        p.tap_item("ingame", 1)
+        wait_new_screen(p, "playing", mk)
+
+        w.step("desktop: WebGL context loss and restore")
+        mk = p.mark()
+        p.page.evaluate("""(() => {
+            const gl = document.getElementById('canvas').getContext('webgl2');
+            const ext = gl.getExtension('WEBGL_lose_context');
+            ext.loseContext();
+            setTimeout(() => ext.restoreContext(), 1000);
+        })()""")
+        p.wait_line(r"AS3D_WEB context_lost", 5, after=mk)
+        p.wait_line(r"AS3D_SCREEN name=ingame", 5, after=mk)
+        p.wait_line(r"AS3D_GL_REBUILD reason=context_restored ms=(\d+)", 30, after=mk)
+        p.page.wait_for_timeout(1500)
+        r["gl_rebuild"] = [t for t in p.texts()[mk:] if "AS3D_GL_REBUILD" in t]
+        w.shot(p, "desktop_after_context_restore")
+        mk = p.mark()
+        p.tap_item("ingame", 1)
+        wait_new_screen(p, "playing", mk)
+        p.page.wait_for_timeout(1500)
+        w.shot(p, "desktop_play_after_restore")
+
+        w.step("desktop: tab hidden and shown (visibilitychange)")
+        mk = p.mark()
+        p.page.evaluate("""(() => {
+            Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+            document.dispatchEvent(new Event('visibilitychange'));
+        })()""")
+        p.wait_line(r"AS3D_BACKGROUND", 5, after=mk)
+        p.wait_line(r"AS3D_WEB profile_synced", 10, after=mk)
+        audio = p.page.evaluate("(Module.SDL2 && Module.SDL2.audioContext) ? Module.SDL2.audioContext.state : 'none'")
+        p.page.evaluate("""(() => {
+            Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+            document.dispatchEvent(new Event('visibilitychange'));
+        })()""")
+        p.wait_line(r"AS3D_FOREGROUND", 5, after=mk)
+        p.page.wait_for_timeout(800)
+        r["audio_when_hidden"] = audio
+        r["screen_after_hidden"] = p.state()["screen"]
+        assert r["screen_after_hidden"] == "ingame", "the game did not come back paused"
+
+        w.step("desktop: reload, the profile is still there")
+        p.reload()
+        p.wait_ready()
+        prof = parse_profile(read_profile(p))
+        r["profile_after_reload"] = {k: prof["settings"].get(k) for k in ("showFps", "key0.0.0")}
+        assert prof["settings"].get("showFps") == 1, "Show FPS lost after reload"
+        r["errors"] = p.errors()
+    finally:
+        p.close()
+    return r
+
+
+def phone(w, b, device="Pixel 7"):
+    dev = b.device(device)
+    # A 20:9 phone in landscape.
+    vp = {"width": 915, "height": 412}
+    ctx = {k: v for k, v in dev.items() if k not in ("viewport", "screen", "default_browser_type")}
+    ctx.update(viewport=vp, screen={"width": 915, "height": 412}, device_scale_factor=2.625, is_mobile=True,
+               has_touch=True)
+    p = b.page(w.a.url, "", **ctx)
+    r = {"device": device, "viewport": vp}
+    try:
+        p.wait_ready()
+        st = p.state()
+        assert st["touch"], "a touch phone did not start in touch mode"
+        w.shot(p, "phone_start")
+        w.step("phone: tap Play (touch): full screen and the landscape lock are requested")
+        p.page.tap("#play")
+        p.page.wait_for_timeout(800)
+        st = p.state()
+        r["fullscreen_requests"] = st["fullscreenRequests"]
+        r["fullscreen"] = st["fullscreen"]
+        r["orientation_locks"] = st["orientationLocks"]
+        r["canvas"] = st["canvas"]
+        assert st["fullscreenRequests"] == 1, "Play did not ask for full screen"
+        assert st["canvas"]["h"] == 1080, st["canvas"]  # 412 x 2.625 = 1081.5 lines, capped at 1080
+        to_main_menu(w, p, by="touch")
+        w.shot(p, "phone_main")
+        fs = p.page.locator("#fs-toggle")
+        assert fs.is_visible(), "no full screen toggle in touch mode"
+
+        w.step("phone: Start Game by touch")
+        start_mission(w, p, by="touch")
+        p.page.wait_for_timeout(1200)
+        if p.state()["screen"] == "hint":
+            p.tap_item("hint", 1, "touch")
+            p.page.wait_for_timeout(500)
+        L = touch_layout(p)
+        r["layout"] = L
+        pb = fs.bounding_box()
+        px, py = p.fb_to_css(L["pause"][0], L["pause"][1])
+        r["fs_button"] = pb
+        assert abs((pb["y"] + pb["height"] / 2) - py) < 4, "full screen toggle not level with the pause button"
+
+        w.step("phone: multi-touch: one finger drags, another holds the missile button")
+        fx0, fy0 = p.fb_to_css(L["field"][0] + (L["field"][2] - L["field"][0]) * 0.5, L["field"][3] * 0.7)
+        mx, my = p.fb_to_css(L["missile"][0], L["missile"][1])
+        mk = p.mark()
+        p.touch("touchStart", [(fx0, fy0, 1)])
+        for k in range(8):
+            p.touch("touchMove", [(fx0 - 6 * k, fy0 - 3 * k, 1)])
+            p.page.wait_for_timeout(30)
+        p.touch("touchStart", [(fx0 - 42, fy0 - 21, 1), (mx, my, 2)])
+        for k in range(8):
+            p.touch("touchMove", [(fx0 - 42 + 8 * k, fy0 - 21, 1), (mx, my, 2)])
+            p.page.wait_for_timeout(30)
+        w.shot(p, "phone_multitouch")
+        p.touch("touchEnd", [(fx0 + 14, fy0 - 21, 1)])
+        p.page.wait_for_timeout(100)
+        p.touch("touchEnd", [])
+        p.page.wait_for_timeout(300)
+        touches = [t for t in p.texts()[mk:] if "AS3D_TOUCH" in t]
+        r["touch_lines"] = touches
+        downs = [t for t in touches if "down" in t]
+        assert any("on=missile" in t for t in downs), "the second finger did not reach the missile button"
+        ids = {re.search(r"id=(\d+)", t).group(1) for t in downs}
+        assert len(ids) >= 2, "only one finger seen"
+
+        w.step("phone: pause button, in-game menu, Resume by touch")
+        mk = p.mark()
+        p.tap_css(px, py, "touch")
+        wait_new_screen(p, "ingame", mk)
+        w.shot(p, "phone_ingame")
+        mk = p.mark()
+        p.tap_item("ingame", 1, "touch")
+        wait_new_screen(p, "playing", mk)
+
+        w.step("phone: the full screen toggle; leaving full screen pauses")
+        n0 = p.state()["fullscreenRequests"]
+        mk = p.mark()
+        if p.state()["fullscreen"]:
+            fs.tap()  # leaves
+            p.wait_line(r"AS3D_WEB fullscreen=0", 5, after=mk)
+            p.wait_line(r"AS3D_SCREEN name=ingame", 5, after=mk)
+            r["left_fullscreen_paused"] = True
+            p.page.wait_for_timeout(300)
+            fs.tap()  # enters again
+        else:
+            fs.tap()
+        p.page.wait_for_timeout(500)
+        r["fullscreen_requests_after_toggle"] = p.state()["fullscreenRequests"]
+        assert p.state()["fullscreenRequests"] == n0 + 1, "the toggle did not ask for full screen"
+
+        w.step("phone: portrait shows the rotate notice and pauses")
+        resize(p, vp)  # out of full screen first (headless limitation), which pauses
+        p.page.wait_for_timeout(500)
+        if p.state()["screen"] == "ingame":
+            mk = p.mark()
+            p.tap_item("ingame", 1, "touch")
+            wait_new_screen(p, "playing", mk)
+        mk = p.mark()
+        p.page.set_viewport_size({"width": 412, "height": 915})
+        p.page.wait_for_timeout(1200)
+        assert p.page.locator("#rotate").is_visible(), "no rotate notice in portrait"
+        p.wait_line(r"AS3D_SCREEN name=ingame", 5, after=mk)
+        w.shot(p, "phone_portrait")
+        p.page.set_viewport_size(vp)
+        p.page.wait_for_timeout(1200)
+        assert not p.page.locator("#rotate").is_visible(), "rotate notice stays in landscape"
+        w.shot(p, "phone_back_to_landscape")
+        r["errors"] = p.errors()
+    finally:
+        p.close()
+    return r
+
+
+def iphone(w, b):
+    dev = b.device("iPhone 13 landscape")
+    ctx = {k: v for k, v in dev.items() if k != "default_browser_type"}
+    p = b.page(w.a.url, "", **ctx)
+    r = {"device": "iPhone 13 landscape", "viewport": dev["viewport"]}
+    try:
+        p.wait_ready()
+        assert p.state()["touch"]
+        p.page.tap("#play")
+        to_main_menu(w, p, by="touch")
+        r["canvas"] = p.state()["canvas"]
+        w.shot(p, "iphone_main")
+        start_mission(w, p, by="touch")
+        p.page.wait_for_timeout(1500)
+        w.shot(p, "iphone_play")
+        vp = dev["viewport"]
+        resize(p, {"width": vp["height"], "height": vp["width"]})
+        p.page.wait_for_timeout(1000)
+        assert p.page.locator("#rotate").is_visible()
+        w.shot(p, "iphone_portrait")
+        r["errors"] = p.errors()
+    finally:
+        p.close()
+    return r
+
+
+def complete(w, b):
+    p = b.page(w.a.url, "bot=1&menus=1&god=1", viewport={"width": 1280, "height": 720})
+    r = {}
+    try:
+        p.wait_ready()
+        p.page.click("#play")
+        to_main_menu(w, p)
+        w.step("complete: Start Game, the bot plays mission 1 with god mode")
+        start_mission(w, p)
+        t0 = time.time()
+        p.wait_line(r"AS3D_SCREEN name=complete", 420)
+        r["mission_seconds"] = round(time.time() - t0)
+        p.page.wait_for_timeout(2500)
+        w.shot(p, "mission_complete")
+        w.step("complete: Continue to mission 2")
+        mk = p.mark()
+        p.tap_item("complete", 3)
+        p.wait_line(r"AS3D_LEVEL_LOADED mission=2", 90, after=mk)
+        wait_new_screen(p, "(playing|hint)", mk)
+        p.page.wait_for_timeout(2000)
+        w.shot(p, "mission2")
+        r["load_lines"] = [t for t in p.texts() if "AS3D_LEVEL_LOAD" in t]
+        r["errors"] = p.errors()
+    finally:
+        p.close()
+    return r
+
+
+def gameover(w, b):
+    # Touch mode, so the name is typed on the front end's own keyboard.
+    p = b.page(w.a.url, "bot=1&menus=1&touch=1", viewport={"width": 1280, "height": 720}, has_touch=True)
+    r = {}
+    try:
+        p.wait_ready()
+        p.page.click("#play")
+        to_main_menu(w, p, by="touch")
+        w.step("gameover: a low high-score table in the profile")
+        mk = p.mark()
+        p.tap_item("main", 3, "touch")
+        wait_new_screen(p, "options", mk)
+        mk = p.mark()
+        p.tap_item("options", 1, "touch")   # Back writes the profile
+        p.wait_line(r"AS3D_WEB profile_synced", 10, after=mk)
+        prof = read_profile(p)
+        low = [("Low %d" % i, 15 - i, 0) for i in range(15)]
+        data = profile_with_scores(prof, low)
+        p.page.evaluate("(bytes) => { Module.FS.writeFile('/persist/profile.bin', new Uint8Array(bytes));"
+                        " return new Promise((ok) => Module.FS.syncfs(false, ok)); }", list(data))
+        p.reload()
+        p.wait_ready()
+        assert parse_profile(read_profile(p))["scores"][0][0] == "Low 0"
+        p.page.click("#play")
+        to_main_menu(w, p, by="touch")
+        w.step("gameover: the bot without god mode, hardest difficulty")
+        start_mission(w, p, by="touch", difficulty_taps=2)
+        t0 = time.time()
+        p.wait_line(r"AS3D_SCREEN name=gameover", 600)
+        r["seconds_to_game_over"] = round(time.time() - t0)
+        p.page.wait_for_timeout(2600)   # the buttons appear after 2 s
+        w.shot(p, "game_over")
+        mk = p.mark()
+        p.tap_item("gameover", 2, "touch")   # Quit: banks, then the high-score check
+        wait_new_screen(p, "name", mk, 30)
+        p.page.wait_for_timeout(600)
+        w.step("gameover: name entry with the touch keyboard")
+        for ch in "WEB":
+            p.tap_item("name", 200 + ord(ch), "touch")
+            p.page.wait_for_timeout(150)
+        w.shot(p, "name_entry")
+        mk = p.mark()
+        p.tap_item("name", 1, "touch")   # OK
+        wait_new_screen(p, "scores", mk)
+        p.wait_line(r"AS3D_WEB profile_synced", 10, after=mk)
+        p.page.wait_for_timeout(600)
+        w.shot(p, "high_scores")
+        scores = parse_profile(read_profile(p))["scores"]
+        r["top_scores"] = scores[:3]
+        assert scores[0][0] == "WEB", scores[:3]
+        r["errors"] = p.errors()
+    finally:
+        p.close()
+    return r
+
+
+def byo(w, b):
+    orig = os.path.join(DATA_ROOT, "third_party_local", "original")
+    files = [os.path.join(orig, "data", n) for n in ("pak0.apk", "pak1.apk", "pak2.apk", "Settings.xml")]
+    files += [os.path.join(orig, "data", "gfx", "logo2s.tga"), os.path.join(orig, "AirStrike3D.exe")]
+    p = b.page(w.a.byo_url, "", viewport={"width": 1280, "height": 720})
+    r = {}
+    try:
+        p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
+        assert p.page.locator("#play").is_disabled()
+        w.shot(p, "byo_picker")
+        w.step("byo: a wrong file is refused")
+        p.page.set_input_files("#pick-files", [{"name": "pak1.apk", "mimeType": "application/octet-stream",
+                                                "buffer": b"\0" * 1000}])
+        p.page.wait_for_function("document.getElementById('files-status').textContent.includes('expected')", timeout=20000)
+        r["wrong_file_message"] = p.page.locator("#files-status").text_content()
+        w.step("byo: the owner's files through the file input")
+        t0 = time.time()
+        p.page.set_input_files("#pick-files", files)
+        p.wait_ready(180)
+        r["check_and_store_seconds"] = round(time.time() - t0, 1)
+        r["stored_text"] = p.page.locator("#stored-text").text_content()
+        r["data_line"] = [t for t in p.texts() if "AS3D_WEB data=" in t]
+        assert "texts_v170.txt" in r["data_line"][0], "the exe's texts were not used"
+        p.page.click("#play")
+        to_main_menu(w, p)
+        w.shot(p, "byo_main")
+        mk = p.mark()
+        p.tap_item("main", 4)
+        wait_new_screen(p, "info", mk)
+        p.page.wait_for_timeout(500)
+        w.shot(p, "byo_info")   # the Information pages from the exe's texts
+        w.step("byo: reload: the stored files are used without asking")
+        p.reload()
+        p.wait_ready(120)
+        assert p.page.locator("#files").is_hidden()
+        assert p.page.locator("#stored").is_visible()
+        w.step("byo: remove them")
+        p.page.once("dialog", lambda d: d.accept())
+        p.page.click("#forget")
+        p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
+        r["picker_after_remove"] = True
+        r["errors"] = p.errors()
+    finally:
+        p.close()
+    return r
+
+
+SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "complete": complete,
+             "gameover": gameover}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--url", default="http://127.0.0.1:8766/")
+    ap.add_argument("--byo-url", default="http://127.0.0.1:8767/")
+    ap.add_argument("--shots", required=True)
+    ap.add_argument("--engine", default="chromium", choices=["chromium", "firefox"])
+    ap.add_argument("--gl", default="gpu", choices=["gpu", "swiftshader"])
+    ap.add_argument("--only", default="desktop,phone,iphone,byo,complete,gameover")
+    a = ap.parse_args()
+    os.makedirs(a.shots, exist_ok=True)
+    w = Walk(a)
+    b = Browser(a.engine, a.gl)
+    failed = []
+    try:
+        for name in a.only.split(","):
+            w.step(f"=== {name} ({a.engine}, {a.gl})")
+            t0 = time.time()
+            try:
+                w.results[name] = SCENARIOS[name](w, b)
+                w.results[name]["seconds"] = round(time.time() - t0)
+                w.step(f"=== {name}: OK")
+            except Exception as e:  # noqa: BLE001 - report and go on with the next scenario
+                failed.append(name)
+                w.results[name] = {"failed": str(e), "trace": traceback.format_exc()}
+                w.step(f"=== {name}: FAILED: {e}")
+    finally:
+        b.close()
+    w.results["steps"] = w.steps
+    dump(w.results, os.path.join(a.shots, f"walk_{a.engine}.json"))
+    print("walk:", "FAILED " + ",".join(failed) if failed else "OK")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

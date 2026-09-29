@@ -162,6 +162,12 @@ struct Settings {
     void unbindKey(int player, Action a);
 };
 
+// Fresh-profile key bindings of the web version (docs/spec/issues/150): browsers keep Ctrl+W,
+// Ctrl+T and Ctrl+N for themselves, so the built-in Ctrl fire key would close the tab. Player 1
+// and player 2 fire with Space, launch missiles with X and use items with C; the second slots
+// (joystick codes) and every other key stay as in defaults(). Rebinding works as usual.
+void applyWebKeyBindings(Settings& s);
+
 constexpr const char* kVideoModeNames[9] = {"640 x 480", "800 x 600", "1024 x 768", "1152 x 864", "1280 x 960",
                                             "1280 x 1024", "1600 x 1200", "1920 x 1440", "2048 x 1536"};
 

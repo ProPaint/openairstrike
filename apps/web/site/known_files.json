@@ -1,0 +1,12 @@
+{
+  "comment": "The files of AirStrike 3D v1.70 the web version accepts from the player (docs/web.md). Sizes and SHA-256 only; the files themselves are never part of the site.",
+  "files": {
+    "pak0.apk": { "required": true, "size": 16717041, "sha256": "86745b285a6d31d7c1a9d1ee50c6afeb1b78163a75e5a52a39191095c7a6b3df", "where": "data/pak0.apk" },
+    "pak1.apk": { "required": true, "size": 5175304, "sha256": "548d8f1ad37cd3c2864ee1626dc4a592ba3640130ed8c0ec6155a99321a8d94a", "where": "data/pak1.apk" },
+    "pak2.apk": { "required": true, "size": 3075496, "sha256": "c992f0a28add309cedef544534c1a77d3cdf1415322ddffc9b3030766a6919d3", "where": "data/pak2.apk" },
+    "Settings.xml": { "required": false, "size": 1036, "sha256": "89104c8acd9feb7bfd042ad3abf830f06a0f2c5e7e255166f067666e0ade95eb", "where": "data/Settings.xml", "gives": "the intro pages, the version line and the menu logo" },
+    "logo2s.tga": { "required": false, "size": 65580, "sha256": "3687a677d73bb486f9e38f97d83223a11c1384c452d0cda86ee3e9f3991eee9f", "where": "data/gfx/logo2s.tga", "gives": "the main menu's logo" },
+    "AirStrike3D.exe": { "required": false, "size": 708608, "sha256": "3b371bc2a72dcf18c17b5efa1b7e08b85fef73cfdd28dce00ec0aa2f2e93df1d", "where": "AirStrike3D.exe", "gives": "the texts of the Information pages, Game Complete and the ranks (only the texts are kept)" },
+    "texts_v170.txt": { "required": false, "where": "made by tools/extract_exe_texts.py", "gives": "the same texts as AirStrike3D.exe" }
+  }
+}

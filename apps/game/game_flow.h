@@ -39,6 +39,13 @@ struct FlowConfig {
     // is wider than 4:3 (desktop).
     int screenOverride = -1;
     bool screenOptionAlways = false;
+    // The web version (apps/web, docs/spec/issues/150): a fresh profile gets the web key
+    // bindings (as3d::applyWebKeyBindings, no Ctrl); level loads requested by the front end
+    // run on the next frame (runPendingLoad) so the loading screen is presented before the
+    // load blocks; `profileSaved` runs after every save (the page syncs its storage).
+    bool webKeys = false;
+    bool deferLoads = false;
+    std::function<void()> profileSaved;
 };
 
 // Level-start bits the loop reacts to (renderer and audio are handled inside).
@@ -68,7 +75,9 @@ public:
     // One UI frame: menu time advances by dt. Returns true when the UI took the input.
     bool uiFrame(float dt, const as3d::ui::UiInput& input);
     // Whether the world is simulated this frame (a level is loaded).
-    bool worldRunning() const { return session_.hasLevel() && fe_ && fe_->state() != as3d::ui::FrontendState::Intro; }
+    bool worldRunning() const {
+        return session_.hasLevel() && fe_ && fe_->state() != as3d::ui::FrontendState::Intro && !loadPending();
+    }
     // One fixed simulation step. Gameplay input is used only while playing with no menu;
     // `confirm` closes an open hint box (the bot's OK); the pause edge is ignored (the front
     // end owns P). Returns GameSession::StepEvent bits.
@@ -98,6 +107,14 @@ public:
     int attractLevel() const { return attract_; }
     // Loads so far (missions and attract levels), for tests.
     int levelLoads() const { return levelLoads_; }
+    // With FlowConfig::deferLoads: a level load the front end asked for and that has not run
+    // yet (the world is neither stepped nor drawn meanwhile); runPendingLoad() runs it.
+    bool loadPending() const { return pending_ != PendingLoad::None; }
+    bool loadPendingIntermission() const { return pending_ == PendingLoad::Attract; }
+    void runPendingLoad();
+    // Touch mode switched on or off while running (the web page's first touch on a hybrid
+    // device): the front end's touch additions and cursor follow.
+    void setTouchMode(bool on);
 
     // GameHost.
     void startMission(const as3d::ui::MissionStart& start) override;
@@ -110,6 +127,9 @@ public:
     void gameOverMusic() override { audio_.gameOverMusic(); }
 
 private:
+    enum class PendingLoad { None, Mission, Attract };
+    void doStartMission(const as3d::ui::MissionStart& start);
+    void doLoadAttract();
     void levelLoaded(bool intermission);
     void applySettings(const as3d::Settings& s);
     as3d::ui::MissionReport report() const;
@@ -128,6 +148,8 @@ private:
     float pointerX_ = 400, pointerY_ = 300;
     int screenOverride_ = -1;
     int lastScreenSetting_ = 0;
+    PendingLoad pending_ = PendingLoad::None;
+    as3d::ui::MissionStart pendingStart_;
 };
 
 // The player's helicopter centre in the virtual 800x600 screen (y down), from its collision

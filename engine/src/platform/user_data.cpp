@@ -55,6 +55,10 @@ std::string userDataDir() {
         return std::string();
     }
     std::string dir = internal;
+#elif defined(__EMSCRIPTEN__)
+    // The web page mounts browser storage (IDBFS) here before main() and syncs it after
+    // every profile save (apps/web).
+    std::string dir = "/persist";
 #else
     std::string dir;
     const char* xdg = std::getenv("XDG_DATA_HOME");
