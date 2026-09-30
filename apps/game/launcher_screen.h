@@ -52,6 +52,10 @@ public:
     // Into the bound framebuffer (begins and flushes `r`).
     void draw(as3d::ui::Renderer2D& r, int fbWidth, int fbHeight);
 
+    // Only card `index`'s marquee at `clock` into `box` (virtual pixels) of the bound framebuffer
+    // (begins and flushes `r`): the web page's build-time render.
+    void drawMarquee(as3d::ui::Renderer2D& r, int fbWidth, int fbHeight, int index, const as3d::ui::RectF& box, float clock);
+
     // The game played, once one is (nullptr before).
     const as3d::GameProfile* chosen() const;
     bool exitRequested() const { return sel_ && sel_->exitRequested(); }

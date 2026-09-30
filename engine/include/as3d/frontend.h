@@ -479,6 +479,10 @@ public:
     // The card that Play would start: the focused card, or the last one focused.
     int current() const { return current_; }
     void draw(Renderer2D& r, const UiAssets& fontAssets);
+    // Only the marquee of card `index`, into the virtual rectangle `box`, at `clock` (the
+    // web page's build-time render, apps/game `--selector-marquees`); begins and flushes
+    // nothing of its own except around the banner mesh.
+    void drawMarquee(Renderer2D& r, int index, const RectF& box, float clock);
 
     const std::vector<GameCard>& cards() const { return cards_; }
     RectF cardRect(int index) const;

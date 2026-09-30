@@ -163,6 +163,14 @@ void LauncherScreen::draw(ui::Renderer2D& r, int fbWidth, int fbHeight) {
     r.flush();
 }
 
+void LauncherScreen::drawMarquee(ui::Renderer2D& r, int fbWidth, int fbHeight, int index, const ui::RectF& box, float clock) {
+    fbW_ = fbWidth;
+    fbH_ = fbHeight;
+    r.begin(fbWidth, fbHeight);
+    if (sel_) sel_->drawMarquee(r, index, box, clock);
+    r.flush();
+}
+
 const GameProfile* LauncherScreen::chosen() const {
     if (!sel_ || sel_->chosen() < 0 || sel_->chosen() >= static_cast<int>(games_.size())) return nullptr;
     return games_[static_cast<size_t>(sel_->chosen())].game;

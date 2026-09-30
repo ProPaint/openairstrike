@@ -145,7 +145,7 @@ void GameSelector::build() {
             c.r.rect(mq.x - 4, mq.y - 4, mq.w + 8, mq.h + 8, {0, 0, 0, cur ? 0.78f : 0.6f}, Blend::Alpha);
             c.r.outline(mq.x - 4, mq.y - 4, mq.w + 8, mq.h + 8, cur ? packed(0x90003C90u) : packed(0x70002050u), Blend::Alpha);
             const bool bannerDrawn = card.marquee == Marquee::Banner && banner_;
-            if (!bannerDrawn && !drawMarquee(c.r, card, mq, c.mt, loopFit_)) {
+            if (!bannerDrawn && !::as3d::ui::drawMarquee(c.r, card, mq, c.mt, loopFit_)) {
                 const float s = fitScale(card.title, mq.w, 2.6f);
                 scaledText(c, cx, std::floor(mq.y + (mq.h - 15 * s) * 0.5f), card.title, cur ? orange() : kSoft, s, true);
             }
@@ -221,6 +221,18 @@ void GameSelector::build() {
 void GameSelector::update(float dt, const UiInput& input) {
     menus_.update(dt, input);
     menus_.takeSounds(); // no game audio behind the selector
+}
+
+void GameSelector::drawMarquee(Renderer2D& r, int index, const RectF& box, float clock) {
+    if (index < 0 || index >= static_cast<int>(cards_.size())) return;
+    const GameCard& card = cards_[static_cast<size_t>(index)];
+    if (card.marquee == Marquee::Banner && banner_) {
+        r.flush();
+        banner_(box, clock);
+        r.begin(r.mapping().fbWidth, r.mapping().fbHeight);
+    } else {
+        ::as3d::ui::drawMarquee(r, card, box, clock, loopFit_);
+    }
 }
 
 void GameSelector::draw(Renderer2D& r, const UiAssets& fontAssets) {
