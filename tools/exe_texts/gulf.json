@@ -1,0 +1,1220 @@
+{
+ "game": "gulf",
+ "exe": "AirStrike3D II - Gulf.exe",
+ "exe_sha256": "86195a9653489064844c172ce43307c703a50e53be7e00d45fe346c45d5ae077",
+ "image_base": "0x00400000",
+ "address_to_file_offset": "file offset = address - image_base - section virtual address + section raw offset; .rdata at virtual 0x47e000, raw 0x7e000 (offset = address - 0x400000); .data at virtual 0x496000, raw 0x96000",
+ "kinds": {
+  "text": "NUL-terminated ASCII string at the address, one line; leading and trailing spaces are part of button captions (they set the button width)",
+  "text_ml": "NUL-terminated ASCII string whose lines are separated by a single LF byte (0x0A); an empty line is LF LF",
+  "u32": "little-endian 32-bit integer at the address (not a text)"
+ },
+ "spec": "docs/spec/as2/frontend.md section 7 (keys); docs/spec/gulf/frontend.delta.md section 7 (differences)",
+ "entries": [
+  {
+   "key": "title.start_game",
+   "address": "0x0048cbc4",
+   "kind": "text"
+  },
+  {
+   "key": "title.options",
+   "address": "0x0048ca7c",
+   "kind": "text",
+   "note": "Options panel title; same string as button.options"
+  },
+  {
+   "key": "title.controls",
+   "address": "0x0048b6a0",
+   "kind": "text"
+  },
+  {
+   "key": "title.heli",
+   "address": "0x0048be00",
+   "kind": "text"
+  },
+  {
+   "key": "title.mission_complete",
+   "address": "0x0048b8c8",
+   "kind": "text"
+  },
+  {
+   "key": "title.top_scores",
+   "address": "0x0048cda8",
+   "kind": "text"
+  },
+  {
+   "key": "title.enter_name",
+   "address": "0x0048cbf4",
+   "kind": "text"
+  },
+  {
+   "key": "title.exit",
+   "address": "0x0048b93c",
+   "kind": "text"
+  },
+  {
+   "key": "title.hint",
+   "address": "0x0048b918",
+   "kind": "text"
+  },
+  {
+   "key": "title.game_over",
+   "address": "0x0048bc90",
+   "kind": "text"
+  },
+  {
+   "key": "label.exit",
+   "address": "0x0048b91c",
+   "kind": "text"
+  },
+  {
+   "key": "label.difficulty",
+   "address": "0x0048cd58",
+   "kind": "text"
+  },
+  {
+   "key": "label.game_mode",
+   "address": "0x0048cd64",
+   "kind": "text"
+  },
+  {
+   "key": "label.player",
+   "address": "0x0048be14",
+   "kind": "text"
+  },
+  {
+   "key": "difficulty.0",
+   "address": "0x0048cd4c",
+   "kind": "text",
+   "note": "pointer table 0x49e6d8"
+  },
+  {
+   "key": "difficulty.1",
+   "address": "0x0048cd44",
+   "kind": "text",
+   "note": "pointer table 0x49e6d8"
+  },
+  {
+   "key": "difficulty.2",
+   "address": "0x0048cd3c",
+   "kind": "text",
+   "note": "pointer table 0x49e6d8"
+  },
+  {
+   "key": "difficulty.3",
+   "address": "0x0048cd30",
+   "kind": "text",
+   "note": "pointer table 0x49e6d8"
+  },
+  {
+   "key": "difficulty.4",
+   "address": "0x0048cd24",
+   "kind": "text",
+   "note": "pointer table 0x49e6d8"
+  },
+  {
+   "key": "mode.0",
+   "address": "0x0048cd14",
+   "kind": "text",
+   "note": "first value of the game mode spinner"
+  },
+  {
+   "key": "mode.1",
+   "address": "0x0048cd08",
+   "kind": "text",
+   "note": "second value (two players)"
+  },
+  {
+   "key": "button.start_game",
+   "address": "0x0048cbc4",
+   "kind": "text"
+  },
+  {
+   "key": "button.top_scores",
+   "address": "0x0048cbd0",
+   "kind": "text"
+  },
+  {
+   "key": "button.options",
+   "address": "0x0048ca7c",
+   "kind": "text"
+  },
+  {
+   "key": "button.information",
+   "address": "0x0048cbdc",
+   "kind": "text"
+  },
+  {
+   "key": "button.credits",
+   "address": "0x0048cbe8",
+   "kind": "text"
+  },
+  {
+   "key": "button.quit",
+   "address": "0x0048ca8c",
+   "kind": "text",
+   "note": "main menu and in-game menu"
+  },
+  {
+   "key": "button.quit_wide",
+   "address": "0x0048b8ec",
+   "kind": "text",
+   "note": "mission complete and game over"
+  },
+  {
+   "key": "button.yes",
+   "address": "0x0048b94c",
+   "kind": "text"
+  },
+  {
+   "key": "button.no",
+   "address": "0x0048b954",
+   "kind": "text"
+  },
+  {
+   "key": "button.back",
+   "address": "0x0048b70c",
+   "kind": "text"
+  },
+  {
+   "key": "button.back_wide",
+   "address": "0x0048b70c",
+   "kind": "text",
+   "note": "Options, Credits and Information screens"
+  },
+  {
+   "key": "button.next",
+   "address": "0x0048b910",
+   "kind": "text",
+   "note": "Start Game screen"
+  },
+  {
+   "key": "button.next_wide",
+   "address": "0x0048b910",
+   "kind": "text",
+   "note": "mission complete"
+  },
+  {
+   "key": "button.start",
+   "address": "0x0048be34",
+   "kind": "text"
+  },
+  {
+   "key": "button.continue",
+   "address": "0x0048bc80",
+   "kind": "text"
+  },
+  {
+   "key": "button.accept",
+   "address": "0x0048be1c",
+   "kind": "text"
+  },
+  {
+   "key": "button.restart",
+   "address": "0x0048b8dc",
+   "kind": "text"
+  },
+  {
+   "key": "button.resume",
+   "address": "0x0048ca74",
+   "kind": "text"
+  },
+  {
+   "key": "button.choose_heli",
+   "address": "0x0048b8f8",
+   "kind": "text"
+  },
+  {
+   "key": "button.configure_controls",
+   "address": "0x0048cce8",
+   "kind": "text"
+  },
+  {
+   "key": "button.apply",
+   "address": "0x0048cd00",
+   "kind": "text"
+  },
+  {
+   "key": "button.ok",
+   "address": "0x0048cc04",
+   "kind": "text"
+  },
+  {
+   "key": "stat.enemies",
+   "address": "0x0048b85c",
+   "kind": "text"
+  },
+  {
+   "key": "stat.stars",
+   "address": "0x0048b878",
+   "kind": "text"
+  },
+  {
+   "key": "stat.rank",
+   "address": "0x0048b894",
+   "kind": "text"
+  },
+  {
+   "key": "msg.new_heli",
+   "address": "0x0048b8a8",
+   "kind": "text"
+  },
+  {
+   "key": "rank.0",
+   "address": "0x00489f64",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.1",
+   "address": "0x00489f5c",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.2",
+   "address": "0x00489f4c",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.3",
+   "address": "0x00489f44",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.4",
+   "address": "0x00489f34",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.5",
+   "address": "0x00489f28",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "rank.6",
+   "address": "0x00489f20",
+   "kind": "text",
+   "note": "pointer table 0x49cba4"
+  },
+  {
+   "key": "heli.0",
+   "address": "0x0048bdc0",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.1",
+   "address": "0x0048bdb4",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.2",
+   "address": "0x0048bd98",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.3",
+   "address": "0x0048bd88",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.4",
+   "address": "0x0048bd80",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.5",
+   "address": "0x0048bd74",
+   "kind": "text",
+   "note": "pointer table 0x49cbec, helicopter table order"
+  },
+  {
+   "key": "heli.speed",
+   "address": "0x0048bdf0",
+   "kind": "text"
+  },
+  {
+   "key": "heli.armor",
+   "address": "0x0048bdf8",
+   "kind": "text"
+  },
+  {
+   "key": "heli.na",
+   "address": "0x0048bde0",
+   "kind": "text"
+  },
+  {
+   "key": "scores.number",
+   "address": "0x0048cd8c",
+   "kind": "text"
+  },
+  {
+   "key": "scores.name",
+   "address": "0x0048cd90",
+   "kind": "text"
+  },
+  {
+   "key": "scores.score",
+   "address": "0x0048cd98",
+   "kind": "text"
+  },
+  {
+   "key": "scores.rank",
+   "address": "0x0048cda0",
+   "kind": "text"
+  },
+  {
+   "key": "opt.resolution",
+   "address": "0x0048cc60",
+   "kind": "text"
+  },
+  {
+   "key": "opt.refresh",
+   "address": "0x0048cc6c",
+   "kind": "text"
+  },
+  {
+   "key": "opt.depth",
+   "address": "0x0048cc7c",
+   "kind": "text"
+  },
+  {
+   "key": "opt.fullscreen",
+   "address": "0x0048cc8c",
+   "kind": "text"
+  },
+  {
+   "key": "opt.brightness",
+   "address": "0x0048cc98",
+   "kind": "text"
+  },
+  {
+   "key": "opt.sfx",
+   "address": "0x0048cca4",
+   "kind": "text"
+  },
+  {
+   "key": "opt.music",
+   "address": "0x0048ccb4",
+   "kind": "text"
+  },
+  {
+   "key": "opt.sound3d",
+   "address": "0x0048ccc4",
+   "kind": "text"
+  },
+  {
+   "key": "opt.camera",
+   "address": "0x0048ccd0",
+   "kind": "text"
+  },
+  {
+   "key": "opt.mouse",
+   "address": "0x0048ccd8",
+   "kind": "text"
+  },
+  {
+   "key": "opt.refresh.default",
+   "address": "0x0048cc50",
+   "kind": "text"
+  },
+  {
+   "key": "opt.off",
+   "address": "0x0048cc4c",
+   "kind": "text"
+  },
+  {
+   "key": "opt.on",
+   "address": "0x0048cc48",
+   "kind": "text"
+  },
+  {
+   "key": "opt.depth.0",
+   "address": "0x0048cc34",
+   "kind": "text"
+  },
+  {
+   "key": "opt.depth.16",
+   "address": "0x0048cc14",
+   "kind": "text"
+  },
+  {
+   "key": "opt.depth.32",
+   "address": "0x0048cc0c",
+   "kind": "text"
+  },
+  {
+   "key": "camera.0",
+   "address": "0x0048cc3c",
+   "kind": "text",
+   "note": "pointer table 0x49e6b4"
+  },
+  {
+   "key": "camera.1",
+   "address": "0x0048cc34",
+   "kind": "text",
+   "note": "pointer table 0x49e6b4"
+  },
+  {
+   "key": "camera.2",
+   "address": "0x0048cc28",
+   "kind": "text",
+   "note": "pointer table 0x49e6b4"
+  },
+  {
+   "key": "camera.3",
+   "address": "0x0048cc1c",
+   "kind": "text",
+   "note": "pointer table 0x49e6b4"
+  },
+  {
+   "key": "ctl.set",
+   "address": "0x0048b6fc",
+   "kind": "text"
+  },
+  {
+   "key": "ctl.player.1",
+   "address": "0x0048b4a4",
+   "kind": "text"
+  },
+  {
+   "key": "ctl.player.2",
+   "address": "0x0048b498",
+   "kind": "text"
+  },
+  {
+   "key": "ctl.row.0",
+   "address": "0x0048b664",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.1",
+   "address": "0x0048b654",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.2",
+   "address": "0x0048b650",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.3",
+   "address": "0x0048b640",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.4",
+   "address": "0x0048b630",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.5",
+   "address": "0x0048b650",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.6",
+   "address": "0x0048b624",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.7",
+   "address": "0x0048b618",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.8",
+   "address": "0x0048b650",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "ctl.row.9",
+   "address": "0x0048b608",
+   "kind": "text",
+   "note": "row table 0x49d080, stride 20"
+  },
+  {
+   "key": "info.page",
+   "address": "0x0048ca6c",
+   "kind": "text"
+  },
+  {
+   "key": "info.hint.prev",
+   "address": "0x0048ca40",
+   "kind": "text"
+  },
+  {
+   "key": "info.hint.next",
+   "address": "0x0048ca58",
+   "kind": "text"
+  },
+  {
+   "key": "info.pages.1",
+   "address": "0x0048be80",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.2",
+   "address": "0x0048be78",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.3",
+   "address": "0x0048be78",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.4",
+   "address": "0x0048be70",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.5",
+   "address": "0x0048be68",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.6",
+   "address": "0x0048be60",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.7",
+   "address": "0x0048be58",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.pages.8",
+   "address": "0x0048be50",
+   "kind": "text",
+   "note": "pointer table 0x49e684"
+  },
+  {
+   "key": "info.1.title",
+   "address": "0x0048c0d0",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.0",
+   "address": "0x0048be88",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.1",
+   "address": "0x0048bed0",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.2",
+   "address": "0x0048bf10",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.3",
+   "address": "0x0048bf50",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.5",
+   "address": "0x0048bf60",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.6",
+   "address": "0x0048bfa0",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.8",
+   "address": "0x0048bfe8",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.9",
+   "address": "0x0048c030",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.10",
+   "address": "0x0048c078",
+   "kind": "text"
+  },
+  {
+   "key": "info.1.11",
+   "address": "0x0048c0bc",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.title",
+   "address": "0x0048c2c0",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.0",
+   "address": "0x0048c0dc",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.1",
+   "address": "0x0048c0ec",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.2",
+   "address": "0x0048c128",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.3",
+   "address": "0x0048c164",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.5",
+   "address": "0x0048c180",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.6",
+   "address": "0x0048c190",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.7",
+   "address": "0x0048c1cc",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.9",
+   "address": "0x0048c1e0",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.10",
+   "address": "0x0048c1f0",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.11",
+   "address": "0x0048c224",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.13",
+   "address": "0x0048c260",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.14",
+   "address": "0x0048c270",
+   "kind": "text"
+  },
+  {
+   "key": "info.2.15",
+   "address": "0x0048c2a8",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.title",
+   "address": "0x0048c48c",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.0",
+   "address": "0x0048c2e0",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.1",
+   "address": "0x0048c2ec",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.2",
+   "address": "0x0048c32c",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.3",
+   "address": "0x0048c368",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.4",
+   "address": "0x0048c3a0",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.6",
+   "address": "0x0048c3c0",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.7",
+   "address": "0x0048c3d0",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.8",
+   "address": "0x0048c40c",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.10",
+   "address": "0x0048c43c",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.11",
+   "address": "0x0048c448",
+   "kind": "text"
+  },
+  {
+   "key": "info.3.12",
+   "address": "0x0048c478",
+   "kind": "text"
+  },
+  {
+   "key": "info.4.0",
+   "address": "0x0048c4ac",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.title",
+   "address": "0x0048c6e4",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.0",
+   "address": "0x0048c4ac",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.1",
+   "address": "0x0048c4c0",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.2",
+   "address": "0x0048c4fc",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.4",
+   "address": "0x0048c53c",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.5",
+   "address": "0x0048c54c",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.7",
+   "address": "0x0048c584",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.8",
+   "address": "0x0048c5a4",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.9",
+   "address": "0x0048c5e4",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.10",
+   "address": "0x0048c620",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.12",
+   "address": "0x0048c628",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.13",
+   "address": "0x0048c644",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.14",
+   "address": "0x0048c680",
+   "kind": "text"
+  },
+  {
+   "key": "info.5.15",
+   "address": "0x0048c6b8",
+   "kind": "text"
+  },
+  {
+   "key": "info.6.title",
+   "address": "0x0048c77c",
+   "kind": "text"
+  },
+  {
+   "key": "info.6.0",
+   "address": "0x0048c6fc",
+   "kind": "text"
+  },
+  {
+   "key": "info.6.1",
+   "address": "0x0048c710",
+   "kind": "text"
+  },
+  {
+   "key": "info.6.2",
+   "address": "0x0048c748",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.title",
+   "address": "0x0048c940",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.0",
+   "address": "0x0048c794",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.1",
+   "address": "0x0048c7a4",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.2",
+   "address": "0x0048c7e0",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.4",
+   "address": "0x0048c80c",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.5",
+   "address": "0x0048c81c",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.7",
+   "address": "0x0048c848",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.8",
+   "address": "0x0048c858",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.10",
+   "address": "0x0048c894",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.11",
+   "address": "0x0048c8a8",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.12",
+   "address": "0x0048c8e0",
+   "kind": "text"
+  },
+  {
+   "key": "info.7.13",
+   "address": "0x0048c918",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.title",
+   "address": "0x0048ca2c",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.0",
+   "address": "0x0048c954",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.1",
+   "address": "0x0048c968",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.2",
+   "address": "0x0048c99c",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.4",
+   "address": "0x0048c9cc",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.5",
+   "address": "0x0048c9dc",
+   "kind": "text"
+  },
+  {
+   "key": "info.8.6",
+   "address": "0x0048ca08",
+   "kind": "text"
+  },
+  {
+   "key": "credits.0",
+   "address": "0x0048b718",
+   "kind": "text"
+  },
+  {
+   "key": "credits.1",
+   "address": "0x0048b728",
+   "kind": "text"
+  },
+  {
+   "key": "credits.3",
+   "address": "0x0048b728",
+   "kind": "text"
+  },
+  {
+   "key": "credits.4",
+   "address": "0x0048b734",
+   "kind": "text"
+  },
+  {
+   "key": "credits.6",
+   "address": "0x0048b748",
+   "kind": "text"
+  },
+  {
+   "key": "credits.7",
+   "address": "0x0048b758",
+   "kind": "text"
+  },
+  {
+   "key": "credits.8",
+   "address": "0x0048b768",
+   "kind": "text"
+  },
+  {
+   "key": "credits.10",
+   "address": "0x0048b784",
+   "kind": "text"
+  },
+  {
+   "key": "credits.11",
+   "address": "0x0048b794",
+   "kind": "text"
+  },
+  {
+   "key": "credits.13",
+   "address": "0x0048b7a8",
+   "kind": "text"
+  },
+  {
+   "key": "credits.14",
+   "address": "0x0048b7bc",
+   "kind": "text"
+  },
+  {
+   "key": "credits.16",
+   "address": "0x0048b7cc",
+   "kind": "text"
+  },
+  {
+   "key": "credits.17",
+   "address": "0x0048b7dc",
+   "kind": "text"
+  },
+  {
+   "key": "credits.19",
+   "address": "0x0048b7f8",
+   "kind": "text"
+  },
+  {
+   "key": "credits.20",
+   "address": "0x0048b804",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.0",
+   "address": "0x0048ba68",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.2",
+   "address": "0x0048ba7c",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.3",
+   "address": "0x0048bab8",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.4",
+   "address": "0x0048baf4",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.6",
+   "address": "0x0048bb28",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.7",
+   "address": "0x0048bb6c",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.8",
+   "address": "0x0048bba8",
+   "kind": "text"
+  },
+  {
+   "key": "congrats.10",
+   "address": "0x0048bbc0",
+   "kind": "text"
+  },
+  {
+   "key": "loading.label",
+   "address": "0x004892ec",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.god_on",
+   "address": "0x00488ff8",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.god_off",
+   "address": "0x0048900c",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.lives",
+   "address": "0x00489034",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.weapons",
+   "address": "0x0048905c",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.missiles",
+   "address": "0x00489084",
+   "kind": "text"
+  },
+  {
+   "key": "cheat.powerups",
+   "address": "0x004890b0",
+   "kind": "text"
+  },
+  {
+   "key": "dialog.10.start.0",
+   "address": "0x0048b3e0",
+   "kind": "text_ml"
+  },
+  {
+   "key": "dialog.10.start.0.speaker",
+   "address": "0x0049b324",
+   "kind": "u32"
+  },
+  {
+   "key": "dialog.10.start.1",
+   "address": "0x0048b340",
+   "kind": "text_ml"
+  },
+  {
+   "key": "dialog.10.start.1.speaker",
+   "address": "0x0049b32c",
+   "kind": "u32"
+  },
+  {
+   "key": "dialog.10.start.2",
+   "address": "0x0048b2b8",
+   "kind": "text_ml"
+  },
+  {
+   "key": "dialog.10.start.2.speaker",
+   "address": "0x0049b334",
+   "kind": "u32"
+  },
+  {
+   "key": "dialog.10.end.0",
+   "address": "0x0048b250",
+   "kind": "text_ml"
+  },
+  {
+   "key": "dialog.10.end.0.speaker",
+   "address": "0x0049b344",
+   "kind": "u32"
+  },
+  {
+   "key": "dialog.10.end.1",
+   "address": "0x0048b228",
+   "kind": "text_ml"
+  },
+  {
+   "key": "dialog.10.end.1.speaker",
+   "address": "0x0049b34c",
+   "kind": "u32"
+  },
+  {
+   "key": "dialog.24.start.0",
+   "address": "0x0048b160",
+   "kind": "text_ml"
+  },
+  {
+   "key": "dialog.24.start.0.speaker",
+   "address": "0x0049b35c",
+   "kind": "u32"
+  },
+  {
+   "key": "dialog.24.start.1",
+   "address": "0x0048b0e8",
+   "kind": "text_ml"
+  },
+  {
+   "key": "dialog.24.start.1.speaker",
+   "address": "0x0049b364",
+   "kind": "u32"
+  }
+ ],
+ "removed": [
+  "info.4.title",
+  "info.4.1",
+  "info.4.2",
+  "info.4.4",
+  "info.4.5"
+ ]
+}

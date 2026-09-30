@@ -28,6 +28,7 @@ EXES = {
 TABLES = {
     "v170": {"builtin": (0x00456F70, 85), "global": (0x00457220, 24)},
     "as2": {"builtin": (0x0049D5D0, 101), "global": (0x0049D908, 28)},
+    "gulf": {"builtin": (0x0049B448, 101), "global": (0x0049B780, 28)},
 }
 
 

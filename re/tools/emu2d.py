@@ -56,6 +56,21 @@ GAMES = {
         "malloc": [0x0043945D, 0x0043A07E], "calloc": 0x00445D32, "free": [0x00439956],
         "fopen": 0x0043A29A,
     },
+    # Gulf Thunder: the counterparts of the as2 addresses (re/symbols_gulf.csv,
+    # re/symbols_gulf_data.csv; docs/spec/gulf/symbol-map.md)
+    "gulf": {
+        "exe": "third_party_local/games/gulf/AirStrike3D II - Gulf.exe",
+        "queue_count": 0x021112DC, "queue": 0x02112268, "stride": 0x54,
+        "tex_table": 0x021D0F80, "tex_stride": 0x8C, "tex_w": 0x80, "tex_h": 0x84, "tex_count": 0x02217008,
+        "register_texture": [0x00436DD0, 0x00436E70],
+        "register_sound": 0x00421530,
+        "play_sound": [0x00421490, 0x00421390],
+        "rand": 0x004396CA, "sprintf": 0x00437DEC, "flush2d": 0x0042F2D0,
+        "strings": {0x00424560: "add", 0x00424A40: "alpha", 0x00424BF0: "number"},
+        "stubs": [0x004212C0, 0x00420DF0, 0x004211A0, 0x004140E0],
+        "malloc": [0x00437D7D, 0x0043899E], "calloc": 0x00444652, "free": [0x00438276],
+        "fopen": 0x00438BBA,
+    },
 }
 
 STACK_TOP = 0x7FF00000
@@ -95,6 +110,7 @@ class Quad:
 class Emu:
     def __init__(self, game="as2", trace_strings=True):
         self.g = GAMES[game]
+        self.game = game
         path = os.path.join(DATA_ROOT, self.g["exe"])
         self.data = open(path, "rb").read()
         self.uc = Uc(UC_ARCH_X86, UC_MODE_32)
@@ -319,7 +335,7 @@ class Emu:
 
     def image_size(self, name):
         rel = name.replace("\\", "/")
-        root = os.path.join(DATA_ROOT, "assets_extracted_games", "as2")
+        root = os.path.join(DATA_ROOT, "assets_extracted_games", self.game)
         cands = [rel, rel + ".tga"]
         for c in cands:
             p = os.path.join(root, c)

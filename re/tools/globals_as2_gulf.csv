@@ -1,0 +1,11 @@
+address,name,kind,description,confidence,evidence,v170_address
+# AirStrike 2 data named by the Gulf Thunder package (docs/spec/gulf/), mapped by match_data.py
+# --from as2 --to gulf. Addresses are AirStrike 2 addresses.
+0x0049ddf4,g_checkpointMission,variable,campaign checkpoint mission index (-1 none; as2/engine-behaviour.delta.md 10.3),high,G_NewGame and PF_EndLevel,
+0x02219140,g_missionIndex,variable,current mission index (0-based),high,as2/engine-behaviour.delta.md 1.3,0x01fdb2cc
+0x005432c0,g_enemyTotal,variable,enemies spawned this level (statistics),high,as2/engine-behaviour.delta.md 10.2,
+0x005432c4,g_maxLevelScore,variable,maximum level score (statistics),high,as2/engine-behaviour.delta.md 10.2,
+0x00543294,g_starTotal,variable,stars placed on the map (statistics),high,as2/engine-behaviour.delta.md 10.2,
+0x00543299,g_gameOver,variable,game-over flag,high,as2/engine-behaviour.delta.md 1.3,0x004d52d4
+0x0054329a,g_intermission,variable,intermission (attract) level flag,high,as2/engine-behaviour.delta.md 1.3,0x004d52d5
+0x0054329b,g_hudHidden,variable,HUD hidden flag,high,as2/engine-behaviour.delta.md 1.3,0x004d52d6

@@ -124,3 +124,16 @@ selection by one mission (the list scrolls with it), the up arrow is at (599, 21
 opens on mission 4 after a fresh start; on the helicopter screen the right arrow (605, 297)
 selects the second helicopter (Sky Keeper, the one our game uses by default) and the button
 then reads Continue (680, 534). A third `Escape` at start skips the intro comic reliably.
+
+## Gulf Thunder notes (package F1/F3)
+
+- The owner's save (`game.bin`, 1792 bytes; payload layout in docs/spec/gulf/engine-behaviour.delta.md
+  10.5) selects Red Hawk (`player_1`) and has operations 1 to 3 unlocked and a
+  checkpoint, so Start Game shows " Continue " on the helicopter screen for the checkpoint
+  operation; pass the same helicopter entry to our tools when aligning (`player_1` is entry 0).
+- The main menu buttons are centred on x 400 at y 250 + 45k (37 high); Start Game is at about
+  (400, 268). Menus are drawn with the Gulf title bar: the top 100 and bottom 60 pixels are black,
+  so compare regions inside (0, 100)–(800, 540) on menu screens.
+- `-god` works as in AirStrike 2; the cheat words are AirStrike 2's (same code).
+- Aligned comparisons of operations 1 to 3 (docs/missions-status-gulf.md): region
+  (100, 60)–(700, 520), `--shift 40`, best-of over frames every 10 ticks.

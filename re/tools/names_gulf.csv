@@ -1,0 +1,3 @@
+address,name,subsystem,description,confidence,evidence
+# Names for Gulf Thunder functions without an AirStrike 2 counterpart function.
+0x00428bb0,M_DrawInfoMenu,menu,"information draw callback: the current page (7 pages: overview, weapons 1 and 2, missiles 1 and 2, items 1 and 2) and the PgUp/PgDown hints; counterpart of the as2 code address 0x0042a6e0 (inside another as2 export function)",high,"strings 'PgUp - Previous Page', 'PgDown - Next Page'; its only caller is M_InfoPage gulf@0x428c90; calls the seven page drawers"

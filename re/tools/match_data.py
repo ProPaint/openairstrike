@@ -123,7 +123,82 @@ def nearest(mapping, p, maxdelta=0x40):
     return best
 
 
+def map_one(mapping, p):
+    """(address, confidence, evidence) of source data address p in the target."""
+    if p in mapping:
+        q, n, tot, w = mapping[p]
+        conf = "high" if n >= 5 and w >= 2 else "medium" if n >= 2 else "low"
+        return q, conf, ("aligned instructions of matched functions: %d of %d votes from %d function pair(s)"
+                         % (n, tot, w))
+    nb = nearest(mapping, p)
+    if nb:
+        q, delta = nb
+        return q, "low", ("offset +0x%x from the mapped address 0x%08x (%d votes); structure layout assumed unchanged"
+                          % (delta, p - delta, mapping[p - delta][1]))
+    return None, "none", "no aligned reference found"
+
+
+def write_csv_sequel(args, mapping, pe_s, pe_d):
+    """A sequel against another sequel: the rows of re/symbols_<src>_data.csv (names corrected
+    by re/symbols_<src>_game.csv, whose table rows win), plus re/tools/globals_<src>_<dst>.csv
+    (further source tables named by the <dst> package), mapped to <dst>."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    src_rows = {}
+    order = []
+    for path in (os.path.join(R.REPO, "re", "symbols_%s_data.csv" % args.src),
+                 os.path.join(R.REPO, "re", "symbols_%s_game.csv" % args.src),
+                 os.path.join(here, "globals_%s_%s.csv" % (args.src, args.dst))):
+        if not os.path.exists(path):
+            continue
+        with open(path) as f:
+            lines = [l for l in f if l.strip() and not l.startswith("#")]
+        for r in csv.DictReader(lines):
+            if "kind" not in r:
+                # a functions file: only its data rows (kind in the subsystem column)
+                if r.get("subsystem") not in ("table", "variable", "array", "struct"):
+                    continue
+                r = dict(r, kind=r["subsystem"])
+            if not r["address"]:
+                continue
+            a = int(r["address"], 16)
+            key = (a, r["name"]) if r["kind"] == "script global" else a
+            if key not in src_rows:
+                order.append(key)
+            src_rows[key] = r
+    ts = {n: v for n, v, _ in R.read_table(pe_s, *R.TABLES[args.src]["global"], stride=12)}
+    td = {n: (v, rec) for n, v, rec in R.read_table(pe_d, *R.TABLES[args.dst]["global"], stride=12)}
+    tables = {R.TABLES[args.src]["builtin"][0]: R.TABLES[args.dst]["builtin"][0],
+              R.TABLES[args.src]["global"][0]: R.TABLES[args.dst]["global"][0]}
+    out = []
+    for key in order:
+        r = src_rows[key]
+        p = int(r["address"], 16)
+        row = {"name": r["name"], "kind": r["kind"], "description": r["description"],
+               "%s_address" % args.src: "0x%08x" % p, "v170_address": r.get("v170_address", "")}
+        if r["kind"] == "script global" and r["name"].startswith("sg_") and r["name"][3:] in td:
+            v, rec = td[r["name"][3:]]
+            row.update(address="0x%08x" % v, confidence="high",
+                       evidence="script-global table record 0x%08x" % rec)
+        elif p in tables:
+            row.update(address="0x%08x" % tables[p], confidence="high",
+                       evidence="probe result (re/probes/%s.json), re_export.TABLES" % args.dst)
+        else:
+            q, conf, ev = map_one(mapping, p)
+            row.update(address="0x%08x" % q if q is not None else "", confidence=conf, evidence=ev)
+        out.append(row)
+    cols = ["address", "name", "kind", "description", "confidence", "evidence",
+            "%s_address" % args.src, "v170_address"]
+    with open(args.out, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols, lineterminator="\n")
+        w.writeheader()
+        for r in out:
+            w.writerow({k: r.get(k, "") for k in cols})
+    print("wrote %s (%d rows)" % (args.out, len(out)), file=sys.stderr)
+
+
 def write_csv(args, mapping, pe_s, pe_d):
+    if args.src != "v170":
+        return write_csv_sequel(args, mapping, pe_s, pe_d)
     here = os.path.dirname(os.path.abspath(__file__))
     cur = os.path.join(here, "globals_%s.csv" % args.src)
     rows = []

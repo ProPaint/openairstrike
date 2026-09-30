@@ -19,6 +19,11 @@ docs/spec/as2/rcsl-builtins-semantics.delta.md:
 - the entry of every `changed` builtin cites an address in both executables
   (`v170@0x...` and `as2@0x...`).
 
+`--game gulf`: testdata/golden/gulf/rcsl_builtins.json against
+docs/spec/gulf/rcsl-builtins-semantics.delta.md with the same rules, relative to AirStrike 2:
+`new` exactly for the builtins whose JSON `as2` field is missing, and a `changed` entry cites
+`as2@0x...` and `gulf@0x...`.
+
 Prints one line "OK ..." on success; lists the problems and exits 1 otherwise.
 Stdlib only; needs no game data.
 """
@@ -32,8 +37,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 TABLE = os.path.join(REPO, "docs", "spec", "rcsl-builtins-table.md")
 SEM = os.path.join(REPO, "docs", "spec", "rcsl-builtins-semantics.md")
-DELTA = {"as2": os.path.join(REPO, "docs", "spec", "as2", "rcsl-builtins-semantics.delta.md")}
-JSON = {"as2": os.path.join(REPO, "testdata", "golden", "as2", "rcsl_builtins.json")}
+DELTA = {g: os.path.join(REPO, "docs", "spec", g, "rcsl-builtins-semantics.delta.md") for g in ("as2", "gulf")}
+JSON = {g: os.path.join(REPO, "testdata", "golden", g, "rcsl_builtins.json") for g in ("as2", "gulf")}
+# The game a delta is written against: its status column and the JSON field that says whether
+# a builtin existed there; a `changed` entry cites both executables.
+BASE = {"as2": "v170", "gulf": "as2"}
 
 
 def section_rows(text, heading, with_header=False):
@@ -131,8 +139,8 @@ def check_delta(game):
         status[n], prio[n] = st, pr
         if st not in ("same", "changed", "new"):
             problems.append("%s: bad status %r" % (n, st))
-        elif n in expected and (st == "new") != (expected[n].get("v170") is None):
-            problems.append("%s: status %r disagrees with the JSON's v170 field" % (n, st))
+        elif n in expected and (st == "new") != (expected[n].get(BASE[game]) is None):
+            problems.append("%s: status %r disagrees with the JSON's %s field" % (n, st, BASE[game]))
         if pr not in ("P0", "P1", "P2"):
             problems.append("%s: bad priority %r" % (n, pr))
         if pr == "P0" and "GUESS" in conf:
@@ -149,8 +157,8 @@ def check_delta(game):
             problems.append("%s: %s builtin without a detailed entry" % (n, status[n]))
         if status.get(n) == "changed" and n in ent:
             body = ent[n]
-            if "v170@0x" not in body or "as2@0x" not in body:
-                problems.append("%s: changed entry must cite v170@0x... and as2@0x..." % n)
+            if "%s@0x" % BASE[game] not in body or "%s@0x" % game not in body:
+                problems.append("%s: changed entry must cite %s@0x... and %s@0x..." % (n, BASE[game], game))
     if problems:
         return problems, None
     count = {s: sum(1 for v in status.values() if v == s) for s in ("same", "changed", "new")}
