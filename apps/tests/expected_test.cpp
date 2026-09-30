@@ -78,7 +78,6 @@ TEST_CASE("expected.json: every game with goldens has a complete one for its key
 
 TEST_CASE("expected.json: the game under test is described and the first game plays") {
     CHECK(expected().find("game")->s == gameKey());
-    if (gameKey() == "as3d" || gameKey() == "as2") CHECK(playable());
-    if (gameKey() == "gulf") CHECK_FALSE(playable());
+    if (gameKey() == "as3d" || gameKey() == "as2" || gameKey() == "gulf") CHECK(playable());
     CHECK(expectedInt("definitions.objects") >= expectedInt("definitions.distinct_object_names"));
 }

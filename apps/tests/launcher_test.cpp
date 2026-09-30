@@ -150,15 +150,17 @@ TEST_CASE("launcher plan: the playable games present, skipped with one, forced w
     CHECK(p.startKey.empty());
     // An unknown or absent last choice: the first card.
     CHECK(planLaunch({&kAs3d, &kAs2}, "", "gulf", false).preselected == 0);
-    // Gulf Thunder is not playable: not listed, so with AirStrike 3D alone the game starts.
-    p = planLaunch({&kAs3d, &kGulf}, "", "", false);
-    CHECK_FALSE(p.showSelector);
-    CHECK(p.startKey == "as3d");
-    // ... unless the development override lists it.
-    p = planLaunch({&kAs3d, &kAs2, &kGulf}, "", "", true);
+    // Gulf Thunder plays too (package F2): the three games are offered, in GameId order.
+    p = planLaunch({&kGulf, &kAs3d}, "", "", false);
+    CHECK(p.showSelector);
+    REQUIRE(p.offered.size() == 2);
+    CHECK(p.offered[0] == &kAs3d);
+    CHECK(p.offered[1] == &kGulf);
+    p = planLaunch({&kAs3d, &kAs2, &kGulf}, "", "gulf", true);
     CHECK(p.showSelector);
     CHECK(p.offered.size() == 3);
-    CHECK(planLaunch({&kAs3d, &kAs2, &kGulf}, "", "", false).offered.size() == 2);
+    CHECK(p.preselected == 2);
+    CHECK(planLaunch({&kAs3d, &kAs2, &kGulf}, "", "", false).offered.size() == 3);
     // One game: it starts, whatever the last choice says.
     p = planLaunch({&kAs2}, "", "as3d", false);
     CHECK_FALSE(p.showSelector);
@@ -169,14 +171,17 @@ TEST_CASE("launcher plan: the playable games present, skipped with one, forced w
     p = planLaunch({&kAs3d, &kAs2}, "as2", "as3d", false);
     CHECK_FALSE(p.showSelector);
     CHECK(p.startKey == "as2");
-    // Nothing playable: no selector and nothing to start.
-    p = planLaunch({&kGulf}, "", "", false);
+    // No game present: no selector and nothing to start.
+    p = planLaunch({}, "", "", false);
     CHECK_FALSE(p.showSelector);
     CHECK(p.startKey.empty());
+    p = planLaunch({&kGulf}, "", "", false);
+    CHECK_FALSE(p.showSelector);
+    CHECK(p.startKey == "gulf");
     CHECK(gameIsPlayable(kAs3d));
     CHECK(gameIsPlayable(kAs2));
-    CHECK_FALSE(gameIsPlayable(kGulf));
-    CHECK(playableGameKeys() == std::vector<std::string>{"as3d", "as2"});
+    CHECK(gameIsPlayable(kGulf));
+    CHECK(playableGameKeys() == std::vector<std::string>{"as3d", "as2", "gulf"});
 }
 
 // ---------------------------------------------------------------------------------------

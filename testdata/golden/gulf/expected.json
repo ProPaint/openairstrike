@@ -4,7 +4,7 @@
   "Documented in testdata/golden/README.md. Only counts, names and numbers, never game content beyond names."
  ],
  "game": "gulf",
- "playable": false,
+ "playable": true,
  "paks": {
   "files": 1920
  },
@@ -147,5 +147,18 @@
     0
    ]
   ]
+ },
+ "sounds": {
+  "files": 40
+ },
+ "bot_regression": {
+  "mission": 1,
+  "seed": 1,
+  "difficulty": 2,
+  "pilot": "world",
+  "god": true,
+  "end_frame": 12423,
+  "score": 97320,
+  "lives": 4
  }
 }
