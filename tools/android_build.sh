@@ -41,7 +41,7 @@ ASSETS_DIR="${REPO_ROOT}/android/app/src/main/assets"
 GAMES_JSON="${SCRIPT_DIR}/games.json"
 
 # The games bundled in the APK: their keys, comma separated (as3d, as2, gulf).
-GAMES="${AS3D_ANDROID_GAMES:-as3d,as2}"
+GAMES="${AS3D_ANDROID_GAMES:-as3d,as2,gulf}"
 IFS=',' read -r -a GAME_KEYS <<< "${GAMES}"
 
 # One line per game from tools/games.json: key|paks (space separated)|texts file.

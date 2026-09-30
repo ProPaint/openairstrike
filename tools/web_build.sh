@@ -62,7 +62,7 @@ else:
     sys.exit(1)
 PY
 }
-GAMES="${AS3D_WEB_GAMES:-as3d,as2}"
+GAMES="${AS3D_WEB_GAMES:-as3d,as2,gulf}"
 IFS=',' read -r -a GAME_KEYS <<< "$GAMES"
 
 if [ "$MODE" = bundled ]; then
