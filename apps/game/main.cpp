@@ -103,6 +103,7 @@ struct Args {
     bool allowUnfinished = false;
     std::string selectorShot, selectorGames;
     int selectorFocus = -1;
+    float selectorTime = 0.25f; // seconds of selector clock before the shot
     SafeInsets insets; // --insets, for the selector shot
     GameData data; // where the chosen game's files are
 };
@@ -117,7 +118,8 @@ int usage() {
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
                  "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n"
                  "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n"
-                 "       as3d_game --headless --selector-shot FILE.png [--selector-games K1,K2] [--size WxH] [--touch]\n");
+                 "       as3d_game --headless --selector-shot FILE.png [--selector-games K1,K2] [--size WxH] [--touch]\n"
+                 "                      [--screen wide|4x3] [--insets L,T,R,B] [--selector-focus N] [--selector-time SECONDS]\n");
     return 2;
 }
 
@@ -172,6 +174,7 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--selector-shot" && next()) a.selectorShot = v;
         else if (s == "--selector-games" && next()) a.selectorGames = v;
         else if (s == "--selector-focus" && next()) a.selectorFocus = std::atoi(v);
+        else if (s == "--selector-time" && next()) a.selectorTime = static_cast<float>(std::atof(v));
         else if (s == "--insets" && next()) {
             if (std::sscanf(v, "%d,%d,%d,%d", &a.insets.left, &a.insets.top, &a.insets.right, &a.insets.bottom) != 4)
                 return false;
@@ -422,8 +425,10 @@ int runSelectorShot(const Args& a) {
         std::fprintf(stderr, "as3d_game: %s\n", err.c_str());
         return 1;
     }
-    screen.setScreen(a.width, a.height, a.insets);
-    screen.update(0.25f, ui::UiInput());
+    screen.setScreen(a.width, a.height, a.insets, a.screen);
+    // The clock advances in steps of 1/30 s, as the window's frames do.
+    for (float t = 0; t < a.selectorTime - 1e-4f; t += 1.0f / 30.0f)
+        screen.update(std::min(1.0f / 30.0f, a.selectorTime - t), ui::UiInput());
     target.bind();
     screen.draw(r, a.width, a.height);
     // The window shows colour only: the picture is written opaque (the 2D layer leaves alpha

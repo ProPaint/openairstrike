@@ -422,12 +422,32 @@ void drawLoadingScreen(Renderer2D& r, const UiAssets& a, float progress, bool in
 // in large text. Keyboard (Left / Right / Tab choose, Enter plays, Esc exits), mouse and touch
 // (a click or tap on a card plays it) through the menu system.
 // ---------------------------------------------------------------------------
+//
+// Each card's marquee (docs/spec/issues/164) is its game's own title, animated as on the game's
+// title screen: Banner, the first game's flaming 3D title mesh (drawn by the window's banner
+// drawer, GameSelector::setBannerDrawer: the mesh renderer is not this module's); TitleLogo,
+// AirStrike 2's rusty logo with the clouds running through its letters, followed by the
+// spinning target-shaped "2" emblem and the glow (glow, two, logo, clouds); Emblem, Gulf
+// Thunder's logo with the clouds (logo, clouds). A marquee whose pictures are missing falls
+// back to the title in large text.
+enum class Marquee { None, Banner, TitleLogo, Emblem };
+
 struct GameCard {
     std::string key;                     // the game's key
     std::string title, version;          // "AirStrike 2", "2.51"
     std::vector<std::string> saveLines;  // the player's save of that game (as3d/launcher.h)
-    const Texture2D* logo = nullptr;     // the game's own title picture, or null
+    Marquee marquee = Marquee::None;
+    // The marquee's pictures (the ones its kind names), or null.
+    const Texture2D *logo = nullptr, *glow = nullptr, *two = nullptr, *clouds = nullptr;
 };
+
+// The part of the 800x200 banner viewport that the flaming title covers, as fractions of the
+// viewport (measured on the mesh at rest): the window scales the viewport so that this part
+// fills the marquee box.
+struct BannerContent {
+    float x0, y0, x1, y1;
+};
+constexpr BannerContent kBannerContent{0.10f, 0.03f, 0.95f, 0.42f};
 
 class GameSelector {
 public:
@@ -439,6 +459,18 @@ public:
     // The part of the virtual 800x600 screen clear of display cutouts (Mapping::toVirt of the
     // safe insets); cards and buttons stay inside it. Rebuilds the layout when it changes.
     void setSafeArea(float left, float top, float right, float bottom);
+    // The screen the selector is drawn on: the virtual x range of the whole framebuffer
+    // (Mapping::left(), right(): beyond 0..800 on wide screens) and the 4:3 screen mode, which
+    // keeps everything inside the 800x600 field as the games do. Defaults: 0..800, wide.
+    void setView(float left, float right, bool fourByThree);
+    // Draws the first game's banner mesh into the virtual rectangle `box` (the marquee of a
+    // Banner card, the mesh to be scissored to it) at the selector's clock; called after the
+    // 2D layer of draw() was flushed. Without it a Banner card shows its title in text.
+    using BannerDrawer = std::function<void(const RectF& box, float clock)>;
+    void setBannerDrawer(BannerDrawer fn);
+    // The web page's build-time render of the marquees: they loop exactly after 2 pi seconds (the
+    // clouds run a little faster, see drawMarquee).
+    void setLoopFit(bool on) { loopFit_ = on; }
 
     void update(float dt, const UiInput& input);
     // The card played (a click, a tap, Enter or the Play button), -1 until then.
@@ -450,6 +482,10 @@ public:
 
     const std::vector<GameCard>& cards() const { return cards_; }
     RectF cardRect(int index) const;
+    // Where the card's marquee is drawn (virtual pixels); every marquee has the same size.
+    RectF marqueeRect(int index) const;
+    // The selector's clock (seconds of menu time, advancing with update()).
+    float clock() const { return menus_.menuTime(); }
     RectF playRect() const { return play_; }
     RectF exitRect() const { return exitButton_; }
     MenuSystem& menus() { return menus_; }
@@ -459,9 +495,12 @@ private:
 
     std::vector<GameCard> cards_;
     MenuSystem menus_;
-    std::vector<RectF> rects_;
+    std::vector<RectF> rects_, marquees_;
     RectF play_, exitButton_;
+    BannerDrawer banner_;
     float safeL_ = 0, safeT_ = 0, safeR_ = 800, safeB_ = 600;
+    float viewL_ = 0, viewR_ = 800;
+    bool fourByThree_ = false, loopFit_ = false;
     int current_ = 0;
     int chosen_ = -1;
     bool exit_ = false;
