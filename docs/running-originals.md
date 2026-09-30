@@ -127,8 +127,8 @@ then reads Continue (680, 534). A third `Escape` at start skips the intro comic 
 
 ## Gulf Thunder notes (package F1/F3)
 
-- The owner's save (`game.bin`, 1792 bytes: the 0x5d8 payload of docs/spec/gulf/engine-behaviour.delta.md
-  10.5 with its header) selects Red Hawk (`player_1`) and has operations 1 to 3 unlocked and a
+- The owner's save (`game.bin`, 1792 bytes; payload layout in docs/spec/gulf/engine-behaviour.delta.md
+  10.5) selects Red Hawk (`player_1`) and has operations 1 to 3 unlocked and a
   checkpoint, so Start Game shows " Continue " on the helicopter screen for the checkpoint
   operation; pass the same helicopter entry to our tools when aligning (`player_1` is entry 0).
 - The main menu buttons are centred on x 400 at y 250 + 45k (37 high); Start Game is at about
