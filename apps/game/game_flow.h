@@ -137,6 +137,12 @@ public:
     // "Change game" was chosen (the profile is saved): the window goes to the game selector.
     bool changeGameRequested() const { return changeGame_; }
     void gameOverMusic() override { audio_.gameOverMusic(); }
+    // The sequels: the helicopter selection's 3D preview (drawn by the view), the intro
+    // comic's music.
+    void drawModel(const as3d::ui::ModelView& view) override;
+    void playMusic(const std::string& path) override { audio_.startLevel(path); }
+    // 3D views asked for by the front end in the last draw(), for tests.
+    int modelViewsDrawn() const { return modelViews_; }
 
 private:
     enum class PendingLoad { None, Mission, Attract };
@@ -158,6 +164,7 @@ private:
     bool quit_ = false;
     bool changeGame_ = false;
     int levelLoads_ = 0;
+    int modelViews_ = 0;
     float pointerX_ = 400, pointerY_ = 300;
     int screenOverride_ = -1;
     int lastScreenSetting_ = 0;

@@ -180,7 +180,7 @@ const GameProfile kProfiles[kGameCount] = {
      FrontendStyle::V170Menus, rulesAs3d()},
     {GameId::AirStrike2, "as2", "AirStrike 2", "2.51", "AirStrike3D II.exe",
      {"pak0.apk", "pak1.apk", "pak2.apk", nullptr}, "texts_as2.txt", "v251", 28,
-     FrontendStyle::PlainList, rulesAs2()},
+     FrontendStyle::SequelMenus, rulesAs2()},
     {GameId::GulfThunder, "gulf", "AirStrike II: Gulf Thunder", "2.71", "AirStrike3D II - Gulf.exe",
      {"pak0.apk", "pak1.apk", "pak2.apk", "pak4.apk", nullptr}, "texts_gulf.txt", "v271", 28,
      FrontendStyle::PlainList, rulesGulf()},

@@ -448,7 +448,7 @@ TEST_CASE("main menus: \"Change game\" only with several games; the first game's
         CHECK(two.host.saves == saves + 1);
     }
     // The plain front end: in the bottom bar's left slot.
-    MenuRig plainOne(&kAs2, false, true), plainTwo(&kAs2, true, true);
+    MenuRig plainOne(&kGulf, false, true), plainTwo(&kGulf, true, true); // AirStrike 2: as2_frontend_test.cpp
     CHECK(plainOne.item(ui::kChangeGameItem) == nullptr);
     const ui::MenuItem* it = plainTwo.item(ui::kChangeGameItem);
     REQUIRE(it != nullptr);
@@ -614,7 +614,7 @@ TEST_CASE("switching games: five times each way, the GL objects back to the same
         }
         REQUIRE_MESSAGE(stack.build(stackFor(g), &err), err);
         CHECK(stack.session->game() == &g);
-        CHECK(stack.flow->frontend().plain() == (g.id != GameId::AirStrike3D));
+        CHECK(stack.flow->frontend().sequel() == (g.id == GameId::AirStrike2));
         play(stack, target);
         CHECK(stack.session->hasLevel());
         if (round == 3) {

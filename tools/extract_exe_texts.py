@@ -9,8 +9,10 @@ the extracted game data. The texts are never committed.
 
 The table of addresses is chosen by the SHA-256 of the executable (TABLES below), so the
 right one is used whichever game's executable is given. The first game's table (as3d, v1.70)
-is what the addresses above describe; the sequels have an empty table until their addresses
-are mapped, and say so.
+is what the addresses above describe. AirStrike 2's is the committed address list
+tools/exe_texts/as2.json (docs/spec/as2/frontend.md 7: every entry a key, an address and a
+kind, `text`, `text_ml` or `u32`); Gulf Thunder's is tools/exe_texts/gulf.json the same way,
+with the addresses that miss their text corrected or left out (docs/spec/gulf/issues/402).
 
 Usage:
     tools/extract_exe_texts.py [--game KEY] [--exe PATH] [--out PATH]
@@ -30,6 +32,8 @@ starting with `#` and blank lines are ignored. Keys:
     rank.I             rank name I (0..6)
     info.hint.prev, info.hint.next, info.page   the page hints and the spinner label
     info.pages.N       spinner value "N of 10"
+AirStrike 2 (tools/exe_texts/as2.json): the keys listed there. A `text_ml` value keeps its
+line breaks, written `\\n` inside the quotes; a `u32` value is the number in decimal.
 
 The line slot of each body string is read from the code that fills the page: the page builder
 stores each string pointer into a per-line array with `mov dword [reg+disp8], imm32`, so the
@@ -77,8 +81,31 @@ TABLES = {
             "page_values": 0x449E50,
         },
     },
-    "b24b62b2c5b61cfa1cf0aad781788aa777a2e4f4a385c73ba53014b039e46f5b": {"game": "as2", "table": None},
-    "86195a9653489064844c172ce43307c703a50e53be7e00d45fe346c45d5ae077": {"game": "gulf", "table": {"listed": "exe_texts/gulf.json"}},
+    # AirStrike 2 v2.51: the address list of docs/spec/as2/frontend.md 7.
+    # The list's ctl.row.* addresses read the row table as ten records; it has thirteen, three
+    # of them "-" separators, so the ten action names are at these addresses instead
+    # (docs/spec/as2/issues/300-frontend-implementation-findings.md).
+    "b24b62b2c5b61cfa1cf0aad781788aa777a2e4f4a385c73ba53014b039e46f5b": {"game": "as2", "table": {
+        "json": "as2.json",
+        "override": [("ctl.row.%d" % i, a) for i, a in enumerate(
+            [0x48D6EC, 0x48D6DC, 0x48D6C8, 0x48D6B8, 0x48D6AC, 0x48D6A0, 0x48D690, 0x48D680, 0x48D674, 0x48D668])],
+    }},
+    # ---- Gulf Thunder v2.71 (package F2): the address list of docs/spec/gulf/frontend.delta.md 7.
+    # Eleven of its addresses are not the first byte of their text and a few point at a
+    # neighbour (docs/spec/gulf/issues/402-exe-texts-addresses.md): the ones whose text is
+    # certain are read from where the text is; three helicopter names of AirStrike 2 (Gulf
+    # Thunder has three helicopters), a page value of an eighth page and two broken credits
+    # lines are left out (the game's built-in text is used).
+    "86195a9653489064844c172ce43307c703a50e53be7e00d45fe346c45d5ae077": {"game": "gulf", "table": {
+        "json": "gulf.json",
+        "override": [
+            ("title.top_scores", 0x48CBD0), ("title.enter_name", 0x48CBF0), ("title.hint", 0x48CD70),
+            ("difficulty.3", 0x48CD34), ("difficulty.4", 0x48CD28), ("mode.0", 0x48CD18), ("mode.1", 0x48CD0C),
+            ("button.ok", 0x48CC00), ("heli.2", 0x48BDA4),
+        ] + [("info.pages.%d" % n, 0x48BE80 - 8 * (n - 1)) for n in range(3, 8)],
+        "leave_out": ["heli.3", "heli.4", "heli.5", "info.pages.8", "credits.4", "credits.19"],
+    }},
+    # ---- end of Gulf Thunder
 }
 
 
@@ -118,13 +145,13 @@ class Pe:
                     return off
         raise ValueError("address 0x%x is not in the file" % addr)
 
-    def cstr(self, addr, limit=256):
+    def cstr(self, addr, limit=256, multiline=False):
         o = self.offset(addr)
         end = self.data.find(b"\0", o, o + limit + 1)
         if end < 0:
             raise ValueError("no string terminator at 0x%x" % addr)
         raw = self.data[o:end]
-        if any(b < 0x20 or b > 0x7E for b in raw):
+        if any((b < 0x20 and not (multiline and b == 0x0A)) or b > 0x7E for b in raw):
             raise ValueError("non-text bytes at 0x%x" % addr)
         return raw.decode("ascii")
 
@@ -172,14 +199,35 @@ def line_slot(pe, text, addr):
 
 
 def quote(s):
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
+
+
+def extract_listed(pe, listing):
+    """The entries of an address list (tools/exe_texts/<game>.json), (key, value) in its order."""
+    if pe.base != int(listing["image_base"], 16):
+        raise ValueError("unexpected image base 0x%x" % pe.base)
+    entries = []
+    for e in listing["entries"]:
+        addr = int(e["address"], 16)
+        if e["kind"] == "text":
+            entries.append((e["key"], pe.cstr(addr, 512)))
+        elif e["kind"] == "text_ml":
+            entries.append((e["key"], pe.cstr(addr, 512, multiline=True)))
+        elif e["kind"] == "u32":
+            entries.append((e["key"], str(pe.u32(addr))))
+        else:
+            raise ValueError("unknown kind %r of %s" % (e["kind"], e["key"]))
+    return entries
+
+
+def load_listing(name):
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "exe_texts", name), encoding="utf-8") as f:
+        return json.load(f)
 
 
 def extract(pe, table):
     if pe.base != IMAGE_BASE_EXPECTED:
         raise ValueError("unexpected image base 0x%x" % pe.base)
-    if "listed" in table:
-        return extract_listed(pe, table["listed"])
     text = pe.section(".text")
     if text is None:
         raise ValueError("no .text section")
@@ -207,47 +255,6 @@ def extract(pe, table):
     for k in range(10):
         entries.append(("info.pages.%d" % (10 - k), pe.cstr(table["page_values"] + 8 * k + (0 if k == 0 else 4), 16)))
     return entries
-
-
-# ---- Gulf Thunder (package F2): a table listed in tools/exe_texts/<key>.json ---------------
-# The file lists {key, address, kind} (docs/spec/gulf/frontend.delta.md 7 over
-# docs/spec/as2/frontend.md 7): `text` one line, `text_ml` lines separated by LF (written with
-# '^' between the lines, the engine's line break), `u32` an integer (written in decimal). An
-# entry whose address is not the first byte of a string (the byte before it is not NUL), or
-# whose bytes are not text, is left out with a warning: the game's built-in text is used for it
-# (docs/spec/gulf/issues/402-exe-texts-addresses.md lists the entries of gulf.json that fail).
-# apps/web/site/files.js holds the same table (GULF_TEXTS); keep the two in step.
-
-def listed_cstr(pe, addr, multiline):
-    o = pe.offset(addr)
-    if o == 0 or pe.data[o - 1] != 0:
-        raise ValueError("0x%x is not the start of a string" % addr)
-    end = pe.data.find(b"\0", o, o + 4097)
-    if end < 0:
-        raise ValueError("no string terminator at 0x%x" % addr)
-    raw = pe.data[o:end]
-    if any((b < 0x20 and not (multiline and b == 0x0A)) or b > 0x7E for b in raw):
-        raise ValueError("non-text bytes at 0x%x" % addr)
-    return raw.decode("ascii").replace("\n", "^")
-
-
-def extract_listed(pe, rel_path):
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), rel_path), encoding="utf-8") as f:
-        listed = json.load(f)["entries"]
-    entries = []
-    for e in listed:
-        addr = int(e["address"], 16)
-        try:
-            if e["kind"] == "u32":
-                entries.append((e["key"], str(pe.u32(addr))))
-            else:
-                entries.append((e["key"], listed_cstr(pe, addr, e["kind"] == "text_ml")))
-        except (ValueError, struct.error) as ex:
-            print("extract_exe_texts: warning: %s left out: %s" % (e["key"], ex), file=sys.stderr)
-    if not entries:
-        raise ValueError("no text read from the listed addresses")
-    return entries
-# ---- end of the Gulf Thunder block ---------------------------------------------------------
 
 
 def games_json():
@@ -292,7 +299,15 @@ def main():
             out = args.out or gout
         if entry["table"] is None:
             raise NotMapped("texts of %s are not mapped yet" % game["title"])
-        entries = extract(Pe(data), entry["table"])
+        if "json" in entry["table"]:
+            pe = Pe(data)
+            entries = extract_listed(pe, load_listing(entry["table"]["json"]))
+            fixed = {k: pe.cstr(a, 512) for k, a in entry["table"].get("override", [])}
+            entries = [(k, fixed.get(k, v)) for k, v in entries]
+            drop = set(entry["table"].get("leave_out", []))  # Gulf Thunder (issue gulf/402)
+            entries = [(k, v) for k, v in entries if k not in drop]
+        else:
+            entries = extract(Pe(data), entry["table"])
     except NotMapped as e:
         print("extract_exe_texts: %s: %s" % (exe, e), file=sys.stderr)
         return 1

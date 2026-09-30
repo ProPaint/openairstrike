@@ -42,9 +42,22 @@ string" step of the generator landing on a neighbour. The dialogue pages, the In
 
 ## Our engine
 
-The extraction tool and the web page (`apps/web/site/files.js`) use the file as it is and leave
-out the 11 entries of the first kind (219 of 230 written). The plain front end that Gulf
-Thunder uses today reads none of the wrong keys. `gulf.json` is not changed here (it belongs to
-the spec package); correcting it needs `re/tools/gen_exe_texts_gulf.py` to be re-run with the
-placement fixed, then `apps/web/site/files.js`'s `LISTED_TEXTS.gulf` regenerated from it
-(apps/tests/gulf_rules_test.cpp fails until the two lists agree).
+The extraction tool and the web page (`apps/web/site/files.js`) read the file the way AirStrike
+2's `as2.json` is read (package E: `json` plus `override`), with Gulf Thunder's corrections in
+their Gulf Thunder entry:
+
+- read from where the text is (`override`, the address found by searching the executable for
+  the NUL-delimited text): `title.top_scores` 0x48CBD0 "Top Scores", `title.enter_name`
+  0x48CBF0, `title.hint` 0x48CD70 "Tutorial Tip", `difficulty.3` 0x48CD34 "Hard",
+  `difficulty.4` 0x48CD28 "Nightmare", `mode.0` 0x48CD18, `mode.1` 0x48CD0C, `button.ok`
+  0x48CC00 "   Ok   ", `info.pages.3..7` 0x48BE70 down to 0x48BE50 ("3 of 7" … "7 of 7");
+  `heli.2` 0x48BDA4 "Steel Falcon" (GUESS: the name that follows "Red Hawk" and "Sky Keeper"
+  in the executable's name block; Gulf Thunder's third helicopter's name was not seen on screen);
+- left out (`leave_out`, the game's built-in text is used): `heli.3`, `heli.4`, `heli.5`,
+  `info.pages.8`, `credits.4`, `credits.19`.
+
+224 entries are written. The credits keys stay shifted. `gulf.json` is not changed here (it
+belongs to the spec package); correcting it needs `re/tools/gen_exe_texts_gulf.py` re-run with
+the placement fixed, then the Gulf Thunder list of `apps/web/site/files.js` regenerated from it
+(apps/tests/gulf_rules_test.cpp fails until the two lists agree) and the corrections above
+removed.

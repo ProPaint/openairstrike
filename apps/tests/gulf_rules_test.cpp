@@ -239,9 +239,9 @@ TEST_CASE("gulf texts: the web page's table is tools/exe_texts/gulf.json's") {
     const std::string json = readText(std::string(AS3D_REPO_ROOT) + "/tools/exe_texts/gulf.json");
     REQUIRE_FALSE(js.empty());
     REQUIRE_FALSE(json.empty());
-    // files.js: ['key', 0xADDR, kind] inside LISTED_TEXTS.gulf.
-    const size_t b = js.find("const LISTED_TEXTS");
-    const size_t e = js.find("function listedTexts");
+    // files.js: ['key', 0xADDR, 't'|'m'|'u'] between the BEGIN and END lines of the gulf list.
+    const size_t b = js.find("BEGIN gulf address list");
+    const size_t e = js.find("END gulf address list");
     REQUIRE(b != std::string::npos);
     REQUIRE(e != std::string::npos);
     std::vector<std::string> fromJs;
@@ -249,9 +249,10 @@ TEST_CASE("gulf texts: the web page's table is tools/exe_texts/gulf.json's") {
         const size_t q = js.find('\'', p + 2);
         const size_t c = js.find(']', q);
         std::string key = js.substr(p + 2, q - p - 2);
-        std::string rest = js.substr(q + 1, c - q - 1); // ", 0x48CBC4, 0"
+        std::string rest = js.substr(q + 1, c - q - 1); // ", 0x48CBC4, 't'"
         unsigned long addr = std::stoul(rest.substr(rest.find("0x") + 2), nullptr, 16);
-        int kind = rest.back() - '0';
+        const char k = rest[rest.size() - 2];
+        const int kind = k == 't' ? 0 : k == 'm' ? 1 : k == 'u' ? 2 : -1;
         fromJs.push_back(key + "|" + std::to_string(addr) + "|" + std::to_string(kind));
     }
     // gulf.json: "key": "...", "address": "0x...", "kind": "..." per entry, in file order.

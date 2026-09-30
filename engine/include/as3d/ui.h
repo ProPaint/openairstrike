@@ -260,6 +260,9 @@ struct UiAssets {
     // cached; null if it cannot be loaded or no VFS was given (CPU-only tests). The first
     // call for a path needs a current GL context.
     const Texture2D* texture(std::string_view path) const;
+    // The same with repeat wrapping (a picture sampled over more than one width: the sequels'
+    // title-logo clouds and panel noise), cached apart from the clamped one.
+    const Texture2D* textureRepeat(std::string_view path) const;
 
 private:
     Vfs* vfs_ = nullptr;
