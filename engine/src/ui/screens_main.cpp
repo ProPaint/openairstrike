@@ -1,4 +1,5 @@
 // Main menu (S1), exit confirmation (S2) and Information pages (S8). frontend.md 3.3, 3.5, 3.14.
+#include <cmath>
 #include <algorithm>
 #include <cstdio>
 
@@ -48,7 +49,18 @@ Menu Frontend::buildMainMenu() {
     for (const auto& b : buttons)
         m.addButton(b.id, 240, b.y, 320, b.h, "menu\\mmenu_1.tga", "menu\\mmenu_2.tga", b.uv);
     // Ours (docs/spec/issues/163): with more than one game, a text entry below the pictures.
-    if (content_.changeGame) m.addTextButton(kChangeGameItem, kChangeGameRect, texts_.get("menu.change_game"));
+    // Drawn like the picture captions above it: red text with the menu's black shadow, brighter
+    // and larger when focused, no box (the atlas has no picture for it).
+    if (content_.changeGame) {
+        MenuItem& it = m.addCustom(kChangeGameItem, kChangeGameRect, [](MenuDrawContext& c, MenuItem& self, bool focused) {
+            const float scale = focused ? 1.3f : 1.15f;
+            const Color col = focused ? Color{1.0f, 0.25f, 0.1f, 1} : Color{0.72f, 0.1f, 0.05f, 1};
+            widgets::shadowedText(c, self.hit.x + self.hit.w * 0.5f,
+                                  self.hit.y + std::floor((self.hit.h - 15 * scale) * 0.5f), self.label, col,
+                                  Align::Center, scale);
+        });
+        it.label = texts_.get("menu.change_game");
+    }
     m.onItem = [this](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
         switch (it.id) {
