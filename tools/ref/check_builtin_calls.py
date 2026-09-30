@@ -30,8 +30,8 @@ Usage:
 
 Data: $AS3D_DATA_ROOT (default: the repository root); game `as3d` reads
 <root>/assets_extracted/scripts, any other game <root>/assets_extracted_games/<key>/scripts.
-Table: testdata/golden/<key>/rcsl_builtins.json; `gulf` falls back to the `as2` table when it
-has none of its own.
+Table: testdata/golden/<key>/rcsl_builtins.json (`gulf` has its own since package F1; it falls
+back to the `as2` table only when the file is missing).
 
 Every regular file under the scripts directory is read, whatever its extension (the second
 game ships one script as `.sc`). A file without a CODE section has no call sites.
