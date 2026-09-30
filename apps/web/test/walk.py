@@ -9,7 +9,8 @@ and as2 (tools/web_build.sh); every scenario but `choose` and `byo` forces ?game
   choose     the start screen offers both games and downloads nothing before a choice;
              AirStrike 3D chosen: only its files fetched, "Change game" on its main menu goes
              back to the start screen (the choice remembered); AirStrike 2 chosen with the
-             pilot (bot=1&menus=1): only its files, mission 1 plays 30 s from its menus; then
+             pilot (bot=1&menus=1): only its files, mission 1 started through its own menus
+             (Start Game, Next, the helicopter selection, the start dialogue) plays 30 s; then
              /persist/as3d/profile.bin is byte for byte what it was before AirStrike 2 ran and
              /persist/as2/profile.bin exists (docs/spec/issues/163).
   desktop    mouse and keyboard at 1280x720: Play, intro, main menu, Options (Show FPS),
