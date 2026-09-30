@@ -16,7 +16,7 @@ as2 and gulf (tools/web_build.sh); every scenario but `choose`, `gulf` and `byo`
   gulf       Gulf Thunder chosen on the start screen (its own menus, gulf/frontend.delta.md): only
              its files fetched; the main menu's six buttons 180 wide and 37 high at y 250 to 475;
              Information, Credits, Options, Top Scores opened and left; operation 1 started
-             through Start Game, Next and the helicopter selection plays 15 s; Esc (the in-game
+             through Start Game, Next and the helicopter selection plays 30 s under the pilot; Esc (the in-game
              menu), Resume, Esc, Quit; then /persist/gulf/profile.bin exists with the key gulf and
              the other games' saves are untouched; then on a touch phone the same by taps only.
   desktop    mouse and keyboard at 1280x720: Play, intro, main menu, Options (Show FPS),
@@ -982,7 +982,7 @@ def gulf(w, b):
     p = b.page(w.a.url, None, viewport={"width": 1280, "height": 720})
     p.requests = []
     p.page.on("request", lambda req: p.requests.append(req.url))
-    p.goto("")
+    p.goto("bot=1&menus=1")  # the pilot flies once the menus have started the mission
     r = {}
     try:
         w.step("gulf: chosen on the start screen; only its files are fetched")
@@ -1026,12 +1026,12 @@ def gulf(w, b):
             wait_new_screen(p, "main", mk)
             p.page.wait_for_timeout(400)
 
-        w.step("gulf: operation 1 through Start Game, Next, the helicopter selection; 15 s of play")
+        w.step("gulf: operation 1 through Start Game, Next, the helicopter selection; 30 s of play under the pilot")
         start_mission(w, p)
         w.shot(p, "gulf_loaded")
         mk = p.mark()
         t0 = time.time()
-        while time.time() - t0 < 15:
+        while time.time() - t0 < 30:
             p.page.wait_for_timeout(2000)
         frames = [int(m.group(1)) for t in p.texts()[mk:] for m in [re.search(r"AS3D_GAME_FRAME n=(\d+) mission=1 ", t)] if m]
         r["frame_markers"] = frames
