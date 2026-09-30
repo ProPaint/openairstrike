@@ -71,6 +71,26 @@ const std::map<std::string, std::string>& defaults() {
             {"plain.loading", "Loading"},
             {"touch.menu", "MENU"}, {"touch.cancel", "Cancel"}, {"touch.clear", "Clear"},
             {"touch.del", "Del"}, {"touch.space", "Sp"},
+            // The sequels' generic labels (docs/spec/as2/frontend.md 7; button captions keep
+            // the padding spaces that set their widths).
+            {"title.start_game", "Start Game"}, {"title.options", " Options "}, {"title.controls", "Configure Controls"},
+            {"title.heli", "Choose Helicopter"}, {"title.mission_complete", "Mission Complete"},
+            {"title.top_scores", "Top Scores"}, {"title.enter_name", "Enter Your Name"}, {"title.exit", "Confirm Exit"},
+            {"title.hint", "Tutorial Tip"}, {"title.game_over", "Game Over"},
+            {"label.player", "Player:"}, {"mode.0", "Single Player"}, {"mode.1", "Cooperative"},
+            {"button.start_game", " Start Game "}, {"button.top_scores", " Top Scores "}, {"button.options", " Options "},
+            {"button.information", " Information "}, {"button.credits", " Credits "}, {"button.quit", " Quit "},
+            {"button.quit_wide", "  Quit  "}, {"button.yes", " YES "}, {"button.no", " NO "}, {"button.back", " Back "},
+            {"button.back_wide", "  Back  "}, {"button.next", " Next "}, {"button.next_wide", "  Next  "},
+            {"button.start", " Start "}, {"button.continue", " Continue "}, {"button.accept", " Accept "},
+            {"button.restart", " Restart "}, {"button.resume", " Resume "}, {"button.choose_heli", " Choose Helicopter "},
+            {"button.configure_controls", " Configure Controls "}, {"button.apply", " Apply "}, {"button.ok", "  Ok  "},
+            {"msg.new_heli", "New helicopter is available."}, {"heli.speed", "Speed:"}, {"heli.armor", "Armor:"},
+            {"heli.na", "NOT AVAILABLE"}, {"loading.label", "Loading"},
+            // Ours for the sequels.
+            {"heli.generic", "Helicopter"}, {"button.change_game", " Change game "}, {"button.clear", " Clear "},
+            {"button.cancel", " Cancel "}, {"button.touch_menu", " MENU "},
+            {"info.missing.2s", " to import them."},
         };
         char key[32], val[32];
         for (int n = 1; n <= 10; n++) {
@@ -110,7 +130,10 @@ int Texts::parse(std::string_view content) {
         for (size_t i = 1; i < rest.size(); i++) {
             const char c = rest[i];
             if (c == '\\' && i + 1 < rest.size()) {
-                value += rest[++i];
+                // `\n` is a line break (the sequels' multi-line dialogue pages); any other
+                // escaped character stands for itself.
+                const char e = rest[++i];
+                value += e == 'n' ? '\n' : e;
             } else if (c == '"') {
                 closed = i + 1 == rest.size();
                 break;

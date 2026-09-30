@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "as2_draw.h"
 #include "as3d/menu.h"
 
 namespace as3d::ui {
@@ -459,18 +460,23 @@ void drawGrid(MenuDrawContext& c, MenuItem& it, float px, float py) {
 void MenuSystem::drawBackground(Renderer2D& r, const UiAssets& a) {
     Menu* m = top();
     if (!m || !m->drawBack) return;
-    MenuDrawContext c{r, a, *m, mt_, touchMode, clockMs_, plain};
+    MenuDrawContext c{r, a, *m, mt_, touchMode, clockMs_, plain, sequel};
     m->drawBack(c);
 }
 
 void MenuSystem::drawItems(Renderer2D& r, const UiAssets& a) {
     Menu* m = top();
     if (!m) return;
-    MenuDrawContext c{r, a, *m, mt_, touchMode, clockMs_, plain};
+    MenuDrawContext c{r, a, *m, mt_, touchMode, clockMs_, plain, sequel};
     for (size_t i = 0; i < m->items.size(); i++) {
         MenuItem& it = m->items[i];
-        if (it.hidden()) continue;
         const bool focused = static_cast<int>(i) == m->focused;
+        if (sequel) {
+            // The sequels' widgets (as2_widgets.cpp); a text button still slides out once hidden.
+            drawSequelItem(c, it, focused);
+            continue;
+        }
+        if (it.hidden()) continue;
         switch (it.type) {
             case ItemType::Text: drawLabel(c, it, focused); break;
             case ItemType::Button: drawButton(c, it, focused); break;
@@ -492,6 +498,7 @@ void MenuSystem::drawItems(Renderer2D& r, const UiAssets& a) {
             case ItemType::Slider: drawSlider(c, it, focused); break;
             case ItemType::HeliGrid: drawGrid(c, it, px_, py_); break;
             case ItemType::Custom: if (it.draw) it.draw(c, it, focused); break;
+            default: break; // the sequels' types are drawn by their style only
         }
     }
     if (m->drawFront) m->drawFront(c);

@@ -14,6 +14,7 @@
 
 namespace as3d::ui {
 class Frontend;
+struct ModelView;
 }
 
 namespace as3d_game {
@@ -48,6 +49,10 @@ public:
     void drawFrame(const GameSession& session, int width, int height, const FrameLayers& layers);
     // The main menu's 3D banner (frontend.md 3.3 step 5) in the top 200 virtual pixels.
     void drawBanner(float mt, int width, int height);
+    // The sequels' model view (the helicopter selection's preview, as2/frontend.md 3.18): the
+    // object with its attachments in a viewport of the frame drawFrame is drawing (or of the
+    // last one drawn). Called through GameHost::drawModel.
+    void drawModel(GameSession& session, const as3d::ui::ModelView& view);
 
     as3d::WorldRenderer& renderer() { return renderer_; }
     bool hudAvailable() const { return hudReady_; }
@@ -61,13 +66,16 @@ public:
 
 private:
     struct Banner;
+    struct Preview;
     void renderWorld(const as3d::World& world, int width, int height);
     void clearBars(int width, int height);
     as3d::WorldRenderer renderer_;
     as3d::ui::Renderer2D r2d_;
     as3d::ui::UiAssets assets_;
     std::unique_ptr<Banner> banner_;
+    std::unique_ptr<Preview> preview_;
     bool hudReady_ = false;
+    int frameW_ = 800, frameH_ = 600;
 };
 
 // The HUD state for the current frame, from the world: health, lives, score, weapon,

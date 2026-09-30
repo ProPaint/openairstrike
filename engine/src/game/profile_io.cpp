@@ -78,10 +78,12 @@ void writeProgress(Writer& w, const Progress& p) {
 // counts up to the maxima; entries beyond the game's counts are dropped, missing ones keep the
 // game's defaults.
 bool readProgress(ByteReader& r, Progress& p, std::string& why, bool strict) {
-    // The counts are those of the Progress being replaced (its game).
+    // The counts and the fresh-install unlocks are those of the Progress being replaced (its
+    // game's defaults).
     Progress out = Progress::defaults();
     out.helicopterCount = p.helicopterCount;
     out.missionCount = p.missionCount;
+    const Progress fresh = p;
     const size_t n = r.readU8();
     if (r.failed() || n > kHighScoreCount || (strict && n != kHighScoreCount)) { why = "bad high-score count"; return false; }
     for (size_t i = 0; i < n; i++) {
@@ -108,10 +110,45 @@ bool readProgress(ByteReader& r, Progress& p, std::string& why, bool strict) {
         if (i < static_cast<size_t>(out.missionCount)) out.missionUnlocked[i] = on;
     }
     if (r.failed()) { why = "truncated progress"; return false; }
-    // Never lock what a fresh install has.
-    out.helicopterUnlocked[0] = out.helicopterUnlocked[1] = true;
-    out.missionUnlocked[0] = out.missionUnlocked[1] = true;
+    // Never lock what a fresh install has (the first game: helicopters 1 and 2; the sequels:
+    // entry 0 only, as2 engine-behaviour.delta.md 7.6; missions 1 and 2 in every game).
+    for (int i = 0; i < 2; i++) {
+        out.helicopterUnlocked[i] = out.helicopterUnlocked[i] || fresh.helicopterUnlocked[i];
+        out.missionUnlocked[i] = true;
+    }
+    out.checkpoint = p.checkpoint; // its own chunk
     p = out;
+    return true;
+}
+
+void writeCheckpoint(Writer& w, const CampaignCheckpoint& c) {
+    w.i32v(c.mission);
+    for (int i = 0; i < 2; i++) {
+        w.i32v(c.lives[i]);
+        w.i64v(c.score[i]);
+        u32 bits;
+        std::memcpy(&bits, &c.rank[i], 4);
+        w.u32v(bits);
+    }
+}
+
+bool readCheckpoint(ByteReader& r, const Progress& p, CampaignCheckpoint& c, std::string& why) {
+    CampaignCheckpoint out;
+    out.mission = r.readI32();
+    for (int i = 0; i < 2; i++) {
+        out.lives[i] = r.readI32();
+        out.score[i] = readI64(r);
+        const u32 bits = r.readU32();
+        std::memcpy(&out.rank[i], &bits, 4);
+    }
+    if (r.failed()) { why = "truncated checkpoint"; return false; }
+    // Past the last mission is legal (the original stores the mission count after the last).
+    bool ok = out.mission >= -1 && out.mission <= p.missionCount;
+    for (int i = 0; i < 2; i++)
+        ok = ok && out.lives[i] >= -1 && out.lives[i] <= 99 && out.score[i] >= 0 && std::isfinite(out.rank[i]) &&
+             out.rank[i] >= 0.0f && out.rank[i] < 1e6f;
+    if (!ok) { why = "bad checkpoint"; return false; }
+    c = out;
     return true;
 }
 
@@ -185,12 +222,16 @@ bool readSettings(ByteReader& r, Settings& s, std::string& why) {
     return true;
 }
 
-// The defaults for whatever could not be read, sized like the Progress the caller passed in.
+// The defaults for whatever could not be read, sized like the Progress the caller passed in and
+// with its fresh-install unlocks (Progress::defaults of the game; see profile.h).
 void resetKeepingCounts(Profile& out) {
-    const int mc = out.progress.missionCount, hc = out.progress.helicopterCount;
+    Progress fresh = Progress::defaults();
+    fresh.missionCount = out.progress.missionCount;
+    fresh.helicopterCount = out.progress.helicopterCount;
+    for (int i = 0; i < kMaxHelicopters; i++) fresh.helicopterUnlocked[i] = out.progress.helicopterUnlocked[i];
+    for (int i = 0; i < kMaxMissions; i++) fresh.missionUnlocked[i] = out.progress.missionUnlocked[i];
     out = Profile{};
-    out.progress.missionCount = mc;
-    out.progress.helicopterCount = hc;
+    out.progress = fresh;
 }
 
 bool validKey(const char* key) {
@@ -219,6 +260,12 @@ std::vector<u8> serializeProfile(const Profile& p, const char* gameKey) {
     writeSettings(sett, p.settings);
     chunk("PROG", prog);
     chunk("SETT", sett);
+    // Only while a checkpoint is set, so the first game's files stay as they were.
+    if (p.progress.checkpoint.mission >= 0) {
+        Writer chkp;
+        writeCheckpoint(chkp, p.progress.checkpoint);
+        chunk("CHKP", chkp);
+    }
     const size_t keyLen = std::strlen(gameKey);
     // The checksum covers the key and the payload.
     Writer body;
@@ -271,7 +318,8 @@ bool deserializeProfile(const u8* data, size_t size, Profile& out, std::string* 
 
     ByteReader r(payload, payloadSize);
     bool ok = true;
-    bool haveProg = false, haveSett = false;
+    bool haveProg = false, haveSett = false, haveChkp = false;
+    CampaignCheckpoint checkpoint;
     while (r.remaining() > 0) {
         if (r.remaining() < 8) { err = "truncated chunk header"; ok = false; break; }
         char tag[4];
@@ -287,8 +335,13 @@ bool deserializeProfile(const u8* data, size_t size, Profile& out, std::string* 
         } else if (std::memcmp(tag, "SETT", 4) == 0 && !haveSett) {
             haveSett = true;
             if (!readSettings(c, out.settings, cerr)) { err = cerr; ok = false; }
+        } else if (std::memcmp(tag, "CHKP", 4) == 0 && !haveChkp && version == 2) {
+            haveChkp = true;
+            if (!readCheckpoint(c, out.progress, checkpoint, cerr)) { err = cerr; ok = false; }
         }
     }
+    // The checkpoint is checked against the mission count read above, whatever the order.
+    out.progress.checkpoint = checkpoint.mission <= out.progress.missionCount ? checkpoint : CampaignCheckpoint{};
     if (!haveProg || !haveSett) {
         if (err.empty()) err = "missing chunk";
         ok = false;

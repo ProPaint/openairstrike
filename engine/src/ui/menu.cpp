@@ -215,11 +215,45 @@ MenuItem& Menu::addTextButton(int id, RectF hit, std::string label, u32 flags) {
     return it;
 }
 
+MenuItem& Menu::addPicture(int id, float x, float y, float w, float h, std::string texture, SpecUv uv, u32 flags) {
+    MenuItem it;
+    it.type = ItemType::Picture;
+    it.id = id;
+    it.flags = flags;
+    it.x = x;
+    it.y = y;
+    it.w = w;
+    it.h = h;
+    it.hit = {x, y, w, h};
+    it.texture = std::move(texture);
+    it.uv = uv;
+    return pushItem(*this, std::move(it));
+}
+
+MenuItem& Menu::addSequelButton(int id, float x, float y, std::string label, u32 flags, float minWidth) {
+    MenuItem it;
+    it.type = ItemType::SequelButton;
+    it.id = id;
+    it.flags = flags | itemflag::NoHoverSound; // the initialiser sets it (as2/frontend.md 2.3)
+    it.x = x;
+    it.y = y;
+    // The caption width skips the braces and counts the padding spaces (as2/frontend.md 2.5).
+    it.captionW = std::max(measureText(fm(), label, 1.0f, true), minWidth);
+    const float w = it.captionW + 46.0f;
+    float left = x;
+    if (flags & itemflag::AlignRight) left = x - w;
+    else if (flags & itemflag::AlignCenter) left = x - w * 0.5f;
+    it.hit = {left, y, w, 30};
+    it.label = std::move(label);
+    return pushItem(*this, std::move(it));
+}
+
 // ---------------------------------------------------------------------------
 // MenuSystem
 // ---------------------------------------------------------------------------
 void MenuSystem::reset(Menu& m) {
     mt_ = 0;
+    m.open = 0; // the sequels: a menu opens again whenever it becomes the top one
     m.focused = -1;
     m.hovered = -1;
     m.hoverTime = 0;
@@ -408,6 +442,13 @@ void MenuSystem::update(float dt, const UiInput& input) {
     Menu* m = top();
     if (!m) return;
     if (!pointerMovedThisFrame_) m->hoverTime += dt;
+    // The sequels' menu opening (as2/frontend.md 2.1: 4 x dt twice per frame) and the text
+    // buttons' slide (2.5: 4 x dt towards shown or hidden). Nothing reads them in the first
+    // game's style.
+    m->open = std::min(m->open + 8.0f * dt, 1.0f);
+    for (MenuItem& it : m->items)
+        if (it.type == ItemType::SequelButton)
+            it.slide = std::clamp(it.slide + (it.hidden() ? -4.0f : 4.0f) * dt, 0.0f, 1.0f);
     // Slider drag: the click is re-sent every frame while the button is held and the slider
     // stays hovered (touch: while the finger is down, wherever it is).
     for (size_t i = 0; i < m->items.size(); i++) {

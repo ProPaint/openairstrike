@@ -77,7 +77,8 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     // Counts of the game, which a saved file must match; the plain front end's games start with
     // helicopter 0 only (issue 260).
     const bool plainGame = session_.game() && session_.game()->frontend == FrontendStyle::PlainList;
-    profile_.progress = Progress::defaults(session_.rules(), plainGame ? 1 : 2);
+    const bool sequelGame = session_.game() && session_.game()->frontend == FrontendStyle::SequelMenus;
+    profile_.progress = Progress::defaults(session_.rules(), Progress::defaultHelicopters(session_.game()));
     std::string why;
     // The platform's default path is the first game's old location; the save now lives in a
     // directory per game (docs/spec/issues/160). An explicit path (--profile, tests) is used as is.
@@ -113,8 +114,9 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     // Content from the data: mission names and unlocks (levels.txt), Settings.xml, texts.
     ui::FrontendContent content;
     content.game = session_.game();
-    if (plainGame) {
-        // What the helicopters' definitions say, for the plain front end's list (issue 260).
+    if (plainGame || sequelGame) {
+        // What the helicopters' definitions say: the plain front end's list (issue 260), the
+        // sequels' Speed and Armor bars (as2/frontend.md 3.18).
         for (int h = 0; h < session_.rules().helicopterCount && session_.rules().heliObjects; ++h) {
             const ObjectDef* d = session_.db().findObject(session_.rules().heliObjects[h]);
             if (!d) continue;
@@ -145,7 +147,8 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     // Video modes, refresh rate, colour depth, fullscreen and 3D sound are not offered: the
     // window is sized from the command line and sound is always 2D (issue 130).
     content.videoOptions = false;
-    content.twoPlayerMode = config_.twoPlayerMode && !plainGame;
+    // The sequels' co-operative mode is not done yet: their Start Game offers one player.
+    content.twoPlayerMode = config_.twoPlayerMode && !plainGame && !sequelGame;
     content.mouseControlOption = config_.mouseControlOption;
     content.touchMenuButton = config_.touchMenuButton;
     content.screenOption = config_.screenOptionAlways;
@@ -198,6 +201,9 @@ void GameFlow::levelLoaded(bool intermission) {
     ++levelLoads_;
     std::string err;
     if (view_ && !view_->beginLevel(session_, &err)) AS3D_ERROR("renderer: %s", err.c_str());
+    // A level the front end holds paused from its start (the sequels' start dialogue, whose
+    // pause may have been asked for before a deferred load ran).
+    if (fe_ && fe_->sequel() && fe_->paused() && session_.hasLevel()) session_.world().setPaused(true);
     if (loadingHook) loadingHook(1.0f, intermission);
     if (levelLoadedHook) levelLoadedHook();
     audio_.startLevel(session_.musicPath());
@@ -400,8 +406,14 @@ int GameFlow::step(const FrameInput& input) {
     return ev;
 }
 
+void GameFlow::drawModel(const ui::ModelView& v) {
+    ++modelViews_;
+    if (view_) view_->drawModel(session_, v);
+}
+
 void GameFlow::draw(int width, int height) {
     if (!view_) return;
+    modelViews_ = 0;
     FrameLayers layers;
     layers.world = worldRunning();
     layers.hud = fe_->hudVisible() && session_.hasLevel() && !session_.world().intermission();
