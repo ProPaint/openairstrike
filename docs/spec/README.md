@@ -122,6 +122,7 @@ Rules for delta specs:
 | [161](issues/161-game-detection.md) | how a game's data is found and identified |
 | [162](issues/162-packaging-by-game.md) | packaging by game on Android and the web |
 | [163](issues/163-game-selector.md) | the game selector, "Change game", switching games in one process |
+| [164](issues/164-game-selector-look.md) | the selector's marquees per game and its web parity through build-time renders |
 
 Issues of a sequel are in its own directory, `as2/issues/` (numbers from 200).
 
@@ -141,4 +142,4 @@ Issues of a sequel are in its own directory, `as2/issues/` (numbers from 200).
 | Web | `apps/web`, `tools/web_build.sh`, `tools/web_serve.sh`, `docs/web.md` | the whole game in the browser, one player; verified in headless Chromium and by the owner on Android Chrome and Edge; Safari, iPhone and Firefox untested |
 | Several games | `engine/include/as3d/{game_profile,game_data}.h`, `tools/games.json`, `tools/regress_as3d.sh` | groundwork done: game chosen at start (`--game`, `AS3D_GAME`, `?game=`), rules from `GameRules`, one save per game (format 2), tests, goldens and tools per game, packaging by game |
 | AirStrike 2 (`as2`) | `docs/spec/as2/`, `docs/missions-status-as2.md` | playable on all three targets: all 18 missions end under the pilot, its own HUD, water and lava checked against the original under Wine (`tools/run_original.sh`); with its own front end: intro comic, menus, helicopter selection, dialogues, campaign checkpoint, compared screen by screen with the original (`docs/spec/as2/issues/300-frontend-implementation-findings.md`); co-op not done |
-| Gulf Thunder (`gulf`) | `docs/spec/gulf/`, `docs/missions-status-gulf.md` | playable on all three targets: all 24 operations end under the pilot, its own loadout and HUD tables, texts; started from the plain front end (its own menus are not done); co-op not done (`docs/missions-status-gulf.md`) |
+| Gulf Thunder (`gulf`) | `docs/spec/gulf/`, `docs/missions-status-gulf.md` | playable on all three targets: all 24 operations end under the pilot, its own loadout and HUD tables, texts; with its own front end on the sequel front end code with its skin (`docs/spec/gulf/issues/410-frontend-screen-corrections.md`); co-op not done (`docs/missions-status-gulf.md`) |
