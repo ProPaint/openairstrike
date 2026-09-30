@@ -86,7 +86,7 @@ window.AS3DFiles = (function () {
       hints: [['info.hint.prev', 0x44B084], ['info.hint.next', 0x44B09C], ['info.page', 0x44B0B0]],
       pageValues: 0x449E50 } },
     'b24b62b2c5b61cfa1cf0aad781788aa777a2e4f4a385c73ba53014b039e46f5b': { game: 'as2', table: null },
-    '86195a9653489064844c172ce43307c703a50e53be7e00d45fe346c45d5ae077': { game: 'gulf', table: null },
+    '86195a9653489064844c172ce43307c703a50e53be7e00d45fe346c45d5ae077': { game: 'gulf', table: { listed: 'gulf' } },
   };
 
   // `header`: the first comment line's "<title> v<version>" (games.json).
@@ -132,6 +132,8 @@ window.AS3DFiles = (function () {
       return s;
     };
     const u32 = (addr) => dv.getUint32(offset(addr), true);
+    // Gulf Thunder block (package F2): a listed table.
+    if (table.listed) return textFile(listedTexts(data, offset, u32, LISTED_TEXTS[table.listed]), header);
     const text = sections.find((s) => s.name === '.text') || fail('no .text section');
     const blob = data.subarray(text.roff, text.roff + text.rsize);
     const find = (needle, from) => {
@@ -183,6 +185,135 @@ window.AS3DFiles = (function () {
     for (const [k, v] of entries) out += `${k} = ${quote(v)}\n`;
     return out;
   }
+
+  // ---- Gulf Thunder (package F2): tables listed as [key, address, kind] ----------------------
+  // A port of extract_listed in tools/extract_exe_texts.py, keep the two in step. The table is
+  // tools/exe_texts/gulf.json's entries in file order (kind 0 text, 1 text_ml, 2 u32);
+  // apps/tests/gulf_rules_test.cpp checks that it is the same list. `text_ml` lines are joined
+  // with '^', `u32` written in decimal; an entry that is not at the start of a string or holds
+  // other bytes than text is left out (the game's built-in text is used for it).
+  const LISTED_TEXTS = {
+    gulf: [
+      ['title.start_game', 0x48CBC4, 0], ['title.options', 0x48CA7C, 0],
+      ['title.controls', 0x48B6A0, 0], ['title.heli', 0x48BE00, 0],
+      ['title.mission_complete', 0x48B8C8, 0], ['title.top_scores', 0x48CDA8, 0],
+      ['title.enter_name', 0x48CBF4, 0], ['title.exit', 0x48B93C, 0], ['title.hint', 0x48B918, 0],
+      ['title.game_over', 0x48BC90, 0], ['label.exit', 0x48B91C, 0], ['label.difficulty', 0x48CD58, 0],
+      ['label.game_mode', 0x48CD64, 0], ['label.player', 0x48BE14, 0], ['difficulty.0', 0x48CD4C, 0],
+      ['difficulty.1', 0x48CD44, 0], ['difficulty.2', 0x48CD3C, 0], ['difficulty.3', 0x48CD30, 0],
+      ['difficulty.4', 0x48CD24, 0], ['mode.0', 0x48CD14, 0], ['mode.1', 0x48CD08, 0],
+      ['button.start_game', 0x48CBC4, 0], ['button.top_scores', 0x48CBD0, 0],
+      ['button.options', 0x48CA7C, 0], ['button.information', 0x48CBDC, 0],
+      ['button.credits', 0x48CBE8, 0], ['button.quit', 0x48CA8C, 0], ['button.quit_wide', 0x48B8EC, 0],
+      ['button.yes', 0x48B94C, 0], ['button.no', 0x48B954, 0], ['button.back', 0x48B70C, 0],
+      ['button.back_wide', 0x48B70C, 0], ['button.next', 0x48B910, 0],
+      ['button.next_wide', 0x48B910, 0], ['button.start', 0x48BE34, 0],
+      ['button.continue', 0x48BC80, 0], ['button.accept', 0x48BE1C, 0],
+      ['button.restart', 0x48B8DC, 0], ['button.resume', 0x48CA74, 0],
+      ['button.choose_heli', 0x48B8F8, 0], ['button.configure_controls', 0x48CCE8, 0],
+      ['button.apply', 0x48CD00, 0], ['button.ok', 0x48CC04, 0], ['stat.enemies', 0x48B85C, 0],
+      ['stat.stars', 0x48B878, 0], ['stat.rank', 0x48B894, 0], ['msg.new_heli', 0x48B8A8, 0],
+      ['rank.0', 0x489F64, 0], ['rank.1', 0x489F5C, 0], ['rank.2', 0x489F4C, 0],
+      ['rank.3', 0x489F44, 0], ['rank.4', 0x489F34, 0], ['rank.5', 0x489F28, 0],
+      ['rank.6', 0x489F20, 0], ['heli.0', 0x48BDC0, 0], ['heli.1', 0x48BDB4, 0],
+      ['heli.2', 0x48BD98, 0], ['heli.3', 0x48BD88, 0], ['heli.4', 0x48BD80, 0],
+      ['heli.5', 0x48BD74, 0], ['heli.speed', 0x48BDF0, 0], ['heli.armor', 0x48BDF8, 0],
+      ['heli.na', 0x48BDE0, 0], ['scores.number', 0x48CD8C, 0], ['scores.name', 0x48CD90, 0],
+      ['scores.score', 0x48CD98, 0], ['scores.rank', 0x48CDA0, 0], ['opt.resolution', 0x48CC60, 0],
+      ['opt.refresh', 0x48CC6C, 0], ['opt.depth', 0x48CC7C, 0], ['opt.fullscreen', 0x48CC8C, 0],
+      ['opt.brightness', 0x48CC98, 0], ['opt.sfx', 0x48CCA4, 0], ['opt.music', 0x48CCB4, 0],
+      ['opt.sound3d', 0x48CCC4, 0], ['opt.camera', 0x48CCD0, 0], ['opt.mouse', 0x48CCD8, 0],
+      ['opt.refresh.default', 0x48CC50, 0], ['opt.off', 0x48CC4C, 0], ['opt.on', 0x48CC48, 0],
+      ['opt.depth.0', 0x48CC34, 0], ['opt.depth.16', 0x48CC14, 0], ['opt.depth.32', 0x48CC0C, 0],
+      ['camera.0', 0x48CC3C, 0], ['camera.1', 0x48CC34, 0], ['camera.2', 0x48CC28, 0],
+      ['camera.3', 0x48CC1C, 0], ['ctl.set', 0x48B6FC, 0], ['ctl.player.1', 0x48B4A4, 0],
+      ['ctl.player.2', 0x48B498, 0], ['ctl.row.0', 0x48B664, 0], ['ctl.row.1', 0x48B654, 0],
+      ['ctl.row.2', 0x48B650, 0], ['ctl.row.3', 0x48B640, 0], ['ctl.row.4', 0x48B630, 0],
+      ['ctl.row.5', 0x48B650, 0], ['ctl.row.6', 0x48B624, 0], ['ctl.row.7', 0x48B618, 0],
+      ['ctl.row.8', 0x48B650, 0], ['ctl.row.9', 0x48B608, 0], ['info.page', 0x48CA6C, 0],
+      ['info.hint.prev', 0x48CA40, 0], ['info.hint.next', 0x48CA58, 0], ['info.pages.1', 0x48BE80, 0],
+      ['info.pages.2', 0x48BE78, 0], ['info.pages.3', 0x48BE78, 0], ['info.pages.4', 0x48BE70, 0],
+      ['info.pages.5', 0x48BE68, 0], ['info.pages.6', 0x48BE60, 0], ['info.pages.7', 0x48BE58, 0],
+      ['info.pages.8', 0x48BE50, 0], ['info.1.title', 0x48C0D0, 0], ['info.1.0', 0x48BE88, 0],
+      ['info.1.1', 0x48BED0, 0], ['info.1.2', 0x48BF10, 0], ['info.1.3', 0x48BF50, 0],
+      ['info.1.5', 0x48BF60, 0], ['info.1.6', 0x48BFA0, 0], ['info.1.8', 0x48BFE8, 0],
+      ['info.1.9', 0x48C030, 0], ['info.1.10', 0x48C078, 0], ['info.1.11', 0x48C0BC, 0],
+      ['info.2.title', 0x48C2C0, 0], ['info.2.0', 0x48C0DC, 0], ['info.2.1', 0x48C0EC, 0],
+      ['info.2.2', 0x48C128, 0], ['info.2.3', 0x48C164, 0], ['info.2.5', 0x48C180, 0],
+      ['info.2.6', 0x48C190, 0], ['info.2.7', 0x48C1CC, 0], ['info.2.9', 0x48C1E0, 0],
+      ['info.2.10', 0x48C1F0, 0], ['info.2.11', 0x48C224, 0], ['info.2.13', 0x48C260, 0],
+      ['info.2.14', 0x48C270, 0], ['info.2.15', 0x48C2A8, 0], ['info.3.title', 0x48C48C, 0],
+      ['info.3.0', 0x48C2E0, 0], ['info.3.1', 0x48C2EC, 0], ['info.3.2', 0x48C32C, 0],
+      ['info.3.3', 0x48C368, 0], ['info.3.4', 0x48C3A0, 0], ['info.3.6', 0x48C3C0, 0],
+      ['info.3.7', 0x48C3D0, 0], ['info.3.8', 0x48C40C, 0], ['info.3.10', 0x48C43C, 0],
+      ['info.3.11', 0x48C448, 0], ['info.3.12', 0x48C478, 0], ['info.4.0', 0x48C4AC, 0],
+      ['info.5.title', 0x48C6E4, 0], ['info.5.0', 0x48C4AC, 0], ['info.5.1', 0x48C4C0, 0],
+      ['info.5.2', 0x48C4FC, 0], ['info.5.4', 0x48C53C, 0], ['info.5.5', 0x48C54C, 0],
+      ['info.5.7', 0x48C584, 0], ['info.5.8', 0x48C5A4, 0], ['info.5.9', 0x48C5E4, 0],
+      ['info.5.10', 0x48C620, 0], ['info.5.12', 0x48C628, 0], ['info.5.13', 0x48C644, 0],
+      ['info.5.14', 0x48C680, 0], ['info.5.15', 0x48C6B8, 0], ['info.6.title', 0x48C77C, 0],
+      ['info.6.0', 0x48C6FC, 0], ['info.6.1', 0x48C710, 0], ['info.6.2', 0x48C748, 0],
+      ['info.7.title', 0x48C940, 0], ['info.7.0', 0x48C794, 0], ['info.7.1', 0x48C7A4, 0],
+      ['info.7.2', 0x48C7E0, 0], ['info.7.4', 0x48C80C, 0], ['info.7.5', 0x48C81C, 0],
+      ['info.7.7', 0x48C848, 0], ['info.7.8', 0x48C858, 0], ['info.7.10', 0x48C894, 0],
+      ['info.7.11', 0x48C8A8, 0], ['info.7.12', 0x48C8E0, 0], ['info.7.13', 0x48C918, 0],
+      ['info.8.title', 0x48CA2C, 0], ['info.8.0', 0x48C954, 0], ['info.8.1', 0x48C968, 0],
+      ['info.8.2', 0x48C99C, 0], ['info.8.4', 0x48C9CC, 0], ['info.8.5', 0x48C9DC, 0],
+      ['info.8.6', 0x48CA08, 0], ['credits.0', 0x48B718, 0], ['credits.1', 0x48B728, 0],
+      ['credits.3', 0x48B728, 0], ['credits.4', 0x48B734, 0], ['credits.6', 0x48B748, 0],
+      ['credits.7', 0x48B758, 0], ['credits.8', 0x48B768, 0], ['credits.10', 0x48B784, 0],
+      ['credits.11', 0x48B794, 0], ['credits.13', 0x48B7A8, 0], ['credits.14', 0x48B7BC, 0],
+      ['credits.16', 0x48B7CC, 0], ['credits.17', 0x48B7DC, 0], ['credits.19', 0x48B7F8, 0],
+      ['credits.20', 0x48B804, 0], ['congrats.0', 0x48BA68, 0], ['congrats.2', 0x48BA7C, 0],
+      ['congrats.3', 0x48BAB8, 0], ['congrats.4', 0x48BAF4, 0], ['congrats.6', 0x48BB28, 0],
+      ['congrats.7', 0x48BB6C, 0], ['congrats.8', 0x48BBA8, 0], ['congrats.10', 0x48BBC0, 0],
+      ['loading.label', 0x4892EC, 0], ['cheat.god_on', 0x488FF8, 0], ['cheat.god_off', 0x48900C, 0],
+      ['cheat.lives', 0x489034, 0], ['cheat.weapons', 0x48905C, 0], ['cheat.missiles', 0x489084, 0],
+      ['cheat.powerups', 0x4890B0, 0], ['dialog.10.start.0', 0x48B3E0, 1],
+      ['dialog.10.start.0.speaker', 0x49B324, 2], ['dialog.10.start.1', 0x48B340, 1],
+      ['dialog.10.start.1.speaker', 0x49B32C, 2], ['dialog.10.start.2', 0x48B2B8, 1],
+      ['dialog.10.start.2.speaker', 0x49B334, 2], ['dialog.10.end.0', 0x48B250, 1],
+      ['dialog.10.end.0.speaker', 0x49B344, 2], ['dialog.10.end.1', 0x48B228, 1],
+      ['dialog.10.end.1.speaker', 0x49B34C, 2], ['dialog.24.start.0', 0x48B160, 1],
+      ['dialog.24.start.0.speaker', 0x49B35C, 2], ['dialog.24.start.1', 0x48B0E8, 1],
+      ['dialog.24.start.1.speaker', 0x49B364, 2],
+    ],
+  };
+
+  function listedTexts(data, offset, u32, list) {
+    const entries = [];
+    for (const [key, addr, kind] of list) {
+      try {
+        if (kind === 2) { entries.push([key, String(u32(addr))]); continue; }
+        const off = offset(addr);
+        if (off === 0 || data[off - 1] !== 0) throw new Error('not the start of a string');
+        let end = -1;
+        for (let i = off; i <= Math.min(off + 4096, data.length - 1); i++) if (data[i] === 0) { end = i; break; }
+        if (end < 0) throw new Error('no string terminator');
+        let s = '';
+        for (let i = off; i < end; i++) {
+          const b = data[i];
+          if (kind === 1 && b === 0x0A) { s += '^'; continue; }
+          if (b < 0x20 || b > 0x7E) throw new Error('non-text bytes');
+          s += String.fromCharCode(b);
+        }
+        entries.push([key, s]);
+      } catch (e) {
+        console.warn(`extract texts: ${key} left out: ${e.message}`);
+      }
+    }
+    if (!entries.length) throw new Error('no text read from the listed addresses');
+    return entries;
+  }
+
+  function textFile(entries, header) {
+    const quote = (s) => '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+    let out = `# ${header} front-end texts, read from the user's executable by\n` +
+              '# tools/extract_exe_texts.py. Do not commit. Format: key = "value".\n';
+    for (const [k, v] of entries) out += `${k} = ${quote(v)}\n`;
+    return out;
+  }
+  // ---- end of the Gulf Thunder block ---------------------------------------------------------
 
   // The texts of a game's executable: { game, text } for a known executable with a table,
   // { game, text: null, notMapped: message } for a known one without (the sequels for now);

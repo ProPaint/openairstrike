@@ -78,7 +78,7 @@ TABLES = {
         },
     },
     "b24b62b2c5b61cfa1cf0aad781788aa777a2e4f4a385c73ba53014b039e46f5b": {"game": "as2", "table": None},
-    "86195a9653489064844c172ce43307c703a50e53be7e00d45fe346c45d5ae077": {"game": "gulf", "table": None},
+    "86195a9653489064844c172ce43307c703a50e53be7e00d45fe346c45d5ae077": {"game": "gulf", "table": {"listed": "exe_texts/gulf.json"}},
 }
 
 
@@ -178,6 +178,8 @@ def quote(s):
 def extract(pe, table):
     if pe.base != IMAGE_BASE_EXPECTED:
         raise ValueError("unexpected image base 0x%x" % pe.base)
+    if "listed" in table:
+        return extract_listed(pe, table["listed"])
     text = pe.section(".text")
     if text is None:
         raise ValueError("no .text section")
@@ -205,6 +207,47 @@ def extract(pe, table):
     for k in range(10):
         entries.append(("info.pages.%d" % (10 - k), pe.cstr(table["page_values"] + 8 * k + (0 if k == 0 else 4), 16)))
     return entries
+
+
+# ---- Gulf Thunder (package F2): a table listed in tools/exe_texts/<key>.json ---------------
+# The file lists {key, address, kind} (docs/spec/gulf/frontend.delta.md 7 over
+# docs/spec/as2/frontend.md 7): `text` one line, `text_ml` lines separated by LF (written with
+# '^' between the lines, the engine's line break), `u32` an integer (written in decimal). An
+# entry whose address is not the first byte of a string (the byte before it is not NUL), or
+# whose bytes are not text, is left out with a warning: the game's built-in text is used for it
+# (docs/spec/gulf/issues/402-exe-texts-addresses.md lists the entries of gulf.json that fail).
+# apps/web/site/files.js holds the same table (GULF_TEXTS); keep the two in step.
+
+def listed_cstr(pe, addr, multiline):
+    o = pe.offset(addr)
+    if o == 0 or pe.data[o - 1] != 0:
+        raise ValueError("0x%x is not the start of a string" % addr)
+    end = pe.data.find(b"\0", o, o + 4097)
+    if end < 0:
+        raise ValueError("no string terminator at 0x%x" % addr)
+    raw = pe.data[o:end]
+    if any((b < 0x20 and not (multiline and b == 0x0A)) or b > 0x7E for b in raw):
+        raise ValueError("non-text bytes at 0x%x" % addr)
+    return raw.decode("ascii").replace("\n", "^")
+
+
+def extract_listed(pe, rel_path):
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), rel_path), encoding="utf-8") as f:
+        listed = json.load(f)["entries"]
+    entries = []
+    for e in listed:
+        addr = int(e["address"], 16)
+        try:
+            if e["kind"] == "u32":
+                entries.append((e["key"], str(pe.u32(addr))))
+            else:
+                entries.append((e["key"], listed_cstr(pe, addr, e["kind"] == "text_ml")))
+        except (ValueError, struct.error) as ex:
+            print("extract_exe_texts: warning: %s left out: %s" % (e["key"], ex), file=sys.stderr)
+    if not entries:
+        raise ValueError("no text read from the listed addresses")
+    return entries
+# ---- end of the Gulf Thunder block ---------------------------------------------------------
 
 
 def games_json():
