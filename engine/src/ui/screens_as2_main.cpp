@@ -149,7 +149,7 @@ Menu SequelScreens::nameEntry(Frontend& f) {
             for (int col = 0; col < 10; col++) {
                 const char ch = kKeyRows[row][col];
                 const RectF hit{kKeyX + (kKeyW + kKeyGap) * static_cast<float>(col),
-                                kKeyY + (kKeyH + kKeyGap) * static_cast<float>(row), kKeyW, kKeyH};
+                                (gulfLook() ? kKeyY + 10 : kKeyY) + (kKeyH + kKeyGap) * static_cast<float>(row), kKeyW, kKeyH};
                 MenuItem& k = m.addCustom(kKeyBase + ch, hit, drawKey);
                 k.label = ch == ' ' ? tr(f, "touch.space") : std::string(1, ch);
                 k.flags |= itemflag::NoHoverSound;

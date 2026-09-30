@@ -21,7 +21,8 @@
 #      tapped (steps 5 and 6 run on that game); then with bot and menus the pilot plays mission
 #      1 of AirStrike 3D and of AirStrike 2 to frame 1800 each, chosen by taps on their cards
 #      (AirStrike 2 through its own menus: Start Game, Next, the helicopter selection, the
-#      start dialogue turned by taps),
+#      start dialogue turned by taps; Gulf Thunder the same through its own menus, no dialogue at
+#      operation 1; its save is files/gulf/profile.bin, key gulf),
 #      "Change game" (item 60 of AS3D_MENU) returning to the selector in between; the first
 #      game's save must be byte for byte unchanged by AirStrike 2, files/as2/profile.bin (key
 #      as2) and files/launcher.bin must exist;
@@ -620,6 +621,39 @@ try_until "AS3D_SCREEN name=selector" 3 tap_item 60     # Change game
 grep -qE "AS3D_GAME_CHANGE game=as2" "${LOG_FILE}" || fail "no AS3D_GAME_CHANGE game=as2"
 sleep 3
 shot selector_03_after_as2
+# Gulf Thunder through its own menus (docs/spec/gulf/frontend.delta.md): Start Game, Next, the
+# helicopter selection's Start (operation 1 has no dialogue), play to frame 1800 under the pilot,
+# the pause button (the in-game menu), Quit, then "Change game" back to the selector.
+read_view
+BEFORE="$(count "AS3D_SCREEN name=main")"
+select_game gulf
+wait_more "AS3D_SCREEN name=main" "${BEFORE}" "${START_TIMEOUT}"
+grep -qE "AS3D_GAME_START .*game=gulf" "${LOG_FILE}" || fail "Gulf Thunder did not start"
+read_view
+sleep 3
+shot bot_gulf_main
+try_until "AS3D_SCREEN name=start" 3 tap_item 1         # Start Game
+sleep 2
+shot bot_gulf_start
+try_until "AS3D_SCREEN name=heli" 3 tap_item 2          # Next
+sleep 2
+shot bot_gulf_heli
+BEFORE="$(count "AS3D_SCREEN name=playing")"
+try_until "AS3D_SCREEN name=(dialogue|playing)" 3 tap_item 1   # Start
+for _ in $(seq 1 60); do
+    check_crash
+    [ "$(count "AS3D_SCREEN name=playing")" -gt "${BEFORE}" ] && break
+    vtap 400 300
+    sleep 1
+done
+[ "$(count "AS3D_SCREEN name=playing")" -gt "${BEFORE}" ] || fail "Gulf Thunder: no play after the helicopter selection"
+play_bot_mission gulf 3
+sleep 2
+shot bot_gulf_main_after
+try_until "AS3D_SCREEN name=selector" 3 tap_item 60     # Change game
+grep -qE "AS3D_GAME_CHANGE game=gulf" "${LOG_FILE}" || fail "no AS3D_GAME_CHANGE game=gulf"
+sleep 3
+shot selector_04_after_gulf
 adb -s "${SERIAL}" shell am force-stop "${APP_ID}"
 sleep 2
 echo "-- files --"
@@ -632,8 +666,19 @@ run_as cat files/as2/profile.bin > "${OUT_DIR}/as2_save.bin" 2>/dev/null
 KEYLEN="$(od -An -tu1 -j20 -N1 "${OUT_DIR}/as2_save.bin" | tr -d ' ')"
 KEY="$(dd if="${OUT_DIR}/as2_save.bin" bs=1 skip=21 count="${KEYLEN}" 2>/dev/null)"
 [ "${KEY}" = "as2" ] || fail "files/as2/profile.bin has the key '${KEY}'"
+run_as cat files/gulf/profile.bin > "${OUT_DIR}/gulf_save.bin" 2>/dev/null
+[ -s "${OUT_DIR}/gulf_save.bin" ] || fail "Gulf Thunder wrote no files/gulf/profile.bin"
+KEYLEN="$(od -An -tu1 -j20 -N1 "${OUT_DIR}/gulf_save.bin" | tr -d ' ')"
+KEY="$(dd if="${OUT_DIR}/gulf_save.bin" bs=1 skip=21 count="${KEYLEN}" 2>/dev/null)"
+[ "${KEY}" = "gulf" ] || fail "files/gulf/profile.bin has the key '${KEY}'"
+run_as cat files/as3d/profile.bin > "${OUT_DIR}/as3d_save_after_gulf.bin" 2>/dev/null
+cmp -s "${OUT_DIR}/as3d_save_after_as3d.bin" "${OUT_DIR}/as3d_save_after_gulf.bin" \
+    || fail "Gulf Thunder changed the first game's save (files/as3d/profile.bin)"
+run_as cat files/as2/profile.bin > "${OUT_DIR}/as2_save_after_gulf.bin" 2>/dev/null
+cmp -s "${OUT_DIR}/as2_save.bin" "${OUT_DIR}/as2_save_after_gulf.bin" \
+    || fail "Gulf Thunder changed AirStrike 2's save (files/as2/profile.bin)"
 run_as ls files/launcher.bin >/dev/null 2>&1 || fail "no files/launcher.bin"
-echo "android_smoke: switch OK: each game played mission 1 to frame 1800 under the pilot, Change game returned to the selector, files/as3d/profile.bin untouched by AirStrike 2, files/as2/profile.bin written"
+echo "android_smoke: switch OK: each game played mission 1 to frame 1800 under the pilot (Gulf Thunder through its own menus), Change game returned to the selector, files/as3d/profile.bin untouched by the others, files/as2/profile.bin and files/gulf/profile.bin written"
 
 echo "== launcher: label and icon =="
 adb -s "${SERIAL}" shell dumpsys package "${APP_ID}" | grep -E "versionName|icon|label" | head -n 6 || true

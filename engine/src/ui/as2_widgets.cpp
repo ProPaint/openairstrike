@@ -185,13 +185,16 @@ void panel(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h,
 }
 
 void gulfTitleBar(Renderer2D& r, const UiAssets& a, float T, const float tint[4], bool scanLines) {
-    r.rect(0, 0, 800, 97, Color{0, 0, 0, 1}, Blend::Opaque);
-    r.rect(0, 97, 800, 3, grey(0.373f), Blend::Opaque);
+    // The bars and the scan lines run the full width of a wide window (the original is 4:3).
+    const Mapping& m = r.mapping();
+    const float L = std::min(0.0f, m.left()), W = std::max(800.0f, m.right()) - L;
+    r.rect(L, 0, W, 97, Color{0, 0, 0, 1}, Blend::Opaque);
+    r.rect(L, 97, W, 3, grey(0.373f), Blend::Opaque);
     if (scanLines)
         if (const Texture2D* lines = a.textureRepeat("gfx\\logo\\lines_gulf.tga"))
-            r.quadSpec(0, 100, 800, 440, 0, 0, 200, 110, lines, Color{}, Blend::Alpha);
-    r.rect(0, 540, 800, 3, grey(0.373f), Blend::Opaque);
-    r.rect(0, 543, 800, 97, Color{0, 0, 0, 1}, Blend::Opaque);
+            r.quadSpec(L, 100, W, 440, 0, 0, W / 4.0f, 110, lines, Color{}, Blend::Alpha);
+    r.rect(L, 540, W, 3, grey(0.373f), Blend::Opaque);
+    r.rect(L, 543, W, 97, Color{0, 0, 0, 1}, Blend::Opaque);
     if (const Texture2D* logo = a.texture("gfx\\logo\\logo_gulf.tga")) {
         Quad q;
         q.x = 144;
