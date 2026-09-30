@@ -240,19 +240,32 @@ HudLayout makeAs2() {
     return L;
 }
 
-// Gulf Thunder v2.71: the same HUD code as AirStrike 2 (as2/frontend.md, Gulf column) and the
-// same mainbar2.tga, life.tga, missiles.tga and items.tga files. UNVERIFIED: its weapons.tga
-// has two more cells (texel row 70) whose table entries we do not know, so only AirStrike 2's
-// nine are used; its panel atlas interface_gulf.tga has a different arrangement than
-// interface.tga (AirStrike 2's rectangles do not fit it), so the hint box stays the first
-// game's plain box until the atlas is mapped.
+// Gulf Thunder v2.71: the same HUD code as AirStrike 2 (gulf/frontend.delta.md 4) with Gulf
+// Thunder's art files, its weapon icon table and level caps (4.2, 4.4; checked against its
+// weapons.tga and the original's HUD cycling through the nine weapons of operation 6), and
+// the hint panel drawn from interface_gulf.tga (3.1, 3.15).
 HudLayout makeGulf() {
     HudLayout L = makeAs2();
     L.game = GameId::GulfThunder;
     L.name = "gulf";
     L.panelAtlas = "gfx\\ui\\interface_gulf.tga";
     L.panelNoise = "gfx\\ui\\snow.tga";
-    L.hint = HintStyle::V170Box;
+    L.hint = HintStyle::SequelPanel;
+    L.panelSkin = HudPanelSkin::Gulf;
+    // Weapons, UV table gulf@0x49c0c0 (4.4), ADD; slots gulf/engine-behaviour.delta.md 8.2.
+    L.weapons = {
+        {{0.0f, 0.727f, 0.258f, 1.0f}, Blend::Add, false},     // 0 machine gun, texel (0, 0)
+        {{0.774f, 0.453f, 1.0f, 0.727f}, Blend::Add, false},   // 1 impulse gun, texel (198, 35)
+        {{0.0f, 0.453f, 0.258f, 0.727f}, Blend::Add, false},   // 2 plasma gun, texel (0, 35)
+        {{0.258f, 0.18f, 0.516f, 0.453f}, Blend::Add, false},  // 3 photon gun, texel (66, 70)
+        {{0.516f, 0.727f, 0.774f, 1.0f}, Blend::Add, false},   // 4 laser, texel (132, 0)
+        {{0.258f, 0.453f, 0.516f, 0.727f}, Blend::Add, false}, // 5 big laser, texel (66, 35)
+        {{0.516f, 0.18f, 0.774f, 0.453f}, Blend::Add, false},  // 6 plasma laser, texel (132, 70)
+        {{0.516f, 0.453f, 0.774f, 0.727f}, Blend::Add, false}, // 7 lightning gun, texel (132, 35)
+        {{0.258f, 0.727f, 0.516f, 1.0f}, Blend::Add, false},   // 8 wave gun, texel (66, 0)
+    };
+    L.weaponLevelMax = {4, 5, 7, 6, 5, 5, 4, 5, 3}; // table gulf@0x49c09c
+    L.levelOverrunsCap = true;
     return L;
 }
 
