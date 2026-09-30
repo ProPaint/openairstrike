@@ -79,7 +79,7 @@ Menu SequelScreens::inGame(Frontend& f) {
 Menu SequelScreens::hint(Frontend& f) {
     Menu m = newMenu();
     const HintLayout layout = layoutHint(FontMetrics::original(), f.hintText_, HintStyle::SequelPanel);
-    m.addSequelButton(1, 400, 520, tr(f, "button.ok"), kCentre);
+    m.addSequelButton(1, 400, 520, trOr(f, "button.hint_ok", "button.ok"), kCentre);
     auto close = [&f]() {
         f.menus_.pop();
         f.resumePlay();
@@ -114,7 +114,7 @@ Menu SequelScreens::gameOver(Frontend& f) {
     Menu m = newMenu();
     m.swallowBack = true;
     // Usable at once (the first game hid them for 2 s).
-    m.addSequelButton(1, 550, 520, tr(f, "button.restart"), kCentre);
+    m.addSequelButton(1, 550, 520, trOr(f, "button.restart.gameover", "button.restart"), kCentre);
     m.addSequelButton(2, 250, 520, tr(f, "button.quit_wide"), kCentre);
     m.onItem = [&f](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;

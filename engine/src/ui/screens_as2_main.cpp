@@ -271,7 +271,7 @@ Menu SequelScreens::credits(Frontend& f) {
         header(c, f);
         if (c.menu.open < 1) return;
         bool any = false;
-        for (int line = 0; line <= 20; line++) {
+        for (int line = 0; line <= (gulfLook() ? 24 : 20); line++) {
             const std::string k = "credits." + std::to_string(line);
             if (!f.texts_.loaded(k)) continue;
             any = true;

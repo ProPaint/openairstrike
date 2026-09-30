@@ -26,6 +26,8 @@ const char* gulfDefault(const std::string& key) {
         {"button.accept", "  Accept  "}, {"button.restart", "   Restart   "},
         {"button.choose_heli", "  Choose Helicopter  "}, {"button.configure_controls", "  Configure Controls  "},
         {"button.apply", "   Apply   "}, {"button.ok", "   Ok   "},
+        {"button.continue.heli", " Continue "}, {"button.restart.gameover", "  Restart  "},
+        {"button.hint_ok", "    Ok    "},
     };
     for (const auto& e : table)
         if (key == e.first) return e.second;
@@ -38,6 +40,14 @@ std::string SequelScreens::tr(const Frontend& f, const std::string& key) {
     if (gulfLook() && !f.texts_.loaded(key))
         if (const char* d = gulfDefault(key)) return d;
     return f.texts_.get(key);
+}
+
+std::string SequelScreens::trOr(const Frontend& f, const std::string& key, const std::string& fallback) {
+    if (f.texts_.loaded(key) || gulfLook()) {
+        const std::string v = tr(f, key);
+        if (!v.empty()) return v;
+    }
+    return tr(f, fallback);
 }
 
 namespace {
@@ -55,9 +65,15 @@ std::vector<InfoIcon> as2InfoIcons(int page) {
     }
 }
 
+// Gulf Thunder's pages (checked on the original's screens): the texts' page numbers 2, 5 to 8
+// are AirStrike 2's; its page 3 lists the big laser, lightning gun and wave gun, its page 4
+// is gone.
 std::vector<InfoIcon> gulfInfoIcons(int page) {
-    (void)page;
-    return {};
+    // Page 2 shows the machine gun, then the cells of slots 4, 1 and 2 (the original's icons:
+    // two glowing streaks, three streaks and a dot, the red ring).
+    if (page == 2) return {{0, 0, 194}, {0, 4, 286}, {0, 1, 358}, {0, 2, 430}};
+    if (page == 3) return {{0, 5, 194}, {0, 7, 295}, {0, 8, 365}};
+    return as2InfoIcons(page);
 }
 
 } // namespace

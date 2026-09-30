@@ -85,6 +85,8 @@ inline Menu newMenu() {
 struct SequelScreens {
     // Texts.
     static std::string tr(const Frontend& f, const std::string& key);
+    // A caption Gulf Thunder has in two forms (its own key), AirStrike 2 in one (`fallback`).
+    static std::string trOr(const Frontend& f, const std::string& key, const std::string& fallback);
     static std::string heliName(const Frontend& f, int heli);
     // Dialogue pages of mission `m` (0-based), start or end; empty without the texts file.
     static std::vector<Frontend::SequelState::Page> dialogue(const Frontend& f, int m, bool end);

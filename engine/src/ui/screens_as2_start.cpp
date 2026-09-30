@@ -94,7 +94,7 @@ Menu SequelScreens::heliSelect(Frontend& f) {
         for (MenuItem& it : m.items) it.hit = {it.x - 22, it.y - 20, it.w + 44, it.h + 40}; // ours: finger-sized
     std::string caption;
     if (accept) caption = tr(f, "button.accept");
-    else if (startWithContinue(f, f.campaign_.mission)) caption = tr(f, "button.continue");
+    else if (startWithContinue(f, f.campaign_.mission)) caption = trOr(f, "button.continue.heli", "button.continue");
     else caption = tr(f, "button.start");
     m.addSequelButton(accept ? kAccept : kHeliStart, 760, 520, caption, itemflag::AlignRight);
     if (!accept) m.addSequelButton(kHeliBack, 40, 520, tr(f, "button.back"));

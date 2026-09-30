@@ -259,7 +259,9 @@ Menu SequelScreens::controls(Frontend& f) {
     };
     m.drawFront = [&f](MenuDrawContext& c) {
         panel(c.r, c.a, 190, 165, 420, 320, c.menu.open, tr(f, "title.controls"));
-        // The spec's outline (200, 205, 400, 270) does not show in the original (issue as2/300).
+        // The spec's outline (200, 205, 400, 270) does not show in AirStrike 2's screen (issue
+        // as2/300); Gulf Thunder's does (docs/spec/gulf/issues/410).
+        if (gulfLook() && c.menu.open >= 1) c.r.outline(200, 205, 400, 270, greenOutline(), Blend::Alpha);
         header(c, f);
     };
     return m;
