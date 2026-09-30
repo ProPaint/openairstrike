@@ -28,7 +28,7 @@ constexpr int kRowBase = 100, kControlsSet = 10, kTouchClear = 51, kTouchCancel 
 } // namespace
 
 Menu SequelScreens::options(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     f.pending_ = f.profile_.settings;
     const Settings& s = f.profile_.settings;
     const std::string off = tr(f, "opt.off"), on = tr(f, "opt.on");
@@ -155,13 +155,13 @@ Menu SequelScreens::options(Frontend& f) {
     };
     m.drawFront = [&f](MenuDrawContext& c) {
         panel(c.r, c.a, 210, 180, 380, 290, c.menu.open, tr(f, "title.options"));
-        titleLogo(c.r, c.a, f.sq_->logoClock);
+        header(c, f);
     };
     return m;
 }
 
 Menu SequelScreens::controls(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     f.controlsPlayer_ = 0; // always Player 1 first
     f.captureRow_ = -1;
     m.addSpinner(kControlsSet, 400, 180, tr(f, "ctl.set"), {tr(f, "ctl.player.1"), tr(f, "ctl.player.2")}, 0).flags |=
@@ -172,16 +172,16 @@ Menu SequelScreens::controls(Frontend& f) {
             const int (&k)[2] = f.profile_.settings.keys[f.controlsPlayer_][row];
             std::string keysText = k[0] > 0 ? keys::name(k[0]) : tr(f, "ctl.unbound");
             if (k[0] > 0 && k[1] > 0) keysText += tr(f, "ctl.or") + keys::name(k[1]);
-            Color col = green();
+            Color col = ink();
             if (self.disabled()) {
                 col = disabledGrey();
             } else if (focused) {
-                col = orange();
+                col = accent();
                 c.r.rect(self.hit.x, self.hit.y, self.hit.w, self.hit.h, darkGreenBox(), Blend::Alpha);
             }
             text(c.r, c.a, 392, y, tr(f, "ctl.row." + std::to_string(row)), col, Align::Right);
             if (f.captureRow_ == row) {
-                if ((c.ms / 250) % 2 == 1) text(c.r, c.a, 403, y, "=", orange());
+                if ((c.ms / 250) % 2 == 1) text(c.r, c.a, 403, y, "=", accent());
             } else {
                 text(c.r, c.a, 408, y, keysText, col);
             }
@@ -260,7 +260,7 @@ Menu SequelScreens::controls(Frontend& f) {
     m.drawFront = [&f](MenuDrawContext& c) {
         panel(c.r, c.a, 190, 165, 420, 320, c.menu.open, tr(f, "title.controls"));
         // The spec's outline (200, 205, 400, 270) does not show in the original (issue as2/300).
-        titleLogo(c.r, c.a, f.sq_->logoClock);
+        header(c, f);
     };
     return m;
 }

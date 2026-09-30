@@ -25,7 +25,9 @@ struct LoadingState {
     bool plain = false;
     std::string title, mission;
     bool sequel = false;  // the sequels' comic loading screen (as2/frontend.md 3.16)
+    bool gulf = false;    // Gulf Thunder's look of it (gulf/frontend.delta.md 3.16)
     int missionIndex = 0; // 0-based, chooses the comic
+    std::string name;     // the operation's name under the comic (Gulf Thunder)
 };
 LoadingState& loadingState() {
     static LoadingState s;
@@ -60,6 +62,8 @@ Frontend::Frontend(GameHost& host, Profile& profile, FrontendContent content, Te
         menus_.sequel = true;
         heli_[0] = heli_[1] = 0;
         loadingState().sequel = true;
+        loadingState().gulf = content_.game->id == GameId::GulfThunder;
+        SequelScreens::applyLook(*this);
     }
 }
 
@@ -115,6 +119,7 @@ Screen Frontend::topScreen() const {
 void Frontend::open(Screen s) {
     Menu m;
     if (sequel()) {
+        SequelScreens::applyLook(*this);
         m = SequelScreens::build(*this, s);
     } else if (plain()) {
         switch (s) {
@@ -202,6 +207,7 @@ void Frontend::startLevel(bool restart, bool carryUpgrades) {
     }
     if (plain()) loadingState().mission = missionLabel(campaign_.mission);
     loadingState().missionIndex = campaign_.mission;
+    if (sequel()) loadingState().name = SequelScreens::loadingName(*this);
     ms.difficulty = campaign_.difficulty;
     ms.players = campaign_.players;
     ms.restart = restart;
@@ -344,6 +350,7 @@ bool Frontend::handlePlayingInput(const UiInput& input) {
 }
 
 bool Frontend::update(float dt, const UiInput& input) {
+    if (sequel()) SequelScreens::applyLook(*this);
     menus_.showHints = profile_.settings.showHints;
     if (state_ == FrontendState::Intro && intro_) {
         bool skip = false;
@@ -432,7 +439,8 @@ void Frontend::drawTouchPlayButtons(Renderer2D& r, const UiAssets& a) {
     if (sequel()) {
         // The sequels: a text button of their style at the top centre.
         const RectF b = SequelScreens::touchMenuRect();
-        as2::textButton(r, a, b.x, b.y, b.w - 46, SequelScreens::tr(*this, "button.touch_menu"), as2::green());
+        as2::textButton(r, a, b.x, b.y, b.w - as2::skin().buttonMargin, SequelScreens::tr(*this, "button.touch_menu"),
+                        as2::ink());
         return;
     }
     Menu dummy;
@@ -441,6 +449,7 @@ void Frontend::drawTouchPlayButtons(Renderer2D& r, const UiAssets& a) {
 }
 
 void Frontend::drawUnder(Renderer2D& r, const UiAssets& a) {
+    if (sequel()) SequelScreens::applyLook(*this);
     if (state_ == FrontendState::Intro) {
         drawIntro(r, a);
         return;
@@ -449,6 +458,7 @@ void Frontend::drawUnder(Renderer2D& r, const UiAssets& a) {
 }
 
 void Frontend::drawOver(Renderer2D& r, const UiAssets& a) {
+    if (sequel()) SequelScreens::applyLook(*this);
     if (state_ == FrontendState::Intro) return;
     if (state_ == FrontendState::Playing && menus_.empty() && touch_ && content_.touchMenuButton) drawTouchPlayButtons(r, a);
     menus_.drawItems(r, a);
@@ -456,7 +466,8 @@ void Frontend::drawOver(Renderer2D& r, const UiAssets& a) {
 
 void drawLoadingScreen(Renderer2D& r, const UiAssets& a, float progress, bool intermission) {
     if (loadingState().sequel) {
-        SequelScreens::drawLoading(r, a, progress, intermission, loadingState().missionIndex);
+        as2::setGulfLook(loadingState().gulf);
+        SequelScreens::drawLoading(r, a, progress, intermission, loadingState().missionIndex, loadingState().name);
         return;
     }
     r.fullscreen({0, 0, 0, 1}, Blend::Opaque);
@@ -568,6 +579,7 @@ bool Frontend::debugSet(std::string_view key, std::string_view value) {
         campaign_.mission = std::clamp(n - 1, 0, rules().missionCount - 1);
         if (plain()) loadingState().mission = missionLabel(campaign_.mission);
         loadingState().missionIndex = campaign_.mission;
+        if (sequel()) loadingState().name = SequelScreens::loadingName(*this);
         return true;
     }
     if (key == "unlock") {

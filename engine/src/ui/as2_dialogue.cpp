@@ -29,7 +29,7 @@ std::vector<std::string> lines(const std::string& page, size_t chars) {
 } // namespace
 
 Menu SequelScreens::dialogueScreen(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     m.swallowBack = true;
     Frontend::SequelState& s = *f.sq_;
     auto finish = [&f]() {

@@ -14,11 +14,36 @@ namespace {
 const FontMetrics& fm() { return FontMetrics::original(); }
 int ftol(float v) { return static_cast<int>(v); }
 
+// AirStrike 2 (as2/frontend.md 2.5, 3.1): green and orange, interface.tga.
+const Skin kSkinAs2{
+    false, "gfx\\ui\\interface.tga",
+    0xFF00B000u, 0xFF00A0FFu, 0xFF404040u, 0xFF808080u, 0xFF808080u,
+    {0.0f, 0x60 / 255.0f, 0.0f, 0x80 / 255.0f}, 0xFF00B000u, 0xFF00A0FFu,
+    46, 30, 23, 7, true,
+    {18, 79, 23, 30}, {41, 79, 40, 30}, {80, 79, 23, 30},
+    {107, 89, 128, 11}, {239, 87, 6, 15}, {153, 113, 15, 15}, {153, 130, 15, 6}, {153, 138, 15, 15}, {153, 154, 15, 15},
+    5, {110, 113, 16, 40}, {130, 113, 16, 40},
+};
+// Gulf Thunder (gulf/frontend.delta.md 2.5, 3.1): light grey and red, interface_gulf.tga.
+const Skin kSkinGulf{
+    true, "gfx\\ui\\interface_gulf.tga",
+    0xFFBFBFBFu, 0xFF0000FFu, 0xFF404040u, 0xFF808080u, 0xFF404040u,
+    {0.44f, 0.44f, 0.44f, 0.44f}, 0xFFBFBFBFu, 0xFFFFFFFFu,
+    0, 37, 0, 10, false,
+    {9, 216, 17, 37}, {25, 216, 77, 37}, {102, 216, 51, 37},
+    {117, 124, 128, 11}, {249, 122, 6, 15}, {163, 148, 15, 15}, {163, 165, 15, 6}, {163, 173, 15, 15}, {163, 189, 15, 15},
+    5, {120, 148, 16, 40}, {140, 148, 16, 40},
+};
+const Skin* g_skin = &kSkinAs2;
+
 } // namespace
+
+const Skin& skin() { return *g_skin; }
+void setGulfLook(bool gulf) { g_skin = gulf ? &kSkinGulf : &kSkinAs2; }
 
 const Texture2D* interfaceAtlas(const UiAssets& a) {
     if (a.panel.valid()) return &a.panel;
-    return a.texture("gfx\\ui\\interface.tga");
+    return a.texture(skin().atlas);
 }
 
 const Texture2D* snow(const UiAssets& a) {
@@ -79,6 +104,36 @@ void cable(Renderer2D& r, const Texture2D& t, float x, float y0, float y1) {
 
 } // namespace
 
+namespace {
+
+// Gulf Thunder's panel after the static fill (gulf/frontend.delta.md 3.1, steps 2 to 5).
+void gulfPanelPieces(Renderer2D& r, const UiAssets& a, const Texture2D& t, float x, float y, float w, float h, float f,
+                     std::string_view title) {
+    const float Y = static_cast<float>(ftol(y - (1.0f - f) * y));
+    const float yb = static_cast<float>(ftol((y + h - 6.0f) + (1.0f - f) * (kVirtualHeight - y - h)));
+    for (int k = 0; k < 2; k++) {
+        const float by = k == 0 ? Y - 25.0f : yb;
+        const float ty = k == 0 ? 44.0f : 78.0f;
+        piece(r, t, x - 3, by, {4, ty, 67, 31});
+        pieceRunX(r, t, x + 64, by, w - 98, {72, ty, 132, 31});
+        piece(r, t, x + w - 34, by, {204, ty, 37, 31});
+    }
+    // The rails, in pieces of at most 50 taken from the top of the piece.
+    constexpr Piece kRail{8, 116, 3, 50};
+    const float len = yb - Y - 5;
+    for (float xx : {x - 1, x + w - 1})
+        for (float o = 0; o < len; o += kRail.h) piece(r, t, xx, Y + 6 + o, kRail, Color{}, Blend::Alpha, -1, len - o);
+    if (!title.empty()) {
+        const float wt = measureText(fm(), title, 1.0f, true);
+        piece(r, t, x + 17, Y - 57, {4, 4, 45, 40});
+        pieceRunX(r, t, x + 62, Y - 57, wt, {49, 4, 45, 40});
+        piece(r, t, x + 62 + wt, Y - 57, {94, 4, 37, 40});
+        text(r, a, x + 62 + wt * 0.5f, Y - 45, title, accent(), Align::Center);
+    }
+}
+
+} // namespace
+
 void panel(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h, float f, std::string_view title) {
     f = std::clamp(f, 0.0f, 1.0f);
     const float yt = (y - 15.0f) - (1.0f - f) * y;
@@ -91,6 +146,10 @@ void panel(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h,
     }
     const Texture2D* t = interfaceAtlas(a);
     if (!t) return;
+    if (gulfLook()) {
+        gulfPanelPieces(r, a, *t, x, y, w, h, f, title);
+        return;
+    }
     const bool titled = !title.empty();
     // 2. Top bar, 3. bottom bar.
     if (titled) {
@@ -121,7 +180,36 @@ void panel(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h,
             for (float o = 0; o < wt; o += kTitleBody.w) piece(r, *t, x + 61 + o, yt - 32, kTitleBody, Color{}, Blend::Alpha, wt - o);
         }
         piece(r, *t, x + 61 + wt, yt - 32, {234, 180, 15, 39});
-        text(r, a, x + 33 + wt * 0.5f, yt - 20, title, orange(), Align::Center);
+        text(r, a, x + 33 + wt * 0.5f, yt - 20, title, accent(), Align::Center);
+    }
+}
+
+void gulfTitleBar(Renderer2D& r, const UiAssets& a, float T, const float tint[4], bool scanLines) {
+    r.rect(0, 0, 800, 97, Color{0, 0, 0, 1}, Blend::Opaque);
+    r.rect(0, 97, 800, 3, grey(0.373f), Blend::Opaque);
+    if (scanLines)
+        if (const Texture2D* lines = a.textureRepeat("gfx\\logo\\lines_gulf.tga"))
+            r.quadSpec(0, 100, 800, 440, 0, 0, 200, 110, lines, Color{}, Blend::Alpha);
+    r.rect(0, 540, 800, 3, grey(0.373f), Blend::Opaque);
+    r.rect(0, 543, 800, 97, Color{0, 0, 0, 1}, Blend::Opaque);
+    if (const Texture2D* logo = a.texture("gfx\\logo\\logo_gulf.tga")) {
+        Quad q;
+        q.x = 144;
+        q.y = 0;
+        q.w = 512;
+        q.h = 256;
+        q.texture = logo;
+        q.blend = Blend::Alpha;
+        q.color = {tint[0], tint[1], tint[2], tint[3]};
+        if (const Texture2D* clouds = a.textureRepeat("gfx\\logo\\clouds.tga")) {
+            q.texture2 = clouds;
+            q.s0b = 0.1f * T;
+            q.s1b = 0.1f * T + 2.0f;
+            q.t0b = 0;
+            q.t1b = 1;
+            q.combine2 = 2;
+        }
+        r.add(q);
     }
 }
 
@@ -160,18 +248,27 @@ void titleLogo(Renderer2D& r, const UiAssets& a, float T) {
 }
 
 void textButton(Renderer2D& r, const UiAssets& a, float left, float yd, float W, std::string_view caption, Color col) {
+    const Skin& k = skin();
     if (const Texture2D* t = interfaceAtlas(a)) {
-        piece(r, *t, left, yd, kButtonLeft);
-        pieceRunX(r, *t, left + 23, yd, W, kButtonBody);
-        piece(r, *t, left + 23 + W, yd, kButtonRight);
+        piece(r, *t, left, yd, k.buttonLeft);
+        if (k.gulf) {
+            // One bevelled box of total width W: left piece, body in pieces of at most 77, right piece.
+            pieceRunX(r, *t, left + k.buttonLeft.w, yd, W - 68, k.buttonBody);
+            piece(r, *t, left + W - k.buttonRight.w, yd, k.buttonRight);
+        } else {
+            pieceRunX(r, *t, left + 23, yd, W, k.buttonBody);
+            piece(r, *t, left + 23 + W, yd, k.buttonRight);
+        }
     }
-    text(r, a, left + 23 + W * 0.5f, yd + 7, caption, col, Align::Center);
-    if (const Texture2D* t = interfaceAtlas(a)) {
-        piece(r, *t, left + 25, yd + 21, kRivetLow);
-        piece(r, *t, left + W - 6, yd + 21, kRivetLow);
-        piece(r, *t, left + 25, yd - 5, kRivetHigh);
-        piece(r, *t, left + W - 6, yd - 5, kRivetHigh);
-    }
+    text(r, a, left + k.captionDx + W * 0.5f, yd + k.captionDy, caption, col, Align::Center);
+    if (k.rivets)
+        if (const Texture2D* t = interfaceAtlas(a)) {
+            constexpr Piece kRivetLow{0, 230, 26, 15}, kRivetHigh{0, 215, 26, 15};
+            piece(r, *t, left + 25, yd + 21, kRivetLow);
+            piece(r, *t, left + W - 6, yd + 21, kRivetLow);
+            piece(r, *t, left + 25, yd - 5, kRivetHigh);
+            piece(r, *t, left + W - 6, yd - 5, kRivetHigh);
+        }
 }
 
 } // namespace as2
@@ -185,7 +282,7 @@ using namespace as2;
 
 Color itemColor(const MenuItem& it, bool focused, Color disabled = disabledGrey()) {
     if (it.disabled()) return disabled;
-    return focused ? orange() : green();
+    return focused ? accent() : ink();
 }
 
 Align alignOf(const MenuItem& it) {
@@ -193,6 +290,7 @@ Align alignOf(const MenuItem& it) {
 }
 
 void drawList(MenuDrawContext& c, MenuItem& it) {
+    const Skin& sk = skin();
     c.r.outline(it.x, it.y, it.w, it.h, greenOutline(), Blend::Alpha);
     const int vis = std::max(it.visibleRows(), 1);
     const int n = static_cast<int>(it.entries.size());
@@ -200,10 +298,10 @@ void drawList(MenuDrawContext& c, MenuItem& it) {
         const int e = it.top + k;
         const float ry = it.y + 4 + 20.0f * static_cast<float>(k);
         const ListEntry& le = it.entries[static_cast<size_t>(e)];
-        Color col = le.enabled ? green() : listGrey();
+        Color col = le.enabled ? ink() : rowDisabled();
         if (e == it.selected) {
-            c.r.rect(it.x + 4, ry - 1, it.w - 25, 18, darkGreenBox(), Blend::Alpha);
-            col = orange();
+            c.r.rect(it.x + 4, ry - 1, it.w - 25, 18, {sk.selBar[0], sk.selBar[1], sk.selBar[2], sk.selBar[3]}, Blend::Alpha);
+            col = accent();
         }
         text(c.r, c.a, it.x + 10, ry, le.text, col);
     }
@@ -212,17 +310,19 @@ void drawList(MenuDrawContext& c, MenuItem& it) {
     const float bx = it.x + it.w - 18;
     // A scroll box under the pointer is orange (seen in the original; not on touch).
     auto box = [&](float y) {
-        return !c.touchMode && c.px >= bx && c.px < bx + 15 && c.py >= y && c.py < y + 15 ? orange() : green();
+        return !c.touchMode && c.px >= bx && c.px < bx + 15 && c.py >= y && c.py < y + 15 ? packed(sk.scrollHover)
+                                                                                           : packed(sk.scrollTint);
     };
-    piece(c.r, *t, bx, it.y + 3, kScrollUp, box(it.y + 3));
-    for (float y = it.y + 21; y < it.y + it.h - 21; y += kScrollTrack.h)
-        piece(c.r, *t, bx, y, kScrollTrack, green(), Blend::Alpha, -1, it.y + it.h - 21 - y);
+    const Color tint = packed(sk.scrollTint);
+    piece(c.r, *t, bx, it.y + 3, sk.scrollUp, box(it.y + 3));
+    for (float y = it.y + 21; y < it.y + it.h - 21; y += sk.scrollTrack.h)
+        piece(c.r, *t, bx, y, sk.scrollTrack, tint, Blend::Alpha, -1, it.y + it.h - 21 - y);
     // Thumb travel: proportional to the first visible row (GUESS, as2/frontend.md 10.1 item 6).
     const int range = std::max(n - vis, 0);
-    const float travel = it.h - 42 - kScrollThumb.h;
+    const float travel = it.h - 42 - sk.scrollThumb.h;
     const float thumbY = it.y + 21 + (range > 0 ? travel * static_cast<float>(it.top) / static_cast<float>(range) : 0.0f);
-    piece(c.r, *t, bx, thumbY, kScrollThumb, green());
-    piece(c.r, *t, bx, it.y + it.h - 19, kScrollDown, box(it.y + it.h - 19));
+    piece(c.r, *t, bx, thumbY, sk.scrollThumb, tint);
+    piece(c.r, *t, bx, it.y + it.h - 19, sk.scrollDown, box(it.y + it.h - 19));
 }
 
 void drawSpinner(MenuDrawContext& c, MenuItem& it, bool focused) {
@@ -243,10 +343,12 @@ void drawSlider(MenuDrawContext& c, MenuItem& it, bool focused) {
     text(c.r, c.a, it.x - 10, it.y, it.label, col, Align::Right);
     const Texture2D* t = interfaceAtlas(c.a);
     if (!t) return;
-    piece(c.r, *t, it.x + 8, it.y + 3, kSliderBar, col);
+    const Skin& k = skin();
+    // Gulf Thunder's bar keeps the colour state the label left (GUESS white, delta 10 item 2).
+    piece(c.r, *t, it.x + 8, it.y + 3, k.sliderBar, k.gulf ? Color{} : col);
     const float range = static_cast<float>(it.max - it.min);
     const float off = range != 0 ? static_cast<float>(static_cast<int>((it.value - static_cast<float>(it.min)) * 128.0f / range)) : 0.0f;
-    piece(c.r, *t, it.x + 8 + off - 3, it.y + 1, kSliderKnob, col);
+    piece(c.r, *t, it.x + k.sliderKnobDx + off, it.y + 1, k.sliderKnob, col);
 }
 
 void drawEdit(MenuDrawContext& c, MenuItem& it, bool focused) {
@@ -268,7 +370,7 @@ void drawSequelItem(MenuDrawContext& c, MenuItem& it, bool focused) {
             // Slides up from the bottom edge; skipped once fully out (issue 240 item 3).
             if (it.slide <= 0) return;
             const float yd = kVirtualHeight - (kVirtualHeight - it.y) * it.slide;
-            Color col = it.disabled() ? disabledGrey() : focused ? orange() : green();
+            Color col = it.disabled() ? disabledGrey() : focused ? accent() : ink();
             if ((it.flags & itemflag::Markup) && !it.disabled()) col = red();
             textButton(c.r, c.a, it.hit.x, yd, it.captionW, it.label, col);
             return;
@@ -277,7 +379,7 @@ void drawSequelItem(MenuDrawContext& c, MenuItem& it, bool focused) {
             if (it.hidden()) return;
             if (const Texture2D* t = c.a.texture(it.texture))
                 c.r.quadSpec(it.x, it.y, it.w, it.h, it.uv.s0, it.uv.t0, it.uv.s1, it.uv.t1, t,
-                             focused && !it.disabled() ? orange() : green(), Blend::Alpha);
+                             focused && !it.disabled() ? accent() : ink(), Blend::Alpha);
             return;
         }
         default: break;

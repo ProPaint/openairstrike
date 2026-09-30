@@ -176,6 +176,9 @@ struct Menu {
     // The sequels' open value f (as2/frontend.md 2.1): 0 whenever the menu becomes the top one,
     // then raised by 8 x dt per update up to 1 (0.125 s). Only the sequels' style reads it.
     float open = 0;
+    // The sequels' text buttons of this menu: the frame's extra width beyond the caption and its
+    // height (AirStrike 2: 46 and 30; Gulf Thunder: 0 and 37, gulf/frontend.delta.md 2.2).
+    float buttonMargin = 46, buttonHeight = 30;
 
     std::function<void(MenuDrawContext&)> drawBack;   // before the items (frames, texts)
     std::function<void(MenuDrawContext&)> drawFront;  // after the items
@@ -200,8 +203,9 @@ struct Menu {
     MenuItem& addTextButton(int id, RectF hit, std::string label, u32 flags = 0);
     // The sequels (as2/frontend.md 2.2, 2.5). A picture: `texture` with `uv` over (x, y, w, h).
     MenuItem& addPicture(int id, float x, float y, float w, float h, std::string texture, SpecUv uv, u32 flags = 0);
-    // A text button: W = max(caption width, minWidth), hit rectangle (left, y, W + 46, 30) with
-    // left = x, x - (W + 46) / 2 (AlignCenter) or x - (W + 46) (AlignRight). No hover sound.
+    // A text button: W = max(caption width, minWidth), hit rectangle (left, y, W + margin, height)
+    // (margin 46 and height 30; Menu::buttonMargin, buttonHeight) with left = x, x - w / 2
+    // (AlignCenter) or x - w (AlignRight). No hover sound.
     MenuItem& addSequelButton(int id, float x, float y, std::string label, u32 flags = 0, float minWidth = 0);
 };
 

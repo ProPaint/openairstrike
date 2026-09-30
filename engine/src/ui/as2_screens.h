@@ -26,6 +26,7 @@ struct Frontend::IntroRun {
 
 struct Frontend::SequelState {
     float logoClock = 0;    // T of the title logo (as2@0x2219184): 0.5 x dt per frame
+    float tint[4] = {1, 1, 1, 1}; // Gulf Thunder's emblem colour, moving towards the screen's (gulf 3.1)
     float heliSpin = 0;     // the preview's spin, degrees, never reset (as2@0x221917c)
     // Helicopter selection.
     bool heliAccept = false;     // opened from Mission Complete ("Accept" mode)
@@ -52,6 +53,33 @@ struct Frontend::SequelState {
     int congratsTyped = 0;
 };
 
+// What differs in where the screens put things (as2/frontend.md 3.3, 3.13, 3.14; gulf/
+// frontend.delta.md): AirStrike 2's and Gulf Thunder's tables, chosen by the current look.
+struct InfoIcon {
+    int kind; // 0 weapon, 1 missile, 2 power-up
+    int slot;
+    float y;
+};
+struct Layout {
+    float mainY[6];    // the main menu's six buttons
+    float mainMinW;
+    float inGameY[4];  // Resume, Options, Restart, Quit
+    float inGameMinW;
+    bool introComic;   // the four comic pages follow the logo pages
+    int infoPages;     // pages of the Information spinner
+    int infoKey[8];    // the texts' page number (info.N.*) of spinner page 0..infoPages-1
+    std::vector<InfoIcon> (*infoIcons)(int key); // the icons of a texts page
+};
+const Layout& layout();
+
+// A menu of the current look: its text buttons' margin and height (gulf/frontend.delta.md 2.2).
+inline Menu newMenu() {
+    Menu m;
+    m.buttonMargin = as2::skin().buttonMargin;
+    m.buttonHeight = as2::skin().buttonHeight;
+    return m;
+}
+
 // Built-in values where the texts file has none (the caption strings of the executable's
 // buttons keep their padding spaces, which set the button widths).
 struct SequelScreens {
@@ -63,6 +91,7 @@ struct SequelScreens {
 
     // Screens.
     static Menu build(Frontend& f, Screen s);
+    static Menu buildScreen(Frontend& f, Screen s);
     static Menu mainMenu(Frontend& f);
     static Menu exit(Frontend& f);
     static Menu topScores(Frontend& f);
@@ -79,6 +108,11 @@ struct SequelScreens {
     static Menu missionComplete(Frontend& f);
     static Menu gameComplete(Frontend& f);
     static Menu dialogueScreen(Frontend& f);
+
+    // Selects the look (AirStrike 2's or Gulf Thunder's) of the game the front end runs.
+    static void applyLook(const Frontend& f);
+    // The operation's name under Gulf Thunder's loading comic.
+    static std::string loadingName(const Frontend& f);
 
     // Flow (as2/frontend.md 5).
     static void boot(Frontend& f);
@@ -97,7 +131,9 @@ struct SequelScreens {
     static void drawTouchSkip(Renderer2D& r, const UiAssets& a);
     static RectF touchSkipRect();
     static RectF touchMenuRect();
-    static void drawLoading(Renderer2D& r, const UiAssets& a, float progress, bool intermission, int mission);
-};
+    static void drawLoading(Renderer2D& r, const UiAssets& a, float progress, bool intermission, int mission,
+                            const std::string& name = std::string());
+    // The title logo (AirStrike 2) or the title bar (Gulf Thunder) of the front screens.
+    static void header(MenuDrawContext& c, Frontend& f);};
 
 } // namespace as3d::ui
