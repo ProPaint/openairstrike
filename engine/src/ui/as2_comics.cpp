@@ -97,22 +97,45 @@ void SequelScreens::drawComicPage(Renderer2D& r, const UiAssets& a, int page, fl
 }
 
 RectF SequelScreens::touchSkipRect() {
-    const float w = measureText(FontMetrics::original(), " Skip ", 1.0f, true) + 46.0f;
-    return {780.0f - w, 560.0f, w, 30.0f};
+    const float w = measureText(FontMetrics::original(), " Skip ", 1.0f, true) + skin().buttonMargin;
+    return {780.0f - w, 560.0f, w, skin().buttonHeight};
 }
 
 void SequelScreens::drawTouchSkip(Renderer2D& r, const UiAssets& a) {
     const RectF b = touchSkipRect();
-    textButton(r, a, b.x, b.y, b.w - 46.0f, " Skip ", green());
+    textButton(r, a, b.x, b.y, b.w - skin().buttonMargin, " Skip ", ink());
 }
 
 RectF SequelScreens::touchMenuRect() {
-    const float w = measureText(FontMetrics::original(), " MENU ", 1.0f, true) + 46.0f;
-    return {400.0f - w * 0.5f, 4.0f, w, 30.0f};
+    const float w = measureText(FontMetrics::original(), " MENU ", 1.0f, true) + skin().buttonMargin;
+    return {400.0f - w * 0.5f, 4.0f, w, skin().buttonHeight};
 }
 
-void SequelScreens::drawLoading(Renderer2D& r, const UiAssets& a, float progress, bool intermission, int mission) {
+void SequelScreens::drawLoading(Renderer2D& r, const UiAssets& a, float progress, bool intermission, int mission,
+                                const std::string& name) {
     r.fullscreen({0, 0, 0, 1}, Blend::Opaque);
+    if (gulfLook()) {
+        // gulf/frontend.delta.md 3.16: one comic for every operation, two rows of four tiles
+        // from y 65 slightly darkened, the title bar over it, the operation's name, the bar.
+        if (!intermission) {
+            char tileName[64];
+            for (int row = 0; row < 2; row++)
+                for (int col = 0; col < 4; col++) {
+                    std::snprintf(tileName, sizeof tileName, "gfx\\ui\\comix\\loading1_%d_%d.tga", row, col);
+                    if (const Texture2D* t = a.texture(tileName))
+                        pic(r, *t, 256.0f * static_cast<float>(col), 65.0f + 256.0f * static_cast<float>(row),
+                            {1, 1, 1, 0.812f}, Blend::Alpha);
+                }
+        }
+        const float white[4] = {1, 1, 1, 1};
+        gulfTitleBar(r, a, 0, white, false);
+        if (!intermission && !name.empty()) text(r, a, 400, 550, name, ::as3d::ui::orange(), Align::Center);
+        r.outline(340, 575, 200, 10, ink(), Blend::Opaque);
+        r.rect(340, 575, std::clamp(progress, 0.0f, 1.0f) * 200.0f, 10, ink(), Blend::Opaque);
+        text(r, a, 260, 571, "Loading", ink());
+        (void)mission;
+        return;
+    }
     if (!intermission) {
         // The comic of the mission's third of the campaign (as2/frontend.md 3.16): one picture of
         // about 801 x 330 in three columns 267 wide.
@@ -126,9 +149,9 @@ void SequelScreens::drawLoading(Renderer2D& r, const UiAssets& a, float progress
             if (const Texture2D* t = a.texture(name)) picStretched(r, *t, x, 399, 267, 66, Color{}, Blend::Opaque);
         }
     }
-    r.outline(340, 500, 200, 10, orange(), Blend::Opaque);
-    r.rect(340, 500, std::clamp(progress, 0.0f, 1.0f) * 200.0f, 10, orange(), Blend::Opaque);
-    text(r, a, 260, 496, "Loading", orange());
+    r.outline(340, 500, 200, 10, accent(), Blend::Opaque);
+    r.rect(340, 500, std::clamp(progress, 0.0f, 1.0f) * 200.0f, 10, accent(), Blend::Opaque);
+    text(r, a, 260, 496, "Loading", accent());
 }
 
 } // namespace as3d::ui

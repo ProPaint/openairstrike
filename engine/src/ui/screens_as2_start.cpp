@@ -22,7 +22,7 @@ SpecUv atlasUv(const Piece& p) { return texelUv(p.x, p.y, p.w, p.h, 256, 256); }
 // Start Game: mission, difficulty, game mode
 // ---------------------------------------------------------------------------
 Menu SequelScreens::startGame(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     f.refreshLocks();
     std::vector<ListEntry> missions;
     for (int i = 0; i < f.rules().missionCount; i++) {
@@ -71,7 +71,7 @@ Menu SequelScreens::startGame(Frontend& f) {
     };
     m.drawFront = [&f](MenuDrawContext& c) {
         panel(c.r, c.a, 150, 180, 500, 270, c.menu.open, tr(f, "title.start_game"));
-        titleLogo(c.r, c.a, f.sq_->logoClock);
+        header(c, f);
     };
     return m;
 }
@@ -80,7 +80,7 @@ Menu SequelScreens::startGame(Frontend& f) {
 // Helicopter selection
 // ---------------------------------------------------------------------------
 Menu SequelScreens::heliSelect(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     Frontend::SequelState& s = *f.sq_;
     f.refreshLocks();
     const bool accept = s.heliAccept;
@@ -88,13 +88,13 @@ Menu SequelScreens::heliSelect(Frontend& f) {
     s.heliShown = 0; // issue 240 item 5: always player 1 first
     s.heliOpened[0] = f.heli_[0];
     s.heliOpened[1] = f.heli_[1];
-    m.addPicture(kArrowNext, 600, 278, 16, 40, "gfx\\ui\\interface.tga", atlasUv(kArrowRight));
-    m.addPicture(kArrowPrev, 180, 278, 20, 44, "gfx\\ui\\interface.tga", atlasUv(kArrowLeft));
+    m.addPicture(kArrowNext, 600, 278, 16, 40, skin().atlas, atlasUv(skin().arrowRight));
+    m.addPicture(kArrowPrev, 180, 278, 20, 44, skin().atlas, atlasUv(skin().arrowLeft));
     if (f.touch_)
         for (MenuItem& it : m.items) it.hit = {it.x - 22, it.y - 20, it.w + 44, it.h + 40}; // ours: finger-sized
     std::string caption;
     if (accept) caption = tr(f, "button.accept");
-    else if (startWithContinue(f, f.campaign_.mission)) caption = tr(f, "button.continue");
+    else if (startWithContinue(f, f.campaign_.mission)) caption = trOr(f, "button.continue.heli", "button.continue");
     else caption = tr(f, "button.start");
     m.addSequelButton(accept ? kAccept : kHeliStart, 760, 520, caption, itemflag::AlignRight);
     if (!accept) m.addSequelButton(kHeliBack, 40, 520, tr(f, "button.back"));
@@ -154,9 +154,9 @@ Menu SequelScreens::heliSelect(Frontend& f) {
                 if (const Texture2D* t = c.a.texture("gfx\\ui\\helicna.tga")) pic(c.r, *t, 272, 241, {0, 0.376f, 0, 1}, Blend::Alpha);
                 text(c.r, c.a, 400, 300, tr(f, "heli.na"), red(), Align::Center);
             }
-            text(c.r, c.a, 220, 200, heliName(f, h), green());
-            text(c.r, c.a, 220, 378, tr(f, "heli.speed"), green());
-            text(c.r, c.a, 220, 398, tr(f, "heli.armor"), green());
+            text(c.r, c.a, 220, 200, heliName(f, h), ink());
+            text(c.r, c.a, 220, 378, tr(f, "heli.speed"), ink());
+            text(c.r, c.a, 220, 398, tr(f, "heli.armor"), ink());
             const Color bar = packed(0x6000FF00u);
             const FrontendContent::HeliInfo& info = f.content_.heli[h];
             const float speed = info.known && info.hasSpeed ? info.speed : 1.0f;
@@ -167,7 +167,7 @@ Menu SequelScreens::heliSelect(Frontend& f) {
             c.r.rect(300, 401, std::clamp(armor * 280.0f / 800.0f, 0.0f, 280.0f), 10, bar, Blend::Alpha);
         }
         panel(c.r, c.a, 160, 160, 480, two ? 310.0f : 290.0f, c.menu.open, tr(f, "title.heli"));
-        titleLogo(c.r, c.a, st.logoClock);
+        header(c, f);
     };
     return m;
 }

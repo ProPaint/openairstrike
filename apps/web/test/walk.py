@@ -4,8 +4,8 @@
     walk.py --url http://127.0.0.1:8766/ [--byo-url http://127.0.0.1:8767/] --shots DIR
             [--engine chromium|firefox] [--gl gpu|swiftshader] [--only NAME,...]
 
-Scenarios (each in a fresh browser context, so fresh storage). The bundled site holds as3d
-and as2 (tools/web_build.sh); every scenario but `choose` and `byo` forces ?game=as3d.
+Scenarios (each in a fresh browser context, so fresh storage). The bundled site holds as3d,
+as2 and gulf (tools/web_build.sh); every scenario but `choose`, `gulf` and `byo` forces ?game=as3d.
   choose     the start screen is the game selector (docs/spec/issues/164: the cards' marquees,
              the pulsing current card, Left/Right and Enter) offering the playable games of the
              bundled site, and downloads no game file before a choice (the marquees are the
@@ -16,6 +16,12 @@ and as2 (tools/web_build.sh); every scenario but `choose` and `byo` forces ?game
              (Start Game, Next, the helicopter selection, the start dialogue) plays 30 s; then
              /persist/as3d/profile.bin is byte for byte what it was before AirStrike 2 ran and
              /persist/as2/profile.bin exists (docs/spec/issues/163).
+  gulf       Gulf Thunder chosen on the start screen (its own menus, gulf/frontend.delta.md): only
+             its files fetched; the main menu's six buttons 180 wide and 37 high at y 250 to 475;
+             Information, Credits, Options, Top Scores opened and left; operation 1 started
+             through Start Game, Next and the helicopter selection plays 30 s under the pilot; Esc (the in-game
+             menu), Resume, Esc, Quit; then /persist/gulf/profile.bin exists with the key gulf and
+             the other games' saves are untouched; then on a touch phone the same by taps only.
   desktop    mouse and keyboard at 1280x720: Play, intro, main menu, Options (Show FPS),
              Top Scores, Information, Start Game, play with keys, Esc, in-game menu, Resume,
              F full screen, context loss and restore, tab hidden and shown, reload: the
@@ -907,7 +913,7 @@ def choose(w, b):
     p.goto("")
     r = {}
     try:
-        w.step("choose: the start screen offers both games, nothing downloaded yet")
+        w.step("choose: the start screen offers the bundled games, nothing downloaded yet")
         p.page.wait_for_selector("#games:not([hidden])", timeout=60000)
         p.page.wait_for_timeout(1500)
         offered = p.page.evaluate("Array.from(document.querySelectorAll('#game-list button')).map((b) => b.dataset.game)")
@@ -1021,8 +1027,164 @@ def choose(w, b):
     return r
 
 
+GULF_PROFILE = "/persist/gulf/profile.bin"
+
+
+def gulf(w, b):
+    """Gulf Thunder through its own menus (docs/spec/gulf/frontend.delta.md): chosen on the start
+    screen, then by mouse and by touch: the menus, operation 1, the in-game menu, Quit."""
+    p = b.page(w.a.url, None, viewport={"width": 1280, "height": 720})
+    p.requests = []
+    p.page.on("request", lambda req: p.requests.append(req.url))
+    p.goto("bot=1&menus=1")  # the pilot flies once the menus have started the mission
+    r = {}
+    try:
+        w.step("gulf: chosen on the start screen; only its files are fetched")
+        p.page.wait_for_selector("#games:not([hidden])", timeout=60000)
+        p.page.wait_for_timeout(1500)
+        offered = p.page.evaluate("Array.from(document.querySelectorAll('#game-list button')).map((b) => b.dataset.game)")
+        r["offered"] = offered
+        assert "gulf" in offered, "the start screen does not offer Gulf Thunder: %s" % offered
+        assert data_requests(p) == [], data_requests(p)
+        p.page.click("#game-list button[data-game=gulf]")
+        p.wait_ready(180)
+        # The first game's save, if any, is what it is before Gulf Thunder runs.
+        before = read_profile(p)
+        to_main_menu(w, p)
+        got = data_requests(p)
+        r["requests"] = got
+        assert got and all(g.startswith("gulf/") for g in got), got
+        w.shot(p, "gulf_main")
+
+        w.step("gulf: the main menu: six text buttons 180 wide and 37 high at y 250 to 475")
+        items = p.menu_items("main")
+        ys = {1: 250, 2: 295, 3: 340, 4: 385, 7: 430, 5: 475}
+        for iid, y in ys.items():
+            assert iid in items, "no item %d on Gulf Thunder's main menu: %s" % (iid, sorted(items))
+            x_, y_, w_, h_, _ = items[iid]
+            assert (x_, y_, w_, h_) == (310, y, 180, 37), (iid, items[iid])
+        assert 60 in items, "no Change game on the main menu"
+
+        for name, iid in (("info", 4), ("credits", 7), ("options", 3), ("scores", 2)):
+            w.step("gulf: %s and back" % name)
+            mk = p.mark()
+            p.tap_item("main", iid)
+            wait_new_screen(p, name, mk)
+            p.page.wait_for_timeout(700)
+            if name == "info":
+                items = p.menu_items("info")
+                assert 10 in items, "no page spinner on Information"
+            w.shot(p, "gulf_" + name)
+            mk = p.mark()
+            p.tap_item(name, 1)                     # Back (the Information page spinner is 10)
+            wait_new_screen(p, "main", mk)
+            p.page.wait_for_timeout(400)
+
+        w.step("gulf: operation 1 through Start Game, Next, the helicopter selection; 30 s of play under the pilot")
+        start_mission(w, p)
+        w.shot(p, "gulf_loaded")
+        mk = p.mark()
+        t0 = time.time()
+        while time.time() - t0 < 30:
+            p.page.wait_for_timeout(2000)
+        frames = [int(m.group(1)) for t in p.texts()[mk:] for m in [re.search(r"AS3D_GAME_FRAME n=(\d+) mission=1 ", t)] if m]
+        r["frame_markers"] = frames
+        assert len(set(frames)) >= 2, "Gulf Thunder's operation 1 did not run: %s" % frames
+        w.shot(p, "gulf_playing")
+
+        w.step("gulf: Esc (in-game menu), Resume, Esc, Quit")
+        mk = p.mark()
+        p.key("Escape")
+        wait_new_screen(p, "ingame", mk)
+        p.page.wait_for_timeout(600)
+        items = p.menu_items("ingame")
+        for iid, y in {1: 300, 2: 345, 4: 390, 3: 435}.items():
+            assert items[iid][:4] == (320, y, 160, 37), (iid, items[iid])
+        w.shot(p, "gulf_ingame")
+        mk = p.mark()
+        p.tap_item("ingame", 1)                     # Resume
+        p.wait_line(r"AS3D_SCREEN name=playing\b", 30, after=mk)
+        p.page.wait_for_timeout(1500)
+        mk = p.mark()
+        p.key("Escape")
+        wait_new_screen(p, "ingame", mk)
+        p.page.wait_for_timeout(500)
+        mk = p.mark()
+        p.tap_item("ingame", 3)                     # Quit
+        wait_new_screen(p, "main", mk)
+        p.page.wait_for_timeout(500)
+
+        w.step("gulf: the saves: gulf's has the key gulf; the first game's is untouched")
+        mk = p.mark()
+        p.tap_item("main", 60)
+        p.wait_line(r"AS3D_WEB change_game", 30, after=mk)
+        p.wait_line(r"AS3D_WEB chooser games=", 60, after=mk)
+        p.goto("game=as3d")
+        p.wait_ready(180)
+        after = read_profile(p)
+        mine = read_profile(p, GULF_PROFILE)
+        assert mine, "Gulf Thunder wrote no /persist/gulf/profile.bin"
+        assert parse_profile(mine)["key"] == "gulf"
+        r["gulf_save_bytes"] = len(mine)
+        assert after == before, "the first game's save changed while Gulf Thunder was played"
+        r["errors"] = p.errors()
+        assert not r["errors"], r["errors"]
+    finally:
+        p.close()
+
+    # The same by taps only, on a touch phone (landscape 20:9).
+    dev = b.device("Pixel 7")
+    vp = {"width": 915, "height": 412}
+    ctx = {k: v for k, v in dev.items() if k not in ("viewport", "screen", "default_browser_type")}
+    ctx.update(viewport=vp, screen={"width": 915, "height": 412}, device_scale_factor=2.625, is_mobile=True,
+               has_touch=True)
+    q = b.page(w.a.url, "game=gulf", **ctx)
+    try:
+        w.step("gulf: on a touch phone: Play, the main menu by taps")
+        q.wait_ready()
+        assert q.state()["touch"], "a touch phone did not start in touch mode"
+        q.page.tap("#play")
+        q.page.wait_for_timeout(800)
+        to_main_menu(w, q, by="touch")
+        w.shot(q, "gulf_phone_main")
+        mk = q.mark()
+        q.tap_item("main", 4, "touch")              # Information: the spinner goes back by a tap
+        wait_new_screen(q, "info", mk)
+        q.page.wait_for_timeout(600)
+        x_, y_, w_, h_, _ = q.menu_items("info")[10]
+        q.tap_virtual(x_ - 10, y_ + 8, "touch")
+        q.page.wait_for_timeout(400)
+        w.shot(q, "gulf_phone_info")
+        mk = q.mark()
+        q.tap_item("info", 1, "touch")
+        wait_new_screen(q, "main", mk)
+        q.page.wait_for_timeout(400)
+        w.step("gulf: on a touch phone: operation 1, the pause button, Quit")
+        start_mission(w, q, by="touch")
+        q.page.wait_for_timeout(1500)
+        if q.state()["screen"] == "hint":
+            q.tap_item("hint", 1, "touch")
+            q.page.wait_for_timeout(500)
+        L = touch_layout(q)
+        mk = q.mark()
+        px, py = q.fb_to_css(L["pause"][0], L["pause"][1])
+        q.tap_css(px, py, "touch")
+        wait_new_screen(q, "ingame", mk)
+        q.page.wait_for_timeout(500)
+        w.shot(q, "gulf_phone_ingame")
+        mk = q.mark()
+        q.tap_item("ingame", 3, "touch")            # Quit
+        wait_new_screen(q, "main", mk)
+        r["touch"] = "ok"
+        r["touch_errors"] = q.errors()
+        assert not r["touch_errors"], r["touch_errors"]
+    finally:
+        q.close()
+    return r
+
+
 SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "complete": complete,
-             "gameover": gameover, "migration": migration, "choose": choose}
+             "gameover": gameover, "migration": migration, "choose": choose, "gulf": gulf}
 
 
 def main():
@@ -1032,7 +1194,7 @@ def main():
     ap.add_argument("--shots", required=True)
     ap.add_argument("--engine", default="chromium", choices=["chromium", "firefox"])
     ap.add_argument("--gl", default="gpu", choices=["gpu", "swiftshader"])
-    ap.add_argument("--only", default="choose,desktop,phone,iphone,byo,complete,gameover,migration")
+    ap.add_argument("--only", default="choose,gulf,desktop,phone,iphone,byo,complete,gameover,migration")
     a = ap.parse_args()
     os.makedirs(a.shots, exist_ok=True)
     w = Walk(a)

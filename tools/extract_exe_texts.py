@@ -11,8 +11,8 @@ The table of addresses is chosen by the SHA-256 of the executable (TABLES below)
 right one is used whichever game's executable is given. The first game's table (as3d, v1.70)
 is what the addresses above describe. AirStrike 2's is the committed address list
 tools/exe_texts/as2.json (docs/spec/as2/frontend.md 7: every entry a key, an address and a
-kind, `text`, `text_ml` or `u32`); Gulf Thunder's is tools/exe_texts/gulf.json the same way,
-with the addresses that miss their text corrected or left out (docs/spec/gulf/issues/402).
+kind, `text`, `text_ml` or `u32`); Gulf Thunder's is tools/exe_texts/gulf.json the same way
+(its addresses corrected, docs/spec/gulf/issues/402 and 410).
 
 Usage:
     tools/extract_exe_texts.py [--game KEY] [--exe PATH] [--out PATH]
@@ -90,20 +90,12 @@ TABLES = {
         "override": [("ctl.row.%d" % i, a) for i, a in enumerate(
             [0x48D6EC, 0x48D6DC, 0x48D6C8, 0x48D6B8, 0x48D6AC, 0x48D6A0, 0x48D690, 0x48D680, 0x48D674, 0x48D668])],
     }},
-    # ---- Gulf Thunder v2.71 (package F2): the address list of docs/spec/gulf/frontend.delta.md 7.
-    # Eleven of its addresses are not the first byte of their text and a few point at a
-    # neighbour (docs/spec/gulf/issues/402-exe-texts-addresses.md): the ones whose text is
-    # certain are read from where the text is; three helicopter names of AirStrike 2 (Gulf
-    # Thunder has three helicopters), a page value of an eighth page and two broken credits
-    # lines are left out (the game's built-in text is used).
+    # ---- Gulf Thunder v2.71: the address list tools/exe_texts/gulf.json. Its addresses were
+    # corrected against the executable's strings (docs/spec/gulf/issues/402 and 410: the
+    # shifted credits, the controls rows, the helicopter names, the page values); nothing is
+    # overridden or left out here any more.
     "86195a9653489064844c172ce43307c703a50e53be7e00d45fe346c45d5ae077": {"game": "gulf", "table": {
         "json": "gulf.json",
-        "override": [
-            ("title.top_scores", 0x48CBD0), ("title.enter_name", 0x48CBF0), ("title.hint", 0x48CD70),
-            ("difficulty.3", 0x48CD34), ("difficulty.4", 0x48CD28), ("mode.0", 0x48CD18), ("mode.1", 0x48CD0C),
-            ("button.ok", 0x48CC00), ("heli.2", 0x48BDA4),
-        ] + [("info.pages.%d" % n, 0x48BE80 - 8 * (n - 1)) for n in range(3, 8)],
-        "leave_out": ["heli.3", "heli.4", "heli.5", "info.pages.8", "credits.4", "credits.19"],
     }},
     # ---- end of Gulf Thunder
 }

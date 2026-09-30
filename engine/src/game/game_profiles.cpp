@@ -183,7 +183,7 @@ const GameProfile kProfiles[kGameCount] = {
      FrontendStyle::SequelMenus, rulesAs2()},
     {GameId::GulfThunder, "gulf", "AirStrike II: Gulf Thunder", "2.71", "AirStrike3D II - Gulf.exe",
      {"pak0.apk", "pak1.apk", "pak2.apk", "pak4.apk", nullptr}, "texts_gulf.txt", "v271", 28,
-     FrontendStyle::PlainList, rulesGulf()},
+     FrontendStyle::SequelMenus, rulesGulf()},
 };
 
 } // namespace

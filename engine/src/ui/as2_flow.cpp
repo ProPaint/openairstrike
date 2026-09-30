@@ -9,7 +9,84 @@
 
 namespace as3d::ui {
 
-std::string SequelScreens::tr(const Frontend& f, const std::string& key) { return f.texts_.get(key); }
+using namespace as2;
+
+namespace {
+
+// Gulf Thunder's captions where the texts file has none: what differs from AirStrike 2's
+// built-in defaults (gulf/frontend.delta.md 7: the main and in-game menu captions carry no
+// padding, the others other padding; the padding sets the button widths).
+const char* gulfDefault(const std::string& key) {
+    static const std::pair<const char*, const char*> table[] = {
+        {"title.options", "Options"}, {"button.start_game", "Start Game"}, {"button.top_scores", "Top Scores"},
+        {"button.options", "Options"}, {"button.information", "Information"}, {"button.credits", "Credits"},
+        {"button.quit", "Quit"}, {"button.resume", "Resume"}, {"button.quit_wide", "   Quit   "},
+        {"button.back", "   Back   "}, {"button.back_wide", "   Back   "}, {"button.next", "   Next   "},
+        {"button.next_wide", "   Next   "}, {"button.start", "  Start  "}, {"button.continue", "  Continue  "},
+        {"button.accept", "  Accept  "}, {"button.restart", "   Restart   "},
+        {"button.choose_heli", "  Choose Helicopter  "}, {"button.configure_controls", "  Configure Controls  "},
+        {"button.apply", "   Apply   "}, {"button.ok", "   Ok   "},
+        {"button.continue.heli", " Continue "}, {"button.restart.gameover", "  Restart  "},
+        {"button.hint_ok", "    Ok    "},
+    };
+    for (const auto& e : table)
+        if (key == e.first) return e.second;
+    return nullptr;
+}
+
+} // namespace
+
+std::string SequelScreens::tr(const Frontend& f, const std::string& key) {
+    if (gulfLook() && !f.texts_.loaded(key))
+        if (const char* d = gulfDefault(key)) return d;
+    return f.texts_.get(key);
+}
+
+std::string SequelScreens::trOr(const Frontend& f, const std::string& key, const std::string& fallback) {
+    if (f.texts_.loaded(key) || gulfLook()) {
+        const std::string v = tr(f, key);
+        if (!v.empty()) return v;
+    }
+    return tr(f, fallback);
+}
+
+namespace {
+
+std::vector<InfoIcon> as2InfoIcons(int page) {
+    switch (page) {
+        case 2: return {{0, 0, 194}, {0, 1, 286}, {0, 2, 358}, {0, 3, 430}};
+        case 3: return {{0, 4, 194}, {0, 5, 295}, {0, 6, 365}};
+        case 4: return {{0, 7, 194}, {0, 8, 260}};
+        case 5: return {{1, 0, 194}, {1, 1, 260}, {1, 2, 328}, {1, 3, 418}};
+        case 6: return {{1, 4, 194}};
+        case 7: return {{2, 4, 194}, {2, 1, 256}, {2, 2, 310}, {2, 0, 378}};
+        case 8: return {{2, 5, 194}, {2, 8, 256}};
+        default: return {};
+    }
+}
+
+// Gulf Thunder's pages (checked on the original's screens): the texts' page numbers 2, 5 to 8
+// are AirStrike 2's; its page 3 lists the big laser, lightning gun and wave gun, its page 4
+// is gone.
+std::vector<InfoIcon> gulfInfoIcons(int page) {
+    // Page 2 shows the machine gun, then the cells of slots 4, 1 and 2 (the original's icons:
+    // two glowing streaks, three streaks and a dot, the red ring).
+    if (page == 2) return {{0, 0, 194}, {0, 4, 286}, {0, 1, 358}, {0, 2, 430}};
+    if (page == 3) return {{0, 5, 194}, {0, 7, 295}, {0, 8, 365}};
+    return as2InfoIcons(page);
+}
+
+} // namespace
+
+const Layout& layout() {
+    static const Layout as2{{230, 275, 320, 365, 410, 455}, 200, {250, 295, 340, 385}, 160, true, 8,
+                            {1, 2, 3, 4, 5, 6, 7, 8}, as2InfoIcons};
+    // gulf/frontend.delta.md 3.3, 3.13, 3.14: positions 250 .. 475, in-game 300 .. 435, no comic,
+    // seven Information pages (AirStrike 2's page 4 is gone, the later ones keep their numbers).
+    static const Layout gulf{{250, 295, 340, 385, 430, 475}, 180, {300, 345, 390, 435}, 160, false, 7,
+                             {1, 2, 3, 5, 6, 7, 8}, gulfInfoIcons};
+    return gulfLook() ? gulf : as2;
+}
 
 std::string SequelScreens::heliName(const Frontend& f, int heli) {
     const std::string key = "heli." + std::to_string(heli);
@@ -42,6 +119,24 @@ bool SequelScreens::startWithContinue(const Frontend& f, int mission) {
 }
 
 Menu SequelScreens::build(Frontend& f, Screen s) {
+    Menu m = buildScreen(f, s);
+    // Gulf Thunder's title bar is drawn under the screen's items and panel (the panel's static
+    // fill and the buttons lie over it, gulf/frontend.delta.md 3.1; the original's screens).
+    const bool bar = s == Screen::MainMenu || s == Screen::Exit || s == Screen::StartGame || s == Screen::HeliSelect ||
+                     s == Screen::TopScores || s == Screen::Options || s == Screen::Controls ||
+                     s == Screen::Information || s == Screen::Credits || s == Screen::InGame ||
+                     s == Screen::MissionComplete;
+    if (gulfLook() && bar) {
+        auto back = std::move(m.drawBack);
+        m.drawBack = [&f, back](MenuDrawContext& c) {
+            gulfTitleBar(c.r, c.a, f.sq_->logoClock, f.sq_->tint, true);
+            if (back) back(c);
+        };
+    }
+    return m;
+}
+
+Menu SequelScreens::buildScreen(Frontend& f, Screen s) {
     switch (s) {
         case Screen::MainMenu: return mainMenu(f);
         case Screen::Exit: return exit(f);
@@ -64,8 +159,9 @@ Menu SequelScreens::build(Frontend& f, Screen s) {
 }
 
 void SequelScreens::boot(Frontend& f) {
-    // The logo pages of Settings.xml, then the four comic pages, always (as2/frontend.md 3.2).
-    for (int page = 1; page <= 4; page++) {
+    // The logo pages of Settings.xml, then the four comic pages, always (as2/frontend.md 3.2);
+    // Gulf Thunder has no comic (gulf/frontend.delta.md 3.2).
+    for (int page = 1; page <= 4 && layout().introComic; page++) {
         IntroPage p;
         p.divoGames = false;
         p.comic = page;
@@ -75,8 +171,48 @@ void SequelScreens::boot(Frontend& f) {
     f.sq_->comicMusic = false;
 }
 
+void SequelScreens::applyLook(const Frontend& f) {
+    setGulfLook(f.content_.game && f.content_.game->id == GameId::GulfThunder);
+}
+
+bool SequelScreens::hasIntroComic(const Frontend& f) {
+    applyLook(f);
+    return layout().introComic;
+}
+
+std::string SequelScreens::loadingName(const Frontend& f) {
+    const int m = std::clamp(f.campaign_.mission, 0, kMaxMissions - 1);
+    const std::string& name = f.content_.missionNames[m];
+    return name.empty() ? f.missionLabel(m) : name;
+}
+
+void SequelScreens::header(MenuDrawContext& c, Frontend& f) {
+    if (!gulfLook()) titleLogo(c.r, c.a, f.sq_->logoClock); // Gulf Thunder's bar is drawn by build()
+}
+
 void SequelScreens::tick(Frontend& f, float dt) {
     f.sq_->logoClock += 0.5f * dt;
+    if (gulfLook()) {
+        // The emblem's tint moves towards the colour the screen asks for, 3 x dt a step
+        // (gulf/frontend.delta.md 3.1): white on the main and in-game menus, a dimmed grey on
+        // the others, dimmer on the credits.
+        float target[4] = {1, 1, 1, 1};
+        if (!f.menus_.empty()) {
+            const Screen s = f.topScreen();
+            if (s == Screen::Credits) {
+                target[0] = target[1] = target[2] = 0x80 / 255.0f;
+                target[3] = 0x60 / 255.0f;
+            } else if (s != Screen::MainMenu && s != Screen::InGame) {
+                target[0] = target[1] = target[2] = 0x80 / 255.0f;
+                target[3] = 0xB0 / 255.0f;
+            }
+        }
+        for (int k = 0; k < 4; k++) {
+            float& v = f.sq_->tint[k];
+            const float step = 3.0f * dt;
+            v = v < target[k] ? std::min(v + step, target[k]) : std::max(v - step, target[k]);
+        }
+    }
     if (!f.menus_.empty() && f.topScreen() == Screen::HeliSelect) f.sq_->heliSpin += 60.0f * dt;
 }
 

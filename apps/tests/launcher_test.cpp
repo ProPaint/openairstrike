@@ -695,14 +695,26 @@ TEST_CASE("main menus: \"Change game\" only with several games; the first game's
         CHECK(two.host.changes == 1);
         CHECK(two.host.saves == saves + 1);
     }
-    // The plain front end: in the bottom bar's left slot.
-    MenuRig plainOne(&kGulf, false, true), plainTwo(&kGulf, true, true); // AirStrike 2: as2_frontend_test.cpp
+    // The plain front end (a copy of Gulf Thunder's profile with the plain style: Gulf Thunder has
+    // its own menus now): in the bottom bar's left slot.
+    GameProfile plainGulf = kGulf;
+    plainGulf.frontend = FrontendStyle::PlainList;
+    MenuRig plainOne(&plainGulf, false, true), plainTwo(&plainGulf, true, true); // AirStrike 2: as2_frontend_test.cpp
     CHECK(plainOne.item(ui::kChangeGameItem) == nullptr);
     const ui::MenuItem* it = plainTwo.item(ui::kChangeGameItem);
     REQUIRE(it != nullptr);
     CHECK(it->hit.y >= 500);
     plainTwo.fe.update(0.016f, ui::UiInput().tap(it->hit.x + 5, it->hit.y + 5));
     CHECK(plainTwo.host.changes == 1);
+    // Gulf Thunder's own menus: a text button in the lower letterbox bar, below the six.
+    MenuRig gulfOne(&kGulf, false, true), gulfTwo(&kGulf, true, true);
+    CHECK(gulfOne.item(ui::kChangeGameItem) == nullptr);
+    const ui::MenuItem* gi = gulfTwo.item(ui::kChangeGameItem);
+    REQUIRE(gi != nullptr);
+    CHECK(gi->hit.y >= 512);
+    CHECK(gi->hit.y + gi->hit.h <= 600);
+    gulfTwo.fe.update(0.016f, ui::UiInput().tap(gi->hit.x + 5, gi->hit.y + 5));
+    CHECK(gulfTwo.host.changes == 1);
 }
 
 TEST_CASE("main menu headless: the first game's pixels unchanged except where \"Change game\" is") {

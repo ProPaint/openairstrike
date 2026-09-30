@@ -239,11 +239,11 @@ MenuItem& Menu::addSequelButton(int id, float x, float y, std::string label, u32
     it.y = y;
     // The caption width skips the braces and counts the padding spaces (as2/frontend.md 2.5).
     it.captionW = std::max(measureText(fm(), label, 1.0f, true), minWidth);
-    const float w = it.captionW + 46.0f;
+    const float w = it.captionW + buttonMargin;
     float left = x;
     if (flags & itemflag::AlignRight) left = x - w;
     else if (flags & itemflag::AlignCenter) left = x - w * 0.5f;
-    it.hit = {left, y, w, 30};
+    it.hit = {left, y, w, buttonHeight};
     it.label = std::move(label);
     return pushItem(*this, std::move(it));
 }

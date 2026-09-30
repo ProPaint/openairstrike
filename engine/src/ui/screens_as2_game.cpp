@@ -44,11 +44,12 @@ int typedCount(const std::vector<std::string>& lines, size_t i, float mt) {
 // In-game menu
 // ---------------------------------------------------------------------------
 Menu SequelScreens::inGame(Frontend& f) {
-    Menu m;
-    m.addSequelButton(1, 400, 250, tr(f, "button.resume"), kCentre, 160);
-    m.addSequelButton(2, 400, 295, tr(f, "button.options"), kCentre, 160);
-    m.addSequelButton(4, 400, 340, tr(f, "button.restart"), kCentre, 160);
-    m.addSequelButton(3, 400, 385, tr(f, "button.quit"), kCentre, 160);
+    Menu m = newMenu();
+    const Layout& lay = layout();
+    m.addSequelButton(1, 400, lay.inGameY[0], tr(f, "button.resume"), kCentre, lay.inGameMinW);
+    m.addSequelButton(2, 400, lay.inGameY[1], tr(f, "button.options"), kCentre, lay.inGameMinW);
+    m.addSequelButton(4, 400, lay.inGameY[2], tr(f, "button.restart"), kCentre, lay.inGameMinW);
+    m.addSequelButton(3, 400, lay.inGameY[3], tr(f, "button.quit"), kCentre, lay.inGameMinW);
     auto resume = [&f]() {
         f.menus_.pop();
         f.resumePlay();
@@ -68,7 +69,7 @@ Menu SequelScreens::inGame(Frontend& f) {
         resume();
         return true;
     };
-    m.drawFront = [&f](MenuDrawContext& c) { titleLogo(c.r, c.a, f.sq_->logoClock); };
+    m.drawFront = [&f](MenuDrawContext& c) { header(c, f); };
     return m;
 }
 
@@ -76,9 +77,9 @@ Menu SequelScreens::inGame(Frontend& f) {
 // Tutorial hint box
 // ---------------------------------------------------------------------------
 Menu SequelScreens::hint(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     const HintLayout layout = layoutHint(FontMetrics::original(), f.hintText_, HintStyle::SequelPanel);
-    m.addSequelButton(1, 400, 520, tr(f, "button.ok"), kCentre);
+    m.addSequelButton(1, 400, 520, trOr(f, "button.hint_ok", "button.ok"), kCentre);
     auto close = [&f]() {
         f.menus_.pop();
         f.resumePlay();
@@ -99,7 +100,7 @@ Menu SequelScreens::hint(Frontend& f) {
         if (c.menu.open < 1) return;
         float y = layout.textTop;
         for (const std::string& line : layout.lines) {
-            text(c.r, c.a, 400, y, line, orange(), Align::Center, true);
+            text(c.r, c.a, 400, y, line, accent(), Align::Center, true);
             y += 18.0f;
         }
     };
@@ -110,10 +111,10 @@ Menu SequelScreens::hint(Frontend& f) {
 // Game over
 // ---------------------------------------------------------------------------
 Menu SequelScreens::gameOver(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     m.swallowBack = true;
     // Usable at once (the first game hid them for 2 s).
-    m.addSequelButton(1, 550, 520, tr(f, "button.restart"), kCentre);
+    m.addSequelButton(1, 550, 520, trOr(f, "button.restart.gameover", "button.restart"), kCentre);
     m.addSequelButton(2, 250, 520, tr(f, "button.quit_wide"), kCentre);
     m.onItem = [&f](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
@@ -144,7 +145,7 @@ Menu SequelScreens::gameOver(Frontend& f) {
 // Mission complete
 // ---------------------------------------------------------------------------
 Menu SequelScreens::missionComplete(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     m.swallowBack = true;
     f.refreshLocks();
     m.addSequelButton(4, 400, 440, tr(f, "button.choose_heli"), kCentre);
@@ -170,26 +171,26 @@ Menu SequelScreens::missionComplete(Frontend& f) {
             const LevelPlayerResult& p = f.report_.players[0];
             const LevelTotals& t = f.report_.totals;
             if (c.mt > 1.0f) {
-                text(c.r, c.a, 240, 220, tr(f, "stat.enemies"), orange());
+                text(c.r, c.a, 240, 220, tr(f, "stat.enemies"), accent());
                 if (t.enemyTotal > 0) {
                     const int kills = std::min(p.kills, t.enemyTotal);
-                    text(c.r, c.a, 560, 220, std::to_string(kills * 100 / t.enemyTotal) + "%", orange(), Align::Right);
+                    text(c.r, c.a, 560, 220, std::to_string(kills * 100 / t.enemyTotal) + "%", accent(), Align::Right);
                 }
             }
             if (c.mt > 1.4f) {
-                text(c.r, c.a, 240, 250, tr(f, "stat.stars"), orange());
+                text(c.r, c.a, 240, 250, tr(f, "stat.stars"), accent());
                 text(c.r, c.a, 560, 250, std::to_string(static_cast<int>(p.stars)) + "/" + std::to_string(t.starTotal),
-                     orange(), Align::Right);
+                     accent(), Align::Right);
             }
             if (c.mt > 1.8f) {
-                text(c.r, c.a, 240, 280, tr(f, "stat.rank"), orange());
+                text(c.r, c.a, 240, 280, tr(f, "stat.rank"), accent());
                 const int rank = rankIndex(f.campaign_.missionRankValue(p, t), f.report_.cheatUsed);
-                text(c.r, c.a, 560, 280, tr(f, "rank." + std::to_string(rank)), orange(), Align::Right);
+                text(c.r, c.a, 560, 280, tr(f, "rank." + std::to_string(rank)), accent(), Align::Right);
             }
         }
         if (newHeli) text(c.r, c.a, 400, 400, tr(f, "msg.new_heli"), Color{}, Align::Center);
         panel(c.r, c.a, 180, 160, 440, 200, c.menu.open, tr(f, "title.mission_complete"));
-        titleLogo(c.r, c.a, f.sq_->logoClock);
+        header(c, f);
     };
     return m;
 }
@@ -198,7 +199,7 @@ Menu SequelScreens::missionComplete(Frontend& f) {
 // Game complete
 // ---------------------------------------------------------------------------
 Menu SequelScreens::gameComplete(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     m.swallowBack = true;
     // Drawn from mt = 4 and usable only then (issue 240 item 7).
     m.addSequelButton(1, 400, 520, tr(f, "button.continue"), kCentre | itemflag::Disabled | itemflag::Hidden);

@@ -274,9 +274,12 @@ No; screenshots `menu_*.png`; Options, Screen 4:3 and back. Then the pilot with 
 Start Game, Start, mission 1 to 1800 frames under the pilot, pause, Quit, "Change game" (item
 60 of `AS3D_MENU`) back to the selector, the AirStrike 2 card, its Start Game, Next, the
 helicopter selection's Start, the start dialogue turned by taps, mission 1 to 1800 frames,
-pause, Quit, "Change game" again. At the end, with `run-as`:
-`files/as3d/profile.bin` is byte for byte what it was before AirStrike 2 ran,
-`files/as2/profile.bin` exists with the key `as2`, and `files/launcher.bin` exists. The launcher
+pause, Quit, "Change game" again; then the Gulf Thunder card (its own menus: Start Game, Next,
+the helicopter selection's Start, no dialogue at operation 1), mission 1 to 1800 frames,
+pause, Quit, "Change game". At the end, with `run-as`:
+`files/as3d/profile.bin` is byte for byte what it was before AirStrike 2 and Gulf Thunder ran,
+`files/as2/profile.bin` (key `as2`) is unchanged by Gulf Thunder, `files/gulf/profile.bin`
+exists with the key `gulf`, and `files/launcher.bin` exists. The launcher
 label must be "AirStrike". It fails on a `FATAL` marker, a Java exception or a native crash,
 and on timeouts. Screenshots and the logcat capture go to
 `$AS3D_DATA_ROOT/out/m8/` (gitignored; `AS3D_SMOKE_OUT` changes it). `adb shell input` has no

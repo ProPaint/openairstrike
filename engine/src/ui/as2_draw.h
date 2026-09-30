@@ -1,7 +1,7 @@
-// Drawing of the sequels' front end (docs/spec/as2/frontend.md 2.5, 2.9, 3.1): the colours,
-// the pieces of gfx\ui\interface.tga, the panel with its static-noise opening, the title logo,
-// the text button, and the widgets of a MenuSystem in the sequels' style. Internal to
-// engine/src/ui.
+// Drawing of the sequels' front end (docs/spec/as2/frontend.md 2.5, 2.9, 3.1; Gulf Thunder's
+// delta gulf/frontend.delta.md): the colours, the pieces of gfx\ui\interface.tga (Gulf Thunder:
+// interface_gulf.tga), the panel with its static-noise opening, the title logo or title bar, the
+// text button, and the widgets of a MenuSystem in the sequels' style. Internal to engine/src/ui.
 #pragma once
 
 #include <string_view>
@@ -17,24 +17,54 @@ void drawSequelItem(MenuDrawContext& c, MenuItem& it, bool focused);
 
 namespace as2 {
 
-// Colours of as2/frontend.md (conventions).
-inline Color green() { return packed(0xFF00B000u); }
-inline Color disabledGrey() { return grey(0x40 / 255.0f); }
-inline Color listGrey() { return grey(0x80 / 255.0f); }
-inline Color darkGreenBox() { return packed(0x80006000u); }
-inline Color greenOutline() { return packed(0x5000FF00u); }
-inline Color red() { return packed(0xFF0000FFu); }
-
-// Atlas pieces (as2/frontend.md 3.1, texel rectangles of interface.tga).
+// Atlas pieces (as2/frontend.md 3.1, texel rectangles of interface.tga; gulf/frontend.delta.md
+// 3.1 for interface_gulf.tga).
 struct Piece {
     float x, y, w, h;
 };
-constexpr Piece kButtonLeft{18, 79, 23, 30}, kButtonBody{41, 79, 40, 30}, kButtonRight{80, 79, 23, 30};
-constexpr Piece kRivetLow{0, 230, 26, 15}, kRivetHigh{0, 215, 26, 15};
-constexpr Piece kSliderBar{107, 89, 128, 11}, kSliderKnob{239, 87, 6, 15};
-constexpr Piece kArrowLeft{110, 113, 16, 40}, kArrowRight{130, 113, 16, 40};
-constexpr Piece kScrollUp{153, 113, 15, 15}, kScrollThumb{153, 130, 15, 6}, kScrollTrack{153, 138, 15, 15},
-                kScrollDown{153, 154, 15, 15};
+
+// The front end's per-game look: what AirStrike 2 and Gulf Thunder do differently in the shared
+// screens (gulf/frontend.delta.md): colours, atlas pieces, the text button. The panel and the
+// title bar differ in structure and have a branch each (panel, titleLogo / gulfTitleBar); the
+// positions of the screens that differ are tables in screens_as2_*.cpp keyed by `Skin::gulf`.
+struct Skin {
+    bool gulf;
+    const char* atlas; // the atlas's game path
+    // Colours, packed 0xAABBGGRR.
+    u32 ink;          // text
+    u32 accent;       // focus, titles, statistic lines
+    u32 disabled;     // a disabled item
+    u32 listDisabled; // the version line and the hints
+    u32 rowDisabled;  // a disabled list row
+    // The list's selected-row bar and its scroll boxes' tint.
+    float selBar[4];
+    u32 scrollTint, scrollHover;
+    // The text button (as2/frontend.md 2.5; gulf/frontend.delta.md 2.5).
+    float buttonMargin, buttonHeight;
+    float captionDx, captionDy; // caption centre: left + captionDx + W / 2, top + captionDy
+    bool rivets;
+    // Pieces.
+    Piece buttonLeft, buttonBody, buttonRight;
+    Piece sliderBar, sliderKnob, scrollUp, scrollThumb, scrollTrack, scrollDown;
+    float sliderKnobDx; // knob x = slider x + sliderKnobDx + position
+    Piece arrowLeft, arrowRight;
+};
+
+// The current look: set by the front end whose screens are being built and drawn (AirStrike 2's
+// until a Gulf Thunder front end says otherwise).
+const Skin& skin();
+void setGulfLook(bool gulf);
+inline bool gulfLook() { return skin().gulf; }
+
+// Colours of as2/frontend.md (conventions) in the current look.
+inline Color ink() { return packed(skin().ink); }
+inline Color accent() { return packed(skin().accent); }
+inline Color disabledGrey() { return packed(skin().disabled); }
+inline Color listGrey() { return packed(skin().listDisabled); }
+inline Color rowDisabled() { return packed(skin().rowDisabled); }
+inline Color darkGreenBox() { return packed(0x80006000u); }
+inline Color greenOutline() { return packed(0x5000FF00u); }
+inline Color red() { return packed(0xFF0000FFu); }
 
 // gfx\ui\interface.tga and gfx\ui\snow.tga (repeat wrapping), or null without data.
 const Texture2D* interfaceAtlas(const UiAssets& a);
@@ -52,7 +82,8 @@ void pic(Renderer2D& r, const Texture2D& t, float x, float y, Color c, Blend b);
 // The same stretched over (x, y, w, h).
 void picStretched(Renderer2D& r, const Texture2D& t, float x, float y, float w, float h, Color c, Blend b);
 
-// UI_DrawPanel(x, y, w, h, f) titled `title` ("" = none), as2/frontend.md 3.1.
+// UI_DrawPanel(x, y, w, h, f) titled `title` ("" = none), as2/frontend.md 3.1; in Gulf Thunder's
+// look gulf/frontend.delta.md 3.1.
 void panel(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h, float f, std::string_view title);
 // UI_DrawMenuHeader at logo clock T (as2/frontend.md 3.1).
 void titleLogo(Renderer2D& r, const UiAssets& a, float T);
@@ -65,8 +96,11 @@ struct TitleLogoPictures {
     const Texture2D *glow = nullptr, *two = nullptr, *logo = nullptr, *clouds = nullptr;
 };
 void titleLogoAt(Renderer2D& r, const TitleLogoPictures& p, float T, float cloudT, float ox, float oy, float k, float alpha);
+// Gulf Thunder's title bar (gulf/frontend.delta.md 3.1): the letterbox bars, the emblem tinted
+// `tint` (RGBA) at logo clock T, and with `scanLines` the scan-line texture over the middle band.
+void gulfTitleBar(Renderer2D& r, const UiAssets& a, float T, const float tint[4], bool scanLines);
 // A text button's frame, caption and rivets with its left edge at `left` and the frame's top
-// at `yDrawn`; W = the caption width part (as2/frontend.md 2.5).
+// at `yDrawn`; W = the caption width part (as2/frontend.md 2.5; gulf 2.5).
 void textButton(Renderer2D& r, const UiAssets& a, float left, float yDrawn, float W, std::string_view caption,
                 Color captionColor);
 

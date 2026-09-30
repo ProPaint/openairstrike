@@ -23,8 +23,8 @@ constexpr int kEditId = 2, kOkId = 1, kDelId = 60, kKeyBase = 200;
 void drawKey(MenuDrawContext& c, const MenuItem& it, bool focused) {
     const RectF& b = it.hit;
     c.r.rect(b.x, b.y, b.w, b.h, darkGreenBox(), Blend::Alpha);
-    c.r.outline(b.x, b.y, b.w, b.h, focused ? orange() : greenOutline(), Blend::Alpha);
-    text(c.r, c.a, b.x + b.w * 0.5f, b.y + std::floor((b.h - 15) * 0.5f), it.label, focused ? orange() : green(),
+    c.r.outline(b.x, b.y, b.w, b.h, focused ? accent() : greenOutline(), Blend::Alpha);
+    text(c.r, c.a, b.x + b.w * 0.5f, b.y + std::floor((b.h - 15) * 0.5f), it.label, focused ? accent() : ink(),
          Align::Center);
 }
 
@@ -34,15 +34,18 @@ void drawKey(MenuDrawContext& c, const MenuItem& it, bool focused) {
 // Main menu
 // ---------------------------------------------------------------------------
 Menu SequelScreens::mainMenu(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     m.swallowBack = true; // Esc and right click are swallowed (as2@0x42b890)
-    const struct { int id; const char* key; float y; } buttons[] = {
-        {1, "button.start_game", 230}, {2, "button.top_scores", 275}, {3, "button.options", 320},
-        {4, "button.information", 365}, {7, "button.credits", 410}, {5, "button.quit", 455},
+    const Layout& lay = layout();
+    const struct { int id; const char* key; } buttons[] = {
+        {1, "button.start_game"}, {2, "button.top_scores"}, {3, "button.options"},
+        {4, "button.information"}, {7, "button.credits"}, {5, "button.quit"},
     };
-    for (const auto& b : buttons) m.addSequelButton(b.id, 400, b.y, tr(f, b.key), kCentre, 200);
-    // Ours (docs/spec/issues/163): with more than one game, a button in the free band below.
-    if (f.content_.changeGame) m.addSequelButton(kChangeGameItem, 400, 510, tr(f, "button.change_game"), kCentre, 200);
+    for (int k = 0; k < 6; k++) m.addSequelButton(buttons[k].id, 400, lay.mainY[k], tr(f, buttons[k].key), kCentre, lay.mainMinW);
+    // Ours (docs/spec/issues/163): with more than one game, a button in the free band below (Gulf
+    // Thunder: in the lower letterbox bar, the band above it is taken by the six buttons).
+    if (f.content_.changeGame)
+        m.addSequelButton(kChangeGameItem, 400, gulfLook() ? 552 : 510, tr(f, "button.change_game"), kCentre, lay.mainMinW);
     m.onItem = [&f](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
         switch (it.id) {
@@ -60,14 +63,15 @@ Menu SequelScreens::mainMenu(Frontend& f) {
         }
     };
     m.drawBack = [&f](MenuDrawContext& c) {
-        // Settings.xml <Logotypes> (the base's rules), then the title logo.
+        // Settings.xml <Logotypes> (the base's rules), then the title logo or bar.
         for (const LogoImage& l : f.content_.logos) {
+            if (gulfLook()) break; // the title bar covers them (Gulf Thunder's own has none)
             const Texture2D* t = c.a.texture(l.path);
             if (!t) continue;
             const float w = static_cast<float>(t->width()), h = static_cast<float>(t->height());
             c.r.pic(l.invertX ? 800 - l.x - w : l.x, l.invertY ? 600 - l.y - h : l.y, *t, Color{}, Blend::Alpha);
         }
-        titleLogo(c.r, c.a, f.sq_->logoClock);
+        header(c, f);
     };
     m.drawFront = [&f](MenuDrawContext& c) {
         if (!f.content_.version.empty()) text(c.r, c.a, 20, 580, f.content_.version, listGrey());
@@ -80,7 +84,7 @@ Menu SequelScreens::mainMenu(Frontend& f) {
 // Exit confirmation
 // ---------------------------------------------------------------------------
 Menu SequelScreens::exit(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     // YES and NO are plain text labels, the only items that play the hover sound.
     m.addText(1, 300, 330, tr(f, "button.yes"), kCentre);
     m.addText(2, 500, 330, tr(f, "button.no"), kCentre);
@@ -96,9 +100,9 @@ Menu SequelScreens::exit(Frontend& f) {
         }
     };
     m.drawFront = [&f](MenuDrawContext& c) {
-        if (c.menu.open >= 1) text(c.r, c.a, 400, 250, tr(f, "label.exit"), green(), Align::Center);
+        if (c.menu.open >= 1) text(c.r, c.a, 400, 250, tr(f, "label.exit"), ink(), Align::Center);
         panel(c.r, c.a, 210, 230, 380, 160, c.menu.open, tr(f, "title.exit"));
-        titleLogo(c.r, c.a, f.sq_->logoClock);
+        header(c, f);
     };
     return m;
 }
@@ -107,7 +111,7 @@ Menu SequelScreens::exit(Frontend& f) {
 // Top Scores and name entry
 // ---------------------------------------------------------------------------
 Menu SequelScreens::topScores(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     m.addSequelButton(1, 30, 520, tr(f, "button.back"));
     m.onItem = [&f](Menu&, MenuItem& it, int ev) {
         if (ev == kActivate && it.id == 1) f.menus_.pop();
@@ -115,27 +119,27 @@ Menu SequelScreens::topScores(Frontend& f) {
     m.drawFront = [&f](MenuDrawContext& c) {
         if (c.menu.open >= 1) {
             c.r.rect(130, 180, 540, 20, darkGreenBox(), Blend::Alpha);
-            text(c.r, c.a, 138, 182, tr(f, "scores.number"), orange());
-            text(c.r, c.a, 168, 182, tr(f, "scores.name"), orange());
-            text(c.r, c.a, 393, 182, tr(f, "scores.score"), orange());
-            text(c.r, c.a, 533, 182, tr(f, "scores.rank"), orange());
+            text(c.r, c.a, 138, 182, tr(f, "scores.number"), accent());
+            text(c.r, c.a, 168, 182, tr(f, "scores.name"), accent());
+            text(c.r, c.a, 393, 182, tr(f, "scores.score"), accent());
+            text(c.r, c.a, 533, 182, tr(f, "scores.rank"), accent());
             for (int i = 0; i < kHighScoreCount; i++) {
                 const HighScore& h = f.profile_.progress.scores[i];
                 const float y = 204 + 18.0f * static_cast<float>(i);
-                text(c.r, c.a, 138, y, std::to_string(i + 1), orange());
-                text(c.r, c.a, 168, y, h.name, green());
-                drawNumber(c.r, c.a.uiFont(), 393, y, std::to_string(h.score), 1.0f, green());
-                text(c.r, c.a, 533, y, tr(f, "rank." + std::to_string(h.rank)), green());
+                text(c.r, c.a, 138, y, std::to_string(i + 1), accent());
+                text(c.r, c.a, 168, y, h.name, ink());
+                drawNumber(c.r, c.a.uiFont(), 393, y, std::to_string(h.score), 1.0f, ink());
+                text(c.r, c.a, 533, y, tr(f, "rank." + std::to_string(h.rank)), ink());
             }
         }
         panel(c.r, c.a, 120, 170, 560, 318, c.menu.open, tr(f, "title.top_scores"));
-        titleLogo(c.r, c.a, f.sq_->logoClock);
+        header(c, f);
     };
     return m;
 }
 
 Menu SequelScreens::nameEntry(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     m.swallowBack = true; // no way to skip; an empty name is accepted
     m.addEdit(kEditId, 275, 285, 250).flags |= itemflag::NoHoverSound;
     m.addSequelButton(kOkId, 400, 520, tr(f, "button.ok"), kCentre);
@@ -145,7 +149,7 @@ Menu SequelScreens::nameEntry(Frontend& f) {
             for (int col = 0; col < 10; col++) {
                 const char ch = kKeyRows[row][col];
                 const RectF hit{kKeyX + (kKeyW + kKeyGap) * static_cast<float>(col),
-                                kKeyY + (kKeyH + kKeyGap) * static_cast<float>(row), kKeyW, kKeyH};
+                                (gulfLook() ? kKeyY + 10 : kKeyY) + (kKeyH + kKeyGap) * static_cast<float>(row), kKeyW, kKeyH};
                 MenuItem& k = m.addCustom(kKeyBase + ch, hit, drawKey);
                 k.label = ch == ' ' ? tr(f, "touch.space") : std::string(1, ch);
                 k.flags |= itemflag::NoHoverSound;
@@ -190,34 +194,10 @@ Menu SequelScreens::nameEntry(Frontend& f) {
 // ---------------------------------------------------------------------------
 // Information (8 pages) and Credits
 // ---------------------------------------------------------------------------
-namespace {
-
-constexpr int kInfoPages = 8;
-
-struct InfoIcon {
-    int kind; // 0 weapon, 1 missile, 2 power-up
-    int slot;
-    float y;
-};
-
-// The icon of each paragraph, placed by the page builders (as2/frontend.md 3.14).
-std::vector<InfoIcon> infoIcons(int page) {
-    switch (page) {
-        case 2: return {{0, 0, 194}, {0, 1, 286}, {0, 2, 358}, {0, 3, 430}};
-        case 3: return {{0, 4, 194}, {0, 5, 295}, {0, 6, 365}};
-        case 4: return {{0, 7, 194}, {0, 8, 260}};
-        case 5: return {{1, 0, 194}, {1, 1, 260}, {1, 2, 328}, {1, 3, 418}};
-        case 6: return {{1, 4, 194}};
-        case 7: return {{2, 4, 194}, {2, 1, 256}, {2, 2, 310}, {2, 0, 378}};
-        case 8: return {{2, 5, 194}, {2, 8, 256}};
-        default: return {};
-    }
-}
-
-} // namespace
-
 Menu SequelScreens::information(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
+    const Layout& lay = layout();
+    const int kInfoPages = lay.infoPages;
     f.infoPage_ = std::clamp(f.infoPage_, 0, kInfoPages - 1);
     std::vector<std::string> pages;
     for (int n = 1; n <= kInfoPages; n++) {
@@ -231,7 +211,7 @@ Menu SequelScreens::information(Frontend& f) {
         if (it.id == 1) f.menus_.pop();
         else if (it.id == 10) f.infoPage_ = it.index;
     };
-    m.onKey = [&f](Menu& menu, int code) {
+    m.onKey = [&f, kInfoPages](Menu& menu, int code) {
         int dir = 0;
         if (code == keys::PageUp || code == keys::Left) dir = -1;
         else if (code == keys::PageDown || code == keys::Right) dir = 1;
@@ -241,23 +221,25 @@ Menu SequelScreens::information(Frontend& f) {
         return true;
     };
     m.drawBack = [&f](MenuDrawContext& c) {
+        if (gulfLook()) header(c, f); // AirStrike 2's Information has no title logo
         if (c.menu.open < 1) return;
         const Color white{1, 1, 1, 1};
         if (!f.texts_.installed()) {
             text(c.r, c.a, 60, 120, tr(f, "info.missing.title"), white);
-            text(c.r, c.a, 60, 184, tr(f, "info.missing.0"), orange(), Align::Left, true);
-            text(c.r, c.a, 60, 202, tr(f, "info.missing.1"), orange(), Align::Left, true);
+            text(c.r, c.a, 60, 184, tr(f, "info.missing.0"), accent(), Align::Left, true);
+            text(c.r, c.a, 60, 202, tr(f, "info.missing.1"), accent(), Align::Left, true);
             const std::string game = f.content_.game ? std::string(f.content_.game->title) + " v" + f.content_.game->version : "";
-            text(c.r, c.a, 60, 220, game + tr(f, "info.missing.2s"), orange(), Align::Left, true);
+            text(c.r, c.a, 60, 220, game + tr(f, "info.missing.2s"), accent(), Align::Left, true);
         } else {
-            const int page = f.infoPage_ + 1;
-            const std::vector<InfoIcon> icons = infoIcons(page);
+            const Layout& lay = layout();
+            const int page = lay.infoKey[std::clamp(f.infoPage_, 0, lay.infoPages - 1)];
+            const std::vector<InfoIcon> icons = lay.infoIcons(page);
             text(c.r, c.a, 60, 120, f.texts_.get("info." + std::to_string(page) + ".title"), white);
             const float x = icons.empty() ? 60.0f : 140.0f;
             for (int line = 0; line < 32; line++) {
                 const std::string k = "info." + std::to_string(page) + "." + std::to_string(line);
                 if (!f.texts_.loaded(k)) continue;
-                text(c.r, c.a, x, 184 + 18.0f * static_cast<float>(line), f.texts_.get(k), orange(), Align::Left, !icons.empty());
+                text(c.r, c.a, x, 184 + 18.0f * static_cast<float>(line), f.texts_.get(k), accent(), Align::Left, !icons.empty());
             }
             // One icon per paragraph, with the HUD's UVs and blend (as2/frontend.md 4.4).
             const HudLayout& L = hudLayout(f.content_.game ? f.content_.game->id : GameId::AirStrike2);
@@ -280,24 +262,24 @@ Menu SequelScreens::information(Frontend& f) {
 }
 
 Menu SequelScreens::credits(Frontend& f) {
-    Menu m;
+    Menu m = newMenu();
     m.addSequelButton(1, 50, 520, tr(f, "button.back_wide"));
     m.onItem = [&f](Menu&, MenuItem& it, int ev) {
         if (ev == kActivate && it.id == 1) f.menus_.pop();
     };
     m.drawBack = [&f](MenuDrawContext& c) {
-        titleLogo(c.r, c.a, f.sq_->logoClock);
+        header(c, f);
         if (c.menu.open < 1) return;
         bool any = false;
-        for (int line = 0; line <= 20; line++) {
+        for (int line = 0; line <= (gulfLook() ? 24 : 20); line++) {
             const std::string k = "credits." + std::to_string(line);
             if (!f.texts_.loaded(k)) continue;
             any = true;
-            text(c.r, c.a, 400, 120 + 18.0f * static_cast<float>(line), f.texts_.get(k), orange(), Align::Center, true);
+            text(c.r, c.a, 400, 120 + 18.0f * static_cast<float>(line), f.texts_.get(k), accent(), Align::Center, true);
         }
         if (!any) {
-            text(c.r, c.a, 400, 184, tr(f, "info.missing.0"), orange(), Align::Center, true);
-            text(c.r, c.a, 400, 202, tr(f, "info.missing.1"), orange(), Align::Center, true);
+            text(c.r, c.a, 400, 184, tr(f, "info.missing.0"), accent(), Align::Center, true);
+            text(c.r, c.a, 400, 202, tr(f, "info.missing.1"), accent(), Align::Center, true);
         }
     };
     return m;

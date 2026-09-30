@@ -191,7 +191,7 @@ struct SequelData {
 
 TEST_CASE("plain front end: the sequels select it, the first game does not") {
     CHECK(gameProfile(GameId::AirStrike2).frontend == FrontendStyle::SequelMenus); // its own menus now (package E)
-    CHECK(gameProfile(GameId::GulfThunder).frontend == FrontendStyle::PlainList);
+    CHECK(gameProfile(GameId::GulfThunder).frontend == FrontendStyle::SequelMenus); // its own menus now (package F4)
     CHECK(gameProfile(GameId::AirStrike3D).frontend == FrontendStyle::V170Menus);
     Rig rig(GameId::AirStrike2);
     CHECK(rig.fe.plain());

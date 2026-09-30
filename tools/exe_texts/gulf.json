@@ -39,12 +39,12 @@
   },
   {
    "key": "title.top_scores",
-   "address": "0x0048cda8",
+   "address": "0x0048cbd0",
    "kind": "text"
   },
   {
    "key": "title.enter_name",
-   "address": "0x0048cbf4",
+   "address": "0x0048cbf0",
    "kind": "text"
   },
   {
@@ -54,7 +54,7 @@
   },
   {
    "key": "title.hint",
-   "address": "0x0048b918",
+   "address": "0x0048cd70",
    "kind": "text"
   },
   {
@@ -102,25 +102,25 @@
   },
   {
    "key": "difficulty.3",
-   "address": "0x0048cd30",
+   "address": "0x0048cd34",
    "kind": "text",
    "note": "pointer table 0x49e6d8"
   },
   {
    "key": "difficulty.4",
-   "address": "0x0048cd24",
+   "address": "0x0048cd28",
    "kind": "text",
    "note": "pointer table 0x49e6d8"
   },
   {
    "key": "mode.0",
-   "address": "0x0048cd14",
+   "address": "0x0048cd18",
    "kind": "text",
    "note": "first value of the game mode spinner"
   },
   {
    "key": "mode.1",
-   "address": "0x0048cd08",
+   "address": "0x0048cd0c",
    "kind": "text",
    "note": "second value (two players)"
   },
@@ -205,6 +205,12 @@
    "kind": "text"
   },
   {
+   "key": "button.continue.heli",
+   "address": "0x0048be28",
+   "kind": "text",
+   "note": "the helicopter selection's caption (one space each side); button.continue is the Game Complete one"
+  },
+  {
    "key": "button.accept",
    "address": "0x0048be1c",
    "kind": "text"
@@ -213,6 +219,12 @@
    "key": "button.restart",
    "address": "0x0048b8dc",
    "kind": "text"
+  },
+  {
+   "key": "button.restart.gameover",
+   "address": "0x0048bd74",
+   "kind": "text",
+   "note": "the Game Over caption (two spaces each side); button.restart is the Mission Complete one"
   },
   {
    "key": "button.resume",
@@ -236,8 +248,14 @@
   },
   {
    "key": "button.ok",
-   "address": "0x0048cc04",
+   "address": "0x0048cc00",
    "kind": "text"
+  },
+  {
+   "key": "button.hint_ok",
+   "address": "0x0048cd80",
+   "kind": "text",
+   "note": "the tutorial box's Ok, next to \"Tutorial Tip\" (GUESS: the box was never seen on screen); button.ok is the name entry's"
   },
   {
    "key": "stat.enemies",
@@ -315,25 +333,7 @@
   },
   {
    "key": "heli.2",
-   "address": "0x0048bd98",
-   "kind": "text",
-   "note": "pointer table 0x49cbec, helicopter table order"
-  },
-  {
-   "key": "heli.3",
-   "address": "0x0048bd88",
-   "kind": "text",
-   "note": "pointer table 0x49cbec, helicopter table order"
-  },
-  {
-   "key": "heli.4",
-   "address": "0x0048bd80",
-   "kind": "text",
-   "note": "pointer table 0x49cbec, helicopter table order"
-  },
-  {
-   "key": "heli.5",
-   "address": "0x0048bd74",
+   "address": "0x0048bda4",
    "kind": "text",
    "note": "pointer table 0x49cbec, helicopter table order"
   },
@@ -495,61 +495,61 @@
    "key": "ctl.row.0",
    "address": "0x0048b664",
    "kind": "text",
-   "note": "row table 0x49d080, stride 20"
+   "note": "the action name; the row table 0x49d080 has \"-\" separator records between the groups"
   },
   {
    "key": "ctl.row.1",
    "address": "0x0048b654",
    "kind": "text",
-   "note": "row table 0x49d080, stride 20"
+   "note": "the action name; the row table 0x49d080 has \"-\" separator records between the groups"
   },
   {
    "key": "ctl.row.2",
-   "address": "0x0048b650",
+   "address": "0x0048b640",
    "kind": "text",
-   "note": "row table 0x49d080, stride 20"
+   "note": "the action name; the row table 0x49d080 has \"-\" separator records between the groups"
   },
   {
    "key": "ctl.row.3",
-   "address": "0x0048b640",
+   "address": "0x0048b630",
    "kind": "text",
-   "note": "row table 0x49d080, stride 20"
+   "note": "the action name; the row table 0x49d080 has \"-\" separator records between the groups"
   },
   {
    "key": "ctl.row.4",
-   "address": "0x0048b630",
+   "address": "0x0048b624",
    "kind": "text",
-   "note": "row table 0x49d080, stride 20"
+   "note": "the action name; the row table 0x49d080 has \"-\" separator records between the groups"
   },
   {
    "key": "ctl.row.5",
-   "address": "0x0048b650",
+   "address": "0x0048b618",
    "kind": "text",
-   "note": "row table 0x49d080, stride 20"
+   "note": "the action name; the row table 0x49d080 has \"-\" separator records between the groups"
   },
   {
    "key": "ctl.row.6",
-   "address": "0x0048b624",
+   "address": "0x0048b608",
    "kind": "text",
-   "note": "row table 0x49d080, stride 20"
+   "note": "the action name; the row table 0x49d080 has \"-\" separator records between the groups"
   },
   {
    "key": "ctl.row.7",
-   "address": "0x0048b618",
+   "address": "0x0048b5f8",
    "kind": "text",
-   "note": "row table 0x49d080, stride 20"
+   "note": "the action name; the row table 0x49d080 has \"-\" separator records between the groups"
   },
   {
    "key": "ctl.row.8",
-   "address": "0x0048b650",
+   "address": "0x0048b5ec",
    "kind": "text",
-   "note": "row table 0x49d080, stride 20"
+   "note": "the action name; the row table 0x49d080 has \"-\" separator records between the groups"
   },
   {
    "key": "ctl.row.9",
-   "address": "0x0048b608",
+   "address": "0x0048b5e0",
    "kind": "text",
-   "note": "row table 0x49d080, stride 20"
+   "note": "the action name; the row table 0x49d080 has \"-\" separator records between the groups"
   },
   {
    "key": "info.page",
@@ -580,36 +580,30 @@
   },
   {
    "key": "info.pages.3",
-   "address": "0x0048be78",
-   "kind": "text",
-   "note": "pointer table 0x49e684"
-  },
-  {
-   "key": "info.pages.4",
    "address": "0x0048be70",
    "kind": "text",
    "note": "pointer table 0x49e684"
   },
   {
-   "key": "info.pages.5",
+   "key": "info.pages.4",
    "address": "0x0048be68",
    "kind": "text",
    "note": "pointer table 0x49e684"
   },
   {
-   "key": "info.pages.6",
+   "key": "info.pages.5",
    "address": "0x0048be60",
    "kind": "text",
    "note": "pointer table 0x49e684"
   },
   {
-   "key": "info.pages.7",
+   "key": "info.pages.6",
    "address": "0x0048be58",
    "kind": "text",
    "note": "pointer table 0x49e684"
   },
   {
-   "key": "info.pages.8",
+   "key": "info.pages.7",
    "address": "0x0048be50",
    "kind": "text",
    "note": "pointer table 0x49e684"
@@ -797,11 +791,6 @@
   {
    "key": "info.3.12",
    "address": "0x0048c478",
-   "kind": "text"
-  },
-  {
-   "key": "info.4.0",
-   "address": "0x0048c4ac",
    "kind": "text"
   },
   {
@@ -1001,67 +990,77 @@
   },
   {
    "key": "credits.3",
-   "address": "0x0048b728",
+   "address": "0x0048b73c",
    "kind": "text"
   },
   {
    "key": "credits.4",
-   "address": "0x0048b734",
-   "kind": "text"
-  },
-  {
-   "key": "credits.6",
    "address": "0x0048b748",
    "kind": "text"
   },
   {
-   "key": "credits.7",
+   "key": "credits.5",
    "address": "0x0048b758",
    "kind": "text"
   },
   {
-   "key": "credits.8",
+   "key": "credits.7",
    "address": "0x0048b768",
    "kind": "text"
   },
   {
-   "key": "credits.10",
+   "key": "credits.8",
    "address": "0x0048b784",
    "kind": "text"
   },
   {
-   "key": "credits.11",
+   "key": "credits.9",
    "address": "0x0048b794",
    "kind": "text"
   },
   {
-   "key": "credits.13",
+   "key": "credits.11",
    "address": "0x0048b7a8",
    "kind": "text"
   },
   {
-   "key": "credits.14",
+   "key": "credits.12",
    "address": "0x0048b7bc",
    "kind": "text"
   },
   {
-   "key": "credits.16",
+   "key": "credits.14",
    "address": "0x0048b7cc",
    "kind": "text"
   },
   {
-   "key": "credits.17",
+   "key": "credits.15",
    "address": "0x0048b7dc",
    "kind": "text"
   },
   {
-   "key": "credits.19",
-   "address": "0x0048b7f8",
+   "key": "credits.16",
+   "address": "0x0048b7f0",
    "kind": "text"
   },
   {
-   "key": "credits.20",
+   "key": "credits.18",
    "address": "0x0048b804",
+   "kind": "text"
+  },
+  {
+   "key": "credits.19",
+   "address": "0x0048b80c",
+   "kind": "text"
+  },
+  {
+   "key": "credits.21",
+   "address": "0x0048b828",
+   "kind": "text"
+  },
+  {
+   "key": "credits.22",
+   "address": "0x0048b838",
    "kind": "text"
   },
   {
@@ -1211,10 +1210,15 @@
   }
  ],
  "removed": [
-  "info.4.title",
+  "heli.3",
+  "heli.4",
+  "heli.5",
+  "info.4.0",
   "info.4.1",
   "info.4.2",
   "info.4.4",
-  "info.4.5"
+  "info.4.5",
+  "info.4.title",
+  "info.pages.8"
  ]
 }
