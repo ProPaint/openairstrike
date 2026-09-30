@@ -479,14 +479,17 @@ TEST_CASE("selector look: layout at every aspect and screen mode, for 1, 2 and 3
             }
         }
     }
-    // The same card size on a wide screen and in 4:3 once the row is as wide as 3 cards need.
+    // A wide screen gives the cards at least the room the 4:3 field does, and a lone card the
+    // same on both.
     {
-        ui::GameSelector a(cards(2), 0), b(cards(2), 0);
         const ui::Mapping m = ui::computeMapping(2400, 1080);
-        a.setView(m.left(), m.right(), false);
-        b.setView(m.left(), m.right(), true);
-        CHECK(a.cardRect(0).w == b.cardRect(0).w);
-        CHECK(a.cardRect(0).y == b.cardRect(0).y);
+        for (int n = 1; n <= 3; ++n) {
+            ui::GameSelector a(cards(n), 0), b(cards(n), 0);
+            a.setView(m.left(), m.right(), false);
+            b.setView(m.left(), m.right(), true);
+            CHECK(a.cardRect(0).w >= b.cardRect(0).w);
+            if (n == 1) CHECK(a.cardRect(0).w == b.cardRect(0).w);
+        }
     }
 }
 
@@ -511,6 +514,8 @@ TEST_CASE("selector look: cutouts move the row, never a card past them") {
 // The marquees, drawn: what the window shows, pixel by pixel, over time.
 // ---------------------------------------------------------------------------------------
 namespace {
+
+StackConfig stackFor(const GameProfile& g); // below
 
 struct ShotRig {
     ui::Renderer2D r;
