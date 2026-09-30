@@ -59,6 +59,7 @@ struct IntroPage {
     bool divoGames = true;   // the built-in DivoGames page, else an image page
     std::string image;       // game path
     Color back{0, 0, 0, 1};  // BackColor
+    int comic = 0;           // the sequels: comic page 1..4 appended after the logo pages (as2/frontend.md 3.2)
 };
 
 struct LogoImage {
@@ -162,6 +163,19 @@ struct MissionReport {
     float checkpointRank[2] = {0.0f, 0.0f};
 };
 
+// A 3D view of one object definition in a viewport of the virtual screen, for the sequels'
+// helicopter selection (as2/frontend.md 3.18): camera at the origin looking down -z with y up
+// (the banner's convention), the object and its attachments at `origin` with the entity
+// angles `angles` (degrees, fields 14..16), depth cleared inside the viewport first.
+struct ModelView {
+    std::string object;   // definition name (objects\*.obj)
+    RectF viewport;       // virtual 800x600 pixels
+    float fovY = 60.0f;
+    float nearPlane = 1.0f, farPlane = 1000.0f;
+    float origin[3] = {0.0f, 0.0f, -100.0f};
+    float angles[3] = {0.0f, 0.0f, 0.0f};
+};
+
 class GameHost {
 public:
     virtual ~GameHost() = default;
@@ -189,6 +203,12 @@ public:
     // Ours (docs/spec/issues/163): the main menu's "Change game" (FrontendContent::changeGame);
     // the profile is saved first. The host leaves this game for the game selector.
     virtual void changeGame() {}
+    // The sequels. Draws `view` into the current frame (between drawUnder and drawOver, the
+    // 2D list flushed: see Frontend::drawModelViews). Hosts that draw nothing ignore it.
+    virtual void drawModel(const ModelView& view) {}
+    // Starts a music module ("music\\track02.mo3", the intro comic) or, with "", stops the
+    // music and the sounds (after the comic).
+    virtual void playMusic(const std::string& path) {}
 };
 
 // Id and place of the "Change game" entry of the main menus (docs/spec/issues/163). The first
@@ -203,13 +223,24 @@ constexpr RectF kChangeGameRect{310, 440, 180, 32};
 enum class Screen {
     MainMenu, Exit, StartGame, TopScores, NameEntry, Options, Controls, Information,
     InGame, Hint, GameOver, MissionComplete, GameComplete,
+    // The sequels' own (as2/frontend.md 1.2): helicopter selection (S3b), credits (S8b),
+    // portrait dialogue (S9b, S13b).
+    HeliSelect, Credits, Dialogue,
 };
 const char* screenName(Screen s);
 bool screenFromName(std::string_view name, Screen& out);
+// The first game's screens.
 constexpr Screen kAllScreens[] = {
     Screen::MainMenu, Screen::Exit, Screen::StartGame, Screen::TopScores, Screen::NameEntry,
     Screen::Options, Screen::Controls, Screen::Information, Screen::InGame, Screen::Hint,
     Screen::GameOver, Screen::MissionComplete, Screen::GameComplete,
+};
+// The sequels' screens (FrontendStyle::SequelMenus).
+constexpr Screen kSequelScreens[] = {
+    Screen::MainMenu, Screen::Exit, Screen::StartGame, Screen::HeliSelect, Screen::TopScores,
+    Screen::NameEntry, Screen::Options, Screen::Controls, Screen::Information, Screen::Credits,
+    Screen::InGame, Screen::Hint, Screen::Dialogue, Screen::GameOver, Screen::MissionComplete,
+    Screen::GameComplete,
 };
 
 enum class FrontendState { Boot, Intro, Attract, Playing };
@@ -240,6 +271,13 @@ public:
     void drawOver(Renderer2D& r, const UiAssets& a);
     void draw(Renderer2D& r, const UiAssets& a) { drawUnder(r, a); drawOver(r, a); }
     bool bannerVisible() const;
+    // The sequels' 3D views (the helicopter selection's preview): when true, the host flushes
+    // the 2D list after drawUnder, calls drawModelViews (GameHost::drawModel for each view),
+    // and starts a new 2D list for drawOver.
+    bool modelViewVisible() const;
+    void drawModelViews();
+    // The view drawModelViews would ask for, false when none (for tests and the viewer).
+    bool modelView(ModelView& out) const;
 
     // Game -> front end.
     void onEndLevel(const MissionReport& report); // EndLevel(): unlocks, then S15 or S16
@@ -268,7 +306,11 @@ public:
     Screen topScreen() const; // meaningful only while a menu is open
     // Sets the state the viewer needs to show a screen in context (`--state k=v`): mt, players,
     // mission, unlock (all), page, capture (row), name, hint, kills, stars, score, enemies,
-    // startotal, maxscore, cheat. Returns false for an unknown key.
+    // startotal, maxscore, cheat. The sequels also: dialogue (start or end of `mission`: opens
+    // it), comic (intro page 1..4 at `t`), t (seconds into it), accept (helicopter selection
+    // opened from Mission Complete), checkpoint (the saved checkpoint mission, 1-based),
+    // typed (dialogue: characters typed), dpage (dialogue page). Returns false for an
+    // unknown key.
     bool debugSet(std::string_view key, std::string_view value);
     void setState(FrontendState s) { state_ = s; }
 
@@ -325,8 +367,15 @@ public:
     // True for a game whose front end is FrontendStyle::PlainList: the plain screens, drawn
     // with our own rectangles and text and none of the first game's menu pictures.
     bool plain() const { return content_.game && content_.game->frontend == FrontendStyle::PlainList; }
+    // True for a FrontendStyle::SequelMenus game: the sequels' own menus, comics and
+    // dialogues (docs/spec/as2/frontend.md; engine/src/ui/screens_as2_*.cpp, as2_*.cpp).
+    bool sequel() const { return content_.game && content_.game->frontend == FrontendStyle::SequelMenus; }
 
 private:
+    friend struct SequelScreens; // the sequels' screens and flow (engine/src/ui/as2_screens.h)
+    struct SequelState;
+    std::unique_ptr<SequelState> sq_;
+
     const GameRules& rules() const { return content_.game ? content_.game->rules : defaultGameRules(); }
 
     GameHost& host_;

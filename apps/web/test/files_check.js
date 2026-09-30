@@ -80,7 +80,7 @@ const fileLike = (p) => {
     if (fs.existsSync(exe)) {
       const bytes = new Uint8Array(fs.readFileSync(exe));
       const r = F.textsFromExe(bytes, crypto.createHash('sha256').update(bytes).digest('hex'), games);
-      if (key === 'as3d') {
+      if (key === 'as3d' || key === 'as2') {
         check(r.game === key && r.text !== null, `${key}: executable recognised with a text table`);
         if (fs.existsSync(texts)) {
           check(r.text === fs.readFileSync(texts, 'utf8'), `${key}: texts from ${g.exe} equal tools/extract_exe_texts.py output`);

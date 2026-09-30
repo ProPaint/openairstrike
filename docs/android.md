@@ -7,7 +7,10 @@ plays it, and each game's main menu has "Change game" to come back without resta
 app. AirStrike 3D runs its original front end in touch mode (intro pages, main menu over the
 attract level, Start Game, the in-game menu, Mission Complete, Game Over, Top Scores, Options,
 Information; `docs/spec/frontend.md`, touch additions in issue 090, integration choices in
-issue 130), AirStrike 2 our plain front end (issue as2/260). With the `level` or `bot` extra
+issue 130), AirStrike 2 its own menus (intro comic, text-button menus, helicopter selection,
+portrait dialogues, the campaign's "Continue"; `docs/spec/as2/frontend.md`, issue as2/300: in
+touch mode a small Skip button on the comic, taps turn the dialogues' pages, the pause control
+opens its in-game menu). With the `level` or `bot` extra
 it starts straight into a mission and moves on to the next one by itself, like
 `as3d_game --level N` on desktop.
 
@@ -266,8 +269,9 @@ button (in-game menu), Resume, pause again, Quit to the main menu, Back (exit co
 No; screenshots `menu_*.png`; Options, Screen 4:3 and back. Then the pilot with the menus
 (`bot`, `menus`): the selector with AirStrike 3D preselected (the last choice), AirStrike 3D's
 Start Game, Start, mission 1 to 1800 frames under the pilot, pause, Quit, "Change game" (item
-60 of `AS3D_MENU`) back to the selector, the AirStrike 2 card, its Start Game, Start, mission 1
-to 1800 frames, pause, Quit, "Change game" again. At the end, with `run-as`:
+60 of `AS3D_MENU`) back to the selector, the AirStrike 2 card, its Start Game, Next, the
+helicopter selection's Start, the start dialogue turned by taps, mission 1 to 1800 frames,
+pause, Quit, "Change game" again. At the end, with `run-as`:
 `files/as3d/profile.bin` is byte for byte what it was before AirStrike 2 ran,
 `files/as2/profile.bin` exists with the key `as2`, and `files/launcher.bin` exists. The launcher
 label must be "AirStrike". It fails on a `FATAL` marker, a Java exception or a native crash,

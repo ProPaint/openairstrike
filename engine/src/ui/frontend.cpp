@@ -5,21 +5,16 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "as2_screens.h"
 #include "as3d/frontend.h"
 
 namespace as3d::ui {
 
-struct Frontend::IntroRun {
-    std::vector<IntroPage> pages;
-    size_t index = 0;
-    float clock = -0.5f;
-    float speed = 1.0f;
-};
-
 namespace {
 
-const char* kScreenNames[] = {"main", "exit", "start", "scores", "name", "options", "controls", "info",
-                              "ingame", "hint", "gameover", "complete", "gamecomplete"};
+const char* kScreenNames[] = {"main",     "exit",     "start",        "scores", "name",    "options",
+                              "controls", "info",     "ingame",       "hint",   "gameover", "complete",
+                              "gamecomplete", "heli", "credits", "dialogue"};
 
 // Touch mode: the button that stands for Esc during play (docs/spec/issues/090).
 constexpr RectF kTouchMenuButton{360, 6, 80, 22};
@@ -29,6 +24,8 @@ constexpr RectF kTouchMenuButton{360, 6, 80, 22};
 struct LoadingState {
     bool plain = false;
     std::string title, mission;
+    bool sequel = false;  // the sequels' comic loading screen (as2/frontend.md 3.16)
+    int missionIndex = 0; // 0-based, chooses the comic
 };
 LoadingState& loadingState() {
     static LoadingState s;
@@ -40,7 +37,7 @@ LoadingState& loadingState() {
 const char* screenName(Screen s) { return kScreenNames[static_cast<int>(s)]; }
 
 bool screenFromName(std::string_view name, Screen& out) {
-    for (Screen s : kAllScreens)
+    for (Screen s : kSequelScreens)
         if (name == screenName(s)) { out = s; return true; }
     return false;
 }
@@ -58,10 +55,16 @@ Frontend::Frontend(GameHost& host, Profile& profile, FrontendContent content, Te
         loadingState().plain = true;
         loadingState().title = content_.game->title;
     }
+    if (sequel()) {
+        sq_ = std::make_unique<SequelState>();
+        menus_.sequel = true;
+        heli_[0] = heli_[1] = 0;
+        loadingState().sequel = true;
+    }
 }
 
 Frontend::~Frontend() {
-    if (plain()) loadingState() = LoadingState{};
+    if (plain() || sequel()) loadingState() = LoadingState{};
 }
 
 void Frontend::setTouchMode(bool on) {
@@ -74,14 +77,15 @@ void Frontend::refreshLocks() {
 }
 
 void Frontend::boot() {
-    heli_[0] = plain() ? 0 : 1;
+    heli_[0] = plain() || sequel() ? 0 : 1;
     heli_[1] = 0;
     heliAlternator_ = 0;
     paused_ = hudHidden_ = false;
     campaign_ = Campaign(rules());
-    if (profile_.settings.showLogo && !content_.intros.empty()) {
+    if (profile_.settings.showLogo && (!content_.intros.empty() || sequel())) {
         intro_ = std::make_unique<IntroRun>();
         intro_->pages = content_.intros;
+        if (sequel()) SequelScreens::boot(*this); // the four comic pages after the logo pages
         state_ = FrontendState::Intro;
         menus_.clear();
         return;
@@ -93,7 +97,9 @@ void Frontend::boot() {
 
 float Frontend::brightness() const { return state_ == FrontendState::Intro ? 0.5f : profile_.settings.brightness; }
 
-bool Frontend::bannerVisible() const { return !plain() && !menus_.empty() && topScreen() == Screen::MainMenu; }
+bool Frontend::bannerVisible() const {
+    return !plain() && !sequel() && !menus_.empty() && topScreen() == Screen::MainMenu;
+}
 
 bool Frontend::wantsTextInput() const {
     // Touch mode has its own keyboard on the name-entry screen.
@@ -108,7 +114,9 @@ Screen Frontend::topScreen() const {
 
 void Frontend::open(Screen s) {
     Menu m;
-    if (plain()) {
+    if (sequel()) {
+        m = SequelScreens::build(*this, s);
+    } else if (plain()) {
         switch (s) {
             case Screen::MainMenu: m = buildPlainMain(); break;
             case Screen::Exit: m = buildPlainExit(); break;
@@ -123,6 +131,7 @@ void Frontend::open(Screen s) {
             case Screen::NameEntry: m = buildNameEntry(); break;
             case Screen::Options: m = buildOptions(); break;
             case Screen::Controls: m = buildControls(); break;
+            default: return; // the sequels' own screens
         }
     } else switch (s) {
         case Screen::MainMenu: m = buildMainMenu(); break;
@@ -138,6 +147,7 @@ void Frontend::open(Screen s) {
         case Screen::GameOver: m = buildGameOver(); break;
         case Screen::MissionComplete: m = buildMissionComplete(); break;
         case Screen::GameComplete: m = buildGameComplete(); break;
+        default: return; // the sequels' own screens
     }
     m.tag = static_cast<int>(s);
     m.name = screenName(s);
@@ -191,6 +201,7 @@ void Frontend::startLevel(bool restart, bool carryUpgrades) {
         }
     }
     if (plain()) loadingState().mission = missionLabel(campaign_.mission);
+    loadingState().missionIndex = campaign_.mission;
     ms.difficulty = campaign_.difficulty;
     ms.players = campaign_.players;
     ms.restart = restart;
@@ -198,11 +209,14 @@ void Frontend::startLevel(bool restart, bool carryUpgrades) {
         ms.helicopter[i] = heli_[i];
         ms.lives[i] = campaign_.p[i].livesAtStart;
         ms.banked[i] = campaign_.p[i].banked;
+        // The sequels' checkpoint holds the whole campaign's rank (issue as2/271).
+        if (sequel()) ms.rankAccumulator[i] = campaign_.p[i].rankAccumulator;
     }
     paused_ = false;
     hudHidden_ = false;
     state_ = FrontendState::Playing;
     host_.startMission(ms);
+    if (sequel()) SequelScreens::afterLevelStart(*this); // the start dialogue
 }
 
 void Frontend::continueCampaign() {
@@ -231,6 +245,10 @@ void Frontend::highScoreCheck() {
 }
 
 void Frontend::onEndLevel(const MissionReport& report) {
+    if (sequel()) {
+        SequelScreens::onEndLevel(*this, report); // checkpoint, end dialogue, then S15 or S16
+        return;
+    }
     report_ = report;
     haveCarried_ = report.hasUpgrades;
     for (int i = 0; i < 2; i++) {
@@ -310,7 +328,8 @@ bool Frontend::handlePlayingInput(const UiInput& input) {
                 took = true;
                 break;
             case keys::Mouse1:
-                if (touch_ && content_.touchMenuButton && kTouchMenuButton.contains(menus_.pointerX(), menus_.pointerY())) {
+                if (touch_ && content_.touchMenuButton &&
+                    (sequel() ? SequelScreens::touchMenuRect() : kTouchMenuButton).contains(menus_.pointerX(), menus_.pointerY())) {
                     menus_.playSound("sounds\\menu1.wav");
                     setPausedFlag(true);
                     hudHidden_ = true;
@@ -327,16 +346,32 @@ bool Frontend::handlePlayingInput(const UiInput& input) {
 bool Frontend::update(float dt, const UiInput& input) {
     menus_.showHints = profile_.settings.showHints;
     if (state_ == FrontendState::Intro && intro_) {
-        for (const UiEvent& e : input.events)
-            if (e.type == UiEvent::Type::Press) intro_->speed *= 4.0f;
+        bool skip = false;
+        for (const UiEvent& e : input.events) {
+            if (e.type == UiEvent::Type::PointerMove && sequel()) menus_.setPointer(e.x, e.y);
+            if (e.type != UiEvent::Type::Press) continue;
+            // Ours, the sequels in touch mode: a small Skip button ends the comic at once.
+            if (sequel() && touch_ && e.code == keys::Mouse1 &&
+                SequelScreens::touchSkipRect().contains(menus_.pointerX(), menus_.pointerY()))
+                skip = true;
+            else
+                intro_->speed *= 4.0f;
+        }
+        if (sq_ && !sq_->comicMusic && intro_->pages[intro_->index].comic == 1) {
+            sq_->comicMusic = true; // page 1 starts music\track02.mo3 from order 0 (as2/frontend.md 3.2)
+            host_.playMusic("music\\track02.mo3");
+        }
         intro_->clock += dt * intro_->speed;
         const IntroPage& page = intro_->pages[intro_->index];
-        if (intro_->clock >= (page.divoGames ? 8.0f : 6.0f)) {
-            intro_->index++;
-            intro_->clock = -0.5f;
+        const float length = page.comic ? SequelScreens::comicDuration(page.comic) : page.divoGames ? 8.0f : 6.0f;
+        if (skip || intro_->clock >= length) {
+            intro_->index = skip ? intro_->pages.size() : intro_->index + 1;
             intro_->speed = 1.0f;
+            // Comic pages start at 0, the logo pages half a second early (their white lead-in).
+            intro_->clock = intro_->index < intro_->pages.size() && intro_->pages[intro_->index].comic ? 0.0f : -0.5f;
             if (intro_->index >= intro_->pages.size()) {
                 intro_.reset();
+                if (sequel()) host_.playMusic(""); // the comic's music stops
                 state_ = FrontendState::Attract;
                 host_.loadAttract();
                 showMainMenu();
@@ -344,6 +379,7 @@ bool Frontend::update(float dt, const UiInput& input) {
         }
         return true;
     }
+    if (sequel()) SequelScreens::tick(*this, dt);
     if (!menus_.empty()) {
         menus_.update(dt, input);
         return true;
@@ -361,6 +397,11 @@ void Frontend::drawIntro(Renderer2D& r, const UiAssets& a) {
     if (!intro_ || intro_->index >= intro_->pages.size()) return;
     const IntroPage& p = intro_->pages[intro_->index];
     const float t = intro_->clock;
+    if (p.comic) {
+        SequelScreens::drawComicPage(r, a, p.comic, t);
+        if (touch_) SequelScreens::drawTouchSkip(r, a);
+        return;
+    }
     if (p.divoGames) {
         r.fullscreen({1, 1, 1, 1}, Blend::Opaque);
         const Texture2D* logo = a.texture("gfx\\logo.tga");
@@ -388,6 +429,12 @@ void Frontend::drawIntro(Renderer2D& r, const UiAssets& a) {
 }
 
 void Frontend::drawTouchPlayButtons(Renderer2D& r, const UiAssets& a) {
+    if (sequel()) {
+        // The sequels: a text button of their style at the top centre.
+        const RectF b = SequelScreens::touchMenuRect();
+        as2::textButton(r, a, b.x, b.y, b.w - 46, SequelScreens::tr(*this, "button.touch_menu"), as2::green());
+        return;
+    }
     Menu dummy;
     MenuDrawContext c{r, a, dummy, 0, true, 0, plain()};
     drawTextButton(c, kTouchMenuButton, texts_.get("touch.menu"), false, false);
@@ -408,6 +455,10 @@ void Frontend::drawOver(Renderer2D& r, const UiAssets& a) {
 }
 
 void drawLoadingScreen(Renderer2D& r, const UiAssets& a, float progress, bool intermission) {
+    if (loadingState().sequel) {
+        SequelScreens::drawLoading(r, a, progress, intermission, loadingState().missionIndex);
+        return;
+    }
     r.fullscreen({0, 0, 0, 1}, Blend::Opaque);
     if (loadingState().plain) {
         // Ours: "Loading", the mission's name (none for an attract level) and a progress bar, in
@@ -435,10 +486,78 @@ void drawLoadingScreen(Renderer2D& r, const UiAssets& a, float progress, bool in
 // ---------------------------------------------------------------------------
 // Viewer and test hooks
 // ---------------------------------------------------------------------------
+bool Frontend::modelView(ModelView& out) const {
+    // The helicopter selection's preview of an unlocked helicopter, once the menu is open
+    // (as2/frontend.md 3.18 step 2).
+    if (!sequel() || menus_.empty() || topScreen() != Screen::HeliSelect) return false;
+    const Menu* m = menus_.top();
+    if (!m || m->open < 1.0f || !rules().heliObjects) return false;
+    const int h = std::clamp(heli_[std::clamp(sq_->heliShown, 0, 1)], 0, rules().helicopterCount - 1);
+    if (SequelScreens::heliLocked(*this, h)) return false;
+    out = ModelView{};
+    out.object = rules().heliObjects[h];
+    out.viewport = {170, 160, 460, 270};
+    out.fovY = 60.0f;
+    // GUESS (as2/frontend.md 10.1 item 8): the two values the view stores are the planes.
+    out.nearPlane = 1.0f;
+    out.farPlane = 1000.0f;
+    out.origin[0] = 0;
+    out.origin[1] = 0;
+    out.origin[2] = -100.0f;
+    out.angles[0] = 100.0f + 5.0f * std::sin(2.0f * menus_.menuTime());
+    out.angles[1] = sq_->heliSpin - 120.0f;
+    out.angles[2] = 0;
+    return true;
+}
+
+bool Frontend::modelViewVisible() const {
+    ModelView v;
+    return modelView(v);
+}
+
+void Frontend::drawModelViews() {
+    ModelView v;
+    if (modelView(v)) host_.drawModel(v);
+}
+
 bool Frontend::debugSet(std::string_view key, std::string_view value) {
     const std::string v(value);
     const double num = std::atof(v.c_str());
     const int n = static_cast<int>(num);
+    if (sequel()) {
+        SequelState& s = *sq_;
+        if (key == "dialogue") {
+            SequelScreens::openDialogue(*this, campaign_.mission, v == "end");
+            return true;
+        }
+        if (key == "dpage") {
+            s.page = static_cast<size_t>(std::max(n, 0));
+            if (!s.pages.empty()) s.page = std::min(s.page, s.pages.size() - 1);
+            s.fade = 1.0f;
+            s.typed = 0;
+            return true;
+        }
+        if (key == "typed") { s.fade = 1.0f; s.typed = n; return true; }
+        if (key == "comic") {
+            intro_ = std::make_unique<IntroRun>();
+            IntroPage p;
+            p.divoGames = false;
+            p.comic = std::clamp(n, 1, 4);
+            intro_->pages.push_back(p);
+            intro_->clock = 0;
+            state_ = FrontendState::Intro;
+            menus_.clear();
+            return true;
+        }
+        if (key == "t") { if (intro_) intro_->clock = static_cast<float>(num); return true; }
+        if (key == "accept") { s.heliAccept = n != 0; return true; }
+        if (key == "checkpoint") {
+            profile_.progress.checkpoint = CampaignCheckpoint{};
+            profile_.progress.checkpoint.mission = n - 1;
+            return true;
+        }
+        if (key == "shown") { s.heliShown = std::clamp(n, 0, 1); return true; }
+    }
     if (key == "mt") {
         // Advance the menu time (and whatever it drives) in small steps.
         for (double t = 0; t < num; t += 0.05) update(0.05f, {});
@@ -448,6 +567,7 @@ bool Frontend::debugSet(std::string_view key, std::string_view value) {
     if (key == "mission") {
         campaign_.mission = std::clamp(n - 1, 0, rules().missionCount - 1);
         if (plain()) loadingState().mission = missionLabel(campaign_.mission);
+        loadingState().missionIndex = campaign_.mission;
         return true;
     }
     if (key == "unlock") {

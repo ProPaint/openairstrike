@@ -77,4 +77,21 @@ const Texture2D* UiAssets::texture(std::string_view path) const {
     return p;
 }
 
+const Texture2D* UiAssets::textureRepeat(std::string_view path) const {
+    const std::string file = normalizePath(std::string(path));
+    const std::string key = "\x01repeat:" + file; // never a game path
+    auto it = cache_.find(key);
+    if (it != cache_.end()) return it->second && it->second->valid() ? it->second.get() : nullptr;
+    if (!vfs_) return nullptr;
+    auto tex = std::make_unique<Texture2D>();
+    if (!loadOne(*vfs_, file, *tex, nullptr, Wrap::Repeat)) {
+        AS3D_WARN("ui: cannot load %s", file.c_str());
+        cache_[key] = nullptr;
+        return nullptr;
+    }
+    const Texture2D* p = tex.get();
+    cache_[key] = std::move(tex);
+    return p;
+}
+
 } // namespace as3d::ui

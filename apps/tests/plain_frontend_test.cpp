@@ -28,6 +28,20 @@ namespace {
 
 const GameId kSequels[] = {GameId::AirStrike2, GameId::GulfThunder};
 
+// AirStrike 2 has its own menus now (FrontendStyle::SequelMenus, apps/tests/as2_frontend_test.cpp);
+// the plain front end is still tested with its data and rules through a copy of its profile.
+const GameProfile& plainProfile(GameId id) {
+    static GameProfile copies[kGameCount];
+    static bool made[kGameCount] = {};
+    const int i = static_cast<int>(id);
+    if (!made[i]) {
+        copies[i] = gameProfile(id);
+        copies[i].frontend = FrontendStyle::PlainList;
+        made[i] = true;
+    }
+    return copies[i];
+}
+
 // The fake game: records every call.
 struct FakeGame : GameHost {
     std::vector<MissionStart> starts;
@@ -63,7 +77,7 @@ struct Rig {
     Profile profile;
     Frontend fe;
     explicit Rig(GameId id, bool touch = false, FrontendContent content = {}, bool useContent = false)
-        : game(gameProfile(id)),
+        : game(plainProfile(id)),
           profile{Progress::defaults(game.rules, 1), Settings::defaults()},
           fe(host, profile, useContent ? std::move(content) : fakeContent(game), Texts{}) {
         fe.setTouchMode(touch);
@@ -148,7 +162,7 @@ struct SequelData {
         ok = true;
     }
     FrontendContent content() const {
-        const GameProfile& g = *data.game;
+        const GameProfile& g = plainProfile(data.game->id);
         FrontendContent c = fakeContent(g);
         for (int& e : c.enableHelic) e = -1;
         int i = 0;
@@ -176,7 +190,7 @@ struct SequelData {
 } // namespace
 
 TEST_CASE("plain front end: the sequels select it, the first game does not") {
-    CHECK(gameProfile(GameId::AirStrike2).frontend == FrontendStyle::PlainList);
+    CHECK(gameProfile(GameId::AirStrike2).frontend == FrontendStyle::SequelMenus); // its own menus now (package E)
     CHECK(gameProfile(GameId::GulfThunder).frontend == FrontendStyle::PlainList);
     CHECK(gameProfile(GameId::AirStrike3D).frontend == FrontendStyle::V170Menus);
     Rig rig(GameId::AirStrike2);
@@ -785,7 +799,7 @@ TEST_CASE("plain front end: a real AirStrike 2 mission starts from the plain men
     GameSession session;
     GameOptions o;
     o.dataRoot = testdata::root();
-    o.game = &gameProfile(GameId::AirStrike2);
+    o.game = &plainProfile(GameId::AirStrike2);
     o.startLevel = false;
     o.levelFlow = false;
     std::string err;

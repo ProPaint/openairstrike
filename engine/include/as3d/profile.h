@@ -97,17 +97,33 @@ struct HighScore {
     int rank = 0;     // rank index 0..6
 };
 
+// The sequels' campaign checkpoint (GameRules::campaignCheckpoint, as2/frontend.md 5.1, 6.1):
+// written at every EndLevel, resumed by starting its mission again ("Continue"). Saved; a
+// session that used a cheat saves "none".
+struct CampaignCheckpoint {
+    int mission = -1;               // 0-based index of the mission it resumes; -1 = none
+    int lives[2] = {kCampaignStartLives, kCampaignStartLives};
+    std::int64_t score[2] = {0, 0}; // banked score to start it with
+    float rank[2] = {0.0f, 0.0f};   // rank accumulator to start it with
+};
+
 struct Progress {
     HighScore scores[kHighScoreCount];
     int missionCount = kMissionCount;       // used part of missionUnlocked
     int helicopterCount = kHelicopterCount; // used part of helicopterUnlocked
     bool helicopterUnlocked[kMaxHelicopters] = {};
     bool missionUnlocked[kMaxMissions] = {};
+    CampaignCheckpoint checkpoint;           // only the sequels ever set it
 
     // The compiled-in table, missions 1-2 and the first `helicoptersUnlocked` helicopters (the
     // first game: 2; AirStrike 2 unlocks only entry 0, as2 engine-behaviour.delta.md 7.6, and
     // GameFlow passes 1 for the games with the plain front end), sized by the game's rules.
     static Progress defaults(const GameRules& rules = defaultGameRules(), int helicoptersUnlocked = 2);
+    // The helicopters a fresh save of `game` unlocks: the first game 2, the sequels 1 (entry 0,
+    // as2 engine-behaviour.delta.md 7.6; the plain front end's choice for Gulf Thunder).
+    static int defaultHelicopters(const GameProfile* game) {
+        return game && game->frontend != FrontendStyle::V170Menus ? 1 : 2;
+    }
 
     // Slot the score would take (first entry whose score <= score), or -1 if it does not
     // qualify (frontend.md 3.12).
@@ -202,6 +218,11 @@ struct Profile {
 //             u8 count (<= kMaxHelicopters) of u8 helicopter flags;
 //             u8 count (<= kMaxMissions) of u8 mission flags
 //     "SETT": u16 count of { u8 key length, key, i32 value }  (floats stored x 1000)
+//     "CHKP" (optional, written only while a checkpoint is set: the sequels): i32 mission
+//             (0-based, -1 none), then per player i32 lives, i64 score, f32 rank (IEEE bits)
+// A file without CHKP (every first-game file, sequel files from before it) has no checkpoint.
+// Unlocks a file lacks keep the defaults `out.progress` carries; a fresh install's unlocks
+// (the first helicopters and missions 1-2 of those defaults) are never locked by a file.
 // A file is accepted when its key is the expected one; entries beyond the game's counts are
 // ignored, entries the file lacks keep the game's defaults. Version 1 (no key, the header
 // ends after the CRC, counts must equal the game's) is read as the first game's ("as3d") only.

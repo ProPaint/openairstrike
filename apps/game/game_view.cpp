@@ -7,6 +7,7 @@
 
 #include "as3d/defs.h"
 #include "as3d/frontend.h"
+#include "as3d/object_tree.h"
 #include "as3d/scene.h"
 
 namespace as3d_game {
@@ -22,6 +23,43 @@ struct GameView::Banner {
     const GpuMesh* gpu = nullptr;
     float scale = 1.0f;
 };
+
+// The sequels' model view: an object definition with its attachment hierarchy (the preview
+// entity is built without its script, as2/frontend.md 3.18), rebuilt when the object changes.
+struct GameView::Preview {
+    std::unique_ptr<ResourceCache> cache;
+    MeshRenderer mesh;
+    std::string object;
+    struct Part {
+        const GpuMesh* gpu = nullptr;
+        Material material;
+        Mat4 local;
+        Vec4 colour{1, 1, 1, 1};
+    };
+    std::vector<Part> parts;
+};
+
+namespace {
+
+// AnglesToAxis (engine-behaviour.md 4.3) with the angles as fields 14..16, in degrees, and the
+// origin: the entity's model matrix (as the banner's).
+Mat4 entityMatrix(const float angles[3], const float origin[3]) {
+    const float kDeg = 3.14159265f / 180.0f;
+    const float ax = angles[0] * kDeg, ay = angles[1] * kDeg, az = angles[2] * kDeg;
+    const float sa = std::sin(ax), ca = std::cos(ax), sb = std::sin(ay), cb = std::cos(ay), sc = std::sin(az),
+                cc = std::cos(az);
+    const Vec3 fwd{cb * cc, cb * sc, sb};
+    const Vec3 left{sa * sb * cc - ca * sc, sa * sb * sc + ca * cc, -sa * cb};
+    const Vec3 up{-sa * sc - ca * sb * cc, sa * cc - ca * sb * sc, ca * cb};
+    Mat4 model;
+    model.at(0, 0) = fwd.x; model.at(0, 1) = fwd.y; model.at(0, 2) = fwd.z; model.at(0, 3) = 0;
+    model.at(1, 0) = left.x; model.at(1, 1) = left.y; model.at(1, 2) = left.z; model.at(1, 3) = 0;
+    model.at(2, 0) = up.x; model.at(2, 1) = up.y; model.at(2, 2) = up.z; model.at(2, 3) = 0;
+    model.at(3, 0) = origin[0]; model.at(3, 1) = origin[1]; model.at(3, 2) = origin[2]; model.at(3, 3) = 1;
+    return model;
+}
+
+} // namespace
 
 GameView::GameView() = default;
 GameView::~GameView() = default;
@@ -148,6 +186,8 @@ void GameView::draw(const GameSession& session, int width, int height) {
 }
 
 void GameView::drawFrame(const GameSession& session, int width, int height, const FrameLayers& layers) {
+    frameW_ = width;
+    frameH_ = height;
     if (layers.world && session.hasLevel()) {
         renderWorld(session.world(), width, height);
     } else {
@@ -167,12 +207,80 @@ void GameView::drawFrame(const GameSession& session, int width, int height, cons
                 drawBanner(fe->menus().menuTime(), width, height);
                 r2d_.begin(width, height);
             }
+            if (fe->modelViewVisible()) {
+                // The sequels' helicopter preview: over the menu's backdrop, under its items.
+                r2d_.flush();
+                fe->drawModelViews();
+                r2d_.begin(width, height);
+            }
             fe->drawOver(r2d_, assets_);
         }
         r2d_.flush();
     }
     renderer_.drawBrightness(width, height, layers.brightness);
     clearBars(width, height);
+}
+
+void GameView::drawModel(GameSession& session, const ui::ModelView& v) {
+    if (!preview_) {
+        std::unique_ptr<Preview> p(new Preview());
+        std::string err;
+        if (!p->mesh.init(&err)) {
+            AS3D_WARN("model view unavailable: %s", err.c_str());
+            return;
+        }
+        p->cache.reset(new ResourceCache(session.vfs()));
+        preview_ = std::move(p);
+    }
+    Preview& p = *preview_;
+    if (p.object != v.object) {
+        p.object = v.object;
+        p.parts.clear();
+        ObjectTree tree = ObjectTree::build(session.db(), session.vfs(), v.object);
+        const auto& nodes = tree.nodes();
+        std::vector<char> hidden(nodes.size(), 0);
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            const ObjectNode& n = nodes[i];
+            if (!n.active || (n.parent >= 0 && hidden[static_cast<size_t>(n.parent)])) hidden[i] = 1;
+            if (hidden[i] || n.kind != NodeKind::Object || !n.def || n.def->model.empty() || (n.def->flags & FL_NODRAW)) continue;
+            const GpuMesh& gpu = p.cache->mesh(n.def->model);
+            if (!gpu.valid) continue;
+            Preview::Part part;
+            part.gpu = &gpu;
+            part.material = Material::fromObjectDef(*n.def, *p.cache);
+            part.local = n.world;
+            part.colour = n.colour;
+            p.parts.push_back(part);
+        }
+    }
+    if (p.parts.empty()) return;
+    // The viewport over the virtual rectangle, scaled to the frame, depth cleared inside it.
+    const ui::Mapping m = ui::computeMapping(frameW_, frameH_);
+    const int x0 = static_cast<int>(std::lround(m.toFbX(v.viewport.x)));
+    const int x1 = static_cast<int>(std::lround(m.toFbX(v.viewport.x + v.viewport.w)));
+    const int y0 = static_cast<int>(std::lround(m.toFbY(v.viewport.y)));
+    const int y1 = static_cast<int>(std::lround(m.toFbY(v.viewport.y + v.viewport.h)));
+    const int vw = x1 - x0, vh = y1 - y0;
+    if (vw <= 0 || vh <= 0) return;
+    glViewport(x0, frameH_ - y1, vw, vh);
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(x0, frameH_ - y1, vw, vh);
+    glDepthMask(GL_TRUE);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    Camera cam;
+    cam.eye = Vec3{0, 0, 0};
+    cam.target = Vec3{0, 0, -1};
+    cam.worldUp = Vec3{0, 1, 0};
+    cam.fovYDegrees = v.fovY;
+    cam.aspect = static_cast<float>(vw) / static_cast<float>(vh);
+    cam.nearPlane = v.nearPlane;
+    cam.farPlane = v.farPlane;
+    const Mat4 model = entityMatrix(v.angles, v.origin);
+    p.mesh.begin(cam, SceneLighting());
+    for (const Preview::Part& part : p.parts) p.mesh.submit(*part.gpu, part.material, model * part.local, part.colour);
+    p.mesh.end();
+    glDisable(GL_SCISSOR_TEST);
+    glViewport(0, 0, frameW_, frameH_);
 }
 
 void GameView::drawBanner(float mt, int width, int height) {

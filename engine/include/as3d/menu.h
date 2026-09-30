@@ -56,8 +56,11 @@ struct UiInput {
 };
 
 // Item types (frontend.md 2.2). Custom is ours: a screen-drawn row with its own hit rectangle
-// (controls rows, touch-mode text buttons).
-enum class ItemType { Text = 0, Button = 1, Edit = 2, List = 4, Spinner = 5, Slider = 6, HeliGrid = 7, Custom = 100 };
+// (controls rows, touch-mode text buttons). Picture and SequelButton are the sequels' types 2
+// and 9 (as2/frontend.md 2.2, 2.5): an image without highlight, and the text button with its
+// slide-in, drawn only by a MenuSystem in the sequels' style.
+enum class ItemType { Text = 0, Button = 1, Edit = 2, List = 4, Spinner = 5, Slider = 6, HeliGrid = 7, Custom = 100,
+                      Picture = 101, SequelButton = 102 };
 
 namespace itemflag {
 constexpr u32 Focused = 1, Disabled = 2, Hidden = 4, AlignRight = 0x2000, AlignCenter = 0x4000,
@@ -99,6 +102,8 @@ struct MenuDrawContext {
     bool touchMode;
     long long ms;    // wall-clock milliseconds for blinking cursors
     bool plain = false; // MenuSystem::plain: draw without the first game's menu textures
+    bool sequel = false; // MenuSystem::sequel: the sequels' widgets (as2/frontend.md 2.5)
+    float px = -100, py = -100; // the pointer (the sequels' scroll boxes light up under it)
 };
 
 using ItemDrawFn = std::function<void(MenuDrawContext&, MenuItem&, bool focused)>;
@@ -145,6 +150,11 @@ struct MenuItem {
     ItemKeyFn onKey;
     float textScale = 1; // text buttons: font scale of the caption
 
+    // SequelButton: the caption width it is drawn with (max(caption, minimum width) = W; the
+    // frame is W + 46 wide) and its slide value a, 0..1 (as2/frontend.md 2.5).
+    float captionW = 0;
+    float slide = 0;
+
     bool disabled() const { return (flags & itemflag::Disabled) != 0; }
     bool hidden() const { return (flags & itemflag::Hidden) != 0; }
     void setEnabled(bool on) { flags = on ? flags & ~itemflag::Disabled : flags | itemflag::Disabled; }
@@ -163,6 +173,9 @@ struct Menu {
     float hoverTime = 0;
     bool swallowBack = false; // Esc and right click do nothing (main menu, end screens, name entry)
     int tag = -1;             // free for the owner (the front end stores its Screen here)
+    // The sequels' open value f (as2/frontend.md 2.1): 0 whenever the menu becomes the top one,
+    // then raised by 8 x dt per update up to 1 (0.125 s). Only the sequels' style reads it.
+    float open = 0;
 
     std::function<void(MenuDrawContext&)> drawBack;   // before the items (frames, texts)
     std::function<void(MenuDrawContext&)> drawFront;  // after the items
@@ -185,6 +198,11 @@ struct Menu {
     // Ours (touch mode and on-screen keyboards): a text on a dark-red box, rust, orange with a
     // pulse when focused, in the style of the focused spinner.
     MenuItem& addTextButton(int id, RectF hit, std::string label, u32 flags = 0);
+    // The sequels (as2/frontend.md 2.2, 2.5). A picture: `texture` with `uv` over (x, y, w, h).
+    MenuItem& addPicture(int id, float x, float y, float w, float h, std::string texture, SpecUv uv, u32 flags = 0);
+    // A text button: W = max(caption width, minWidth), hit rectangle (left, y, W + 46, 30) with
+    // left = x, x - (W + 46) / 2 (AlignCenter) or x - (W + 46) (AlignRight). No hover sound.
+    MenuItem& addSequelButton(int id, float x, float y, std::string label, u32 flags = 0, float minWidth = 0);
 };
 
 // Draws a text button as addTextButton makes them (for screens that draw their own).
@@ -202,6 +220,9 @@ public:
     // slider widgets and the letterbox frame with rectangles and lines, so that it needs none
     // of the first game's menu textures (a sequel ships only menu\\cursor_1.tga and cursor_2.tga).
     bool plain = false;
+    // The sequels' menus (as2/frontend.md 2): their widget drawing (green, orange, the
+    // interface.tga pieces), widgets hidden until the menu is open, text buttons and pictures.
+    bool sequel = false;
 
     // Pushes a menu (built right before, frontend.md 2.1). Resets the menu time, clears the new
     // menu's focus and re-runs the hover test. Beyond 16 menus the push is refused.
