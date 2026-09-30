@@ -1,0 +1,107 @@
+address,name,kind,description,confidence,evidence,as2_address,v170_address
+0x02104168,sg_self,script global,script-visible global 'self',high,script-global table record 0x0049b780,0x02106320,0x01fa7df0
+0x0210415c,sg_other,script global,script-visible global 'other',high,script-global table record 0x0049b78c,0x02106314,0x01fa7de4
+0x02104164,sg_cb_msg,script global,script-visible global 'cb_msg',high,script-global table record 0x0049b798,0x0210631c,0x01fa7dec
+0x02104160,sg_cb_parm1,script global,script-visible global 'cb_parm1',high,script-global table record 0x0049b7a4,0x02106318,0x01fa7de8
+0x02104170,sg_cb_parm2,script global,script-visible global 'cb_parm2',high,script-global table record 0x0049b7b0,0x02106328,0x01fa7df8
+0x02104150,sg_player,script global,script-visible global 'player',high,script-global table record 0x0049b7bc,0x02106308,0x01fa7dd8
+0x02104150,sg_player1,script global,script-visible global 'player1' (new in as2),high,script-global table record 0x0049b7c8,0x02106308,
+0x02104154,sg_player2,script global,script-visible global 'player2' (new in as2),high,script-global table record 0x0049b7d4,0x0210630c,
+0x020c39a4,sg_p_action,script global,script-visible global 'p_action',high,script-global table record 0x0049b7e0,0x020c5b5c,0x01ebe394
+0x020c39a8,sg_p_maxHealth,script global,script-visible global 'p_maxHealth' (new in as2),high,script-global table record 0x0049b7ec,0x020c5b60,
+0x020c39ac,sg_p_scores,script global,script-visible global 'p_scores',high,script-global table record 0x0049b7f8,0x020c5b64,0x01ebe398
+0x020c39b4,sg_p_lives,script global,script-visible global 'p_lives',high,script-global table record 0x0049b804,0x020c5b6c,0x01ebe3a0
+0x020c39b8,sg_p_stars,script global,script-visible global 'p_stars',high,script-global table record 0x0049b810,0x020c5b70,0x01ebe3a4
+0x020c39c8,sg_p_speedfactor,script global,script-visible global 'p_speedfactor',high,script-global table record 0x0049b81c,0x020c5b80,0x01ebe3b4
+0x020c39bc,sg_p_counter1,script global,script-visible global 'p_counter1',high,script-global table record 0x0049b828,0x020c5b74,0x01ebe3a8
+0x020c39c0,sg_p_counter2,script global,script-visible global 'p_counter2',high,script-global table record 0x0049b834,0x020c5b78,0x01ebe3ac
+0x020c39c4,sg_p_counter3,script global,script-visible global 'p_counter3',high,script-global table record 0x0049b840,0x020c5b7c,0x01ebe3b0
+0x020c39cc,sg_p_weapon,script global,script-visible global 'p_weapon',high,script-global table record 0x0049b84c,0x020c5b84,0x01ebe3b8
+0x004bfec4,sg_l_night,script global,script-visible global 'l_night',high,script-global table record 0x0049b858,0x004c207c,0x00458eac
+0x005410c4,sg_l_water,script global,script-visible global 'l_water',high,script-global table record 0x0049b864,0x0054327c,0x004d52b8
+0x005410cc,sg_l_waterlevel,script global,script-visible global 'l_waterlevel',high,script-global table record 0x0049b870,0x00543284,0x004d52c0
+0x0049d760,sg_frametime,script global,script-visible global 'frametime',high,script-global table record 0x0049b87c,0x0049f920,0x01fb4bcc
+0x0049d764,sg_time,script global,script-visible global 'time',high,script-global table record 0x0049b888,0x0049f924,0x01fb4bd0
+0x0049b778,sg_camera,script global,script-visible global 'camera',high,script-global table record 0x0049b894,0x0049d900,0x00456f6c
+0x0049b77c,sg_cameramode,script global,script-visible global 'cameramode' (new in as2),high,script-global table record 0x0049b8a0,0x0049d904,
+0x005410e4,sg_g_map_pos,script global,script-visible global 'g_map_pos',high,script-global table record 0x0049b8ac,0x0054329c,0x004d52d8
+0x0049bcec,sg_g_damage_factor,script global,script-visible global 'g_damage_factor',high,script-global table record 0x0049b8b8,0x0049ded8,0x004577c0
+0x0049bcf0,sg_g_health_factor,script global,script-visible global 'g_health_factor',high,script-global table record 0x0049b8c4,0x0049dedc,0x004577c4
+0x0049b448,g_builtinTable,table,script builtin table {char *name; void (*fn)()} (rcsl-builtins-table.md),high,"probe result (re/probes/gulf.json), re_export.TABLES",0x0049d5d0,0x00456f70
+0x0049b780,g_scriptGlobalTable,table,script-global table {char *name; void *addr; int kind} (rcsl-vm.md),high,"probe result (re/probes/gulf.json), re_export.TABLES",0x0049d908,0x00457220
+0x004c00c0,g_entities,array,entity pool: 1024 entities of 0x1e3 bytes in v1.70 (engine-behaviour.md),medium,aligned instructions of matched functions: 2 of 2 votes from 1 function pair(s),0x004c2278,0x00458eb0
+0x004bfec0,g_entityFreeList,variable,head of the entity free list (engine-behaviour.md),high,aligned instructions of matched functions: 7 of 7 votes from 4 function pair(s),0x004c2078,0x00458cc4
+0x004bfec8,g_entityLiveList,variable,list of live entities walked by the frame loop (rcsl-vm.md),high,aligned instructions of matched functions: 26 of 26 votes from 11 function pair(s),0x004c2080,0x00458cc8
+0x004bfecc,g_entityLiveHead,variable,newest live entity; start of the newest-first walk (rcsl-builtins-semantics.md),high,aligned instructions of matched functions: 15 of 15 votes from 11 function pair(s),0x004c2084,0x00458ccc
+0x02216f84,g_entityLiveCount,variable,number of live entities (engine-behaviour.md),medium,aligned instructions of matched functions: 4 of 4 votes from 4 function pair(s),0x0221913c,0x01fdb2c8
+0x020c3918,g_players,array,player records (0x171 bytes each in v1.70; script fields p_*) (rcsl-vm.md),high,aligned instructions of matched functions: 27 of 27 votes from 15 function pair(s),0x020c5ad0,0x01ebe308
+0x020dcef0,g_camera,struct,camera record (script global 'camera' points here) (rcsl-vm.md),high,aligned instructions of matched functions: 16 of 16 votes from 2 function pair(s),0x020df0a8,0x01ebe5f4
+0x020c3bec,g_cameraQuakeAmount,variable,camera quake amount set by CameraQuake (rcsl-builtins-table.md),medium,aligned instructions of matched functions: 2 of 2 votes from 2 function pair(s),0x020c5da4,0x01ebe5f0
+0x020dcf14,g_cameraField9,variable,camera field 9 reset to 1.0 at level start (hmap.md),medium,aligned instructions of matched functions: 2 of 2 votes from 2 function pair(s),0x020df0cc,0x01ebe618
+0x020dcf50,g_cameraQuakeTime,variable,camera quake state cleared by CameraQuake (rcsl-builtins-table.md),high,aligned instructions of matched functions: 7 of 7 votes from 2 function pair(s),0x020df108,0x01ebe654
+0x02216f90,g_cameraQuakeDecay,variable,set to 3.0 by CameraQuake (rcsl-builtins-table.md),high,aligned instructions of matched functions: 5 of 5 votes from 3 function pair(s),0x02219148,0x01fdb2d4
+0x0049b9a0,g_cameraModeTable,table,camera mode table (render-pipeline.md / engine-behaviour.md),medium,aligned instructions of matched functions: 4 of 4 votes from 3 function pair(s),0x0049db28,0x00457398
+0x02104158,sl_thread,variable,current script thread (rcsl-vm.md),high,aligned instructions of matched functions: 65 of 65 votes from 21 function pair(s),0x02106310,0x01fa7de0
+0x02104168,sl_self,variable,script global 'self' (rcsl-vm.md),high,aligned instructions of matched functions: 94 of 94 votes from 50 function pair(s),0x02106320,0x01fa7df0
+0x0210416c,sl_argPointer,variable,argument pointer of the running builtin (the current thread's frame) (rcsl-vm.md),high,aligned instructions of matched functions: 131 of 131 votes from 85 function pair(s),0x02106324,0x01fa7df4
+0x02104174,sl_returnValue,variable,builtin return register (one float) (rcsl-vm.md),high,aligned instructions of matched functions: 54 of 54 votes from 38 function pair(s),0x0210632c,0x01fa7dfc
+0x02104178,sl_latentDone,variable,latent-builtin done flag (rcsl-vm.md),high,aligned instructions of matched functions: 11 of 11 votes from 5 function pair(s),0x02106330,0x01fa7e00
+0x02104180,sl_scriptCount,variable,number of loaded scripts (rcsl-container.md),high,aligned instructions of matched functions: 8 of 8 votes from 4 function pair(s),0x02106338,0x01fa7e04
+0x02104188,sl_scripts,array,loaded scripts (rcsl-container.md),high,aligned instructions of matched functions: 22 of 22 votes from 16 function pair(s),0x02106340,0x01fa7e08
+0x0049d760,g_frameTime,variable,frame time in seconds (script global 'frametime') (rcsl-vm.md),high,aligned instructions of matched functions: 66 of 67 votes from 33 function pair(s),0x0049f920,0x01fb4bcc
+0x0049d764,g_time,variable,accumulated game time (script global 'time') (rcsl-vm.md),high,aligned instructions of matched functions: 11 of 11 votes from 6 function pair(s),0x0049f924,0x01fb4bd0
+0x0049d74c,g_levelClock,variable,level clock (engine-behaviour.md),high,aligned instructions of matched functions: 7 of 7 votes from 4 function pair(s),0x0049f90c,0x01fb4a3c
+0x005410e0,g_paused,variable,game paused flag; also set by EndLevel (rcsl-vm.md),high,aligned instructions of matched functions: 19 of 19 votes from 14 function pair(s),0x00543298,0x00458eab
+0x004bfec4,g_night,variable,night level flag (script global 'l_night') (rcsl-vm.md),low,aligned instructions of matched functions: 1 of 1 votes from 1 function pair(s),0x004c207c,0x00458eac
+0x004bfe63,g_introRunning,variable,logo/intro sequence running (engine-behaviour.md),high,aligned instructions of matched functions: 13 of 13 votes from 7 function pair(s),0x004c2023,0x00458c97
+0x004bfe61,g_fadeActive,variable,screen fade flag (render-pipeline.md),low,aligned instructions of matched functions: 1 of 1 votes from 1 function pair(s),0x004c2021,0x00458c95
+0x004bfe70,g_fadeColor,variable,screen fade colour (render-pipeline.md),low,aligned instructions of matched functions: 1 of 1 votes from 1 function pair(s),0x004c2030,0x00458ca4
+0x02216f8c,g_gameReady,variable,G_Init done; G_Frame does nothing before (engine-behaviour.md),high,aligned instructions of matched functions: 15 of 15 votes from 9 function pair(s),0x02219144,0x01fdb2c6
+0x02216f8d,g_twoPlayers,variable,two-player mode flag (rcsl-vm.md),high,aligned instructions of matched functions: 22 of 22 votes from 19 function pair(s),0x02219145,0x01fdb2c7
+0x02216f82,g_godMode,variable,god-mode cheat flag (rcsl-builtins-semantics.md),medium,aligned instructions of matched functions: 4 of 4 votes from 3 function pair(s),0x0221913a,0x01fdb2c4
+0x02216f8e,g_cheatUsed,variable,a cheat was used (rank 'Cheater'; no score posting) (engine-behaviour.md),medium,aligned instructions of matched functions: 4 of 4 votes from 4 function pair(s),0x02219146,0x01fdb2d0
+0x0049bce4,cfg_numPlayers,variable,number of players (rcsl-vm.md),high,aligned instructions of matched functions: 23 of 23 votes from 14 function pair(s),0x0049ded0,0x004577b8
+0x0049bce8,cfg_difficulty,variable,difficulty index (default 2) (rcsl-vm.md),medium,aligned instructions of matched functions: 2 of 2 votes from 1 function pair(s),0x0049ded4,0x004577bc
+0x0049bcec,g_damageFactor,variable,current difficulty damage factor (script global 'g_damage_factor') (rcsl-vm.md),high,aligned instructions of matched functions: 10 of 10 votes from 6 function pair(s),0x0049ded8,0x004577c0
+0x0049bcf0,g_healthFactor,variable,current difficulty health factor (script global 'g_health_factor') (rcsl-vm.md),medium,aligned instructions of matched functions: 3 of 3 votes from 2 function pair(s),0x0049dedc,0x004577c4
+0x0049bd00,g_difficultyTable,table,difficulty factors (16 bytes per level) (frontend.md / engine-behaviour.md),low,aligned instructions of matched functions: 1 of 1 votes from 1 function pair(s),0x0049dee8,0x004577d0
+0x0049b9f0,g_defaultProgressA,table,fresh-install defaults table (frontend.md),medium,aligned instructions of matched functions: 4 of 4 votes from 4 function pair(s),0x0049db78,0x004573e0
+0x0049bc70,g_heliTable,table,"CORRECTS re/symbols_as2_data.csv g_missionUnlockTable: helicopter table, 6 records {u8 unlocked, name[32]}: player_1, player_2, player_4, player_6, player_5, player_3",high,aligned instructions of matched functions: 7 of 7 votes from 6 function pair(s),0x0049ddf8,0x00457660
+0x0049bd78,g_missionTable,table,mission table unlocked in order (frontend.md),medium,aligned instructions of matched functions: 4 of 4 votes from 4 function pair(s),0x0049df60,0x00457838
+0x0049bd50,g_levelPointerTable,table,pointer table used by the random level pick (hmap.md),low,aligned instructions of matched functions: 1 of 1 votes from 1 function pair(s),0x0049df38,0x00457820
+0x0049aba4,g_rankNames,table,rank name table (Cheater; Rookie; ...) (frontend.md),medium,aligned instructions of matched functions: 2 of 2 votes from 2 function pair(s),0x0049cba4,0x0045650c
+0x0049c488,g_rankThresholds,table,rank threshold table (frontend.md),medium,aligned instructions of matched functions: 2 of 2 votes from 2 function pair(s),0x0049e654,0x00457d48
+0x0049c0c0,g_weaponIconTable,table,weapon icon texture coordinates (frontend.md),low,aligned instructions of matched functions: 1 of 1 votes from 1 function pair(s),0x0049e1e8,0x00457ae0
+0x0049ac48,g_fontAdvance,table,font advance widths in virtual pixels (render-pipeline.md),high,aligned instructions of matched functions: 37 of 37 votes from 12 function pair(s),0x0049cc50,0x00456598
+0x020dcf58,g_weaponDefs,array,weapon definitions: 0x2c-byte records from weapons/*.wpn (at most 256) (engine-behaviour.md),medium,aligned instructions of matched functions: 3 of 3 votes from 2 function pair(s),0x020df110,0x01ebe668
+0x02195668,r_lights,array,per-frame light list (at most 32 lights of 0x34 bytes) (render-pipeline.md),medium,aligned instructions of matched functions: 2 of 2 votes from 2 function pair(s),0x02197820,0x01f286a8
+0x020f6bf8,ps_instances,array,particle-system instance pool (256 x 0x60 bytes) (render-pipeline.md),medium,aligned instructions of matched functions: 4 of 4 votes from 2 function pair(s),0x020f8db0,0x01f502b8
+0x0049c53c,r_blendMode,variable,current blend mode of the blend state cache (render-pipeline.md),high,aligned instructions of matched functions: 9 of 9 votes from 3 function pair(s),0x0049e6fc,0x01f3ca50
+0x020dfbb8,g_sinTable,table,sine table built at start-up (render-pipeline.md),high,aligned instructions of matched functions: 6 of 6 votes from 2 function pair(s),0x020e1d70,0x01fa92a0
+0x0049d6b8,r_viewWidth,variable,viewport size (render-pipeline.md),high,aligned instructions of matched functions: 18 of 18 votes from 14 function pair(s),0x0049f878,0x01fa9210
+0x0049d6bc,r_viewHeight,variable,viewport size (render-pipeline.md),high,aligned instructions of matched functions: 16 of 16 votes from 12 function pair(s),0x0049f87c,0x01fa9214
+0x02100c08,t_cellSize,variable,terrain cell size (0x28) (hmap.md),high,aligned instructions of matched functions: 9 of 9 votes from 4 function pair(s),0x02102dc0,0x01f5a2c8
+0x02100c18,t_heightCopy,array,pristine copy of the height field (hmap.md),high,aligned instructions of matched functions: 6 of 6 votes from 3 function pair(s),0x02102dd0,0x01f5a2dc
+0x02101ad4,r_sunColor,variable,sun colour (render-pipeline.md),high,aligned instructions of matched functions: 5 of 5 votes from 4 function pair(s),0x02103c8c,0x01f5b988
+0x02101ac8,r_sunDirection,variable,direction towards the sun (render-pipeline.md),high,aligned instructions of matched functions: 6 of 6 votes from 5 function pair(s),0x02103c80,0x01f5b97c
+0x02101ae0,r_ambientColor,variable,ambient colour (render-pipeline.md),medium,aligned instructions of matched functions: 4 of 4 votes from 4 function pair(s),0x02103c98,0x01f5b994
+0x0210fdd4,m_menuTime,variable,menu animation time (frontend.md),high,aligned instructions of matched functions: 10 of 10 votes from 7 function pair(s),0x02111ef4,0x01fd93b4
+0x02216fd0,d3d_object,variable,IDirect3D8 interface pointer (AS2 only),high,aligned instructions of matched functions: 13 of 13 votes from 6 function pair(s),0x02219188,
+0x02216fd4,d3d_device,variable,IDirect3DDevice8 interface pointer (AS2 only),high,aligned instructions of matched functions: 267 of 267 votes from 42 function pair(s),0x0221918c,
+0x02216ff0,r_vertexBuffer,variable,dynamic vertex buffer (IDirect3DVertexBuffer8*) (AS2 only),high,aligned instructions of matched functions: 13 of 13 votes from 10 function pair(s),0x022191a8,
+0x02216ff8,r_vertexBufferUsed,variable,vertices used in the dynamic vertex buffer since the last discard (AS2 only),high,aligned instructions of matched functions: 20 of 20 votes from 8 function pair(s),0x022191b0,
+0x005410c8,g_levelCount,variable,number of level records parsed from levels.txt (G_FindLevel loop bound),medium,aligned instructions of matched functions: 4 of 4 votes from 3 function pair(s),0x00543280,0x004d52bc
+0x0053d0c0,g_levels,array,level records from levels.txt (the address G_FindLevel scans),high,aligned instructions of matched functions: 5 of 5 votes from 3 function pair(s),0x0053f278,0x004d1ab8
+0x005c1114,g_objectCount,variable,number of object definitions parsed from objects/*.obj (G_FindObject and ParseObject),high,aligned instructions of matched functions: 10 of 10 votes from 5 function pair(s),0x005c32cc,0x00551304
+0x005c471c,g_objectNames,array,name field of the object definition records as scanned by G_FindObject (obj.md),low,aligned instructions of matched functions: 1 of 1 votes from 1 function pair(s),0x005c68d4,0x005545e1
+0x00489bc0,g_missionLoadout,table,mission weapon loadout: 18 rows of 9 ints (upgrade level per weapon slot),low,aligned instructions of matched functions: 1 of 1 votes from 1 function pair(s),0x0048b3a8,
+0x0049bc6c,g_checkpointMission,variable,campaign checkpoint mission index (-1 none; as2/engine-behaviour.delta.md 10.3),high,aligned instructions of matched functions: 7 of 7 votes from 6 function pair(s),0x0049ddf4,
+0x02216f88,g_missionIndex,variable,current mission index (0-based),high,aligned instructions of matched functions: 9 of 9 votes from 8 function pair(s),0x02219140,0x01fdb2cc
+0x005410e1,g_gameOver,variable,game-over flag,medium,aligned instructions of matched functions: 4 of 4 votes from 4 function pair(s),0x00543299,0x004d52d4
+0x005410e2,g_intermission,variable,intermission (attract) level flag,high,aligned instructions of matched functions: 11 of 11 votes from 9 function pair(s),0x0054329a,0x004d52d5
+0x005410e3,g_hudHidden,variable,HUD hidden flag,high,aligned instructions of matched functions: 7 of 7 votes from 7 function pair(s),0x0054329b,0x004d52d6
+0x00541108,g_enemyTotal,variable,enemies spawned this level (statistics),high,aligned instructions of matched functions: 5 of 5 votes from 5 function pair(s),0x005432c0,
+0x0054110c,g_maxLevelScore,variable,maximum level score (statistics),high,aligned instructions of matched functions: 6 of 6 votes from 5 function pair(s),0x005432c4,
+0x005410dc,g_starTotal,variable,stars placed on the map (statistics),high,aligned instructions of matched functions: 6 of 6 votes from 4 function pair(s),0x00543294,
+0x020c3bf0,g_skidTrailPool,table,"64 skid trails of 0x64c bytes (free list 0x020c5d9c, live list 0x020c5da0)",medium,aligned instructions of matched functions: 3 of 3 votes from 1 function pair(s),0x020c5da8,
+0x0049b378,g_portraitDialogs,table,"portrait dialogue per mission, 36 pointers (mission*2 + 1 for the end dialogue; 0 = none)",low,aligned instructions of matched functions: 1 of 1 votes from 1 function pair(s),0x0049d530,

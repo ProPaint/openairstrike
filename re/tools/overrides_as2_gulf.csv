@@ -1,0 +1,18 @@
+from_address,to_address,confidence,evidence
+# Manual decisions for Gulf Thunder against AirStrike 2 (docs/spec/gulf/symbol-map.md).
+# to_address is a Gulf Thunder address, or "removed" (no counterpart; the evidence says why).
+0x00438e40,0x00437770,low,XML helper of 5 instructions between the same matched XML functions; the only unmatched one of that length
+0x00438f00,0x00437760,low,one of three identical 2-instruction XML stubs; paired in address order (the stubs are interchangeable)
+0x00438f10,0x00437830,low,one of three identical 2-instruction XML stubs; paired in address order
+0x00438f20,0x00437840,low,one of three identical 2-instruction XML stubs; paired in address order
+0x0040f000,removed,medium,intro comic panel (G_StartIntros gulf@0x40f0b0 builds a shorter intro list; the as2 comic panel strings and callbacks are absent)
+0x0040f020,removed,medium,intro comic panorama draw: no function of that shape; see frontend.delta.md 3.1
+0x0040f1e0,removed,medium,intro comic page begin: absent with the as2 intro comic
+0x0040f280,removed,medium,intro comic page begin: absent with the as2 intro comic
+0x0040f310,removed,medium,intro comic page begin: absent with the as2 intro comic
+0x0040f3f0,removed,medium,intro comic page end test: absent with the as2 intro comic
+0x0040f410,removed,medium,intro comic draw (907 instructions): no function of similar size or strings in Gulf Thunder
+0x004100b0,removed,medium,intro comic page begin: absent with the as2 intro comic
+0x00410140,removed,medium,intro comic page end test: absent with the as2 intro comic
+0x00410160,removed,medium,intro comic draw: absent with the as2 intro comic
+0x00429df0,removed,high,third primary-weapons Information page: Gulf Thunder's pages say 'Page 1 of 2' and 'Page 2 of 2' and its information draw callback gulf@0x428bb0 switches over 7 pages (as2: 8)

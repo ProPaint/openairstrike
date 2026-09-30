@@ -386,6 +386,30 @@ class Matcher:
                     cand[(a.addr, b.addr)] = (sc, "global shape search")
         return self._accept(cand, threshold, "low", margin=0.05)
 
+    def order_pass(self):
+        """Two builds of one code base (AirStrike 2 and Gulf Thunder): the linker keeps the
+        function order, so an unmatched run between two matched neighbours pairs up in order
+        when both runs have the same length and every pair has the same loose shape (same
+        mnemonics). Catches the small functions whose shape is not unique."""
+        n = 0
+        ms = sorted(self.m.items())
+        for (s0, d0), (s1, d1) in zip(ms, ms[1:]):
+            if d1 <= d0:
+                continue
+            rs = [a for a in self.S if s0 < a < s1 and a not in self.m]
+            rd = [b for b in self.D if d0 < b < d1 and b not in self.rm]
+            if not rs or len(rs) != len(rd):
+                continue
+            rs.sort()
+            rd.sort()
+            if all(self.S[a].loose == self.D[b].loose for a, b in zip(rs, rd)):
+                for a, b in zip(rs, rd):
+                    kind = "identical" if self.S[a].exact == self.D[b].exact else "same-mnemonic"
+                    if self.add(a, b, "medium", "same position between matched neighbours, %s shape (%d insns)"
+                                % (kind, self.S[a].ninsn)):
+                        n += 1
+        return n
+
     def label(self, s):
         return self.names.get(s, (self.S[s].name,))[0] if hasattr(self, "names") else self.S[s].name
 
@@ -417,6 +441,20 @@ def load_src_names(tag):
             if old and old[3]:
                 alias = (alias + " " + old[3]).strip()
             names[a] = (r["name"], r["subsystem"], r["description"], alias)
+    # A sequel's later packages corrected or added names in their own files; those win (the
+    # last file listed wins). The v1.70 map has no such files.
+    if tag != "v170":
+        for suffix in ("builtins", "frontend", "game"):
+            p = os.path.join(REPO, "re", "symbols_%s_%s.csv" % (tag, suffix))
+            if not os.path.exists(p):
+                continue
+            for r in csv.DictReader(open(p)):
+                a = int(r["address"], 16)
+                old = names.get(a)
+                if old is None or old[0] == r["name"] or not r["name"]:
+                    continue  # only functions the main map has; addresses inside functions skipped
+                alias = (old[0] + " " + old[3]).strip() if not old[0].startswith("FUN_") else old[3]
+                names[a] = (r["name"], r["subsystem"] or old[1], r["description"], alias)
     # de-duplicate names: second and later get _<addr>
     out = {}
     for a in sorted(names):
@@ -447,6 +485,10 @@ LAYOUT = {
     "as2": {"game_end": 0x004392F2,
             "lib": [(0x0044EF00, 0x00478D40,
                      "Direct3DX 8 static library (texture and image loading; includes libpng 1.0.5, libjpeg and zlib)")]},
+    # the counterparts of the as2 boundaries (same link order, 0x16e0 / 0x1700 bytes lower)
+    "gulf": {"game_end": 0x00437C12,
+             "lib": [(0x0044D820, 0x00477640,
+                      "Direct3DX 8 static library (texture and image loading; includes libpng 1.0.5, libjpeg and zlib)")]},
 }
 
 
@@ -591,12 +633,94 @@ def build_rows(M, names_new):
     return [rows[a] for a in order]
 
 
-def write_rows(rows, path):
+def write_rows(rows, path, columns=None):
+    columns = columns or COLUMNS
     with open(path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=COLUMNS, lineterminator="\n")
+        w = csv.DictWriter(f, fieldnames=columns, lineterminator="\n")
         w.writeheader()
         for r in rows:
-            w.writerow({k: r.get(k, "") for k in COLUMNS})
+            w.writerow({k: r.get(k, "") for k in columns})
+
+
+# ------------------------------------------------------ sequel against sequel
+
+def sequel_columns(src):
+    """Columns of a map made against another sequel (Gulf Thunder against AirStrike 2): the
+    counterpart in `src`, the comparison with it, and the v1.70 counterpart carried over."""
+    return ["address", "name", "subsystem", "description", "confidence", "evidence",
+            "%s_address" % src, "vs_%s" % src, "v170_address"]
+
+
+def compare_class(M, s, d):
+    """same | same-shape-other-constants | same-opcodes | changed (see sequel_diff.py)."""
+    import sequel_diff as SD
+    a, b = M.S[s], M.D[d]
+    if a.exact == b.exact:
+        A, B = SD.insns(M.src, s), SD.insns(M.dst, d)
+        return "same-shape-other-constants" if SD.const_diffs(M.pe_s, M.pe_d, A, B) else "same"
+    return "same-opcodes" if a.loose == b.loose else "changed"
+
+
+def sequel_rows(M, rows):
+    src = M.src
+    col = "%s_address" % src
+    v170 = {}
+    p = os.path.join(REPO, "re", "symbols_%s.csv" % src)
+    if os.path.exists(p):
+        for r in csv.DictReader(open(p)):
+            v170[int(r["address"], 16)] = r.get("v170_address", "")
+    for r in rows:
+        r[col] = r.pop("v170_address", "")
+        if r[col]:
+            s = int(r[col], 16)
+            d = int(r["address"], 16)
+            r["v170_address"] = v170.get(s, "")
+            r["vs_%s" % src] = compare_class(M, s, d) if s in M.S else "code"
+            if r["description"].startswith("counterpart of the unnamed v1.70"):
+                r["description"] = "counterpart of the unnamed %s function FUN_%08x" % (src, s)
+        else:
+            r["vs_%s" % src] = "new"
+    return rows
+
+
+def check_sequel(path, src, dst):
+    """Checks of a sequel-against-sequel map and its statistics."""
+    D = {int(x["entry"], 16): x for x in json.load(open(os.path.join(R.DATA_ROOT, "re", "out", dst, "functions.json")))}
+    rows = list(csv.DictReader(open(path)))
+    ok = True
+    if list(rows[0].keys()) != sequel_columns(src):
+        print("FAIL columns", list(rows[0].keys()))
+        ok = False
+    addrs = Counter(int(r["address"], 16) for r in rows)
+    names = Counter(r["name"] for r in rows)
+    for a, c in addrs.items():
+        if a not in D or c > 1:
+            print("FAIL address", hex(a))
+            ok = False
+    for n, c in names.items():
+        if c > 1 or not n:
+            print("FAIL duplicate or empty name", repr(n))
+            ok = False
+    exe = os.path.join(R.DATA_ROOT, R.EXES[dst])
+    if dst in R.TABLES and os.path.exists(exe):
+        t = R.read_table(R.PE(exe), *R.TABLES[dst]["builtin"])
+        miss = [(n, hex(v)) for n, v, _ in t if v not in addrs]
+        print("builtins: %d table entries, %d distinct functions, missing rows: %d"
+              % (len(t), len({v for _, v, _ in t}), len(miss)))
+        ok = ok and not miss
+    S = {int(x["entry"], 16): x for x in json.load(open(os.path.join(R.DATA_ROOT, "re", "out", src, "functions.json")))}
+    col = "%s_address" % src
+    mapped = {int(r[col], 16) for r in rows if r[col]}
+    print("rows: %d of %d %s functions; %d have a %s counterpart; %d of %d %s functions mapped"
+          % (len(rows), len(D), dst, sum(1 for r in rows if r[col]), src, len(mapped & set(S)), len(S), src))
+    vs = "vs_%s" % src
+    game = lambda r: r["subsystem"] not in ("crt", "lib")
+    for label, sel in (("all", lambda r: True), ("game code", game), ("runtime and library", lambda r: not game(r))):
+        c = Counter(r[vs] for r in rows if sel(r))
+        print("  %-20s %s" % (label, ", ".join("%s %d" % kv for kv in sorted(c.items(), key=lambda kv: -kv[1]))))
+    print("confidence:", dict(Counter(r["confidence"] for r in rows)))
+    print("CHECK", "OK" if ok else "FAILED")
+    return ok
 
 
 def check(path, dst, removed_doc=None):
@@ -713,6 +837,8 @@ def main():
     ap.add_argument("--removed-doc")
     args = ap.parse_args()
     if args.check:
+        if args.src != "v170":
+            sys.exit(0 if check_sequel(args.check, args.src, args.dst) else 1)
         sys.exit(0 if check(args.check, args.dst, args.removed_doc) else 1)
     M = Matcher(args.src, args.dst)
     M.names = load_src_names(args.src)
@@ -740,7 +866,11 @@ def main():
         print("same neighbours    +%d  (total %d)" % (q, len(M.m)), file=sys.stderr)
         c = M.coderef_pass()
         print("callback positions +%d  (total %d)" % (c, len(M.m)), file=sys.stderr)
-        if n == 0 and g == 0 and k == 0 and q == 0 and c == 0:
+        o = 0
+        if args.src != "v170":
+            o = M.order_pass()
+            print("same position      +%d  (total %d)" % (o, len(M.m)), file=sys.stderr)
+        if n == 0 and g == 0 and k == 0 and q == 0 and c == 0 and o == 0:
             break
     if args.pairs:
         with open(args.pairs, "w") as f:
@@ -752,6 +882,12 @@ def main():
     print("v170 named matched: %d of %d, removed %d" % (matched_named, len(named), len(M.removed)),
           file=sys.stderr)
     rows = build_rows(M, names_new)
+    if args.src != "v170":
+        rows = sequel_rows(M, rows)
+        if args.out:
+            write_rows(rows, args.out, sequel_columns(args.src))
+            print("wrote %s (%d rows)" % (args.out, len(rows)), file=sys.stderr)
+        return
     if args.out:
         write_rows(rows, args.out)
         print("wrote %s (%d rows)" % (args.out, len(rows)), file=sys.stderr)
