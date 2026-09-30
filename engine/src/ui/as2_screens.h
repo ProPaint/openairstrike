@@ -115,6 +115,8 @@ struct SequelScreens {
     static void applyLook(const Frontend& f);
     // The operation's name under Gulf Thunder's loading comic.
     static std::string loadingName(const Frontend& f);
+    // Whether the game has the four comic pages after its logo pages (AirStrike 2: yes, Gulf Thunder: no).
+    static bool hasIntroComic(const Frontend& f);
 
     // Flow (as2/frontend.md 5).
     static void boot(Frontend& f);

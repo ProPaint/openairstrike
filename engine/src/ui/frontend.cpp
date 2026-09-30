@@ -86,7 +86,7 @@ void Frontend::boot() {
     heliAlternator_ = 0;
     paused_ = hudHidden_ = false;
     campaign_ = Campaign(rules());
-    if (profile_.settings.showLogo && (!content_.intros.empty() || sequel())) {
+    if (profile_.settings.showLogo && (!content_.intros.empty() || (sequel() && SequelScreens::hasIntroComic(*this)))) {
         intro_ = std::make_unique<IntroRun>();
         intro_->pages = content_.intros;
         if (sequel()) SequelScreens::boot(*this); // the four comic pages after the logo pages

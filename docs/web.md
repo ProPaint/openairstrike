@@ -185,7 +185,10 @@ backup and the missing old file are in storage, and after a second reload as wel
   downloaded, "Change game", AirStrike 2's mission 1 started through its own menus (Start
   Game, Next, the helicopter selection, the start dialogue) and played under the pilot for
   30 s, its in-game menu and Quit, the first
-  game's save unchanged by it; desktop by mouse and keys; a 20:9 Android phone and an iPhone
+  game's save unchanged by it; `gulf`: Gulf Thunder chosen, its main menu's button
+  geometry, Information, Credits, Options and Top Scores opened, operation 1 through its menus
+  and played 15 s, the in-game menu, Resume, Quit, its save `/persist/gulf/profile.bin` with the
+  key `gulf`, the same by taps on a touch phone; desktop by mouse and keys; a 20:9 Android phone and an iPhone
   profile by synthesized touch, multi-touch; Mission Complete with the bot; Game Over and name
   entry; the byo files through the file input, AirStrike 2's files started and both games
   offered, old-style stored files; the migration of a version 1 profile). The scenarios of the

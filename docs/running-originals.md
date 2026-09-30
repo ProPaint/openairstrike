@@ -147,3 +147,19 @@ mission 18 (no end dialogue) shows Game Complete after the fly-out (about 3 s). 
 its first tutorial tip about 12 s after the start dialogue. Our side of the comparison:
 `as3d_viewer --game as2 screen <name> --level intro1|N --scroll S --state ...` (the level behind,
 the game's brightness pass), see docs/spec/as2/issues/300.
+
+Gulf Thunder front end captures (package F4, `out/reference/gulf/o_*.png`, never committed):
+the private copy of `gulf` has every operation unlocked. The main menu's Information (400, 402),
+Credits (400, 447) and Options (400, 357) open their screens; Back is at (90, 537) on Options,
+Controls and Information and (70, 537) on Top Scores and Credits; `Next` (xdotool name for
+PageDown) turns an Information page; on Start Game the keys Down and Up move the selection (24
+operations, the list scrolls), Next is at (697, 537) and the helicopter selection's Start at
+(715, 537). A level takes about 35 s to load under software rendering; operation 10's start
+dialogue (three pages) shows about 35 s after the click and is over after about 25 s; type
+`deadlineisnear` (no `p`) once it has closed for the end dialogue (two pages) and Mission
+Complete (Choose Helicopter (400, 457), Restart (120, 537), Quit (400, 537), Next (680, 537)),
+`diediediemydarling` after a few Returns through the start dialogue for Game Over (Quit (250,
+537), Restart (550, 537)). From operation 24 `deadlineisnear` goes straight to Game Complete
+(Continue (400, 537)). Compare with `as3d_viewer --game gulf screen <name> --state mt=1,...`
+(`mt` lets the menu open and the emblem's tint settle); the screens' own text hits are the
+texts of `texts_gulf.txt`, extracted by `tools/extract_exe_texts.py --game gulf`.

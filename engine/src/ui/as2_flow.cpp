@@ -175,6 +175,11 @@ void SequelScreens::applyLook(const Frontend& f) {
     setGulfLook(f.content_.game && f.content_.game->id == GameId::GulfThunder);
 }
 
+bool SequelScreens::hasIntroComic(const Frontend& f) {
+    applyLook(f);
+    return layout().introComic;
+}
+
 std::string SequelScreens::loadingName(const Frontend& f) {
     const int m = std::clamp(f.campaign_.mission, 0, kMaxMissions - 1);
     const std::string& name = f.content_.missionNames[m];
