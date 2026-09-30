@@ -961,7 +961,7 @@ bool GameWindow::buildSelector(std::string* err, int preselected) {
         selector_.reset();
         return false;
     }
-    selector_->setScreen(fbWidth(), fbHeight(), o_.safeInsets ? o_.safeInsets() : SafeInsets());
+    selector_->setScreen(fbWidth(), fbHeight(), o_.safeInsets ? o_.safeInsets() : SafeInsets(), screenMode());
     return true;
 }
 
@@ -1094,7 +1094,7 @@ void GameWindow::selectorFrame() {
     updateLayout(); // AS3D_VIEW and the insets, as in a game
     const SafeInsets in = o_.safeInsets ? o_.safeInsets() : SafeInsets();
     selector_->setTouchMode(touchMode_);
-    selector_->setScreen(fbWidth(), fbHeight(), in);
+    selector_->setScreen(fbWidth(), fbHeight(), in, screenMode());
     selector_->update(dt, uiIn_);
     uiIn_.events.clear();
     if (selector_->exitRequested()) {

@@ -125,38 +125,53 @@ void panel(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h,
     }
 }
 
-void titleLogo(Renderer2D& r, const UiAssets& a, float T) {
-    if (const Texture2D* glow = a.texture("gfx\\logo\\glow.tga")) pic(r, *glow, 124, 0, Color{}, Blend::Add);
-    if (const Texture2D* two = a.texture("gfx\\logo\\two3.tga")) {
+void titleLogoAt(Renderer2D& r, const TitleLogoPictures& p, float T, float cloudT, float ox, float oy, float k, float alpha) {
+    const Color tint{1, 1, 1, alpha};
+    if (p.glow)
+        picStretched(r, *p.glow, ox + 124 * k, oy, static_cast<float>(p.glow->width()) * k, static_cast<float>(p.glow->height()) * k,
+                     tint, Blend::Add);
+    if (p.two) {
         const float g = 15.0f + 15.0f * std::sin(T + 0.2f);
         Quad q;
-        q.x = 580 - g;
-        q.y = -g;
-        q.w = q.h = 128 + 2 * g;
-        q.texture = two;
+        q.x = ox + (580 - g) * k;
+        q.y = oy + (-g) * k;
+        q.w = q.h = (128 + 2 * g) * k;
+        q.texture = p.two;
+        q.color = tint;
         q.blend = Blend::Alpha;
         q.rotation = 20.0f + 15.0f * std::sin(2.0f * T);
         r.add(q);
     }
-    if (const Texture2D* logo = a.texture("gfx\\logo\\logo.tga")) {
+    if (p.logo) {
         Quad q;
-        q.x = 124;
-        q.y = 0;
-        q.w = 512;
-        q.h = 128;
-        q.texture = logo;
+        q.x = ox + 124 * k;
+        q.y = oy;
+        q.w = 512 * k;
+        q.h = 128 * k;
+        q.texture = p.logo;
+        q.color = tint;
         q.blend = Blend::Alpha;
-        if (const Texture2D* clouds = a.textureRepeat("gfx\\logo\\clouds.tga")) {
+        if (p.clouds) {
             // The letters show the clouds scrolling left, 0.05 texture widths per second.
-            q.texture2 = clouds;
-            q.s0b = 0.1f * T;
-            q.s1b = 0.1f * T + 2.0f;
+            q.texture2 = p.clouds;
+            q.s0b = 0.1f * cloudT;
+            q.s1b = 0.1f * cloudT + 2.0f;
             q.t0b = 0;
             q.t1b = 1;
             q.combine2 = 2;
         }
         r.add(q);
     }
+}
+
+void titleLogo(Renderer2D& r, const UiAssets& a, float T) {
+    TitleLogoPictures p;
+    p.glow = a.texture("gfx\\logo\\glow.tga");
+    p.two = a.texture("gfx\\logo\\two3.tga");
+    p.logo = a.texture("gfx\\logo\\logo.tga");
+    // The clouds are only asked for with the logo, as before.
+    p.clouds = p.logo ? a.textureRepeat("gfx\\logo\\clouds.tga") : nullptr;
+    titleLogoAt(r, p, T, T, 0, 0, 1, 1);
 }
 
 void textButton(Renderer2D& r, const UiAssets& a, float left, float yd, float W, std::string_view caption, Color col) {

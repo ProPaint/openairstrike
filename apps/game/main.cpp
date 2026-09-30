@@ -54,7 +54,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -103,6 +105,8 @@ struct Args {
     bool allowUnfinished = false;
     std::string selectorShot, selectorGames;
     int selectorFocus = -1;
+    float selectorTime = 0.25f; // seconds of selector clock before the shot
+    std::string marqueeDir;     // --selector-marquees: the web page's marquee frames go here
     SafeInsets insets; // --insets, for the selector shot
     GameData data; // where the chosen game's files are
 };
@@ -117,7 +121,8 @@ int usage() {
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
                  "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n"
                  "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n"
-                 "       as3d_game --headless --selector-shot FILE.png [--selector-games K1,K2] [--size WxH] [--touch]\n");
+                 "       as3d_game --headless --selector-shot FILE.png [--selector-games K1,K2] [--size WxH] [--touch]\n"
+                 "                      [--screen wide|4x3] [--insets L,T,R,B] [--selector-focus N] [--selector-time SECONDS]\n");
     return 2;
 }
 
@@ -172,6 +177,10 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--selector-shot" && next()) a.selectorShot = v;
         else if (s == "--selector-games" && next()) a.selectorGames = v;
         else if (s == "--selector-focus" && next()) a.selectorFocus = std::atoi(v);
+        else if (s == "--selector-marquees" && next()) {
+            a.marqueeDir = v;
+            a.selectorShot = "(marquees)";
+        } else if (s == "--selector-time" && next()) a.selectorTime = static_cast<float>(std::atof(v));
         else if (s == "--insets" && next()) {
             if (std::sscanf(v, "%d,%d,%d,%d", &a.insets.left, &a.insets.top, &a.insets.right, &a.insets.bottom) != 4)
                 return false;
@@ -382,6 +391,63 @@ void planDesktopLauncher(const Args& a, LoopOptions& o) {
     };
 }
 
+// --selector-marquees DIR: the frames of every listed game's marquee for the web page's cards
+// (docs/web.md), one PNG per frame (DIR/<key>_NNN.png, 352x162: a marquee box of a 380 wide
+// card) and DIR/index.txt with one line per game, "key frames ms" (the frame time). The loop
+// is exact (GameSelector::setLoopFit): the banner's 2 pi seconds in 75 frames, the logos'
+// 4 pi in 100.
+int writeMarqueeFrames(const Args& a, LauncherScreen& screen, ui::Renderer2D& r, RenderTarget& target,
+                       const std::vector<const GameProfile*>& games) {
+    constexpr int kW = 352, kH = 162;
+    if (a.width != 800 || a.height != 600) {
+        std::fprintf(stderr, "as3d_game: --selector-marquees needs --size 800x600\n");
+        return 2;
+    }
+    std::error_code ec;
+    std::filesystem::create_directories(a.marqueeDir, ec);
+    screen.setLoopFit(true);
+    const ui::RectF box{(800 - kW) / 2.0f, (600 - kH) / 2.0f, static_cast<float>(kW), static_cast<float>(kH)};
+    std::string index;
+    for (size_t g = 0; g < games.size(); ++g) {
+        const bool banner = games[g]->id == GameId::AirStrike3D;
+        const int frames = banner ? 75 : 100;
+        const float loop = banner ? 6.28318531f : 12.5663706f;
+        for (int f = 0; f < frames; ++f) {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            target.bind();
+            glClearColor(0, 0, 0, 1);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            screen.drawMarquee(r, a.width, a.height, static_cast<int>(g), box, loop * static_cast<float>(f) / static_cast<float>(frames));
+            Image full, crop;
+            if (!target.readPixels(full)) return 1;
+            crop.width = kW;
+            crop.height = kH;
+            crop.rgba.resize(static_cast<size_t>(kW) * kH * 4);
+            for (int y = 0; y < kH; ++y)
+                for (int x = 0; x < kW; ++x) {
+                    const size_t from = (static_cast<size_t>(static_cast<int>(box.y) + y) * 800 + static_cast<size_t>(box.x) + x) * 4;
+                    const size_t to = (static_cast<size_t>(y) * kW + x) * 4;
+                    for (int c = 0; c < 3; ++c) crop.rgba[to + c] = full.rgba[from + c];
+                    crop.rgba[to + 3] = 255;
+                }
+            char name[64];
+            std::snprintf(name, sizeof name, "%s_%03d.png", games[g]->key, f);
+            if (!writePng((a.marqueeDir + "/" + name).c_str(), crop)) {
+                std::fprintf(stderr, "as3d_game: cannot write %s\n", name);
+                return 1;
+            }
+        }
+        char line[96];
+        std::snprintf(line, sizeof line, "%s %d %d\n", games[g]->key, frames, static_cast<int>(std::lround(1000.0f * loop / static_cast<float>(frames))));
+        index += line;
+    }
+    std::FILE* fp = std::fopen((a.marqueeDir + "/index.txt").c_str(), "wb");
+    if (!fp) return 1;
+    std::fwrite(index.data(), 1, index.size(), fp);
+    std::fclose(fp);
+    return 0;
+}
+
 // --selector-shot: the selector drawn once, headless (the games present, or --selector-games).
 int runSelectorShot(const Args& a) {
     const std::vector<GameData> found = detectGames(a.game.dataRoot);
@@ -422,9 +488,12 @@ int runSelectorShot(const Args& a) {
         std::fprintf(stderr, "as3d_game: %s\n", err.c_str());
         return 1;
     }
-    screen.setScreen(a.width, a.height, a.insets);
-    screen.update(0.25f, ui::UiInput());
+    screen.setScreen(a.width, a.height, a.insets, a.screen);
+    // The clock advances in steps of 1/30 s, as the window's frames do.
+    for (float t = 0; t < a.selectorTime - 1e-4f; t += 1.0f / 30.0f)
+        screen.update(std::min(1.0f / 30.0f, a.selectorTime - t), ui::UiInput());
     target.bind();
+    if (!a.marqueeDir.empty()) return writeMarqueeFrames(a, screen, r, target, games);
     screen.draw(r, a.width, a.height);
     // The window shows colour only: the picture is written opaque (the 2D layer leaves alpha
     // as its blending makes it).

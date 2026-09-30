@@ -21,6 +21,10 @@
 #                      the chosen game's files (docs/spec/issues/163); ?game= forces one.
 #   AS3D_WEB_SITE      where the site is assembled (see below).
 #
+#   AS3D_DESKTOP_BUILD_DIR   the desktop build (default build/) whose as3d_game renders the
+#                      selector's marquees into the bundled site (marquee/<key>.webp, about 1 MB in
+#                      all, docs/web.md: renders of the games' own art, so bundled only).
+#
 # Emscripten: $EMSDK if set, else ~/tools/emsdk. Output (all gitignored):
 #   build-web/                          the CMake build (shared by both modes)
 #   $AS3D_DATA_ROOT/out/web/site/       bundled   (AS3D_WEB_SITE overrides)
@@ -119,6 +123,21 @@ window.AS3D_BUILD = { mode: "$MODE", stamp: "$STAMP", rev: "$REV" };
 EOF
 
 if [ "$MODE" = bundled ]; then
+  # The selector's marquees, rendered by the desktop engine (the same code that draws the
+  # selector on desktop and Android): frames, then one looping WebP per game. The page's cards
+  # show them; without them (no GL on this machine) the cards show their titles in text.
+  DESK="${AS3D_DESKTOP_BUILD_DIR:-$ROOT/build}"
+  FRAMES="$(mktemp -d)"
+  trap 'rm -rf "$NEW" "$FRAMES"' EXIT
+  cmake -S "$ROOT" -B "$DESK" -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null
+  cmake --build "$DESK" -j"${AS3D_BUILD_JOBS:-4}" --target as3d_game_app >/dev/null
+  if (ulimit -v 4000000; AS3D_USER_DATA_DIR="$FRAMES/user" timeout 600 "$DESK/apps/game/as3d_game" --data "$DATA_ROOT" --headless --quiet \
+        --selector-marquees "$FRAMES/frames" --selector-games "$GAMES" --size 800x600); then
+    python3 "$ROOT/tools/web_marquees.py" "$FRAMES/frames" "$NEW/marquee"
+    rm -rf "$FRAMES"
+  else
+    echo "web_build: WARNING: could not render the selector's marquees: the cards show titles in text" >&2
+  fi
   for key in "${GAME_KEYS[@]}"; do
     IFS='|' read -r _ paks texts <<< "$(game_line "$key")"
     inst="$(install_dir "$key")"
@@ -139,7 +158,7 @@ else
   while IFS= read -r -d '' f; do
     rel="${f#$NEW/}"
     case "$rel" in
-      index.html|app.js|files.js|style.css|build.js|as3d_web.js|as3d_web.wasm|manifest.webmanifest|known_files.json|icons/*.png|icons/*.svg) ;;
+      index.html|app.js|files.js|marquee.js|style.css|build.js|as3d_web.js|as3d_web.wasm|manifest.webmanifest|known_files.json|icons/*.png|icons/*.svg) ;;
       *) echo "web_build: unexpected file in the byo site: $rel" >&2; bad=1 ;;
     esac
   done < <(find "$NEW" -type f -print0)

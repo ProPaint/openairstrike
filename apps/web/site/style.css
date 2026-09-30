@@ -94,22 +94,75 @@ button.play {
   box-shadow: 0 6px 24px rgba(255, 160, 0, 0.25);
 }
 button.play:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
-/* The game chooser (docs/spec/issues/163): one card per game; a card is that game's Play. */
-#game-list button.game {
+/* The game selector (docs/spec/issues/163, 164): the engine's own selector screen, laid out in
+   its virtual 800x600 units (--u is one of them; the engine scales by height, or by width on
+   screens narrower than 4:3): black bars with a rust rule, "Choose a game" in the top bar, the
+   cards between them on a dim red wash, the bottom bar below. A card: the marquee on its dark
+   stage, the title, the version, what there is to know, what a click does. */
+#start { --u: min(100vh / 600, 100vw / 800); --rust: #c03000; --orange: #ffa000; --soft: #e05f1f; }
+#start.choosing { background: #000; padding: 0; overflow: hidden; }
+#start.choosing .panel { max-width: none; height: 100%; margin: 0; text-align: center; }
+#start.choosing .panel > :not(#games) { display: none; }
+#games { height: 100%; display: flex; flex-direction: column; font-family: "Trebuchet MS", system-ui, sans-serif; letter-spacing: 0.06em; }
+#games .bar { flex: 100 0 0; min-height: calc(60 * var(--u)); background: #000; display: flex; align-items: center; justify-content: center; position: relative; }
+#games .bar.top { border-bottom: calc(2 * var(--u)) solid var(--rust); }
+#games .bar.bottom { border-top: calc(2 * var(--u)) solid var(--rust); justify-content: space-between; padding: 0 calc(28 * var(--u)); gap: 12px; }
+#games h2 { margin: 0; font-size: calc(30 * var(--u)); font-weight: 600; color: var(--orange); text-shadow: 0 calc(2 * var(--u)) 0 rgba(0, 0, 0, 0.8), 0 0 calc(10 * var(--u)) rgba(255, 160, 0, 0.35); }
+#games .band { flex: 400 0 0; display: flex; align-items: center; justify-content: center; background: #150505; min-height: 0; padding: 0 calc(28 * var(--u)); }
+#games .bar .small { font-size: calc(13 * var(--u)); min-width: 12px; }
+#games .bar .keys { position: absolute; left: 0; right: 0; text-align: center; pointer-events: none; bottom: calc(6 * var(--u)); }
+#games .bar.bottom label { z-index: 1; }
+button.play-card { font-size: calc(22 * var(--u)); min-width: calc(150 * var(--u)); height: calc(40 * var(--u)); padding: 0; border: none; border-radius: 0; background: #300000; color: #ff3000; letter-spacing: 0.06em; z-index: 1; }
+button.play-card:disabled { opacity: 0.4; cursor: default; }
+.cards { display: flex; justify-content: center; gap: calc(18 * var(--u)); width: 100%; max-width: calc(1100 * var(--u)); }
+.cards button.game {
+  flex: 0 1 calc(380 * var(--u));
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 200px;
-  padding: 16px 22px;
-  border: 2px solid var(--line);
-  background: rgba(255, 160, 0, 0.06);
+  align-items: center;
+  padding: calc(18 * var(--u)) calc(14 * var(--u)) calc(18 * var(--u));
+  border: 1px solid #002a70;
+  border-color: #702a00;
+  border-radius: 0;
+  background: rgba(8, 3, 3, 0.72);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  transition: none;
 }
-#game-list button.game strong { font-size: 22px; color: var(--accent); }
-#game-list button.game small { color: var(--muted); }
-#game-list button.game.last { border-color: var(--accent); }
-#game-list button.game.chosen { background: var(--accent); }
-#game-list button.game.chosen strong, #game-list button.game.chosen small { color: var(--accent-text); }
-#game-list button.game:disabled:not(.chosen) { opacity: 0.35; cursor: default; }
+.cards button.game .stage { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 352 / 162; margin-bottom: calc(14 * var(--u));
+  background: rgba(0, 0, 0, 0.6); outline: 1px solid rgba(144, 60, 0, 0.45); outline-offset: calc(4 * var(--u)); box-sizing: border-box; }
+.cards button.game .stage > img, .cards button.game .stage > canvas { width: 100%; height: 100%; display: block; object-fit: contain; }
+.cards button.game .stage.text { color: var(--soft); font-size: min(calc(36 * var(--u)), calc(92cqw / var(--chars, 12) / 0.62)); line-height: 1.1; text-shadow: 0 calc(2 * var(--u)) 0 #000; padding: 0 4px; }
+.cards button.game { container-type: inline-size; }
+.cards button.game strong, .cards button.game .stage.text { white-space: nowrap; }
+.cards button.game strong { font-size: min(calc(22 * var(--u)), calc(92cqw / var(--chars, 12) / 0.62)); font-weight: 500; color: var(--soft); text-shadow: 0 calc(2 * var(--u)) 0 #000; line-height: 1.2; margin: calc(8 * var(--u)) 0 calc(2 * var(--u)); height: calc(30 * var(--u)); display: flex; align-items: center; }
+.cards button.game small { font-size: calc(14 * var(--u)); color: #808080; }
+.cards button.game .info { display: flex; flex-direction: column; justify-content: center; gap: calc(4 * var(--u)); min-height: calc(50 * var(--u)); margin-top: calc(6 * var(--u)); font-size: calc(15 * var(--u)); color: #fff; }
+.cards button.game .info .lastplayed { color: var(--orange); }
+.cards button.game .hint { align-self: stretch; margin-top: calc(6 * var(--u)); padding-top: calc(12 * var(--u)); border-top: 1px solid rgba(144, 60, 0, 0.5); font-size: calc(14 * var(--u)); color: #808080; }
+.cards button.game.current { border-color: var(--orange); background: rgba(77, 5, 5, 0.8); box-shadow: 0 0 calc(3 * var(--u)) rgba(255, 128, 0, 0.6), 0 0 calc(10 * var(--u)) rgba(255, 128, 0, 0.3); outline: none; animation: card-pulse 1.05s ease-in-out infinite; }
+.cards button.game.current strong, .cards button.game.current .hint { color: var(--orange); }
+.cards button.game.current .stage { background: rgba(0, 0, 0, 0.78); outline-color: rgba(255, 150, 0, 0.6); }
+.cards button.game.current .hint { animation: hint-pulse 1.05s ease-in-out infinite; }
+.cards button.game:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.cards button.game.chosen { box-shadow: 0 0 calc(14 * var(--u)) rgba(255, 160, 0, 0.9); }
+.cards button.game:disabled:not(.chosen) { opacity: 0.4; cursor: default; }
+@keyframes card-pulse { 0%, 100% { border-color: #a05a00; box-shadow: 0 0 calc(2 * var(--u)) rgba(255, 128, 0, 0.35), 0 0 calc(7 * var(--u)) rgba(255, 128, 0, 0.12); }
+                        50% { border-color: #ffa000; box-shadow: 0 0 calc(3 * var(--u)) rgba(255, 128, 0, 0.75), 0 0 calc(12 * var(--u)) rgba(255, 128, 0, 0.4); } }
+@keyframes hint-pulse { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cards button.game.current, .cards button.game.current .hint { animation: none; } }
+/* Bring your own, before the files are there: the same cards, smaller, not to be played yet. */
+.cards.mini { max-width: 100%; margin: 8px 0 4px; gap: 10px; }
+.cards.mini button.game { flex: 1 1 0; padding: 8px; cursor: default; font-size: 13px; }
+.cards.mini button.game .stage { margin-bottom: 6px; }
+.cards.mini button.game .stage.text { font-size: min(18px, calc(92cqw / var(--chars, 12) / 0.62)); }
+.cards.mini button.game strong { font-size: 15px; margin: 4px 0 2px; }
+.cards.mini button.game small { font-size: 12px; }
+.cards.mini button.game .info { font-size: 12px; min-height: 0; margin-top: 4px; }
+.cards.mini button.game .hint { display: none; }
+.cards.mini button.game .stage { outline: none; }
 button.link { border: none; background: none; padding: 0 4px; color: var(--accent); text-decoration: underline; }
 
 #progress { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); overflow: hidden; margin: 10px auto 0; max-width: 360px; }
@@ -165,3 +218,33 @@ body.fullscreen #fs-toggle .leave { display: inline; }
   .sub { margin-bottom: 6px; }
   button.play { font-size: 22px; padding: 12px 44px; }
 }
+
+/* The chosen card's game loads: the bottom bar shows the progress instead of its controls. */
+#start.choosing #games.chosen .keys, #start.choosing #games.chosen #choose-play, #start.choosing #games.chosen #choose-full-label { visibility: hidden; }
+#start.choosing #progress:not([hidden]), #start.choosing #status {
+  display: block !important;
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 11;
+  width: min(360px, 60vw);
+  margin: 0;
+}
+#start.choosing #progress:not([hidden]) { bottom: calc(44 * var(--u)); }
+#start.choosing #status { bottom: calc(14 * var(--u)); color: var(--muted); font-size: calc(14 * var(--u)); min-height: 0; }
+
+/* Bring your own, on the selector: the way to remove the stored files stays in reach. */
+#start.choosing .panel > #stored:not([hidden]) {
+  display: block;
+  position: fixed;
+  z-index: 11;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(30 * var(--u));
+  margin: 0;
+  font-size: calc(12 * var(--u));
+  white-space: nowrap;
+}
+#start.choosing #stored-text { display: none; }
+#start.choosing #stored::before { content: "Game files kept in this browser."; }
+#start.choosing #games.chosen ~ #stored { visibility: hidden; }

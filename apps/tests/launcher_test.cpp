@@ -121,6 +121,7 @@ std::vector<ui::GameCard> cards(int n) {
         c.title = g[i]->title;
         c.version = g[i]->version;
         c.saveLines = {"No save yet"};
+        c.marquee = gameMarquee(g[i]->id);
         out.push_back(c);
     }
     return out;
@@ -410,6 +411,253 @@ TEST_CASE("selector: cards and buttons stay inside the screen and clear of cutou
             tapRect(s, s.cardRect(n - 1));
             CHECK(s.chosen() == n - 1);
         }
+    }
+}
+
+// ---------------------------------------------------------------------------------------
+// The selector's look (docs/spec/issues/164): the layout at every aspect and screen mode.
+// ---------------------------------------------------------------------------------------
+TEST_CASE("selector look: the marquee kind of each game") {
+    CHECK(gameMarquee(GameId::AirStrike3D) == ui::Marquee::Banner);      // the 3D banner of its main menu
+    CHECK(gameMarquee(GameId::AirStrike2) == ui::Marquee::TitleLogo);    // the rusty logo, then the "2" emblem
+    CHECK(gameMarquee(GameId::GulfThunder) == ui::Marquee::Emblem);      // its title logo
+    CHECK(std::string(gameLogoPath(GameId::AirStrike2)) == "gfx\\logo\\logo.tga");
+    CHECK(std::string(gameLogoPath(GameId::GulfThunder)) == "gfx\\logo\\logo_gulf.tga");
+    const std::vector<ui::GameCard> c = cards(3);
+    CHECK(c[0].marquee == ui::Marquee::Banner);
+    CHECK(c[1].marquee == ui::Marquee::TitleLogo);
+    CHECK(c[2].marquee == ui::Marquee::Emblem);
+}
+
+TEST_CASE("selector look: layout at every aspect and screen mode, for 1, 2 and 3 cards") {
+    struct Size { int w, h; } sizes[] = {{800, 600}, {1024, 768}, {1600, 720}, {2400, 1080}, {1280, 800}, {1600, 1200}, {640, 480}};
+    for (const Size& sz : sizes) {
+        const ui::Mapping m = ui::computeMapping(sz.w, sz.h);
+        for (bool fourThree : {false, true}) {
+            for (int n = 1; n <= 3; ++n) {
+                ui::GameSelector s(cards(n), 0);
+                s.setView(m.left(), m.right(), fourThree);
+                INFO(sz.w << "x" << sz.h << (fourThree ? " 4:3 " : " wide ") << n << " cards");
+                const float vl = fourThree ? 0.0f : std::min(m.left(), 0.0f), vr = fourThree ? 800.0f : std::max(m.right(), 800.0f);
+                const ui::RectF first = s.cardRect(0), last = s.cardRect(n - 1);
+                float left = first.x, right = last.x + last.w;
+                // Centred on the screen, inside it with a margin, inside the field in 4:3.
+                CHECK(std::fabs((left + right) * 0.5f - 400.0f) <= 1.5f);
+                CHECK(left >= vl + 20);
+                CHECK(right <= vr - 20);
+                CHECK(right - left <= 1100.5f);
+                // One row: same size and top, equal gaps, the row centred in the band between
+                // the bars' rules (no empty band above or below).
+                for (int i = 0; i < n; ++i) {
+                    const ui::RectF c = s.cardRect(i), mq = s.marqueeRect(i);
+                    CHECK(c.y == first.y);
+                    CHECK(c.w == first.w);
+                    CHECK(c.h == first.h);
+                    CHECK(c.w >= 200);
+                    CHECK(c.w <= 380);
+                    CHECK(c.y >= 102);
+                    CHECK(c.y + c.h <= 498);
+                    if (i > 0) CHECK(c.x - (s.cardRect(i - 1).x + s.cardRect(i - 1).w) == 18);
+                    // The marquees share one size, inside their card.
+                    CHECK(mq.w == s.marqueeRect(0).w);
+                    CHECK(mq.h == s.marqueeRect(0).h);
+                    CHECK(mq.x >= c.x);
+                    CHECK(mq.x + mq.w <= c.x + c.w);
+                    CHECK(mq.y >= c.y);
+                    CHECK(mq.y + mq.h < c.y + c.h);
+                    CHECK(mq.w / mq.h > 1.9f); // boxes at least as wide as the widest (2:1) emblem
+                    CHECK(mq.w / mq.h < 2.4f);
+                }
+                CHECK(std::fabs((first.y - 102) - (498 - (first.y + first.h))) <= 1.5f);
+                CHECK(first.h >= 250); // a card is not a sliver on any screen
+                // Buttons in the bottom bar, at the row's edges.
+                CHECK(s.exitRect().y >= 502);
+                CHECK(s.playRect().y + s.playRect().h <= 600);
+                CHECK(s.exitRect().x + s.exitRect().w < s.playRect().x);
+                CHECK(s.exitRect().x >= vl + 20);
+                CHECK(s.playRect().x + s.playRect().w <= vr - 20);
+            }
+        }
+    }
+    // A wide screen gives the cards at least the room the 4:3 field does, and a lone card the
+    // same on both.
+    {
+        const ui::Mapping m = ui::computeMapping(2400, 1080);
+        for (int n = 1; n <= 3; ++n) {
+            ui::GameSelector a(cards(n), 0), b(cards(n), 0);
+            a.setView(m.left(), m.right(), false);
+            b.setView(m.left(), m.right(), true);
+            CHECK(a.cardRect(0).w >= b.cardRect(0).w);
+            if (n == 1) CHECK(a.cardRect(0).w == b.cardRect(0).w);
+        }
+    }
+}
+
+TEST_CASE("selector look: cutouts move the row, never a card past them") {
+    const ui::Mapping m = ui::computeMapping(2400, 1080);
+    for (int n = 1; n <= 3; ++n) {
+        ui::GameSelector s(cards(n), 0);
+        s.setView(m.left(), m.right(), false);
+        s.setSafeArea(m.left() + 300, 0, m.right() - 60, 600); // a big notch on the left
+        for (int i = 0; i < n; ++i) {
+            CHECK(s.cardRect(i).x >= m.left() + 300);
+            CHECK(s.cardRect(i).x + s.cardRect(i).w <= m.right() - 60);
+        }
+        CHECK(s.exitRect().x >= m.left() + 300);
+        CHECK(s.playRect().x + s.playRect().w <= m.right() - 60);
+        tapRect(s, s.marqueeRect(n - 1)); // a tap on the marquee is a tap on the card
+        CHECK(s.chosen() == n - 1);
+    }
+}
+
+// ---------------------------------------------------------------------------------------
+// The marquees, drawn: what the window shows, pixel by pixel, over time.
+// ---------------------------------------------------------------------------------------
+namespace {
+
+StackConfig stackFor(const GameProfile& g); // below
+
+struct ShotRig {
+    ui::Renderer2D r;
+    RenderTarget target;
+    LauncherScreen screen;
+    bool ok = false;
+    std::vector<const GameProfile*> games;
+
+    bool init(const std::vector<const GameProfile*>& want, std::string* err) {
+        if (!r.init(err) || !target.create(800, 600, 0)) return false;
+        std::vector<LauncherEntry> entries;
+        for (const GameProfile* g : want) {
+            const GameData d = locateGameData(testdata::root(), *g);
+            if (!d.hasExtracted) continue;
+            LauncherEntry e;
+            e.game = g;
+            e.files = stackFor(*g).game;
+            entries.push_back(e);
+            games.push_back(g);
+        }
+        if (entries.empty()) return false;
+        if (!screen.init(entries, 0, false, err)) return false;
+        screen.setScreen(800, 600, SafeInsets());
+        return ok = true;
+    }
+    void advance(float seconds) { screen.update(seconds, ui::UiInput()); }
+    void shot(Image& img) {
+        target.bind();
+        screen.draw(r, 800, 600);
+        REQUIRE(target.readPixels(img));
+    }
+};
+
+// Pixels of `img` inside `box` that are not black, and the number that differ from `other`.
+long lit(const Image& img, const ui::RectF& box) {
+    long n = 0;
+    for (int y = static_cast<int>(box.y); y < static_cast<int>(box.y + box.h); ++y)
+        for (int x = static_cast<int>(box.x); x < static_cast<int>(box.x + box.w); ++x) {
+            const size_t i = (static_cast<size_t>(y) * 800 + x) * 4;
+            if (img.rgba[i] + img.rgba[i + 1] + img.rgba[i + 2] > 60) ++n;
+        }
+    return n;
+}
+long differ(const Image& a, const Image& b, const ui::RectF& box, int tolerance = 8) {
+    long n = 0;
+    for (int y = static_cast<int>(box.y); y < static_cast<int>(box.y + box.h); ++y)
+        for (int x = static_cast<int>(box.x); x < static_cast<int>(box.x + box.w); ++x) {
+            const size_t i = (static_cast<size_t>(y) * 800 + x) * 4;
+            int d = 0;
+            for (int c = 0; c < 3; ++c) d = std::max(d, std::abs(int(a.rgba[i + c]) - int(b.rgba[i + c])));
+            if (d > tolerance) ++n;
+        }
+    return n;
+}
+
+} // namespace
+
+TEST_CASE("selector look: each marquee draws the game's own title and moves as the title screen's does") {
+    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_GLES();
+    ShotRig rig;
+    std::string err;
+    if (!rig.init({&kAs3d, &kAs2, &kGulf}, &err)) {
+        std::fprintf(stderr, "SKIPPED (no game data for the selector's marquees: %s): %s\n", err.c_str(), __FILE__);
+        return;
+    }
+    Image t0, t1, t2;
+    rig.advance(0.1f);
+    rig.shot(t0);
+    rig.advance(1.3f);
+    rig.shot(t1);
+    rig.advance(1.7f);
+    rig.shot(t2);
+    for (size_t i = 0; i < rig.games.size(); ++i) {
+        const GameProfile& g = *rig.games[i];
+        const ui::RectF box = rig.screen.selector().marqueeRect(static_cast<int>(i));
+        INFO(g.key << ", marquee " << box.x << "," << box.y << " " << box.w << "x" << box.h);
+        // Something of the title is on the stage (the marquee is not the text fallback: the text
+        // fallback would be 2.6 scale glyphs, far more lit pixels than a logo's).
+        const long l0 = lit(t0, box);
+        CHECK(l0 > 400);
+        CHECK(l0 < static_cast<long>(box.w * box.h * 0.6));
+        // It moves: the clouds and the emblem (AirStrike 2, Gulf Thunder), the mesh's pitch
+        // and yaw (AirStrike 3D).
+        CHECK(differ(t0, t1, box) > 60);
+        CHECK(differ(t1, t2, box) > 60);
+        // The stage is the marquee's own: nothing of it spills past its frame (4 pixels of stage
+        // and the frame line), whatever the mesh or the emblem's swell do.
+        const ui::RectF wide{box.x - 8, box.y - 8, box.w + 16, box.h + 16};
+        const ui::RectF ring[4] = {{wide.x, wide.y, wide.w, 3}, {wide.x, wide.y + wide.h - 3, wide.w, 3},
+                                   {wide.x, wide.y, 3, wide.h}, {wide.x + wide.w - 3, wide.y, 3, wide.h}};
+        for (const ui::RectF& edge : ring) CHECK(differ(t0, t2, edge, 2) == 0);
+    }
+    // The pulsing focus: the current card's frame is brighter at one moment than another, the
+    // card beside it does not pulse.
+    {
+        const ui::RectF c0 = rig.screen.selector().cardRect(0);
+        long lo = 1 << 30, hi = 0;
+        for (int k = 0; k < 12; ++k) {
+            rig.advance(0.09f);
+            Image im;
+            rig.shot(im);
+            long sum = 0;
+            for (int x = static_cast<int>(c0.x); x < static_cast<int>(c0.x + c0.w); ++x) {
+                const size_t i = (static_cast<size_t>(c0.y) * 800 + x) * 4;
+                sum += im.rgba[i] + im.rgba[i + 1];
+            }
+            lo = std::min(lo, sum);
+            hi = std::max(hi, sum);
+        }
+        CHECK(hi > lo * 1.12);
+    }
+}
+
+TEST_CASE("selector look: the web page's marquee loops are exact (loop fit)") {
+    AS3D_REQUIRE_DATA();
+    AS3D_REQUIRE_GLES();
+    ShotRig rig;
+    std::string err;
+    if (!rig.init({&kAs3d, &kAs2, &kGulf}, &err)) {
+        std::fprintf(stderr, "SKIPPED (no game data for the selector's marquees: %s): %s\n", err.c_str(), __FILE__);
+        return;
+    }
+    rig.screen.setLoopFit(true);
+    // The banner loops after 2 pi seconds of the selector's clock, the logos after 4 pi.
+    Image a, b;
+    rig.advance(0.5f);
+    rig.shot(a);
+    rig.advance(6.28318531f);
+    rig.shot(b);
+    for (size_t i = 0; i < rig.games.size(); ++i) {
+        if (rig.games[i]->id != GameId::AirStrike3D) continue;
+        INFO("the banner");
+        CHECK(differ(a, b, rig.screen.selector().marqueeRect(static_cast<int>(i)), 6) < 20);
+    }
+    rig.advance(6.28318531f);
+    Image c;
+    rig.shot(c);
+    for (size_t i = 0; i < rig.games.size(); ++i) {
+        if (rig.games[i]->id == GameId::AirStrike3D) continue;
+        INFO(rig.games[i]->key);
+        CHECK(differ(a, c, rig.screen.selector().marqueeRect(static_cast<int>(i)), 6) < 20);
     }
 }
 

@@ -1,5 +1,6 @@
 <!doctype html>
 <!-- AirStrike, web version (docs/web.md). URL parameters (tests and tuning):
+       games=as3d,as2       the selector offers only these games
        game=as3d|as2        that game, no choice (default: the start screen offers the playable
                             games the page has, docs/spec/issues/163)
        level=N, bot=1       straight into mission N / the bot plays (no menus)
@@ -43,15 +44,20 @@
     <p class="sub">AirStrike 3D and AirStrike 2 on a new engine</p>
 
     <section id="games" hidden>
-      <p>Choose a game:</p>
-      <div id="game-list" class="row"></div>
-      <label class="small" id="choose-full-label"><input type="checkbox" id="choose-full"> full screen</label>
+      <div class="bar top"><h2>Choose a game</h2></div>
+      <div class="band"><div id="game-list" class="cards"></div></div>
+      <div class="bar bottom">
+        <label class="small" id="choose-full-label"><input type="checkbox" id="choose-full"> full screen</label>
+        <span class="small keys">Arrows choose, Enter plays</span>
+        <button id="choose-play" type="button" class="play-card" disabled>Play</button>
+      </div>
     </section>
 
     <section id="files" hidden>
       <p id="files-intro">This page holds only the game engine. To play, give it the files of your own copy of
-        AirStrike 3D v1.70 or AirStrike 2 v2.51 (or both). They stay in this browser; nothing is uploaded. The
-        files of AirStrike II: Gulf Thunder are recognised too and kept, but that game does not play yet.</p>
+        AirStrike 3D v1.70, AirStrike 2 v2.51 or AirStrike II: Gulf Thunder v2.71 (any of them, or all). They stay
+        in this browser; nothing is uploaded.</p>
+      <div id="files-cards" class="cards mini"></div>
       <ul id="files-list"></ul>
       <div id="drop" tabindex="0">
         <p><strong>Drop the game folder or its files here</strong>, or</p>
@@ -99,6 +105,7 @@
 
 <script src="build.js?v=__BUILD__"></script>
 <script src="files.js?v=__BUILD__"></script>
+<script src="marquee.js?v=__BUILD__"></script>
 <script src="app.js?v=__BUILD__"></script>
 </body>
 </html>

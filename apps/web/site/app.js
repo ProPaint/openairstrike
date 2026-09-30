@@ -321,7 +321,55 @@
   let offered = [];       // the games offered on the start screen (more than one: the chooser)
   let wantStart = null;   // a card was clicked: start once the engine is ready ({ full })
   const unfinished = q.get('unfinished') === '1';
-  const offerable = (kn, g) => !!kn[g] && (kn[g].playable || unfinished);
+  // ?games=as3d,as2 narrows the selector to those games (tests, screenshots).
+  const only = /^[a-z0-9,]+$/.test(q.get('games') || '') ? q.get('games').split(',') : null;
+  const offerable = (kn, g) => !!kn[g] && (kn[g].playable || unfinished) && (!only || only.includes(g));
+  // One card, as the engine's selector draws it (docs/spec/issues/164): the marquee on its stage
+  // (the game's own title, else the title in large text), the title, the version, a line of
+  // news (the download, or what is stored; the save summary is the engine's to read), and what
+  // a click does. `marquee`: a Promise of an element, or null.
+  const hintText = () => (touchAtStart ? 'Tap to play' : 'Click to play');
+  function makeCard(g, def, news, marquee) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'game';
+    b.dataset.game = g;
+    b.style.setProperty('--chars', String(def.title.length));
+    const stage = document.createElement('span');
+    stage.className = 'stage text';
+    stage.textContent = def.title;
+    if (marquee) {
+      marquee.then((el) => {
+        if (!el) return;
+        stage.className = 'stage';
+        stage.textContent = '';
+        stage.appendChild(el);
+        b.dataset.marquee = el.tagName.toLowerCase();
+      }).catch(() => {});
+    }
+    const t = document.createElement('strong');
+    t.textContent = def.title;
+    const v = document.createElement('small');
+    v.textContent = `Version ${def.version}`;
+    const info = document.createElement('span');
+    info.className = 'info';
+    for (const n of news) {
+      const l = document.createElement('span');
+      l.textContent = n.text;
+      if (n.cls) l.className = n.cls;
+      info.appendChild(l);
+    }
+    const hint = document.createElement('span');
+    hint.className = 'hint';
+    hint.textContent = hintText();
+    b.append(stage, t, v, info, hint);
+    return b;
+  }
+  const mbOf = (def) => Object.values(def.files).filter((f) => f.required).reduce((s, f) => s + (f.size || 0), 0) / 1048576;
+  // The marquee of a game's card: the build-time render (bundled) or a drawing from the
+  // player's stored files (bring your own).
+  const marqueeOf = (g) => (BUILD.mode === 'bundled' ? AS3DMarquee.fromRender(g) : AS3DMarquee.fromFiles(g, chosen[g]));
+
   // `avail`: the games this page can start; resolves with the one to start.
   function chooseGame(avail, kn) {
     offered = avail;
@@ -331,36 +379,60 @@
       const list = $('game-list');
       list.textContent = '';
       const last = lastGame();
-      for (const g of avail) {
+      let current = Math.max(0, avail.indexOf(last));
+      const cards = [];
+      const setCurrent = (i) => {
+        current = Math.max(0, Math.min(avail.length - 1, i));
+        cards.forEach((c, k) => c.classList.toggle('current', k === current));
+        state.currentGame = avail[current];
+      };
+      const play = (i) => {
+        const g = avail[i], b = cards[i];
+        if (GAME) return;
+        try { localStorage.setItem(LAST_GAME, g); } catch (e) { /* not kept */ }
+        // The click is the Play gesture: full screen must be asked for inside it.
+        const full = touchAtStart || $('choose-full').checked;
+        if (full && fsApi && !installed) enterFullscreen();
+        wantStart = { full: false };
+        for (const o of cards) o.disabled = o !== b;
+        $('choose-play').disabled = true;
+        b.classList.add('chosen');
+        $('games').classList.add('chosen');
+        document.removeEventListener('keydown', onKey);
+        log('AS3D_WEB game_chosen=' + g);
+        ok(g);
+      };
+      const onKey = (e) => {
+        if ($('games').hidden || e.ctrlKey || e.altKey || e.metaKey) return;
+        if (e.key === 'ArrowLeft') setCurrent(current - 1);
+        else if (e.key === 'ArrowRight') setCurrent(current + 1);
+        else if (e.key === 'Enter' && document.activeElement && document.activeElement.tagName === 'BUTTON' &&
+                 document.activeElement.id !== 'choose-play') return; // the focused card's own click
+        else if (e.key === 'Enter') play(current);
+        else return;
+        e.preventDefault();
+      };
+      avail.forEach((g, i) => {
         const def = kn[g];
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'game' + (g === last ? ' last' : '');
-        b.dataset.game = g;
-        const mb = Object.values(def.files).filter((f) => f.required).reduce((s, f) => s + (f.size || 0), 0) / 1048576;
-        const t = document.createElement('strong');
-        t.textContent = def.title;
-        const v = document.createElement('small');
-        v.textContent = `v${def.version}` + (BUILD.mode === 'bundled' && mb ? ` · ${Math.round(mb)} MB` : '') +
-                        (g === last ? ' · last played' : '');
-        b.append(t, v);
-        b.addEventListener('click', () => {
-          if (GAME) return;
-          try { localStorage.setItem(LAST_GAME, g); } catch (e) { /* not kept */ }
-          // The click is the Play gesture: full screen must be asked for inside it.
-          const full = touchAtStart || $('choose-full').checked;
-          if (full && fsApi && !installed) enterFullscreen();
-          wantStart = { full: false };
-          for (const o of list.children) o.disabled = o !== b;
-          b.classList.add('chosen');
-          $('games').classList.add('chosen');
-          log('AS3D_WEB game_chosen=' + g);
-          ok(g);
-        });
+        const news = [];
+        if (BUILD.mode === 'bundled' && mbOf(def)) news.push({ text: `${Math.round(mbOf(def))} MB to download` });
+        else if (BUILD.mode !== 'bundled') news.push({ text: 'Files kept in this browser' });
+        if (g === last) news.push({ text: 'Last played', cls: 'lastplayed' });
+        const b = makeCard(g, def, news, marqueeOf(g));
+        if (g === last) b.classList.add('last');
+        b.addEventListener('click', () => play(i));
+        b.addEventListener('pointerenter', () => setCurrent(i));
+        b.addEventListener('focus', () => setCurrent(i));
+        cards.push(b);
         list.appendChild(b);
-      }
+      });
+      $('choose-play').disabled = false;
+      $('choose-play').onclick = () => play(current);
+      document.addEventListener('keydown', onKey);
+      setCurrent(current);
       $('choose-full-label').hidden = touchAtStart || !fsApi || installed;
       $('games').hidden = false;
+      $('start').classList.add('choosing');
       $('play-row').hidden = true;
       $('progress').hidden = true;
       setStatus('');
@@ -452,7 +524,21 @@
   // The picker lists the files of the forced game, else of the first game (any known game's
   // files are taken).
   const listed = () => FORCED || 'as3d';
+  // The games this page plays, as cards that cannot be played yet: title in text until the files
+  // are there (then the chooser draws the marquees from them).
+  function renderFileCards() {
+    const row = $('files-cards');
+    row.textContent = '';
+    for (const g of Object.keys(games)) {
+      if (!offerable(games, g)) continue;
+      const miss = AS3DFiles.missing(chosen[g], g);
+      const b = makeCard(g, games[g], [{ text: miss.length ? 'Files needed' : 'Files stored' }], null);
+      b.disabled = true;
+      row.appendChild(b);
+    }
+  }
   async function renderFileList(notes) {
+    renderFileCards();
     const def = games[listed()];
     const ul = $('files-list');
     ul.textContent = '';
@@ -577,6 +663,7 @@
       }, () => {});
     }
     if (state.touch) history.pushState({ as3d: 1 }, '');
+    $('start').classList.remove('choosing');
     $('start').classList.add('running');
     setStatus('Starting...');
     canvas.focus();

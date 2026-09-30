@@ -491,7 +491,7 @@ BEFORE="$(count "AS3D_SCREEN name=selector")"
 adb -s "${SERIAL}" shell am start -W -n "${ACTIVITY}" || fail "am start (menus) failed"
 wait_more "AS3D_SCREEN name=selector" "${BEFORE}" "${START_TIMEOUT}"
 grep -qE "AS3D_ARGS .*menus=1" "${LOG_FILE}" || fail "the app did not start on the front end"
-grep -qE "AS3D_GAMES present=2 selector=1" "${LOG_FILE}" || fail "the APK does not offer two games"
+grep -qE "AS3D_GAMES present=[23] selector=1" "${LOG_FILE}" || fail "the APK does not offer at least two games"
 read_view
 sleep 3
 shot selector_01

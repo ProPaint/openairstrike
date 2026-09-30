@@ -56,6 +56,15 @@ void picStretched(Renderer2D& r, const Texture2D& t, float x, float y, float w, 
 void panel(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h, float f, std::string_view title);
 // UI_DrawMenuHeader at logo clock T (as2/frontend.md 3.1).
 void titleLogo(Renderer2D& r, const UiAssets& a, float T);
+// The same from pictures the caller holds (the game selector's AirStrike 2 card draws the
+// title logo of a game whose data is not the running one): the glow, the spinning "2"
+// emblem and the logo with the clouds through its letters, drawn as titleLogo does at the
+// offset (ox, oy) and scale k (1 = the title screen's), tinted white with `alpha`. `cloudT`
+// is the clock of the clouds alone (equal to T on the title screen).
+struct TitleLogoPictures {
+    const Texture2D *glow = nullptr, *two = nullptr, *logo = nullptr, *clouds = nullptr;
+};
+void titleLogoAt(Renderer2D& r, const TitleLogoPictures& p, float T, float cloudT, float ox, float oy, float k, float alpha);
 // A text button's frame, caption and rivets with its left edge at `left` and the frame's top
 // at `yDrawn`; W = the caption width part (as2/frontend.md 2.5).
 void textButton(Renderer2D& r, const UiAssets& a, float left, float yDrawn, float W, std::string_view caption,

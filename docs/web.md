@@ -67,16 +67,42 @@ locks landscape; on a computer "Play" keeps the window and "Play full screen" do
 starts with that press.
 
 **Choosing the game.** When the page has more than one playable game (the bundled build of
-AirStrike 3D and AirStrike 2; a byo page that holds the files of both), the start screen
-shows one card per game instead of Play: title, version and the download size; the card of
-the game played last is marked (the choice is kept in the browser's `localStorage`). A card is
-that game's Play button: its files are downloaded then (25 MB for AirStrike 3D, 48 MB for
-AirStrike 2; nothing is downloaded before), and the game starts. On a computer tick "full
-screen" first to play in full screen. Each game's main menu then has **Change game**: it saves
-and brings the start screen back. The page chooses the game on the web rather than the
-engine's own selector (the one of the desktop and Android apps), because the engine needs the
-chosen game's files before it starts and only those should be downloaded. Saves are per game,
-`/persist/as3d/`, `/persist/as2/`.
+the games it was built with; a byo page that holds the files of several), the start screen is
+the game selector: the same screen the desktop and Android apps draw (docs/spec/issues/164),
+laid out in the engine's 800x600 units (by height, or by width on screens narrower than 4:3):
+black bars with a rust rule, "Choose a game" on top, one card per game on a dim red wash, a
+bottom bar with "full screen" (computers) and Play. A card shows the game's own title as its
+marquee (AirStrike 3D: the flaming 3D banner of its main menu; AirStrike 2: the rusty logo
+followed by the target-shaped "2" emblem; Gulf Thunder: its logo), the title, the version, the
+download size and "Last played" (the choice is kept in the browser's `localStorage`), and
+"Click to play" ("Tap to play" on touch). The current card pulses; Left and Right (or the
+pointer) move it, Enter or Play starts it, and a card is also that game's Play button: its files
+are downloaded then (25 MB for AirStrike 3D, 48 MB for AirStrike 2; nothing is downloaded
+before), and the game starts. On a computer tick "full screen" first to play in full screen. Each
+game's main menu then has **Change game**: it saves and brings the selector back. Saves are per
+game, `/persist/as3d/`, `/persist/as2/`. The page does not show the save summary the apps'
+selector shows (the engine reads the saves, and it is not running yet).
+
+*Why the page draws the selector and not the engine* (issue 164): the engine needs a game's
+files before it starts, and only the chosen game's should be downloaded; the 3D banner is a mesh
+and textures inside AirStrike 3D's 25 MB pak, so an engine that draws the marquees before the
+choice would fetch that pak, and in the byo build the files are the player's Blobs in
+IndexedDB. So the marquees are made differently in the two builds, and each is the engine's
+own picture:
+
+* **bundled**: `tools/web_build.sh` runs the desktop engine headless (`as3d_game --headless
+  --selector-marquees`, the very code that draws the selector on desktop and Android, with the
+  banner through the mesh renderer and the logos through the title screen's own drawing) and
+  `tools/web_marquees.py` turns the frames into one looping animated WebP per game,
+  `marquee/<key>.webp` (about 350 KB each, 1.1 MB for the three; the loops are exact, see
+  `GameSelector::setLoopFit`). They are renders of the games' own art, which already sits in the
+  bundled site next to the paks, so they belong to the bundled build only.
+* **byo**: the site holds no game art. The cards show their titles in large text, and the
+  drop zone shows the same cards small ("Files needed"). Once a game's files are stored, the
+  page reads its logo pictures out of the stored paks in the browser (`marquee.js`: the pak's
+  table and the TGAs, nothing leaves the browser) and animates AirStrike 2's and Gulf Thunder's
+  logos with the engine's arithmetic. AirStrike 3D's banner is a 3D mesh that only the engine
+  can draw: its card keeps the title in large text (known difference).
 
 **Keys** (a new profile on the web; change them in Options, Controls):
 

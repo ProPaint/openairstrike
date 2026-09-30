@@ -74,7 +74,10 @@ build script refuses to build if any file of any game (or anything but the `.git
 under it is tracked by git. The native side (`apps/game/android_main.cpp`) finds the games
 the APK holds (`<key>/pak0.apk`) and reads each from `<key>/`
 (`docs/spec/issues/162-packaging-by-game.md`): the selector lists the playable ones; with one
-game it starts directly; the `game` extra forces one.
+game it starts directly; the `game` extra forces one. The selector draws each card's own
+animated title (AirStrike 3D's 3D banner, AirStrike 2's logo with its "2" emblem, Gulf Thunder's
+logo; docs/spec/issues/164) and is the same screen, from the same code, as on the desktop and on
+the web page.
 
 The profile (unlocks, high scores, settings) is `<game key>/profile.bin` (`as3d/profile.bin`,
 `as2/profile.bin`) in the app's internal files directory, one save per game; the selector's

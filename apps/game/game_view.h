@@ -7,7 +7,9 @@
 #include <memory>
 #include <string>
 
+#include "as3d/defs.h"
 #include "as3d/profile.h"
+#include "as3d/vfs.h"
 #include "as3d/ui.h"
 #include "as3d/world_render.h"
 #include "game_session.h"
@@ -29,6 +31,31 @@ struct FrameLayers {
     as3d::ui::HudState hudState;
     as3d::ui::Frontend* frontend = nullptr; // menus, intro pages, banner
     float brightness = kDefaultBrightness;
+};
+
+// The first game's main-menu banner (objects\banner.obj: the flaming title mesh, additive, unlit),
+// with its own mesh renderer and resources, drawn in a viewport of the bound framebuffer. The
+// game view draws it in the main menu's top 200 virtual pixels; the game selector's card draws
+// it into its marquee (docs/spec/issues/164).
+class BannerMesh {
+public:
+    BannerMesh();
+    ~BannerMesh();
+    BannerMesh(const BannerMesh&) = delete;
+    BannerMesh& operator=(const BannerMesh&) = delete;
+    // Loads the mesh and its textures through `vfs`, which must outlive this object.
+    bool init(as3d::Vfs& vfs, const as3d::DefDatabase& db, std::string* error);
+    bool valid() const { return impl_ != nullptr; }
+    // The viewport (x, yTop, w, h) is in pixels of a framebuffer of fbWidth x fbHeight, y from its
+    // top edge; with `clip` (x, yTop, w, h, the same way) the mesh is scissored to it. `mt` is the
+    // menu time. `loopFit` (the web page's rendered marquee): the yaw swings at the pitch's period,
+    // so that 2 pi seconds loop exactly.
+    void draw(float mt, int fbWidth, int fbHeight, int x, int yTop, int w, int h, const int* clip = nullptr,
+              bool loopFit = false);
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 class GameView {
@@ -65,14 +92,13 @@ public:
     int screenMode = as3d::kScreenWide;
 
 private:
-    struct Banner;
     struct Preview;
     void renderWorld(const as3d::World& world, int width, int height);
     void clearBars(int width, int height);
     as3d::WorldRenderer renderer_;
     as3d::ui::Renderer2D r2d_;
     as3d::ui::UiAssets assets_;
-    std::unique_ptr<Banner> banner_;
+    BannerMesh banner_;
     std::unique_ptr<Preview> preview_;
     bool hudReady_ = false;
     int frameW_ = 800, frameH_ = 600;
