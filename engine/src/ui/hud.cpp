@@ -76,7 +76,12 @@ struct Hud {
         if (w < 0 || w >= static_cast<int>(L.weaponLevelMax.size()) || w >= kWeaponSlots) return;
         const int mx = L.weaponLevelMax[static_cast<size_t>(w)];
         run(L.levelMax, s.levelX, s.levelY, mx, s.levelFromRight);
-        run(L.levelOn, s.levelX, s.levelY, std::clamp(p.upgrades[w], 0, mx), s.levelFromRight);
+        // Gulf Thunder draws the whole level, past the empty pips (frontend.delta.md 4.2); the
+        // upper bound only keeps a script's value inside the atlas's run of pips.
+        constexpr int kMaxLevelPips = 8;
+        const int on = L.levelOverrunsCap ? std::clamp(p.upgrades[w], 0, std::max(mx, kMaxLevelPips))
+                                          : std::clamp(p.upgrades[w], 0, mx);
+        run(L.levelOn, s.levelX, s.levelY, on, s.levelFromRight);
     }
 
     void count(float right, float y, int n, bool selected) const {
@@ -269,10 +274,77 @@ void panelCable(Renderer2D& r, const Texture2D& t, float x, float y0, float y1) 
     for (float y = y0; y < y1; y += 90.0f) panelPiece(r, t, x, y, 0, 82, 9, std::min(90.0f, y1 - y));
 }
 
+// Gulf Thunder's skin (gulf/frontend.delta.md): text light grey, focus and titles red.
+const Color kGulfGrey = packed(0xFFBFBFBFu);
+const Color kGulfRed = packed(0xFF0000FFu);
+// The Ok button's width: the name-entry panel's Ok button of the original spans 84 pixels
+// centred on x 400 (reference screenshot; the minimum width of the item is not in the spec,
+// docs/spec/gulf/issues/400-hint-panel-ok-width.md).
+constexpr float kGulfOkWidth = 84.0f;
+constexpr float kGulfButtonHeight = 37.0f;
+
+// A piece repeated along y over `len`, in pieces of at most th texels taken from its top.
+void panelRunY(Renderer2D& r, const Texture2D& t, float x, float y, float len, float tx, float ty, float tw, float th) {
+    for (float o = 0; o < len; o += th) panelPiece(r, t, x, y + o, tx, ty, tw, std::min(th, len - o));
+}
+
+// Gulf Thunder's UI_DrawPanel (gulf/frontend.delta.md 3.1) at opening value f.
+void drawGulfPanel(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h, float f,
+                   std::string_view title) {
+    const float Y = static_cast<float>(ftol(y - (1.0f - f) * y));
+    const float yb = static_cast<float>(ftol((y + h - 6.0f) + (1.0f - f) * (kVirtualHeight - y - h)));
+    if (a.panelNoise.valid()) {
+        const float H = f * f * h + kVirtualHeight * f * (1.0f - f);
+        const float r1 = panelRandom(), r2 = panelRandom();
+        r.quadSpec(x, y + h * 0.5f - H * 0.5f, w, H, r1, r2, r1 + w / 256.0f, r2 + H / 256.0f, &a.panelNoise, Color{},
+                   Blend::Filter);
+    }
+    if (!a.panel.valid()) return;
+    const Texture2D& t = a.panel;
+    // Top and bottom bars, then the rails.
+    for (int k = 0; k < 2; ++k) {
+        const float by = k == 0 ? Y - 25.0f : yb;
+        const float ty = k == 0 ? 44.0f : 78.0f;
+        panelPiece(r, t, x - 3, by, 4, ty, 67, 31);
+        panelRunX(r, t, x + 64, by, w - 98, 72, ty, 132, 31);
+        panelPiece(r, t, x + w - 34, by, 204, ty, 37, 31);
+    }
+    panelRunY(r, t, x - 1, Y + 6, yb - Y - 5, 8, 116, 3, 50);
+    panelRunY(r, t, x + w - 1, Y + 6, yb - Y - 5, 8, 116, 3, 50);
+    if (!title.empty()) {
+        const float wt = measureText(FontMetrics::original(), title, 1.0f, true);
+        panelPiece(r, t, x + 17, Y - 57, 4, 4, 45, 40);
+        panelRunX(r, t, x + 62, Y - 57, wt, 49, 4, 45, 40);
+        panelPiece(r, t, x + 62 + wt, Y - 57, 94, 4, 37, 40);
+        TextStyle st;
+        st.align = Align::Center;
+        st.color = kGulfRed;
+        drawText(r, a.uiFont(), x + 62 + wt * 0.5f, Y - 45, title, st);
+    }
+}
+
+// Gulf Thunder's text button (gulf/frontend.delta.md 2.5), fully slid in, centred on cx.
+void drawGulfButton(Renderer2D& r, const UiAssets& a, float cx, float y, float w, std::string_view caption,
+                    bool focused) {
+    const Texture2D& t = a.panel;
+    const float left = static_cast<float>(ftol(cx - w * 0.5f));
+    panelPiece(r, t, left, y, 9, 216, 17, kGulfButtonHeight);
+    panelRunX(r, t, left + 17, y, w - 68, 25, 216, 77, kGulfButtonHeight);
+    panelPiece(r, t, left + w - 51, y, 102, 216, 51, kGulfButtonHeight);
+    TextStyle st;
+    st.align = Align::Center;
+    st.color = focused ? kGulfRed : kGulfGrey;
+    drawText(r, a.uiFont(), left + w * 0.5f, y + 10, caption, st);
+}
+
 // UI_DrawPanel (as2/frontend.md 3.1) at opening value f, titled when `title` is not empty.
 void drawSequelPanel(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h, float f,
                      std::string_view title) {
     f = std::clamp(f, 0.0f, 1.0f);
+    if (a.hudLayout().panelSkin == HudPanelSkin::Gulf) {
+        drawGulfPanel(r, a, x, y, w, h, f, title);
+        return;
+    }
     const float yt = (y - 15.0f) - (1.0f - f) * y;
     const float yb = (y + h - 13.0f) + (1.0f - f) * (kVirtualHeight - y - h);
     if (a.panelNoise.valid()) {
@@ -352,7 +424,7 @@ bool drawHintPanel(Renderer2D& r, const UiAssets& a, const HintLayout& L, float 
     TextStyle st;
     st.align = Align::Center;
     st.markup = true;
-    st.color = orange();
+    st.color = a.hudLayout().panelSkin == HudPanelSkin::Gulf ? kGulfRed : orange();
     if (sequelPanel(a)) {
         const float f = std::max(u, 0.0f) / kSequelOpenSeconds;
         drawSequelPanel(r, a, L.box.x, L.box.y, L.box.w, L.box.h, f, kSequelHintTitle);
@@ -381,6 +453,11 @@ bool drawHintPanel(Renderer2D& r, const UiAssets& a, const HintLayout& L, float 
 
 void drawHintOk(Renderer2D& r, const UiAssets& a, const HintLayout& L, bool focused, float mt) {
     const RectF& b = L.okButton;
+    if (sequelPanel(a) && a.hudLayout().panelSkin == HudPanelSkin::Gulf) {
+        // Centred on the layout's button (x 400, y 520), 37 high (frontend.delta.md 3.15).
+        drawGulfButton(r, a, b.x + b.w * 0.5f, b.y, kGulfOkWidth, "Ok", focused);
+        return;
+    }
     if (sequelPanel(a)) {
         // The text button (as2/frontend.md 2.5), fully slid in: frame, caption, rivets.
         const Texture2D& t = a.panel;

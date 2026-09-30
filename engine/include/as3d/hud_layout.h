@@ -4,8 +4,8 @@
 // Specs: the first game docs/spec/frontend.md 4 (the tables reproduce the drawing code that
 // existed before this file, value for value); AirStrike 2 docs/spec/as2/frontend.md 4 with
 // the corrections of docs/spec/as2/issues/280-hud-layout-corrections.md; Gulf Thunder runs the
-// same HUD code as AirStrike 2 (as2/frontend.md, Gulf column), its layout is AirStrike 2's and
-// is unverified.
+// same HUD code as AirStrike 2 with its own weapon icon table and level caps and its own hint
+// panel (docs/spec/gulf/frontend.delta.md 3.1, 3.15, 4.2, 4.4).
 //
 // Pieces are given in the specs' UV convention (SpecUv, t = 1 at the top row of the image);
 // sizes and positions are virtual 800x600 pixels. "Mirrored" means the original drew
@@ -89,6 +89,12 @@ enum class HudSelection : u8 {
     DoubleFrame,  // the first game: the selected entry's frame is drawn twice
     LineAndAlpha, // AS2: a selection line; unselected icons are dimmed
 };
+// The look of the sequels' hint panel (HintStyle::SequelPanel): the pieces of panelAtlas and
+// the colours.
+enum class HudPanelSkin : u8 {
+    As2,  // as2/frontend.md 3.1: interface.tga, cables, rivets, green and orange
+    Gulf, // gulf/frontend.delta.md 3.1, 2.5, 3.15: interface_gulf.tga, rails, grey and red
+};
 struct HudLayout {
     GameId game = GameId::AirStrike3D;
     const char* name = "";
@@ -129,15 +135,19 @@ struct HudLayout {
     float iconW = 66, iconH = 35;
     std::vector<HudIcon> weapons, missiles, powerups; // indexed by slot / type
     std::vector<int> weaponLevelMax;     // pips per weapon slot (empty: no pips)
+    // The filled pips are drawn for the whole level even above the cap, running past the
+    // empty ones (Gulf Thunder's laser: level 7, cap 5; gulf/frontend.delta.md 4.2).
+    bool levelOverrunsCap = false;
 
     bool typewriterSkipsBraces = false;  // the level name is centred without '{' and '}'
     HintStyle hint = HintStyle::V170Box;
+    HudPanelSkin panelSkin = HudPanelSkin::As2;
 
     HudSide onePlayer;
     HudSide twoPlayers[2];
 };
 
-// The layout of a game. Gulf Thunder's is AirStrike 2's (unverified).
+// The layout of a game. Gulf Thunder's is AirStrike 2's with its own tables and panel.
 const HudLayout& hudLayout(GameId game);
 
 } // namespace as3d::ui

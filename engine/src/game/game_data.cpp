@@ -24,7 +24,7 @@ const PakSignature kBuiltinSignatures[] = {
 // The games that run end to end (gameIsPlayable). The single source of that fact:
 // tools/web_known_files.py reads this line (keep it one line of quoted keys), and the tests ask
 // gameIsPlayable. Proposed to move into GameProfile as `bool playable` (docs/spec/issues/163).
-const char* const kPlayableGames[] = {"as3d", "as2"};
+const char* const kPlayableGames[] = {"as3d", "as2", "gulf"};
 
 const PakSignature* g_signatures = kBuiltinSignatures;
 int g_signatureCount = static_cast<int>(sizeof(kBuiltinSignatures) / sizeof(kBuiltinSignatures[0]));

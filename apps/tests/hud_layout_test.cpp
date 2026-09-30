@@ -298,11 +298,14 @@ TEST_CASE("hud layout: AirStrike 2 and Gulf Thunder tables (as2/frontend.md 4)")
     for (int k = 0; k < static_cast<int>(L.powerups.size()); k++)
         CHECK(L.powerups[static_cast<size_t>(k)].alwaysFull == (((skip >> k) & 1u) != 0));
     CHECK(L.powerups[0].blend == Blend::Add);
-    // Gulf Thunder: AirStrike 2's HUD.
+    // Gulf Thunder: AirStrike 2's HUD with its own weapon table and caps
+    // (apps/tests/gulf_rules_test.cpp).
     const HudLayout& G = hudLayout(GameId::GulfThunder);
     CHECK(std::string(G.barAtlas) == "gfx\\ui\\mainbar2.tga");
     CHECK(G.weapons.size() == L.weapons.size());
     CHECK(G.onePlayer.missiles.firstY == L.onePlayer.missiles.firstY);
+    CHECK_FALSE(L.levelOverrunsCap);
+    CHECK(L.panelSkin == HudPanelSkin::As2);
 }
 
 // ---------------------------------------------------------------------------
