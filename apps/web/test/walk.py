@@ -6,7 +6,10 @@
 
 Scenarios (each in a fresh browser context, so fresh storage). The bundled site holds as3d
 and as2 (tools/web_build.sh); every scenario but `choose` and `byo` forces ?game=as3d.
-  choose     the start screen offers both games and downloads nothing before a choice;
+  choose     the start screen is the game selector (docs/spec/issues/164: the cards' marquees,
+             the pulsing current card, Left/Right and Enter) offering the playable games of the
+             bundled site, and downloads no game file before a choice (the marquees are the
+             build-time renders, about a megabyte in all);
              AirStrike 3D chosen: only its files fetched, "Change game" on its main menu goes
              back to the start screen (the choice remembered); AirStrike 2 chosen with the
              pilot (bot=1&menus=1): only its files, mission 1 started through its own menus
@@ -27,7 +30,7 @@ and as2 (tools/web_build.sh); every scenario but `choose` and `byo` forces ?game
              Continue loads mission 2 (about 4 minutes).
   gameover   a profile with a zero high-score table; mission 2 at the hardest difficulty with
              nobody flying until Game Over, Quit, name entry with the touch keyboard, Top Scores.
-  byo        the bring-your-own site: the owner's files through the file input, stored,
+  byo        the bring-your-own site: text cards until files are dropped, the owner's files through the file input, stored,
              used again after a reload, removed; files of AirStrike 2 told apart by their
              contents, stored under their own key, and started; with both games' files the
              page lists and offers both; files stored by the first version of the page (no
@@ -686,6 +689,12 @@ def byo(w, b):
     try:
         p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
         assert p.page.locator("#play").is_disabled()
+        w.step("byo: until files are dropped the cards are text, none can be played, none shows game art")
+        cards = p.page.evaluate("Array.from(document.querySelectorAll('#files-cards button')).map((b) => [b.dataset.game, b.disabled, b.querySelector('.stage').className, b.querySelector('.info').textContent, b.querySelectorAll('img, canvas').length])")
+        r["byo_text_cards"] = cards
+        assert len(cards) >= 2 and cards[0][0] == "as3d" and cards[1][0] == "as2", cards
+        assert all(c[1] and c[2] == "stage text" and c[3] == "Files needed" and c[4] == 0 for c in cards), cards
+        assert p.page.evaluate("document.querySelectorAll('img[src*=marquee]').length") == 0
         w.shot(p, "byo_picker")
         w.step("byo: a wrong file is refused")
         p.page.set_input_files("#pick-files", [{"name": "pak1.apk", "mimeType": "application/octet-stream",
@@ -756,7 +765,21 @@ def byo(w, b):
             p.page.wait_for_selector("#games:not([hidden])", timeout=60000)
             offered = p.page.evaluate("Array.from(document.querySelectorAll('#game-list button')).map((b) => b.dataset.game)")
             r["byo_offered"] = offered
-            assert offered == ["as3d", "as2"], offered
+            assert offered[:2] == ["as3d", "as2"] and "gulf" not in offered, offered
+            w.step("byo: the stored files draw the marquees in the browser: AirStrike 2's logo with its emblem, animated; the 3D banner stays text")
+            p.page.wait_for_function("document.querySelector('#game-list button[data-game=as2]').dataset.marquee === 'canvas'", timeout=30000)
+            assert p.page.evaluate("document.querySelector('#game-list button[data-game=as3d]').dataset.marquee") is None
+            assert "stage text" == p.page.get_attribute("#game-list button[data-game=as3d] .stage", "class")
+            grab = """() => { const c = document.querySelector('#game-list button[data-game=as2] canvas');
+                const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let lit = 0, sum = 0;
+                for (let i = 0; i < d.length; i += 4) { const v = d[i] + d[i + 1] + d[i + 2]; if (v > 90) lit++; sum += v; }
+                return [lit, sum]; }"""
+            a1 = p.page.evaluate(grab)
+            p.page.wait_for_timeout(1500)
+            a2 = p.page.evaluate(grab)
+            r["byo_marquee"] = [a1, a2]
+            assert a1[0] > 1500, "AirStrike 2's logo is not drawn: %s" % a1
+            assert a1[1] != a2[1], "the byo marquee does not move"
             stored = p.page.locator("#stored-text").text_content()
             assert "AirStrike 3D" in stored and "AirStrike 2" in stored, stored
             w.shot(p, "byo_chooser")
@@ -866,6 +889,14 @@ def data_requests(p):
                       if "/data/" in u and "games.txt" not in u))
 
 
+# The playable games of the bundled site, in the order of data/games.txt.
+PLAYABLE_BUNDLED = """async () => {
+    const keys = (await (await fetch('data/games.txt')).text()).split(/\\s+/).filter(Boolean);
+    const kn = (await (await fetch('known_files.json')).json()).games;
+    return keys.filter((k) => kn[k] && kn[k].playable);
+}"""
+
+
 def choose(w, b):
     """The start screen offers both games of the bundled build; only the chosen game's files
     are downloaded; "Change game" comes back to it; AirStrike 2's mission 1 plays under the
@@ -881,10 +912,33 @@ def choose(w, b):
         p.page.wait_for_timeout(1500)
         offered = p.page.evaluate("Array.from(document.querySelectorAll('#game-list button')).map((b) => b.dataset.game)")
         r["offered"] = offered
-        assert offered == ["as3d", "as2"], offered
+        expected = p.page.evaluate(PLAYABLE_BUNDLED)
+        assert offered == expected and len(offered) >= 2 and offered[:2] == ["as3d", "as2"], (offered, expected)
         assert not p.state()["ready"], "the engine started before a game was chosen"
         assert data_requests(p) == [], data_requests(p)
         assert p.page.locator("#play-row").is_hidden()
+        w.step("choose: every card shows its game's own marquee (the build-time render), small to fetch")
+        p.page.wait_for_function("Array.from(document.querySelectorAll('#game-list button')).every((b) => b.dataset.marquee === 'img')", timeout=30000)
+        marquees = sorted(set(re.sub(r"\?.*$", "", re.sub(r"^.*/marquee/", "", u)) for u in p.requests if "/marquee/" in u))
+        r["marquee_requests"] = marquees
+        assert marquees == sorted(["marquees.json"] + [g + ".webp" for g in offered]), marquees
+        sizes = p.page.evaluate("Array.from(document.querySelectorAll('.stage img')).map((i) => [i.naturalWidth, i.naturalHeight])")
+        assert all(s == [352, 162] for s in sizes), sizes
+        w.step("choose: the current card pulses and moves with the arrows; Enter would play it")
+        cur = lambda: p.page.evaluate("Array.from(document.querySelectorAll('#game-list button')).findIndex((b) => b.classList.contains('current'))")
+        assert cur() == 0, cur()
+        shadows = set()
+        for _ in range(8):
+            shadows.add(p.page.evaluate("getComputedStyle(document.querySelector('#game-list button.current')).boxShadow"))
+            p.page.wait_for_timeout(130)
+        assert len(shadows) >= 3, "the current card does not pulse: %s" % shadows
+        p.page.keyboard.press("ArrowRight")
+        assert cur() == 1, cur()
+        p.page.keyboard.press("ArrowLeft")
+        assert cur() == 0, cur()
+        p.page.keyboard.press("ArrowLeft")
+        assert cur() == 0, "Left went past the first card"
+        assert data_requests(p) == [], "a key started a game's download"
         w.shot(p, "choose_start")
 
         w.step("choose: AirStrike 3D; only its files are fetched; its main menu has Change game")

@@ -157,7 +157,7 @@ button.play-card:disabled { opacity: 0.4; cursor: default; }
 .cards.mini { max-width: 100%; margin: 8px 0 4px; gap: 10px; }
 .cards.mini button.game { flex: 1 1 0; padding: 8px; cursor: default; font-size: 13px; }
 .cards.mini button.game .stage { margin-bottom: 6px; }
-.cards.mini button.game .stage.text { font-size: 18px; }
+.cards.mini button.game .stage.text { font-size: min(18px, calc(92cqw / var(--chars, 12) / 0.62)); }
 .cards.mini button.game strong { font-size: 15px; margin: 4px 0 2px; }
 .cards.mini button.game small { font-size: 12px; }
 .cards.mini button.game .info { font-size: 12px; min-height: 0; margin-top: 4px; }
@@ -232,3 +232,19 @@ body.fullscreen #fs-toggle .leave { display: inline; }
 }
 #start.choosing #progress:not([hidden]) { bottom: calc(44 * var(--u)); }
 #start.choosing #status { bottom: calc(14 * var(--u)); color: var(--muted); font-size: calc(14 * var(--u)); min-height: 0; }
+
+/* Bring your own, on the selector: the way to remove the stored files stays in reach. */
+#start.choosing .panel > #stored:not([hidden]) {
+  display: block;
+  position: fixed;
+  z-index: 11;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(30 * var(--u));
+  margin: 0;
+  font-size: calc(12 * var(--u));
+  white-space: nowrap;
+}
+#start.choosing #stored-text { display: none; }
+#start.choosing #stored::before { content: "Game files kept in this browser."; }
+#start.choosing #games.chosen ~ #stored { visibility: hidden; }
