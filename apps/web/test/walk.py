@@ -160,7 +160,8 @@ def fs_exists(p, path):
 def to_main_menu(w, p, by="mouse"):
     """From the start of the game (intro pages or main menu) to the main menu."""
     m = p.wait_line(r"AS3D_SCREEN name=(intro|main)\b", 90)
-    for _ in range(12):
+    # AirStrike 2 adds four comic pages to the intro (every tap makes the page 4 times faster).
+    for _ in range(80):
         if any(re.search(r"AS3D_SCREEN name=main\b", t) for t in p.texts()):
             break
         box = p.page.locator("#canvas").bounding_box()
@@ -189,9 +190,20 @@ def start_mission(w, p, by="mouse", difficulty_taps=0, mission_row=1):
         p.tap_item("start", 4, by)                  # the Difficulty spinner
         p.page.wait_for_timeout(250)
     mk = p.mark()
-    p.tap_item("start", 2, by)                      # Start
+    p.tap_item("start", 2, by)                      # Start (AirStrike 2: Next)
+    if p.wait_line(r"AS3D_SCREEN name=(heli|playing|hint|dialogue)\b", 60, after=mk).group(1) == "heli":
+        # AirStrike 2's helicopter selection, then its Start (as2/frontend.md 3.18).
+        p.page.wait_for_timeout(500)
+        p.tap_item("heli", 1, by)
     p.wait_line(r"AS3D_LEVEL_LOADED mission=%d" % mission_row, 90, after=mk)
-    wait_new_screen(p, "(playing|hint)", mk, 60)
+    if wait_new_screen(p, "(playing|hint|dialogue)", mk, 60).group(1) == "dialogue":
+        # AirStrike 2's start dialogue holds the mission: taps complete and turn its pages.
+        for _ in range(40):
+            if any(re.search(r"AS3D_SCREEN name=(playing|hint)\b", t) for t in p.texts()[mk:]):
+                break
+            p.tap_virtual(400, 300, by)
+            p.page.wait_for_timeout(700)
+        wait_new_screen(p, "(playing|hint)", mk, 60)
 
 
 def resize(p, size):
@@ -731,7 +743,8 @@ def byo(w, b):
             keys = p.page.evaluate(IDB_KEYS)
             r["as2_keys"] = keys
             assert "as2/pak0.apk" in keys and all(k.startswith("as2/") for k in keys), keys
-            assert "as2/texts_as2.txt" not in keys, "texts of an unmapped game were invented"
+            # The texts are read from the executable (tools/exe_texts/as2.json) and kept.
+            assert "as2/texts_as2.txt" in keys, "the texts of AirStrike 2's executable were not kept"
             w.step("byo: AirStrike 3D's files added (?game=as3d asks for them): both kept")
             p.goto("game=as3d")
             p.page.wait_for_selector("#files:not([hidden])", timeout=60000)

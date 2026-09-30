@@ -151,8 +151,9 @@ directly, two are offered as cards (above). Gulf Thunder's files are accepted an
 the message that the game is not playable yet (and `?game=gulf` says so instead of starting).
 From the executable the page reads only the texts (the same as `tools/extract_exe_texts.py`,
 whose output file is accepted too) and keeps only those; the table of text addresses is
-chosen by the executable's SHA-256, and for the sequels it is empty ("texts of ... are not
-mapped yet"). Nothing is uploaded: the files go into the browser's storage and are used again
+chosen by the executable's SHA-256: AirStrike 3D's, and AirStrike 2's address list
+(`tools/exe_texts/as2.json`, kept in step in `files.js`: labels, Information and Credits,
+dialogues); Gulf Thunder has none yet ("texts of ... are not mapped yet"). Nothing is uploaded: the files go into the browser's storage and are used again
 on the next visit. "Remove them" on the start page deletes them (all games).
 
 ## What the browser stores
@@ -181,7 +182,9 @@ backup and the missing old file are in storage, and after a second reload as wel
 `pip install playwright && python -m playwright install chromium firefox`):
 
 * `walk.py`: scripted walks (choosing each game on the start screen with only its files
-  downloaded, "Change game", AirStrike 2's mission 1 under the pilot for 30 s, the first
+  downloaded, "Change game", AirStrike 2's mission 1 started through its own menus (Start
+  Game, Next, the helicopter selection, the start dialogue) and played under the pilot for
+  30 s, its in-game menu and Quit, the first
   game's save unchanged by it; desktop by mouse and keys; a 20:9 Android phone and an iPhone
   profile by synthesized touch, multi-touch; Mission Complete with the bot; Game Over and name
   entry; the byo files through the file input, AirStrike 2's files started and both games

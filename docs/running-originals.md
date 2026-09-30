@@ -124,3 +124,13 @@ selection by one mission (the list scrolls with it), the up arrow is at (599, 21
 opens on mission 4 after a fresh start; on the helicopter screen the right arrow (605, 297)
 selects the second helicopter (Sky Keeper, the one our game uses by default) and the button
 then reads Continue (680, 534). A third `Escape` at start skips the intro comic reliably.
+
+Front end captures (as2, package E): an `Escape` or `space` does not skip a comic page, it makes
+the page four times faster (as the spec says); allow about 15 s after the logo with a key every
+few seconds. The Quit button is at (400, 469), the exit confirmation's NO at (500, 336). Start
+Game opens the list on the saved checkpoint's mission (else the last choice); from there the
+list's up arrow (599, 211) and down arrow (599, 332) step one mission. `deadlineisnear` in
+mission 18 (no end dialogue) shows Game Complete after the fly-out (about 3 s). Mission 1 shows
+its first tutorial tip about 12 s after the start dialogue. Our side of the comparison:
+`as3d_viewer --game as2 screen <name> --level intro1|N --scroll S --state ...` (the level behind,
+the game's brightness pass), see docs/spec/as2/issues/300.

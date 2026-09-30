@@ -19,7 +19,9 @@
 #   6b. the game selector (docs/spec/issues/163): the first game forced (extra game=as3d) writes
 #      its save, which is kept; without extras the selector opens and the first game's card is
 #      tapped (steps 5 and 6 run on that game); then with bot and menus the pilot plays mission
-#      1 of AirStrike 3D and of AirStrike 2 to frame 1800 each, chosen by taps on their cards,
+#      1 of AirStrike 3D and of AirStrike 2 to frame 1800 each, chosen by taps on their cards
+#      (AirStrike 2 through its own menus: Start Game, Next, the helicopter selection, the
+#      start dialogue turned by taps),
 #      "Change game" (item 60 of AS3D_MENU) returning to the selector in between; the first
 #      game's save must be byte for byte unchanged by AirStrike 2, files/as2/profile.bin (key
 #      as2) and files/launcher.bin must exist;
@@ -593,7 +595,25 @@ shot bot_as2_main
 try_until "AS3D_SCREEN name=start" 3 tap_item 1         # Start Game
 sleep 2
 shot bot_as2_start
-try_until "AS3D_SCREEN name=playing" 3 tap_item 2       # Start
+# AirStrike 2's own menus (docs/spec/as2/frontend.md): Next, the helicopter selection's Start,
+# then the start dialogue of mission 1, whose pages taps complete and turn.
+try_until "AS3D_SCREEN name=heli" 3 tap_item 2          # Next
+sleep 2
+shot bot_as2_heli
+BEFORE="$(count "AS3D_SCREEN name=playing")"
+try_until "AS3D_SCREEN name=(dialogue|playing)" 3 tap_item 1   # Start
+SHOT_DIALOGUE=0
+for _ in $(seq 1 60); do
+    check_crash
+    [ "$(count "AS3D_SCREEN name=playing")" -gt "${BEFORE}" ] && break
+    if [ "${SHOT_DIALOGUE}" = 0 ] && [ "$(count "AS3D_SCREEN name=dialogue")" -gt 0 ]; then
+        shot bot_as2_dialogue
+        SHOT_DIALOGUE=1
+    fi
+    vtap 400 300
+    sleep 1
+done
+[ "$(count "AS3D_SCREEN name=playing")" -gt "${BEFORE}" ] || fail "AirStrike 2: no play after the start dialogue"
 play_bot_mission as2 3
 sleep 2
 try_until "AS3D_SCREEN name=selector" 3 tap_item 60     # Change game
