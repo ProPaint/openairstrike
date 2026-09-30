@@ -61,3 +61,11 @@ the texture of the same name from an earlier pak); 1921 entries, 1920 files afte
 | Spec | Status | Package | Notes |
 |---|---|---|---|
 | [pak](pak.delta.md), [tga](tga.delta.md), [mdl](mdl.delta.md), [hmap](hmap.delta.md), [obj](obj.delta.md), [levels-txt](levels-txt.delta.md) deltas | verified on all shipped files | B6 | where Gulf Thunder's data differs from AirStrike 2's; goldens and expected counts in `testdata/golden/gulf/` |
+| [symbol-map.md](symbol-map.md) | 1904 of 1919 AirStrike 2 functions mapped, every difference listed | F1 | against AirStrike 2: 1835 functions same code (constants included), 23 other constants, 22 same opcodes, 24 changed, 6 new; `re/symbols_gulf.csv`, `re/symbols_gulf_data.csv` |
+| [engine-behaviour.delta.md](engine-behaviour.delta.md) | verified from code and data | F1 | AirStrike 2's rules; 24 missions, 3 helicopters, 24-row loadout table, weapon ids, dialogues, save; "Values for GameRules" |
+| [rcsl-vm.delta.md](rcsl-vm.delta.md) | verified from code and data | F1 | VM and instruction set same code; three new opcode/mode pairs |
+| [rcsl-builtins-table.delta.md](rcsl-builtins-table.delta.md), [rcsl-builtins-semantics.delta.md](rcsl-builtins-semantics.delta.md) | verified from code | F1 | all 101 builtins same code as AirStrike 2; 69 P0; `testdata/golden/gulf/rcsl_builtins.json`; `check_builtin_calls.py` and `check_builtin_semantics.py --game gulf` |
+| [frontend.delta.md](frontend.delta.md) | verified from code, emulator and reference screenshots | F1 | against `as2/frontend.md`: title bar, panel, text button, colours, loading, no intro comic, 7 information pages, HUD weapon icons; `tools/exe_texts/gulf.json` |
+| [render-pipeline.delta.md](render-pipeline.delta.md) | renderer same code; measured on operations 1 to 3 against the original | F1 | two differences of ours: river water, rocket smoke |
+
+How Gulf Thunder plays in our engine today: [../../missions-status-gulf.md](../../missions-status-gulf.md).
