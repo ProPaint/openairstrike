@@ -120,19 +120,34 @@ FrameInput botInput(const World& w, u32 frame) {
 
     // Aim: line up under the toughest on-screen enemy ahead (bosses and their parts are
     // often attached children, so every slot is looked at), the nearest among equals.
+    // Gulf Thunder: a part whose health is out of any weapon's reach (the boss base's sphere,
+    // 1,000,000) is brought down by the boss script when the parts around it die; the pilot
+    // aims at those parts instead (docs/missions-status-gulf.md, operation 24). When the
+    // scroll has stopped (a boss fight) and nothing is in that band, it also looks at the parts
+    // further to the side (the last minaret of operation 24 stands 234 units right of the
+    // camera's centre). AirStrike 2's pilot is unchanged: its missions table was played with it.
+    const bool sequelPilot = w.game() == GameId::GulfThunder;
+    constexpr float kScriptKilledHealth = 500000.0f;
+    constexpr int kCameraScrollFactor = 9;
+    const bool scrollStopped = w.camera().field[kCameraScrollFactor] == 0.0f;
     float bestHealth = 0.0f, bestDist = 1.0e9f;
-    for (int i = 0; i < kMaxEntitySlots; ++i) {
-        if (!w.validIndex(i)) continue;
-        const Entity& e = w.entity(i);
-        if ((e.rt & RT_REMOVED) || !(e.rt & RT_COLLIDABLE) || e.f(F_CLASS) != kClassEnemy) continue;
-        if (e.f(F_DEAD) != 0.0f || !(e.f(F_HEALTH) > 0.0f)) continue;
-        Vec3 r = e.v3(F_BASE_ORIGIN) - o;
-        if (r.y < 40.0f || r.y > 450.0f || std::fabs(e.f(F_BASE_ORIGIN) - cx) > 200.0f) continue;
-        float d = std::sqrt(r.x * r.x + r.y * r.y);
-        if (e.maxHealth > bestHealth || (e.maxHealth == bestHealth && d < bestDist)) {
-            bestHealth = e.maxHealth;
-            bestDist = d;
-            tx = e.f(F_BASE_ORIGIN) + 12.0f * std::sin(static_cast<float>(frame) * kTwoPi / 120.0f);
+    for (int pass = 0; pass < 2; ++pass) {
+        if (pass == 1 && (bestHealth > 0.0f || !sequelPilot || !scrollStopped)) break;
+        const float side = pass == 0 ? 200.0f : 1.0e9f;
+        for (int i = 0; i < kMaxEntitySlots; ++i) {
+            if (!w.validIndex(i)) continue;
+            const Entity& e = w.entity(i);
+            if ((e.rt & RT_REMOVED) || !(e.rt & RT_COLLIDABLE) || e.f(F_CLASS) != kClassEnemy) continue;
+            if (e.f(F_DEAD) != 0.0f || !(e.f(F_HEALTH) > 0.0f)) continue;
+            if (sequelPilot && e.maxHealth >= kScriptKilledHealth) continue;
+            Vec3 r = e.v3(F_BASE_ORIGIN) - o;
+            if (r.y < 40.0f || r.y > 450.0f || std::fabs(e.f(F_BASE_ORIGIN) - cx) > side) continue;
+            float d = std::sqrt(r.x * r.x + r.y * r.y);
+            if (e.maxHealth > bestHealth || (e.maxHealth == bestHealth && d < bestDist)) {
+                bestHealth = e.maxHealth;
+                bestDist = d;
+                tx = e.f(F_BASE_ORIGIN) + 12.0f * std::sin(static_cast<float>(frame) * kTwoPi / 120.0f);
+            }
         }
     }
 
