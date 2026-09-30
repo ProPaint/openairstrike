@@ -103,6 +103,7 @@ struct MenuDrawContext {
     long long ms;    // wall-clock milliseconds for blinking cursors
     bool plain = false; // MenuSystem::plain: draw without the first game's menu textures
     bool sequel = false; // MenuSystem::sequel: the sequels' widgets (as2/frontend.md 2.5)
+    float px = -100, py = -100; // the pointer (the sequels' scroll boxes light up under it)
 };
 
 using ItemDrawFn = std::function<void(MenuDrawContext&, MenuItem&, bool focused)>;

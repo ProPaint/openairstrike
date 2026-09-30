@@ -210,7 +210,11 @@ void drawList(MenuDrawContext& c, MenuItem& it) {
     const Texture2D* t = interfaceAtlas(c.a);
     if (!t) return;
     const float bx = it.x + it.w - 18;
-    piece(c.r, *t, bx, it.y + 3, kScrollUp, green());
+    // A scroll box under the pointer is orange (seen in the original; not on touch).
+    auto box = [&](float y) {
+        return !c.touchMode && c.px >= bx && c.px < bx + 15 && c.py >= y && c.py < y + 15 ? orange() : green();
+    };
+    piece(c.r, *t, bx, it.y + 3, kScrollUp, box(it.y + 3));
     for (float y = it.y + 21; y < it.y + it.h - 21; y += kScrollTrack.h)
         piece(c.r, *t, bx, y, kScrollTrack, green(), Blend::Alpha, -1, it.y + it.h - 21 - y);
     // Thumb travel: proportional to the first visible row (GUESS, as2/frontend.md 10.1 item 6).
@@ -218,7 +222,7 @@ void drawList(MenuDrawContext& c, MenuItem& it) {
     const float travel = it.h - 42 - kScrollThumb.h;
     const float thumbY = it.y + 21 + (range > 0 ? travel * static_cast<float>(it.top) / static_cast<float>(range) : 0.0f);
     piece(c.r, *t, bx, thumbY, kScrollThumb, green());
-    piece(c.r, *t, bx, it.y + it.h - 19, kScrollDown, green());
+    piece(c.r, *t, bx, it.y + it.h - 19, kScrollDown, box(it.y + it.h - 19));
 }
 
 void drawSpinner(MenuDrawContext& c, MenuItem& it, bool focused) {

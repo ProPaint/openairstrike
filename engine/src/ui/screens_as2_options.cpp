@@ -259,7 +259,7 @@ Menu SequelScreens::controls(Frontend& f) {
     };
     m.drawFront = [&f](MenuDrawContext& c) {
         panel(c.r, c.a, 190, 165, 420, 320, c.menu.open, tr(f, "title.controls"));
-        c.r.outline(200, 205, 400, 270, greenOutline(), Blend::Alpha);
+        // The spec's outline (200, 205, 400, 270) does not show in the original (issue as2/300).
         titleLogo(c.r, c.a, f.sq_->logoClock);
     };
     return m;

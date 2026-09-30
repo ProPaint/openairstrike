@@ -467,7 +467,7 @@ void MenuSystem::drawBackground(Renderer2D& r, const UiAssets& a) {
 void MenuSystem::drawItems(Renderer2D& r, const UiAssets& a) {
     Menu* m = top();
     if (!m) return;
-    MenuDrawContext c{r, a, *m, mt_, touchMode, clockMs_, plain, sequel};
+    MenuDrawContext c{r, a, *m, mt_, touchMode, clockMs_, plain, sequel, px_, py_};
     for (size_t i = 0; i < m->items.size(); i++) {
         MenuItem& it = m->items[i];
         const bool focused = static_cast<int>(i) == m->focused;

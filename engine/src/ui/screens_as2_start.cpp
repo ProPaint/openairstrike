@@ -161,8 +161,8 @@ Menu SequelScreens::heliSelect(Frontend& f) {
             const FrontendContent::HeliInfo& info = f.content_.heli[h];
             const float speed = info.known && info.hasSpeed ? info.speed : 1.0f;
             const float armor = info.known ? static_cast<float>(info.health) : 0.0f;
-            c.r.outline(300, 381, 280, 10, bar, Blend::Alpha);
-            c.r.outline(300, 401, 280, 10, bar, Blend::Alpha);
+            // The spec's outlines (300, 381/401, 280, 10) do not show in the original's screen
+            // (issue as2/300): only the fills are drawn.
             c.r.rect(300, 381, std::clamp(speed * 280.0f / 1.5f, 0.0f, 280.0f), 10, bar, Blend::Alpha);
             c.r.rect(300, 401, std::clamp(armor * 280.0f / 800.0f, 0.0f, 280.0f), 10, bar, Blend::Alpha);
         }
