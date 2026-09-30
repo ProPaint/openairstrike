@@ -63,6 +63,12 @@ TEST_CASE("game profiles: keys, lookup, the first game's rules") {
     CHECK(std::string(a.heliObjects[2]) == "player_4");
     CHECK(a.difficulty[4].health == r.difficulty[4].health);
     CHECK(a.scrollSpeed == r.scrollSpeed);
+
+    const GameRules& g = gameProfile(GameId::GulfThunder).rules;
+    REQUIRE(g.missionLoadout != nullptr);
+    CHECK(g.missionLoadout[0][0] == 4);
+    CHECK(g.missionLoadout[23][2] == 7);
+    CHECK(g.missionLoadout[2][4] == 3);
 }
 
 TEST_CASE("game profiles: every game fits the maximum sizes") {

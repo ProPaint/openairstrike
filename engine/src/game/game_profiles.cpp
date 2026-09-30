@@ -20,6 +20,36 @@ const char* const kHeliAs2[] = {"player_1", "player_2", "player_4", "player_6", 
 // as2/engine-behaviour.delta.md 8.2: upgrade levels per mission. Slots: 0 machine gun,
 // 1 impulse gun, 2 plasma gun, 3 laser, 4 big laser, 5 lightning gun, 6 wave gun,
 // 7 missile gun, 8 flamethrower.
+// gulf/engine-behaviour.delta.md 8.2: upgrade levels per operation. Slots: 0 machine gun,
+// 1 impulse gun, 2 plasma gun, 3 photon gun, 4 laser, 5 big laser, 6 plasma laser,
+// 7 lightning gun, 8 wave gun. Rows 6 to 24 are identical.
+const int kLoadoutGulf[24][kMaxWeaponSlots] = {
+    {4},                         // 1
+    {4, 5},                      // 2
+    {4, 5, 4, 0, 3},             // 3
+    {0, 5, 4, 4, 4, 0, 2},       // 4
+    {0, 0, 4, 4, 4, 3, 2, 3, 4}, // 5
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 6
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 7
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 8
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 9
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 10
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 11
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 12
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 13
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 14
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 15
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 16
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 17
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 18
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 19
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 20
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 21
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 22
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 23
+    {0, 0, 7, 6, 7, 4, 4, 4, 4}, // 24
+};
+
 const int kLoadoutAs2[18][kMaxWeaponSlots] = {
     {1},                         // 1
     {4, 3},                      // 2
@@ -127,14 +157,14 @@ GameRules rulesAs2() {
     return r;
 }
 
-// Until docs/spec/gulf exists: AirStrike 2's rules with Gulf Thunder's counts. Its mission
-// loadout table is not known yet, so none is set.
+// docs/spec/gulf/engine-behaviour.delta.md: AirStrike 2's rules with Gulf Thunder's counts
+// and its own loadout table; everything else is the same code in both executables.
 GameRules rulesGulf() {
     GameRules r = rulesAs2();
     r.missionCount = 24;
     r.helicopterCount = 3;
     r.heliObjects = kHeliGulf;
-    r.missionLoadout = nullptr;
+    r.missionLoadout = kLoadoutGulf;
     for (int& m : r.bonusMissions) m = 0;
     for (int& m : r.bossMissions) m = 0;
     r.bonusMissions[0] = 11;
