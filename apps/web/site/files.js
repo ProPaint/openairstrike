@@ -2,7 +2,8 @@
 // supplied by the player (bring-your-own build), checked against known_files.json (grouped by
 // game; a file belongs to the game whose SHA-256 it has) and kept in IndexedDB under
 // "<game key>/<file name>". Also reads the front-end texts out of the player's game executable,
-// a port of tools/extract_exe_texts.py (keep the two in step). No game data is part of this file.
+// a port of tools/extract_exe_texts.py (keep it, this file and engine/src/game/exe_texts.cpp, the
+// Android import's copy, in step). No game data is part of this file.
 'use strict';
 
 window.AS3DFiles = (function () {

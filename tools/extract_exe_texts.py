@@ -41,6 +41,9 @@ slot is (disp8 - 0x14) / 4 and gaps are blank lines. If that instruction is not 
 lines are numbered in order.
 
 Standard library only. The PE section table maps virtual addresses to file offsets.
+
+Two ports read the same tables and must stay in step: apps/web/site/files.js (the web page)
+and engine/src/game/exe_texts.cpp (the Android import, as3d/game_import.h).
 """
 
 import argparse
