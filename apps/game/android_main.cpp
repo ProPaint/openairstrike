@@ -8,8 +8,11 @@
 // Arguments come from GameActivity.getArguments(), built from the launching intent's
 // extras: --bot, --menus, --level N, --frames N, --difficulty D, --no-audio,
 // --rebuild-on-resume, --game KEY (extra `game`: as3d, as2 or gulf), --allow-unfinished (extra
-// `allow_unfinished`). The paks are read from the APK's assets under assets/<key>/
-// (tools/android_build.sh, AS3D_ANDROID_GAMES), with the names of the game's profile.
+// `allow_unfinished`). A game's files (paks, Settings.xml, logo, texts; the names of the game's
+// profile) are read from the APK's assets under assets/<key>/ (tools/android_build.sh,
+// AS3D_ANDROID_GAMES), or, for a game the player imported (the data-free build: ImportActivity,
+// apps/game/android_import.cpp), from the app's files under games/<key>/. Bundled assets win
+// over an import of the same game.
 //
 // Which game (docs/spec/issues/163): --game names it; else, with the front end, the game
 // selector when the APK holds more than one playable game (the last choice preselected from
@@ -22,10 +25,12 @@
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <string>
 
 #include "as3d/core.h"
 #include "as3d/game_data.h"
+#include "as3d/game_import.h"
 #include "as3d/launcher.h"
 #include "as3d/platform.h"
 #include "game_loop.h"
@@ -44,22 +49,44 @@ as3d::SafeInsets currentInsets() {
     return s;
 }
 
-// This game's directory in the APK's assets.
-std::string assetDir(const as3d::GameProfile& g) { return std::string(g.key) + "/"; }
+// Where each available game's files are: "<key>/" in the APK's assets (relative: SDL reads it
+// through the asset manager), or the absolute games/<key>/ of an import. Set by gamesAvailable().
+std::map<std::string, std::string> g_gameDirs;
 
-// The games whose paks the APK holds.
-std::vector<const as3d::GameProfile*> gamesInApk() {
+std::string gameDir(const as3d::GameProfile& g) {
+    auto it = g_gameDirs.find(g.key);
+    return it != g_gameDirs.end() ? it->second : std::string(g.key) + "/";
+}
+
+bool assetExists(const std::string& path) {
+    SDL_RWops* rw = SDL_RWFromFile(path.c_str(), "rb");
+    if (!rw) return false;
+    SDL_RWclose(rw);
+    return true;
+}
+
+// The games the app holds: bundled in the APK, or imported under <files>/games/ with all
+// their paks.
+std::vector<const as3d::GameProfile*> gamesAvailable(const std::string& gamesDir) {
     std::vector<const as3d::GameProfile*> out;
+    g_gameDirs.clear();
     for (int i = 0; i < as3d::kGameCount; ++i) {
         const as3d::GameProfile& g = as3d::gameProfile(static_cast<as3d::GameId>(i));
-        if (as3d::openPlatformStream(assetDir(g) + g.paks[0])) out.push_back(&g);
+        const std::string bundled = std::string(g.key) + "/";
+        if (assetExists(bundled + g.paks[0])) {
+            g_gameDirs[g.key] = bundled;
+            out.push_back(&g);
+        } else if (!gamesDir.empty() && as3d::importedGameComplete(gamesDir, g)) {
+            g_gameDirs[g.key] = gamesDir + g.key + "/";
+            out.push_back(&g);
+        }
     }
     return out;
 }
 
-// A game's files (paks, logo) and its front end's (Settings.xml, texts) in the assets.
+// A game's files (paks, logo) and its front end's (Settings.xml, texts), bundled or imported.
 void configureGame(const as3d::GameProfile& g, as3d_game::GameOptions& o, as3d_game::FlowConfig& f) {
-    const std::string dir = assetDir(g);
+    const std::string dir = gameDir(g);
     o.game = &g;
     o.paks.clear();
     for (const char* const* p = g.paks; *p; ++p) o.paks.push_back(dir + *p);
@@ -135,9 +162,17 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // The game: forced, or planned from what the APK holds (the selector with several).
-    const std::vector<const as3d::GameProfile*> present = gamesInApk();
+    // The game: forced, or planned from what the app holds (the selector with several).
     const std::string dataDir = as3d::userDataDir();
+    const std::vector<const as3d::GameProfile*> present = gamesAvailable(dataDir.empty() ? std::string() : dataDir + "games/");
+    for (const as3d::GameProfile* g : present) AS3D_INFO("AS3D_GAME_FILES game=%s dir=%s", g->key, gameDir(*g).c_str());
+    if (present.empty() && forced.empty()) {
+        // The data-free build before an import: ImportActivity (the launcher entry) asks for
+        // the files; started directly, there is nothing to play.
+        AS3D_ERROR("FATAL: no game files: start the app from its launcher icon to import your own");
+        SDL_Quit();
+        return 1;
+    }
     const std::string choicePath = dataDir.empty() ? std::string() : dataDir + "launcher.bin";
     std::string last;
     as3d::readLauncherChoice(choicePath, &last);
@@ -178,7 +213,8 @@ int main(int argc, char* argv[]) {
         // The front end in touch mode (docs/spec/issues/090, 130): no two-player mode, no
         // mouse control, no video options; the touch overlay's pause button opens the
         // in-game menu. Settings.xml, the menu logo and the texts imported from the exe are
-        // copied into the APK's assets by tools/android_build.sh when the data has them.
+        // copied into the APK's assets by tools/android_build.sh when the data has them, or
+        // imported with the paks (ImportActivity).
         o.frontend = true;
         o.game.startLevel = false;
         o.game.levelFlow = false;

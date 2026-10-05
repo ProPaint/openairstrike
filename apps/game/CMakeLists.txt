@@ -24,7 +24,8 @@ endif()
 
 if(ANDROID)
   # The native library SDLActivity loads ("main", see GameActivity.getLibraries()).
-  add_library(main SHARED android_main.cpp)
+  # android_import.cpp: the JNI of ImportActivity (the import of the player's own files).
+  add_library(main SHARED android_main.cpp android_import.cpp)
   target_link_libraries(main PRIVATE as3d_game_shell SDL2 SDL2main GLESv3 EGL log android)
 else()
   # The target is as3d_game_app because the simulation module already owns the target name
