@@ -14,8 +14,11 @@ opens its in-game menu). With the `level` or `bot` extra
 it starts straight into a mission and moves on to the next one by itself, like
 `as3d_game --level N` on desktop.
 
-**Copyright.** The APK contains the original game data (the pak archives, copied from your own
-copies of the games). It is for the owner's personal use only: do not
+**Copyright.** Two kinds of APK come out of `tools/android_build.sh`. The **data-free** one
+(`AS3D_ANDROID_GAMES=none`, the public release) contains no game data at all: on first start
+it asks for the files of the player's own copy of each game (see "Your own game files"
+below). A **personal** build bundles the original game data (the pak archives, copied from
+your own copies of the games): it is for the owner's personal use only, do not
 share it or upload it anywhere. No APK, pak, keystore or screenshot is ever committed: the
 paks copied into `android/app/src/main/assets/`, `android/app/build/` and `out/` are
 gitignored, and `tools/android_build.sh` refuses to build if a pak is tracked by git. The
@@ -27,7 +30,8 @@ debug keystore is Android's default one in `~/.android/`, outside the repository
   module, minSdk 26, target/compileSdk 36, ABIs `arm64-v8a` (phones) and `x86_64` (emulator).
   `GameActivity.java` extends SDL's `SDLActivity`: it names the native libraries, turns intent
   extras into program arguments, lays the surface out under display cutouts and reports the
-  cutout insets to native code.
+  cutout insets to native code. `ImportActivity.java` is the launcher entry: it starts
+  `GameActivity` when the app holds a game, else shows the import screen (below).
 - `android/app/src/main/cpp/CMakeLists.txt`: builds SDL2 from source, the engine, and
   `apps/game` (whose `CMakeLists.txt` makes the `main` shared library on Android).
 - `apps/game/`: the game. `game_loop.cpp` is the windowed main loop shared by the desktop
@@ -38,7 +42,12 @@ debug keystore is Android's default one in `~/.android/`, outside the repository
 - `engine/src/input/touch_mapper.cpp`: the platform-independent `TouchMapper`
   (`as3d/input.h`), unit-tested on desktop (`apps/tests/touch_test.cpp`).
 - `engine/src/platform/rw_stream.cpp`: `as3d::openPlatformStream`, an SDL_RWops byte stream;
-  on Android it reads APK assets in place.
+  on Android it reads APK assets in place (relative paths) or files (absolute paths).
+- `engine/src/game/game_import.cpp` (`as3d/game_import.h`): the import of the player's files,
+  with `sha256.cpp`, `zip_reader.cpp` (stored and deflated entries) and `exe_texts.cpp` (the C++
+  port of `tools/extract_exe_texts.py`); unit-tested on desktop
+  (`apps/tests/game_import_test.cpp`). `apps/game/android_import.cpp` is its JNI for
+  `ImportActivity`.
 - Scripts: `tools/android_env.sh`, `tools/android_build.sh`, `tools/android_smoke.sh`,
   `tools/fetch_third_party.sh`.
 
@@ -88,6 +97,68 @@ app goes to the background. Uninstalling the app removes it. Updating the app ov
 (`adb install -r`, or installing a new APK over it on the phone) keeps it: see
 `AS3D_SMOKE_MIGRATION=1` below.
 
+## Your own game files (the data-free build)
+
+`AS3D_ANDROID_GAMES=none tools/android_build.sh` makes an APK without any game data (about
+7 MB with one ABI), the one that may be published. Its launcher entry, `ImportActivity`,
+looks for games (bundled assets `<key>/pak0.apk`, or imported ones with all their paks) and,
+finding none, shows the import screen: which files each game needs, a "Choose files" button,
+a status text, and "Play" once a game is ready. The screen is a plain Android view (no layout
+files, no support library).
+
+What the player chooses (Android's document picker, several files at once):
+
+- required: the game's paks from its `data` folder, `pak0.apk`, `pak1.apk`, `pak2.apk`
+  (Gulf Thunder also `pak4.apk`);
+- recommended: the game's executable (`AirStrike3D.exe`, `AirStrike3D II.exe`,
+  `AirStrike3D II - Gulf.exe`): the menu texts (Information pages, ranks, the sequels' menus
+  and dialogues) are read out of it as `tools/extract_exe_texts.py` does, chosen by its
+  SHA-256, and only the texts file is kept;
+- optional: `data/Settings.xml` (intro pages, version line) and `data/gfx/logo2s.tga` (the
+  main menu's logo);
+- or one zip of the game folder, or of the original download (which holds several games: all
+  of them are imported; its fourth game, which the engine does not run, is left out).
+
+Loose files have the same names in every game, so they are chosen one game at a time; a
+second game is added later the same way. The picked documents are copied into
+`files/games/incoming/` under their names, then `as3d::importGameFiles` (on a background
+thread) recognises them by content: `pak0.apk` by its signature (`as3d/game_data.h`), the
+other paks by the SHA-256 of `tools/games.json` (or by name beside an identified `pak0.apk`
+when no hash is known), the executable by its SHA-256; `Settings.xml` and the logo go to the
+game identified beside them (in a zip: the same game folder, `data/` and `data/gfx/` counting
+as the folder), or, chosen on their own, to the one game already imported. Each game is
+installed in `files/games/<key>/` under the names the APK's assets use (`pak0.apk`...,
+`Settings.xml`, `logo2s.tga`, the texts file of `tools/games.json`), and the screen lists what
+was recognised, ignored or is missing ("AirStrike 2: pak1.apk missing."). A game counts once
+all its paks are there. `incoming/` is removed afterwards. The game (`apps/game/android_main.cpp`)
+then reads a bundled game from the assets as before and an imported one from the absolute
+`files/games/<key>/`; bundled assets win over an import of the same game. Profiles stay where
+they were (`files/<key>/profile.bin`).
+
+`ImportActivity` runs in its own process (`:import`), so loading the native library there
+never meets SDL. "Play" after an import ends a game process that was still running (it read
+its list of games when it started), then starts `GameActivity`.
+
+Adding another game later: there is no menu entry yet. Start the import screen with the
+extra `import`, or clear the app's data (which also removes the saves and the imported games):
+
+```bash
+adb shell am start -n org.as3dport.game/.ImportActivity --ez import true
+```
+
+Other extras of `ImportActivity` are passed on to `GameActivity` (`game`, `bot`, `level`...).
+For tests, `--ez import_pending true` imports what is already in `files/games/incoming/`
+without the picker (debug build; the files are put there with `run-as`):
+
+```bash
+adb push pak0.apk /data/local/tmp/ && adb shell run-as org.as3dport.game mkdir -p files/games/incoming
+adb shell run-as org.as3dport.game cp /data/local/tmp/pak0.apk files/games/incoming/   # and the others
+adb shell am start -n org.as3dport.game/.ImportActivity --ez import_pending true
+```
+
+A personal build with bundled games behaves as before: the import screen never shows unless
+asked for with the extra.
+
 ## Building
 
 ```bash
@@ -99,7 +170,8 @@ needed, copies the paks, writes `android/local.properties` (gitignored) and runs
 `./gradlew assembleDebug` with the Gradle JVM capped at 1.5 GB and 2 workers. Native code is
 built `RelWithDebInfo` even in the debug APK. `AS3D_ANDROID_ABIS=x86_64` builds only the
 emulator ABI (faster); `AS3D_NATIVE_JOBS` sets the parallel compile jobs (default 4);
-`AS3D_ANDROID_GAMES=as3d` makes the app of before, without the selector.
+`AS3D_ANDROID_GAMES=as3d` makes the app of before, without the selector;
+`AS3D_ANDROID_GAMES=none` the data-free APK (above).
 Output: `android/app/build/outputs/apk/debug/app-debug.apk`. Stop the Gradle daemon
 afterwards on a shared machine: `(cd android && ./gradlew --stop)`.
 
@@ -234,7 +306,13 @@ The app logs under the tag `AS3D` (`adb logcat -s AS3D:*`):
 
 | Marker | When |
 |---|---|
+| `AS3D_IMPORT_GAMES available=KEYS ask=0|1 pending=0|1` | `ImportActivity` started: the games the app holds (`none`) |
+| `AS3D_IMPORT_SCREEN` | the import screen is shown |
+| `AS3D_IMPORT_DONE imported=KEYS notes=...|...` | an import ended: the games completed by it (`none`), the notes |
+| `AS3D_IMPORT_RESTART pid=N`, `AS3D_IMPORT_START_GAME` | a running game ended after an import; `GameActivity` started |
+| `import: ...` (info) | each note of an import, from native code |
 | `AS3D_ARGS` | at start: the arguments from the intent |
+| `AS3D_GAME_FILES game=KEY dir=...` | at start: where each available game's files are (`KEY/` in the assets, or the absolute import directory) |
 | `AS3D_GAMES present=N selector=0|1 game=KEY` | at start: the games in the APK, whether the selector opens, the first game |
 | `AS3D_GAME_START size=WxH load_ms=... game=KEY` | a game is up (the first level, or the front end), after every choice on the selector |
 | `AS3D_SCREEN name=main|start|ingame|...|playing|paused|intro|selector frame=N mission=M` | with the menus: the top screen changed (names of `Frontend::screenName`; `selector` between games) |

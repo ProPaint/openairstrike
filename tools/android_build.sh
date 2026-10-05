@@ -23,9 +23,10 @@
 #   AS3D_VIEWER        the as3d_viewer binary (default: build/apps/viewer/as3d_viewer here or
 #                      under AS3D_DATA_ROOT).
 #
-# The APK embeds the original, copyrighted pak archives: it is for the owner's personal
-# use only and must never be committed or shared (android/app/build/ and the copied paks
-# are gitignored).
+# Unless AS3D_ANDROID_GAMES=none, the APK embeds the original, copyrighted pak archives: it is
+# for the owner's personal use only and must never be committed or shared (android/app/build/
+# and the copied paks are gitignored). The `none` APK holds no game data; its launcher entry
+# (ImportActivity) imports the player's own files (docs/android.md, "Your own game files").
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
