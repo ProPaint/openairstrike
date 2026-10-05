@@ -130,6 +130,19 @@ files of your own copy and keeps them in the browser's storage. `tools/web_build
 copies your data into the site instead; never host that build publicly. Details in
 `docs/web.md`.
 
+## Releases
+
+A version tag (`v1.2.3`) builds a draft GitHub release (`.github/workflows/release.yml`) with
+three data-free artifacts:
+
+- `openairstrike-<version>-linux-x86_64.tar.gz`: `as3d_game` and `as3d_sim` built on Ubuntu
+  22.04 (needs `libsdl2-2.0-0`, `libgles2` and `libegl1`); point them at your data with
+  `--data`.
+- `openairstrike-<version>-web.zip`: the bring-your-own-data site, to serve from any static
+  web server; the page asks for your game files on first start.
+- `openairstrike-<version>-android.apk`: the signed APK without any game data; the app asks
+  for your game files on first start (`docs/android.md`).
+
 ## Tests
 
 ```
