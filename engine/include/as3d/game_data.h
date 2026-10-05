@@ -43,6 +43,8 @@ GameData locateGameData(const std::string& root, const GameProfile& game);
 // The game whose paks sit in `dir`, from the content of dir/pak0.apk; nullptr if the file is
 // missing or matches no known game.
 const GameProfile* identifyPaks(const std::string& dir);
+// The same for one file, whatever its name: the game whose pak0.apk it is, or nullptr.
+const GameProfile* identifyPak0File(const std::string& path);
 
 // Games whose data is on this machine, in the order as3d, as2, gulf: paks that identify as
 // the game (looked for in the game's own install directory), or extracted files.

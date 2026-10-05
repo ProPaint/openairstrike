@@ -131,9 +131,11 @@ void setPakSignaturesForTest(const PakSignature* sigs, int count) {
     }
 }
 
-const GameProfile* identifyPaks(const std::string& dir) {
+const GameProfile* identifyPaks(const std::string& dir) { return identifyPak0File(join(dir, "pak0.apk")); }
+
+const GameProfile* identifyPak0File(const std::string& path) {
     std::uint64_t size = 0, hash = 0;
-    if (!readPakSignature(join(dir, "pak0.apk"), &size, &hash)) return nullptr;
+    if (!readPakSignature(path, &size, &hash)) return nullptr;
     for (int i = 0; i < g_signatureCount; ++i)
         if (g_signatures[i].size == size && g_signatures[i].headHash == hash) return &gameProfile(g_signatures[i].game);
     return nullptr;
