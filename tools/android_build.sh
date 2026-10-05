@@ -6,10 +6,9 @@
 #   AS3D_DATA_ROOT     where third_party_local/ (SDL2, libopenmpt, the original game data of
 #                      every bundled game) lives (default: this repo's root; set it from a worktree to point at
 #                      the main checkout).
-#   AS3D_ANDROID_GAMES comma-separated game keys to bundle (as3d, as2, gulf; default as3d,as2,
-#                      the playable games: the app opens on the game selector when it holds
-#                      more than one, docs/spec/issues/163; gulf plays only with the extra
-#                      allow_unfinished). Each game's paks, Settings.xml, logo and texts file go
+#   AS3D_ANDROID_GAMES comma-separated game keys to bundle (as3d, as2, gulf; default all three:
+#                      the app opens on the game selector when it holds more than one,
+#                      docs/spec/issues/163). Each game's paks, Settings.xml, logo and texts file go
 #                      under assets/<key>/ (tools/games.json lists them).
 #   AS3D_ANDROID_ABIS  comma-separated ABIs (default arm64-v8a,x86_64).
 #   AS3D_NATIVE_JOBS   parallel native compile jobs (default 4).

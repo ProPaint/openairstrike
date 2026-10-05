@@ -122,12 +122,10 @@ than exports made before this change; functions, strings and SUMMARY.md counts a
 
 ## Third-party toolkit (naming aid, study only)
 
-`third_party_local/toolkit/airstrike3d-tools/` is a shallow clone of
-`[third-party toolkit, link removed]` (about 400 MB, gitignored). It bundles
-copyrighted game files and third-party decompilations: read it to find names and meanings,
-never copy anything from it into this repository. Its `src/2_51/` and `src/2_71/`
-executables are byte-identical to ours (same SHA-256). Fetch with
-`git clone --depth 1 [third-party toolkit, link removed] third_party_local/toolkit/airstrike3d-tools`.
+A third-party reverse-engineering toolkit for these games was consulted as a naming aid
+only, from a gitignored clone under `third_party_local/toolkit/`. It bundles copyrighted game
+files and decompilations, so it is not linked here and nothing was copied from it into this
+repository; the sequel executables it covers are byte-identical to ours (same SHA-256).
 
 ### Timing
 

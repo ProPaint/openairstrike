@@ -29,7 +29,7 @@
 // app reads them). --game as3d|as2|gulf (default $AS3D_GAME, then as3d if present, then the
 // first game found; --paks alone identifies the game from the paks) picks the game, whose
 // files are under ROOT/assets_extracted_games/<key> and ROOT/third_party_local/games/<key>
-// (as3d/game_data.h); --list-games prints the games found. The sequels do not play yet.
+// (as3d/game_data.h); --list-games prints the games found.
 // The front end also reads the install's data/Settings.xml (and the logo beside it) and the
 // game's texts file in the extracted directory (tools/extract_exe_texts.py).
 // The windowed loop is shared with the Android app (game_loop.h). --touch draws the touch

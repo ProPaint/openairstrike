@@ -1,0 +1,67 @@
+# Continuous integration without game data.
+#
+# The repository holds no game data, so only what runs without it is built here: the desktop
+# build, the unit tests, and the Python reference tests. The tests that compare against the
+# games' files (golden data tests, play tests) skip themselves, loudly, when assets_extracted/
+# is missing; tools/ci.sh says so in its log. Nothing that holds game data is cached or
+# uploaded.
+#
+# Not in CI:
+#   * Android (tools/android_build.sh): needs the Android SDK and NDK, and the APK embeds the
+#     games' copyrighted pak files, so it cannot be built without data.
+#   * The bundled web build (tools/web_build.sh bundled): copies the paks into the site. The
+#     bring-your-own build has no data and runs below.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: Desktop build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # SDL2, OpenGL ES 2 and EGL are found through pkg-config (engine/src/*/module.cmake).
+      # libopenmpt and SDL2 sources are not needed from the system: CMake downloads libopenmpt
+      # 0.8.9 itself (tools/fetch_third_party.sh, SHA-256 pinned, needs curl).
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config curl python3 \
+            libsdl2-dev libgles-dev libegl-dev
+
+      # tools/ci.sh configures RelWithDebInfo, builds, then runs the doctest binary under
+      # "ulimit -v 4000000" (its address-space cap) and every tools/ref/test_*.py, for the
+      # first game when no data is present. It prints "ci: OK" at the end.
+      - name: Build and test
+        run: AS3D_BUILD_JOBS="$(nproc)" tools/ci.sh
+
+  # The web build in bring-your-own mode holds only the engine, no game data (the script checks
+  # that), so it can be built here. This job only checks that it compiles and assembles.
+  web-byo:
+    name: Web build (bring your own data)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake curl python3
+
+      # tools/web_build.sh uses $EMSDK; the version is the one docs/web.md names.
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.10
+
+      - name: Build the site
+        run: AS3D_BUILD_JOBS="$(nproc)" tools/web_build.sh byo

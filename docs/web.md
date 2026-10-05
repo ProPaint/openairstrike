@@ -30,7 +30,7 @@ AS3D_DATA_ROOT=/path/to/main/checkout tools/web_build.sh byo      # byo     -> o
 
 Both share the CMake build in `build-web/` (about 3 minutes from scratch with `-j4`, seconds
 afterwards). `AS3D_WEB_SITE` sends the site elsewhere. `AS3D_WEB_GAMES` (comma-separated keys
-of `tools/games.json`, default `as3d,as2`, the playable games) says which games the bundled
+of `tools/games.json`, default all three) says which games the bundled
 build contains: each one under `data/<key>/` (its paks, `Settings.xml`, `logo2s.tga`, its
 texts file, and an `index.txt` listing them), and `data/games.txt` lists the keys. The page
 offers those games on its start screen and loads only the chosen game's files

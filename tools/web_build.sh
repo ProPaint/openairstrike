@@ -16,7 +16,7 @@
 #
 # Env:
 #   AS3D_WEB_GAMES     comma-separated game keys the bundled build contains (as3d, as2, gulf;
-#                      default as3d,as2, the playable games). data/games.txt lists them: with
+#                      default all three). data/games.txt lists them: with
 #                      more than one the page's start screen offers a choice and downloads only
 #                      the chosen game's files (docs/spec/issues/163); ?game= forces one.
 #   AS3D_WEB_SITE      where the site is assembled (see below).

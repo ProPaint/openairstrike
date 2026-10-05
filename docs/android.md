@@ -48,7 +48,7 @@ the platform module.
 ## What is bundled
 
 `tools/android_build.sh` bundles the games named in `AS3D_ANDROID_GAMES` (comma-separated keys
-of `tools/games.json`: `as3d`, `as2`, `gulf`; default `as3d,as2`, the playable games). Each
+of `tools/games.json`: `as3d`, `as2`, `gulf`; default all three). Each
 game's files go under `assets/<key>/` of the APK, and the first game is
 under `as3d/` too (one layout; the flat layout of older builds is gone, the build script
 removes it from the assets directory): the game's paks (`pak0.apk`, `pak1.apk`, `pak2.apk`,
@@ -99,8 +99,6 @@ needed, copies the paks, writes `android/local.properties` (gitignored) and runs
 `./gradlew assembleDebug` with the Gradle JVM capped at 1.5 GB and 2 workers. Native code is
 built `RelWithDebInfo` even in the debug APK. `AS3D_ANDROID_ABIS=x86_64` builds only the
 emulator ABI (faster); `AS3D_NATIVE_JOBS` sets the parallel compile jobs (default 4);
-`AS3D_ANDROID_GAMES=as3d,as2,gulf` bundles Gulf Thunder too (it is not listed on the selector
-and refused at run time without `--ez allow_unfinished true`, `apps/game/android_main.cpp`);
 `AS3D_ANDROID_GAMES=as3d` makes the app of before, without the selector.
 Output: `android/app/build/outputs/apk/debug/app-debug.apk`. Stop the Gradle daemon
 afterwards on a shared machine: `(cd android && ./gradlew --stop)`.

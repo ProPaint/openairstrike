@@ -8,6 +8,21 @@ android/app/src/main/assets/*.apk
 # Launcher icon rendered from the game data at build time (tools/android_build.sh)
 android/app/src/icon_from_data/
 testdata/golden_png/
+# Belt and braces: game files and executables by extension, wherever they land
+*.apk
+*.pak
+*.tga
+*.mdl
+*.scr
+*.ps
+*.wpn
+*.hsc
+*.mo3
+*.wav
+*.exe
+AirStrike*.zip
+apps/web/site/data/
+apps/web/site/marquee/
 # Reverse-engineering outputs (decompiler output is never committed)
 re/out/
 *.gpr
