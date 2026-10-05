@@ -27,6 +27,13 @@ def versionCodeEnv = (System.getenv("AS3D_VERSION_CODE") ?: "1").toInteger()
 // unsigned, which Gradle reports as an unsigned APK.
 def keystoreFile = System.getenv("ANDROID_KEYSTORE_FILE")
 def hasReleaseKey = keystoreFile != null && new File(keystoreFile).exists()
+// Two apps, so both can live on one device: a personal build with bundled game data keeps
+// the historic id org.as3dport.game and the name "AirStrike"; the public data-free build
+// (AS3D_ANDROID_GAMES=none) is io.github.propaint.openairstrike, "OpenAirStrike", and keeps
+// its own saves and imported files. The Java package (namespace) stays the same for both.
+def bundled = (System.getenv("AS3D_ANDROID_GAMES") ?: "as3d,as2,gulf") != "none"
+def appId = bundled ? "org.as3dport.game" : "io.github.propaint.openairstrike"
+def appName = bundled ? "AirStrike" : "OpenAirStrike"
 
 if (!new File(sdl2Dir, "include/SDL.h").exists()) {
     // Not fatal here: Gradle configures every included project (this one)
@@ -47,7 +54,8 @@ android {
     ndkVersion "28.2.13676358"
 
     defaultConfig {
-        applicationId "org.as3dport.game"
+        applicationId appId
+        resValue "string", "app_name", appName
         minSdk 26
         targetSdk 36
         versionCode versionCodeEnv
@@ -69,6 +77,10 @@ android {
                 abiFilters(*abiList)
             }
         }
+    }
+
+    buildFeatures {
+        resValues true // app_name from build.gradle (see appName above)
     }
 
     externalNativeBuild {

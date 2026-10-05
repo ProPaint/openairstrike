@@ -141,7 +141,9 @@ three data-free artifacts:
 - `openairstrike-<version>-web.zip`: the bring-your-own-data site, to serve from any static
   web server; the page asks for your game files on first start.
 - `openairstrike-<version>-android.apk`: the signed APK without any game data; the app asks
-  for your game files on first start (`docs/android.md`).
+  for your game files on first start (`docs/android.md`). Its application id is
+  `io.github.propaint.openairstrike`, so it installs beside a personal build with bundled data
+  (`org.as3dport.game`).
 
 ## Tests
 

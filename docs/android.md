@@ -100,7 +100,11 @@ app goes to the background. Uninstalling the app removes it. Updating the app ov
 ## Your own game files (the data-free build)
 
 `AS3D_ANDROID_GAMES=none tools/android_build.sh` makes an APK without any game data (about
-7 MB with one ABI), the one that may be published. Its launcher entry, `ImportActivity`,
+7 MB with one ABI), the one that may be published. It is a separate app: application id
+`io.github.propaint.openairstrike` and name "OpenAirStrike" (android/app/build.gradle), so it
+installs beside a personal build with bundled data (`org.as3dport.game`, "AirStrike") and has
+its own saves and imported files; adb commands in this document that name
+`org.as3dport.game` apply to the bundled app. Its launcher entry, `ImportActivity`,
 looks for games (bundled assets `<key>/pak0.apk`, or imported ones with all their paks) and,
 finding none, shows the import screen: which files each game needs, a "Choose files" button,
 a status text, and "Play" once a game is ready. The screen is a plain Android view (no layout
