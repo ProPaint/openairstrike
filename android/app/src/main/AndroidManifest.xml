@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  AirStrike 3D (engine re-implementation) for Android. See docs/android.md.
-  The APK bundles the original, copyrighted game data: personal use only.
+  The AirStrike games (engine re-implementation) for Android. See docs/android.md.
+  A personal build may bundle the original, copyrighted game data (personal use only); the
+  public build holds none and imports the player's own files (ImportActivity).
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -18,6 +19,21 @@
         android:hardwareAccelerated="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
 
+        <!-- The launcher entry: starts the game when the app holds one, else asks for the
+             player's game files. Its own process keeps it apart from SDL's. -->
+        <activity
+            android:name=".ImportActivity"
+            android:label="@string/app_name"
+            android:exported="true"
+            android:process=":import"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".GameActivity"
             android:label="@string/app_name"
@@ -27,11 +43,6 @@
             android:launchMode="singleInstance"
             android:alwaysRetainTaskState="true"
             android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
-            android:preferMinimalPostProcessing="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:preferMinimalPostProcessing="true" />
     </application>
 </manifest>

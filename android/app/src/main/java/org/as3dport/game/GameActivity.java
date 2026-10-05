@@ -34,8 +34,9 @@ import org.libsdl.app.SDLActivity;
  *   difficulty (int)   0..4
  *   no_audio (boolean)
  *   rebuild_on_resume (boolean)  test hook: rebuild every GL resource after a resume
- *   game (string)      which game: as3d, as2, gulf; without it the selector when the APK holds
- *                      more than one playable game
+ *   game (string)      which game: as3d, as2, gulf; without it the selector when the app holds
+ *                      more than one playable game (bundled in the APK or imported by
+ *                      ImportActivity, the launcher entry)
  *   allow_unfinished (boolean)  start a game that is not playable yet (development only)
  */
 public class GameActivity extends SDLActivity {
