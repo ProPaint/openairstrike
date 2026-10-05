@@ -544,3 +544,73 @@ TEST_CASE("world corpus: map-spawned health scales with difficulty") {
     }
     CHECK(compared > 0);
 }
+
+// ---------------------------------------------------------------------------------------
+// Ours: what happens after a script error (docs/spec/issues/165).
+// ---------------------------------------------------------------------------------------
+
+namespace {
+// A main that reads an address the host does not map: the VM reports "access to unmapped
+// address" and the thread is faulted.
+Asm faultingScript() {
+    Asm a;
+    a.entry(EntryPoint::Main);
+    a.movRaw(15, kEntityAddrBase + 1u);
+    a.load(14, 15);
+    a.end();
+    return a;
+}
+} // namespace
+
+TEST_CASE("script fault: a pool entity whose script fails is removed, not frozen") {
+    Rig r;
+    r.obj("t_bad {\n flag FL_TEMPORARY\n script \"scripts\\bad.scr\"\n}\n");
+    r.script("scripts\\bad.scr", faultingScript());
+    r.start();
+    int e = r.create("t_bad");
+    REQUIRE(e >= 0);
+    r.step(1); // the first main faults
+    CHECK(r.world.stats().scriptErrors == 1);
+    CHECK(r.world.stats().faultedRemoved == 1);
+    CHECK((r.e(e).rt & RT_REMOVED) != 0);
+    r.step(2); // freed at the start of the next pass
+    CHECK(r.world.listEntities().empty());
+}
+
+TEST_CASE("script fault: the player's helicopter is kept and the watchdog respawns it") {
+    Rig r;
+    r.script("scripts\\bad.scr", faultingScript());
+    r.playerScript = "scripts\\bad.scr";
+    r.start(true);
+    int old = r.world.playerEntityIndex(0);
+    REQUIRE(old >= 0);
+    r.step(1); // the first main faults
+    CHECK(r.e(old).scriptFaulted);
+    CHECK((r.e(old).rt & RT_REMOVED) == 0);
+    CHECK(r.world.stats().faultedRemoved == 0);
+    // Alive and faulted: nothing happens (the player can still be hit and die).
+    r.step(60 * 15);
+    CHECK(r.world.playerEntityIndex(0) == old);
+    CHECK(r.world.stats().forcedRespawns == 0);
+    // Dead and never respawned by its script: after kRespawnWatchdogSeconds the engine does
+    // it, with one life less.
+    r.world.damageEntity(old, 1000.0f, -1);
+    CHECK(r.e(old).f(F_DEAD) == 1.0f);
+    const float lives = r.world.player(0).lives;
+    r.step(static_cast<int>(World::kRespawnWatchdogSeconds * 60.0f) - 2);
+    CHECK(r.world.playerEntityIndex(0) == old);
+    r.step(4);
+    int now = r.world.playerEntityIndex(0);
+    CHECK(now >= 0);
+    CHECK(now != old);
+    CHECK(r.world.stats().forcedRespawns == 1);
+    CHECK(r.world.player(0).lives == lives - 1.0f);
+    CHECK(!r.world.gameOver());
+    // The last life: the watchdog takes it and the game-over test fires.
+    r.world.player(0).lives = 0.0f;
+    r.world.damageEntity(now, 1000.0f, -1);
+    r.step(static_cast<int>(World::kRespawnWatchdogSeconds * 60.0f) + 2);
+    CHECK(r.world.stats().forcedRespawns == 2);
+    CHECK(r.world.player(0).lives == -1.0f);
+    CHECK(r.world.gameOver());
+}

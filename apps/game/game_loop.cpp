@@ -158,6 +158,7 @@ private:
     void draw();
     void saveScreenshot();
     void updateLayout();
+    const char* simulationNote();
     int screenMode() const;
     bool leftHanded() const;
     int fbWidth() const { return gl_ ? gl_->width() : o_.width; }
@@ -230,6 +231,18 @@ private:
     int loadsSeen_ = 0;
     std::string screen_;                    // last AS3D_SCREEN name
 };
+
+// The FPS counter's warning line: script errors, forced respawns and entities stopped after a
+// script error (WorldStats), with the first error's text. Empty in a healthy run.
+const char* GameWindow::simulationNote() {
+    static char note[96];
+    const WorldStats& st = ses().world().stats();
+    if (st.scriptErrors == 0 && st.forcedRespawns == 0 && st.faultedRemoved == 0) return "";
+    const char* first = st.firstErrors.empty() ? "" : st.firstErrors.front().c_str();
+    std::snprintf(note, sizeof note, "script err %llu  respawn %llu  stopped %llu  %s", static_cast<unsigned long long>(st.scriptErrors),
+                  static_cast<unsigned long long>(st.forcedRespawns), static_cast<unsigned long long>(st.faultedRemoved), first);
+    return note;
+}
 
 int GameWindow::screenMode() const {
     if (stack_.flow) return stack_.flow->screenMode();
@@ -833,7 +846,7 @@ void GameWindow::draw() {
         if (controls || showFps) {
             overlay_->begin(w, h);
             if (controls) drawTouchControls(*overlay_, touch_, ts);
-            if (showFps) drawFpsCounter(*overlay_, *ts.assets, fps_, touchMode_ ? &touch_.layout() : nullptr, layoutInsets_);
+            if (showFps) drawFpsCounter(*overlay_, *ts.assets, fps_, touchMode_ ? &touch_.layout() : nullptr, layoutInsets_, simulationNote());
             overlay_->flush();
         }
         return;
@@ -844,7 +857,7 @@ void GameWindow::draw() {
         overlay_->begin(w, h);
         if (paused) drawPauseOverlay(*overlay_, touchMode_);
         if (touchMode_) drawTouchControls(*overlay_, touch_, ts);
-        if (showFps) drawFpsCounter(*overlay_, *ts.assets, fps_, touchMode_ ? &touch_.layout() : nullptr, layoutInsets_);
+        if (showFps) drawFpsCounter(*overlay_, *ts.assets, fps_, touchMode_ ? &touch_.layout() : nullptr, layoutInsets_, simulationNote());
         overlay_->flush();
     }
 }

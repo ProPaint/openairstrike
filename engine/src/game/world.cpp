@@ -572,15 +572,34 @@ DispatchResult World::dispatch(int idx, EntryPoint ep) {
     current_ = idx;
     selfBits = refOf(idx);
     ++dispatchDepth_;
+    stats_.maxDispatchDepth = std::max(stats_.maxDispatchDepth, dispatchDepth_);
     // The thread object stays alive for the whole call: entities are freed only at the
     // start of the entity pass, never while a handler runs.
     script::ScriptThread* th = e.thread.get();
+    const bool wasFaulted = e.scriptFaulted; // noteScriptError marks the entity during the call
     DispatchResult r = (ep == EntryPoint::Main) ? th->runMain(frame_, frametime_) : th->runEvent(ep, frame_);
     --dispatchDepth_;
-    if (!r.ok) e.scriptFaulted = true; // a faulted thread is not run again
+    if (!r.ok && !wasFaulted) {
+        e.scriptFaulted = true; // a faulted thread is not run again
+        onScriptFault(idx);
+    }
     current_ = savedCurrent;
     selfBits = savedSelf;
     return r;
+}
+
+// Ours. The original terminates the game on a script error; we keep playing, but an entity
+// whose script will never run again must not linger: a root pool entity is removed (its
+// effects finish, its emitters stop), anything else is deactivated (emitters stop). A
+// player's helicopter is kept: the respawn watchdog (playerFrame) brings the player back.
+void World::onScriptFault(int idx) {
+    Entity& e = ents_[static_cast<size_t>(idx)];
+    AS3D_WARN("entity %d '%s' (%s) stopped after a script error at frame %u", idx, e.name.c_str(), e.scriptPath.c_str(),
+              frame_);
+    if (isPlayerEntity(idx) || isPlayerEntity(rootOf(idx))) return;
+    ++stats_.faultedRemoved;
+    if (e.inList && e.parent < 0) removeEntity(idx);
+    else setActive(idx, false);
 }
 
 void World::runInit(int idx) {
@@ -662,9 +681,16 @@ void World::spawnPlayer(int p) {
         players_[q].currentPowerup = -1;
     }
     const ObjectDef* def = db_->findObject(rules_->heliObjects[std::min(std::max(pr.heli, 0), std::max(rules_->helicopterCount - 1, 0))]);
-    if (!def || listCount_ >= kMaxListEntities) return;
+    if (!def || listCount_ >= kMaxListEntities) {
+        AS3D_WARN("player %d not respawned: %s (frame %u)", p, def ? "the entity list is full" : "no helicopter definition", frame_);
+        return;
+    }
     int idx = buildEntity(def, 0);
-    if (idx < 0) return;
+    if (idx < 0) {
+        AS3D_WARN("player %d not respawned: no free entity slot (frame %u)", p, frame_);
+        return;
+    }
+    pr.deadClock = 0.0f;
     ++stats_.entitiesCreated;
     linkNewest(idx);
     Entity& e = ents_[static_cast<size_t>(idx)];
@@ -822,6 +848,7 @@ void World::resetPlayersForLevel() {
         pr.action = 0.0f;
         pr.heldInput = 0;
         pr.entityRef = 0;
+        pr.deadClock = 0.0f;
     }
 }
 

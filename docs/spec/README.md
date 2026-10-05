@@ -123,6 +123,7 @@ Rules for delta specs:
 | [162](issues/162-packaging-by-game.md) | packaging by game on Android and the web |
 | [163](issues/163-game-selector.md) | the game selector, "Change game", switching games in one process |
 | [164](issues/164-game-selector-look.md) | the selector's marquees per game and its web parity through build-time renders |
+| [165](issues/165-stuck-effect-and-lost-player.md) | stuck explosion and lost player report: faulted scripts stop their entity, respawn watchdog, FPS-counter diagnostics; root cause open |
 
 Issues of a sequel are in its own directory, `as2/issues/` (numbers from 200).
 

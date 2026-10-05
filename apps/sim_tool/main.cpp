@@ -3,6 +3,7 @@
 //   as3d_sim --level 1 --frames 3600 [--seed S] [--difficulty D] [--players N] [--heli 0..9]
 //            [--dump-state state.json] [--builtin-report report.json] [--data ROOT]
 //            [--bot | --pilot | --input-script FILE] [--record FILE] [--god] [--trace-player FILE]
+//            [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]
 //
 // Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT; --game KEY
 // (as3d, as2, gulf; default $AS3D_GAME, then as3d) picks the game, --paks DIR mounts its paks
@@ -17,6 +18,14 @@
 // like the game does). --god turns on god mode (the `iwannabe` cheat of engine-behaviour.md
 // 14). --trace-player writes one line per frame with player 1's position, its projected
 // screen rectangle on the 800x600 collision viewport and its on-screen bit 0x08.
+//
+// Developer options (docs/spec/issues/165): --upgrades N sets every weapon upgrade slot to N
+// and --items N every power-up and missile count to N (both re-applied every 10 s, a respawn
+// clears the items); --powerup T / --missile T give 9 of that one type and select it;
+// --pause-every K pauses the world for 90 frames every K frames; --fault-player F makes
+// player 1's script fault as it is killed at frame F and every 25 s after, which exercises
+// the respawn watchdog. The summary ends with the deepest handler nesting, the forced
+// respawns, the entities stopped after a script error, and any faulted entity still around.
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -59,7 +68,8 @@ int usage() {
                  "usage: as3d_sim --level N --frames N [--seed S] [--difficulty 0..4] [--players 1|2] [--heli 0..9]\n"
                  "                [--dump-state FILE] [--builtin-report FILE] [--data ROOT]\n"
                  "                [--bot | --pilot | --input-script FILE] [--record FILE] [--god]\n"
-                 "                [--trace-player FILE] [--game as3d|as2|gulf] [--paks DIR] [--list-games]\n");
+                 "                [--trace-player FILE] [--game as3d|as2|gulf] [--paks DIR] [--list-games]\n"
+                 "                [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]\n");
     return 2;
 }
 
@@ -89,6 +99,7 @@ int main(int argc, char** argv) {
     bool listGames = false;
     long frames = 600;
     bool bot = false, pilot = false;
+    int upgrades = -1, items = -1, powerupType = -1, missileType = -1; long pauseEvery = 0, faultPlayerAt = -1; // developer options (see --help)
     WorldConfig cfg;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -116,6 +127,12 @@ int main(int argc, char** argv) {
         else if (a == "--bot") bot = true;
         else if (a == "--pilot") pilot = true;
         else if (a == "--god") cfg.godMode = true;
+        else if (a == "--upgrades" && next(v)) upgrades = std::atoi(v);
+        else if (a == "--items" && next(v)) items = std::atoi(v);
+        else if (a == "--powerup" && next(v)) powerupType = std::atoi(v);
+        else if (a == "--missile" && next(v)) missileType = std::atoi(v);
+        else if (a == "--pause-every" && next(v)) pauseEvery = std::strtol(v, nullptr, 10);
+        else if (a == "--fault-player" && next(v)) faultPlayerAt = std::strtol(v, nullptr, 10);
         else return usage();
     }
     if (dataRoot.empty()) {
@@ -190,6 +207,32 @@ int main(int argc, char** argv) {
     int maxList = world.listCount();
     long completeFrame = -1, gameOverFrame = -1;
     for (long f = 0; f < frames; ++f) {
+        if (f % 600 == 0) {
+            // Developer options: weapon upgrades and item counts are re-applied (a respawn clears the items).
+            for (int p = 0; p < cfg.players; ++p) {
+                PlayerRecord& pr = world.player(p);
+                if (upgrades >= 0) for (int& u : pr.upgrades) u = upgrades;
+                if (items >= 0) {
+                    for (int& n : pr.powerups) n = items;
+                    for (int& n : pr.missiles) n = items;
+                    if (pr.currentPowerup < 0) pr.currentPowerup = 0;
+                    if (pr.currentMissile < 0) pr.currentMissile = 0;
+                }
+                if (powerupType >= 0 && powerupType < 16) { pr.powerups[powerupType] = 9; pr.currentPowerup = powerupType; }
+                if (missileType >= 0 && missileType < 5) { pr.missiles[missileType] = 9; pr.currentMissile = missileType; }
+            }
+        }
+        if (pauseEvery > 0 && f > 0 && (f % pauseEvery == 0 || f % pauseEvery == 90) && !world.hintShowing() && !world.levelComplete() && !world.gameOver()) {
+            world.setPaused(!world.paused());
+        }
+        if (faultPlayerAt >= 0 && f >= faultPlayerAt && (f - faultPlayerAt) % 1500 == 0) {
+            // Developer option: player 1's script faults as it dies, every 25 s (exercises the respawn watchdog).
+            int pi = world.playerEntityIndex(0);
+            if (pi >= 0) {
+                world.entity(pi).scriptFaulted = true;
+                world.damageEntity(pi, 1.0e6f, -1);
+            }
+        }
         if (bot || pilot) {
             FrameInput in = bot ? botInput(static_cast<u32>(f)) : botInput(world, static_cast<u32>(f));
             recorder.record(static_cast<u32>(f), in);
@@ -223,6 +266,14 @@ int main(int argc, char** argv) {
     }
 
     const WorldStats& st = world.stats();
+    // Entities whose script faulted and that are still around (the player's helicopter is kept).
+    for (int i : world.listEntities()) {
+        const Entity& e = world.entity(i);
+        if ((e.rt & RT_REMOVED) || !e.scriptFaulted) continue;
+        std::printf("faulted entity %d '%s' script '%s' age %.1f at (%.0f, %.0f, %.0f)\n", i, e.name.c_str(), e.scriptPath.c_str(),
+                    static_cast<double>(e.f(F_AGE)), static_cast<double>(e.f(F_ORIGIN)), static_cast<double>(e.f(F_ORIGIN + 1)),
+                    static_cast<double>(e.f(F_ORIGIN + 2)));
+    }
     std::printf("level %s: %ld frames, map_pos %.1f, list entities %d (max %d), slots %d (max %d)\n", level.c_str(),
                 frames, static_cast<double>(world.mapPos()), world.listCount(), maxList, world.slotsInUse(),
                 st.maxSlotsInUse);
@@ -230,6 +281,8 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(st.entitiesCreated), static_cast<unsigned long long>(st.entitiesFreed),
                 static_cast<unsigned long long>(st.spawnRefused), static_cast<unsigned long long>(st.scriptErrors),
                 static_cast<unsigned long long>(st.stalls));
+    std::printf("max dispatch depth %d, forced respawns %llu, faulted entities removed %llu\n", st.maxDispatchDepth,
+                static_cast<unsigned long long>(st.forcedRespawns), static_cast<unsigned long long>(st.faultedRemoved));
     for (const std::string& e : st.firstErrors) std::printf("  error: %s\n", e.c_str());
     std::printf("level complete at frame %ld, game over at frame %ld (-1: never)\n", completeFrame, gameOverFrame);
     std::printf("paused %d, game over %d, level complete %d, p_lives %.0f, p_scores %.0f\n", world.paused() ? 1 : 0,

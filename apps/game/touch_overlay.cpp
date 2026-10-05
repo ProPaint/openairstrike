@@ -274,7 +274,7 @@ void drawTouchControls(ui::Renderer2D& r, const TouchMapper& touch, const TouchO
 }
 
 void drawFpsCounter(ui::Renderer2D& r, const ui::UiAssets& a, const FpsCounter& fps, const TouchLayout* touch,
-                    const SafeInsets& in) {
+                    const SafeInsets& in, const char* note) {
     if (!a.fontLoaded) return;
     const ui::Mapping& m = r.mapping();
     const float fw = static_cast<float>(m.fbWidth);
@@ -289,7 +289,9 @@ void drawFpsCounter(ui::Renderer2D& r, const ui::UiAssets& a, const FpsCounter& 
     const float s1 = 0.7f, s2 = 0.5f;            // text scales (virtual pixels)
     const float h1 = 15.0f * s1, h2 = 15.0f * s2;
     const ui::FontMetrics& fm = ui::FontMetrics::original();
-    const float w = std::max(ui::measureText(fm, line1, s1), ui::measureText(fm, line2, s2));
+    const bool hasNote = note && *note;
+    float w = std::max(ui::measureText(fm, line1, s1), ui::measureText(fm, line2, s2));
+    if (hasNote) w = std::max(w, ui::measureText(fm, note, s2));
     const float pad = 3.0f;
     const float margin = 6.0f;
     // Anchor: a top corner in virtual pixels, text right- or left-aligned from it.
@@ -320,7 +322,7 @@ void drawFpsCounter(ui::Renderer2D& r, const ui::UiAssets& a, const FpsCounter& 
         y = 3.0f;
     }
     const float bx = align == ui::Align::Right ? x - w - pad : x - pad;
-    const float bh = h1 + (line2[0] ? h2 + 2.0f : 0.0f) + 2 * pad;
+    const float bh = h1 + (line2[0] ? h2 + 2.0f : 0.0f) + (hasNote ? h2 + 2.0f : 0.0f) + 2 * pad;
     r.rect(bx, y - pad, w + 2 * pad, bh, Color{0, 0, 0, 0.45f});
     ui::TextStyle st;
     st.scale = s1;
@@ -331,6 +333,11 @@ void drawFpsCounter(ui::Renderer2D& r, const ui::UiAssets& a, const FpsCounter& 
         st.scale = s2;
         st.color = Color{0.75f, 0.75f, 0.78f, 1.0f};
         ui::drawText(r, a.uiFont(), x, y + h1 + 2.0f, line2, st);
+    }
+    if (hasNote) {
+        st.scale = s2;
+        st.color = Color{1.0f, 0.35f, 0.3f, 1.0f};
+        ui::drawText(r, a.uiFont(), x, y + h1 + 2.0f + (line2[0] ? h2 + 2.0f : 0.0f), note, st);
     }
 }
 

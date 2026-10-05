@@ -264,6 +264,7 @@ struct PlayerRecord {
     int banked = 0;
     float rankAccumulator = 0.0f;
     int kills = 0;
+    float deadClock = 0.0f;     // ours: seconds the player has been dead or missing (respawn watchdog)
     u32 heldInput = 0;          // last programmatic input, for press/release edges
 
     // AirStrike 2 additions (as2/engine-behaviour.delta.md 7.1).
@@ -357,6 +358,9 @@ struct WorldStats {
     script::u64 entitiesFreed = 0;   // pool (list) entities
     int maxListEntities = 0;
     int maxSlotsInUse = 0;
+    int maxDispatchDepth = 0;        // deepest nesting of script handlers seen
+    script::u64 forcedRespawns = 0;  // respawn watchdog firings (ours; 0 in a healthy run)
+    script::u64 faultedRemoved = 0;  // entities removed or deactivated after a script error (ours)
     std::vector<std::string> firstErrors; // at most 16
 };
 
@@ -537,6 +541,8 @@ public:
     u32 frame() const { return frame_; }
     bool paused() const { return paused_; }
     void setPaused(bool p) { paused_ = p; }
+    // Seconds a dead or missing player waits before the engine respawns it itself (ours).
+    static constexpr float kRespawnWatchdogSeconds = 12.0f;
     bool levelComplete() const { return levelComplete_; }
     bool gameOver() const { return gameOver_; }
     bool intermission() const { return intermission_; }
@@ -611,6 +617,8 @@ private:
     void loadTimeWorldPass(); // the sequels: spawner, entity pass and render inside the load
     static constexpr float kLoadSpawnEdge = 800.0f; // V_ResetCamera: front edge mapPos + 800
     void playerFrame();
+    void respawnWatchdog();
+    void onScriptFault(int idx);
     void runEntities();
     void updateParticles(); // step 7, not while paused
     void freeRemoved();

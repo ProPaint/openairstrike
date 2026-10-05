@@ -440,6 +440,7 @@ void World::playerFrame() {
         }
         pr.action = static_cast<float>(a);
     }
+    respawnWatchdog();
     if (!gameOver_) {
         bool over = players_[0].lives < 0.0f;
         if (config_.players == 2) over = over && players_[1].lives < 0.0f;
@@ -448,6 +449,39 @@ void World::playerFrame() {
     // The sequels' G_PlayerFrame returns here while paused, then builds the acceleration
     // vectors (as2/engine-behaviour.delta.md 7.2).
     if (rules_->accelInput && !paused_ && !gameOver_) computeAccel();
+}
+
+// Ours, not in the original. A dead helicopter is normally back within a few seconds: its
+// script lets it fall, then calls RespawnPlayer. If that never happens (the script faulted,
+// its entity was removed by something else, a latent call never completes), the player
+// would be gone for good. A living helicopter whose script faulted is left alone (it still
+// takes damage and dies; taking a life from a live player is not the engine's call). After kRespawnWatchdogSeconds of being dead or missing while the
+// level runs, the engine does what the script would have done: one life less, then the
+// native respawn (which, with lives below zero, leaves the game-over test to fire).
+void World::respawnWatchdog() {
+    if (paused_ || gameOver_ || levelComplete_ || intermission_ || !levelLoaded_) return;
+    for (int p = 0; p < config_.players; ++p) {
+        PlayerRecord& pr = players_[p];
+        const int pi = playerEntityIndex(p);
+        // A player that never had a helicopter (a level started without players) is not watched.
+        const bool gone = pi < 0 ? pr.entityRef != 0 : ents_[static_cast<size_t>(pi)].f(F_DEAD) != 0.0f;
+        if (!gone || pr.lives < 0.0f) {
+            pr.deadClock = 0.0f;
+            continue;
+        }
+        pr.deadClock += frametime_;
+        if (pr.deadClock < kRespawnWatchdogSeconds) continue;
+        ++stats_.forcedRespawns;
+        AS3D_WARN("player %d dead or missing for %.0f s at frame %u (entity %d, faulted %d): respawning it", p,
+                  static_cast<double>(pr.deadClock), frame_, pi, pi >= 0 && ents_[static_cast<size_t>(pi)].scriptFaulted ? 1 : 0);
+        pr.deadClock = 0.0f;
+        pr.lives -= 1.0f;
+        if (pr.lives < 0.0f) {
+            if (pi >= 0) ents_[static_cast<size_t>(pi)].setF(F_DEAD, 1.0f);
+            continue; // the game-over test below sees the lives
+        }
+        spawnPlayer(p);
+    }
 }
 
 // as2/engine-behaviour.delta.md 7.2 step 1 (VERIFIED-CODE as2@0x413d6b): per player, (0, 0,
