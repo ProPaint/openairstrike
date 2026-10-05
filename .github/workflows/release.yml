@@ -1,0 +1,162 @@
+# Release artifacts, built on a version tag (v1.2.3). None of them holds game data: the
+# player supplies their own copy of each game (README.md, Setup).
+#
+#   * Linux x86_64: as3d_game and as3d_sim in a tarball, built on the oldest supported Ubuntu
+#     so the glibc requirement stays low; needs the SDL2, GLES and EGL runtime libraries.
+#   * Web: the bring-your-own-data site as a zip (the page asks for the game files).
+#   * Android: the signed release APK with no bundled data (AS3D_ANDROID_GAMES=none): the app
+#     imports the player's files on first start. Signing uses the repository secrets
+#     ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and
+#     ANDROID_KEY_PASSWORD; the keystore only ever exists in the runner's temporary directory.
+#
+# The release is created as a draft with the three files attached, so it can be checked and
+# given release notes before it is published.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  # "v1.2.3" -> "1.2.3"; AS3D_VERSION_CODE is derived in the Android job.
+  AS3D_VERSION: ${{ github.ref_name }}
+
+jobs:
+  linux:
+    name: Linux x86_64
+    runs-on: ubuntu-latest
+    # An Ubuntu 22.04 container keeps the glibc requirement at 2.35 whatever the runner image.
+    container: ubuntu:22.04
+    timeout-minutes: 60
+    steps:
+      - name: Install packages
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config curl ca-certificates git python3 \
+            libsdl2-dev libgles-dev libegl-dev
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DAS3D_BUILD_TESTS=OFF
+          cmake --build build -j"$(nproc)" --target as3d_game_app as3d_sim
+      - name: Package
+        run: |
+          v="${AS3D_VERSION#v}"
+          d="openairstrike-$v-linux-x86_64"
+          mkdir -p "$d"
+          cp build/apps/game/as3d_game build/apps/sim_tool/as3d_sim README.md LICENSE "$d/"
+          cat > "$d/RUN.txt" <<EOF
+          openairstrike $v, Linux x86_64 (built on Ubuntu 22.04, glibc 2.35 or newer).
+          Needs the SDL2, OpenGL ES and EGL runtime libraries: on Debian or Ubuntu
+            sudo apt install libsdl2-2.0-0 libgles2 libegl1
+          Put your own copy of each game where README.md (Setup) says, then run
+            ./as3d_game --data /path/to/that/directory
+          EOF
+          tar czf "$d.tar.gz" "$d"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: openairstrike-*-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  web:
+    name: Web (bring your own data)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake curl python3 zip
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.10
+      - name: Build the site
+        run: AS3D_BUILD_JOBS="$(nproc)" tools/web_build.sh byo
+      - name: Package
+        run: |
+          v="${AS3D_VERSION#v}"
+          cp README.md LICENSE out/web/site-byo/
+          (cd out/web && mv site-byo "openairstrike-$v-web" && zip -qr "../../openairstrike-$v-web.zip" "openairstrike-$v-web")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: openairstrike-*-web.zip
+          if-no-files-found: error
+
+  android:
+    name: Android APK (no bundled data)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake curl python3 unzip
+      # The runner's Android SDK (ANDROID_HOME is preset) plus the NDK and CMake versions
+      # android/app/build.gradle names; tools/android_env.sh keeps a preset ANDROID_HOME.
+      - name: Install the NDK and CMake
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "ndk;28.2.13676358" "cmake;3.31.6" "platforms;android-36" "build-tools;36.0.0" >/dev/null
+      - name: Decode the release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "secret ANDROID_KEYSTORE_BASE64 is missing"; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+      - name: Build the APK
+        env:
+          AS3D_ANDROID_GAMES: none
+          AS3D_ANDROID_RELEASE: "1"
+          AS3D_ANDROID_ABIS: arm64-v8a,x86_64
+          AS3D_NATIVE_JOBS: "4"
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+          # Version code from the tag: 1.2.3 -> 10203; a suffix such as -rc1 is ignored here.
+          v="${AS3D_VERSION#v}"
+          IFS=. read -r a b c <<< "$(echo "$v" | sed 's/[^0-9.].*//')"
+          export AS3D_VERSION="$v" AS3D_VERSION_CODE=$(( ${a:-0} * 10000 + ${b:-0} * 100 + ${c:-0} ))
+          tools/android_build.sh
+          cp android/app/build/outputs/apk/release/app-release.apk "openairstrike-$v-android.apk"
+          rm -f "$RUNNER_TEMP/release.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: openairstrike-*-android.apk
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    needs: [linux, web, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Check that no game data is attached
+        run: |
+          ls -la dist
+          # No pak archive, no original texts file, no copy of a game executable.
+          ! (cd dist && (unzip -l openairstrike-*-web.zip; tar tzf openairstrike-*-linux-x86_64.tar.gz; unzip -l openairstrike-*-android.apk) | grep -Ei 'pak[0-9]\.apk|texts_(v170|as2|gulf)\.txt|AirStrike3D.*\.exe|Settings\.xml')
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: dist/*
