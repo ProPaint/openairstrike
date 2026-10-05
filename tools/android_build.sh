@@ -8,9 +8,14 @@
 #                      the main checkout).
 #   AS3D_ANDROID_GAMES comma-separated game keys to bundle (as3d, as2, gulf; default all three:
 #                      the app opens on the game selector when it holds more than one,
-#                      docs/spec/issues/163). Each game's paks, Settings.xml, logo and texts file go
+#                      docs/spec/issues/163), or `none`: no game data at all, the app imports
+#                      the player's own files on first start (the public release build).
+#                      Each game's paks, Settings.xml, logo and texts file go
 #                      under assets/<key>/ (tools/games.json lists them).
 #   AS3D_ANDROID_ABIS  comma-separated ABIs (default arm64-v8a,x86_64).
+#   AS3D_ANDROID_RELEASE 1: assembleRelease, signed with ANDROID_KEYSTORE_FILE / _PASSWORD,
+#                      ANDROID_KEY_ALIAS / _PASSWORD when set (unsigned otherwise); the version
+#                      comes from AS3D_VERSION and AS3D_VERSION_CODE (android/app/build.gradle).
 #   AS3D_NATIVE_JOBS   parallel native compile jobs (default 4).
 #   AS3D_ICON_FROM_DATA  1 (default): launcher icon foreground rendered from the game data
 #                      with the desktop viewer when it and the data are available (else our
@@ -41,7 +46,8 @@ GAMES_JSON="${SCRIPT_DIR}/games.json"
 
 # The games bundled in the APK: their keys, comma separated (as3d, as2, gulf).
 GAMES="${AS3D_ANDROID_GAMES:-as3d,as2,gulf}"
-IFS=',' read -r -a GAME_KEYS <<< "${GAMES}"
+GAME_KEYS=()
+if [ "${GAMES}" != none ]; then IFS=',' read -r -a GAME_KEYS <<< "${GAMES}"; fi
 
 # One line per game from tools/games.json: key|paks (space separated)|texts file.
 game_line() {
@@ -221,7 +227,7 @@ XML
     done
     return 0
 }
-if [ "${AS3D_ICON_FROM_DATA:-1}" = "1" ] && make_data_icon; then
+if [ "${GAMES}" != none ] && [ "${AS3D_ICON_FROM_DATA:-1}" = "1" ] && make_data_icon; then
     echo "android_build: launcher icon rendered from the game data (${ICON_DIR}, gitignored)"
 else
     rm -rf "${ICON_DIR}"
@@ -237,11 +243,18 @@ cat > "${REPO_ROOT}/android/local.properties" <<EOF
 sdk.dir=${ANDROID_HOME}
 EOF
 
-echo "== gradlew assembleDebug (JVM capped at 1.5 GB, 2 workers) =="
+if [ "${AS3D_ANDROID_RELEASE:-0}" = 1 ]; then
+    TASK=assembleRelease
+    APK="${REPO_ROOT}/android/app/build/outputs/apk/release/app-release.apk"
+    [ -n "${ANDROID_KEYSTORE_FILE:-}" ] || { APK="${REPO_ROOT}/android/app/build/outputs/apk/release/app-release-unsigned.apk"; echo "android_build: note: no ANDROID_KEYSTORE_FILE, the release APK is unsigned"; }
+else
+    TASK=assembleDebug
+    APK="${REPO_ROOT}/android/app/build/outputs/apk/debug/app-debug.apk"
+fi
+echo "== gradlew ${TASK} (JVM capped at 1.5 GB, 2 workers) =="
 cd "${REPO_ROOT}/android"
-./gradlew --console=plain -Dorg.gradle.jvmargs=-Xmx1536m --max-workers=2 assembleDebug
+./gradlew --console=plain -Dorg.gradle.jvmargs=-Xmx1536m --max-workers=2 "${TASK}"
 
-APK="${REPO_ROOT}/android/app/build/outputs/apk/debug/app-debug.apk"
 if [ ! -f "${APK}" ]; then
     echo "android_build: expected APK not found at ${APK}" >&2
     exit 1

@@ -1,5 +1,6 @@
-// AirStrike 3D for Android: the game (apps/game) with touch controls. See docs/android.md.
-// The APK bundles the original game data (copyrighted): for the owner's personal use only.
+// The AirStrike games for Android: the game (apps/game) with touch controls. See docs/android.md.
+// A personal build may bundle the original game data (copyrighted); the release build
+// (AS3D_ANDROID_GAMES=none, AS3D_ANDROID_RELEASE=1) holds none and imports the player's own.
 plugins {
     id "com.android.application"
 }
@@ -17,6 +18,15 @@ def sdl2Dir = System.getenv("AS3D_SDL2_DIR") ?: "${dataRoot}/third_party_local/S
 def abiList = (System.getenv("AS3D_ANDROID_ABIS") ?: "arm64-v8a,x86_64").split(",").collect { it.trim() }
 // Parallel native compile jobs (the build machine is shared).
 def nativeJobs = System.getenv("AS3D_NATIVE_JOBS") ?: "4"
+// Version: AS3D_VERSION (the release tag without its "v") and AS3D_VERSION_CODE (a growing
+// integer; the release workflow derives it from the tag). Defaults mark a development build.
+def versionNameEnv = System.getenv("AS3D_VERSION") ?: "0.3.0-dev"
+def versionCodeEnv = (System.getenv("AS3D_VERSION_CODE") ?: "1").toInteger()
+// Release signing from the environment (the release workflow decodes the keystore secret into
+// a temporary file; nothing is ever committed). Without a keystore the release build is
+// unsigned, which Gradle reports as an unsigned APK.
+def keystoreFile = System.getenv("ANDROID_KEYSTORE_FILE")
+def hasReleaseKey = keystoreFile != null && new File(keystoreFile).exists()
 
 if (!new File(sdl2Dir, "include/SDL.h").exists()) {
     // Not fatal here: Gradle configures every included project (this one)
@@ -40,8 +50,8 @@ android {
         applicationId "org.as3dport.game"
         minSdk 26
         targetSdk 36
-        versionCode 1
-        versionName "0.2.0-wp48"
+        versionCode versionCodeEnv
+        versionName versionNameEnv
 
         ndk {
             abiFilters(*abiList)
@@ -76,6 +86,17 @@ android {
         noCompress += ["apk"]
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            release {
+                storeFile file(keystoreFile)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // Debug signing (default debug keystore, never committed) is fine: this APK
@@ -85,6 +106,7 @@ android {
         }
         release {
             minifyEnabled false
+            if (hasReleaseKey) signingConfig signingConfigs.release
         }
     }
 
