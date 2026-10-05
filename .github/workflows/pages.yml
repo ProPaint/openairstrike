@@ -1,0 +1,50 @@
+# The web version on GitHub Pages: https://propaint.github.io/openairstrike/
+# The bring-your-own-data site (tools/web_build.sh byo) holds only the engine; the player
+# picks their own game files on the page. Rebuilt on every push to main.
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake curl python3
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.10
+      - name: Build the site
+        run: AS3D_BUILD_JOBS="$(nproc)" tools/web_build.sh byo
+      - name: Check that no game data is in the site
+        run: |
+          ! find out/web/site-byo -type f | grep -Ei 'pak[0-9]\.apk|texts_(v170|as2|gulf)\.txt|\.exe$|Settings\.xml'
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out/web/site-byo
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

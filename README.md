@@ -26,7 +26,8 @@ never be shared or published.
   Co-op is not done. See `docs/missions-status-as2.md`.
 - Gulf Thunder: all 24 operations play to the end, with its own loadouts, HUD and front end.
   Co-op is not done. See `docs/missions-status-gulf.md`.
-- Desktop and Android are the main targets. The web version plays one player at a time and
+- The web version is online at https://propaint.github.io/openairstrike/ (it asks for your
+  own game files). It plays one player at a time and
   was tested in Chromium and on Android Chrome and Edge; Safari, iPhone and Firefox are
   untested.
 
@@ -118,7 +119,8 @@ This builds `android/app/build/outputs/apk/debug/app-debug.apk` and bundles the 
 
 ### Web
 
-Needs Emscripten (`docs/web.md` names the version and how to install it).
+The bring-your-own-data site is published at https://propaint.github.io/openairstrike/ on
+every push (`.github/workflows/pages.yml`). To build it yourself: needs Emscripten (`docs/web.md` names the version and how to install it).
 
 ```
 tools/web_build.sh byo      # engine only, into out/web/site-byo/
