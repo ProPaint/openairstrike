@@ -133,7 +133,7 @@ copies your data into the site instead; never host that build publicly. Details 
 ## Releases
 
 A version tag (`v1.2.3`) builds a draft GitHub release (`.github/workflows/release.yml`) with
-three data-free artifacts:
+three data-free artifacts and notes made by `tools/release_notes.sh` from `CHANGELOG.md`:
 
 - `openairstrike-<version>-linux-x86_64.tar.gz`: `as3d_game` and `as3d_sim` built on Ubuntu
   22.04 (needs `libsdl2-2.0-0`, `libgles2` and `libegl1`); point them at your data with

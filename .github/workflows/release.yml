@@ -146,6 +146,11 @@ jobs:
     needs: [linux, web, android]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the previous tag, for the commit list of the notes
+      - name: Release notes
+        run: tools/release_notes.sh "${AS3D_VERSION#v}" > "$RUNNER_TEMP/notes.md" && cat "$RUNNER_TEMP/notes.md"
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -158,5 +163,6 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
-          generate_release_notes: true
+          name: OpenAirStrike ${{ github.ref_name }}
+          body_path: ${{ runner.temp }}/notes.md
           files: dist/*
