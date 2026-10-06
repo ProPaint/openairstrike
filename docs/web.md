@@ -180,7 +180,10 @@ whose output file is accepted too) and keeps only those; the table of text addre
 chosen by the executable's SHA-256: AirStrike 3D's, and AirStrike 2's address list
 (`tools/exe_texts/as2.json`, kept in step in `files.js`: labels, Information and Credits,
 dialogues); Gulf Thunder has none yet ("texts of ... are not mapped yet"). Nothing is uploaded: the files go into the browser's storage and are used again
-on the next visit. "Remove them" on the start page deletes them (all games).
+on the next visit. "Remove them" on the start page deletes them (all games); "Add another
+game's files" (shown while a known game lacks its files) opens the picker again over the
+Play button or the chooser, and the page reloads once the added game is complete, so that
+it is offered beside the others.
 
 ## What the browser stores
 

@@ -761,11 +761,19 @@ def byo(w, b):
             assert "as2/pak0.apk" in keys and all(k.startswith("as2/") for k in keys), keys
             # The texts are read from the executable (tools/exe_texts/as2.json) and kept.
             assert "as2/texts_as2.txt" in keys, "the texts of AirStrike 2's executable were not kept"
-            w.step("byo: AirStrike 3D's files added (?game=as3d asks for them): both kept")
-            p.goto("game=as3d")
-            p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
+            w.step("byo: 'Add another game's files' over the Play button; Back returns; AirStrike 3D's files added: both kept, the page reloads")
+            assert p.page.locator("#add-files").is_visible(), "no way to add another game's files"
+            p.page.click("#add-files")
+            p.page.wait_for_selector("#files:not([hidden])", timeout=20000)
+            assert p.page.locator("#files-back").is_visible() and p.page.locator("#play-row").is_hidden()
+            assert p.page.locator("#files-list li.missing").count() > 0, "the picker should list the files still needed"
+            p.page.click("#files-back")
+            assert p.page.locator("#files").is_hidden() and p.page.locator("#play-row").is_visible()
+            p.page.click("#add-files")
+            p.page.wait_for_selector("#files:not([hidden])", timeout=20000)
             p.page.set_input_files("#pick-files", files)
-            p.wait_ready(180)
+            p.page.wait_for_selector("#games:not([hidden])", timeout=180000)  # stored, reloaded, both offered
+            r["byo_added_second_game"] = True
             w.step("byo: without ?game= the page lists the games whose files it holds and offers both")
             p.goto("")
             p.page.wait_for_selector("#games:not([hidden])", timeout=60000)

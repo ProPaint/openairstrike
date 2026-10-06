@@ -520,10 +520,35 @@
     $('stored').hidden = !parts.length;
     $('stored-text').textContent = `Your game files are kept in this browser (${(total / 1048576).toFixed(0)} MB; ` +
       parts.join('; ') + ').';
+    // Another game's files can be added as long as a known game lacks them (docs/web.md).
+    $('add-files').hidden = !!FORCED || !incompleteGames().length;
   }
-  // The picker lists the files of the forced game, else of the first game (any known game's
-  // files are taken).
-  const listed = () => FORCED || 'as3d';
+  // The games this page plays whose files are not all stored yet.
+  const incompleteGames = () => Object.keys(games).filter((g) => offerable(games, g) && AS3DFiles.missing(chosen[g], g).length);
+  // The picker lists the files of the forced game, else of the first game still lacking files
+  // (any known game's files are taken whichever is listed).
+  const listed = () => FORCED || incompleteGames()[0] || 'as3d';
+  // "Add another game's files": the picker over the chooser or the Play button; the files of
+  // the listed game complete the set, or Back returns. A game added once the page has
+  // started an engine needs a reload to be offered, so a completed addition reloads.
+  let adding = false, addingOverChooser = false;
+  $('add-files').addEventListener('click', async () => {
+    adding = true;
+    addingOverChooser = !$('games').hidden;
+    $('games').hidden = true;
+    $('play-row').hidden = true;
+    $('files-back').hidden = false;
+    $('files').hidden = false;
+    $('files-status').textContent = '';
+    await renderFileList([]);
+  });
+  $('files-back').addEventListener('click', () => {
+    adding = false;
+    $('files').hidden = true;
+    $('files-back').hidden = true;
+    if (addingOverChooser) $('games').hidden = false;
+    else $('play-row').hidden = false;
+  });
   // The games this page plays, as cards that cannot be played yet: title in text until the files
   // are there (then the chooser draws the marquees from them).
   function renderFileCards() {
@@ -555,6 +580,7 @@
   }
   async function takeFiles(list) {
     const status = $('files-status');
+    const target = listed(); // the game whose files are being added (listed() moves on once complete)
     status.textContent = 'Checking...';
     try {
       const res = await AS3DFiles.check(list, (name, f) => {
@@ -563,17 +589,20 @@
       });
       for (const [g, files] of Object.entries(res.games)) chosen[g] = Object.assign(chosen[g] || {}, files);
       await renderFileList(res.notes);
-      // Forced: that game's files must all be there. Otherwise any playable game's will do.
-      const ready = FORCED ? !AS3DFiles.missing(chosen[FORCED], FORCED).length : startable().length > 0;
-      const miss = ready ? [] : AS3DFiles.missing(chosen[listed()], listed());
+      // Forced: that game's files must all be there. Adding: the game being added must be
+      // complete. Otherwise any playable game's will do.
+      const ready = FORCED ? !AS3DFiles.missing(chosen[FORCED], FORCED).length
+                  : adding ? !AS3DFiles.missing(chosen[target], target).length
+                  : startable().length > 0;
+      const miss = ready ? [] : AS3DFiles.missing(chosen[target], target);
       const bad = res.notes.filter((n) => !n.ok).map((n) => n.text);
       // The games whose files are all there are kept, whichever game the page starts.
       const complete = Object.keys(chosen).filter((g) => games[g] && !AS3DFiles.missing(chosen[g], g).length);
-      const others = complete.filter((g) => g !== listed() && res.games[g]);
+      const others = complete.filter((g) => g !== target && res.games[g]);
       const info = others.map((g) => `${titleOf(g)}: files recognised and stored` +
         (games[g].playable ? '' : '; the game is not playable yet'));
       if (!res.notes.length) status.textContent = 'None of these is a file of a game this page knows.';
-      else status.textContent = bad.concat(info, miss.length ? ['Still needed for ' + titleOf(listed()) + ': ' + miss.join(', ')] : []).join('; ');
+      else status.textContent = bad.concat(info, miss.length ? ['Still needed for ' + titleOf(target) + ': ' + miss.join(', ')] : []).join('; ');
       if (complete.length) {
         try {
           const keep = {};
@@ -585,6 +614,13 @@
         }
       }
       if (!ready) return;
+      if (adding) {
+        // The engine may already hold the first game: start over with every game offered.
+        status.textContent = 'Stored. Reloading...';
+        log('AS3D_WEB files_added=' + target);
+        location.reload();
+        return;
+      }
       $('files').hidden = true;
       if (!FORCED) {
         status.textContent = '';

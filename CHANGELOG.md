@@ -3,6 +3,11 @@
 The release notes take a version's section from here (tools/release_notes.sh); without one
 they list the commits since the previous tag.
 
+## 0.3.2
+
+- Web: "Add another game's files" on the start page; before, a second game could only be
+  added through `?game=`.
+
 ## 0.3.1
 
 First release.
