@@ -39,8 +39,6 @@ std::string userDataDir() {
         return std::string();
     }
     std::string dir = internal;
-#elif defined(__3DS__)
-    std::string dir = "sdmc:/3ds/openairstrike/";
 #elif defined(__EMSCRIPTEN__)
     // The web page mounts browser storage (IDBFS) here before main() and syncs it after
     // every profile save (apps/web).

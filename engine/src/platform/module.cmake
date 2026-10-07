@@ -1,8 +1,11 @@
 # platform: context creation and the SDL_RWops byte stream (as3d/platform.h). Owns the only
 # dependency on EGL and SDL2 in the whole engine; `render` and everything above it stay
 # portable.
-# The ctr backend (Nintendo 3DS) will add its own link line here.
-if(NOT NINTENDO_3DS)
+# The ctr backend (Nintendo 3DS, src/platform/ctr/) is citro3d + libctru; its files are all that
+# builds there, none of the SDL/EGL ones.
+if(NINTENDO_3DS)
+  target_link_libraries(as3d_platform PUBLIC as3d_core as3d_vfs citro3d ctru)
+else()
   if(ANDROID)
     # The window backend (sdl_window.cpp) is the Android backend. There is no headless EGL
     # backend on the device: android_stub.cpp stands in for egl_headless.cpp. The SDL2

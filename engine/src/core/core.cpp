@@ -11,12 +11,27 @@ namespace as3d {
 
 static LogLevel g_minLevel = LogLevel::Info;
 
+static LogSink g_sink = nullptr;
+
 void setLogLevel(LogLevel minimum) { g_minLevel = minimum; }
+void setLogSink(LogSink sink) { g_sink = sink; }
 
 void log(LogLevel level, const char* fmt, ...) {
     if (level < g_minLevel) return;
     va_list args;
     va_start(args, fmt);
+    if (LogSink sink = g_sink) {
+        static const char* sinkNames[] = {"debug", "info", "warn", "error"};
+        char buf[640];
+        int n = std::snprintf(buf, sizeof buf, "[%s] ", sinkNames[static_cast<int>(level)]);
+        std::vsnprintf(buf + n, sizeof buf - n - 1, fmt, args);
+        size_t len = std::strlen(buf);
+        buf[len] = '\n';
+        buf[len + 1] = '\0';
+        va_end(args);
+        sink(level, buf);
+        return;
+    }
 #ifdef __ANDROID__
     static const int prio[] = {ANDROID_LOG_DEBUG, ANDROID_LOG_INFO, ANDROID_LOG_WARN, ANDROID_LOG_ERROR};
     __android_log_vprint(prio[static_cast<int>(level)], "AS3D", fmt, args);

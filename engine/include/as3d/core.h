@@ -24,6 +24,12 @@ enum class LogLevel { Debug, Info, Warn, Error };
 void log(LogLevel level, const char* fmt, ...) __attribute__((format(printf, 2, 3)));
 void setLogLevel(LogLevel minimum);
 
+// Replaces the default destination (stderr, logcat) of log(): `line` is the formatted message
+// with the "[level] " prefix and a trailing newline. Null restores the default. Used by the
+// 3DS app to write sdmc:/3ds/openairstrike/log.txt. The sink may be called from any thread.
+using LogSink = void (*)(LogLevel level, const char* line);
+void setLogSink(LogSink sink);
+
 #define AS3D_INFO(...) ::as3d::log(::as3d::LogLevel::Info, __VA_ARGS__)
 #define AS3D_WARN(...) ::as3d::log(::as3d::LogLevel::Warn, __VA_ARGS__)
 #define AS3D_ERROR(...) ::as3d::log(::as3d::LogLevel::Error, __VA_ARGS__)
