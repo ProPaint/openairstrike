@@ -64,11 +64,24 @@ struct ViewRect {
     int x = 0, y = 0, width = 0, height = 0;
 };
 
-// Which layout the HUD takes: Main is the 800x600 virtual screen scaled into the rect (the
-// desktop, Android and web layout); Bottom320x240 is the 3DS bottom screen's HUD, drawn today
-// with the same elements (they land at 0.4 scale in a 320x240 rect) and given its own tables
-// later.
-enum class HudTarget { Main, Bottom320x240 };
+// Which layout the HUD takes (as3d/ui.h, tables in as3d/hud_layout.h): Main is the 800x600
+// virtual screen scaled into the rect (the desktop, Android and web layout); Bottom320x240 is
+// the 3DS bottom screen's HUD, laid out for the 0.4 scale of a 320x240 rect with the lower
+// 36 px kept free for the touch buttons.
+using HudTarget = as3d::ui::HudTarget;
+
+// The desktop preview of the 3DS's two screens (as3d_game --dual-screen): a 400x480 frame with
+// the top screen (400x240, the world, no HUD) above the bottom one (320x240, centred: HUD, hint
+// box, menus and touch buttons). In a larger frame the pair is scaled uniformly (the smaller of
+// width / 400 and height / 480) and centred. Rectangles in GL convention like ViewRect.
+constexpr int kDualTopWidth = 400, kDualBottomWidth = 320, kDualScreenHeight = 240;
+constexpr int kDualFrameWidth = 400, kDualFrameHeight = 480;
+
+struct DualScreenRects {
+    ViewRect top, bottom;
+    float scale = 1.0f; // frame pixels per 3DS pixel
+};
+DualScreenRects dualScreenRects(int frameWidth, int frameHeight);
 
 class GameView {
 public:
@@ -111,7 +124,8 @@ public:
     void drawHud(const as3d::ui::HudState& state, const ViewRect& rect, HudTarget target = HudTarget::Main);
     // The rest of the 2D layer: the world's hint box (with `hintBox`) and the front end's
     // menus, intro pages, main-menu banner and model views (frontend may be null).
-    void drawFront(const GameSession& session, const ViewRect& rect, as3d::ui::Frontend* frontend, bool hintBox);
+    void drawFront(const GameSession& session, const ViewRect& rect, as3d::ui::Frontend* frontend, bool hintBox,
+                   HudTarget target = HudTarget::Main);
     // Pass 14 over `rect`, with the given brightness or the member's.
     void drawBrightness(const ViewRect& rect, float brightness);
     void drawBrightness(const ViewRect& rect);
@@ -139,10 +153,17 @@ public:
     // focal distance D (0: parallel eyes). 0 = off (the normal view).
     float stereoDebugEyeOffset = 0.0f;
     float stereoDebugFocal = 0.0f;
+    // as3d_game --dual-screen: draw() and drawFrame() compose the frame of dualScreenRects:
+    // world and brightness in the top rectangle, HUD, hint box and front end in the bottom one
+    // (HudTarget::Bottom320x240, no brightness pass: the screen is mostly black). The touch
+    // buttons are the host's.
+    bool dualScreen = false;
 
 private:
     struct Preview;
     void renderWorld(const GameSession& session, const ViewRect& frame);
+    void drawDual(const GameSession& session, const ViewRect& frame, const FrameLayers& layers, bool sessionHud,
+                  bool hintBox);
     as3d::WorldRenderer renderer_;
     as3d::ui::Renderer2D r2d_;
     as3d::ui::UiAssets assets_;

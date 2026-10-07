@@ -210,11 +210,12 @@ void GameView::clearBars(const ViewRect& frame) {
 }
 
 void GameView::drawHud(const ui::HudState& state, const ViewRect& rect, HudTarget target) {
-    (void)target; // Main and Bottom320x240 share the layout for now; the mapping of the rect sets the scale
     if (!hudReady_) return;
+    assets_.hudTarget = target;
     r2d_.begin(rect.width, rect.height, rect.x, rect.y);
     ui::drawHud(r2d_, assets_, state);
     r2d_.flush();
+    assets_.hudTarget = HudTarget::Main;
 }
 
 void GameView::drawHud(const GameSession& session, const ViewRect& rect, HudTarget target) {
@@ -224,9 +225,11 @@ void GameView::drawHud(const GameSession& session, const ViewRect& rect, HudTarg
     drawHud(hudStateOf(session), rect, target);
 }
 
-void GameView::drawFront(const GameSession& session, const ViewRect& rect, ui::Frontend* frontend, bool hintBox) {
+void GameView::drawFront(const GameSession& session, const ViewRect& rect, ui::Frontend* frontend, bool hintBox,
+                         HudTarget target) {
     frameRect_ = rect;
     if (!hudReady_) return;
+    assets_.hudTarget = target;
     r2d_.begin(rect.width, rect.height, rect.x, rect.y);
     // The hint box is drawn over everything (render-pipeline.md 1.1 pass 13).
     if (hintBox && session.hasLevel() && session.world().hintShowing()) ui::drawHint(r2d_, assets_, session.world().hintText());
@@ -248,6 +251,7 @@ void GameView::drawFront(const GameSession& session, const ViewRect& rect, ui::F
         fe->drawOver(r2d_, assets_);
     }
     r2d_.flush();
+    assets_.hudTarget = HudTarget::Main;
 }
 
 void GameView::drawBrightness(const ViewRect& rect, float b) {
@@ -256,8 +260,45 @@ void GameView::drawBrightness(const ViewRect& rect, float b) {
 
 void GameView::drawBrightness(const ViewRect& rect) { drawBrightness(rect, brightness); }
 
+DualScreenRects dualScreenRects(int frameWidth, int frameHeight) {
+    DualScreenRects d;
+    const float sx = static_cast<float>(frameWidth) / kDualFrameWidth, sy = static_cast<float>(frameHeight) / kDualFrameHeight;
+    const float s = std::max(std::min(sx, sy), 0.01f);
+    d.scale = s;
+    const int tw = static_cast<int>(std::lround(kDualTopWidth * s)), bw = static_cast<int>(std::lround(kDualBottomWidth * s));
+    const int sh = static_cast<int>(std::lround(kDualScreenHeight * s));
+    const int x0 = (frameWidth - tw) / 2;
+    const int yTop = (frameHeight - 2 * sh) / 2; // from the top edge
+    d.top = ViewRect{x0, frameHeight - yTop - sh, tw, sh};
+    d.bottom = ViewRect{x0 + (tw - bw) / 2, frameHeight - yTop - 2 * sh, bw, sh};
+    return d;
+}
+
+void GameView::drawDual(const GameSession& session, const ViewRect& frame, const FrameLayers& layers, bool sessionHud,
+                        bool hintBox) {
+    const DualScreenRects d = dualScreenRects(frame.width, frame.height);
+    frameRect_ = frame;
+    setViewport(frame.x, frame.y, frame.width, frame.height);
+    as3d::clear(Vec4{0, 0, 0, 1});
+    if (layers.world && session.hasLevel()) {
+        prepareWorld(session, d.top);
+        drawWorld(session, d.top, EyeView{});
+        drawBrightness(d.top, layers.brightness);
+    }
+    if (sessionHud) drawHud(session, d.bottom, HudTarget::Bottom320x240);
+    else if (layers.hud) drawHud(layers.hudState, d.bottom, HudTarget::Bottom320x240);
+    drawFront(session, d.bottom, layers.frontend, hintBox, HudTarget::Bottom320x240);
+    setViewport(frame.x, frame.y, frame.width, frame.height);
+}
+
 void GameView::draw(const GameSession& session, int width, int height) {
     const ViewRect frame{0, 0, width, height};
+    if (dualScreen) {
+        FrameLayers layers;
+        layers.brightness = brightness;
+        drawDual(session, frame, layers, true, true);
+        return;
+    }
     renderWorld(session, frame);
     // Pass 13: the 2D layer (HUD, then the hint box), pass 14: brightness.
     drawHud(session, frame, HudTarget::Main);
@@ -269,6 +310,10 @@ void GameView::draw(const GameSession& session, int width, int height) {
 void GameView::drawFrame(const GameSession& session, int width, int height, const FrameLayers& layers) {
     const ViewRect frame{0, 0, width, height};
     frameRect_ = frame;
+    if (dualScreen) {
+        drawDual(session, frame, layers, false, false);
+        return;
+    }
     if (layers.world && session.hasLevel()) {
         renderWorld(session, frame);
     } else {

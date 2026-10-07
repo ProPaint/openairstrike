@@ -1,6 +1,9 @@
 // The HUD layouts of the three games (as3d/hud_layout.h).
 #include "as3d/hud_layout.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace as3d::ui {
 
 namespace {
@@ -116,6 +119,49 @@ HudLayout makeV170() {
     b.weaponIconX = 721; b.weaponIconY = 57;
     b.missiles = {720, 95, 41, false, false, 721, 3, 786, 3, 0, 0, true, false};
     b.powerups = {648, 54, 41, true, false, 649, 3, 714, 3, 0, 0, true, false};
+    return L;
+}
+
+// ---------------------------------------------------------------------------
+// AirStrike 3D on the 3DS bottom screen (HudTarget::Bottom320x240): the same elements and
+// atlases as makeV170, redrawn for a 320x240 screen at the 0.4 scale that holds nothing else.
+// Bars and score at twice the original size, boxes, icons and counts at 1.5 times (a box is
+// 42 x 23 px on that screen, its icon 40 x 21), text at 1.5 and score digits at 2; the
+// bottom 90 virtual pixels (kHudBottomBandTop) stay free for the touch buttons. Rows, top to
+// bottom: health bar (left) and score (right) at y 16, the life icons at y 70, then the weapon
+// box and the missile column under it at the left, the power-up column at the right, the level
+// name and the cheat message in the free middle. One player only (the screen belongs to one
+// player; no second player's tables).
+// ---------------------------------------------------------------------------
+HudLayout makeV170Bottom() {
+    HudLayout L = makeV170();
+    L.name = "as3d-bottom";
+    const float S = 1.5f; // boxes, icons and counts
+    L.barFrame.w = 360; L.barFrame.h = 42;
+    L.scoreFrame = L.barFrame;
+    L.box.w = 70 * S; L.box.h = 39 * S;
+    L.fill.w = 344; L.fill.h = 42;
+    L.fillWidth = 344;
+    L.life.w = 40; L.life.h = 40;
+    L.iconW = 66 * S; L.iconH = 35 * S;
+    L.countScale = 0.75f * 2.0f;
+    L.scoreScale = 2.0f;
+    L.levelNameY = 250; L.levelNameScale = 1.5f;
+    L.messageY = 400; L.messageScale = 1.5f;
+    L.hintScale = 1.5f;
+
+    HudSide& s = L.onePlayer;
+    s.livesX = 20; s.livesStep = 44; s.livesY = 70;
+    s.barX = 20; s.barY = 16;
+    s.fillX = 24; s.fillY = 16;
+    s.scoreFrameX = 420; s.scoreFrameY = 16; s.scoreFrameMirror = true;
+    s.scoreX = 460; s.scoreY = 20;
+    s.weaponBoxX = 20; s.weaponBoxY = 126;
+    s.weaponIconX = 20 + 1 * S; s.weaponIconY = 126 + 3 * S;
+    const float step = 41 * S;
+    // frameX, firstY, step, mirror, followsMissiles, iconX, iconDy, countRight, countDy, lineX, lineDy, frames, line
+    s.missiles = {20, 186, step, false, false, 20 + 1 * S, 3 * S, 20 + 66 * S, 3 * S, 0, 0, true, false};
+    s.powerups = {675, 126, step, true, false, 675 + 1 * S, 3 * S, 675 + 66 * S, 3 * S, 0, 0, true, false};
     return L;
 }
 
@@ -271,15 +317,48 @@ HudLayout makeGulf() {
 
 } // namespace
 
-const HudLayout& hudLayout(GameId game) {
+const HudLayout& hudLayout(GameId game) { return hudLayout(game, HudTarget::Main); }
+
+const HudLayout& hudLayout(GameId game, HudTarget target) {
     static const HudLayout v170 = makeV170();
     static const HudLayout as2 = makeAs2();
     static const HudLayout gulf = makeGulf();
+    static const HudLayout v170Bottom = makeV170Bottom();
+    // The sequels' bottom tables alias Main until they are made (M5.3).
+    if (target == HudTarget::Bottom320x240 && game == GameId::AirStrike3D) return v170Bottom;
     switch (game) {
         case GameId::AirStrike2: return as2;
         case GameId::GulfThunder: return gulf;
         default: return v170;
     }
+}
+
+std::vector<HudElementRect> hudElementRects(const HudLayout& L, int powerupEntries) {
+    const HudSide& s = L.onePlayer;
+    std::vector<HudElementRect> v;
+    v.push_back({"health", s.barX, s.barY, L.barFrame.w, L.barFrame.h});
+    // The score frame and the widest score (10 digits: pen advance 14, cell 32 x 16, at scale).
+    {
+        const float sw = 14.0f * 9 * L.scoreScale + 32.0f * L.scoreScale, sh = 16.0f * L.scoreScale;
+        float x0 = s.scoreFrameX, y0 = s.scoreFrameY, x1 = x0 + L.scoreFrame.w, y1 = y0 + L.scoreFrame.h;
+        const float dx0 = s.scoreRightAligned ? s.scoreX - 14.0f * 10 * L.scoreScale : s.scoreX;
+        x0 = std::min(x0, dx0);
+        y0 = std::min(y0, s.scoreY);
+        x1 = std::max(x1, dx0 + sw);
+        y1 = std::max(y1, s.scoreY + sh);
+        v.push_back({"score", x0, y0, x1 - x0, y1 - y0});
+    }
+    const float lifeSpan = std::fabs(s.livesStep) * static_cast<float>(L.lifeIconsMax - 1) + L.life.w;
+    v.push_back({"lives", s.livesStep >= 0 ? s.livesX : s.livesX - (lifeSpan - L.life.w), s.livesY, lifeSpan, L.life.h});
+    v.push_back({"weapon", s.weaponBoxX, s.weaponBoxY, L.box.w, L.box.h});
+    v.push_back({"missiles", s.missiles.frameX, s.missiles.firstY, L.box.w,
+                 s.missiles.step * static_cast<float>(kMissileTypes - 1) + L.box.h});
+    if (!s.powerups.followsMissiles && powerupEntries > 0)
+        v.push_back({"powerups", s.powerups.frameX, s.powerups.firstY, L.box.w,
+                     s.powerups.step * static_cast<float>(powerupEntries - 1) + L.box.h});
+    v.push_back({"level_name", 140, L.levelNameY, 520, 18.0f * L.levelNameScale});
+    v.push_back({"message", 140, L.messageY, 520, 18.0f * L.messageScale});
+    return v;
 }
 
 } // namespace as3d::ui

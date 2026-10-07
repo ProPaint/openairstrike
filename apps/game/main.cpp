@@ -101,6 +101,7 @@ struct Args {
     float dpi = 0;
     bool fps = false;
     float stereoEyeOffset = 0.0f, stereoFocal = 0.0f; // --stereo-debug E[,D]
+    bool dual = false, sizeGiven = false;              // --dual-screen, --size
     std::string gameKey, paksDir;
     bool listGames = false, errorShown = false;
     bool allowUnfinished = false;
@@ -120,6 +121,7 @@ int usage() {
                  "                 [--profile FILE] [--attract 1..4] [--no-logo]\n"
                  "                 [--screen wide|4x3] [--left-handed] [--dpi N] [--fps]\n"
                  "                 [--stereo-debug EYE_OFFSET[,FOCAL_DISTANCE]]  (both eyes side by side)\n"
+                 "                 [--dual-screen]  (3DS preview: 400x240 world above a 320x240 touch screen, 400x480 window)\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
                  "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n"
                  "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n"
@@ -152,6 +154,7 @@ bool parseArgs(int argc, char** argv, Args& a) {
         }
         else if (s == "--left-handed") a.leftHanded = true;
         else if (s == "--fps") a.fps = true;
+        else if (s == "--dual-screen") a.dual = true;
         else if (s == "--stereo-debug" && next()) {
             if (std::sscanf(v, "%f,%f", &a.stereoEyeOffset, &a.stereoFocal) < 1) return false;
         }
@@ -169,6 +172,7 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--dump-state" && next()) a.dumpPath = v;
         else if (s == "--size" && next()) {
             if (std::sscanf(v, "%dx%d", &a.width, &a.height) != 2) return false;
+            a.sizeGiven = true;
         } else if (s == "--headless") a.headless = true;
         else if (s == "--bot") a.bot = true;
         else if (s == "--god") a.game.world.godMode = true;
@@ -209,6 +213,10 @@ bool parseArgs(int argc, char** argv, Args& a) {
     // regression baseline read.
     if (!a.paksDir.empty() || !a.data.hasExtracted) a.game.paks = a.data.paks;
     if (a.game.mission < 1 || a.game.mission > a.game.rules().missionCount) return false;
+    if (a.dual && !a.sizeGiven) {
+        a.width = kDualFrameWidth;
+        a.height = kDualFrameHeight;
+    }
     if (a.width < 16 || a.height < 16 || a.width > 8192 || a.height > 8192) return false;
     if (a.frames > 100'000'000 || a.screenshotEvery < 0) return false;
     if (a.headless && a.frames < 0 && a.uiScript.empty()) return false;
@@ -242,6 +250,7 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
         view->screenMode = a.screen == kScreen4x3 ? kScreen4x3 : kScreenWide;
         view->stereoDebugEyeOffset = a.stereoEyeOffset;
         view->stereoDebugFocal = a.stereoFocal;
+        view->dualScreen = a.dual;
         if (!view->init(session, &err)) {
             std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
             return 1;
@@ -261,6 +270,11 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
     ConsoleStatus status(a.quiet);
     status.update(session, GameSession::kLevelStarted);
     const int samplesPerStep = 44100 / 60;
+    // --dual-screen: the bottom screen's touch buttons are part of the picture.
+    TouchMapper dualTouch;
+    const DualScreenRects dualRects = dualScreenRects(a.width, a.height);
+    if (a.dual) dualTouch.setScreen(dualRects.bottom.width, dualRects.bottom.height,
+                                    TouchLayoutOptions::forBottomScreen320x240(132.0f * dualRects.scale));
     for (long f = 0; f < a.frames; ++f) {
         FrameInput in = source.next(static_cast<u32>(f), FrameInput());
         recorder.record(static_cast<u32>(f), in);
@@ -277,6 +291,15 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
         if (view && (f + 1) % a.screenshotEvery == 0) {
             target.bind();
             view->draw(session, a.width, a.height);
+            if (a.dual && view->hudAvailable()) {
+                TouchOverlayState ts;
+                ui::HudPlayer hud = hudStateOf(session).players[0];
+                ts.player = &hud;
+                ts.assets = &view->assets();
+                ts.rules = &session.rules();
+                drawTouchControlsIn(view->overlay(), dualRects.bottom.x, dualRects.bottom.y, dualRects.bottom.width,
+                                    dualRects.bottom.height, dualTouch, ts);
+            }
             char name[64];
             std::snprintf(name, sizeof name, "/frame_%06ld.png", f + 1);
             std::string path = a.outDir + name;
@@ -539,6 +562,7 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
         view.reset(new GameView());
         view->stereoDebugEyeOffset = a.stereoEyeOffset;
         view->stereoDebugFocal = a.stereoFocal;
+        view->dualScreen = a.dual;
         if (!view->init(session, &err, false)) {
             std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
             return 1;
@@ -562,6 +586,7 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
     flow.levelLoadedHook = [&]() { status.update(session, GameSession::kLevelStarted); };
     TouchMapper touch;
     TouchFade fade;
+    const DualScreenRects dualRects = dualScreenRects(a.width, a.height);
     FpsCounter fps; // the headless loop's own frame rate (wall clock), shown with --fps
     auto lastFrame = std::chrono::steady_clock::now();
     int layoutKey = -1;
@@ -576,9 +601,14 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
         lo.dpi = a.dpi;
         lo.leftHanded = st.leftHanded;
         lo.screen4x3 = flow.screenMode() == kScreen4x3;
-        touch.setScreen(a.width, a.height, lo);
+        if (a.dual) {
+            lo = TouchLayoutOptions::forBottomScreen320x240(132.0f * dualRects.scale);
+            lo.leftHanded = st.leftHanded;
+        }
+        touch.setScreen(a.dual ? dualRects.bottom.width : a.width, a.dual ? dualRects.bottom.height : a.height, lo);
     };
-    flow.setScreenSize(a.width, a.height);
+    flow.setScreenSize(a.dual ? dualRects.bottom.width : a.width, a.dual ? dualRects.bottom.height : a.height);
+    flow.frontend().setHudTarget(a.dual ? ui::HudTarget::Bottom320x240 : ui::HudTarget::Main);
     InputSource source(a.bot, script);
     flow.boot();
     const long frames = a.frames >= 0 ? a.frames : static_cast<long>(ui.lastFrame()) + 1;
@@ -586,16 +616,21 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
     auto shoot = [&](const std::string& name) {
         target.bind();
         flow.draw(a.width, a.height);
-        if (a.touch && flow.playing() && view->hudAvailable()) {
+        if ((a.touch || a.dual) && flow.playing() && view->hudAvailable()) {
             TouchOverlayState ts;
             ui::HudPlayer hud = hudStateOf(session).players[0];
             ts.player = &hud;
             ts.assets = &view->assets();
             ts.alpha = fade.alpha(touch.layout().alpha);
             ts.rules = &session.rules();
-            view->overlay().begin(a.width, a.height);
-            drawTouchControls(view->overlay(), touch, ts);
-            view->overlay().flush();
+            if (a.dual) {
+                drawTouchControlsIn(view->overlay(), dualRects.bottom.x, dualRects.bottom.y, dualRects.bottom.width,
+                                    dualRects.bottom.height, touch, ts);
+            } else {
+                view->overlay().begin(a.width, a.height);
+                drawTouchControls(view->overlay(), touch, ts);
+                view->overlay().flush();
+            }
         }
         if (a.fps && view->hudAvailable()) {
             view->overlay().begin(a.width, a.height);
@@ -649,8 +684,8 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
             float nx = c.x, ny = c.y;
             if (c.button >= 0) {
                 const TouchCircle& b = touch.layout().circles[c.button];
-                nx = b.x / static_cast<float>(a.width);
-                ny = b.y / static_cast<float>(a.height);
+                nx = b.x / static_cast<float>(a.dual ? dualRects.bottom.width : a.width);
+                ny = b.y / static_cast<float>(a.dual ? dualRects.bottom.height : a.height);
             }
             touch.touchEvent(c.id, c.phase == 0 ? TouchPhase::Down : c.phase == 1 ? TouchPhase::Move : TouchPhase::Up, nx, ny);
         }
@@ -750,6 +785,7 @@ int main(int argc, char** argv) {
         o.fps = a.fps;
         o.stereoEyeOffset = a.stereoEyeOffset;
         o.stereoFocal = a.stereoFocal;
+        o.dualScreen = a.dual;
         if (frontend) planDesktopLauncher(a, o);
         return runGameWindow(o);
     }

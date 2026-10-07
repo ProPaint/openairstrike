@@ -4,13 +4,19 @@
 // context; skips loudly without them.
 #include "doctest.h"
 
+#include <array>
 #include <cmath>
+#include <filesystem>
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "../game/game_session.h"
 #include "../game/game_view.h"
+#include "../game/touch_overlay.h"
+#include "as3d/hud_layout.h"
+#include "as3d/image.h"
 #include "as3d/defs.h"
 #include "as3d/gfx.h"
 #include "as3d/input.h"
@@ -189,4 +195,106 @@ TEST_CASE("game view: one prepareWorld serves several drawWorld calls") {
     REQUIRE(t.readPixels(l2));
     CHECK(l1.rgba == l2.rgba);
     CHECK(l1.rgba != r1.rgba);
+}
+
+TEST_CASE("game view: the Bottom320x240 HUD draws inside its element rectangles and above the touch band") {
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    GAMEVIEW_REQUIRE_GL();
+    Level1 g;
+    REQUIRE(g.init(60));
+    REQUIRE(g.view.hudAvailable());
+    // The fullest content: every missile type, every power-up kind, five lives, a long score,
+    // the level name typed out and a message.
+    ui::HudState state = as3d_game::hudStateOf(g.session);
+    ui::HudPlayer& p = state.players[0];
+    p.lives = 5;
+    p.score = 1234567890;
+    for (int t = 0; t < ui::kMissileTypes; ++t) p.missiles[t] = 12;
+    for (int k = 0; k < ui::kPowerupIconKinds; ++k) p.powerups[k] = 3;
+    state.levelName = "Operation Thunderstrike Alpha";
+    state.levelTime = 3.0f;
+    state.message = "Cheat enabled";
+    state.messageAge = 0.5f;
+    const ui::HudLayout& L = ui::hudLayout(GameId::AirStrike3D, ui::HudTarget::Bottom320x240);
+    const std::vector<ui::HudElementRect> rects = ui::hudElementRects(L);
+    ui::UiAssets& assets = const_cast<ui::UiAssets&>(g.view.assets());
+    assets.hudTarget = ui::HudTarget::Bottom320x240;
+    ui::Renderer2D r;
+    r.begin(320, 240);
+    ui::drawHud(r, assets, state);
+    assets.hudTarget = ui::HudTarget::Main;
+    REQUIRE(r.quads().size() > 10u);
+    for (const ui::Quad& q : r.quads()) {
+        // The quad (virtual pixels) lies inside some element's rectangle, never in the band.
+        bool inside = false;
+        // A number's glyph cell is 32 wide for a 14 pixel advance (the extra is transparent).
+        const float qw = (q.h == 16.0f * L.countScale && q.w == 32.0f * L.countScale) ? 14.0f * L.countScale : q.w;
+        for (const ui::HudElementRect& e : rects)
+            inside = inside || (q.x >= e.x - 1.0f && q.y >= e.y - 1.0f && q.x + qw <= e.x + e.w + 1.0f && q.y + q.h <= e.y + e.h + 1.0f);
+        INFO("quad " << q.x << "," << q.y << " " << q.w << "x" << q.h);
+        CHECK(inside);
+        CHECK(q.y + q.h <= ui::kHudBottomBandTop + 1.0f);
+    }
+}
+
+TEST_CASE("game view: dual-screen composite of level 1 after 120 bot frames") {
+    AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
+    GAMEVIEW_REQUIRE_GL();
+    Level1 g;
+    REQUIRE(g.init(120));
+    g.view.dualScreen = true;
+    const int W = as3d_game::kDualFrameWidth, H = as3d_game::kDualFrameHeight;
+    const as3d_game::DualScreenRects d = as3d_game::dualScreenRects(W, H);
+    CHECK(d.top.x == 0);
+    CHECK(d.top.width == 400);
+    CHECK(d.top.height == 240);
+    CHECK(d.bottom.width == 320);
+    CHECK(d.bottom.height == 240);
+    CHECK(d.bottom.x == 40);
+    CHECK(d.top.y == 240); // GL convention: the top screen is the upper half
+    CHECK(d.bottom.y == 0);
+    RenderTarget target;
+    REQUIRE(target.create(W, H, 0));
+    target.bind();
+    g.view.draw(g.session, W, H);
+    // The touch buttons of the preset over the bottom screen, as the game does.
+    TouchMapper touch;
+    touch.setScreen(d.bottom.width, d.bottom.height, TouchLayoutOptions::forBottomScreen320x240(132.0f * d.scale));
+    as3d_game::TouchOverlayState ts;
+    ui::HudPlayer hud = as3d_game::hudStateOf(g.session).players[0];
+    ts.player = &hud;
+    ts.assets = &g.view.assets();
+    ts.rules = &g.session.rules();
+    as3d_game::drawTouchControlsIn(g.view.overlay(), d.bottom.x, d.bottom.y, d.bottom.width, d.bottom.height, touch, ts);
+    Image img;
+    REQUIRE(target.readPixels(img));
+    REQUIRE(img.width == W);
+    REQUIRE(img.height == H);
+    std::filesystem::create_directories(std::string(AS3D_REPO_ROOT) + "/out");
+    CHECK(writePng((std::string(AS3D_REPO_ROOT) + "/out/dual_screen_level1.png").c_str(), img));
+
+    auto px = [&](int x, int yFromTop) {
+        const size_t o = (static_cast<size_t>(yFromTop) * img.width + x) * 4;
+        return std::array<int, 3>{img.rgba[o], img.rgba[o + 1], img.rgba[o + 2]};
+    };
+    long topLit = 0, bottomLit = 0, sideBars = 0, hudRed = 0, bandLit = 0;
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x) {
+            const auto c = px(x, y);
+            const bool lit = c[0] + c[1] + c[2] > 30;
+            if (y < 240) topLit += lit;
+            else if (x >= 40 && x < 360) {
+                bottomLit += lit;
+                // The HUD's atlas colours: the score's red-orange (0.75, 0.19, 0).
+                if (y < 240 + 204 && c[0] > 120 && c[1] < 100 && c[2] < 40) hudRed++;
+                if (y >= 240 + 204) bandLit += lit;
+            } else {
+                sideBars += lit; // beside the bottom screen: black
+            }
+        }
+    CHECK(topLit > 400 * 240 / 4); // the world fills the top screen
+    CHECK(bottomLit > 500);        // the HUD
+    CHECK(hudRed > 20);            // score digits / count colours
+    CHECK(bandLit > 100);          // the touch buttons
+    CHECK(sideBars == 0);          // nothing outside the two screens
 }

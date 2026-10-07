@@ -248,6 +248,11 @@ float numberWidth(std::string_view digits, float scale);
 // Assets
 // ---------------------------------------------------------------------------
 struct HudLayout;
+// Which layout the HUD takes. Main: the 800x600 virtual screen scaled into the target (desktop,
+// Android, web). Bottom320x240: the 3DS bottom screen, which holds nothing but the HUD and the
+// touch buttons; its tables are laid out for the 0.4 scale of a 320x240 target and keep the lower
+// band (kHudBottomBandTop..600) free for the touch pickers (hud_layout.h).
+enum class HudTarget { Main, Bottom320x240 };
 
 struct UiAssets {
     // `mainbar` is the HUD layout's bar atlas (mainbar.tga; the sequels' mainbar2.tga);
@@ -258,6 +263,9 @@ struct UiAssets {
     bool fontLoaded = false;
     int missing = 0; // textures that could not be loaded (their draws are skipped)
     GameId game = GameId::AirStrike3D;
+    // The layout variant the HUD and the hint box are drawn with (set by the host around its
+    // HUD and 2D-layer draws).
+    HudTarget hudTarget = HudTarget::Main;
 
     // Loads the font, the atlases the game's HUD layout names (as3d/hud_layout.h) and
     // menu\cursor_*.tga from the VFS and keeps the VFS for texture() below. Returns false
@@ -266,7 +274,7 @@ struct UiAssets {
     bool load(Vfs& vfs, std::string* error = nullptr, GameId game = GameId::AirStrike3D);
     Font uiFont() const;
     // The HUD layout of the assets' game.
-    const HudLayout& hudLayout() const;
+    const HudLayout& hudLayout() const; // of `game` and `hudTarget`
 
     // Any other picture by game path (e.g. "menu\\mmenu_1.tga"), loaded on first use and
     // cached; null if it cannot be loaded or no VFS was given (CPU-only tests). The first
@@ -368,12 +376,16 @@ struct HintLayout {
     std::vector<std::string> lines; // split at '^' only, at most 16, each at most 63 bytes
     RectF box;                      // width max(360, widest + 40), height max(160, 18 n + 80)
     RectF okButton;                 // (350, top + H - 60, 100, 64)
+    float scale = 1.0f;             // text and box scale (HudLayout::hintScale; 1 = the original)
     float textTop = 0;              // y of the first line (top + 20)
 };
 constexpr float kHintOpenSeconds = 0.3f;
 // SequelPanel: height max(160, 18 n + 60), the lines centred vertically in it, the Ok button
 // ((W + 46) x 30) centred at (400, 520) whatever the box size.
-HintLayout layoutHint(const FontMetrics& m, std::string_view text, HintStyle style = HintStyle::V170Box);
+// `scale` (>= 1) enlarges text, line pitch, minimum box and Ok button for small targets; it is
+// reduced when the widest line would not fit the 800 virtual pixels.
+HintLayout layoutHint(const FontMetrics& m, std::string_view text, HintStyle style = HintStyle::V170Box,
+                      float scale = 1.0f);
 // The panel and text at box time u (seconds since it opened). First game: while u < 0.3 only
 // the growing fill is drawn. Sequels: the panel opens over 0.125 s, the lines show once it is
 // open. Returns true once the opening animation is over.

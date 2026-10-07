@@ -10,11 +10,13 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 #include "as3d/game_data.h"
 #include "as3d/gfx.h"
 #include "as3d/hud_layout.h"
 #include "as3d/image.h"
+#include "as3d/input.h"
 #include "as3d/ui.h"
 #include "as3d/vfs.h"
 #include "test_data.h"
@@ -598,5 +600,140 @@ TEST_CASE("hud layout: AirStrike 2 HUD and hint panel render headless, 4:3 and w
         CHECK(lit(img, L.box.x, L.box.y - 47, 60, 30) > area(60, 30) / 3);      // title tab
         CHECK(lit(img, L.okButton.x, L.okButton.y, L.okButton.w, L.okButton.h) > area(L.okButton.w, L.okButton.h) / 3);
         CHECK(lit(img, 0, 400, 150, 100) == 0);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The 3DS bottom screen (HudTarget::Bottom320x240, M0.8)
+// ---------------------------------------------------------------------------
+
+namespace {
+bool rectsOverlap(const HudElementRect& a, const HudElementRect& b) {
+    return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+} // namespace
+
+TEST_CASE("hud layout: Main is unchanged and the sequels' bottom tables alias it") {
+    CHECK(&hudLayout(GameId::AirStrike3D, HudTarget::Main) == &hudLayout(GameId::AirStrike3D));
+    CHECK(&hudLayout(GameId::AirStrike2, HudTarget::Bottom320x240) == &hudLayout(GameId::AirStrike2));
+    CHECK(&hudLayout(GameId::GulfThunder, HudTarget::Bottom320x240) == &hudLayout(GameId::GulfThunder));
+    const HudLayout& m = hudLayout(GameId::AirStrike3D);
+    CHECK(m.scoreScale == 1.0f);
+    CHECK(m.levelNameY == 500);
+    CHECK(m.messageY == 555);
+    CHECK(m.hintScale == 1.0f);
+    const HudLayout& b = hudLayout(GameId::AirStrike3D, HudTarget::Bottom320x240);
+    CHECK(&b != &m);
+    // The same atlases and icon tables as Main: only places and sizes differ.
+    CHECK(std::string(b.barAtlas) == std::string(m.barAtlas));
+    CHECK(sameUv(b.barFrame.uv, m.barFrame.uv));
+    CHECK(sameUv(b.box.uv, m.box.uv));
+    CHECK(b.weapons.size() == m.weapons.size());
+    CHECK(b.hint == HintStyle::V170Box);
+}
+
+TEST_CASE("hud layout: every Bottom320x240 element is inside the screen, apart, above the touch band") {
+    const HudLayout& L = hudLayout(GameId::AirStrike3D, HudTarget::Bottom320x240);
+    const std::vector<HudElementRect> r = hudElementRects(L);
+    REQUIRE(r.size() >= 8u);
+    for (const HudElementRect& e : r) {
+        CAPTURE(e.name);
+        CHECK(e.x >= 0);
+        CHECK(e.y >= 0);
+        CHECK(e.x + e.w <= 800.0f);
+        CHECK(e.y + e.h <= kHudBottomBandTop);
+        CHECK(kHudBottomBandTop <= 600.0f - 90.0f);
+        // At scale 0.4 inside 320x240, and not tiny.
+        CHECK(e.x * 0.4f >= 0);
+        CHECK((e.x + e.w) * 0.4f <= 320.0f);
+        CHECK((e.y + e.h) * 0.4f <= 240.0f - 36.0f);
+        CHECK(e.h * 0.4f >= 6.0f);
+    }
+    for (size_t i = 0; i < r.size(); i++)
+        for (size_t j = i + 1; j < r.size(); j++) {
+            CAPTURE(r[i].name);
+            CAPTURE(r[j].name);
+            CHECK_FALSE(rectsOverlap(r[i], r[j]));
+        }
+    // Legible: the digits, the boxes and the text are at least 1.5 times the original's.
+    CHECK(L.scoreScale >= 1.5f);
+    CHECK(L.box.w >= 1.5f * 70);
+    CHECK(L.iconW >= 1.5f * 66);
+    CHECK(L.levelNameScale >= 1.5f);
+    // The health fill stays inside its frame.
+    CHECK(L.onePlayer.fillX + L.fillWidth <= L.onePlayer.barX + L.barFrame.w);
+    CHECK(L.onePlayer.fillY + L.fill.h <= L.onePlayer.barY + L.barFrame.h);
+}
+
+TEST_CASE("hud layout: the Bottom320x240 hint box is bigger and fits the screen") {
+    const FontMetrics& fm = FontMetrics::original();
+    const HintLayout one = layoutHint(fm, "one^two^three");
+    CHECK(one.scale == 1.0f);
+    CHECK(one.box.w == 360);
+    CHECK(one.okButton.x == 350);
+    const HintLayout big = layoutHint(fm, "one^two^three", HintStyle::V170Box, 1.5f);
+    CHECK(big.scale == 1.5f);
+    CHECK(big.box.w == 540);
+    CHECK(big.box.h > one.box.h * 1.4f);
+    CHECK(big.okButton.w == 150);
+    CHECK(big.okButton.x + big.okButton.w * 0.5f == 400);
+    // A wide line gives the scale way: the box stays inside the 800 pixels.
+    const HintLayout wide = layoutHint(fm, std::string(60, 'W'), HintStyle::V170Box, 1.5f);
+    CHECK(wide.scale == 1.0f); // already wider than the screen at the original size
+    const HintLayout mid = layoutHint(fm, std::string(25, 'W'), HintStyle::V170Box, 1.5f);
+    CHECK(mid.scale >= 1.0f);
+    CHECK(mid.scale <= 1.5f);
+    CHECK(mid.box.x >= 0);
+    CHECK(mid.box.x + mid.box.w <= 800.0f);
+}
+
+TEST_CASE("touch layout: the bottom-screen preset keeps its buttons in the lower band") {
+    for (float scale : {1.0f, 2.0f}) {
+        CAPTURE(scale);
+        const int W = static_cast<int>(320 * scale), H = static_cast<int>(240 * scale);
+        const TouchLayoutOptions o = TouchLayoutOptions::forBottomScreen320x240(132.0f * scale);
+        const TouchLayout L = computeTouchLayout(W, H, o);
+        const float bandTop = static_cast<float>(H) * (1.0f - 36.0f / 240.0f);
+        CHECK(bandTop == doctest::Approx(204.0f * scale));
+        for (int b = 0; b < kTouchButtonCount; b++) {
+            CAPTURE(touchButtonName(static_cast<TouchButton>(b)));
+            const TouchCircle& c = L.circles[b];
+            CHECK(c.r > 0);
+            CHECK(c.x - c.r >= 0);
+            CHECK(c.x + c.r <= static_cast<float>(W));
+            CHECK(c.y - c.r >= bandTop - 0.01f);
+            CHECK(c.y + c.r <= static_cast<float>(H) + 0.01f);
+            // The 9 mm touch area is honoured by the hit circles.
+            CHECK(L.hit[b].r >= 9.0f * L.pixelsPerMm * 0.5f - 0.01f);
+            for (int k = b + 1; k < kTouchButtonCount; k++) {
+                const TouchCircle& d = L.circles[k];
+                const float dist = std::sqrt((c.x - d.x) * (c.x - d.x) + (c.y - d.y) * (c.y - d.y));
+                CHECK(dist >= c.r + d.r);
+            }
+        }
+        CHECK_FALSE(L.outside);
+        CHECK(L.pixelsPerMm == doctest::Approx(132.0f * scale / 25.4f));
+        // Missile and power-up are the big ones; the order is pause, weapon, missile+, missile,
+        // power-up, power-up+.
+        auto cx = [&](TouchButton b) { return L.circles[static_cast<int>(b)].x; };
+        CHECK(cx(TouchButton::Pause) < cx(TouchButton::NextWeapon));
+        CHECK(cx(TouchButton::NextWeapon) < cx(TouchButton::NextMissile));
+        CHECK(cx(TouchButton::NextMissile) < cx(TouchButton::Missile));
+        CHECK(cx(TouchButton::Missile) < cx(TouchButton::PowerUp));
+        CHECK(cx(TouchButton::PowerUp) < cx(TouchButton::NextPowerUp));
+        CHECK(L.circles[static_cast<int>(TouchButton::Missile)].r > L.circles[static_cast<int>(TouchButton::NextMissile)].r);
+        // A tap on a button's centre hits it; one above the band hits nothing.
+        for (int b = 0; b < kTouchButtonCount; b++)
+            CHECK(L.hitTest(L.circles[b].x / static_cast<float>(W), L.circles[b].y / static_cast<float>(H)) == b);
+        CHECK(L.hitTest(0.5f, 0.3f) == -1);
+        // The band lies under every HUD element (virtual y -> real y at 0.4).
+        const HudLayout& H3 = hudLayout(GameId::AirStrike3D, HudTarget::Bottom320x240);
+        for (const HudElementRect& e : hudElementRects(H3))
+            CHECK((e.y + e.h) * 0.4f * scale <= bandTop + 0.01f);
+        // Left-handed: the mirror image.
+        TouchLayoutOptions lo = o;
+        lo.leftHanded = true;
+        const TouchLayout M = computeTouchLayout(W, H, lo);
+        for (int b = 0; b < kTouchButtonCount; b++) CHECK(M.circles[b].x == doctest::Approx(static_cast<float>(W) - L.circles[b].x));
     }
 }

@@ -221,8 +221,9 @@ Menu Frontend::buildPlainInGame() {
 
 Menu Frontend::buildPlainHint() {
     Menu m;
-    const HintLayout layout = layoutHint(FontMetrics::original(), hintText_);
-    const RectF ok{350, layout.box.y + layout.box.h - 46, 100, 32};
+    const HintLayout layout = layoutHint(FontMetrics::original(), hintText_, HintStyle::V170Box, hintScale());
+    const float hs = layout.scale;
+    const RectF ok{400 - 50 * hs, layout.box.y + layout.box.h - 46 * hs, 100 * hs, 32 * hs};
     m.addTextButton(1, ok, texts_.get("plain.ok")).setShown(false); // hidden until the opening animation ends
     auto close = [this]() {
         menus_.pop();

@@ -7,6 +7,7 @@
 
 #include "as2_screens.h"
 #include "as3d/frontend.h"
+#include "as3d/hud_layout.h"
 
 namespace as3d::ui {
 
@@ -97,6 +98,10 @@ void Frontend::boot() {
     state_ = FrontendState::Attract;
     host_.loadAttract();
     showMainMenu();
+}
+
+float Frontend::hintScale() const {
+    return hudLayout(content_.game ? content_.game->id : GameId::AirStrike3D, hudTarget_).hintScale;
 }
 
 float Frontend::brightness() const { return state_ == FrontendState::Intro ? 0.5f : profile_.settings.brightness; }

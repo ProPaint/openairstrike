@@ -113,7 +113,7 @@ private:
 
 class GameWindow {
 public:
-    explicit GameWindow(const LoopOptions& o) : o_(o), source_(o.bot, o.script), status_(o.quiet), touchMode_(o.touch) {}
+    explicit GameWindow(const LoopOptions& o) : o_(o), source_(o.bot, o.script), status_(o.quiet), touchMode_(o.touch || o.dualScreen) {}
     int run();
     // run() is start(), frame() while running(), finish(); the web build calls frame() once
     // per animation frame instead of blocking (docs/web.md).
@@ -150,6 +150,11 @@ private:
     void uiFrame();
     void logScreen();
     float virtX(float fbX) const;
+    // --dual-screen: window-normalised pointer position to the bottom screen's (clamped);
+    // false when it was outside that screen. The mapping of the pointer's coordinates.
+    bool dualMap(float& nx, float& ny) const;
+    ui::Mapping pointerMapping() const;
+    void beginOverlay();
     float virtY(float fbY) const;
     void windowToFb(SDL_Window* win, float& x, float& y) const;
     void pauseGame(const char* reason);
@@ -256,13 +261,20 @@ void GameWindow::updateLayout() {
     const float dpi = o_.dpiQuery ? o_.dpiQuery() : o_.dpi;
     int w = fbWidth(), h = fbHeight();
     const int screen = screenMode(), hand = leftHanded() ? 1 : 0;
-    if (stack_.flow) stack_.flow->setScreenSize(w, h);
+    // --dual-screen: the touch layout, the front end and the options see the bottom screen.
+    const ViewRect bottom = dualScreenRects(w, h).bottom;
+    if (stack_.flow) {
+        stack_.flow->setScreenSize(o_.dualScreen ? bottom.width : w, o_.dualScreen ? bottom.height : h);
+        stack_.flow->frontend().setHudTarget(o_.dualScreen ? ui::HudTarget::Bottom320x240 : ui::HudTarget::Main);
+    }
     applyTouchSpeed(touch_.settings(), stack_.flow ? stack_.flow->profile().settings.touchSpeed : o_.touchSpeed);
     if (stack_.view) {
         stack_.view->screenMode = screen;
         stack_.view->stereoDebugEyeOffset = o_.stereoEyeOffset;
         stack_.view->stereoDebugFocal = o_.stereoFocal;
+        stack_.view->dualScreen = o_.dualScreen;
     }
+    if (o_.dualScreen) touch_.settings().autoFire = false; // the pad's buttons fire; a tap only presses
     if (w == layoutW_ && h == layoutH_ && in.left == layoutInsets_.left && in.top == layoutInsets_.top &&
         in.right == layoutInsets_.right && in.bottom == layoutInsets_.bottom && screen == layoutScreen_ &&
         hand == layoutHand_ && dpi == layoutDpi_)
@@ -278,7 +290,14 @@ void GameWindow::updateLayout() {
     lo.dpi = dpi;
     lo.leftHanded = hand != 0;
     lo.screen4x3 = screen == kScreen4x3;
-    touch_.setScreen(w, h, lo);
+    if (o_.dualScreen) {
+        lo = TouchLayoutOptions::forBottomScreen320x240(132.0f * dualScreenRects(w, h).scale);
+        lo.insets = in;
+        lo.leftHanded = hand != 0;
+        touch_.setScreen(bottom.width, bottom.height, lo);
+    } else {
+        touch_.setScreen(w, h, lo);
+    }
     redraw_ = true;
     if (o_.layoutChanged) o_.layoutChanged(touch_.layout(), w, h);
     if (!o_.markers) return;
@@ -441,6 +460,33 @@ void GameWindow::updatePauseState() {
     stack_.audio.setPaused(p || background_);
 }
 
+bool GameWindow::dualMap(float& nx, float& ny) const {
+    const int w = fbWidth(), h = fbHeight();
+    const ViewRect b = dualScreenRects(w, h).bottom;
+    const float px = nx * static_cast<float>(w), py = ny * static_cast<float>(h);
+    const float left = static_cast<float>(b.x), top = static_cast<float>(h - b.y - b.height);
+    nx = std::min(std::max((px - left) / static_cast<float>(b.width), 0.0f), 1.0f);
+    ny = std::min(std::max((py - top) / static_cast<float>(b.height), 0.0f), 1.0f);
+    return px >= left && px < left + static_cast<float>(b.width) && py >= top && py < top + static_cast<float>(b.height);
+}
+
+ui::Mapping GameWindow::pointerMapping() const {
+    if (!o_.dualScreen) return ui::computeMapping(fbWidth(), fbHeight());
+    const ViewRect b = dualScreenRects(fbWidth(), fbHeight()).bottom;
+    return ui::computeMapping(b.width, b.height);
+}
+
+// The 2D overlays (touch buttons, pause, frame counter) over the whole frame, or over the bottom
+// screen of the dual-screen preview.
+void GameWindow::beginOverlay() {
+    if (o_.dualScreen) {
+        const ViewRect b = dualScreenRects(fbWidth(), fbHeight()).bottom;
+        overlay_->begin(b.width, b.height, b.x, b.y);
+    } else {
+        overlay_->begin(fbWidth(), fbHeight());
+    }
+}
+
 float GameWindow::virtX(float fbX) const { return ui::computeMapping(fbWidth(), fbHeight()).toVirtX(fbX); }
 float GameWindow::virtY(float fbY) const { return ui::computeMapping(fbWidth(), fbHeight()).toVirtY(fbY); }
 
@@ -496,7 +542,21 @@ bool GameWindow::handleFlowEvent(const SDL_Event& e) {
             return true;
         }
         case SDL_MOUSEMOTION: {
-            if (e.motion.which == SDL_TOUCH_MOUSEID || touchMode_) return false;
+            if (e.motion.which == SDL_TOUCH_MOUSEID || (touchMode_ && !o_.dualScreen)) return false;
+            if (o_.dualScreen) {
+                // The pointer on the bottom screen hovers the menus; a held finger also drags.
+                float nx = static_cast<float>(e.motion.x), ny = static_cast<float>(e.motion.y);
+                int ww = 1, wh = 1;
+                SDL_GetWindowSize(SDL_GetWindowFromID(e.motion.windowID), &ww, &wh);
+                nx /= static_cast<float>(std::max(ww, 1));
+                ny /= static_cast<float>(std::max(wh, 1));
+                if (dualMap(nx, ny)) {
+                    const ui::Mapping m = pointerMapping();
+                    uiIn_.move(m.toVirtX(nx * static_cast<float>(m.fbWidth)), m.toVirtY(ny * static_cast<float>(m.fbHeight)));
+                }
+                if (!mouseFinger_) return true;
+                break; // the finger section below
+            }
             if (relativeMouse_) {
                 // Captured for mouse control: the motion steers, the menus' pointer stays.
                 mouseRelX_ += static_cast<float>(e.motion.xrel);
@@ -541,7 +601,9 @@ bool GameWindow::handleFlowEvent(const SDL_Event& e) {
     } else {
         return false;
     }
-    const float vx = virtX(nx * static_cast<float>(fbWidth())), vy = virtY(ny * static_cast<float>(fbHeight()));
+    if (o_.dualScreen && !dualMap(nx, ny) && ph == TouchPhase::Down) return true; // outside the bottom screen: ignored
+    const ui::Mapping pm = pointerMapping();
+    const float vx = pm.toVirtX(nx * static_cast<float>(pm.fbWidth)), vy = pm.toVirtY(ny * static_cast<float>(pm.fbHeight));
     const bool onUi = uiFingers_.count(id) != 0;
     const char* on = "field";
     if (ph == TouchPhase::Down) {
@@ -685,8 +747,9 @@ void GameWindow::handleEvent(const SDL_Event& e) {
                 int ww = 1, wh = 1;
                 SDL_GetWindowSize(SDL_GetWindowFromID(e.button.windowID), &ww, &wh);
                 mouseFinger_ = down;
-                touch_.touchEvent(-1, down ? TouchPhase::Down : TouchPhase::Up, x / std::max(ww, 1),
-                                  y / std::max(wh, 1));
+                float nx = x / std::max(ww, 1), ny = y / std::max(wh, 1);
+                if (o_.dualScreen && !dualMap(nx, ny) && down) break; // outside the bottom screen
+                touch_.touchEvent(-1, down ? TouchPhase::Down : TouchPhase::Up, nx, ny);
                 if (o_.logTouches)
                     if (o_.markers) AS3D_INFO("AS3D_TOUCH %s id=mouse x=%.3f y=%.3f", down ? "down" : "up", x / std::max(ww, 1),
                               y / std::max(wh, 1));
@@ -699,8 +762,9 @@ void GameWindow::handleEvent(const SDL_Event& e) {
             if (e.motion.which == SDL_TOUCH_MOUSEID || !touchMode_ || !mouseFinger_) break;
             int ww = 1, wh = 1;
             SDL_GetWindowSize(SDL_GetWindowFromID(e.motion.windowID), &ww, &wh);
-            touch_.touchEvent(-1, TouchPhase::Move, static_cast<float>(e.motion.x) / std::max(ww, 1),
-                              static_cast<float>(e.motion.y) / std::max(wh, 1));
+            float nx = static_cast<float>(e.motion.x) / std::max(ww, 1), ny = static_cast<float>(e.motion.y) / std::max(wh, 1);
+            if (o_.dualScreen) dualMap(nx, ny);
+            touch_.touchEvent(-1, TouchPhase::Move, nx, ny);
             break;
         }
         case SDL_FINGERDOWN:
@@ -848,7 +912,7 @@ void GameWindow::draw() {
         const bool controls = touchMode_ && stack_.flow->playing();
         if (!controls) fade_.reset(); // full opacity again when play (re)starts
         if (controls || showFps) {
-            overlay_->begin(w, h);
+            beginOverlay();
             if (controls) drawTouchControls(*overlay_, touch_, ts);
             if (showFps) drawFpsCounter(*overlay_, *ts.assets, fps_, touchMode_ ? &touch_.layout() : nullptr, layoutInsets_, simulationNote());
             overlay_->flush();
@@ -858,7 +922,7 @@ void GameWindow::draw() {
     stack_.view->draw(ses(), w, h);
     bool paused = pausedByPlayer(ses().world());
     if (touchMode_ || paused || showFps) {
-        overlay_->begin(w, h);
+        beginOverlay();
         if (paused) drawPauseOverlay(*overlay_, touchMode_);
         if (touchMode_) drawTouchControls(*overlay_, touch_, ts);
         if (showFps) drawFpsCounter(*overlay_, *ts.assets, fps_, touchMode_ ? &touch_.layout() : nullptr, layoutInsets_, simulationNote());

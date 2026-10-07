@@ -143,11 +143,39 @@ struct HudLayout {
     HintStyle hint = HintStyle::V170Box;
     HudPanelSkin panelSkin = HudPanelSkin::As2;
 
+    // Text placement and scale. Main values are the original's; Bottom320x240 enlarges the
+    // text for the 0.4 scale.
+    float scoreScale = 1.0f;             // score digits (HudSide::scoreX is their left or right edge)
+    float levelNameY = 500, levelNameScale = 1.0f; // typewriter text, centred on x 400
+    float messageY = 555, messageScale = 1.0f;     // cheat message, centred on x 400
+    float hintScale = 1.0f;              // tutorial hint box text and box (layoutHint)
+
     HudSide onePlayer;
     HudSide twoPlayers[2];
 };
 
 // The layout of a game. Gulf Thunder's is AirStrike 2's with its own tables and panel.
 const HudLayout& hudLayout(GameId game);
+// The layout for a target (HudTarget in ui.h). Main is hudLayout(game). Bottom320x240 is the
+// 3DS bottom screen's: AirStrike 3D has its own tables (hud_layouts.cpp); the sequels' alias
+// Main until theirs are made.
+const HudLayout& hudLayout(GameId game, HudTarget target);
+
+// Bottom320x240: the virtual y where the band reserved for the touch pickers and the pause
+// button begins (virtual 800x600; 90 px = 36 px of the 320x240 screen). No HUD element reaches
+// into it.
+constexpr float kHudBottomBandTop = 510.0f;
+
+// A named rectangle of the HUD in virtual pixels.
+struct HudElementRect {
+    const char* name = "";
+    float x = 0, y = 0, w = 0, h = 0;
+};
+// The rectangles of a one-player HUD as the layout draws it with its fullest content: the
+// health frame, the score frame with up to 10 digits, the life icons (lifeIconsMax), the weapon
+// box, the missile column (all 5 types), the power-up column (`powerupEntries` entries) and the
+// level name and message text areas (up to 520 virtual px wide). For tests and layout tools;
+// AirStrike 3D's tables (no level pips).
+std::vector<HudElementRect> hudElementRects(const HudLayout& layout, int powerupEntries = kPowerupIconKinds);
 
 } // namespace as3d::ui

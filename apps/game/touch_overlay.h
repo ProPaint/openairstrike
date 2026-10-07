@@ -24,6 +24,11 @@ struct TouchOverlayState {
 };
 
 void drawTouchControls(as3d::ui::Renderer2D& r, const as3d::TouchMapper& touch, const TouchOverlayState& state = {});
+// The touch buttons in a sub-rectangle of the framebuffer (GL convention, origin lower left), laid
+// out in its own pixels: the 3DS bottom-screen preview (as3d_game --dual-screen), whose touch
+// layout is the rectangle's (TouchLayoutOptions::forBottomScreen320x240).
+void drawTouchControlsIn(as3d::ui::Renderer2D& r, int x, int y, int width, int height, const as3d::TouchMapper& touch,
+                         const TouchOverlayState& state = {});
 // The frame counter (Show FPS): "NN FPS" and, smaller, the worst frame time and the dropped
 // simulation steps of the last second, in the game font on a dark backing, in a free top
 // corner: the one opposite the touch pause button (inside the insets), beside the pause

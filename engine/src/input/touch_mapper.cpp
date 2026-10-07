@@ -126,7 +126,60 @@ TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const SafeInsets& inse
     return computeTouchLayout(fbWidth, fbHeight, o);
 }
 
+// The bottom screen's band layout (TouchLayoutOptions::bottomBand): one row, evenly spaced.
+static TouchLayout bottomBandLayout(const TouchLayoutOptions& o, int fbWidth, int fbHeight) {
+    TouchLayout L;
+    L.fbWidth = std::max(fbWidth, 1);
+    L.fbHeight = std::max(fbHeight, 1);
+    L.leftHanded = o.leftHanded;
+    const float fw = static_cast<float>(L.fbWidth);
+    const float fh = static_cast<float>(L.fbHeight);
+    L.playField = {0, 0, 1, 1};
+    L.outside = false;
+    L.alpha = 1.0f; // nothing behind the buttons to keep clear: no fade
+    const bool dpiKnown = o.dpi >= 80.0f && o.dpi <= 1200.0f;
+    const float mm = dpiKnown ? o.dpi / 25.4f : fh / kPhoneHeightMm;
+    L.pixelsPerMm = mm;
+    const float bandH = std::min(std::max(o.bottomBand, 0.05f), 0.5f) * fh;
+    const float D = std::min(kMainMm * mm, bandH * 0.94f);
+    const float s = std::min(kSatelliteMm * mm, 0.8f * D);
+    const float pauseD = std::min(kPauseMm * mm, 0.7f * D);
+    const float edge = std::min(kEdgeMm * mm, 0.03f * fh);
+    const float inL = std::min(std::max(static_cast<float>(o.leftHanded ? o.insets.right : o.insets.left), 0.0f), fw * 0.25f);
+    const float inR = std::min(std::max(static_cast<float>(o.leftHanded ? o.insets.left : o.insets.right), 0.0f), fw * 0.25f);
+    // Left to right (right-handed): pause, next weapon, next missile, missile, power-up, next power-up.
+    const TouchButton order[6] = {TouchButton::Pause,   TouchButton::NextWeapon, TouchButton::NextMissile,
+                                  TouchButton::Missile, TouchButton::PowerUp,    TouchButton::NextPowerUp};
+    float diam[6], total = 0;
+    for (int i = 0; i < 6; ++i) {
+        const TouchButton b = order[i];
+        diam[i] = b == TouchButton::Pause ? pauseD : (b == TouchButton::Missile || b == TouchButton::PowerUp) ? D : s;
+        total += diam[i];
+    }
+    const float x0 = inL + edge, x1 = fw - inR - edge;
+    const float g = std::max(0.0f, (x1 - x0 - total) / 5.0f); // even gaps
+    const float cy = fh - bandH * 0.5f;
+    float x = x0;
+    for (int i = 0; i < 6; ++i) {
+        TouchCircle& t = L.circles[static_cast<int>(order[i])];
+        t.r = diam[i] * 0.5f;
+        t.x = x + t.r;
+        t.y = cy;
+        x += diam[i] + g;
+    }
+    const float minHit = kMinTouchMm * mm * 0.5f;
+    for (int b = 0; b < kTouchButtonCount; ++b) {
+        TouchCircle& t = L.circles[b];
+        if (o.leftHanded) t.x = fw - t.x;
+        L.hit[b] = t;
+        L.hit[b].r = std::max(t.r + g * 0.5f, minHit);
+        L.buttons[b] = {(t.x - t.r) / fw, (t.y - t.r) / fh, 2 * t.r / fw, 2 * t.r / fh};
+    }
+    return L;
+}
+
 TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const TouchLayoutOptions& o) {
+    if (o.bottomBand > 0) return bottomBandLayout(o, fbWidth, fbHeight);
     TouchLayout L;
     L.fbWidth = std::max(fbWidth, 1);
     L.fbHeight = std::max(fbHeight, 1);

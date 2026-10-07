@@ -73,6 +73,11 @@ struct LoopOptions {
     bool fps = false;                        // the frame counter regardless of Settings::showFps (--fps)
     float stereoEyeOffset = 0.0f;            // --stereo-debug (GameView::stereoDebugEyeOffset); 0 = off
     float stereoFocal = 0.0f;
+    // --dual-screen: the desktop preview of the 3DS's two screens in the window (game_view.h,
+    // GameView::dualScreen). The mouse is the touch screen on the bottom one (the left button is
+    // a finger, as with `touch`; outside it the mouse is ignored), the keyboard is the pad, and
+    // the touch buttons are the bottom-screen preset.
+    bool dualScreen = false;
     // The front end (menus); game.startLevel must then be false.
     bool frontend = false;
     FlowConfig flow;

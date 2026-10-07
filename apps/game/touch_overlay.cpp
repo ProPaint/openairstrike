@@ -360,4 +360,11 @@ void drawLoadingScreen(ui::Renderer2D& r, float progress) {
     r.rect(252, 292, 296 * progress, 16, Color{0.82f, 0.25f, 0.0f, 1});
 }
 
+void drawTouchControlsIn(ui::Renderer2D& r, int x, int y, int width, int height, const TouchMapper& touch,
+                         const TouchOverlayState& state) {
+    r.begin(width, height, x, y);
+    drawTouchControls(r, touch, state);
+    r.flush();
+}
+
 } // namespace as3d_game

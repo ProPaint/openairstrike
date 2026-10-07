@@ -51,7 +51,7 @@ bool UiAssets::load(Vfs& vfs, std::string* error, GameId g) {
     return true;
 }
 
-const HudLayout& UiAssets::hudLayout() const { return ui::hudLayout(game); }
+const HudLayout& UiAssets::hudLayout() const { return ui::hudLayout(game, hudTarget); }
 
 Font UiAssets::uiFont() const {
     Font f;

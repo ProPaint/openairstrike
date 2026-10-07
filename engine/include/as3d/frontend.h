@@ -259,6 +259,10 @@ public:
     // Whether Options offers the Screen row (the host: always on Android, on desktop while
     // the window is wider than 4:3). Takes effect when Options is next opened.
     void setScreenOptionShown(bool on) { content_.screenOption = on; }
+    // The HUD layout variant of the screen the front end is drawn on (the tutorial hint box is
+    // laid out by it); set before the hint opens.
+    void setHudTarget(HudTarget t) { hudTarget_ = t; }
+    float hintScale() const;
 
     // Starts the program: the intro pages when ShowLogo = 1 and Settings.xml lists some, then the
     // attract level and the main menu.
@@ -381,6 +385,7 @@ private:
     GameHost& host_;
     Profile& profile_;
     FrontendContent content_;
+    HudTarget hudTarget_ = HudTarget::Main;
     Texts texts_;
     MenuSystem menus_;
     Campaign campaign_;

@@ -93,7 +93,7 @@ Menu Frontend::buildInGame() {
 
 Menu Frontend::buildHint() {
     Menu m;
-    const HintLayout layout = layoutHint(FontMetrics::original(), hintText_);
+    const HintLayout layout = layoutHint(FontMetrics::original(), hintText_, HintStyle::V170Box, hintScale());
     m.addCustom(1, layout.okButton, [layout](MenuDrawContext& c, MenuItem&, bool focused) {
         drawHintOk(c.r, c.a, layout, focused, c.mt);
     });

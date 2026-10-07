@@ -86,7 +86,7 @@ struct Hud {
 
     void count(float right, float y, int n, bool selected) const {
         std::string s = std::to_string(n);
-        float x = static_cast<float>(ftol(right - 10.5f * static_cast<float>(s.size())));
+        float x = static_cast<float>(ftol(right - 14.0f * L.countScale * static_cast<float>(s.size())));
         drawNumber(r, a.uiFont(), x, y, s, L.countScale, selected ? L.countSelected : L.countOther);
     }
 
@@ -140,8 +140,8 @@ struct Hud {
 
     void score(const HudSide& s, std::int64_t value) const {
         std::string str = std::to_string(value);
-        const float x = s.scoreRightAligned ? s.scoreX - 14.0f * static_cast<float>(str.size()) : s.scoreX;
-        drawNumber(r, a.uiFont(), x, s.scoreY, str, 1.0f, L.scoreColor);
+        const float x = s.scoreRightAligned ? s.scoreX - 14.0f * L.scoreScale * static_cast<float>(str.size()) : s.scoreX;
+        drawNumber(r, a.uiFont(), x, s.scoreY, str, L.scoreScale, L.scoreColor);
     }
 
     void player(const HudSide& s, const HudPlayer& p) const {
@@ -218,11 +218,12 @@ void drawHud(Renderer2D& r, const UiAssets& a, const HudState& s) {
     if (!tw.text.empty()) {
         // The full name is measured so that the text grows rightwards from its final left edge
         // (the sequels skip '{' and '}' in the width, as2/frontend.md 2.8).
-        const float full = measureText(FontMetrics::original(), s.levelName, 1.0f, L.typewriterSkipsBraces);
+        const float full = measureText(FontMetrics::original(), s.levelName, L.levelNameScale, L.typewriterSkipsBraces);
         const float x = static_cast<float>(ftol(400.0f - full * 0.5f));
         TextStyle st;
+        st.scale = L.levelNameScale;
         st.color = grey(tw.alpha);
-        drawTextShadowed(r, a.uiFont(), x, 500, tw.text, st, tw.alpha);
+        drawTextShadowed(r, a.uiFont(), x, L.levelNameY, tw.text, st, tw.alpha);
     }
     if (s.playerCount >= 2) {
         h.player(L.twoPlayers[0], s.players[0]);
@@ -234,8 +235,9 @@ void drawHud(Renderer2D& r, const UiAssets& a, const HudState& s) {
     if (ma > 0 && !s.message.empty()) {
         TextStyle st;
         st.align = Align::Center;
+        st.scale = L.messageScale;
         st.color = grey(ma);
-        drawTextShadowed(r, a.uiFont(), 400, 555, s.message, st, ma);
+        drawTextShadowed(r, a.uiFont(), 400, L.messageY, s.message, st, ma);
     }
     if (s.mouseCursor && L.mouseCursor && a.mcCursor.valid())
         r.quad(s.mouseX - 7, s.mouseY - 7, 16, 16, 0, 0, 1, 1, &a.mcCursor, Color{}, Blend::Add);
@@ -390,7 +392,7 @@ bool sequelPanel(const UiAssets& a) { return a.hudLayout().hint == HintStyle::Se
 
 } // namespace
 
-HintLayout layoutHint(const FontMetrics& m, std::string_view text, HintStyle style) {
+HintLayout layoutHint(const FontMetrics& m, std::string_view text, HintStyle style, float scale) {
     HintLayout L;
     size_t i = 0;
     while (L.lines.size() < 16) {
@@ -404,18 +406,23 @@ HintLayout layoutHint(const FontMetrics& m, std::string_view text, HintStyle sty
     }
     float widest = 0;
     for (const std::string& l : L.lines) widest = std::max(widest, measureText(m, l, 1.0f, true));
+    // An enlarged box keeps within the screen: the scale gives way to a wide line.
+    scale = std::max(1.0f, scale);
+    if (scale > 1.0f && widest > 0) scale = std::max(1.0f, std::min(scale, 760.0f / widest));
+    L.scale = scale;
+    widest *= scale;
     const float n = static_cast<float>(L.lines.size());
-    L.box.w = std::max(360.0f, widest + 40.0f);
-    L.box.h = std::max(160.0f, 18.0f * n + (style == HintStyle::SequelPanel ? 60.0f : 80.0f));
+    L.box.w = std::max(360.0f * scale, widest + 40.0f);
+    L.box.h = std::max(160.0f * scale, (18.0f * n + (style == HintStyle::SequelPanel ? 60.0f : 80.0f)) * scale);
     L.box.x = static_cast<float>(ftol((kVirtualWidth - L.box.w) * 0.5f));
     L.box.y = static_cast<float>(ftol((kVirtualHeight - L.box.h) * 0.5f));
     if (style == HintStyle::SequelPanel) {
-        L.textTop = L.box.y + (L.box.h - 18.0f * n) * 0.5f;
+        L.textTop = L.box.y + (L.box.h - 18.0f * scale * n) * 0.5f;
         const float bw = measureText(m, kSequelOkCaption, 1.0f, true) + 46.0f;
         L.okButton = {400.0f - bw * 0.5f, 520.0f, bw, 30.0f};
     } else {
-        L.textTop = L.box.y + 20.0f;
-        L.okButton = {350.0f, L.box.y + L.box.h - 60.0f, 100.0f, 64.0f};
+        L.textTop = L.box.y + 20.0f * scale;
+        L.okButton = {400.0f - 50.0f * scale, L.box.y + L.box.h - 60.0f * scale, 100.0f * scale, 64.0f * scale};
     }
     return L;
 }
@@ -424,6 +431,7 @@ bool drawHintPanel(Renderer2D& r, const UiAssets& a, const HintLayout& L, float 
     TextStyle st;
     st.align = Align::Center;
     st.markup = true;
+    st.scale = L.scale;
     st.color = a.hudLayout().panelSkin == HudPanelSkin::Gulf ? kGulfRed : orange();
     if (sequelPanel(a)) {
         const float f = std::max(u, 0.0f) / kSequelOpenSeconds;
@@ -432,7 +440,7 @@ bool drawHintPanel(Renderer2D& r, const UiAssets& a, const HintLayout& L, float 
         float y = L.textTop;
         for (const std::string& line : L.lines) {
             drawText(r, a.uiFont(), 400, y, line, st);
-            y += 18.0f;
+            y += 18.0f * L.scale;
         }
         return true;
     }
@@ -446,7 +454,7 @@ bool drawHintPanel(Renderer2D& r, const UiAssets& a, const HintLayout& L, float 
     float y = L.textTop;
     for (const std::string& line : L.lines) {
         drawText(r, a.uiFont(), 400, y, line, st);
-        y += 18.0f;
+        y += 18.0f * L.scale;
     }
     return true;
 }
@@ -492,7 +500,7 @@ void drawHint(Renderer2D& r, const UiAssets& a, std::string_view text) {
         drawHintPanel(r, a, L, 1.0f);
         return;
     }
-    HintLayout L = layoutHint(*font.metrics, text);
+    HintLayout L = layoutHint(*font.metrics, text, HintStyle::V170Box, a.hudLayout().hintScale);
     drawHintPanel(r, a, L, 1.0f);
     drawHintOk(r, a, L, false, 0);
 }

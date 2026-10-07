@@ -209,6 +209,20 @@ struct TouchLayoutOptions {
     float dpi = 0;
     bool leftHanded = false;  // Settings::leftHanded: the cluster at the left, pause at the right
     bool screen4x3 = false;   // Settings::screenMode == kScreen4x3: the bars are black
+    // > 0: the 3DS bottom screen's layout. The screen holds the HUD and nothing else; the
+    // bottom `bottomBand` of its height (a fraction) is a band holding one row of the buttons,
+    // left to right: pause, next weapon, next missile, missile, power-up, next power-up. The
+    // circle pad moves the helicopter, so there is no drag area and no movement control; the
+    // buttons keep the millimetre rule of the other layouts with the caps for a band (a button
+    // is at most 94% of the band's height; satellites 80% and pause 70% of the main buttons').
+    float bottomBand = 0;
+    // The 320x240 bottom screen at `dpi` (the 3DS's 132): a 36 px band (15%).
+    static TouchLayoutOptions forBottomScreen320x240(float dpi = 132.0f) {
+        TouchLayoutOptions o;
+        o.dpi = dpi;
+        o.bottomBand = 36.0f / 240.0f;
+        return o;
+    }
 };
 
 // The on-screen buttons (docs/spec/issues/140): round, sized in millimetres from the display
