@@ -98,19 +98,18 @@ Vec3 eyePosition(const WorldView& view, const EyeView& eye);
 // frusta). With B = 0 the matrix is as3d::perspective(fovY, aspect, near, far), the very call
 // worldViewOf makes, so EyeView{} gives today's projection bit for bit.
 //
-// citro3d (M1.3): Mtx_PerspStereoTilt(mtx, fovy, aspect, near, far, iod, screen, false) takes
-// the interocular distance `iod` (eyes at -iod/2 and +iod/2; the 3DS spike passes -iod for the
-// left eye) and the zero-parallax distance `screen`, in world units, and puts the eye's
-// translation into the projection itself, so it pairs with the central view (view.view), not
-// with eyeViewMatrix. The mapping:
+// citro3d (checked in M1.3, engine/src/render/pica/pica_space.h): Mtx_PerspStereoTilt(mtx,
+// fovy, aspect, near, far, iod, screen, false) puts the eye's translation into the projection
+// itself, so it pairs with the central view (view.view), not with eyeViewMatrix. Its
+// translation term iod/2 is in clip units, so with A as above the exact mapping is
 //
-//     eyeOffset = iod / 2  (the left eye negative),   focalDistance = screen
+//     iod = 2 A eyeOffset  (the left eye negative),   screen = A focalDistance
 //     Mtx_PerspStereoTilt(.., iod, screen, ..) * view.view
-//         ~ tilt * eyeProjection(view, {iod / 2, screen}, aspect) * eyeViewMatrix(view, {iod / 2, screen})
+//         = tilt * eyeProjection(view, eye, aspect) * eyeViewMatrix(view, eye)
 //
-// with `tilt` the 90 degree rotation of the 3DS screen that Mtx_PerspTilt also applies. The
-// sign of iod and the scale of its translation term are to be confirmed numerically in M1.3
-// against citro3d's mtx_perspstereotilt.c (project a few points through both).
+// with `tilt` the quarter turn and depth remap of the 3DS screen that Mtx_PerspTilt also
+// applies (x' = y, y' = -x, z' = (z - w) / 2). pica::picaStereoParams computes the
+// arguments; apps/tests/pica_core_test.cpp checks the identity against citro3d's formulas.
 Mat4 eyeProjection(const WorldView& view, const EyeView& eye, float aspect);
 
 // A world-space culling volume: six planes (x, y, z) . p + w >= 0 inside, unit normals pointing
