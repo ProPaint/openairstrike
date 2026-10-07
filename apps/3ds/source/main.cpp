@@ -7,7 +7,7 @@
 //    the engine's own log goes to sdmc:/3ds/openairstrike/engine_log.txt.
 // 3. Reloads mission 1 and, on the top screen, draws its terrain and the player's helicopter
 //    with citro3d for 300 frames while the world keeps stepping, measuring CPU and GPU time.
-// START quits at the end.
+// START quits at the end. With mode=probe in sdmc:/3ds/openairstrike/run.ini the GPU probe (probe.cpp) runs instead.
 #include <3ds.h>
 #include <citro3d.h>
 #include <malloc.h>
@@ -27,6 +27,7 @@
 #include "as3d/vfs.h"
 #include "as3d/world.h"
 
+#include "probe.h"
 #include "render.h"
 
 extern "C" {
@@ -144,6 +145,9 @@ std::unique_ptr<as3d::World> runMission(as3d::Vfs& vfs, const as3d::DefDatabase&
 
 int main() {
     using namespace as3d;
+    // vramSpaceFree() reports 0 until the VRAM heap has served its first allocation.
+    if (void* warm = vramAlloc(0x100)) vramFree(warm);
+    const u32 vramAtStart = vramSpaceFree();
     gfxInitDefault();
     consoleInit(GFX_BOTTOM, nullptr);
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
@@ -198,6 +202,18 @@ int main() {
     }
     out("definitions in %.0f ms\n", ms(svcGetSystemTick() - t0));
     memLine("defs");
+
+    // run.ini: mode=probe runs the M1.0 GPU probe (probe.cpp) instead of the spike.
+    probe::RunConfig runCfg = probe::readRunConfig(std::string(kDir) + "/run.ini");
+    if (runCfg.probe) {
+        if (g_log) std::fclose(g_log);
+        g_log = nullptr;
+        probe::run(vfs, db, *game, std::string(kDir) + "/probe_log.txt", vramAtStart, runCfg);
+        std::fflush(stderr);
+        C3D_Fini();
+        gfxExit();
+        return 0;
+    }
 
     const char* levels[] = {"1", "6", "14"};
     for (const char* lv : levels) {

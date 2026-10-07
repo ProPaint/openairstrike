@@ -47,6 +47,12 @@ struct Mesh {
 };
 
 C3D_RenderTarget* g_target = nullptr;
+C3D_RenderTarget* g_targetRight = nullptr;
+C3D_RenderTarget* g_targetBottom = nullptr;
+FrameOptions g_opts;
+TexMode g_texMode = TexMode::LinearRGBA8;
+Image g_terrainImg, g_heliImg;
+Mesh g_quad; // full-screen quad in clip space
 DVLB_s* g_dvlb = nullptr;
 shaderProgram_s g_program;
 int g_uMvp = -1;
@@ -90,29 +96,82 @@ inline u32 morton8(u32 x, u32 y) {
     return (x & 1) | ((y & 1) << 1) | ((x & 2) << 1) | ((y & 2) << 2) | ((x & 4) << 2) | ((y & 4) << 3);
 }
 
+// Writes one mip level (w x h RGBA8 bytes, top row first) swizzled into `dst`: 8x8 tiles in
+// Morton order. GPU_RGBA8 texels are ABGR-ordered words, GPU_RGB565 texels 16-bit.
+void swizzleLevel(const u8* rgba, int w, int h, void* dst, bool is565) {
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const u8* p = &rgba[(static_cast<size_t>(y) * w + x) * 4];
+            u32 off = ((static_cast<u32>(y) >> 3) * (static_cast<u32>(w) >> 3) + (static_cast<u32>(x) >> 3)) * 64 +
+                      morton8(static_cast<u32>(x) & 7, static_cast<u32>(y) & 7);
+            if (is565) {
+                static_cast<u16*>(dst)[off] =
+                    static_cast<u16>(((p[0] >> 3) << 11) | ((p[1] >> 2) << 5) | (p[2] >> 3));
+            } else {
+                static_cast<u32*>(dst)[off] = (static_cast<u32>(p[0]) << 24) | (static_cast<u32>(p[1]) << 16) |
+                                              (static_cast<u32>(p[2]) << 8) | static_cast<u32>(p[3]);
+            }
+        }
+    }
+}
+
+const char* texModeName(TexMode m) {
+    switch (m) {
+    case TexMode::LinearRGBA8: return "RGBA8 linear";
+    case TexMode::VramRGBA8: return "RGBA8 VRAM";
+    case TexMode::VramRGB565: return "RGB565 VRAM";
+    case TexMode::VramRGB565Mip: return "RGB565 VRAM+mips";
+    }
+    return "?";
+}
+
 // Converts an engine image (RGBA8, top row first, any size) to a PICA texture: power-of-two
-// sides (nearest resampling, at most 256), 8x8 tiles in Morton order, ABGR byte order.
-bool uploadTexture(const Image& img, C3D_Tex* tex, std::string* report, const char* what) {
+// sides (nearest resampling, at most 256), 8x8 tiles in Morton order, in the layout of `mode`
+// (memory, texel format, optional CPU-generated mip chain with trilinear filtering).
+bool uploadTexture(const Image& img, C3D_Tex* tex, TexMode mode, std::string* report, const char* what) {
     int w = std::min(nextPow2(img.width), 256), h = std::min(nextPow2(img.height), 256);
-    if (!C3D_TexInit(tex, static_cast<u16>(w), static_cast<u16>(h), GPU_RGBA8)) return false;
-    u32* dst = static_cast<u32*>(tex->data);
+    bool vram = mode != TexMode::LinearRGBA8;
+    bool is565 = mode == TexMode::VramRGB565 || mode == TexMode::VramRGB565Mip;
+    bool mip = mode == TexMode::VramRGB565Mip;
+    u8 maxLevel = mip ? static_cast<u8>(C3D_TexCalcMaxLevel(static_cast<u32>(w), static_cast<u32>(h))) : 0;
+    if (!C3D_TexInitWithParams(tex, nullptr,
+                               C3D_TexInitParams{static_cast<u16>(w), static_cast<u16>(h), maxLevel,
+                                                 is565 ? GPU_RGB565 : GPU_RGBA8, GPU_TEX_2D, vram}))
+        return false;
+    std::vector<u8> cur(static_cast<size_t>(w) * h * 4);
     for (int y = 0; y < h; ++y) {
         int sy = y * img.height / h;
         for (int x = 0; x < w; ++x) {
             int sx = x * img.width / w;
-            const u8* p = &img.rgba[(static_cast<size_t>(sy) * img.width + sx) * 4];
-            u32 off = ((static_cast<u32>(y) >> 3) * (static_cast<u32>(w) >> 3) + (static_cast<u32>(x) >> 3)) * 64 +
-                      morton8(static_cast<u32>(x) & 7, static_cast<u32>(y) & 7);
-            dst[off] = (static_cast<u32>(p[0]) << 24) | (static_cast<u32>(p[1]) << 16) | (static_cast<u32>(p[2]) << 8) |
-                       static_cast<u32>(p[3]);
+            std::memcpy(&cur[(static_cast<size_t>(y) * w + x) * 4], &img.rgba[(static_cast<size_t>(sy) * img.width + sx) * 4], 4);
         }
+    }
+    int lw = w, lh = h;
+    for (int level = 0; level <= maxLevel; ++level) {
+        swizzleLevel(cur.data(), lw, lh, C3D_Tex2DGetImagePtr(tex, level, nullptr), is565);
+        if (level == maxLevel) break;
+        int nw = lw / 2, nh = lh / 2; // 2x2 box filter
+        std::vector<u8> next(static_cast<size_t>(nw) * nh * 4);
+        for (int y = 0; y < nh; ++y)
+            for (int x = 0; x < nw; ++x)
+                for (int c = 0; c < 4; ++c) {
+                    int sum = 0;
+                    for (int dy = 0; dy < 2; ++dy)
+                        for (int dx = 0; dx < 2; ++dx) sum += cur[(static_cast<size_t>(2 * y + dy) * lw + 2 * x + dx) * 4 + c];
+                    next[(static_cast<size_t>(y) * nw + x) * 4 + c] = static_cast<u8>((sum + 2) / 4);
+                }
+        cur.swap(next);
+        lw = nw;
+        lh = nh;
     }
     C3D_TexFlush(tex);
     C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
+    if (mip) C3D_TexSetFilterMipmap(tex, GPU_LINEAR);
     C3D_TexSetWrap(tex, GPU_REPEAT, GPU_REPEAT);
     char line[160];
-    std::snprintf(line, sizeof line, "%s texture %dx%d -> %dx%d RGBA8 (%d KB)\n", what, img.width, img.height, w, h,
-                  w * h * 4 / 1024);
+    std::snprintf(line, sizeof line, "%s texture %dx%d -> %dx%d %s, %d levels (%d KB)\n", what, img.width, img.height, w,
+                  h, texModeName(mode), maxLevel + 1,
+                  static_cast<int>(C3D_TexCalcTotalSize(tex->size, tex->maxLevel) / 1024));
     *report += line;
     return true;
 }
@@ -177,8 +236,72 @@ bool renderInit(std::string* error) {
     C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
     C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
     C3D_CullFace(GPU_CULL_NONE);
+
+    // A full-screen quad in clip space (z inside the PICA's [-w, 0] range) for the probe.
+    if (!allocMesh(g_quad, 4, 6)) {
+        *error = "cannot allocate the probe quad";
+        return false;
+    }
+    const float qx[4] = {-1, 1, 1, -1}, qy[4] = {-1, -1, 1, 1};
+    for (int i = 0; i < 4; ++i) {
+        Vertex& v = g_quad.verts[i];
+        v.pos[0] = qx[i];
+        v.pos[1] = qy[i];
+        v.pos[2] = -0.5f;
+        v.col[0] = v.col[1] = v.col[2] = 255;
+        v.col[3] = 64; // blend quads; the bottom screen quad overrides alpha in its tex env
+        v.uv[0] = (qx[i] + 1.0f) * 0.5f;
+        v.uv[1] = (qy[i] + 1.0f) * 0.5f;
+    }
+    const u16 qi[6] = {0, 1, 2, 0, 2, 3};
+    std::memcpy(g_quad.indices, qi, sizeof qi);
+    flushMesh(g_quad);
     return true;
 }
+
+bool renderSetTextures(TexMode mode, std::string* report) {
+    if (g_terrainTexOk) C3D_TexDelete(&g_terrainTex);
+    if (g_heliTexOk) C3D_TexDelete(&g_heliTex);
+    g_terrainTexOk = g_heliTexOk = false;
+    g_texMode = mode;
+    bool ok = true;
+    if (!g_terrainImg.rgba.empty()) {
+        g_terrainTexOk = uploadTexture(g_terrainImg, &g_terrainTex, mode, report, "terrain");
+        ok = ok && g_terrainTexOk;
+    }
+    if (!g_heliImg.rgba.empty()) {
+        g_heliTexOk = uploadTexture(g_heliImg, &g_heliTex, mode, report, "heli");
+        ok = ok && g_heliTexOk;
+    }
+    return ok;
+}
+
+bool renderSetTargets(bool right, bool bottom) {
+    gfxSet3D(right);
+    if (right && !g_targetRight) {
+        g_targetRight = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+        if (!g_targetRight) return false;
+        C3D_RenderTargetSetOutput(g_targetRight, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);
+    } else if (!right && g_targetRight) {
+        C3D_RenderTargetDelete(g_targetRight);
+        g_targetRight = nullptr;
+    }
+    if (bottom && !g_targetBottom) {
+        // consoleInit made the bottom screen RGB565 and single-buffered; the transfer writes RGB8.
+        gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
+        gfxSetDoubleBuffering(GFX_BOTTOM, true);
+        // 16-bit depth: the bottom screen is a flat quad.
+        g_targetBottom = C3D_RenderTargetCreate(240, 320, GPU_RB_RGBA8, GPU_RB_DEPTH16);
+        if (!g_targetBottom) return false;
+        C3D_RenderTargetSetOutput(g_targetBottom, GFX_BOTTOM, GFX_LEFT, DISPLAY_TRANSFER_FLAGS);
+    } else if (!bottom && g_targetBottom) {
+        C3D_RenderTargetDelete(g_targetBottom);
+        g_targetBottom = nullptr;
+    }
+    return true;
+}
+
+void renderSetOptions(const FrameOptions& opts) { g_opts = opts; }
 
 bool renderLoadScene(Vfs& vfs, const World& world, std::string* report) {
     char line[200];
@@ -241,9 +364,8 @@ bool renderLoadScene(Vfs& vfs, const World& world, std::string* report) {
         auto b = [](float f) { return static_cast<u32>(std::max(0.0f, std::min(1.0f, f)) * 255.0f); };
         g_clearColor = (b(st.fogColor[0]) << 24) | (b(st.fogColor[1]) << 16) | (b(st.fogColor[2]) << 8) | 0xFF;
     }
-    Image img;
     std::string tpath = st.texturesDir + "\\texture1.tga";
-    if (loadImage(vfs, tpath, img)) g_terrainTexOk = uploadTexture(img, &g_terrainTex, report, "terrain");
+    if (loadImage(vfs, tpath, g_terrainImg)) g_terrainTexOk = uploadTexture(g_terrainImg, &g_terrainTex, g_texMode, report, "terrain");
     else *report += "cannot load " + tpath + "\n";
 
     {
@@ -284,43 +406,26 @@ bool renderLoadScene(Vfs& vfs, const World& world, std::string* report) {
     std::snprintf(line, sizeof line, "heli %s: %d verts, %d tris\n", e.modelPath.c_str(), g_heli.vertCount,
                   g_heli.indexCount / 3);
     *report += line;
-    Image himg;
-    if (loadImage(vfs, skin, himg)) g_heliTexOk = uploadTexture(himg, &g_heliTex, report, "heli");
+    if (loadImage(vfs, skin, g_heliImg)) g_heliTexOk = uploadTexture(g_heliImg, &g_heliTex, g_texMode, report, "heli");
     else *report += "cannot load skin " + skin + "\n";
     return true;
 }
 
-DrawStats renderFrame(const World& world) {
-    DrawStats ds;
-    C3D_RenderTargetClear(g_target, C3D_CLEAR_ALL, g_clearColor, 0);
-    C3D_FrameDrawOn(g_target);
+namespace {
 
-    // The engine's camera (world_render.cpp worldViewOf), with the PICA's tilted projection.
-    const CameraState& c = world.camera();
-    Vec3 eye{c.field[15], c.field[16], c.field[17]};
-    float fovY = c.field[14] > 1.0f ? c.field[14] : 60.0f;
-    float farPlane = 2000.0f;
-    if (const Terrain* t = world.terrain()) {
-        if (t->style().hasFog) farPlane = std::max(t->style().fogFar, 1000.0f);
-    }
-    Mat4 view = rotationX(c.field[18]) * rotationY(c.field[19]) * rotationZ(c.field[20]) * translation(-eye);
-    C3D_Mtx proj, viewM, mvp;
-    Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(fovY), C3D_AspectRatioTop, 4.0f, farPlane, false);
-    toC3D(view, &viewM);
-    Mtx_Multiply(&mvp, &proj, &viewM);
-
-    // Terrain: the chunks within reach of the camera (y from just behind the eye to far).
+// Draws the scene (terrain `passes` times, helicopter) into the currently selected target.
+void drawScene(const World& world, const C3D_Mtx& mvp, const Vec3& eye, float farPlane, DrawStats& ds) {
     if (g_terrainTexOk) C3D_TexBind(0, &g_terrainTex);
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, g_uMvp, &mvp);
-    for (const Mesh& m : g_chunks) {
-        if (m.maxY < eye.y - 200.0f || m.minY > eye.y + farPlane) continue;
-        bindMesh(m);
-        C3D_DrawElements(GPU_TRIANGLES, m.indexCount, C3D_UNSIGNED_SHORT, m.indices);
-        ds.terrainChunks++;
-        ds.vertices += m.indexCount;
+    for (int pass = 0; pass < g_opts.terrainPasses; ++pass) {
+        for (const Mesh& m : g_chunks) {
+            if (m.maxY < eye.y - 200.0f || m.minY > eye.y + farPlane) continue;
+            bindMesh(m);
+            C3D_DrawElements(GPU_TRIANGLES, m.indexCount, C3D_UNSIGNED_SHORT, m.indices);
+            if (pass == 0) ds.terrainChunks++;
+            ds.vertices += m.indexCount;
+        }
     }
-
-    // The helicopter.
     int pi = world.playerEntityIndex(0);
     if (g_heli.verts && pi >= 0) {
         C3D_Mtx model, mv;
@@ -332,6 +437,83 @@ DrawStats renderFrame(const World& world) {
         C3D_DrawElements(GPU_TRIANGLES, g_heli.indexCount, C3D_UNSIGNED_SHORT, g_heli.indices);
         ds.vertices += g_heli.indexCount;
     }
+}
+
+void drawQuad(C3D_Tex* tex) {
+    C3D_Mtx id;
+    Mtx_Identity(&id);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, g_uMvp, &id);
+    C3D_TexBind(0, tex);
+    bindMesh(g_quad);
+    C3D_DrawElements(GPU_TRIANGLES, g_quad.indexCount, C3D_UNSIGNED_SHORT, g_quad.indices);
+}
+
+// Quads use the vertex alpha as is; the scene keeps the texture alpha too.
+void quadEnv(bool on) {
+    C3D_TexEnv* env = C3D_GetTexEnv(0);
+    if (on) {
+        C3D_TexEnvSrc(env, C3D_Alpha, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+        C3D_TexEnvFunc(env, C3D_Alpha, GPU_REPLACE);
+    } else {
+        C3D_TexEnvSrc(env, C3D_Alpha, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+        C3D_TexEnvFunc(env, C3D_Alpha, GPU_MODULATE);
+    }
+}
+
+} // namespace
+
+DrawStats renderFrame(const World& world) {
+    DrawStats ds;
+    // The engine's camera (world_render.cpp worldViewOf), with the PICA's tilted projection.
+    const CameraState& c = world.camera();
+    Vec3 eye{c.field[15], c.field[16], c.field[17]};
+    float fovY = c.field[14] > 1.0f ? c.field[14] : 60.0f;
+    float farPlane = 2000.0f;
+    if (const Terrain* t = world.terrain()) {
+        if (t->style().hasFog) farPlane = std::max(t->style().fogFar, 1000.0f);
+    }
+    Mat4 view = rotationX(c.field[18]) * rotationY(c.field[19]) * rotationZ(c.field[20]) * translation(-eye);
+    C3D_Mtx viewM;
+    toC3D(view, &viewM);
+    const bool stereo = g_targetRight != nullptr;
+
+    // Top eyes: left, then right (a slightly different sky so a capture shows both were drawn).
+    for (int eyeIdx = 0; eyeIdx < (stereo ? 2 : 1); ++eyeIdx) {
+        C3D_RenderTarget* target = eyeIdx == 0 ? g_target : g_targetRight;
+        C3D_Mtx proj, mvp;
+        if (stereo) {
+            float iod = eyeIdx == 0 ? -g_opts.iod : g_opts.iod;
+            Mtx_PerspStereoTilt(&proj, C3D_AngleFromDegrees(fovY), C3D_AspectRatioTop, 4.0f, farPlane, iod, 2.0f, false);
+        } else {
+            Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(fovY), C3D_AspectRatioTop, 4.0f, farPlane, false);
+        }
+        Mtx_Multiply(&mvp, &proj, &viewM);
+        C3D_RenderTargetClear(target, C3D_CLEAR_ALL, eyeIdx == 0 ? g_clearColor : (g_clearColor ^ 0x30000000u), 0);
+        C3D_FrameDrawOn(target);
+        drawScene(world, mvp, eye, farPlane, ds);
+        if (g_opts.blendQuads > 0 && g_terrainTexOk) {
+            C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+            C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA,
+                           GPU_ONE_MINUS_SRC_ALPHA);
+            quadEnv(true);
+            for (int q = 0; q < g_opts.blendQuads; ++q) drawQuad((q & 1) && g_heliTexOk ? &g_heliTex : &g_terrainTex);
+            quadEnv(false);
+            C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
+            C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+        }
+    }
+
+    // Bottom screen: one textured quad.
+    if (g_targetBottom && g_terrainTexOk) {
+        C3D_RenderTargetClear(g_targetBottom, C3D_CLEAR_ALL, 0x202020FF, 0);
+        C3D_FrameDrawOn(g_targetBottom);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        quadEnv(true);
+        drawQuad(&g_terrainTex);
+        quadEnv(false);
+        C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+        ds.vertices += g_quad.indexCount;
+    }
     return ds;
 }
 
@@ -339,6 +521,8 @@ void renderShutdown() {
     for (Mesh& m : g_chunks) freeMesh(m);
     g_chunks.clear();
     freeMesh(g_heli);
+    freeMesh(g_quad);
+    renderSetTargets(false, false);
     if (g_terrainTexOk) C3D_TexDelete(&g_terrainTex);
     if (g_heliTexOk) C3D_TexDelete(&g_heliTex);
     shaderProgramFree(&g_program);

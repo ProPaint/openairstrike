@@ -60,3 +60,16 @@ Put the paks on the console's SD card as above, open the Homebrew Launcher, pres
 `as3d_spike.3dsx` to `sdmc:/3ds/` and start it from the launcher. Afterwards
 `sdmc:/3ds/openairstrike/spike_log.txt` holds the real numbers; the questions they settle are
 listed under "Open on hardware" in docs/3ds-spike.md.
+
+## GPU probe (M1.0)
+
+`source/probe.cpp` measures what the PICA200 costs for eight texture, target and blend
+variants (docs/3ds-port.md, "M1.0 GPU probe"). It is selected by a run config on the SD card,
+`sdmc:/3ds/openairstrike/run.ini`:
+
+    mode=probe        # or mode=spike; no file = spike
+    hold=0            # optional: frames to keep drawing after each variant (screenshots)
+    only=             # optional: run just these variants, e.g. only=CH
+
+The probe runs unattended, prints a table on the bottom screen and appends it to
+`sdmc:/3ds/openairstrike/probe_log.txt`. START quits.
