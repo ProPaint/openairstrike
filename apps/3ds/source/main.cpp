@@ -29,6 +29,7 @@
 
 #include "probe.h"
 #include "render.h"
+#include "spike.h"
 
 extern "C" {
 extern u32 __ctru_heap_size;
@@ -143,7 +144,7 @@ std::unique_ptr<as3d::World> runMission(as3d::Vfs& vfs, const as3d::DefDatabase&
 
 } // namespace
 
-int main() {
+int runSpike() {
     using namespace as3d;
     // vramSpaceFree() reports 0 until the VRAM heap has served its first allocation.
     if (void* warm = vramAlloc(0x100)) vramFree(warm);

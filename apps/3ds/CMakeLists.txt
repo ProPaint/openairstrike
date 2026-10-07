@@ -12,11 +12,19 @@ add_link_options(-Wl,--gc-sections)
 ctr_add_shader_library(scene_shbin OUTPUT scene.shbin source/scene.v.pica)
 dkp_add_embedded_binary_library(scene_shbin_data scene_shbin)
 
+# game_session.cpp is the one apps/game file the 3DS app uses so far: GameStack and GameFlow
+# need GameView, hence the PICA renderer (M1.3, M1.8).
 add_executable(openairstrike
+  source/ctr_main.cpp
+  source/ctr_loop.cpp
+  source/ctr_perf.cpp
+  source/run_config.cpp
   source/main.cpp
   source/probe.cpp
-  source/render.cpp)
-target_include_directories(openairstrike PRIVATE source)
+  source/render.cpp
+  ${AS3D_REPO_ROOT}/apps/game/game_session.cpp)
+target_include_directories(openairstrike PRIVATE source ${AS3D_REPO_ROOT}/apps/game
+                                                 ${AS3D_REPO_ROOT}/engine/src/platform/ctr)
 target_link_libraries(openairstrike PRIVATE scene_shbin_data ${AS3D_MODULES} ${AS3D_MODULES}
                                             citro3d ctru m)
 target_compile_options(openairstrike PRIVATE -fno-exceptions)

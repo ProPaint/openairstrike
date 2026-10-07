@@ -79,3 +79,38 @@ those variants.
 
 The probe runs unattended, prints a table on the bottom screen and appends it to
 `sdmc:/3ds/openairstrike/probe_log.txt`. START quits.
+
+## Game loop and run.ini (M1.2)
+
+`sdmc:/3ds/openairstrike/run.ini` chooses what the app does. One `key=value` per line, `#` or `;`
+start a comment line, unknown keys are ignored, no file means `mode=spike`:
+
+| key | values | meaning |
+|---|---|---|
+| `mode` | `spike` (default), `probe`, `sim`, `bot`, `play` | `spike` and `probe` run the old code paths. `sim`: the mission headless at full speed with the bot, no screens, ends after `frames` steps (reproduces `as3d_sim --bot`). `bot`: real-time 60 Hz loop with the bot's input and the screens through the frame hook (for now cleared to a colour that cycles with the frame count). `play`: the same loop with the pad (circle pad / D-pad steer, A fire, B missile, X power-up, Y weapon, R next missile, START pause; a stub until M1.9). |
+| `game` | profile key, default `as3d` | the game; its paks are read from `sdmc:/3ds/openairstrike/<key>/` |
+| `level` | N, default 1 | the mission to start (the front end is off: `startLevel=true`, `levelFlow=false`) |
+| `frames` | N, default 0 | simulation steps, then the app quits cleanly; 0 means 600 in `sim` and unlimited otherwise |
+| `perf` | `0` (default) or `1` | write `perf.csv` |
+| `difficulty` | N | the engine default when absent |
+| `hold`, `only` | | probe only (see above) |
+
+`mode=bot level=1 frames=3600 perf=1` is the M1 acceptance run. START+SELECT held together quits
+cleanly in every loop mode. HOME and sleep pause the world, call the save hook (none yet) and flush
+the log; the clock restarts on resume (no replay of the time away). On a New 3DS the loop turns the
+speed-up on.
+
+Outputs, all in `sdmc:/3ds/openairstrike/`: `log.txt` (every `AS3D_INFO/WARN/ERROR` of the engine and
+the app, written once a second; replaced at each start), and with `perf=1` `perf.csv`, one row per
+displayed frame: `frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,
+linear_free_kb,lazy_loads`. The renderer columns are 0 until the PICA backend and the frame composer
+fill them, `lazy_loads` until M1.10. At the end `log.txt` gets the end state in the format of
+`as3d_sim` and `PERF_SUMMARY` lines (step and frame time avg/p95/max, frames over 17 ms, load time,
+heap high-water, linear free). Fetch with ftpd and report:
+
+    tools/3ds_fetch_logs.sh 192.168.1.133         # -> out/3ds/<date>-<commit>/
+    python3 tools/3ds_perf_report.py out/3ds/<date>-<commit>
+
+Code: `ctr_main.cpp` (entry), `run_config.*`, `ctr_loop.*` (the loop, `FrameHook`), `ctr_perf.*`;
+the graphics context is the engine's ctr platform backend (`engine/src/platform/ctr/`, its
+private header `ctr_context.h`).

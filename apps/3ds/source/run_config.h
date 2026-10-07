@@ -1,0 +1,40 @@
+// sdmc:/3ds/openairstrike/run.ini of the 3DS app: what to run. One "key=value" per line, '#'
+// or ';' start a comment line, unknown keys are ignored (probe.cpp reads its own keys, hold= and
+// only=, from the same file). A missing file gives the defaults: mode=spike, the feasibility
+// spike. Documented in apps/3ds/README.md.
+#pragma once
+
+#include <string>
+
+namespace ctrapp {
+
+constexpr const char* kDataDir = "sdmc:/3ds/openairstrike"; // no trailing slash
+
+enum class Mode {
+    Spike, // the feasibility spike (main.cpp), the default
+    Probe, // the M1.0 GPU probe (probe.cpp)
+    Sim,   // the mission headless at full speed with the bot, no screens (as3d_sim --bot)
+    Bot,   // real-time 60 Hz loop, bot input, screens through the frame hook
+    Play,  // real-time loop with the pad
+};
+
+struct RunConfig {
+    Mode mode = Mode::Spike;
+    std::string game = "as3d"; // game=KEY: a profile key of as3d/game_data.h; its paks live in <dir>/<key>/
+    int level = 1;             // level=N: the mission to start (1..the game's mission count)
+    int frames = 0;            // frames=N: simulation steps, then quit; 0 = 600 in sim, unlimited otherwise
+    bool perf = false;         // perf=1: write perf.csv
+    int difficulty = -1;       // difficulty=N: -1 = the engine's default
+
+    bool usesLoop() const { return mode == Mode::Sim || mode == Mode::Bot || mode == Mode::Play; }
+    int effectiveFrames() const { return frames > 0 ? frames : (mode == Mode::Sim ? 600 : 0); }
+};
+
+const char* modeName(Mode m);
+
+// Parses the file text; keys it does not know are skipped, bad values keep the default.
+RunConfig parseRunConfig(const std::string& text);
+// Reads `path`; an absent file gives the defaults.
+RunConfig readRunConfig(const std::string& path);
+
+} // namespace ctrapp

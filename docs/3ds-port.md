@@ -18,6 +18,17 @@ removed from `as3d_input` on the 3DS; audio uses `AS3D_WITH_OPENMPT=OFF` and the
 The 3DS build uses gnu++17 (newlib needs `_GNU_SOURCE` for `fseeko`). `run.ini` `mode=spike|probe`
 works as before.
 
+## M1.2 Platform backend and main loop
+
+`engine/src/platform/ctr/` is the 3DS platform backend: `graphics_context_ctr.cpp` (gfx, 3D on,
+the bottom screen format fix, citro3d, targets top left/right 400x240 RGBA8 + D24S8 and bottom
+320x240 RGBA8; the private header `ctr_context.h` gives `ctrContext()` with `topTarget(eye)`,
+`bottomTarget()`, `beginFrame()/endFrame()`, `sliderValue()`, `eyeCount()`), `rw_stream_ctr.cpp`
+(stdio streams) and `user_data_ctr.cpp` (`sdmc:/3ds/openairstrike/`). `as3d::setLogSink`
+(core.h) lets the app route the engine log to `log.txt`. The loop, run.ini keys and outputs are in
+[apps/3ds/README.md](../apps/3ds/README.md). The loop drives `GameSession` directly: `GameStack`
+and `GameFlow` link `GameView`, which needs the PICA render backend (M1.3, M1.8).
+
 ## M1.0 GPU probe
 
 What the PICA200 costs for the choices the renderer has to make: where textures live, what
