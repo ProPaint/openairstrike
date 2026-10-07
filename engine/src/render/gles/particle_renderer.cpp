@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "as3d/gfx.h"
 #include "as3d/image.h"
 #include "as3d/particle_render.h"
 

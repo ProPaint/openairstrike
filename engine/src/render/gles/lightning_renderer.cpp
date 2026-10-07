@@ -7,6 +7,8 @@
 #include <cstddef>
 #include <vector>
 
+#include "as3d/gfx.h"
+
 namespace as3d {
 
 namespace {

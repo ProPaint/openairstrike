@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 
+#include "as3d/gfx.h"
 #include "as3d/platform.h"
 #include "as3d/vfs.h"
 #include "test_data.h"

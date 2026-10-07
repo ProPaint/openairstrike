@@ -11,7 +11,7 @@
 #include <memory>
 #include <string>
 
-#include "as3d/gfx.h"
+#include "as3d/texture.h"
 #include "as3d/math.h"
 #include "as3d/particles.h"
 #include "as3d/vfs.h"
