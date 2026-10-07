@@ -50,6 +50,7 @@ PicaFormat chooseFormat(const Image& img, TextureClass cls) {
     case TextureClass::Alpha: return PicaFormat::RGBA4;
     case TextureClass::Font: return PicaFormat::LA8;
     case TextureClass::Shadow: return PicaFormat::A8;
+    case TextureClass::TrueColor: return PicaFormat::RGBA8;
     case TextureClass::Auto: break;
     }
     bool binary = true, opaque = true;

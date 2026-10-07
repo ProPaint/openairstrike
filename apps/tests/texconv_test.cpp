@@ -145,6 +145,7 @@ TEST_CASE("texconv: formats and sizes") {
     CHECK(chooseFormat(c, TextureClass::Opaque) == PicaFormat::RGB565);
     CHECK(chooseFormat(a, TextureClass::Cutout) == PicaFormat::RGBA5551);
     CHECK(chooseFormat(a, TextureClass::Alpha) == PicaFormat::RGBA4);
+    CHECK(chooseFormat(a, TextureClass::TrueColor) == PicaFormat::RGBA8);
 
     CHECK(bitsPerTexel(PicaFormat::A4) == 4);
     CHECK(bitsPerTexel(PicaFormat::RGB8) == 24);

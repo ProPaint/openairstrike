@@ -38,9 +38,10 @@ int bitsPerTexel(PicaFormat f);
 // back to back.
 size_t byteSize(int w, int h, PicaFormat f, int mipLevels);
 
-enum class TextureClass { Auto, Opaque, Cutout, Alpha, Font, Lightmap, Shadow };
+enum class TextureClass { Auto, Opaque, Cutout, Alpha, Font, Lightmap, Shadow, TrueColor };
 // Auto: alpha all 255 -> RGB565; only 0/255 -> RGBA5551; otherwise RGBA4.
-// Opaque RGB565, Cutout RGBA5551, Alpha RGBA4, Font LA8, Lightmap RGB565, Shadow A8.
+// Opaque RGB565, Cutout RGBA5551, Alpha RGBA4, Font LA8, Lightmap RGB565, Shadow A8,
+// TrueColor RGBA8 (art where 4-bit alpha or 5-bit colour bands visibly; twice the memory).
 PicaFormat chooseFormat(const Image& img, TextureClass cls);
 
 int roundUpPow2(int v);                                // 1 -> 1, 3 -> 4, 256 -> 256
