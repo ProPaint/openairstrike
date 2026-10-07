@@ -220,8 +220,8 @@ int main() {
         u32 vramTarget = vramSpaceFree();
         spike::renderLoadScene(vfs, *world, &report);
         out("%s", report.c_str());
-        out("VRAM free %.2f MB (target %.2f MB), linear used by scene %.2f MB\n", mb(vramSpaceFree()),
-            mb(vram0 - vramTarget), mb(linear0 - linearSpaceFree()));
+        out("VRAM free: before %.2f, after target %.2f, after scene %.2f MB; linear used by scene %.2f MB\n",
+            mb(vram0), mb(vramTarget), mb(vramSpaceFree()), mb(linear0 - linearSpaceFree()));
         double sumStep = 0, sumCpu = 0, sumGpu = 0, sumFrame = 0, worstGpu = 0, worstFrame = 0, worstCpu = 0;
         int chunks = 0, verts = 0;
         const int kFrames = 300;

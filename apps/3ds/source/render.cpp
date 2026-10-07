@@ -246,6 +246,16 @@ bool renderLoadScene(Vfs& vfs, const World& world, std::string* report) {
     if (loadImage(vfs, tpath, img)) g_terrainTexOk = uploadTexture(img, &g_terrainTex, report, "terrain");
     else *report += "cannot load " + tpath + "\n";
 
+    {
+        // Projection check: where view-space (1,0,-10) and (0,1,-10) land in clip space.
+        C3D_Mtx proj;
+        Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(60.0f), C3D_AspectRatioTop, 4.0f, 2000.0f, false);
+        C3D_FVec a = Mtx_MultiplyFVec4(&proj, FVec4_New(1, 0, -10, 1));
+        C3D_FVec b = Mtx_MultiplyFVec4(&proj, FVec4_New(0, 1, -10, 1));
+        std::snprintf(line, sizeof line, "proj x1 -> (%.3f %.3f) y1 -> (%.3f %.3f)\n", a.x / a.w, a.y / a.w, b.x / b.w,
+                      b.y / b.w);
+        *report += line;
+    }
     // The player's helicopter: its root mesh and skin.
     int pi = world.playerEntityIndex(0);
     if (pi < 0 || !world.entity(pi).model) {
