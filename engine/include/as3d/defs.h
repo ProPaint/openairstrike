@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "as3d/core.h"
@@ -319,7 +320,8 @@ public:
     // Safe to call more than once; safe to call without load() (does nothing).
     void validate(Vfs& vfs);
 
-    // Case-insensitive name lookup, or null.
+    // Case-insensitive name lookup, or null; the first definition of a name wins. Hashed after
+    // load() (the precache closure looks up every string of every script).
     const ObjectDef* findObject(const std::string& name) const;
     const WeaponDef* findWeapon(const std::string& name) const;
     const ParticleSystemDef* findParticleSystem(const std::string& name) const;
@@ -341,6 +343,12 @@ private:
     // Keeps every parsed file alive: ObjectDef::source (etc.) point into
     // the TextBlocks owned here.
     std::vector<TextFile> sourceFiles_;
+
+    // Lower-cased name -> index of its first definition, built at the end of load(); empty
+    // before (the finds then search linearly).
+    std::unordered_map<std::string, size_t> objectIndex_, weaponIndex_, particleIndex_;
+    bool indexed_ = false;
+    void buildIndex();
 };
 
 // Canonical text serialization of a definition's typed fields, used to hash

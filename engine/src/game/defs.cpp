@@ -408,11 +408,35 @@ bool DefDatabase::load(Vfs& vfs) {
     // objects_/weapons_/particleSystems_ never reallocate again after this
     // point (nothing appends to them later), and DefDef::source pointers
     // into sourceFiles_ are unaffected either way (see reserve() note).
+    buildIndex();
     return true;
+}
+
+namespace {
+
+template <typename Def>
+void indexNames(const std::vector<Def>& defs, std::unordered_map<std::string, size_t>& index) {
+    index.clear();
+    for (size_t i = 0; i < defs.size(); ++i) {
+        if (!defs[i].name.empty()) index.emplace(toLower(defs[i].name), i); // first-defined wins
+    }
+}
+
+} // namespace
+
+void DefDatabase::buildIndex() {
+    indexNames(objects_, objectIndex_);
+    indexNames(weapons_, weaponIndex_);
+    indexNames(particleSystems_, particleIndex_);
+    indexed_ = true;
 }
 
 const ObjectDef* DefDatabase::findObject(const std::string& name) const {
     std::string key = toLower(name);
+    if (indexed_) {
+        auto it = objectIndex_.find(key);
+        return it != objectIndex_.end() ? &objects_[it->second] : nullptr;
+    }
     for (const auto& o : objects_) {
         if (!o.name.empty() && toLower(o.name) == key) return &o; // first-defined wins (VERIFIED-CODE)
     }
@@ -421,6 +445,10 @@ const ObjectDef* DefDatabase::findObject(const std::string& name) const {
 
 const WeaponDef* DefDatabase::findWeapon(const std::string& name) const {
     std::string key = toLower(name);
+    if (indexed_) {
+        auto it = weaponIndex_.find(key);
+        return it != weaponIndex_.end() ? &weapons_[it->second] : nullptr;
+    }
     for (const auto& w : weapons_) {
         if (!w.name.empty() && toLower(w.name) == key) return &w;
     }
@@ -429,6 +457,10 @@ const WeaponDef* DefDatabase::findWeapon(const std::string& name) const {
 
 const ParticleSystemDef* DefDatabase::findParticleSystem(const std::string& name) const {
     std::string key = toLower(name);
+    if (indexed_) {
+        auto it = particleIndex_.find(key);
+        return it != particleIndex_.end() ? &particleSystems_[it->second] : nullptr;
+    }
     for (const auto& p : particleSystems_) {
         if (!p.name.empty() && toLower(p.name) == key) return &p;
     }
