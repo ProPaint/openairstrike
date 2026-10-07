@@ -1,0 +1,28 @@
+; Vertex shader of the 3DS spike: position through one model-view-projection matrix,
+; colour (unsigned bytes 0..255, scaled here) and texture coordinate passed through.
+
+.fvec mvp[4]
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0)
+.alias ones consts.yyyy
+.alias inv255 consts.zzzz
+
+.out outpos position
+.out outtc0 texcoord0
+.out outclr color
+
+.alias inpos v0
+.alias inclr v1
+.alias intex v2
+
+.proc main
+	mov r0.xyz, inpos
+	mov r0.w, ones
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+	mov outtc0, intex
+	mul outclr, inv255, inclr
+	end
+.end
