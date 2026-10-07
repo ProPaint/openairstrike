@@ -1,5 +1,7 @@
 #include "game_stack.h"
 
+#include "as3d/load_stats.h"
+
 namespace as3d_game {
 
 bool GameStack::build(const StackConfig& config, std::string* error, const std::function<void(float)>& progress) {
@@ -22,6 +24,15 @@ bool GameStack::build(const StackConfig& config, std::string* error, const std::
     }
     if (!config.noAudio) {
         audio.init(session->vfs(), config.nullAudio);
+        if (view) {
+            view->precacheSounds = [this](const as3d::PrecacheSet& s) { return audio.precacheSounds(s); };
+            // GameOptions::precache: view->init precached the first level before the audio
+            // existed; its sounds now, before play starts.
+            if (const as3d::PrecacheSet* s = session->world().precacheSet()) {
+                audio.precacheSounds(*s);
+                as3d::LoadStats::reset();
+            }
+        }
         audio.startLevel(session->musicPath());
     }
     if (config.frontend) {

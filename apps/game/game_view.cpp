@@ -5,6 +5,7 @@
 
 #include "as3d/defs.h"
 #include "as3d/frontend.h"
+#include "as3d/load_stats.h"
 #include "as3d/object_tree.h"
 #include "as3d/render_state.h"
 #include "as3d/scene.h"
@@ -84,7 +85,7 @@ bool BannerMesh::init(Vfs& vfs, const DefDatabase& db, std::string* error) {
 }
 
 GameView::GameView() = default;
-GameView::~GameView() = default;
+GameView::~GameView() { logLazyLoads(); }
 
 bool GameView::init(GameSession& session, std::string* error, bool level) {
     if (!renderer_.init(session.vfs(), session.db(), error)) return false;
@@ -101,7 +102,34 @@ bool GameView::init(GameSession& session, std::string* error, bool level) {
 }
 
 bool GameView::beginLevel(GameSession& session, std::string* error) {
-    return renderer_.beginLevel(session.world(), error);
+    logLazyLoads(); // the level that ended
+    if (!renderer_.beginLevel(session.world(), error)) return false;
+    if (session.options().precache && session.hasLevel()) precacheLevel(session);
+    return true;
+}
+
+void GameView::precacheLevel(GameSession& session) {
+    World& world = session.world();
+    PrecacheReport r = world.precacheScripts();
+    r += renderer_.precache(world, session.db());
+    const LoadCounts before = LoadStats::lazyLoads();
+    if (hudReady_) assets_.precachePlay();
+    if (precacheSounds && world.precacheSet()) precacheSounds(*world.precacheSet());
+    const LoadCounts d = LoadStats::lazyLoads() - before;
+    r.textures += static_cast<int>(d.of(LoadKind::Texture));
+    r.sounds += static_cast<int>(d.of(LoadKind::Sound));
+    r.bytes += d.bytes;
+    lastPrecache_ = r;
+    precachedMission_ = session.mission();
+    AS3D_INFO("AS3D_PRECACHE mission=%d %s", precachedMission_, r.str().c_str());
+    // From here on every load is a lazy one (logged by logLazyLoads at the level's end).
+    LoadStats::reset();
+}
+
+void GameView::logLazyLoads() {
+    if (precachedMission_ < 0) return;
+    AS3D_INFO("AS3D_LAZY_LOADS mission=%d %s", precachedMission_, LoadStats::lazyLoads().str().c_str());
+    precachedMission_ = -1;
 }
 
 void GameView::step(const GameSession& session) {

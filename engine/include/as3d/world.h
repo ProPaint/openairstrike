@@ -18,6 +18,7 @@
 #include "as3d/core.h"
 #include "as3d/game_profile.h"
 #include "as3d/math.h"
+#include "as3d/precache.h"
 #include "as3d/script.h"
 #include "as3d/terrain.h"
 #include "as3d/water.h"
@@ -579,6 +580,18 @@ public:
     void noteScriptError(const char* scriptName, const char* message);
     const ModelData* loadModel(const std::string& path);
 
+    // Level-start precache, world side (as3d/precache.h): after loadLevel, computes the level's
+    // precache closure, compiling the script of every definition in it and every placement's
+    // script override (so that no spawn compiles one), and loads the simulation's copy of every
+    // model it names. The set is kept for the renderer and the audio side until the next level
+    // starts (precacheSet(), null before and after). Only the loads happen: no entity, random
+    // number or script thread changes, so the simulation is the same with or without it.
+    PrecacheReport precacheScripts();
+    const PrecacheSet* precacheSet() const { return precache_.get(); }
+    // The program at `path` if a script thread or a precache already compiled it, else null
+    // (nothing is loaded).
+    const script::ScriptProgram* compiledProgram(const std::string& path) const;
+
     // Deterministic JSON dump of the whole simulation state.
     std::string dumpStateJson() const;
 
@@ -643,6 +656,7 @@ private:
     GameId game_ = GameId::AirStrike3D;
     Rng rng_{1};
     std::unique_ptr<GameScriptHost> host_;
+    std::unique_ptr<PrecacheSet> precache_; // precacheScripts(); reset at every level start
     std::unique_ptr<WorldParticles> particles_;
     u32 retreg_ = 0; // the shared return register (0x1fa7dfc)
     script::BuiltinReport report_;

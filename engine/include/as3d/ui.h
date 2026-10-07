@@ -283,6 +283,11 @@ struct UiAssets {
     // The same with repeat wrapping (a picture sampled over more than one width: the sequels'
     // title-logo clouds and panel noise), cached apart from the clamped one.
     const Texture2D* textureRepeat(std::string_view path) const;
+    // Level-start precache (as3d/precache.h): loads into the texture() cache the pictures play
+    // can show besides the atlases load() takes, so the first hint or level end loads nothing:
+    // the first game's hint OK button and its mission complete / game over pictures (the
+    // sequels' hint panel is one of load()'s atlases). Returns how many it looked up.
+    int precachePlay() const;
 
 private:
     Vfs* vfs_ = nullptr;

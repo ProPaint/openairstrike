@@ -1,13 +1,17 @@
 // Loading of the 2D textures. See as3d/ui.h.
 #include "as3d/hud_layout.h"
 #include "as3d/image.h"
+#include "as3d/load_stats.h"
 #include "as3d/ui.h"
 
 namespace as3d::ui {
 
 namespace {
 
+// One texture load (as3d/load_stats.h); texture() caches failures, so each path counts once.
 bool loadOne(Vfs& vfs, const std::string& path, Texture2D& out, std::string* error, Wrap wrap = Wrap::ClampToEdge) {
+    LoadStats::Site site;
+    LoadStats::count(LoadKind::Texture);
     Blob blob;
     Image image;
     if (!vfs.read(path, blob) || !decodeTga(blob.data(), blob.size(), image)) {
@@ -75,6 +79,15 @@ const Texture2D* UiAssets::texture(std::string_view path) const {
     const Texture2D* p = tex.get();
     cache_[key] = std::move(tex);
     return p;
+}
+
+int UiAssets::precachePlay() const {
+    if (hudLayout().hint == HintStyle::SequelPanel) return 0;
+    // hud.cpp drawHintOk, screens_game.cpp (mission complete, game over).
+    static const char* const kPlay[] = {"menu\\apply_ok_1.tga", "menu\\apply_ok_2.tga", "menu\\miscompl_1.tga",
+                                        "menu\\miscompl_2.tga", "menu\\gameover_0.tga", "menu\\gameover_3.tga"};
+    for (const char* p : kPlay) texture(p);
+    return static_cast<int>(sizeof kPlay / sizeof kPlay[0]);
 }
 
 const Texture2D* UiAssets::textureRepeat(std::string_view path) const {

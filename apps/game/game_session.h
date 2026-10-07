@@ -46,6 +46,12 @@ struct GameOptions {
     // the install's data\gfx): game path -> path for as3d::readPlatformFile. Mounted under
     // everything else.
     std::vector<std::pair<std::string, std::string>> extraFiles;
+    // as3d_game --precache: at every level start the view precaches the level (GameView::
+    // beginLevel: World::precacheScripts, WorldRenderer::precache, the play pictures and, through
+    // GameView::precacheSounds, the sounds), logs AS3D_PRECACHE with the PrecacheReport, resets
+    // the load counters (as3d/load_stats.h) and logs AS3D_LAZY_LOADS with them when the level
+    // ends. Off by default: everything loads on first use, as before.
+    bool precache = false;
 
     const as3d::GameRules& rules() const { return game ? game->rules : as3d::defaultGameRules(); }
 };
@@ -106,6 +112,7 @@ public:
     as3d::Vfs& vfs() { return vfs_; }
     const as3d::DefDatabase& db() const { return *db_; }
     int mission() const { return mission_; }
+    const GameOptions& options() const { return options_; }
     const as3d::GameProfile* game() const { return options_.game; }
     const as3d::GameRules& rules() const { return options_.rules(); }
     // The levels.txt entry of the current level, or null.

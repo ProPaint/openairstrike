@@ -5,7 +5,7 @@
 //             [--screenshot-every K] [--out-dir DIR] [--dump-state FILE]
 //             [--touch] [--perf] [--fullscreen] [--paks DIR] [--game as3d|as2|gulf] [--list-games]
 //             [--profile FILE] [--attract 1..4] [--no-logo]
-//             [--screen wide|4x3] [--left-handed] [--dpi N] [--fps] [--allow-unfinished]
+//             [--screen wide|4x3] [--left-handed] [--dpi N] [--fps] [--allow-unfinished] [--precache]
 //   as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]
 //             [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet] ...
 //   as3d_game --headless --ui-script FILE [--frames N] [--size WxH] [--touch] ...
@@ -40,6 +40,10 @@
 // Options "Controls" row decides), --dpi sizes the touch buttons for that display density
 // (default: the window is taken for a phone screen). --fps shows the frame counter whatever the
 // Show FPS setting says; headless screenshots show it only with --fps.
+// --precache loads everything a level can need at its start (the 3DS port's level-start
+// precache, as3d/precache.h) instead of on first use, logs the report (AS3D_PRECACHE) and, when
+// the level ends, the loads that still happened on first use (AS3D_LAZY_LOADS, per kind of
+// as3d/load_stats.h; all zero when the precache is complete).
 // The simulation runs at a fixed 60 Hz step. Headless mode has no window and no audio
 // device (the mixer runs on the null device) and renders through EGL into an offscreen
 // target only on screenshot frames; `--dump-state` writes the same JSON as as3d_sim.
@@ -69,6 +73,7 @@
 #include "audio_bridge.h"
 #include "as3d/game_data.h"
 #include "as3d/launcher.h"
+#include "as3d/load_stats.h"
 #include "game_loop.h"
 #include "game_flow.h"
 #include "game_session.h"
@@ -119,7 +124,7 @@ int usage() {
                  "                 [--input-script FILE] [--record FILE] [--bot] [--god] [--frames N] [--no-audio]\n"
                  "                 [--touch] [--perf] [--fullscreen] [--paks DIR] [--game as3d|as2|gulf] [--list-games]\n"
                  "                 [--profile FILE] [--attract 1..4] [--no-logo]\n"
-                 "                 [--screen wide|4x3] [--left-handed] [--dpi N] [--fps]\n"
+                 "                 [--screen wide|4x3] [--left-handed] [--dpi N] [--fps] [--precache]\n"
                  "                 [--stereo-debug EYE_OFFSET[,FOCAL_DISTANCE]]  (both eyes side by side)\n"
                  "                 [--dual-screen]  (3DS preview: 400x240 world above a 320x240 touch screen, 400x480 window)\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
@@ -155,6 +160,7 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--left-handed") a.leftHanded = true;
         else if (s == "--fps") a.fps = true;
         else if (s == "--dual-screen") a.dual = true;
+        else if (s == "--precache") a.game.precache = true;
         else if (s == "--stereo-debug" && next()) {
             if (std::sscanf(v, "%f,%f", &a.stereoEyeOffset, &a.stereoFocal) < 1) return false;
         }
@@ -263,6 +269,14 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
     AudioBridge audio;
     if (!a.noAudio) {
         audio.init(session.vfs(), true);
+        if (view) {
+            view->precacheSounds = [&audio](const PrecacheSet& s) { return audio.precacheSounds(s); };
+            // --precache: the first level's sounds (view->init precached the rest before).
+            if (const PrecacheSet* s = session.world().precacheSet()) {
+                audio.precacheSounds(*s);
+                LoadStats::reset();
+            }
+        }
         audio.startLevel(session.musicPath());
     }
     InputSource source(a.bot, script);

@@ -32,6 +32,8 @@ public:
     // Loads (once) and returns the program at a game path, or null if it is missing or
     // malformed (logged once).
     const script::ScriptProgram* program(const std::string& path);
+    // The program at `path` if program() loaded it already, else null; never loads.
+    const script::ScriptProgram* loadedProgram(const std::string& path) const;
     void clearPrograms() { programs_.clear(); }
     size_t programCount() const { return programs_.size(); }
 

@@ -84,6 +84,7 @@ bool World::loadLevel(const std::string& ref, std::string* error) {
 
 bool World::startLevel(std::unique_ptr<LoadedLevel> lvl, int mission) {
     if (!lvl || !db_) return false;
+    precache_.reset(); // the previous level's precache set (World::precacheScripts)
     // G_BeginLevel (10.2): difficulty, flags, per-player state.
     resetLevelState();
     resetPlayersForLevel();

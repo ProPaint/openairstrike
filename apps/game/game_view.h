@@ -4,6 +4,7 @@
 // layer, brightness) and frontend.md 4.1. Needs a current GLES 3.0 context.
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -158,6 +159,11 @@ public:
     // (HudTarget::Bottom320x240, no brightness pass: the screen is mostly black). The touch
     // buttons are the host's.
     bool dualScreen = false;
+    // With GameOptions::precache: loads the sounds of the level's precache set (the audio side,
+    // AudioBridge::precacheSounds); unset = no sound precache. Returns how many it looked up.
+    std::function<int(const as3d::PrecacheSet&)> precacheSounds;
+    // The report of the last level-start precache (GameOptions::precache).
+    const as3d::PrecacheReport& lastPrecache() const { return lastPrecache_; }
 
 private:
     struct Preview;
@@ -171,6 +177,11 @@ private:
     std::unique_ptr<Preview> preview_;
     bool hudReady_ = false;
     ViewRect frameRect_{0, 0, 800, 600};
+    // GameOptions::precache: the level precached last, whose lazy loads are logged at its end.
+    void precacheLevel(GameSession& session);
+    void logLazyLoads();
+    as3d::PrecacheReport lastPrecache_;
+    int precachedMission_ = -1;
 };
 
 // The HUD state for the current frame, from the world: health, lives, score, weapon,

@@ -16,6 +16,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -190,6 +191,20 @@ public:
     // silhouettes of the placed objects. Call after every
     // World::loadLevel.
     bool beginLevel(const World& world, std::string* error);
+
+    // Level-start precache (3DS port M1.10, as3d/precache.h): after beginLevel, loads what the
+    // level can need so that no frame loads on first use: the mesh, material textures (skin,
+    // model texture, envmap) and shadow silhouettes (planar, and the 12 rotations of a projected
+    // one) of every definition of the level's precache closure, sprite and mark skins, skid mark
+    // textures, the models and textures scripts name, the particle textures of its particle
+    // systems, and the lightning texture. The closure is World::precacheSet() when
+    // World::precacheScripts ran (call it first: it compiles the scripts whose strings extend
+    // the closure), else it is computed here from the scripts compiled so far. `db` is the
+    // database the renderer was initialised with. `progress` gets 0..1. Needs the GL context;
+    // best effort (a missing file gets its usual placeholder and warning). Off by default: only
+    // a caller that asks (as3d_game --precache, the 3DS loop) runs it.
+    PrecacheReport precache(const World& world, const DefDatabase& db,
+                            const std::function<void(float)>& progress = {});
 
     // Nothing to do: the world advances its own particles (kept for callers written when
     // the renderer simulated them).

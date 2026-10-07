@@ -10,6 +10,7 @@
 #include <GLES3/gl3.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -20,6 +21,7 @@
 #include "as3d/ground_marks.h"
 #include "as3d/health_bar.h"
 #include "as3d/lightning_render.h"
+#include "as3d/load_stats.h"
 #include "as3d/particle_render.h"
 #include "as3d/scene.h"
 #include "as3d/shadow_render.h"
@@ -267,7 +269,10 @@ struct WorldRenderer::Impl {
         if (it != shadowMaps.end()) return it->second.get();
         std::unique_ptr<ShadowMap> map(new ShadowMap());
         if (!shadows.generate(mesh.model, mat.texture, ss.kind, towardsSun, steps, ss.quality, *map)) map.reset();
-        if (late) ++lateShadowMaps;
+        if (late) {
+            ++lateShadowMaps;
+            LoadStats::count(LoadKind::Shadow); // a first-use load (as3d/load_stats.h)
+        }
         const ShadowMap* p = map.get();
         shadowMaps.emplace(key, std::move(map));
         return p;
@@ -289,6 +294,61 @@ struct WorldRenderer::Impl {
             if (db->findParticleSystem(at.targetName)) continue;
             precacheShadows(db->findObject(at.targetName), steps, night, depth + 1);
         }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Level-start precache (WorldRenderer::precache).
+    // ---------------------------------------------------------------------------------------
+
+    // One definition of the closure: what prepare() loads when an entity of it is first drawn.
+    void precacheObject(const ObjectDef& def) {
+        for (const SkidMarkDef& sk : def.skidMarks)
+            if (!sk.texture.empty()) cache->texture(sk.texture);
+        switch (def.type) {
+            case ObjectType::Model: {
+                if (def.model.empty()) return;
+                const GpuMesh& mesh = cache->mesh(def.model);
+                if (!mesh.valid) return;
+                const Material& mat = materialFor(def, std::string());
+                const ShadowSpec ss = shadowSpecOf(def.shadow);
+                if (!ss.any || def.sort == SortMode::Effect) return;
+                // A spawned entity's projected shadow takes its root's yaw in 30 degree steps:
+                // any of the 12.
+                const int steps = ss.kind == ShadowKind::Projected ? 12 : 1;
+                for (int s = 0; s < steps; ++s) shadowMap(mesh, normalizePath(def.model), mat, std::string(), ss, s, false);
+                return;
+            }
+            default:
+                if (!def.skin.empty()) cache->texture(def.skin);
+                return;
+        }
+    }
+
+    // ParticleRenderer loads an emitter's texture the first time it draws it, from a cache of
+    // its own (engine/src/render/gles/particle_renderer.cpp, which has no preload): draw one
+    // invisible particle (size 0, alpha 0, scissored to nothing) per texture.
+    void precacheParticleTextures(const std::vector<const ParticleSystemDef*>& systems) {
+        std::vector<std::string> seen;
+        setScissor(true, 0, 0, 0, 0);
+        for (const ParticleSystemDef* ps : systems) {
+            ParticleDesc d = ParticleDesc::fromDef(*ps);
+            if (d.texture.empty()) continue;
+            const std::string key = normalizePath(d.texture);
+            if (std::find(seen.begin(), seen.end(), key) != seen.end()) continue;
+            seen.push_back(key);
+            d.emitOnce = true;
+            d.emitRate = 1;
+            d.lifeTime = 1.0f;
+            d.initSize[0] = d.initSize[1] = 0.0f;
+            d.sizeRate = 0.0f;
+            for (float& c : d.initColor) c = 0.0f;
+            ParticleEmitter e(d, 1u);
+            ParticleViewParams pv;
+            pv.view = Mat4();
+            pv.projection = Mat4();
+            particles.draw(e, pv);
+        }
+        setScissor(false);
     }
 
     // Looks up the health bar objects named by the rules; hbarReady is false without them.
@@ -391,6 +451,54 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
             im.precacheShadows(im.db->findObject(level->typeName(p)), p.rotationSteps, st.night, 0);
     }
     return true;
+}
+
+PrecacheReport WorldRenderer::precache(const World& world, const DefDatabase& db, const std::function<void(float)>& progress) {
+    Impl& im = *impl_;
+    const auto t0 = std::chrono::steady_clock::now();
+    const LoadCounts before = LoadStats::lazyLoads();
+    const size_t shadowsBefore = im.shadowMaps.size();
+    PrecacheSet local;
+    const PrecacheSet* set = world.precacheSet();
+    if (!set) {
+        local = collectPrecacheSet(world, db, [&world](const std::string& path) { return world.compiledProgram(path); });
+        set = &local;
+    }
+    const size_t total = set->objects.size() + set->models.size() + set->textures.size() + 2;
+    size_t done = 0;
+    auto step = [&]() {
+        ++done;
+        if (progress && (done % 16 == 0 || done == total)) progress(static_cast<float>(done) / static_cast<float>(total));
+    };
+    for (const ObjectDef* def : set->objects) {
+        im.precacheObject(*def);
+        step();
+    }
+    for (const std::string& m : set->models) {
+        im.cache->mesh(m);
+        step();
+    }
+    for (const std::string& t : set->textures) {
+        im.cache->texture(t);
+        step();
+    }
+    // The Lightning builtin's bolt (render-pipeline.md 7.1), wherever a script calls it.
+    if (im.vfs->exists("gfx\\lightning2.tga")) im.cache->texture("gfx\\lightning2.tga");
+    step();
+    im.precacheParticleTextures(set->particleSystems);
+    step();
+    const LoadCounts d = LoadStats::lazyLoads() - before;
+    PrecacheReport r;
+    r.objects = static_cast<int>(set->objects.size());
+    // Particle textures are read outside a counted site (Other).
+    r.textures = static_cast<int>(d.of(LoadKind::Texture) + d.of(LoadKind::Other));
+    r.models = static_cast<int>(d.of(LoadKind::Model));
+    r.scripts = static_cast<int>(d.of(LoadKind::Script));
+    r.shadows = static_cast<int>(im.shadowMaps.size() - shadowsBefore);
+    r.bytes = d.bytes;
+    r.capped = set->capped;
+    r.seconds = std::chrono::duration<float>(std::chrono::steady_clock::now() - t0).count();
+    return r;
 }
 
 void WorldRenderer::Impl::followTerrainChanges(const World& world) {

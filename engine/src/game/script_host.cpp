@@ -4,6 +4,7 @@
 
 #include <cstring>
 
+#include "as3d/load_stats.h"
 #include "as3d/vfs.h"
 #include "as3d/world.h"
 #include "world_internal.h"
@@ -271,6 +272,9 @@ const script::ScriptProgram* GameScriptHost::program(const std::string& rawPath)
     std::string path = normalizePath(rawPath);
     auto it = programs_.find(path);
     if (it != programs_.end()) return it->second.get();
+    // A load (as3d/load_stats.h): the script is read and compiled; a failure is cached too.
+    LoadStats::Site site;
+    LoadStats::count(LoadKind::Script);
     std::unique_ptr<script::ScriptProgram> prog;
     Blob blob;
     if (!world_.vfs().read(path, blob)) {
@@ -286,6 +290,11 @@ const script::ScriptProgram* GameScriptHost::program(const std::string& rawPath)
     const script::ScriptProgram* p = prog.get();
     programs_[path] = std::move(prog);
     return p;
+}
+
+const script::ScriptProgram* GameScriptHost::loadedProgram(const std::string& rawPath) const {
+    auto it = programs_.find(normalizePath(rawPath));
+    return it != programs_.end() ? it->second.get() : nullptr;
 }
 
 } // namespace as3d
