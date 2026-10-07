@@ -67,9 +67,11 @@ listed under "Open on hardware" in docs/3ds-spike.md.
 variants (docs/3ds-port.md, "M1.0 GPU probe"). It is selected by a run config on the SD card,
 `sdmc:/3ds/openairstrike/run.ini`:
 
-    mode=probe        # or mode=spike; no file = spike
-    hold=0            # optional: frames to keep drawing after each variant (screenshots)
-    only=             # optional: run just these variants, e.g. only=CH
+    mode=probe
+
+`mode=spike` or no file gives the spike. Optional keys, one per line, no trailing comments:
+`hold=N` keeps drawing N frames after each variant (for screenshots), `only=CH` runs just
+those variants.
 
 The probe runs unattended, prints a table on the bottom screen and appends it to
 `sdmc:/3ds/openairstrike/probe_log.txt`. START quits.
