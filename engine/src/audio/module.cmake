@@ -15,15 +15,17 @@ else()
 endif()
 
 # ---- SDL2 (output device) ----
-if(ANDROID)
-  # android/app/src/main/cpp/CMakeLists.txt add_subdirectory()s SDL2's own
-  # CMake project before pulling in the engine tree, so the SDL2 target
-  # already exists by the time this file runs.
-  target_link_libraries(as3d_audio PUBLIC SDL2)
-else()
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(AS3D_AUDIO_SDL2 REQUIRED IMPORTED_TARGET sdl2)
-  target_link_libraries(as3d_audio PUBLIC PkgConfig::AS3D_AUDIO_SDL2)
+if(NOT NINTENDO_3DS)
+  if(ANDROID)
+    # android/app/src/main/cpp/CMakeLists.txt add_subdirectory()s SDL2's own
+    # CMake project before pulling in the engine tree, so the SDL2 target
+    # already exists by the time this file runs.
+    target_link_libraries(as3d_audio PUBLIC SDL2)
+  else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(AS3D_AUDIO_SDL2 REQUIRED IMPORTED_TARGET sdl2)
+    target_link_libraries(as3d_audio PUBLIC PkgConfig::AS3D_AUDIO_SDL2)
+  endif()
 endif()
 
 # ---- libopenmpt (tracker/MO3 decoding), built from source ----

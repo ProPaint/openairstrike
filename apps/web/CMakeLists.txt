@@ -37,9 +37,9 @@ add_subdirectory(${AS3D_REPO_ROOT}/engine ${CMAKE_BINARY_DIR}/engine)
 get_property(AS3D_MODULES GLOBAL PROPERTY AS3D_MODULES)
 
 # No headless EGL backend in a browser: build the platform module's null stand-in instead.
-set_source_files_properties(${AS3D_REPO_ROOT}/engine/src/platform/egl_headless.cpp
+set_source_files_properties(${AS3D_REPO_ROOT}/engine/src/platform/sdl/egl_headless.cpp
   DIRECTORY ${AS3D_REPO_ROOT}/engine PROPERTIES HEADER_FILE_ONLY TRUE)
-set_source_files_properties(${AS3D_REPO_ROOT}/engine/src/platform/android_stub.cpp
+set_source_files_properties(${AS3D_REPO_ROOT}/engine/src/platform/sdl/android_stub.cpp
   DIRECTORY ${AS3D_REPO_ROOT}/engine PROPERTIES HEADER_FILE_ONLY FALSE)
 
 # libopenmpt throws and catches C++ exceptions: native WebAssembly exception handling.
