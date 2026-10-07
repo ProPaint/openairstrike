@@ -150,6 +150,11 @@ public:
     // the first game's layer is unchanged.
     void setHalfPixelShift(bool on) { halfPixelShift_ = on; }
     bool halfPixelShift() const { return halfPixelShift_; }
+    // Draw circles and rings as CPU-tessellated triangles with a one-pixel alpha ramp instead of
+    // the shader's fwidth anti-aliasing (as3d/batch2d.h; the 3DS backend has no such shader).
+    // Off by default.
+    void setTessellateShapes(bool on, int segments = 48) { tessellate_ = on; segments_ = segments; }
+    bool tessellateShapes() const { return tessellate_; }
     // Framebuffer corners of a quad as flush() draws it, in the order top-left, bottom-left,
     // bottom-right, top-right (lines: the segment's two sides); for tests.
     void quadCorners(const Quad& q, float px[4], float py[4]) const;
@@ -165,6 +170,8 @@ private:
     std::vector<Quad> quads_;
     int dropped_ = 0;
     bool halfPixelShift_ = false;
+    bool tessellate_ = false;
+    int segments_ = 48;
 };
 
 // ---------------------------------------------------------------------------

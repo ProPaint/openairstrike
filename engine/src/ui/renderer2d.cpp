@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "as3d/batch2d.h"
 #include "as3d/ui.h"
 
 namespace as3d::ui {
@@ -128,43 +129,7 @@ bool Renderer2D::fullscreen(Color c, Blend blend) {
 }
 
 void Renderer2D::quadCorners(const Quad& q, float px[4], float py[4]) const {
-    const Mapping& m = mapping_;
-    // Virtual corners: top-left, bottom-left, bottom-right, top-right (a line: its two ends
-    // in slots 0 and 2).
-    float vx[4] = {q.x, q.x, q.x + q.w, q.x + q.w};
-    float vy[4] = {q.y, q.y + q.h, q.y + q.h, q.y};
-    if (!q.line && q.rotation != 0.0f) {
-        const float a = q.rotation * 3.14159265f / 180.0f;
-        const float ca = std::cos(a), sa = std::sin(a);
-        const float cx = q.x + q.w * 0.5f, cy = q.y + q.h * 0.5f;
-        for (int i = 0; i < 4; i++) {
-            const float dx = vx[i] - cx, dy = vy[i] - cy;
-            vx[i] = cx + dx * ca - dy * sa;
-            vy[i] = cy + dx * sa + dy * ca;
-        }
-    }
-    if (halfPixelShift_) {
-        for (int i = 0; i < 4; i++) {
-            vx[i] -= 0.5f;
-            vy[i] -= 0.5f;
-        }
-    }
-    if (q.line) {
-        float x0 = m.toFbX(vx[0]), y0 = m.toFbY(vy[0]), x1 = m.toFbX(vx[2]), y1 = m.toFbY(vy[2]);
-        float dx = x1 - x0, dy = y1 - y0;
-        float len = std::sqrt(dx * dx + dy * dy);
-        float nx = 0, ny = 0;
-        if (len > 0) { nx = -dy / len * 0.5f; ny = dx / len * 0.5f; }
-        px[0] = x0 + nx; py[0] = y0 + ny;
-        px[1] = x0 - nx; py[1] = y0 - ny;
-        px[2] = x1 - nx; py[2] = y1 - ny;
-        px[3] = x1 + nx; py[3] = y1 + ny;
-        return;
-    }
-    for (int i = 0; i < 4; i++) {
-        px[i] = m.toFbX(vx[i]);
-        py[i] = m.toFbY(vy[i]);
-    }
+    quadCornersFb(q, mapping_, halfPixelShift_, px, py);
 }
 
 } // namespace as3d::ui
