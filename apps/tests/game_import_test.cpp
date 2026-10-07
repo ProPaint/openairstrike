@@ -4,10 +4,13 @@
 // against the real data when this machine has it (gitignored) and are skipped otherwise.
 #include <doctest.h>
 
+#include <unistd.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -27,8 +30,12 @@ struct TempDir {
     fs::path path;
     explicit TempDir(const char* tag) {
         std::error_code ec;
-        path = fs::temp_directory_path(ec) / (std::string("as3d_import_") + tag + "_" + std::to_string(std::rand()));
-        fs::remove_all(path, ec);
+        // Unique per process and per call: an unseeded std::rand() gave every concurrent test
+        // process the same name, so one process's remove_all() deleted another's files mid-import.
+        static int counter = 0;
+        std::random_device rd;
+        path = fs::temp_directory_path(ec) / (std::string("as3d_import_") + tag + "_" + std::to_string(::getpid()) + "_" +
+                                              std::to_string(++counter) + "_" + std::to_string(rd()));
         fs::create_directories(path, ec);
     }
     ~TempDir() {
