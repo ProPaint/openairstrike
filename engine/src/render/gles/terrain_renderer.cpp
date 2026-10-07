@@ -64,7 +64,6 @@ struct TileBatch {
     Texture2D texture;
     VertexBuffer vbo;
     VertexArray vao;
-    std::vector<std::pair<int, int>> ranges; // per chunk: first vertex, vertex count
 };
 
 } // namespace
@@ -285,12 +284,13 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(-1.0f, -1.0f);
         im.program.setInt("uMode", 1);
-        for (auto& batch : im.tiles) {
+        for (size_t b = 0; b < im.tiles.size(); ++b) {
+            auto& batch = im.tiles[b];
             if (!batch->vao.valid()) continue;
             batch->texture.bind(0);
             batch->vao.bind();
             for (int k : visible) {
-                auto range = batch->ranges[static_cast<size_t>(k)];
+                auto range = im.geo.tiles[b].ranges[static_cast<size_t>(k)];
                 if (range.second > 0) glDrawArrays(GL_TRIANGLES, range.first, range.second);
             }
         }
