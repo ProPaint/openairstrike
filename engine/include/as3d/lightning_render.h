@@ -7,7 +7,9 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
+#include "as3d/draw_run.h"
 #include "as3d/texture.h"
 #include "as3d/math.h"
 
@@ -26,6 +28,13 @@ struct LightningVertex {
 // p = p1 then p2, s from time*3 at the start to time*3 + len/96 at the end, t 0 to 1 across.
 // Returns false (and leaves `out` untouched) for a bolt of zero length.
 bool buildLightningQuads(const Vec3& start, const Vec3& end, float time, LightningVertex out[8]);
+
+// Builds every bolt of non-zero length as 12 vertices (the two quads, corners 0 1 2, 0 2 3)
+// appended to `verts`, plus one run for all of them: `texture`, blend Add, no depth test, no
+// depth write, no culling, black fog. Nothing for count == 0, a null texture or no valid bolt.
+// Returns the bolts built.
+int buildLightningBolts(const Vec3* starts, const Vec3* ends, size_t count, float time, const Texture2D* texture,
+                        std::vector<LightningVertex>& verts, std::vector<DrawRun>& runs);
 
 struct LightningViewParams {
     Mat4 view;

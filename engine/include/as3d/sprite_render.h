@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "as3d/draw_run.h"
 #include "as3d/texture.h"
 #include "as3d/ground_marks.h" // DecalBlend
 #include "as3d/math.h"
@@ -54,6 +55,22 @@ void spriteUvs(const SpriteInstance& sprite, Vec2 uv[4]);
 
 // Geometry of one sprite for a camera with billboard axes `right` and `up`.
 SpriteQuad buildSpriteQuad(const SpriteInstance& sprite, const Vec3& right, const Vec3& up);
+
+// Vertex of the sprite pass: position, texture coordinates (engine convention) and the
+// sprite's colour. 9 floats, triangle list.
+struct SpriteVertex {
+    float x, y, z;
+    float u, v;
+    float r, g, b, a;
+};
+
+// Builds the sprites in the given order (at most kMaxSprites; sprites without a texture are
+// skipped) as 6 vertices each (corners 0 1 2, 0 2 3) appended to `verts`, and appends the draw
+// runs: adjacent sprites with the same state and texture share a run. Run state: blend from
+// SpriteInstance::blend, depth test unless noDepthTest, depth write unless noDepthWrite, cull
+// Back when `cullBackFaces` else Off, fog colour from the blend. Returns the sprites built.
+int buildSpriteBatches(const SpriteInstance* sprites, size_t count, const Mat4& view, bool cullBackFaces,
+                       std::vector<SpriteVertex>& verts, std::vector<DrawRun>& runs);
 
 struct SpriteViewParams {
     Mat4 view;

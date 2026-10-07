@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "as3d/draw_run.h"
 #include "as3d/texture.h"
 #include "as3d/math.h"
 #include "as3d/terrain.h"
@@ -49,6 +50,40 @@ void buildTerrainDecal(const Terrain& terrain, const GroundRect& rect, std::vect
 void buildTerrainDecal(const TerrainGridView& grid, const GroundRect& rect, std::vector<DecalVertex>& out);
 
 enum class DecalBlend { None, Alpha, Add, Filter };
+
+inline RenderBlend renderBlendOf(DecalBlend b) {
+    switch (b) {
+    case DecalBlend::Alpha: return RenderBlend::Alpha;
+    case DecalBlend::Add: return RenderBlend::Add;
+    case DecalBlend::Filter: return RenderBlend::Filter;
+    default: return RenderBlend::None;
+    }
+}
+
+// One mark (or shadow) worth of decal vertices: vertices [first, first + count) of the vertex
+// list, drawn with `texture` and `blend`. Marks: the fragment colour is texture rgb * `colour`,
+// alpha texture alpha * `alpha` (the sequels' entity alpha).
+struct DecalBatch {
+    size_t first = 0; // first vertex
+    size_t count = 0;
+    const Texture2D* texture = nullptr;
+    DecalBlend blend = DecalBlend::Alpha;
+    Vec3 colour{1.0f, 1.0f, 1.0f};
+    float alpha = 1.0f;
+};
+
+enum class DecalLook {
+    Mark,           // texture x (colour, alpha), the batch's blend
+    ShadowAlpha,    // (0, 0, 0, texture alpha) alpha-blended: the first game's shadow (5.3)
+    ShadowMultiply, // destination x (1 - texture alpha), fog towards white: the sequels' (delta 5.3)
+};
+
+// The state of every decal draw (marks and shadows): depth test on, depth write off, polygon
+// offset (-1, -1), back faces culled, fog colour from the blend.
+MaterialKey decalMaterialKey(DecalBlend blend);
+// One run per batch with a texture and vertices (adjacent equal batches merge); the run's tint
+// is (colour, alpha). `runs` is appended to. Neutral half of DecalDrawer::draw.
+void buildDecalRuns(const std::vector<DecalBatch>& batches, std::vector<DrawRun>& runs);
 
 struct DecalViewParams {
     Mat4 view;

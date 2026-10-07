@@ -5,6 +5,7 @@
 // Needs a current GLES 3.0 context for SkidTrailRenderer; the geometry functions have no GL.
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -63,6 +64,21 @@ struct SkidVertex {
 // number of vertices appended.
 size_t buildSkidTrailStrip(const SkidTrail& trail, const TerrainGridView& grid, const SkidTrailParams& params,
                            std::vector<SkidVertex>& out);
+
+// Vertices the pass can hold for `params`: maxTrails x maxNodes sections of two vertices
+// (at least 1 trail and 2 sections each).
+size_t skidVertexCapacity(const SkidTrailParams& params);
+
+// Resolves SkidTrail::texture to a texture (null allowed).
+using SkidTextureResolver = std::function<const Texture2D*(const std::string& path)>;
+
+// Builds the strips of the trails (in order, at most params.maxTrails with a texture path and
+// at least one section pair; stops before a trail that would exceed skidVertexCapacity) into
+// `verts` and appends one run per trail: strip = true, blend Alpha, depth test on / write off,
+// polygon offset, cull Back, fog colour of the level; the per-vertex alpha is SkidVertex::alpha
+// (white vertex colour). Returns the number of trails built.
+int buildSkidTrails(const SkidTrail* trails, size_t count, const TerrainGridView& grid, const SkidTrailParams& params,
+                    const SkidTextureResolver& resolve, std::vector<SkidVertex>& verts, std::vector<DrawRun>& runs);
 
 // Pass 5 of the as2 frame (render-pipeline.delta.md 1.1): after the ground marks, before the
 // shadows. One triangle strip per trail, vertex colour white with the section's alpha,

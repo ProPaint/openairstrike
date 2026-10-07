@@ -8,9 +8,12 @@
 // write it.
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
+#include "as3d/draw_run.h"
 #include "as3d/texture.h"
 #include "as3d/math.h"
 #include "as3d/particles.h"
@@ -25,6 +28,32 @@ struct ParticleViewParams {
     float fogStart = 1.0e9f; // linear fog; set fogEnd <= fogStart to disable
     float fogEnd = 1.0e9f;
 };
+
+// Vertex of the particle quads: position, texture coordinates (engine convention, v = 0 at the
+// image top) and the particle's colour. 9 floats, triangle list, two triangles (0 1 2, 0 2 3)
+// per particle.
+struct ParticleVertex {
+    float x, y, z;
+    float u, v;
+    float r, g, b, a;
+};
+
+// Camera right and up as the original derives them (rows 0 and 1 of the view rotation).
+void particleBillboardAxes(const Mat4& view, Vec3& right, Vec3& up);
+
+// Resolves ParticleDesc::texture to a texture (null is allowed); called once per emitter that
+// has live particles, in emitter order.
+using ParticleTextureResolver = std::function<const Texture2D*(const std::string& path)>;
+
+// Builds every live particle of every emitter (emitters in the given order, particles in pool
+// order) as quads appended to `verts`, and appends the draw runs: adjacent emitters with the
+// same blend, depth flag, texture and texture mode share one run. Run state per the pass:
+// blend from ParticleDesc::blend, depth test unless noDepthTest, never depth write, back
+// faces culled, fog colour from the blend; texMode kTexClampAdd for Filter, else kTexModulate.
+// Returns the number of particles built.
+int buildParticleQuads(const ParticleEmitter* const* emitters, size_t count, const Mat4& view,
+                       const ParticleTextureResolver& resolve, std::vector<ParticleVertex>& verts,
+                       std::vector<DrawRun>& runs);
 
 class ParticleRenderer {
 public:
@@ -50,7 +79,7 @@ public:
 
     // Camera right and up as the original derives them (rows 0 and 1 of the view
     // rotation). Exposed for tests.
-    static void billboardAxes(const Mat4& view, Vec3& right, Vec3& up);
+    static void billboardAxes(const Mat4& view, Vec3& right, Vec3& up) { particleBillboardAxes(view, right, up); }
 
 private:
     struct Impl;
