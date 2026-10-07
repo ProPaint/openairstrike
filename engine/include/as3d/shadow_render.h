@@ -5,7 +5,9 @@
 //   Planar:    silhouette straight down, turned by the entity yaw, always directly below the
 //              entity whatever its altitude and the sun direction.
 // Everything is driven by plain data (a ModelData, a skin texture, positions and yaws), with
-// no dependency on the game world. Needs a current GLES 3.0 context.
+// no dependency on the game world. Needs a current GLES 3.0 context. The geometry (kinds,
+// bounds, texture size) and the CPU rasteriser of the same silhouette are in
+// as3d/shadow_raster.h.
 #pragma once
 
 #include <memory>
@@ -18,37 +20,11 @@
 #include "as3d/math.h"
 #include "as3d/model.h"
 #include "as3d/render_rules.h"
+#include "as3d/shadow_raster.h"
 #include "as3d/terrain.h"
 #include "as3d/terrain_grid.h"
 
 namespace as3d {
-
-enum class ShadowKind { Projected, Planar };
-// SHADOW_*_LOW halves and SHADOW_*_HIGH doubles the texture size (spec 5.1).
-enum class ShadowQuality { Normal, Low, High };
-
-// Bounding rectangle of the projected silhouette in world units (model space, before the
-// entity position), floored and ceiled to integers.
-struct ShadowBounds {
-    int xmin = 0, ymin = 0, xmax = 0, ymax = 0;
-};
-
-// Rotation applied about Z before projecting: `rotationSteps` * 30 degrees (spec 5.2 step 1).
-constexpr float kShadowRotationStepDegrees = 30.0f;
-
-// Spec 5.2 step 1. `towardsSun` is the unit vector towards the sun; ignored (straight down is
-// used) for Planar. Planar shadows are always generated with rotationSteps = 0.
-ShadowBounds computeShadowBounds(const ModelData& model, ShadowKind kind, const Vec3& towardsSun, int rotationSteps);
-
-// Spec 5.2 step 2: texture size W x H for a bounding rectangle (before the 2x supersampling).
-// The first game's limits; with `rules`, the game's (as2 delta 5.2: height up to 256, each
-// side halved after LOW/HIGH until at most 256).
-void shadowTextureSize(const ShadowBounds& bounds, ShadowQuality quality, int& width, int& height);
-void shadowTextureSize(const ShadowBounds& bounds, ShadowQuality quality, int& width, int& height,
-                       const RenderRules& rules);
-
-// Peak shadow alpha: coverage 1 gives 0.4, i.e. the ground darkens by at most 40 percent.
-constexpr float kShadowMaxAlpha = 0.4f;
 
 struct ShadowMap {
     Texture2D texture; // RGB (114, 114, 114), alpha = silhouette darkness in 0..102

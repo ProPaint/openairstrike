@@ -13,26 +13,6 @@ namespace as3d {
 
 namespace {
 
-// Straight-down light for planar shadows.
-const Vec3 kDown{0.0f, 0.0f, 1.0f};
-
-struct Projected {
-    float x, y, z;
-};
-
-Projected projectVertex(const Vec3& v, float cosR, float sinR, const Vec3& L) {
-    float x = v.x * cosR - v.y * sinR;
-    float y = v.x * sinR + v.y * cosR;
-    return {x - v.z * L.x / L.z, y - v.z * L.y / L.z, v.z};
-}
-
-Vec3 effectiveLight(ShadowKind kind, const Vec3& towardsSun) {
-    if (kind == ShadowKind::Planar) return kDown;
-    Vec3 L = normalize(towardsSun);
-    if (L.z < 0.05f) L.z = 0.05f; // every shipped level has L.z > 0; keep the projection finite
-    return L;
-}
-
 const char* const kSilVertexSrc = R"(#version 300 es
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec2 aUv;
@@ -84,53 +64,6 @@ void main() {
 
 } // namespace
 
-ShadowBounds computeShadowBounds(const ModelData& model, ShadowKind kind, const Vec3& towardsSun, int rotationSteps) {
-    Vec3 L = effectiveLight(kind, towardsSun);
-    float a = kind == ShadowKind::Planar ? 0.0f : degToRad(static_cast<float>(rotationSteps) * kShadowRotationStepDegrees);
-    float c = std::cos(a), s = std::sin(a);
-    float minX = 1e30f, minY = 1e30f, maxX = -1e30f, maxY = -1e30f;
-    for (const Vec3& v : model.positions) {
-        Projected p = projectVertex(v, c, s, L);
-        minX = std::min(minX, p.x); maxX = std::max(maxX, p.x);
-        minY = std::min(minY, p.y); maxY = std::max(maxY, p.y);
-    }
-    ShadowBounds b;
-    if (model.positions.empty()) return b;
-    // A hair of tolerance so that float noise (cos of a quarter turn) does not widen the box.
-    const float eps = 1e-3f;
-    b.xmin = static_cast<int>(std::floor(minX + eps));
-    b.ymin = static_cast<int>(std::floor(minY + eps));
-    b.xmax = static_cast<int>(std::ceil(maxX - eps));
-    b.ymax = static_cast<int>(std::ceil(maxY - eps));
-    if (b.xmax <= b.xmin) b.xmax = b.xmin + 1;
-    if (b.ymax <= b.ymin) b.ymax = b.ymin + 1;
-    return b;
-}
-
-void shadowTextureSize(const ShadowBounds& bounds, ShadowQuality quality, int& width, int& height) {
-    shadowTextureSize(bounds, quality, width, height, renderRules(GameId::AirStrike3D));
-}
-
-void shadowTextureSize(const ShadowBounds& bounds, ShadowQuality quality, int& width, int& height,
-                       const RenderRules& rules) {
-    float w = static_cast<float>(bounds.xmax - bounds.xmin);
-    float h = static_cast<float>(bounds.ymax - bounds.ymin);
-    const int capY = rules.shadowHeightExpCap;
-    const float limitY = static_cast<float>(1 << capY);
-    float ex = w < 256.0f ? std::log2(std::max(w, 1.0f)) : 8.0f;
-    float ey = h < limitY ? std::log2(std::max(h, 1.0f)) : static_cast<float>(capY);
-    int W = 1 << static_cast<int>(ex + 0.5f);
-    int H = 1 << static_cast<int>(ey + 0.5f);
-    if (quality == ShadowQuality::Low) { W /= 2; H /= 2; }
-    else if (quality == ShadowQuality::High) { W *= 2; H *= 2; }
-    if (rules.shadowMaxSide > 0) { // as2 delta 5.2 step 1: halved until 2·side <= 2·max
-        while (W > rules.shadowMaxSide) W /= 2;
-        while (H > rules.shadowMaxSide) H /= 2;
-    }
-    width = std::max(W, 1);
-    height = std::max(H, 1);
-}
-
 GroundRect shadowRect(const ShadowMap& map, const Vec3& origin, float yawDegrees) {
     const ShadowBounds& b = map.bounds;
     if (map.kind == ShadowKind::Projected) {
@@ -168,7 +101,7 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
                               int rotationSteps, ShadowQuality quality, ShadowMap& out) {
     if (!impl_->silProgram.valid() || model.faces.empty() || model.positions.empty()) return false;
     if (kind == ShadowKind::Planar) rotationSteps = 0;
-    Vec3 L = effectiveLight(kind, towardsSun);
+    Vec3 L = shadowLightDirection(kind, towardsSun);
     ShadowBounds bounds = computeShadowBounds(model, kind, towardsSun, rotationSteps);
     int W, H;
     const RenderRules& rules = impl_->rules;
@@ -186,7 +119,7 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
     for (const Face& f : model.faces) {
         for (int k = 0; k < 3; k++) {
             if (f.v[k] >= model.positions.size()) continue;
-            Projected p = projectVertex(model.positions[f.v[k]], c, s, L);
+            Vec3 p = projectShadowVertex(model.positions[f.v[k]], c, s, L);
             Vec2 uv = f.uv[k] < model.uvs.size() ? model.uvs[f.uv[k]] : Vec2{};
             verts.insert(verts.end(), {(p.x - static_cast<float>(bounds.xmin)) * sx,
                                        (p.y - static_cast<float>(bounds.ymin)) * sy, p.z, uv.x, uv.y});
