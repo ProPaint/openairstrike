@@ -1,7 +1,5 @@
 #include "game_view.h"
 
-#include <GLES3/gl3.h>
-
 #include <algorithm>
 #include <cmath>
 
@@ -145,110 +143,142 @@ ui::HudState hudStateOf(const GameSession& session) {
     return hs;
 }
 
-void GameView::renderWorld(const World& world, int width, int height) {
-    if (stereoDebugEyeOffset != 0.0f) {
-        // --stereo-debug: one prepare, then each eye in its half of the field.
-        Viewport vp;
-        vp.width = width;
-        vp.height = height;
-        if (screenMode == kScreen4x3) {
-            int x, y, w, h;
-            ui::computeMapping(width, height).fieldPixels(x, y, w, h);
-            if (w > 0 && h > 0) vp = Viewport{x, height - y - h, w, h};
-        }
-        const int left = vp.x;
-        vp.width /= 2;
-        vp.maxEyeOffset = std::fabs(stereoDebugEyeOffset);
-        vp.minFocalDistance = stereoDebugFocal;
-        renderer_.prepare(world, vp);
-        renderer_.draw(EyeView{-stereoDebugEyeOffset, stereoDebugFocal}, left, vp.y);
-        renderer_.draw(EyeView{stereoDebugEyeOffset, stereoDebugFocal}, left + vp.width, vp.y);
-        glViewport(0, 0, width, height);
-        return;
-    }
+ViewRect GameView::worldRect(const ViewRect& frame) const {
     if (screenMode == kScreen4x3) {
         int x, y, w, h;
-        ui::computeMapping(width, height).fieldPixels(x, y, w, h);
-        if (w > 0 && h > 0 && (w != width || h != height)) {
-            renderer_.render(world, x, height - y - h, w, h);
-            glViewport(0, 0, width, height);
-            return;
-        }
+        ui::computeMapping(frame.width, frame.height).fieldPixels(x, y, w, h);
+        if (w > 0 && h > 0 && (w != frame.width || h != frame.height))
+            return ViewRect{frame.x + x, frame.y + frame.height - y - h, w, h};
     }
-    renderer_.render(world, width, height);
+    return frame;
 }
 
-void GameView::clearBars(int width, int height) {
+void GameView::prepareWorld(const GameSession& session, const ViewRect& rect, float maxEyeOffset, float minFocalDistance) {
+    Viewport vp;
+    vp.x = rect.x;
+    vp.y = rect.y;
+    vp.width = rect.width;
+    vp.height = rect.height;
+    vp.maxEyeOffset = maxEyeOffset;
+    vp.minFocalDistance = minFocalDistance;
+    renderer_.prepare(session.world(), vp);
+}
+
+void GameView::drawWorld(const GameSession&, const ViewRect& rect, const EyeView& eye) {
+    renderer_.draw(eye, rect.x, rect.y);
+    setViewport(rect.x, rect.y, rect.width, rect.height);
+}
+
+void GameView::renderWorld(const GameSession& session, const ViewRect& frame) {
+    if (stereoDebugEyeOffset != 0.0f) {
+        // --stereo-debug: one prepare, then each eye in its half of the field.
+        ViewRect left = worldRect(frame);
+        left.width /= 2;
+        ViewRect right = left;
+        right.x += left.width;
+        prepareWorld(session, left, std::fabs(stereoDebugEyeOffset), stereoDebugFocal);
+        drawWorld(session, left, EyeView{-stereoDebugEyeOffset, stereoDebugFocal});
+        drawWorld(session, right, EyeView{stereoDebugEyeOffset, stereoDebugFocal});
+        setViewport(frame.x, frame.y, frame.width, frame.height);
+        return;
+    }
+    const ViewRect wr = worldRect(frame);
+    prepareWorld(session, wr);
+    drawWorld(session, wr, EyeView{});
+    setViewport(frame.x, frame.y, frame.width, frame.height);
+}
+
+void GameView::clearBars(const ViewRect& frame) {
     if (screenMode != kScreen4x3) return;
+    const int width = frame.width, height = frame.height;
     int x, y, w, h;
     ui::computeMapping(width, height).fieldPixels(x, y, w, h);
     if (w == width && h == height) return;
-    // The rectangles around the field, GL convention (y from the bottom).
+    // The rectangles around the field, GL convention (y from the bottom) inside the frame.
     const int rects[4][4] = {
         {0, 0, x, height},                              // left
         {x + w, 0, width - x - w, height},              // right
         {x, height - y, w, y},                          // top
         {x, 0, w, height - y - h},                      // bottom
     };
-    glClearColor(0, 0, 0, 1);
     for (const auto& r : rects) {
         if (r[2] <= 0 || r[3] <= 0) continue;
-        as3d::setScissor(true, r[0], r[1], r[2], r[3]);
-        glClear(GL_COLOR_BUFFER_BIT);
+        as3d::setScissor(true, frame.x + r[0], frame.y + r[1], r[2], r[3]);
+        as3d::clearColor(Vec4{0, 0, 0, 1});
     }
     as3d::setScissor(false);
 }
 
-void GameView::draw(const GameSession& session, int width, int height) {
+void GameView::drawHud(const ui::HudState& state, const ViewRect& rect, HudTarget target) {
+    (void)target; // Main and Bottom320x240 share the layout for now; the mapping of the rect sets the scale
+    if (!hudReady_) return;
+    r2d_.begin(rect.width, rect.height, rect.x, rect.y);
+    ui::drawHud(r2d_, assets_, state);
+    r2d_.flush();
+}
+
+void GameView::drawHud(const GameSession& session, const ViewRect& rect, HudTarget target) {
     const World& w = session.world();
-    renderWorld(w, width, height);
-    // Pass 13: the 2D layer. No HUD on intermission levels or while it is hidden (level end,
-    // game over); the hint box is drawn over everything.
-    if (hudReady_) {
-        r2d_.begin(width, height);
-        if (!w.intermission() && !w.levelComplete() && !w.gameOver()) ui::drawHud(r2d_, assets_, hudStateOf(session));
-        if (w.hintShowing()) ui::drawHint(r2d_, assets_, w.hintText());
-        r2d_.flush();
+    // No HUD on intermission levels or while it is hidden (level end, game over).
+    if (w.intermission() || w.levelComplete() || w.gameOver()) return;
+    drawHud(hudStateOf(session), rect, target);
+}
+
+void GameView::drawFront(const GameSession& session, const ViewRect& rect, ui::Frontend* frontend, bool hintBox) {
+    frameRect_ = rect;
+    if (!hudReady_) return;
+    r2d_.begin(rect.width, rect.height, rect.x, rect.y);
+    // The hint box is drawn over everything (render-pipeline.md 1.1 pass 13).
+    if (hintBox && session.hasLevel() && session.world().hintShowing()) ui::drawHint(r2d_, assets_, session.world().hintText());
+    if (ui::Frontend* fe = frontend) {
+        // frontend.md 4.1: the menus after the HUD; the banner goes between the menu frame and
+        // the menu items (3.3 steps 4 to 6).
+        fe->drawUnder(r2d_, assets_);
+        if (fe->bannerVisible()) {
+            r2d_.flush();
+            drawBanner(fe->menus().menuTime(), rect);
+            r2d_.begin(rect.width, rect.height, rect.x, rect.y);
+        }
+        if (fe->modelViewVisible()) {
+            // The sequels' helicopter preview: over the menu's backdrop, under its items.
+            r2d_.flush();
+            fe->drawModelViews();
+            r2d_.begin(rect.width, rect.height, rect.x, rect.y);
+        }
+        fe->drawOver(r2d_, assets_);
     }
-    // Pass 14: brightness.
-    renderer_.drawBrightness(width, height, brightness);
-    clearBars(width, height);
+    r2d_.flush();
+}
+
+void GameView::drawBrightness(const ViewRect& rect, float b) {
+    renderer_.drawBrightness(rect.x, rect.y, rect.width, rect.height, b);
+}
+
+void GameView::drawBrightness(const ViewRect& rect) { drawBrightness(rect, brightness); }
+
+void GameView::draw(const GameSession& session, int width, int height) {
+    const ViewRect frame{0, 0, width, height};
+    renderWorld(session, frame);
+    // Pass 13: the 2D layer (HUD, then the hint box), pass 14: brightness.
+    drawHud(session, frame, HudTarget::Main);
+    drawFront(session, frame, nullptr, true);
+    drawBrightness(frame);
+    clearBars(frame);
 }
 
 void GameView::drawFrame(const GameSession& session, int width, int height, const FrameLayers& layers) {
-    frameW_ = width;
-    frameH_ = height;
+    const ViewRect frame{0, 0, width, height};
+    frameRect_ = frame;
     if (layers.world && session.hasLevel()) {
-        renderWorld(session.world(), width, height);
+        renderWorld(session, frame);
     } else {
-        glViewport(0, 0, width, height);
-        glClearColor(0, 0, 0, 1);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        setViewport(0, 0, width, height);
+        as3d::clear(Vec4{0, 0, 0, 1});
     }
-    if (hudReady_) {
-        // frontend.md 4.1: HUD, then the menus; the banner goes between the menu frame and the
-        // menu items (3.3 steps 4 to 6).
-        r2d_.begin(width, height);
-        if (layers.hud) ui::drawHud(r2d_, assets_, layers.hudState);
-        if (ui::Frontend* fe = layers.frontend) {
-            fe->drawUnder(r2d_, assets_);
-            if (fe->bannerVisible()) {
-                r2d_.flush();
-                drawBanner(fe->menus().menuTime(), width, height);
-                r2d_.begin(width, height);
-            }
-            if (fe->modelViewVisible()) {
-                // The sequels' helicopter preview: over the menu's backdrop, under its items.
-                r2d_.flush();
-                fe->drawModelViews();
-                r2d_.begin(width, height);
-            }
-            fe->drawOver(r2d_, assets_);
-        }
-        r2d_.flush();
-    }
-    renderer_.drawBrightness(width, height, layers.brightness);
-    clearBars(width, height);
+    if (layers.hud) drawHud(layers.hudState, frame, HudTarget::Main);
+    if (layers.frontend) drawFront(session, frame, layers.frontend, false);
+    drawBrightness(frame, layers.brightness);
+    clearBars(frame);
 }
 
 void GameView::drawModel(GameSession& session, const ui::ModelView& v) {
@@ -285,17 +315,17 @@ void GameView::drawModel(GameSession& session, const ui::ModelView& v) {
     }
     if (p.parts.empty()) return;
     // The viewport over the virtual rectangle, scaled to the frame, depth cleared inside it.
-    const ui::Mapping m = ui::computeMapping(frameW_, frameH_);
+    const ui::Mapping m = ui::computeMapping(frameRect_.width, frameRect_.height);
     const int x0 = static_cast<int>(std::lround(m.toFbX(v.viewport.x)));
     const int x1 = static_cast<int>(std::lround(m.toFbX(v.viewport.x + v.viewport.w)));
     const int y0 = static_cast<int>(std::lround(m.toFbY(v.viewport.y)));
     const int y1 = static_cast<int>(std::lround(m.toFbY(v.viewport.y + v.viewport.h)));
     const int vw = x1 - x0, vh = y1 - y0;
     if (vw <= 0 || vh <= 0) return;
-    glViewport(x0, frameH_ - y1, vw, vh);
-    as3d::setScissor(true, x0, frameH_ - y1, vw, vh);
-    glDepthMask(GL_TRUE);
-    glClear(GL_DEPTH_BUFFER_BIT);
+    const int gx = frameRect_.x + x0, gy = frameRect_.y + frameRect_.height - y1;
+    as3d::setViewport(gx, gy, vw, vh);
+    as3d::setScissor(true, gx, gy, vw, vh);
+    as3d::clearDepth();
     Camera cam;
     cam.eye = Vec3{0, 0, 0};
     cam.target = Vec3{0, 0, -1};
@@ -309,26 +339,28 @@ void GameView::drawModel(GameSession& session, const ui::ModelView& v) {
     for (const Preview::Part& part : p.parts) p.mesh.submit(*part.gpu, part.material, model * part.local, part.colour);
     p.mesh.end();
     as3d::setScissor(false);
-    glViewport(0, 0, frameW_, frameH_);
+    as3d::setViewport(frameRect_.x, frameRect_.y, frameRect_.width, frameRect_.height);
 }
 
-void GameView::drawBanner(float mt, int width, int height) {
+void GameView::drawBanner(float mt, int width, int height) { drawBanner(mt, ViewRect{0, 0, width, height}); }
+
+void GameView::drawBanner(float mt, const ViewRect& rect) {
     if (!banner_.valid()) return;
-    // Viewport over the virtual rectangle (0, 0, 800, 200).
-    const ui::Mapping m = ui::computeMapping(width, height);
+    // Viewport over the virtual rectangle (0, 0, 800, 200) of the rect.
+    const ui::Mapping m = ui::computeMapping(rect.width, rect.height);
     const int x0 = static_cast<int>(std::lround(m.toFbX(0))), x1 = static_cast<int>(std::lround(m.toFbX(800)));
     const int y0 = static_cast<int>(std::lround(m.toFbY(0))), y1 = static_cast<int>(std::lround(m.toFbY(200)));
-    banner_.draw(mt, width, height, x0, y0, x1 - x0, y1 - y0);
+    // BannerMesh::draw flips y against the height it is given: the framebuffer row of the rect's top.
+    banner_.draw(mt, rect.x + rect.width, rect.y + rect.height, rect.x + x0, y0, x1 - x0, y1 - y0);
 }
 
 void BannerMesh::draw(float mt, int width, int height, int x0, int y0, int vw, int vh, const int* clip, bool loopFit) {
     if (!impl_ || vw <= 0 || vh <= 0) return;
     Impl& banner_ = *impl_;
     // Depth cleared first (0x401b30), inside the viewport.
-    glViewport(x0, height - (y0 + vh), vw, vh);
+    as3d::setViewport(x0, height - (y0 + vh), vw, vh);
     as3d::setScissor(true, x0, height - (y0 + vh), vw, vh);
-    glDepthMask(GL_TRUE);
-    glClear(GL_DEPTH_BUFFER_BIT);
+    as3d::clearDepth();
     if (clip) as3d::setScissor(true, clip[0], height - (clip[1] + clip[3]), clip[2], clip[3]);
     else as3d::setScissor(false);
     // Camera at the origin with the engine's view convention and zero angles (identity view:
@@ -361,7 +393,7 @@ void BannerMesh::draw(float mt, int width, int height, int x0, int y0, int vw, i
     banner_.mesh.submit(*banner_.gpu, banner_.material, model);
     banner_.mesh.end();
     as3d::setScissor(false);
-    glViewport(0, 0, width, height);
+    as3d::setViewport(0, 0, width, height);
 }
 
 } // namespace as3d_game

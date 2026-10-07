@@ -116,7 +116,11 @@ public:
     bool init(std::string* error = nullptr);
 
     // Starts a frame for a framebuffer of this size: clears the list.
-    void begin(int fbWidth, int fbHeight);
+    // The quads are laid out for a target of fbWidth x fbHeight pixels, which flush() draws into
+    // the rectangle of the bound framebuffer whose lower-left corner is (originX, originY)
+    // (GL convention, y from the bottom): the default is the whole framebuffer. A dual-screen or
+    // sub-rectangle host passes the rectangle's size and origin.
+    void begin(int fbWidth, int fbHeight, int originX = 0, int originY = 0);
     const Mapping& mapping() const { return mapping_; }
 
     // Returns false (and counts a drop) once kMaxQuads is reached.
@@ -167,6 +171,7 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
     Mapping mapping_;
+    int originX_ = 0, originY_ = 0;
     std::vector<Quad> quads_;
     int dropped_ = 0;
     bool halfPixelShift_ = false;

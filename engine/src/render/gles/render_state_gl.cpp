@@ -62,4 +62,14 @@ void clear(const Vec4& color, bool depth, float depthValue) {
     glClear(mask);
 }
 
+void clearColor(const Vec4& color) {
+    glClearColor(color.x, color.y, color.z, color.w);
+    glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void clearDepth() {
+    glDepthMask(GL_TRUE);
+    glClear(GL_DEPTH_BUFFER_BIT);
+}
+
 } // namespace as3d

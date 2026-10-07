@@ -16,5 +16,9 @@ void setViewport(int x, int y, int w, int h);
 // Enables or disables the scissor test; the rectangle is only applied when enabled.
 void setScissor(bool enabled, int x = 0, int y = 0, int w = 0, int h = 0);
 void clear(const Vec4& color, bool depth = true, float depthValue = 1.0f);
+// Clears only the colour buffer (inside the scissor rectangle when enabled).
+void clearColor(const Vec4& color);
+// Clears only the depth buffer to 1, with the depth mask forced on first (and left on).
+void clearDepth();
 
 } // namespace as3d

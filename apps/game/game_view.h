@@ -58,6 +58,18 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
+// A rectangle of the bound framebuffer in pixels, GL convention: (x, y) is the lower-left corner,
+// y counts from the bottom (the convention of glViewport and of as3d::Viewport).
+struct ViewRect {
+    int x = 0, y = 0, width = 0, height = 0;
+};
+
+// Which layout the HUD takes: Main is the 800x600 virtual screen scaled into the rect (the
+// desktop, Android and web layout); Bottom320x240 is the 3DS bottom screen's HUD, drawn today
+// with the same elements (they land at 0.4 scale in a 320x240 rect) and given its own tables
+// later.
+enum class HudTarget { Main, Bottom320x240 };
+
 class GameView {
 public:
     GameView();
@@ -69,13 +81,45 @@ public:
     // One fixed step of the render-side simulation (particles); not while paused.
     void step(const GameSession& session);
     // Draws the world, the HUD (and a hint box the world holds) and the brightness overlay
-    // into the bound framebuffer: the game without the front end (`--level N`).
+    // into the bound framebuffer: the game without the front end (`--level N`). The order of
+    // the layer calls below: renderWorld (worldRect, prepareWorld, drawWorld), drawHud,
+    // drawFront (the hint box), drawBrightness, clearBars; each over the frame rectangle
+    // (0, 0, width, height).
     void draw(const GameSession& session, int width, int height);
     // The frame behind the front end: world, HUD, front end (with the banner between its two
     // halves), brightness.
     void drawFrame(const GameSession& session, int width, int height, const FrameLayers& layers);
+    // The layers, for a host that draws them into separate targets. Each sets its own viewport
+    // (and scissor) and lays its 2D content out with computeMapping(rect.width, rect.height), so
+    // that a 320x240 rect gets the 0.4 scale layout.
+    //
+    // The rectangle the world takes inside `frame`: the whole frame, or the centred 4:3 field
+    // with screenMode == kScreen4x3.
+    ViewRect worldRect(const ViewRect& frame) const;
+    // Once per frame: reads the world for the draws that follow. `rect` is the world rectangle
+    // itself (worldRect(frame)), not the frame. maxEyeOffset / minFocalDistance are the largest
+    // |eyeOffset| and smallest non-zero focal distance of the EyeViews drawWorld will be called
+    // with (0, 0: mono).
+    void prepareWorld(const GameSession& session, const ViewRect& rect, float maxEyeOffset = 0.0f,
+                      float minFocalDistance = 0.0f);
+    // Passes 0 to 12 for one eye into `rect` (the size of the prepared one), any number of times
+    // after one prepareWorld.
+    void drawWorld(const GameSession& session, const ViewRect& rect, const as3d::EyeView& eye = as3d::EyeView{});
+    // The HUD of the session (nothing on intermission levels or while it is hidden), or of an
+    // explicit state, laid out in `rect`.
+    void drawHud(const GameSession& session, const ViewRect& rect, HudTarget target = HudTarget::Main);
+    void drawHud(const as3d::ui::HudState& state, const ViewRect& rect, HudTarget target = HudTarget::Main);
+    // The rest of the 2D layer: the world's hint box (with `hintBox`) and the front end's
+    // menus, intro pages, main-menu banner and model views (frontend may be null).
+    void drawFront(const GameSession& session, const ViewRect& rect, as3d::ui::Frontend* frontend, bool hintBox);
+    // Pass 14 over `rect`, with the given brightness or the member's.
+    void drawBrightness(const ViewRect& rect, float brightness);
+    void drawBrightness(const ViewRect& rect);
+    // screenMode == kScreen4x3: blacks out what is outside the field of `frame`.
+    void clearBars(const ViewRect& frame);
     // The main menu's 3D banner (frontend.md 3.3 step 5) in the top 200 virtual pixels.
     void drawBanner(float mt, int width, int height);
+    void drawBanner(float mt, const ViewRect& rect);
     // The sequels' model view (the helicopter selection's preview, as2/frontend.md 3.18): the
     // object with its attachments in a viewport of the frame drawFrame is drawing (or of the
     // last one drawn). Called through GameHost::drawModel.
@@ -98,15 +142,14 @@ public:
 
 private:
     struct Preview;
-    void renderWorld(const as3d::World& world, int width, int height);
-    void clearBars(int width, int height);
+    void renderWorld(const GameSession& session, const ViewRect& frame);
     as3d::WorldRenderer renderer_;
     as3d::ui::Renderer2D r2d_;
     as3d::ui::UiAssets assets_;
     BannerMesh banner_;
     std::unique_ptr<Preview> preview_;
     bool hudReady_ = false;
-    int frameW_ = 800, frameH_ = 600;
+    ViewRect frameRect_{0, 0, 800, 600};
 };
 
 // The HUD state for the current frame, from the world: health, lives, score, weapon,

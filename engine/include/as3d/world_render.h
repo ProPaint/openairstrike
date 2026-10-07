@@ -237,6 +237,9 @@ public:
     // Pass 14, after the 2D layer: dst * b + b * dst over the whole framebuffer
     // (render-pipeline.md 1.5; config.ini Brightness, 0.5 neutral, default 0.6).
     void drawBrightness(int width, int height, float brightness);
+    // The same over the rectangle (x, y, width, height) of the framebuffer (GL convention, y
+    // from the bottom) only.
+    void drawBrightness(int x, int y, int width, int height, float brightness);
 
     // Terrain heights changed (TerraMorph): at every prepare() the renderer reads the world's
     // changes after the revision it saw last (World::terrainChangesSince) and the terrain and

@@ -42,8 +42,10 @@ void Mapping::fieldPixels(int& x, int& y, int& w, int& h) const {
     h = std::max(y1 - y0, 0);
 }
 
-void Renderer2D::begin(int fbWidth, int fbHeight) {
+void Renderer2D::begin(int fbWidth, int fbHeight, int originX, int originY) {
     mapping_ = computeMapping(fbWidth, fbHeight);
+    originX_ = originX;
+    originY_ = originY;
     quads_.clear();
     dropped_ = 0;
 }

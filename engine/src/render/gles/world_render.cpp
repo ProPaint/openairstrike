@@ -913,9 +913,11 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     }
 }
 
-void WorldRenderer::drawBrightness(int width, int height, float brightness) {
+void WorldRenderer::drawBrightness(int width, int height, float brightness) { drawBrightness(0, 0, width, height, brightness); }
+
+void WorldRenderer::drawBrightness(int x, int y, int width, int height, float brightness) {
     if (brightness <= 0.0f || width <= 0 || height <= 0) return;
-    setViewport(0, 0, width, height);
+    setViewport(x, y, width, height);
     impl_->brightness.draw(brightness);
 }
 

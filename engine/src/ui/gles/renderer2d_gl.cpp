@@ -118,7 +118,7 @@ int Renderer2D::flush() {
     buildBatch2D(quads_, m, im.verts, im.runs, opts);
     im.vbo.upload(im.verts.data(), im.verts.size() * sizeof(Vertex2D), true);
 
-    glViewport(0, 0, m.fbWidth, m.fbHeight);
+    glViewport(originX_, originY_, m.fbWidth, m.fbHeight);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glDisable(GL_SCISSOR_TEST);
