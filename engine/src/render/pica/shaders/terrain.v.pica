@@ -1,0 +1,53 @@
+; terrain.v.pica: the terrain grid. Two vertex streams (shader_set.h): the static chunk
+; vertices (TerrainVertexPica) and the per-frame dynamic-light colours (one u8 x4 per vertex,
+; from the LinearArena), so lights never rewrite the static buffer.
+;   v0 position  float x3
+;   v1 colour    u8 x4   static lighting (0..255)
+;   v2 dynamic   u8 x4   dynamic lights of this frame (0..255), added to the colour
+;   v3 uv0       float x2  base texture coordinate
+; Uniforms: mvp (4 rows); detail = (sx, sy, ox, oy): texcoord1 = position.xy * (sx, sy) +
+; (ox, oy), the detail texture's coordinate derived from the position (the GL build stores
+; column * 0.25, row * 0.25: sx = sy = 0.25 / cell size).
+; Outputs: position, texcoord0 = uv0, texcoord1 = detail uv, colour = clamp(colour + dynamic).
+; The TEV preset is tevTerrain2Stage (base * colour + detail - 0.5).
+
+.fvec mvp[4]
+.fvec detail
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0)
+.alias ones consts.yyyy
+.alias inv255 consts.zzzz
+
+.out outpos position
+.out outtc0 texcoord0
+.out outtc1 texcoord1
+.out outclr color
+
+.alias inpos v0
+.alias inclr v1
+.alias indyn v2
+.alias intex v3
+
+.proc main
+	mov r0.xyz, inpos
+	mov r0.w, ones
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+	mov outtc0, intex
+
+	; detail uv = position.xy * detail.xy + detail.zw
+	mov r1, detail
+	mad r2.xy, r0.xy, r1.xy, r1.zw
+	mov outtc1, r2
+
+	; colour = min(colour + dynamic, 255) / 255 (one input register per instruction)
+	mov r3, indyn
+	add r3, inclr, r3
+	mul r3, inv255, r3
+	min r3, ones, r3
+	mov r3.w, ones
+	mov outclr, r3
+	end
+.end

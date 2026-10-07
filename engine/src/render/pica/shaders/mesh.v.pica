@@ -1,0 +1,57 @@
+; mesh.v.pica: models with the baked "ambient cube" lighting (as3d/ambient_cube.h). The six
+; weights of each vertex are baked at load time (buildRenderMeshBaked), the CPU computes the
+; six cube colours per draw (ambientCubeColors), so the light is six multiply-adds here
+; instead of the GL shader's acos. See shader_set.h (MeshVertex).
+;   v0 position  float x3
+;   v1 wPos      u8 x4  (+X, +Y, +Z, unused), 0..255 = weight * 255
+;   v2 wNeg      u8 x4  (-X, -Y, -Z, unused)
+;   v3 texcoord  float x2
+; Uniforms: mvp (4 rows); cube[6] colours of the slots +X, +Y, +Z, -X, -Y, -Z (rgb, w unused);
+; tint (rgba). colour.rgb = clamp(sum w_i * cube_i, 0, 1) * tint.rgb, colour.a = tint.a.
+; Unlit models (RF_NOLIGHTING): cube colours all (1, 1, 1) and tint = the entity colour, or
+; the TEV preset tevModulateTexConstant.
+
+.fvec mvp[4]
+.fvec cube[6]
+.fvec tint
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0)
+.alias zeros consts.xxxx
+.alias ones consts.yyyy
+.alias inv255 consts.zzzz
+
+.out outpos position
+.out outtc0 texcoord0
+.out outclr color
+
+.alias inpos v0
+.alias inwp v1
+.alias inwn v2
+.alias intex v3
+
+.proc main
+	mov r0.xyz, inpos
+	mov r0.w, ones
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+	mov outtc0, intex
+
+	; weights to 0..1
+	mul r1, inv255, inwp
+	mul r2, inv255, inwn
+	; light = sum of weight * colour over the six slots
+	mul r3, cube[0], r1.xxxx
+	mad r3, r1.yyyy, cube[1], r3
+	mad r3, r1.zzzz, cube[2], r3
+	mad r3, r2.xxxx, cube[3], r3
+	mad r3, r2.yyyy, cube[4], r3
+	mad r3, r2.zzzz, cube[5], r3
+	; clamp to [0, 1], alpha 1, then the tint
+	max r3, zeros, r3
+	min r3, ones, r3
+	mov r3.w, ones
+	mul outclr, tint, r3
+	end
+.end
