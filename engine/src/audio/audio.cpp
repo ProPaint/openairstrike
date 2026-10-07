@@ -36,7 +36,11 @@ bool Audio::init(Vfs& vfs, AudioBackend backend, int preferredRate) {
     shutdown();
     impl_->vfs = &vfs;
     impl_->backend = backend;
-    impl_->device = backend == AudioBackend::Sdl ? audio::makeSdlAudioDevice() : audio::makeNullAudioDevice();
+    switch (backend) {
+        case AudioBackend::Sdl: impl_->device = audio::makeSdlAudioDevice(); break;
+        case AudioBackend::Platform: impl_->device = audio::makePlatformAudioDevice(); break;
+        default: impl_->device = audio::makeNullAudioDevice(); break;
+    }
     if (!impl_->device->open(preferredRate, &impl_->mixer)) {
         impl_->device.reset();
         return false;

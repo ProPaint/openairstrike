@@ -81,5 +81,6 @@ private:
 }  // namespace
 
 std::unique_ptr<IAudioDevice> makeSdlAudioDevice() { return std::make_unique<SdlAudioDevice>(); }
+std::unique_ptr<IAudioDevice> makePlatformAudioDevice() { return makeSdlAudioDevice(); }
 
 }  // namespace as3d::audio

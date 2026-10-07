@@ -6,6 +6,34 @@
 # installed on the reference host, and Android needs it built from source
 # regardless).
 
+# How a new backend plugs in:
+#  - Device: put the IAudioDevice in audio/<backend>/ (picked by
+#    AS3D_AUDIO_BACKEND, see engine/CMakeLists.txt) and define
+#    `std::unique_ptr<IAudioDevice> as3d::audio::makePlatformAudioDevice()`
+#    there (declared in audio_device.h); AudioBackend::Platform selects it.
+#    The device pulls samples with Mixer::render() (float) or
+#    Mixer::renderS16() (int16 interleaved stereo). The sdl backend returns
+#    its SDL device. Link any backend libraries from this file.
+#  - Music: a second axis, independent of the backend directory. The neutral
+#    glob picks up both music_openmpt.cpp and music_stub.cpp; this file
+#    removes them from the target and adds exactly one, chosen by
+#    AS3D_WITH_OPENMPT (ON by default: libopenmpt is fetched, built and
+#    linked; OFF: music_stub.cpp, MusicDecoder::load() fails cleanly and
+#    there is no music). A backend with its own decoder adds another
+#    music_*.cpp the same way.
+option(AS3D_WITH_OPENMPT "Build libopenmpt and tracker music support" ON)
+
+get_target_property(_as3d_audio_srcs as3d_audio SOURCES)
+list(FILTER _as3d_audio_srcs EXCLUDE REGEX "/music_(openmpt|stub)\\.cpp$")
+set_property(TARGET as3d_audio PROPERTY SOURCES ${_as3d_audio_srcs})
+if(AS3D_WITH_OPENMPT)
+  target_compile_definitions(as3d_audio PUBLIC AS3D_WITH_OPENMPT=1)
+  target_sources(as3d_audio PRIVATE ${CMAKE_CURRENT_LIST_DIR}/music_openmpt.cpp)
+else()
+  target_compile_definitions(as3d_audio PUBLIC AS3D_WITH_OPENMPT=0)
+  target_sources(as3d_audio PRIVATE ${CMAKE_CURRENT_LIST_DIR}/music_stub.cpp)
+endif()
+
 target_link_libraries(as3d_audio PUBLIC as3d_core as3d_vfs)
 
 if(DEFINED ENV{AS3D_DATA_ROOT} AND NOT "$ENV{AS3D_DATA_ROOT}" STREQUAL "")
@@ -28,6 +56,7 @@ if(NOT NINTENDO_3DS)
   endif()
 endif()
 
+if(AS3D_WITH_OPENMPT)
 # ---- libopenmpt (tracker/MO3 decoding), built from source ----
 set(AS3D_OPENMPT_VERSION "0.8.9")
 set(AS3D_OPENMPT_SRC "${AS3D_AUDIO_DATA_ROOT}/third_party_local/libopenmpt-${AS3D_OPENMPT_VERSION}+release")
@@ -113,3 +142,4 @@ endif()
 
 target_link_libraries(as3d_audio PUBLIC openmpt_static)
 target_include_directories(as3d_audio PRIVATE "${AS3D_OPENMPT_SRC}")
+endif()

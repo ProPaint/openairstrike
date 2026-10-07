@@ -358,6 +358,57 @@ TEST_CASE("mixer: 40 simultaneous plays never exceed 32 voices and do not crash"
     for (float f : out) CHECK_FALSE(std::isnan(f));
 }
 
+TEST_CASE("mixer: renderS16 equals the float render scaled and clamped") {
+    Sample s;
+    s.channels = 1;
+    s.rate = 44100;
+    const int n = 1300;  // not a multiple of the internal chunk size
+    s.pcm.resize(n);
+    for (int i = 0; i < n; ++i) {
+        float t = static_cast<float>(i) / 44100.0f;
+        s.pcm[i] = static_cast<i16>(std::lround(0.7f * std::sin(2.0f * 3.14159265f * 440.0f * t) * 32767.0f));
+    }
+    PlayParams params;
+    params.pan = -0.3f;
+
+    Mixer a, b;
+    a.setDeviceRate(44100);
+    b.setDeviceRate(44100);
+    REQUIRE(a.startVoice(&s, params) != as3d::kInvalidVoiceId);
+    REQUIRE(b.startVoice(&s, params) != as3d::kInvalidVoiceId);
+    std::vector<float> f(static_cast<size_t>(n) * 2);
+    std::vector<int16_t> q(static_cast<size_t>(n) * 2);
+    a.render(f.data(), n);
+    b.renderS16(q.data(), n);
+    int maxDiff = 0;
+    bool anySignal = false;
+    for (size_t i = 0; i < f.size(); ++i) {
+        float e = std::min(32767.0f, std::max(-32768.0f, f[i] * 32768.0f));
+        maxDiff = std::max(maxDiff, static_cast<int>(std::fabs(e - static_cast<float>(q[i]))));
+        if (q[i] > 1000) anySignal = true;
+    }
+    CHECK(anySignal);
+    CHECK(maxDiff <= 1);
+}
+
+TEST_CASE("mixer: renderS16 clamps a clipping mix") {
+    Sample s;
+    s.channels = 1;
+    s.rate = 44100;
+    s.pcm.assign(2000, 32767);  // constant full scale
+    PlayParams params;
+    params.volume = 50.0f;  // far past the limiter's knee: tanh saturates to ~1
+    Mixer m;
+    m.setDeviceRate(44100);
+    REQUIRE(m.startVoice(&s, params) != as3d::kInvalidVoiceId);
+    std::vector<int16_t> q(2000 * 2);
+    m.renderS16(q.data(), 1000);
+    for (int i = 0; i < 1000 * 2; ++i) {
+        CHECK(q[i] <= 32767);
+        CHECK(q[i] >= 30000);
+    }
+}
+
 TEST_CASE("mixer: resampling 22050 -> 44100 doubles the frame count within one frame") {
     Sample s;
     s.channels = 1;
@@ -391,7 +442,12 @@ as3d::Vfs makeGameVfs() {
 }
 }  // namespace
 
+// Tracker music needs libopenmpt; the AS3D_WITH_OPENMPT=OFF build has the stub decoder.
+#define AS3D_REQUIRE_MUSIC() \
+    do { if (!AS3D_WITH_OPENMPT) { MESSAGE("skipped: built without libopenmpt"); return; } } while (0)
+
 TEST_CASE("music: each of the five tracks loads and renders plausible audio") {
+    AS3D_REQUIRE_MUSIC();
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     for (int i = 1; i <= 5; ++i) {
         char path[64];
@@ -423,6 +479,7 @@ TEST_CASE("music: each of the five tracks loads and renders plausible audio") {
 }
 
 TEST_CASE("music: rendering is deterministic across independent instances") {
+    AS3D_REQUIRE_MUSIC();
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     const int frames = 44100 * 5;
     std::vector<float> a(static_cast<size_t>(frames) * 2), b(static_cast<size_t>(frames) * 2);
@@ -448,6 +505,7 @@ TEST_CASE("music: rendering is deterministic across independent instances") {
 }
 
 TEST_CASE("music: looping restarts playback after the track ends") {
+    AS3D_REQUIRE_MUSIC();
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     as3d::Vfs vfs = makeGameVfs();
     as3d::Audio audio;
@@ -474,6 +532,7 @@ TEST_CASE("music: looping restarts playback after the track ends") {
 }
 
 TEST_CASE("music: title metadata is readable") {
+    AS3D_REQUIRE_MUSIC();
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     as3d::Vfs vfs = makeGameVfs();
     as3d::Audio audio;
@@ -483,6 +542,7 @@ TEST_CASE("music: title metadata is readable") {
 }
 
 TEST_CASE("music: the game-over jump to pattern order 35 (or 0 for a shorter module)") {
+    AS3D_REQUIRE_MUSIC();
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     as3d::Vfs vfs = makeGameVfs();
     as3d::Audio audio;

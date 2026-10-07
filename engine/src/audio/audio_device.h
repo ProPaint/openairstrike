@@ -22,5 +22,8 @@ public:
 
 std::unique_ptr<IAudioDevice> makeNullAudioDevice();
 std::unique_ptr<IAudioDevice> makeSdlAudioDevice();
+// The platform's native output device. Implemented by the audio backend
+// directory (audio/<backend>/); the sdl backend returns the SDL device.
+std::unique_ptr<IAudioDevice> makePlatformAudioDevice();
 
 }  // namespace as3d::audio

@@ -135,6 +135,23 @@ void Mixer::setMusicVolume(float v) {
     musicVolume_ = std::max(0.0f, v);
 }
 
+void Mixer::renderS16(int16_t* out, int frames) {
+    constexpr int kChunk = 512;
+    float scratch[2 * kChunk];
+    while (frames > 0) {
+        const int n = frames < kChunk ? frames : kChunk;
+        render(scratch, n);
+        for (int i = 0; i < 2 * n; ++i) {
+            float v = std::nearbyint(scratch[i] * 32768.0f);
+            if (v > 32767.0f) v = 32767.0f;
+            if (v < -32768.0f) v = -32768.0f;
+            out[i] = static_cast<int16_t>(v);
+        }
+        out += 2 * n;
+        frames -= n;
+    }
+}
+
 void Mixer::setPaused(bool paused) {
     std::lock_guard<std::mutex> lock(mutex_);
     paused_ = paused;

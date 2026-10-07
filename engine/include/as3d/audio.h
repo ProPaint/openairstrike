@@ -36,6 +36,8 @@ enum class AudioBackend {
     Null,  // No real device; pull mixed audio manually with Audio::render().
            // Deterministic, used by headless tests and offline rendering.
     Sdl,   // Opens an SDL audio device and mixes from its callback.
+    Platform,  // The platform backend's native device (makePlatformAudioDevice());
+               // the SDL backend returns its SDL device, so this equals Sdl there.
 };
 
 struct PlayParams {

@@ -7,6 +7,7 @@
 // for why a plain mutex is the right trade-off here.
 #pragma once
 
+#include <cstdint>
 #include <mutex>
 
 #include "as3d/audio.h"
@@ -71,6 +72,10 @@ public:
     // floats already owned by the caller). Safe to call from any single
     // thread as long as it's always the same thread (the "audio thread").
     void render(float* out, int frames);
+    // Same mix as render(), converted to signed 16-bit interleaved stereo
+    // (round to nearest, clamped to [-32768, 32767]). For devices that take
+    // integer PCM. Does not allocate (renders in fixed-size chunks).
+    void renderS16(int16_t* interleavedStereo, int frames);
 
     int activeVoiceCount() const;
     u64 voicesStolenCount() const;
