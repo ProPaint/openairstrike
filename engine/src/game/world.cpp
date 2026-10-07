@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "as3d/defs.h"
+#include "as3d/load_stats.h"
 #include "as3d/model.h"
 #include "as3d/script_host.h"
 #include "as3d/vfs.h"
@@ -272,6 +273,8 @@ const ModelData* World::loadModel(const std::string& rawPath) {
     auto it = models_.find(path);
     if (it != models_.end()) return it->second.get();
     if (modelMissing_.count(path)) return nullptr;
+    LoadStats::Site site; // a load (as3d/load_stats.h); a failure is cached too
+    LoadStats::count(LoadKind::Model);
     Blob blob;
     std::unique_ptr<ModelData> m(new ModelData());
     std::string err;

@@ -2,8 +2,10 @@
 
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
+#include "as3d/load_stats.h"
 #include "audio_device.h"
 #include "mixer.h"
 #include "music_decoder.h"
@@ -24,6 +26,9 @@ struct Audio::Impl {
     std::mutex cacheMutex;
     std::unordered_map<std::string, SoundId> pathToId;
     std::vector<std::unique_ptr<audio::Sample>> sounds;  // index 0 unused
+    // Paths that failed to load: read again at every call, as before, but counted once
+    // (as3d/load_stats.h).
+    std::unordered_set<std::string> failedPaths;
 
     std::string musicTitle;
     bool musicLoop = true;
@@ -58,6 +63,7 @@ void Audio::shutdown() {
     std::lock_guard<std::mutex> lock(impl_->cacheMutex);
     impl_->pathToId.clear();
     impl_->sounds.clear();
+    impl_->failedPaths.clear();
     impl_->vfs = nullptr;
 }
 
@@ -69,14 +75,18 @@ SoundId Audio::loadSound(const char* gamePath) {
     auto it = impl_->pathToId.find(norm);
     if (it != impl_->pathToId.end()) return it->second;
 
+    LoadStats::Site site; // a load (as3d/load_stats.h)
+    if (!impl_->failedPaths.count(norm)) LoadStats::count(LoadKind::Sound);
     Blob data;
     if (!impl_->vfs->read(norm, data)) {
         AS3D_WARN("audio: sound not found: %s", norm.c_str());
+        impl_->failedPaths.insert(norm);
         return kInvalidSoundId;
     }
     auto sample = std::make_unique<audio::Sample>();
     if (!audio::parseWav(data, *sample)) {
         AS3D_WARN("audio: failed to parse WAV: %s", norm.c_str());
+        impl_->failedPaths.insert(norm);
         return kInvalidSoundId;
     }
     impl_->sounds.push_back(std::move(sample));

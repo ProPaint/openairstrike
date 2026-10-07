@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "as3d/load_stats.h"
+
 namespace as3d {
 
 void Vfs::mount(std::unique_ptr<IFileSource> source) {
@@ -19,7 +21,10 @@ bool Vfs::exists(const std::string& path) {
 bool Vfs::read(const std::string& path, Blob& out) {
     const std::string p = normalizePath(path);
     for (auto it = sources_.rbegin(); it != sources_.rend(); ++it) {
-        if ((*it)->read(p, out)) return true;
+        if ((*it)->read(p, out)) {
+            LoadStats::fileRead(out.size());
+            return true;
+        }
     }
     return false;
 }
