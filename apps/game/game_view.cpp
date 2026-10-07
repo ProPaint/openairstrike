@@ -146,6 +146,26 @@ ui::HudState hudStateOf(const GameSession& session) {
 }
 
 void GameView::renderWorld(const World& world, int width, int height) {
+    if (stereoDebugEyeOffset != 0.0f) {
+        // --stereo-debug: one prepare, then each eye in its half of the field.
+        Viewport vp;
+        vp.width = width;
+        vp.height = height;
+        if (screenMode == kScreen4x3) {
+            int x, y, w, h;
+            ui::computeMapping(width, height).fieldPixels(x, y, w, h);
+            if (w > 0 && h > 0) vp = Viewport{x, height - y - h, w, h};
+        }
+        const int left = vp.x;
+        vp.width /= 2;
+        vp.maxEyeOffset = std::fabs(stereoDebugEyeOffset);
+        vp.minFocalDistance = stereoDebugFocal;
+        renderer_.prepare(world, vp);
+        renderer_.draw(EyeView{-stereoDebugEyeOffset, stereoDebugFocal}, left, vp.y);
+        renderer_.draw(EyeView{stereoDebugEyeOffset, stereoDebugFocal}, left + vp.width, vp.y);
+        glViewport(0, 0, width, height);
+        return;
+    }
     if (screenMode == kScreen4x3) {
         int x, y, w, h;
         ui::computeMapping(width, height).fieldPixels(x, y, w, h);

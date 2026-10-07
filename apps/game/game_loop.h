@@ -71,6 +71,8 @@ struct LoopOptions {
     bool leftHanded = false;
     int touchSpeed = as3d::kDefaultTouchSpeed; // Settings::touchSpeed without the front end
     bool fps = false;                        // the frame counter regardless of Settings::showFps (--fps)
+    float stereoEyeOffset = 0.0f;            // --stereo-debug (GameView::stereoDebugEyeOffset); 0 = off
+    float stereoFocal = 0.0f;
     // The front end (menus); game.startLevel must then be false.
     bool frontend = false;
     FlowConfig flow;

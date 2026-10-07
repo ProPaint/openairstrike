@@ -100,6 +100,7 @@ struct Args {
     bool leftHanded = false;
     float dpi = 0;
     bool fps = false;
+    float stereoEyeOffset = 0.0f, stereoFocal = 0.0f; // --stereo-debug E[,D]
     std::string gameKey, paksDir;
     bool listGames = false, errorShown = false;
     bool allowUnfinished = false;
@@ -118,6 +119,7 @@ int usage() {
                  "                 [--touch] [--perf] [--fullscreen] [--paks DIR] [--game as3d|as2|gulf] [--list-games]\n"
                  "                 [--profile FILE] [--attract 1..4] [--no-logo]\n"
                  "                 [--screen wide|4x3] [--left-handed] [--dpi N] [--fps]\n"
+                 "                 [--stereo-debug EYE_OFFSET[,FOCAL_DISTANCE]]  (both eyes side by side)\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
                  "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n"
                  "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n"
@@ -150,6 +152,9 @@ bool parseArgs(int argc, char** argv, Args& a) {
         }
         else if (s == "--left-handed") a.leftHanded = true;
         else if (s == "--fps") a.fps = true;
+        else if (s == "--stereo-debug" && next()) {
+            if (std::sscanf(v, "%f,%f", &a.stereoEyeOffset, &a.stereoFocal) < 1) return false;
+        }
         else if (s == "--dpi" && next()) a.dpi = static_cast<float>(std::atof(v));
         else if (s == "--difficulty" && next()) a.game.world.difficulty = std::atoi(v);
         else if (s == "--seed" && next()) a.game.world.seed = static_cast<u32>(std::strtoul(v, nullptr, 10));
@@ -235,6 +240,8 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
         gl->makeCurrent();
         view.reset(new GameView());
         view->screenMode = a.screen == kScreen4x3 ? kScreen4x3 : kScreenWide;
+        view->stereoDebugEyeOffset = a.stereoEyeOffset;
+        view->stereoDebugFocal = a.stereoFocal;
         if (!view->init(session, &err)) {
             std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
             return 1;
@@ -530,6 +537,8 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
         }
         gl->makeCurrent();
         view.reset(new GameView());
+        view->stereoDebugEyeOffset = a.stereoEyeOffset;
+        view->stereoDebugFocal = a.stereoFocal;
         if (!view->init(session, &err, false)) {
             std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
             return 1;
@@ -739,6 +748,8 @@ int main(int argc, char** argv) {
         o.screenMode = a.screen;
         o.leftHanded = a.leftHanded;
         o.fps = a.fps;
+        o.stereoEyeOffset = a.stereoEyeOffset;
+        o.stereoFocal = a.stereoFocal;
         if (frontend) planDesktopLauncher(a, o);
         return runGameWindow(o);
     }

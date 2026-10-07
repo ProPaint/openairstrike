@@ -90,6 +90,11 @@ public:
     // centred 4:3 area and everything outside it ends black (after the 2D layer and the
     // brightness pass). Drawing only: the simulation never sees it.
     int screenMode = as3d::kScreenWide;
+    // as3d_game --stereo-debug E[,D]: the world drawn twice side by side from one prepare, the
+    // left eye (offset -E) in the left half and the right eye (+E) in the right half, with
+    // focal distance D (0: parallel eyes). 0 = off (the normal view).
+    float stereoDebugEyeOffset = 0.0f;
+    float stereoDebugFocal = 0.0f;
 
 private:
     struct Preview;

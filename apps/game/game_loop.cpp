@@ -258,7 +258,11 @@ void GameWindow::updateLayout() {
     const int screen = screenMode(), hand = leftHanded() ? 1 : 0;
     if (stack_.flow) stack_.flow->setScreenSize(w, h);
     applyTouchSpeed(touch_.settings(), stack_.flow ? stack_.flow->profile().settings.touchSpeed : o_.touchSpeed);
-    if (stack_.view) stack_.view->screenMode = screen;
+    if (stack_.view) {
+        stack_.view->screenMode = screen;
+        stack_.view->stereoDebugEyeOffset = o_.stereoEyeOffset;
+        stack_.view->stereoDebugFocal = o_.stereoFocal;
+    }
     if (w == layoutW_ && h == layoutH_ && in.left == layoutInsets_.left && in.top == layoutInsets_.top &&
         in.right == layoutInsets_.right && in.bottom == layoutInsets_.bottom && screen == layoutScreen_ &&
         hand == layoutHand_ && dpi == layoutDpi_)
