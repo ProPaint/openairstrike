@@ -19,6 +19,7 @@
 #include <tuple>
 #include <vector>
 
+#include "as3d/gfx.h"
 #include "as3d/image.h"
 #include "as3d/platform.h"
 #include "as3d/vfs.h"
@@ -95,18 +96,7 @@ GpuMesh makeQuad(const Vec3& center, const Vec3& normal, const Vec3& axisU, cons
         v[i].uv = uvs[i];
     }
     u16 indices[6] = {0, 1, 2, 0, 2, 3};
-    mesh.vbo.upload(v, sizeof v);
-    mesh.ibo.upload(indices, sizeof indices, IndexType::U16);
-    VertexLayout layout;
-    layout.strideBytes = sizeof(RenderVertex);
-    layout.attribs = {
-        {0, 3, offsetof(RenderVertex, position), false},
-        {1, 3, offsetof(RenderVertex, normal), false},
-        {2, 2, offsetof(RenderVertex, uv), false},
-    };
-    mesh.vao.create(mesh.vbo, layout, &mesh.ibo);
-    mesh.indexCount = 6;
-    mesh.valid = true;
+    mesh.upload(v, 4, indices, 6);
     return mesh;
 }
 
@@ -395,18 +385,7 @@ TEST_CASE("Culling: CullMode::Back (this engine's chosen setting) shows a CCW-wo
         vertex.uv = Vec2{0, 0};
     }
     u16 idx[3] = {0, 1, 2};
-    tri.vbo.upload(v, sizeof v);
-    tri.ibo.upload(idx, sizeof idx, IndexType::U16);
-    VertexLayout layout;
-    layout.strideBytes = sizeof(RenderVertex);
-    layout.attribs = {
-        {0, 3, offsetof(RenderVertex, position), false},
-        {1, 3, offsetof(RenderVertex, normal), false},
-        {2, 2, offsetof(RenderVertex, uv), false},
-    };
-    tri.vao.create(tri.vbo, layout, &tri.ibo);
-    tri.indexCount = 3;
-    tri.valid = true;
+    tri.upload(v, 3, idx, 3);
 
     Material mat = makeMaterial(white, MaterialBlend::Opaque, Vec4{1, 1, 1, 1}, true, SortBucket::Opaque);
     mat.noCulling = false; // exercise the real applyMaterialState() cull decision

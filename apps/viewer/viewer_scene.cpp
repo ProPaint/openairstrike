@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "as3d/gfx.h"
 #include "common.h"
 
 namespace viewer {

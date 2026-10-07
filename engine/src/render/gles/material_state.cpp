@@ -1,9 +1,9 @@
-// Implements as3d::applyMaterialState (as3d/scene.h): the single function + table that
-// maps a Material's flags to GL blend/depth/cull state. See docs/spec/obj.md's
-// blend/rflag tables and docs/graphics.md's "Material state table" section.
-#include "as3d/scene.h"
-
+// GL backend of as3d::applyMaterialState (as3d/material_key.h): one MaterialKey -> GL blend,
+// depth, cull and polygon offset state. The Material -> MaterialKey mapping (the flag table)
+// is neutral, in engine/src/render/material_key.cpp.
 #include <GLES3/gl3.h>
+
+#include "as3d/material_key.h"
 
 namespace as3d {
 
@@ -15,51 +15,32 @@ struct BlendGLState {
     GLenum dst;
 };
 
-// One row per MaterialBlend value, in declaration order. This table (plus the two
-// setDepth/setCull calls below) is the ENTIRE flag/enum -> GL-state mapping for this
-// package; a later render-pipeline spec can correct any single line here without
-// touching anything else.
-constexpr BlendGLState kBlendTable[] = {
-    /* Opaque */ {false, GL_ONE, GL_ZERO},
-    /* Alpha  */ {true, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA},
-    /* Add    */ {true, GL_ONE, GL_ONE}, // render-pipeline.md 4.1: (ONE, ONE)
-    // BLEND_FILTER ("multiplicative": dst *= src). as3d::setBlend (as3d/gfx.h) only
-    // offers Off/AlphaBlend/Additive, so this one state is set with raw GL calls
-    // instead of going through it -- everything else here does use as3d::setDepth /
-    // as3d::setCull.
-    /* Filter */ {true, GL_DST_COLOR, GL_ZERO},
+// One row per RenderBlend value, in declaration order.
+constexpr BlendGLState kBlendGL[] = {
+    /* None       */ {false, GL_ONE, GL_ZERO},
+    /* Alpha      */ {true, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA},
+    /* Add        */ {true, GL_ONE, GL_ONE},
+    /* Filter     */ {true, GL_DST_COLOR, GL_ZERO},
+    /* Brightness */ {true, GL_DST_COLOR, GL_SRC_COLOR},
 };
-
-// Settled empirically for this engine's own from-scratch camera/view pipeline (see
-// docs/graphics.md, "Winding and culling", and the WP-30/33 report): buildRenderMesh's
-// CCW-in-object-space triangles (docs/spec/mdl.md) stay CCW in window space after this
-// engine's model/view/projection transforms, because all of them (model TRS, the
-// Z-up-aware lookAt() view, and perspective()) are standard right-handed, non-mirroring
-// transforms. That matches as3d::setCull's hardcoded glFrontFace(GL_CCW)
-// (engine/src/render/gfx.cpp), so CullMode::Back ("cull back faces") is directly usable
-// with buildRenderMesh's own winding, no reversal needed. Named here, once, so a future
-// camera-convention change has exactly one place to flip.
-constexpr CullMode kDefaultCullMode = CullMode::Back;
-
-int gCullOverride = -1;
 
 } // namespace
 
-void setCullDebugOverride(int mode) { gCullOverride = mode; }
-
-void applyMaterialState(const Material& material) {
-    const BlendGLState& b = kBlendTable[static_cast<int>(material.blend)];
+void applyMaterialState(const MaterialKey& key) {
+    const BlendGLState& b = kBlendGL[static_cast<int>(key.blend)];
     if (b.enable) {
         glEnable(GL_BLEND);
         glBlendFunc(b.src, b.dst);
     } else {
         glDisable(GL_BLEND);
     }
-    setDepth(!material.noDepthTest, !material.noDepthWrite);
-    if (gCullOverride >= 0) {
-        setCull(gCullOverride == 0 ? CullMode::Off : gCullOverride == 1 ? CullMode::Back : CullMode::Front);
+    setDepth(key.depthTest, key.depthWrite);
+    setCull(key.cull);
+    if (key.polygonOffset) {
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(-1.0f, -1.0f);
     } else {
-        setCull(material.noCulling ? CullMode::Off : kDefaultCullMode);
+        glDisable(GL_POLYGON_OFFSET_FILL);
     }
 }
 

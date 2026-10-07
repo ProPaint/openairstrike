@@ -1,6 +1,7 @@
 // Mesh rendering (WP-30): a resource cache for game-data textures/meshes, a Material
 // derived from an ObjectDef, a Camera/SceneLighting pair and a MeshRenderer that sorts
-// and draws submitted meshes with one GLSL ES 3.00 program. See docs/graphics.md for
+// and draws submitted meshes (GL backend: one GLSL ES 3.00 program; the GPU side of a mesh
+// and the renderer's program are private to the backend). See docs/graphics.md for
 // the coordinate-system, winding and material-state-table writeups this implements.
 //
 // `Material::fromObjectDef` takes `const ObjectDef&` by reference, so this header only needs a
@@ -15,9 +16,10 @@
 
 #include "as3d/core.h"
 #include "as3d/dynamic_lights.h"
-#include "as3d/gfx.h" // GpuMesh holds GL buffers and Renderer a ShaderProgram: still GL (M0.4b)
+#include "as3d/material_key.h"
 #include "as3d/math.h"
 #include "as3d/model.h"
+#include "as3d/texture.h"
 
 namespace as3d {
 
@@ -29,18 +31,36 @@ class DefDatabase;
 // ResourceCache: textures and GPU meshes, cached by normalized game path.
 // ---------------------------------------------------------------------------
 
+// The backend's buffers for one mesh (GL: engine/src/render/gles/gpu_mesh_gl.h). Opaque here.
+struct GpuMeshBuffers;
+
 // One .mdl file's GPU-ready form. Kept alongside the parsed ModelData so callers can
-// still read tags/bounds without re-parsing the file.
+// still read tags/bounds without re-parsing the file. The GPU side is backend-defined and
+// only reached through buffers() by that backend's renderers.
 struct GpuMesh {
+    GpuMesh();
+    ~GpuMesh();
+    GpuMesh(GpuMesh&&) noexcept;
+    GpuMesh& operator=(GpuMesh&&) noexcept;
+    GpuMesh(const GpuMesh&) = delete;
+    GpuMesh& operator=(const GpuMesh&) = delete;
+
     ModelData model;
-    VertexBuffer vbo;
-    IndexBuffer ibo;
-    VertexArray vao;
     size_t indexCount = 0;
     // false for the placeholder returned when the file is missing/corrupt/unbuildable:
     // 0 indices, nothing is drawn (there is no reasonable stand-in geometry, unlike a
     // missing texture, which gets a visible magenta checker -- see ResourceCache::texture).
     bool valid = false;
+
+    // Backend: uploads a buildRenderMesh triangle list (replacing any previous one), sets
+    // indexCount, and sets valid when there is at least one index. Needs the graphics
+    // context (GL: a current context). Returns valid.
+    bool upload(const RenderVertex* vertices, size_t vertexCount, const u16* indices, size_t indexCount);
+
+    GpuMeshBuffers* buffers() const { return buffers_.get(); }
+
+private:
+    std::unique_ptr<GpuMeshBuffers> buffers_;
 };
 
 class ResourceCache {
@@ -125,9 +145,10 @@ struct Material {
     static Material fromObjectDef(const ObjectDef& def, ResourceCache& cache);
 };
 
-// Sets GL blend/depth-test/depth-write/cull state for one material. The entire
-// flag-bits -> GL-state mapping lives in this one function (engine/src/render/material.cpp),
-// driven by a small table, so a later render-pipeline spec can correct it in one place.
+// Sets the backend's blend/depth/cull state for one material: the same as
+// applyMaterialState(materialKeyFor(material)). The entire flag-bits -> state mapping lives
+// in materialKeyFor (as3d/material_key.h, engine/src/render/material_key.cpp), driven by a
+// small table, so a later render-pipeline spec can correct it in one place.
 void applyMaterialState(const Material& material);
 
 // Debug/verification hook (used by the viewer's --cull option, which produced the winding
@@ -201,9 +222,12 @@ struct SceneLighting {
 
 class MeshRenderer {
 public:
-    MeshRenderer() = default;
+    MeshRenderer();
+    ~MeshRenderer();
+    MeshRenderer(const MeshRenderer&) = delete;
+    MeshRenderer& operator=(const MeshRenderer&) = delete;
 
-    // Compiles the shared shader program (engine/src/render/shaders.cpp). Safe to call
+    // Compiles the shared shader program (GL: engine/src/render/gles/shaders.cpp). Safe to call
     // more than once (a no-op once already valid). Returns false, with `error` set, on
     // a shader compile/link failure.
     bool init(std::string* error = nullptr);
@@ -217,33 +241,17 @@ public:
     // origin into the ambient cube; RF_NOLIGHTING and RF_NODLIGHT materials ignore them.
     void setDynamicLights(const DynamicLight* lights, size_t count);
     // Game time in seconds; drives the ENV_QUAD texture rotation.
-    void setTime(float seconds) { time_ = seconds; }
+    void setTime(float seconds);
     // The sequels' environment coordinates and ENV_GLITTER alpha (as2/render-pipeline.delta.md
     // 4.3, RenderRules::envViewNormal; as3d/envmap.h viewNormalEnvUv). Off: the GL sphere map.
-    void setEnvViewNormal(bool on) { envViewNormal_ = on; }
+    void setEnvViewNormal(bool on);
     // Sorts (SORT_OPAQUE, then SORT_TRANS back-to-front by distance to the camera, then
     // SORT_EFFECT) and issues the draw calls.
     void end();
 
 private:
-    struct DrawItem {
-        const GpuMesh* mesh = nullptr;
-        const Material* material = nullptr;
-        Mat4 model = Mat4::identity();
-        Vec4 colour{1.0f, 1.0f, 1.0f, 1.0f};
-        float distanceToCamera = 0.0f;
-    };
-
-    ShaderProgram program_;
-    bool initialized_ = false;
-    Camera camera_;
-    SceneLighting lighting_;
-    std::vector<DrawItem> items_;
-    std::vector<DynamicLight> lights_;
-    float time_ = 0.0f;
-    bool envViewNormal_ = false;
-
-    void draw(const DrawItem& item);
+    struct Impl; // backend (GL: engine/src/render/gles/mesh_renderer.cpp)
+    std::unique_ptr<Impl> impl_;
 };
 
 } // namespace as3d

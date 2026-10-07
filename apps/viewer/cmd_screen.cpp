@@ -20,6 +20,7 @@
 #include "as3d/defs.h"
 #include "as3d/frontend.h"
 #include "as3d/image.h"
+#include "as3d/gfx.h"
 #include "as3d/render_state.h"
 #include "as3d/ui.h"
 #include "common.h"

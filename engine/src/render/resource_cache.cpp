@@ -129,20 +129,7 @@ const GpuMesh& ResourceCache::mesh(const std::string& gamePath) {
         std::vector<RenderVertex> verts;
         std::vector<u16> indices;
         ok = buildRenderMesh(gpu->model, verts, indices) && !indices.empty();
-        if (ok) {
-            gpu->vbo.upload(verts.data(), verts.size() * sizeof(RenderVertex));
-            gpu->ibo.upload(indices.data(), indices.size() * sizeof(u16), IndexType::U16);
-            VertexLayout layout;
-            layout.strideBytes = sizeof(RenderVertex);
-            layout.attribs = {
-                {0, 3, offsetof(RenderVertex, position), false},
-                {1, 3, offsetof(RenderVertex, normal), false},
-                {2, 2, offsetof(RenderVertex, uv), false},
-            };
-            gpu->vao.create(gpu->vbo, layout, &gpu->ibo);
-            gpu->indexCount = indices.size();
-            gpu->valid = true;
-        }
+        if (ok) ok = gpu->upload(verts.data(), verts.size(), indices.data(), indices.size());
     }
     if (!ok) {
         warnOnce(key, "ResourceCache: mesh '" + gamePath + "' could not be loaded, using an empty placeholder");
