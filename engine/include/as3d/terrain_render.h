@@ -20,9 +20,11 @@
 #include "as3d/math.h"
 #include "as3d/render_rules.h"
 #include "as3d/terrain.h"
+#include "as3d/terrain_build.h"
 #include "as3d/terrain_grid.h"
 #include "as3d/vfs.h"
 #include "as3d/water.h"
+#include "as3d/water_build.h"
 
 namespace as3d {
 
@@ -46,42 +48,6 @@ struct TerrainRenderOptions {
     bool detail = true;
     bool wireframe = false;
 };
-
-// Base texture generation (docs/spec/hmap.md "Height-banded base texture"): block
-// `block` covers level rows 32*block .. 32*block+31 resampled to 256x256; each texel
-// blends texture1..4 by height/86. `textures` are texture1..texture4 (256x256 RGBA,
-// row 0 = top). Output: 256*256*3 RGB bytes, texel row 0 = the block's first level row.
-constexpr int kBaseTextureSize = 256;
-constexpr int kBaseTextureRows = 32;
-void generateBaseTextureRgb(const LevelData& level, const Image textures[4], int block, std::vector<u8>& rgb);
-
-// Tile atlas UVs (docs/spec/hmap.md "Tile overlays"). Atlas is split into 64x64 tiles;
-// out[0..3] are the UVs of cell corners v00, v10, v11, v01 in this engine's texture
-// convention (v = 0 at the top of the image). Indices past the atlas wrap; a rotation
-// byte other than 3/6/9 behaves as 0. `halfTexelInset` (the sequels, as2 delta 12.4) moves
-// every edge of the tile's rectangle half a texel inwards.
-void tileCornerUvs(int atlasWidth, int atlasHeight, int tileIndex, int rotation, Vec2 out[4],
-                   bool halfTexelInset = false);
-
-// The sequels' terrain vertex normals and static colours (as2/render-pipeline.delta.md 12.2):
-// N = normalize(normalize(−sx, 0, 1) + normalize(0, −sy, 1)), sx and sy the central differences
-// (z(c+1) − z(c−1))/80 and (z(r+1) − z(r−1))/80, 0 on the map border; colour channel
-// min(255, (sun·d + ambient)·f·255), d = clamp(N·L, 0, 1), f the underwater factor of
-// hmap.md. Both (W+1) x (H+1), row-major, from the grid's heights at the time of the call.
-void centralDifferenceNormals(const TerrainGridView& grid, std::vector<Vec3>& out);
-void sequelTerrainColours(const TerrainGridView& grid, const std::vector<Vec3>& normals, const TerrainStyle& style,
-                          std::vector<TerrainVertexColor>& out);
-
-struct WaterParams {
-    bool present = false;
-    float level = 0.0f;
-    float alpha = 0.0f;
-    Vec3 colour;          // sun * sun_dir.z + ambient (sun direction normalised), clamped to [0,1]
-    float phase = 0.0f;   // t = time * pi * 0.1
-    float planeZ = 0.0f;  // level + sin(phase)
-    Vec2 texOffset;       // (0.4 sin(phase), 0.4 sin(phase / 2))
-};
-WaterParams computeWaterParams(const TerrainStyle& style, float timeSeconds);
 
 class TerrainRenderer {
 public:
@@ -126,34 +92,6 @@ private:
 // ---------------------------------------------------------------------------
 // The sequels' water grid (as2/render-pipeline.delta.md 12.5; data in as3d/water.h).
 // ---------------------------------------------------------------------------
-
-// One grid vertex as the water program receives it: the wave, the alpha and both texture
-// layers are computed in the vertex shader from these and the time.
-struct WaterGridVertex {
-    float col = 0, row = 0; // grid indices
-    float terrainZ = 0;     // the terrain's current height (non-animated vertices sit there)
-    float weight = 0;       // depth weight w (as3d/water.h)
-};
-
-// The vertices of rows rowStart..rowStart+rows (all columns, row-major) and the triangles of
-// its wet cells (two per cell: (v00, v10, v11), (v00, v11, v01), the terrain's split) as
-// indices into those vertices.
-void buildWaterChunk(const WaterSurface& surface, const TerrainGridView& grid, int rowStart, int rows,
-                     std::vector<WaterGridVertex>& vertices, std::vector<u16>& indices);
-
-// Per-frame values of the grid water at game time T (seconds): t = T·π·0.1 drives the scroll.
-// The layers as the original binds them (as2/render-corrections.md C1): the shine texture in
-// the first stage (×2 matrix), the base in the second (×1.5), colour lerp(shine, base, base.a).
-struct WaterGridFrame {
-    float waveTime = 0.0f; // T, for the wave term
-    Vec2 baseOffset;       // (0.4 sin t, 0.4 sin(t/2)), added to 1.5·(c/4, r/4)
-    Vec2 shineOffset;      // (0.4 sin(t/2) + 0.2, −0.2 sin(t/4) − 0.3), added to 2·(c/4, r/4)
-};
-WaterGridFrame computeWaterGridFrame(float timeSeconds);
-// Texture coordinates of grid vertex (c, r) for the two layers (Direct3D v, which is this
-// engine's convention: v = 0 at the top of the picture).
-Vec2 waterBaseUv(int col, int row, const WaterGridFrame& f);
-Vec2 waterShineUv(int col, int row, const WaterGridFrame& f);
 
 class WaterRenderer {
 public:

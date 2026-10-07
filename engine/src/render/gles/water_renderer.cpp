@@ -14,67 +14,7 @@ extern const char* const kWaterFragmentSrc;
 extern const char* const kWaterGridVertexSrc;
 extern const char* const kWaterGridFragmentSrc;
 
-WaterParams computeWaterParams(const TerrainStyle& def, float timeSeconds) {
-    WaterParams w;
-    w.present = def.hasWater && !def.waterTexture.empty();
-    w.level = def.waterLevel;
-    w.alpha = def.waterAlpha;
-    Vec3 dir = normalize(Vec3{def.sun[3], def.sun[4], def.sun[5]});
-    auto ch = [&](int k) { return std::min(1.0f, std::max(0.0f, def.sun[k] * dir.z + def.sun[6 + k])); };
-    w.colour = {ch(0), ch(1), ch(2)};
-    w.phase = timeSeconds * kPi * 0.1f;
-    w.planeZ = w.level + std::sin(w.phase);
-    w.texOffset = {0.4f * std::sin(w.phase), 0.4f * std::sin(w.phase * 0.5f)};
-    return w;
-}
-
-void buildWaterChunk(const WaterSurface& s, const TerrainGridView& grid, int rowStart, int rows,
-                     std::vector<WaterGridVertex>& vertices, std::vector<u16>& indices) {
-    vertices.clear();
-    indices.clear();
-    if (!s.present || !grid.valid() || rows < 1) return;
-    const int W = grid.width, vw = W + 1;
-    for (int lr = 0; lr <= rows; ++lr) {
-        const int r = rowStart + lr;
-        for (int c = 0; c <= W; ++c) {
-            WaterGridVertex v;
-            v.col = static_cast<float>(c);
-            v.row = static_cast<float>(r);
-            v.terrainZ = grid.at(c, r).z;
-            v.weight = s.weightAt(c, r);
-            vertices.push_back(v);
-        }
-    }
-    for (int lr = 0; lr < rows; ++lr) {
-        for (int c = 0; c < W; ++c) {
-            if (!s.wet(c, rowStart + lr)) continue;
-            const u16 v00 = static_cast<u16>(lr * vw + c), v10 = static_cast<u16>(v00 + 1);
-            const u16 v01 = static_cast<u16>(v00 + vw), v11 = static_cast<u16>(v01 + 1);
-            indices.insert(indices.end(), {v00, v10, v11, v00, v11, v01});
-        }
-    }
-}
-
-WaterGridFrame computeWaterGridFrame(float timeSeconds) {
-    WaterGridFrame f;
-    const float t = timeSeconds * kPi * 0.1f;
-    f.waveTime = timeSeconds;
-    f.baseOffset = {0.4f * std::sin(t), 0.4f * std::sin(t * 0.5f)};
-    f.shineOffset = {0.4f * std::sin(t * 0.5f) + 0.2f, -0.2f * std::sin(t * 0.25f) - 0.3f};
-    return f;
-}
-
-Vec2 waterBaseUv(int col, int row, const WaterGridFrame& f) {
-    return {1.5f * static_cast<float>(col) * 0.25f + f.baseOffset.x, 1.5f * static_cast<float>(row) * 0.25f + f.baseOffset.y};
-}
-
-Vec2 waterShineUv(int col, int row, const WaterGridFrame& f) {
-    return {2.0f * static_cast<float>(col) * 0.25f + f.shineOffset.x, 2.0f * static_cast<float>(row) * 0.25f + f.shineOffset.y};
-}
-
 namespace {
-
-constexpr int kWaterChunkRows = 8; // the terrain's chunks (as2@0x437c60)
 
 // The texture name has its extension replaced by .tga before loading; a missing file gives a
 // magenta placeholder and a warning.
@@ -97,13 +37,6 @@ Image loadWaterTexture(Vfs& vfs, const std::string& name, int* missing) {
     return img;
 }
 
-struct GridChunk {
-    int rowStart = 0, rows = 0;
-    size_t firstVertex = 0, vertexCount = 0;
-    size_t firstIndex = 0, indexCount = 0;
-    Vec3 bmin, bmax;
-};
-
 } // namespace
 
 struct WaterRenderer::Impl {
@@ -120,16 +53,14 @@ struct WaterRenderer::Impl {
     float quadHeight = 320.0f;
     // Grid water.
     WaterSurface surface;
-    std::vector<GridChunk> chunks;
-    std::vector<WaterGridVertex> cpu; // all chunks' vertices, as uploaded
-    int wetCells = 0;
+    WaterGridGeometry geo;
 };
 
 WaterRenderer::WaterRenderer() : impl_(new Impl) {}
 WaterRenderer::~WaterRenderer() = default;
 bool WaterRenderer::active() const { return impl_->active; }
 bool WaterRenderer::grid() const { return impl_->grid; }
-int WaterRenderer::wetCells() const { return impl_->wetCells; }
+int WaterRenderer::wetCells() const { return impl_->geo.wetCells; }
 
 bool WaterRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error) {
     Impl& im = *impl_;
@@ -197,95 +128,35 @@ bool WaterRenderer::build(const Terrain& terrain, const WaterSurface& surface, c
         im.shine.create(clear, to);
     }
 
-    const int H = grid.height;
-    const int nChunks = (H + kWaterChunkRows - 1) / kWaterChunkRows;
-    std::vector<u16> allIdx;
-    std::vector<WaterGridVertex> cv;
-    std::vector<u16> ci;
-    im.chunks.resize(static_cast<size_t>(nChunks));
-    for (int k = 0; k < nChunks; ++k) {
-        GridChunk& ch = im.chunks[static_cast<size_t>(k)];
-        ch.rowStart = k * kWaterChunkRows;
-        ch.rows = std::min(kWaterChunkRows, H - ch.rowStart);
-        buildWaterChunk(surface, grid, ch.rowStart, ch.rows, cv, ci);
-        ch.firstVertex = im.cpu.size();
-        ch.vertexCount = cv.size();
-        ch.firstIndex = allIdx.size();
-        ch.indexCount = ci.size();
-        im.wetCells += static_cast<int>(ci.size() / 6);
-        for (u16 i : ci) allIdx.push_back(static_cast<u16>(ch.firstVertex + i));
-        float zmin = surface.level - kWaterWaveAmplitude, zmax = surface.level + kWaterWaveAmplitude;
-        for (const WaterGridVertex& v : cv) {
-            zmin = std::min(zmin, v.terrainZ);
-            zmax = std::max(zmax, v.terrainZ);
-        }
-        ch.bmin = {0.0f, static_cast<float>(ch.rowStart) * kHmapCellSize, zmin};
-        ch.bmax = {static_cast<float>(grid.width) * kHmapCellSize, static_cast<float>(ch.rowStart + ch.rows) * kHmapCellSize, zmax};
-        im.cpu.insert(im.cpu.end(), cv.begin(), cv.end());
-    }
-    if (im.cpu.size() > 65535) {
+    im.geo = buildWaterGridGeometry(surface, grid);
+    if (im.geo.verts.size() > 65535) {
         if (error) *error = "water grid too large for 16-bit indices";
         return false;
     }
-    im.vbo.upload(im.cpu.data(), im.cpu.size() * sizeof(WaterGridVertex), true);
+    const std::vector<u16>& allIdx = im.geo.indices;
+    im.vbo.upload(im.geo.verts.data(), im.geo.verts.size() * sizeof(WaterGridVertex), true);
     if (!allIdx.empty()) im.ibo.upload(allIdx.data(), allIdx.size() * sizeof(u16), IndexType::U16);
     VertexLayout l;
     l.strideBytes = sizeof(WaterGridVertex);
     l.attribs = {{0, 4, 0, false}};
     im.vao.create(im.vbo, l, allIdx.empty() ? nullptr : &im.ibo);
     im.grid = true;
-    im.active = im.wetCells > 0;
+    im.active = im.geo.wetCells > 0;
     return true;
 }
 
 void WaterRenderer::update(const VertexRect* rects, size_t count, const TerrainGridView& grid) {
     Impl& im = *impl_;
     lastUpdated_ = 0;
-    if (!im.grid || !grid.valid() || grid.width != im.surface.width || grid.height != im.surface.height) return;
-    const int vw = grid.width + 1;
-    for (GridChunk& ch : im.chunks) {
-        const int r0 = ch.rowStart, r1 = ch.rowStart + ch.rows;
-        bool touched = false;
-        for (size_t i = 0; i < count && !touched; ++i) {
-            const VertexRect& rc = rects[i];
-            if (rc.empty()) continue;
-            touched = rc.r0 <= r1 && rc.r1 >= r0 && rc.c0 <= grid.width && rc.c1 >= 0;
-        }
-        if (!touched) continue;
-        for (int lr = 0; lr <= ch.rows; ++lr) {
-            for (int c = 0; c < vw; ++c) {
-                WaterGridVertex& v = im.cpu[ch.firstVertex + static_cast<size_t>(lr) * vw + c];
-                v.terrainZ = grid.at(c, ch.rowStart + lr).z;
-                ch.bmin.z = std::min(ch.bmin.z, v.terrainZ);
-                ch.bmax.z = std::max(ch.bmax.z, v.terrainZ);
-            }
-        }
+    if (!im.grid) return;
+    for (int k : updateWaterGridHeights(im.geo, im.surface, rects, count, grid)) {
+        const WaterGridChunk& ch = im.geo.chunks[static_cast<size_t>(k)];
         glBindBuffer(GL_ARRAY_BUFFER, im.vbo.id());
         glBufferSubData(GL_ARRAY_BUFFER, static_cast<GLintptr>(ch.firstVertex * sizeof(WaterGridVertex)),
-                        static_cast<GLsizeiptr>(ch.vertexCount * sizeof(WaterGridVertex)), &im.cpu[ch.firstVertex]);
+                        static_cast<GLsizeiptr>(ch.vertexCount * sizeof(WaterGridVertex)), &im.geo.verts[ch.firstVertex]);
         ++lastUpdated_;
     }
 }
-
-namespace {
-
-bool boxInClip(const Mat4& m, const Vec3& mn, const Vec3& mx) {
-    int outs[6] = {0, 0, 0, 0, 0, 0};
-    for (int i = 0; i < 8; i++) {
-        Vec4 c = m * Vec4{(i & 1) ? mx.x : mn.x, (i & 2) ? mx.y : mn.y, (i & 4) ? mx.z : mn.z, 1.0f};
-        if (c.x < -c.w) outs[0]++;
-        if (c.x > c.w) outs[1]++;
-        if (c.y < -c.w) outs[2]++;
-        if (c.y > c.w) outs[3]++;
-        if (c.z < -c.w) outs[4]++;
-        if (c.z > c.w) outs[5]++;
-    }
-    for (int i = 0; i < 6; i++)
-        if (outs[i] == 8) return false;
-    return true;
-}
-
-} // namespace
 
 void WaterRenderer::render(const TerrainViewParams& params) {
     Impl& im = *impl_;
@@ -314,8 +185,8 @@ void WaterRenderer::render(const TerrainViewParams& params) {
         im.shine.bind(1);
         im.texture.bind(0);
         im.vao.bind();
-        for (const GridChunk& ch : im.chunks) {
-            if (ch.indexCount == 0 || !boxInClip(m, ch.bmin, ch.bmax)) continue;
+        for (int k : visibleWaterChunks(im.geo, m)) {
+            const WaterGridChunk& ch = im.geo.chunks[static_cast<size_t>(k)];
             glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ch.indexCount), GL_UNSIGNED_SHORT,
                            reinterpret_cast<const void*>(ch.firstIndex * sizeof(u16)));
             ++lastVisible_;
