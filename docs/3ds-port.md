@@ -89,25 +89,47 @@ VRAM budget seen (6.00 MB at start): the top target takes 0.73 MB, the second to
 0.75 MB, the bottom target with a 16-bit depth buffer 0.44 MB; the two scene textures take 384 KB
 as RGBA8, 192 KB as RGB565, 255 KB with mip chains.
 
-### Results on hardware
+### Results on hardware (2026-10-07, owner's New 3DS, 3dslink build 8ff82e4)
 
-New 3DS, `osSetSpeedupEnable(true)`: hardware: pending (headless step before/after: pending).
-`vramSpaceFree` before anything: hardware: pending.
+New 3DS, `osSetSpeedupEnable(true)` applied: 60 headless frames of mission 1 step at
+4.107 ms before and 0.991 ms after (x4.14). `vramSpaceFree` before anything: 6.00 MB;
+linear free 30.21 MB. The first run crashed in variant B with a data abort writing to
+0x1F05DC00: VRAM is not CPU-writable on hardware (Azahar allows it); textures now go through
+`C3D_TexLoadImage` from a linear staging buffer (a GX copy for VRAM textures).
 
-All times in ms.
+All times in ms; mission 1, the same frames in every variant.
 
-| variant | GPU avg | GPU p95 | CPU avg | CPU p95 | frame avg | frame p95 | VRAM free MB | linear free MB | indices/frame |
+| variant | GPU avg | GPU p95 | CPU avg | CPU p95 | frame avg | frame p95 | VRAM free MB | linear free MB | vertices/frame |
 |---|---|---|---|---|---|---|---|---|---|
-| A | hardware: pending | | | | | | | | |
-| B | hardware: pending | | | | | | | | |
-| C | hardware: pending | | | | | | | | |
-| D | hardware: pending | | | | | | | | |
-| E | hardware: pending | | | | | | | | |
-| F | hardware: pending | | | | | | | | |
-| G | hardware: pending | | | | | | | | |
-| H | hardware: pending | | | | | | | | |
+| A linear RGBA8, mono | 12.34 | 12.67 | 0.05 | 0.05 | 16.85 | 16.74 | 5.27 | 29.52 | 7260 |
+| B VRAM RGBA8 | 2.65 | 2.76 | 0.05 | 0.05 | 16.71 | 16.74 | 4.89 | 29.90 | 7260 |
+| C VRAM RGB565 | 2.04 | 2.14 | 0.05 | 0.05 | 16.71 | 16.73 | 5.08 | 29.90 | 7260 |
+| D C + stereo (two top targets) | 3.80 | 4.09 | 0.07 | 0.07 | 16.71 | 16.74 | 4.35 | 29.90 | 14520 |
+| E D with terrain x3 | 8.82 | 8.91 | 0.11 | 0.11 | 16.71 | 16.74 | 4.35 | 29.90 | 39096 |
+| F C + 4 full-screen alpha quads | 3.82 | 3.95 | 0.08 | 0.08 | 16.71 | 16.74 | 5.08 | 29.90 | 7260 |
+| G C + CPU mip chain, trilinear | 2.01 | 2.09 | 0.05 | 0.05 | 16.71 | 16.74 | 5.02 | 29.90 | 7260 |
+| H C + bottom screen target | 2.72 | 2.88 | 0.06 | 0.07 | 16.71 | 16.74 | 4.64 | 29.90 | 7266 |
 
-Decisions the numbers feed (to fill in after the run): VRAM or linear textures; RGB565 or
-RGBA8; whether stereo 3D is affordable (D minus C); the vertex budget (E); the cost of one
-full-screen blended layer (F per quad); whether mipmaps pay (G minus C); whether the bottom
-screen may be drawn with citro3d every frame (H minus C).
+Simulation step during the rendered variants, speed-up on: 2.1 to 2.3 ms (5.1 ms in A, which
+ran before the speed-up took effect on that path).
+
+Decisions taken from the numbers:
+
+- **Textures live in VRAM.** Linear-memory texture reads were the whole GPU cost of the spike
+  (A 12.3 ms, B 2.65 ms). The VRAM budget after the targets is about 4.2 MB; hot textures
+  first, spill to linear with a priority by draw frequency.
+- **RGB565 and the other 16-bit formats by default**: C is 23% cheaper than B and halves the
+  VRAM footprint. Mipmaps are free (G equals C): keep them for 3D textures.
+- **Stereo is affordable from M1**: two eyes cost 1.9x the GPU time (D 3.8 ms for this scene);
+  budget 14 ms of GPU per frame at 60 Hz.
+- **Vertex budget**: E minus D gives 24.6k extra vertices for 5.0 ms, about 5k vertices per ms.
+  At 60 Hz in stereo the GPU affords roughly 50k vertices per frame in total (25k per eye)
+  once fill is accounted for; terrain plus the models of a busy mission fit.
+- **Fill**: one full-screen alpha-blended 400x240 layer costs about 0.45 ms (F). Particles and
+  2D overlays are cheap; the particle cap is about CPU, not fill.
+- **The bottom screen may be drawn with citro3d every frame**: 0.7 ms (H), and the HUD is far
+  smaller than a full-screen textured quad. Set `gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES)`
+  and double buffering before creating its target (consoleInit leaves it RGB565).
+- **CPU**: with the speed-up the simulation of mission 1 takes about 2 ms per frame; the
+  stereo submit is negligible (0.07 ms). The New 3DS frame budget is comfortable; the Old 3DS
+  (no speed-up: 5 ms here, 8 ms in mission 14) is the one that needs the M4 tiers.
