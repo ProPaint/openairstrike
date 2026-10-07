@@ -38,3 +38,8 @@ android/local.properties
 __pycache__/
 *.pyc
 .claude/worktrees/
+build-3ds/
+*.3dsx
+*.elf
+*.smdh
+out/3ds/

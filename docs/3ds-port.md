@@ -3,6 +3,21 @@
 Working notes of the port (plan: M1.0 onwards). The feasibility spike is in
 [3ds-spike.md](3ds-spike.md); its app is [apps/3ds](../apps/3ds/README.md).
 
+## Build (M1.1)
+
+    tools/3ds_build.sh [all|clean|netload <ip>]    # -> build-3ds/apps/3ds/openairstrike.3dsx
+    tools/3ds_ci.sh                                # compile-only check for agents
+
+Docker image `devkitpro/devkitarm` (pinned by digest in the script), 3ds-cmake `3DS.cmake`
+toolchain. `AS3D_BUILD_JOBS=N` limits the parallelism. The root `CMakeLists.txt` adds only
+`apps/3ds` when `NINTENDO_3DS` is set (no desktop app, tests, viewer, web or tools: they need
+SDL, GL or Python). `engine/CMakeLists.txt` builds core, vfs, formats, script, game, audio, input,
+ui, render and platform with the pica/ndsp/ctr backend defaults; a module with no files in its
+backend directory yet builds its neutral part only. `input_mapper.cpp` (SDL scancodes) is
+removed from `as3d_input` on the 3DS; audio uses `AS3D_WITH_OPENMPT=OFF` and the null device.
+The 3DS build uses gnu++17 (newlib needs `_GNU_SOURCE` for `fseeko`). `run.ini` `mode=spike|probe`
+works as before.
+
 ## M1.0 GPU probe
 
 What the PICA200 costs for the choices the renderer has to make: where textures live, what
@@ -55,8 +70,8 @@ Notes for reading the numbers:
 
    (`mode=spike`, or deleting the file, gives the spike again. Optional keys: `hold=N` keeps
    drawing N frames after each variant; `only=CH` runs just those variants.)
-3. Start the Homebrew Launcher, press Y, and from this machine `apps/3ds/build.sh netload
-   192.168.1.133` (builds, then 3dslink). Or copy `as3d_spike.3dsx` to `sdmc:/3ds/` and start it.
+3. Start the Homebrew Launcher, press Y, and from this machine `tools/3ds_build.sh netload
+   192.168.1.133` (builds, then 3dslink). Or copy `openairstrike.3dsx` to `sdmc:/3ds/` and start it.
 4. The probe runs unattended (about 15 s), prints the table on the bottom screen and appends it
    to `sdmc:/3ds/openairstrike/probe_log.txt`. START quits. Fetch the log with ftpd.
 

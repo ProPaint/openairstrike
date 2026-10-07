@@ -6,11 +6,20 @@ project(as3d LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+# gnu++17 on the 3DS: newlib hides fseeko/ftello without _GNU_SOURCE (the spike used gnu++17).
+if(NINTENDO_3DS)
+  set(CMAKE_CXX_EXTENSIONS ON)
+else()
+  set(CMAKE_CXX_EXTENSIONS OFF)
+endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(AS3D_SANITIZE "Build with ASan and UBSan" OFF)
 option(AS3D_BUILD_TESTS "Build unit and golden tests" ON)
+if(NINTENDO_3DS)
+  set(AS3D_BUILD_TESTS OFF)
+  set(AS3D_WITH_OPENMPT OFF CACHE BOOL "" FORCE)
+endif()
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
@@ -32,6 +41,9 @@ set(AS3D_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 add_compile_definitions(AS3D_REPO_ROOT="${AS3D_REPO_ROOT}")
 
 add_subdirectory(engine)
-if(NOT ANDROID)
+if(NINTENDO_3DS)
+  # The 3DS build is the one app below; the desktop apps, tests and tools need SDL/GL/Python.
+  add_subdirectory(apps/3ds)
+elseif(NOT ANDROID)
   add_subdirectory(apps)
 endif()

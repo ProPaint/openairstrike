@@ -1,9 +1,8 @@
 # Nintendo 3DS feasibility spike
 
-Not a port: a measuring app (`as3d_spike.3dsx`) that answers the three questions of
+Not a port: a measuring app (`openairstrike.3dsx`) that answers the three questions of
 [docs/3ds-spike.md](../../docs/3ds-spike.md). It compiles the platform-independent engine
-modules (`core`, `vfs`, `formats`, `script`, `game`, plus `input_actions.cpp` for the test
-pilot) straight from `engine/src` with devkitARM, then:
+modules from `engine/src` with devkitARM, then:
 
 1. mounts the AirStrike 3D paks from `sdmc:/3ds/openairstrike/as3d/`, loads the definitions;
 2. runs missions 1, 6 and 14 headless, 600 frames each with the `as3d_sim --bot` pilot,
@@ -16,13 +15,18 @@ engine's own warnings to `sdmc:/3ds/openairstrike/engine_log.txt`. START quits.
 
 ## Build
 
-Needs Docker and the pinned devkitARM image (no native devkitPro):
+Needs Docker and the pinned devkitARM image (no native devkitPro). From the repository root:
 
-    apps/3ds/build.sh          # -> apps/3ds/as3d_spike.3dsx (about 45 s from clean, 8 cores)
-    apps/3ds/build.sh clean
+    tools/3ds_build.sh          # -> build-3ds/apps/3ds/openairstrike.3dsx
+    tools/3ds_build.sh clean
+    tools/3ds_ci.sh             # compile-only check
 
-The Makefile is devkitPro's 3DS application template with `SOURCES` pointing into
-`engine/src`. `source/scene.v.pica` is the vertex shader (picasso, built by the template rules).
+It is a CMake build (3ds-cmake's `3DS.cmake` toolchain, `NINTENDO_3DS`): the root
+`CMakeLists.txt` adds only `apps/3ds` on that platform, and `engine/CMakeLists.txt` builds the
+engine modules with the pica/ndsp/ctr backend defaults (the backend directories are still
+empty, so render, ui, audio and platform contribute their neutral files only; music is the
+stub, `AS3D_WITH_OPENMPT=OFF`). `source/scene.v.pica` goes through `ctr_add_shader_library`
+and is embedded as `scene_shbin`; `icon.png` is the project's own icon scaled to 48x48.
 
 ## Game data
 
@@ -41,7 +45,7 @@ paks in `3ds/openairstrike/as3d/` there and the `.3dsx` copied next to them:
         ~/.var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini   # for screenshots
     DISPLAY=:0 XAUTHORITY="$XA" flatpak run --env=QT_QPA_PLATFORM=xcb --env=DISPLAY=:0 \
         --env=XAUTHORITY="$XA" org.azahar_emu.Azahar --fullscreen=false \
-        ~/.var/app/org.azahar_emu.Azahar/data/azahar-emu/sdmc/3ds/openairstrike/as3d_spike.3dsx
+        ~/.var/app/org.azahar_emu.Azahar/data/azahar-emu/sdmc/3ds/openairstrike/openairstrike.3dsx
 
 `DISPLAY` must also be set on the host side of `flatpak run`, or flatpak does not expose the
 X11 socket and Qt aborts with "could not connect to display". Screenshots: `xwd -id <the
@@ -54,10 +58,10 @@ the crop `410x245+434+20` of a 1280x540 window. Emulator timings are not hardwar
 Put the paks on the console's SD card as above, open the Homebrew Launcher, press Y
 (netload), then from this machine:
 
-    apps/3ds/build.sh netload 192.168.0.151
+    tools/3ds_build.sh netload 192.168.0.151
 
-(equivalently `3dslink -a 192.168.0.151 apps/3ds/as3d_spike.3dsx`, port 17491). Or copy
-`as3d_spike.3dsx` to `sdmc:/3ds/` and start it from the launcher. Afterwards
+(equivalently `3dslink -a 192.168.0.151 build-3ds/apps/3ds/openairstrike.3dsx`, port 17491). Or copy
+`openairstrike.3dsx` to `sdmc:/3ds/` and start it from the launcher. Afterwards
 `sdmc:/3ds/openairstrike/spike_log.txt` holds the real numbers; the questions they settle are
 listed under "Open on hardware" in docs/3ds-spike.md.
 
