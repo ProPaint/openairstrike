@@ -42,6 +42,7 @@ void main() {
     gl_Position = uViewProj * worldPos;
 
     // Ambient cube: colour for +axis i / -axis i, from the world direction of local axis i.
+    // CPU twin: engine/src/render/ambient_cube.cpp (tested against these lines); keep in step.
     vec3 L = normalize(uSunDir);
     vec3 cPos[3];
     vec3 cNeg[3];
