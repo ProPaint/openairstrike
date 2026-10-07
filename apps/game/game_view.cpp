@@ -8,6 +8,7 @@
 #include "as3d/defs.h"
 #include "as3d/frontend.h"
 #include "as3d/object_tree.h"
+#include "as3d/render_state.h"
 #include "as3d/scene.h"
 
 namespace as3d_game {
@@ -169,14 +170,13 @@ void GameView::clearBars(int width, int height) {
         {x, height - y, w, y},                          // top
         {x, 0, w, height - y - h},                      // bottom
     };
-    glEnable(GL_SCISSOR_TEST);
     glClearColor(0, 0, 0, 1);
     for (const auto& r : rects) {
         if (r[2] <= 0 || r[3] <= 0) continue;
-        glScissor(r[0], r[1], r[2], r[3]);
+        as3d::setScissor(true, r[0], r[1], r[2], r[3]);
         glClear(GL_COLOR_BUFFER_BIT);
     }
-    glDisable(GL_SCISSOR_TEST);
+    as3d::setScissor(false);
 }
 
 void GameView::draw(const GameSession& session, int width, int height) {
@@ -273,8 +273,7 @@ void GameView::drawModel(GameSession& session, const ui::ModelView& v) {
     const int vw = x1 - x0, vh = y1 - y0;
     if (vw <= 0 || vh <= 0) return;
     glViewport(x0, frameH_ - y1, vw, vh);
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(x0, frameH_ - y1, vw, vh);
+    as3d::setScissor(true, x0, frameH_ - y1, vw, vh);
     glDepthMask(GL_TRUE);
     glClear(GL_DEPTH_BUFFER_BIT);
     Camera cam;
@@ -289,7 +288,7 @@ void GameView::drawModel(GameSession& session, const ui::ModelView& v) {
     p.mesh.begin(cam, SceneLighting());
     for (const Preview::Part& part : p.parts) p.mesh.submit(*part.gpu, part.material, model * part.local, part.colour);
     p.mesh.end();
-    glDisable(GL_SCISSOR_TEST);
+    as3d::setScissor(false);
     glViewport(0, 0, frameW_, frameH_);
 }
 
@@ -307,12 +306,11 @@ void BannerMesh::draw(float mt, int width, int height, int x0, int y0, int vw, i
     Impl& banner_ = *impl_;
     // Depth cleared first (0x401b30), inside the viewport.
     glViewport(x0, height - (y0 + vh), vw, vh);
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(x0, height - (y0 + vh), vw, vh);
+    as3d::setScissor(true, x0, height - (y0 + vh), vw, vh);
     glDepthMask(GL_TRUE);
     glClear(GL_DEPTH_BUFFER_BIT);
-    if (clip) glScissor(clip[0], height - (clip[1] + clip[3]), clip[2], clip[3]);
-    else glDisable(GL_SCISSOR_TEST);
+    if (clip) as3d::setScissor(true, clip[0], height - (clip[1] + clip[3]), clip[2], clip[3]);
+    else as3d::setScissor(false);
     // Camera at the origin with the engine's view convention and zero angles (identity view:
     // looking down -z, y up), field of view 60.
     Camera cam;
@@ -342,7 +340,7 @@ void BannerMesh::draw(float mt, int width, int height, int x0, int y0, int vw, i
     banner_.mesh.begin(cam, SceneLighting());
     banner_.mesh.submit(*banner_.gpu, banner_.material, model);
     banner_.mesh.end();
-    glDisable(GL_SCISSOR_TEST);
+    as3d::setScissor(false);
     glViewport(0, 0, width, height);
 }
 

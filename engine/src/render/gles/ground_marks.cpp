@@ -1,5 +1,6 @@
 // Terrain-following decals: geometry, the shared decal drawer and the ground mark renderer.
 // docs/spec/render-pipeline.md 3.4 (marks), 5.3 and 5.4 (shadows draped over the terrain).
+#include "as3d/gfx.h"
 #include "as3d/ground_marks.h"
 
 #include <GLES3/gl3.h>

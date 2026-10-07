@@ -20,6 +20,7 @@
 #include "as3d/defs.h"
 #include "as3d/frontend.h"
 #include "as3d/image.h"
+#include "as3d/render_state.h"
 #include "as3d/ui.h"
 #include "common.h"
 #include "level_render.h"
@@ -55,8 +56,7 @@ struct NullHost : GameHost {
         const int vw = x1 - x0, vh = y1 - y0;
         if (vw <= 0 || vh <= 0) return;
         glViewport(x0, fbH - y1, vw, vh);
-        glEnable(GL_SCISSOR_TEST);
-        glScissor(x0, fbH - y1, vw, vh);
+        as3d::setScissor(true, x0, fbH - y1, vw, vh);
         glDepthMask(GL_TRUE);
         glClear(GL_DEPTH_BUFFER_BIT);
         as3d::Camera cam;
@@ -84,7 +84,7 @@ struct NullHost : GameHost {
         ctx->renderer.begin(cam, as3d::SceneLighting());
         for (const viewer::DrawPart& p : scene.parts) ctx->renderer.submit(*p.mesh, p.material, model * p.model, p.colour);
         ctx->renderer.end();
-        glDisable(GL_SCISSOR_TEST);
+        as3d::setScissor(false);
         glViewport(0, 0, fbW, fbH);
     }
 };

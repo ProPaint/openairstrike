@@ -1,4 +1,5 @@
 // Sprite quads, docs/spec/render-pipeline.md 3.3.
+#include "as3d/gfx.h"
 #include "as3d/sprite_render.h"
 
 #include <GLES3/gl3.h>

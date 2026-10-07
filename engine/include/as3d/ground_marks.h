@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "as3d/gfx.h"
+#include "as3d/texture.h"
 #include "as3d/math.h"
 #include "as3d/terrain.h"
 #include "as3d/terrain_grid.h"

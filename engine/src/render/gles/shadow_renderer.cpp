@@ -1,4 +1,5 @@
 // Silhouette shadow generation and drawing, docs/spec/render-pipeline.md section 5.
+#include "as3d/gfx.h"
 #include "as3d/shadow_render.h"
 
 #include <GLES3/gl3.h>

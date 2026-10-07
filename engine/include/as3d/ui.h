@@ -3,7 +3,7 @@
 // docs/spec/render-pipeline.md 8 (2D list, font metrics).
 //
 // Everything is drawn in the original's virtual 800x600 screen, origin top-left, y down.
-// UVs given to Renderer2D::quad follow the engine convention of gfx.h: v = 0 is the TOP of the
+// UVs given to Renderer2D::quad follow the engine convention of texture.h: v = 0 is the TOP of the
 // texture, so a quad with (s0,t0)-(s1,t1) shows the texture upright. The specs write UVs the
 // other way up (t = 1 is the top row); Renderer2D::quadSpec takes them as written there.
 //
@@ -21,7 +21,7 @@
 
 #include "as3d/core.h"
 #include "as3d/game_profile.h"
-#include "as3d/gfx.h"
+#include "as3d/texture.h"
 #include "as3d/vfs.h"
 
 namespace as3d::ui {

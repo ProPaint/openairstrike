@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "as3d/gfx.h"
 #include "as3d/ground_marks.h"
 
 namespace as3d {

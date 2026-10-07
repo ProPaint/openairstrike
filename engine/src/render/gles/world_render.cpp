@@ -728,11 +728,10 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
     const bool part = vx != 0 || vy != 0;
     if (part) {
         // A sub-rectangle: the clear must not reach outside it.
-        glEnable(GL_SCISSOR_TEST);
-        glScissor(vx, vy, width, height);
+        setScissor(true, vx, vy, width, height);
     }
     clear({cc.x, cc.y, cc.z, 1.0f}, true);
-    if (part) glDisable(GL_SCISSOR_TEST);
+    if (part) setScissor(false);
     setDepth(true, true);
     setCull(CullMode::Back);
 

@@ -183,35 +183,42 @@ void ShaderProgram::setMat4(const char* name, const Mat4& v) {
 Texture2D::~Texture2D() { destroy(); }
 
 Texture2D::Texture2D(Texture2D&& other) noexcept
-    : id_(other.id_), width_(other.width_), height_(other.height_) {
-    other.id_ = 0;
+    : handle_(other.handle_), width_(other.width_), height_(other.height_), bytes_(other.bytes_) {
+    other.handle_ = 0;
     other.width_ = other.height_ = 0;
+    other.bytes_ = 0;
 }
 
 Texture2D& Texture2D::operator=(Texture2D&& other) noexcept {
     if (this != &other) {
         destroy();
-        id_ = other.id_;
+        handle_ = other.handle_;
         width_ = other.width_;
         height_ = other.height_;
-        other.id_ = 0;
+        bytes_ = other.bytes_;
+        other.handle_ = 0;
         other.width_ = other.height_ = 0;
+        other.bytes_ = 0;
     }
     return *this;
 }
 
 void Texture2D::destroy() {
-    if (id_) {
-        glDeleteTextures(1, &id_);
-        id_ = 0;
+    if (handle_) {
+        GLuint name = static_cast<GLuint>(handle_);
+        glDeleteTextures(1, &name);
+        handle_ = 0;
     }
     width_ = height_ = 0;
+    bytes_ = 0;
 }
 
 void Texture2D::create(const Image& image, const TextureOptions& options) {
     destroy();
-    glGenTextures(1, &id_);
-    glBindTexture(GL_TEXTURE_2D, id_);
+    GLuint name = 0;
+    glGenTextures(1, &name);
+    handle_ = name;
+    glBindTexture(GL_TEXTURE_2D, name);
     // Rows are uploaded exactly as as3d::Image stores them (row 0 first); see the
     // header for why that makes v=0 the TOP of the texture in this engine.
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -225,11 +232,13 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
     if (options.mipmaps) glGenerateMipmap(GL_TEXTURE_2D);
     width_ = image.width;
     height_ = image.height;
+    bytes_ = static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * 4;
+    if (options.mipmaps) bytes_ += bytes_ / 3;
 }
 
 void Texture2D::bind(unsigned unit) const {
     glActiveTexture(GL_TEXTURE0 + unit);
-    glBindTexture(GL_TEXTURE_2D, id_);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(handle_));
 }
 
 // ---------------------------------------------------------------------------
@@ -491,54 +500,6 @@ bool RenderTarget::readPixels(Image& out) const {
         std::memcpy(dst, src, rowBytes);
     }
     return true;
-}
-
-// ---------------------------------------------------------------------------
-// State helpers
-// ---------------------------------------------------------------------------
-void setBlend(GlBlend mode) {
-    if (mode == GlBlend::Off) {
-        glDisable(GL_BLEND);
-        return;
-    }
-    glEnable(GL_BLEND);
-    if (mode == GlBlend::AlphaBlend) {
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    } else { // Additive
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-    }
-}
-
-void setDepth(bool test, bool write) {
-    if (test) {
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LEQUAL);
-    } else {
-        glDisable(GL_DEPTH_TEST);
-    }
-    glDepthMask(write ? GL_TRUE : GL_FALSE);
-}
-
-void setCull(CullMode mode) {
-    if (mode == CullMode::Off) {
-        glDisable(GL_CULL_FACE);
-        return;
-    }
-    glEnable(GL_CULL_FACE);
-    glCullFace(mode == CullMode::Back ? GL_BACK : GL_FRONT);
-    glFrontFace(GL_CCW);
-}
-
-void setViewport(int x, int y, int w, int h) { glViewport(x, y, w, h); }
-
-void clear(const Vec4& color, bool depth, float depthValue) {
-    glClearColor(color.x, color.y, color.z, color.w);
-    GLbitfield mask = GL_COLOR_BUFFER_BIT;
-    if (depth) {
-        glClearDepthf(depthValue);
-        mask |= GL_DEPTH_BUFFER_BIT;
-    }
-    glClear(mask);
 }
 
 } // namespace as3d

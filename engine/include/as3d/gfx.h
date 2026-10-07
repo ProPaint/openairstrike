@@ -35,6 +35,8 @@
 #include "as3d/core.h"
 #include "as3d/image.h"
 #include "as3d/math.h"
+#include "as3d/render_state.h"
+#include "as3d/texture.h"
 
 namespace as3d {
 
@@ -75,47 +77,6 @@ public:
 private:
     unsigned program_ = 0;
     std::unordered_map<std::string, int> uniformCache_;
-    void destroy();
-};
-
-// ---------------------------------------------------------------------------
-// Texture2D
-// ---------------------------------------------------------------------------
-enum class Filter { Nearest, Linear };
-enum class Wrap { Repeat, ClampToEdge, MirroredRepeat };
-
-struct TextureOptions {
-    bool mipmaps = false;
-    Filter minFilter = Filter::Linear;
-    Filter magFilter = Filter::Linear;
-    Wrap wrapS = Wrap::Repeat;
-    Wrap wrapT = Wrap::Repeat;
-};
-
-class Texture2D {
-public:
-    Texture2D() = default;
-    ~Texture2D();
-    Texture2D(const Texture2D&) = delete;
-    Texture2D& operator=(const Texture2D&) = delete;
-    Texture2D(Texture2D&& other) noexcept;
-    Texture2D& operator=(Texture2D&& other) noexcept;
-
-    // Uploads `image` as-is (see the file header for the orientation convention). RGBA8
-    // always; `image.hasAlpha` does not change the internal format, only how a caller
-    // may choose to blend.
-    void create(const Image& image, const TextureOptions& options = {});
-    void bind(unsigned unit = 0) const;
-
-    bool valid() const { return id_ != 0; }
-    int width() const { return width_; }
-    int height() const { return height_; }
-    unsigned id() const { return id_; }
-
-private:
-    unsigned id_ = 0;
-    int width_ = 0;
-    int height_ = 0;
     void destroy();
 };
 
@@ -243,18 +204,6 @@ private:
     unsigned resolveColorTexture_ = 0; // single-sample colour texture, always present
     void destroy();
 };
-
-// ---------------------------------------------------------------------------
-// Small state helpers (no hidden state beyond what GL itself tracks)
-// ---------------------------------------------------------------------------
-enum class GlBlend { Off, AlphaBlend, Additive }; // GL blend state (defs.h BlendMode is the obj.md field)
-enum class CullMode { Off, Back, Front };
-
-void setBlend(GlBlend mode);
-void setDepth(bool test, bool write);
-void setCull(CullMode mode);
-void setViewport(int x, int y, int w, int h);
-void clear(const Vec4& color, bool depth = true, float depthValue = 1.0f);
 
 // Writes `image` (top-down rows, as produced by RenderTarget::readPixels or
 // decodeTga) as an RGBA PNG. Returns false on I/O or encode failure.

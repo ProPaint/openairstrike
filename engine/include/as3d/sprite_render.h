@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "as3d/gfx.h"
+#include "as3d/texture.h"
 #include "as3d/ground_marks.h" // DecalBlend
 #include "as3d/math.h"
 

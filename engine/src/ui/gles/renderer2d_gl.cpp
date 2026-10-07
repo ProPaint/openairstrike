@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "as3d/gfx.h"
 #include "as3d/ui.h"
 
 namespace as3d::ui {

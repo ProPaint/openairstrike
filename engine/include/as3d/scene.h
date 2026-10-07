@@ -15,7 +15,7 @@
 
 #include "as3d/core.h"
 #include "as3d/dynamic_lights.h"
-#include "as3d/gfx.h"
+#include "as3d/gfx.h" // GpuMesh holds GL buffers and Renderer a ShaderProgram: still GL (M0.4b)
 #include "as3d/math.h"
 #include "as3d/model.h"
 
