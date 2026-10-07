@@ -4,6 +4,7 @@
 #include "as3d/fog_lut.h"
 
 #include <cmath>
+#include <initializer_list>
 
 using namespace as3d;
 
