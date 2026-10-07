@@ -1,0 +1,60 @@
+// Console pad model (no platform headers): a handheld's buttons, circle pad and touch screen
+// as one plain snapshot, and its translation to the game's FrameInput and to the front end's
+// UiInput. The button bits equal libctru's KEY_* values, so the 3DS backend copies hidKeysHeld /
+// Down / Up straight in.
+#pragma once
+
+#include <cstdint>
+
+#include "as3d/input.h"
+#include "as3d/menu.h"
+#include "as3d/ui.h"
+
+namespace as3d {
+
+namespace pad {
+constexpr uint32_t A = 1u << 0, B = 1u << 1, Select = 1u << 2, Start = 1u << 3;
+constexpr uint32_t DRight = 1u << 4, DLeft = 1u << 5, DUp = 1u << 6, DDown = 1u << 7;
+constexpr uint32_t R = 1u << 8, L = 1u << 9, X = 1u << 10, Y = 1u << 11;
+constexpr uint32_t ZL = 1u << 14, ZR = 1u << 15;
+constexpr uint32_t Touch = 1u << 20;
+constexpr uint32_t CStickRight = 1u << 24, CStickLeft = 1u << 25, CStickUp = 1u << 26,
+                   CStickDown = 1u << 27;
+constexpr uint32_t CPadRight = 1u << 28, CPadLeft = 1u << 29, CPadUp = 1u << 30,
+                   CPadDown = 1u << 31;
+} // namespace pad
+
+struct PadState {
+    uint32_t held = 0, down = 0, up = 0; // buttons held, pressed and released this frame
+    int16_t cx = 0, cy = 0;              // circle pad, -156..156 on the 3DS, y up
+    bool touch = false;                  // a finger is on the touch screen
+    int touchX = 0, touchY = 0;          // in touch-screen pixels
+};
+
+// Which pad button drives each action (0 = none). A button may drive several actions only if
+// the caller sets it so; the defaults use each button once.
+struct PadBindings {
+    uint32_t fire = 0, missile = 0, powerUp = 0;
+    uint32_t nextWeapon = 0, nextMissile = 0, nextPowerUp = 0;
+    uint32_t pause = 0;
+};
+
+// A fire, B missile, X power-up, Y next weapon, R next missile, ZR next power-up, START
+// pause. L is never required.
+PadBindings defaultBindings();
+
+// Player 1's FrameInput from the pad: directions from the D-pad or from the circle pad beyond
+// `deadZone` (up = Forward), the bound buttons as action bits, `pausePressed` on the pause
+// button's down edge and `confirm` on A's down edge.
+FrameInput padToFrameInput(const PadState& pad, const PadBindings& bindings, int deadZone = 40);
+
+// The front end's input for one frame: D-pad presses (down edges) as the arrow keys, A as
+// Enter, B and START as Escape, and the touch screen as a pointer: on touch start a move and a
+// press of Mouse1, while held a move, on release a release of Mouse1. The touch point is
+// converted from touch-screen pixels (touchW x touchH) to the virtual 800x600 screen through
+// `map` (as the bottom-screen/framebuffer mapping of the caller). `before` is the previous
+// frame's state, used only for the touch edges.
+ui::UiInput padToUiInputs(const PadState& now, const PadState& before, const ui::Mapping& map,
+                          int touchW, int touchH);
+
+} // namespace as3d

@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 
+#include "as3d/fs_util.h"
 #include "as3d/vfs.h"
 
 namespace as3d {
@@ -88,7 +89,6 @@ std::string userDataDir();
 // Empty on failure.
 std::string gameDataDir(const char* gameKey);
 
-// mkdir -p; true if the directory exists afterwards.
-bool makeDirectories(const std::string& dir);
+// makeDirectories (mkdir -p) lives in as3d/fs_util.h.
 
 } // namespace as3d

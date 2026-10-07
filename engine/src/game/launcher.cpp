@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "as3d/fs_util.h"
 #include "as3d/game_data.h"
 #include "as3d/profile.h"
 
@@ -136,7 +137,7 @@ bool writeLauncherChoice(const std::string& path, const std::string& key) {
         std::remove(tmp.c_str());
         return false;
     }
-    if (std::rename(tmp.c_str(), path.c_str()) != 0) {
+    if (!replaceFile(tmp, path)) {
         std::remove(tmp.c_str());
         return false;
     }

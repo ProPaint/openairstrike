@@ -1,11 +1,77 @@
 // Keyboard and mouse to FrameInput (as3d/input.h, docs/spec/engine-behaviour.md 7.2).
+#include <SDL_mouse.h>
 #include <SDL_scancode.h>
 
 #include <algorithm>
 
 #include "as3d/input.h"
+#include "as3d/keycodes.h"
 
 namespace as3d {
+
+// keycodes.h must match SDL.
+static_assert(as3d::keycodes::k0 == SDL_SCANCODE_0, "keycodes.h");
+static_assert(as3d::keycodes::k1 == SDL_SCANCODE_1, "keycodes.h");
+static_assert(as3d::keycodes::k2 == SDL_SCANCODE_2, "keycodes.h");
+static_assert(as3d::keycodes::k3 == SDL_SCANCODE_3, "keycodes.h");
+static_assert(as3d::keycodes::k4 == SDL_SCANCODE_4, "keycodes.h");
+static_assert(as3d::keycodes::k9 == SDL_SCANCODE_9, "keycodes.h");
+static_assert(as3d::keycodes::kA == SDL_SCANCODE_A, "keycodes.h");
+static_assert(as3d::keycodes::kAC_BACK == SDL_SCANCODE_AC_BACK, "keycodes.h");
+static_assert(as3d::keycodes::kAPOSTROPHE == SDL_SCANCODE_APOSTROPHE, "keycodes.h");
+static_assert(as3d::keycodes::kBACKSLASH == SDL_SCANCODE_BACKSLASH, "keycodes.h");
+static_assert(as3d::keycodes::kBACKSPACE == SDL_SCANCODE_BACKSPACE, "keycodes.h");
+static_assert(as3d::keycodes::kCAPSLOCK == SDL_SCANCODE_CAPSLOCK, "keycodes.h");
+static_assert(as3d::keycodes::kCLEAR == SDL_SCANCODE_CLEAR, "keycodes.h");
+static_assert(as3d::keycodes::kCOMMA == SDL_SCANCODE_COMMA, "keycodes.h");
+static_assert(as3d::keycodes::kDELETE == SDL_SCANCODE_DELETE, "keycodes.h");
+static_assert(as3d::keycodes::kDOWN == SDL_SCANCODE_DOWN, "keycodes.h");
+static_assert(as3d::keycodes::kEND == SDL_SCANCODE_END, "keycodes.h");
+static_assert(as3d::keycodes::kEQUALS == SDL_SCANCODE_EQUALS, "keycodes.h");
+static_assert(as3d::keycodes::kESCAPE == SDL_SCANCODE_ESCAPE, "keycodes.h");
+static_assert(as3d::keycodes::kF1 == SDL_SCANCODE_F1, "keycodes.h");
+static_assert(as3d::keycodes::kF12 == SDL_SCANCODE_F12, "keycodes.h");
+static_assert(as3d::keycodes::kF13 == SDL_SCANCODE_F13, "keycodes.h");
+static_assert(as3d::keycodes::kF24 == SDL_SCANCODE_F24, "keycodes.h");
+static_assert(as3d::keycodes::kGRAVE == SDL_SCANCODE_GRAVE, "keycodes.h");
+static_assert(as3d::keycodes::kHOME == SDL_SCANCODE_HOME, "keycodes.h");
+static_assert(as3d::keycodes::kINSERT == SDL_SCANCODE_INSERT, "keycodes.h");
+static_assert(as3d::keycodes::kKP_0 == SDL_SCANCODE_KP_0, "keycodes.h");
+static_assert(as3d::keycodes::kKP_1 == SDL_SCANCODE_KP_1, "keycodes.h");
+static_assert(as3d::keycodes::kKP_9 == SDL_SCANCODE_KP_9, "keycodes.h");
+static_assert(as3d::keycodes::kKP_DIVIDE == SDL_SCANCODE_KP_DIVIDE, "keycodes.h");
+static_assert(as3d::keycodes::kKP_ENTER == SDL_SCANCODE_KP_ENTER, "keycodes.h");
+static_assert(as3d::keycodes::kKP_MINUS == SDL_SCANCODE_KP_MINUS, "keycodes.h");
+static_assert(as3d::keycodes::kKP_MULTIPLY == SDL_SCANCODE_KP_MULTIPLY, "keycodes.h");
+static_assert(as3d::keycodes::kKP_PERIOD == SDL_SCANCODE_KP_PERIOD, "keycodes.h");
+static_assert(as3d::keycodes::kKP_PLUS == SDL_SCANCODE_KP_PLUS, "keycodes.h");
+static_assert(as3d::keycodes::kLALT == SDL_SCANCODE_LALT, "keycodes.h");
+static_assert(as3d::keycodes::kLCTRL == SDL_SCANCODE_LCTRL, "keycodes.h");
+static_assert(as3d::keycodes::kLEFT == SDL_SCANCODE_LEFT, "keycodes.h");
+static_assert(as3d::keycodes::kLEFTBRACKET == SDL_SCANCODE_LEFTBRACKET, "keycodes.h");
+static_assert(as3d::keycodes::kLSHIFT == SDL_SCANCODE_LSHIFT, "keycodes.h");
+static_assert(as3d::keycodes::kMINUS == SDL_SCANCODE_MINUS, "keycodes.h");
+static_assert(as3d::keycodes::kNUMLOCKCLEAR == SDL_SCANCODE_NUMLOCKCLEAR, "keycodes.h");
+static_assert(as3d::keycodes::kP == SDL_SCANCODE_P, "keycodes.h");
+static_assert(as3d::keycodes::kPAGEDOWN == SDL_SCANCODE_PAGEDOWN, "keycodes.h");
+static_assert(as3d::keycodes::kPAGEUP == SDL_SCANCODE_PAGEUP, "keycodes.h");
+static_assert(as3d::keycodes::kPAUSE == SDL_SCANCODE_PAUSE, "keycodes.h");
+static_assert(as3d::keycodes::kPERIOD == SDL_SCANCODE_PERIOD, "keycodes.h");
+static_assert(as3d::keycodes::kRALT == SDL_SCANCODE_RALT, "keycodes.h");
+static_assert(as3d::keycodes::kRCTRL == SDL_SCANCODE_RCTRL, "keycodes.h");
+static_assert(as3d::keycodes::kRETURN == SDL_SCANCODE_RETURN, "keycodes.h");
+static_assert(as3d::keycodes::kRIGHT == SDL_SCANCODE_RIGHT, "keycodes.h");
+static_assert(as3d::keycodes::kRIGHTBRACKET == SDL_SCANCODE_RIGHTBRACKET, "keycodes.h");
+static_assert(as3d::keycodes::kRSHIFT == SDL_SCANCODE_RSHIFT, "keycodes.h");
+static_assert(as3d::keycodes::kSCROLLLOCK == SDL_SCANCODE_SCROLLLOCK, "keycodes.h");
+static_assert(as3d::keycodes::kSEMICOLON == SDL_SCANCODE_SEMICOLON, "keycodes.h");
+static_assert(as3d::keycodes::kSLASH == SDL_SCANCODE_SLASH, "keycodes.h");
+static_assert(as3d::keycodes::kSPACE == SDL_SCANCODE_SPACE, "keycodes.h");
+static_assert(as3d::keycodes::kTAB == SDL_SCANCODE_TAB, "keycodes.h");
+static_assert(as3d::keycodes::kUP == SDL_SCANCODE_UP, "keycodes.h");
+static_assert(as3d::keycodes::kZ == SDL_SCANCODE_Z, "keycodes.h");
+static_assert(as3d::keycodes::kButtonLeft == SDL_BUTTON_LEFT, "keycodes.h");
+static_assert(as3d::keycodes::kButtonMiddle == SDL_BUTTON_MIDDLE && as3d::keycodes::kButtonRight == SDL_BUTTON_RIGHT, "keycodes.h");
 
 namespace {
 constexpr int kMouseLeft = kMouseButtonCode + 1;

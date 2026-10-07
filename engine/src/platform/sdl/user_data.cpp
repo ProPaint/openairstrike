@@ -1,12 +1,11 @@
 // as3d::readPlatformFile and as3d::userDataDir (as3d/platform.h).
 #include <SDL.h>
-#include <sys/stat.h>
 
-#include <cerrno>
 #include <cstdlib>
 #include <string>
 
 #include "as3d/core.h"
+#include "as3d/fs_util.h"
 #include "as3d/platform.h"
 
 namespace as3d {
@@ -32,17 +31,6 @@ bool readPlatformFile(const std::string& path, Blob& out) {
     return ok;
 }
 
-// mkdir -p for an absolute or relative path; true if the directory exists afterwards.
-bool makeDirectories(const std::string& dir) {
-    for (size_t i = 1; i <= dir.size(); ++i) {
-        if (i < dir.size() && dir[i] != '/') continue;
-        std::string part = dir.substr(0, i);
-        if (::mkdir(part.c_str(), 0700) != 0 && errno != EEXIST) return false;
-    }
-    struct stat st;
-    return ::stat(dir.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
-}
-
 std::string userDataDir() {
 #ifdef __ANDROID__
     const char* internal = SDL_AndroidGetInternalStoragePath();
@@ -51,6 +39,8 @@ std::string userDataDir() {
         return std::string();
     }
     std::string dir = internal;
+#elif defined(__3DS__)
+    std::string dir = "sdmc:/3ds/openairstrike/";
 #elif defined(__EMSCRIPTEN__)
     // The web page mounts browser storage (IDBFS) here before main() and syncs it after
     // every profile save (apps/web).

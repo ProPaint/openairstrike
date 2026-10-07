@@ -10,6 +10,7 @@
 
 #include "as3d/core.h"
 #include "as3d/exe_texts.h"
+#include "as3d/fs_util.h"
 #include "as3d/game_data.h"
 #include "as3d/sha256.h"
 #include "as3d/zip_reader.h"
@@ -129,8 +130,7 @@ bool writeWhole(const std::string& path, const std::string& text) {
     bool ok = std::fwrite(text.data(), 1, text.size(), f) == text.size();
     ok = std::fclose(f) == 0 && ok;
     std::error_code ec;
-    if (ok) fs::rename(fs::path(tmp), fs::path(path), ec);
-    if (!ok || ec) {
+    if (!ok || !replaceFile(tmp, path)) {
         fs::remove(fs::path(tmp), ec);
         return false;
     }
@@ -141,15 +141,13 @@ bool writeWhole(const std::string& path, const std::string& text) {
 bool moveInto(const std::string& from, const std::string& to, bool keepSource) {
     std::error_code ec;
     if (!keepSource) {
-        fs::rename(fs::path(from), fs::path(to), ec);
-        if (!ec) return true;
+        if (replaceFile(from, to)) return true;
     }
     ec.clear();
     const std::string tmp = to + ".tmp";
     fs::copy_file(fs::path(from), fs::path(tmp), fs::copy_options::overwrite_existing, ec);
     if (ec) return false;
-    fs::rename(fs::path(tmp), fs::path(to), ec);
-    if (ec) {
+    if (!replaceFile(tmp, to)) {
         fs::remove(fs::path(tmp), ec);
         return false;
     }

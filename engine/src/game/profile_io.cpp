@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "as3d/fs_util.h"
 #include "as3d/platform.h"
 #include "as3d/profile.h"
 
@@ -388,7 +389,7 @@ bool saveProfileFile(const std::string& path, const Profile& p, std::string* why
         if (why) *why = "cannot write " + tmp;
         return false;
     }
-    if (std::rename(tmp.c_str(), path.c_str()) != 0) {
+    if (!replaceFile(tmp, path)) {
         std::remove(tmp.c_str());
         if (why) *why = "cannot replace " + path;
         return false;
