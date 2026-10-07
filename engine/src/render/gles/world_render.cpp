@@ -225,6 +225,22 @@ struct WorldRenderer::Impl {
     // Marks: rebuilt only when the set (or a colour) changes.
     std::vector<std::pair<GroundMarkDesc, std::uint64_t>> markDescs, lastMarkDescs;
     int dropped = 0;
+    // What prepare() read from the world for the draw() calls that follow it.
+    struct Frame {
+        bool ready = false;
+        Viewport viewport;
+        WorldRenderOptions options;
+        float aspect = 1.0f;
+        WorldView wv;
+        CullFrustum cull;
+        const Terrain* terrain = nullptr;
+        bool haveTerrain = false;
+        SceneLighting light;
+        bool hasFog = false;
+        float time = 0.0f;
+        float mapPos = 0.0f;
+        const Texture2D* boltTexture = nullptr;
+    } frame;
 
     const Material& materialFor(const ObjectDef& def, const std::string& skinOverride) {
         auto key = std::make_pair(&def, skinOverride);
@@ -499,19 +515,40 @@ void WorldRenderer::render(const World& world, int width, int height, const Worl
 }
 
 void WorldRenderer::render(const World& world, int vx, int vy, int width, int height, const WorldRenderOptions& options) {
+    Viewport vp;
+    vp.x = vx;
+    vp.y = vy;
+    vp.width = width;
+    vp.height = height;
+    prepare(world, vp, options);
+    draw(EyeView{});
+}
+
+const CullFrustum& WorldRenderer::preparedFrustum() const { return impl_->frame.cull; }
+
+void WorldRenderer::prepare(const World& world, const Viewport& viewport, const WorldRenderOptions& options) {
     Impl& im = *impl_;
+    Impl::Frame& fr = im.frame;
     stats_ = WorldRenderStats();
-    if (width <= 0 || height <= 0) return;
-    const float aspect = static_cast<float>(width) / static_cast<float>(height);
-    const WorldView wv = worldViewOf(world, aspect);
+    fr.ready = false;
+    if (viewport.width <= 0 || viewport.height <= 0) return;
+    fr.viewport = viewport;
+    fr.options = options;
+    fr.aspect = static_cast<float>(viewport.width) / static_cast<float>(viewport.height);
+    fr.wv = worldViewOf(world, fr.aspect);
+    fr.cull = eyeCullFrustum(fr.wv, fr.aspect, viewport.maxEyeOffset, viewport.minFocalDistance);
     const Terrain* terrain = world.terrain();
-    const bool haveTerrain = terrain && im.terrain && im.terrainOf == terrain;
+    fr.terrain = terrain;
+    fr.haveTerrain = terrain && im.terrain && im.terrainOf == terrain;
+    fr.time = world.time();
+    fr.mapPos = world.mapPos();
     // Craters since the last frame: the meshes follow the world's heights (read only).
     im.followTerrainChanges(world);
 
     // Lighting and fog from the level (render-pipeline.md 2.2, 2.3).
-    SceneLighting light;
-    bool hasFog = false;
+    SceneLighting& light = fr.light;
+    light = SceneLighting();
+    fr.hasFog = false;
     if (terrain) {
         const TerrainStyle& st = terrain->style();
         light.sunColor = Vec3{st.sun[0], st.sun[1], st.sun[2]};
@@ -520,15 +557,12 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
         light.fogColor = Vec3{st.fogColor[0], st.fogColor[1], st.fogColor[2]};
         light.fogStart = st.fogNear;
         light.fogEnd = st.fogFar;
-        hasFog = st.hasFog;
+        fr.hasFog = st.hasFog;
     }
-    if (!hasFog) {
+    if (!fr.hasFog) {
         light.fogStart = 1.0e8f;
         light.fogEnd = 2.0e8f;
     }
-    const Camera cam = cameraFromView(wv, aspect);
-    Vec3 camRight, camUp;
-    spriteBillboardAxes(wv.view, camRight, camUp);
 
     // Dynamic lights (2.4): the PlaceLight queue of this frame, then the definition lights
     // of the drawn entities; the first 32 are kept.
@@ -702,36 +736,105 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
         addHealthBar(e);
     }
 
+    // Ground marks: their geometry is cut from the terrain when the set changes.
+    if (fr.haveTerrain && !sameMarks(im.markDescs, im.lastMarkDescs)) {
+        im.marks.clear();
+        for (const auto& m : im.markDescs) im.marks.addMark(*terrain, m.first);
+        im.lastMarkDescs = im.markDescs;
+    }
+    // The sequels' skid marks (as2 delta 1.1 pass 5).
+    if (fr.haveTerrain && im.rules.skidMarkPass && im.skidsReady && options.sprites) im.collectSkidTrails(world);
+    else im.skidTrailCount = 0;
+    // Lightning bolts: effect-list records (sort 3) submitted by the Lightning builtin during
+    // the entity pass (7.1).
+    im.boltStarts.clear();
+    im.boltEnds.clear();
+    for (const LightningBolt& b : world.lightningBolts()) {
+        im.boltStarts.push_back(b.start);
+        im.boltEnds.push_back(b.end);
+    }
+    fr.boltTexture = im.boltStarts.empty() ? nullptr : im.cache->texture("gfx\\lightning2.tga").texture;
+    // Particles: the world's live emitters.
+    if (options.particles) world.particles().collect(im.emitters);
+    else im.emitters.clear();
+
+    stats_.models = static_cast<int>(im.opaque.size() + im.trans.size() + im.effect.size());
+    stats_.sprites = static_cast<int>(im.spriteList.size());
+    stats_.marks = static_cast<int>(im.markDescs.size());
+    stats_.shadows = static_cast<int>(im.shadowList.size());
+    stats_.lights = static_cast<int>(im.lights.size());
+    stats_.dropped = im.dropped;
+    fr.ready = true;
+}
+
+void WorldRenderer::draw(const EyeView& eye) { draw(eye, impl_->frame.viewport.x, impl_->frame.viewport.y); }
+
+void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
+    Impl& im = *impl_;
+    const Impl::Frame& fr = im.frame;
+    stats_.terrainChunks = stats_.waterChunks = stats_.skidTrails = stats_.bolts = 0;
+    stats_.emitters = stats_.particles = 0;
+    if (!fr.ready) return;
+    const WorldRenderOptions& options = fr.options;
+    const SceneLighting& light = fr.light;
+    const Terrain* terrain = fr.terrain;
+    const bool haveTerrain = fr.haveTerrain;
+    const int width = fr.viewport.width, height = fr.viewport.height;
+
+    // The eye's camera. An off-axis eye is drawn with the symmetric projection of the same
+    // eye position over a viewport moved by the image shift (x_ndc = x_ndc(symmetric) - B,
+    // eyeProjection) and widened on both sides by it, so the scale stays the prepared one and
+    // the rectangle stays covered; the scissor keeps the passes inside the rectangle. The
+    // Camera the mesh pass takes has no off-axis projection, hence this form for every pass.
+    WorldView ev = fr.wv;
+    float aspect = fr.aspect;
+    int gx = vx, gw = width;
+    if (eye.eyeOffset != 0.0f) {
+        ev.view = eyeViewMatrix(fr.wv, eye);
+        ev.eye = eyePosition(fr.wv, eye);
+        const float b = eyeProjection(fr.wv, eye, fr.aspect).at(2, 0);
+        const int shift = static_cast<int>(std::lround(-b * static_cast<float>(width) * 0.5f));
+        if (shift != 0) {
+            const int pad = shift < 0 ? -shift : shift;
+            gx = vx - pad + shift;
+            gw = width + 2 * pad;
+            aspect = static_cast<float>(gw) / static_cast<float>(height);
+        }
+        ev.projection = eyeProjection(ev, EyeView{}, aspect);
+    }
+    const bool shifted = gw != width;
+    const Camera cam = cameraFromView(ev, aspect);
+
     TerrainViewParams tv;
-    tv.view = wv.view;
-    tv.projection = wv.projection;
-    tv.cameraPos = wv.eye;
+    tv.view = ev.view;
+    tv.projection = ev.projection;
+    tv.cameraPos = ev.eye;
     tv.fogColour = light.fogColor;
     tv.fogStart = light.fogStart;
     tv.fogEnd = light.fogEnd;
-    tv.time = world.time();
-    tv.mapPos = world.mapPos();
+    tv.time = fr.time;
+    tv.mapPos = fr.mapPos;
     tv.lights = im.lights.data();
     tv.lightCount = im.lights.size();
     DecalViewParams dv;
-    dv.view = wv.view;
-    dv.projection = wv.projection;
+    dv.view = ev.view;
+    dv.projection = ev.projection;
     dv.fogColour = light.fogColor;
     dv.fogStart = light.fogStart;
     dv.fogEnd = light.fogEnd;
     im.meshes.setDynamicLights(im.lights.data(), im.lights.size());
-    im.meshes.setTime(world.time());
+    im.meshes.setTime(fr.time);
 
     // Pass 0: clear to the fog colour (black without fog).
-    setViewport(vx, vy, width, height);
-    Vec3 cc = hasFog ? light.fogColor : Vec3{0, 0, 0};
+    setViewport(gx, vy, gw, height);
+    Vec3 cc = fr.hasFog ? light.fogColor : Vec3{0, 0, 0};
     const bool part = vx != 0 || vy != 0;
-    if (part) {
-        // A sub-rectangle: the clear must not reach outside it.
+    if (part || shifted) {
+        // A sub-rectangle (or a widened viewport): the clear must not reach outside it.
         setScissor(true, vx, vy, width, height);
     }
     clear({cc.x, cc.y, cc.z, 1.0f}, true);
-    if (part) setScissor(false);
+    if (part && !shifted) setScissor(false);
     setDepth(true, true);
     setCull(CullMode::Back);
 
@@ -741,17 +844,10 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
         stats_.terrainChunks = im.terrain->lastVisibleChunks();
     }
     setDepth(true, true);
-    // Pass 4: ground marks. Their geometry is cut from the terrain when the set changes.
+    // Pass 4: ground marks (geometry cut in prepare).
     if (haveTerrain) {
-        if (!sameMarks(im.markDescs, im.lastMarkDescs)) {
-            im.marks.clear();
-            for (const auto& m : im.markDescs) im.marks.addMark(*terrain, m.first);
-            im.lastMarkDescs = im.markDescs;
-        }
         if (!im.markDescs.empty()) im.marks.draw(dv);
         // The sequels' skid marks, between the marks and the shadows (as2 delta 1.1 pass 5).
-        if (im.rules.skidMarkPass && im.skidsReady && options.sprites) im.collectSkidTrails(world);
-        else im.skidTrailCount = 0;
         if (im.skidTrailCount > 0) {
             im.skids.draw(im.skidTrails.data(), im.skidTrailCount, TerrainGridView::of(*terrain), dv);
             stats_.skidTrails = im.skids.lastTrailCount();
@@ -776,32 +872,22 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
     glDisable(GL_BLEND);
     setDepth(true, true);
     setCull(CullMode::Back);
-    // Lightning bolts: effect-list records (sort 3) submitted by the Lightning builtin during
-    // the entity pass (7.1); drawn after the effect models.
-    const std::vector<LightningBolt>& bolts = world.lightningBolts();
-    if (!bolts.empty()) {
-        im.boltStarts.clear();
-        im.boltEnds.clear();
-        for (const LightningBolt& b : bolts) {
-            im.boltStarts.push_back(b.start);
-            im.boltEnds.push_back(b.end);
-        }
+    // Lightning bolts, drawn after the effect models (7.1).
+    if (!im.boltStarts.empty()) {
         LightningViewParams lv;
-        lv.view = wv.view;
-        lv.projection = wv.projection;
+        lv.view = ev.view;
+        lv.projection = ev.projection;
         lv.fogStart = light.fogStart;
         lv.fogEnd = light.fogEnd;
-        lv.time = world.time();
-        im.lightning.draw(im.boltStarts.data(), im.boltEnds.data(), bolts.size(),
-                          im.cache->texture("gfx\\lightning2.tga").texture, lv);
+        lv.time = fr.time;
+        im.lightning.draw(im.boltStarts.data(), im.boltEnds.data(), im.boltStarts.size(), fr.boltTexture, lv);
         stats_.bolts = im.lightning.lastBoltCount();
     }
     // Pass 10: particles.
     if (options.particles) {
-        world.particles().collect(im.emitters);
         ParticleViewParams pv;
-        pv.view = wv.view;
-        pv.projection = wv.projection;
+        pv.view = ev.view;
+        pv.projection = ev.projection;
         pv.fogColour = light.fogColor;
         pv.fogStart = light.fogStart;
         pv.fogEnd = light.fogEnd;
@@ -811,8 +897,8 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
     }
     // Pass 12: sprites.
     SpriteViewParams sv;
-    sv.view = wv.view;
-    sv.projection = wv.projection;
+    sv.view = ev.view;
+    sv.projection = ev.projection;
     sv.fogColour = light.fogColor;
     sv.fogStart = light.fogStart;
     sv.fogEnd = light.fogEnd;
@@ -821,13 +907,10 @@ void WorldRenderer::render(const World& world, int vx, int vy, int width, int he
     glDisable(GL_BLEND);
     setDepth(true, true);
     setCull(CullMode::Back);
-
-    stats_.models = static_cast<int>(im.opaque.size() + im.trans.size() + im.effect.size());
-    stats_.sprites = static_cast<int>(im.spriteList.size());
-    stats_.marks = static_cast<int>(im.markDescs.size());
-    stats_.shadows = static_cast<int>(im.shadowList.size());
-    stats_.lights = static_cast<int>(im.lights.size());
-    stats_.dropped = im.dropped;
+    if (shifted) {
+        glDisable(GL_SCISSOR_TEST);
+        setViewport(vx, vy, width, height);
+    }
 }
 
 void WorldRenderer::drawBrightness(int width, int height, float brightness) {
