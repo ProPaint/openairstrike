@@ -186,8 +186,10 @@ RunConfig readRunConfig(const std::string& path) {
         std::string key = p, val = eq + 1;
         while (!val.empty() && (val.back() == '\n' || val.back() == '\r' || val.back() == ' ')) val.pop_back();
         while (!key.empty() && (key.back() == ' ' || key.back() == '\t')) key.pop_back();
-        if (key == "mode") c.probe = val == "probe";
-        else if (key == "only") c.only = val;
+        if (key == "mode") {
+            c.probe = val == "probe";
+            c.picatest = val == "picatest";
+        } else if (key == "only") c.only = val;
         else if (key == "hold") c.holdFrames = std::max(0, std::atoi(val.c_str()));
     }
     std::fclose(f);

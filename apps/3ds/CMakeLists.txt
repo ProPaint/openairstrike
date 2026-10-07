@@ -20,11 +20,14 @@ add_executable(openairstrike
   source/ctr_perf.cpp
   source/run_config.cpp
   source/main.cpp
+  source/pica_test.cpp
   source/probe.cpp
   source/render.cpp
   ${AS3D_REPO_ROOT}/apps/game/game_session.cpp)
+# pica_test.cpp uses the PICA backend's own headers (engine/src/render/pica).
 target_include_directories(openairstrike PRIVATE source ${AS3D_REPO_ROOT}/apps/game
-                                                 ${AS3D_REPO_ROOT}/engine/src/platform/ctr)
+                                                 ${AS3D_REPO_ROOT}/engine/src/platform/ctr
+                                                 ${AS3D_REPO_ROOT}/engine/src/render/pica)
 target_link_libraries(openairstrike PRIVATE scene_shbin_data ${AS3D_MODULES} ${AS3D_MODULES}
                                             citro3d ctru m)
 target_compile_options(openairstrike PRIVATE -fno-exceptions)

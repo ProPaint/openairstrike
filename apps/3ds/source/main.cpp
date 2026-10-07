@@ -27,6 +27,7 @@
 #include "as3d/vfs.h"
 #include "as3d/world.h"
 
+#include "pica_test.h"
 #include "probe.h"
 #include "render.h"
 #include "spike.h"
@@ -152,6 +153,17 @@ int runSpike() {
     gfxInitDefault();
     consoleInit(GFX_BOTTOM, nullptr);
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
+
+    // run.ini mode=picatest: the PICA core test (pica_test.cpp) runs before any game data is read.
+    {
+        probe::RunConfig early = probe::readRunConfig(std::string(kDir) + "/run.ini");
+        if (early.picatest) {
+            picatest::run(kDir, early.holdFrames);
+            C3D_Fini();
+            gfxExit();
+            return 0;
+        }
+    }
 
     std::string logPath = std::string(kDir) + "/spike_log.txt";
     g_log = std::fopen(logPath.c_str(), "w");

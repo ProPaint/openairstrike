@@ -15,6 +15,7 @@ namespace probe {
 
 struct RunConfig {
     bool probe = false; // mode=probe (default and anything else: the spike)
+    bool picatest = false; // mode=picatest: the PICA core test (pica_test.h), no game data needed
     int holdFrames = 0; // hold=N: keep drawing N frames after each variant (screenshots under Azahar)
     std::string only;   // only=CH: run just these variants (default: all)
 };
