@@ -15,6 +15,8 @@
 //             a string naming an object, particle system or weapon (case-insensitive, as the
 //             builtins look them up) joins the closure; a string ending in .mdl, .tga, .wav or
 //             .scr is a model, texture, sound or script path (SetModel, SetSkin, PlaySound)
+//             the models a definition's own script names are paired with it (objectModels):
+//             SetModel draws them with the definition's material and shadow
 //   weapon    its missile and flash objects
 //   particle  its texture
 // What it cannot see: a name a script computes at run time (concatenation, numbers), which is
@@ -25,6 +27,7 @@
 #include <cstddef>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace as3d {
@@ -43,6 +46,9 @@ struct PrecacheSet {
     // Normalized game paths, each once. models / textures: those named by scripts and the
     // game's own (objects' own model, skin, envmap are not repeated here).
     std::vector<std::string> scripts, models, textures, sounds;
+    // The models a definition's own script names (SetModel swaps the entity's model, e.g. the
+    // damaged helicopters): drawn and shadowed with that definition's material.
+    std::vector<std::pair<const ObjectDef*, std::string>> objectModels;
     bool capped = false;   // the object cap was reached
     int programsScanned = 0;
 };

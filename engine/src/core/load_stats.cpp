@@ -21,6 +21,7 @@ const char* loadKindName(LoadKind kind) {
         case LoadKind::Script: return "scripts";
         case LoadKind::Sound: return "sounds";
         case LoadKind::Shadow: return "shadows";
+        case LoadKind::Stamp: return "stamps";
         case LoadKind::Other: return "other";
     }
     return "?";

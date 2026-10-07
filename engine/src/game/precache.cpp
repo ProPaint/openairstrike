@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdio>
 #include <deque>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "as3d/defs.h"
@@ -94,7 +95,10 @@ public:
         if (const ParticleSystemDef* ps = db_.findParticleSystem(s)) particles(ps);
         if (const WeaponDef* w = db_.findWeapon(s)) weapon(w);
         const std::string p = normalizePath(s);
-        if (endsWith(p, ".mdl")) model(p);
+        if (endsWith(p, ".mdl")) {
+            model(p);
+            if (scanning_) scriptModels_[*scanning_].push_back(p);
+        }
         else if (endsWith(p, ".tga")) texture(p);
         else if (endsWith(p, ".wav")) sound(p);
         else if (endsWith(p, ".scr")) script(p);
@@ -118,6 +122,11 @@ public:
             if (!pendingScripts_.empty()) {
                 const std::string path = pendingScripts_.front();
                 pendingScripts_.pop_front();
+                scanning_ = &path;
+                struct Done {
+                    const std::string*& p;
+                    ~Done() { p = nullptr; }
+                } done{scanning_};
                 const script::ScriptProgram* prog = program_ ? program_(path) : nullptr;
                 if (!prog) continue;
                 ++out_.programsScanned;
@@ -148,6 +157,11 @@ private:
     std::unordered_set<std::string> scripts_, models_, textures_, sounds_;
     std::deque<const ObjectDef*> pending_;
     std::deque<std::string> pendingScripts_;
+    const std::string* scanning_ = nullptr; // the script whose strings name() is reading
+
+public:
+    // The models each script names (SetModel), by normalized script path.
+    std::unordered_map<std::string, std::vector<std::string>> scriptModels_;
 };
 
 } // namespace
@@ -185,6 +199,14 @@ PrecacheSet collectPrecacheSet(const World& world, const DefDatabase& db, const 
     for (const char* n : named)
         if (n) c.object(n);
     c.run();
+    // A definition whose own script swaps its model (SetModel: the damaged helicopters) draws,
+    // and shadows, those models with its own material.
+    for (const ObjectDef* def : set.objects) {
+        if (def->script.empty()) continue;
+        auto it = c.scriptModels_.find(normalizePath(def->script));
+        if (it == c.scriptModels_.end()) continue;
+        for (const std::string& m : it->second) set.objectModels.emplace_back(def, m);
+    }
     if (set.capped)
         AS3D_WARN("precache: the closure reached %zu definitions; the rest load on first use", maxObjects);
     return set;

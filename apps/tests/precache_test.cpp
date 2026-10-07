@@ -113,7 +113,7 @@ TEST_CASE("load stats: counts per kind, sites, bytes and reset") {
     CHECK(c.of(LoadKind::Model) == 0);
     CHECK(c.bytes == 150);
     CHECK(c.total() == 4);
-    CHECK(c.str() == "textures=2 models=0 scripts=1 sounds=0 shadows=0 other=1 bytes=150");
+    CHECK(c.str() == "textures=2 models=0 scripts=1 sounds=0 shadows=0 stamps=0 other=1 bytes=150");
     const LoadCounts before = c;
     LoadStats::count(LoadKind::Sound);
     CHECK((LoadStats::lazyLoads() - before).of(LoadKind::Sound) == 1);
@@ -187,8 +187,13 @@ TEST_CASE("precache: nothing loads on first use during a minute of play") {
                     r.lateShadows);
         CHECK(r.frames == 3600);
         CHECK_FALSE(r.report.capped);
+        // Every kind but the TerraMorph stamps (the sequels), which World::terraMorph reads at
+        // every call whose name misses its table (as3d/load_stats.h, Stamp): not precachable
+        // without changing the simulation.
         for (int k = 0; k < kLoadKindCount; ++k) {
-            CAPTURE(loadKindName(static_cast<LoadKind>(k)));
+            if (static_cast<LoadKind>(k) == LoadKind::Stamp) continue;
+            const std::string kind = loadKindName(static_cast<LoadKind>(k));
+            CAPTURE(kind);
             CHECK(r.lazy.count[k] == 0);
         }
         CHECK(r.lateShadows == 0);

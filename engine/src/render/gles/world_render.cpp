@@ -301,13 +301,15 @@ struct WorldRenderer::Impl {
     // ---------------------------------------------------------------------------------------
 
     // One definition of the closure: what prepare() loads when an entity of it is first drawn.
-    void precacheObject(const ObjectDef& def) {
+    // `swapped`: empty for the definition's own model, else one its script swaps in (SetModel).
+    void precacheObject(const ObjectDef& def, const std::string& swapped = std::string()) {
         for (const SkidMarkDef& sk : def.skidMarks)
             if (!sk.texture.empty()) cache->texture(sk.texture);
         switch (def.type) {
             case ObjectType::Model: {
-                if (def.model.empty()) return;
-                const GpuMesh& mesh = cache->mesh(def.model);
+                const std::string& model = swapped.empty() ? def.model : swapped;
+                if (model.empty()) return;
+                const GpuMesh& mesh = cache->mesh(model);
                 if (!mesh.valid) return;
                 const Material& mat = materialFor(def, std::string());
                 const ShadowSpec ss = shadowSpecOf(def.shadow);
@@ -315,7 +317,7 @@ struct WorldRenderer::Impl {
                 // A spawned entity's projected shadow takes its root's yaw in 30 degree steps:
                 // any of the 12.
                 const int steps = ss.kind == ShadowKind::Projected ? 12 : 1;
-                for (int s = 0; s < steps; ++s) shadowMap(mesh, normalizePath(def.model), mat, std::string(), ss, s, false);
+                for (int s = 0; s < steps; ++s) shadowMap(mesh, normalizePath(model), mat, std::string(), ss, s, false);
                 return;
             }
             default:
@@ -478,6 +480,8 @@ PrecacheReport WorldRenderer::precache(const World& world, const DefDatabase& db
         im.cache->mesh(m);
         step();
     }
+    for (const auto& om : set->objectModels)
+        if (om.first->type == ObjectType::Model) im.precacheObject(*om.first, om.second);
     for (const std::string& t : set->textures) {
         im.cache->texture(t);
         step();

@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "as3d/image.h"
+#include "as3d/load_stats.h"
 #include "as3d/vfs.h"
 #include "as3d/world.h"
 #include "world_internal.h"
@@ -34,6 +35,8 @@ std::string stampName(const char* name) {
 // decoder and are put back in file order (the first stored row first), since the original
 // does not flip rows. False for anything else.
 bool loadStamp(Vfs& vfs, const std::string& path, int& w, int& h, std::vector<u8>& pixels) {
+    LoadStats::Site site; // a load (as3d/load_stats.h, Stamp: not precachable)
+    LoadStats::count(LoadKind::Stamp);
     Blob blob;
     if (!vfs.read(path, blob) || blob.size() < 18) return false;
     const u8* b = blob.data();

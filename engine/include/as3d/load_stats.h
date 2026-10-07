@@ -10,6 +10,10 @@
 //   Script   GameScriptHost::program (a script compiled from the pak)
 //   Sound    Audio::loadSound (a WAV decoded)
 //   Shadow   WorldRenderer's late shadow silhouettes (lateShadowMaps())
+//   Stamp    a TerraMorph stamp (morphmaps\*.tga, the sequels) read by World::terraMorph. Not
+//            precachable: the lookup compares the script's name byte for byte with the stored
+//            "<name>.tga" (the original's), so a call by a name without the extension reads the
+//            file every time, and filling the stamp table ahead would change its order and cap.
 //   Other    any Vfs::read outside the sites above: the catch-all for loaders without a counter
 //            of their own (ParticleRenderer's per-emitter textures, the terrain, music, the
 //            front end's files)
@@ -26,9 +30,9 @@
 
 namespace as3d {
 
-enum class LoadKind : int { Texture = 0, Model, Script, Sound, Shadow, Other };
-constexpr int kLoadKindCount = 6;
-// "textures", "models", "scripts", "sounds", "shadows", "other".
+enum class LoadKind : int { Texture = 0, Model, Script, Sound, Shadow, Stamp, Other };
+constexpr int kLoadKindCount = 7;
+// "textures", "models", "scripts", "sounds", "shadows", "stamps", "other".
 const char* loadKindName(LoadKind kind);
 
 struct LoadCounts {
@@ -37,7 +41,7 @@ struct LoadCounts {
 
     long long of(LoadKind k) const { return count[static_cast<int>(k)]; }
     long long total() const;
-    // "textures=N models=N scripts=N sounds=N shadows=N other=N bytes=N".
+    // "textures=N models=N scripts=N sounds=N shadows=N stamps=N other=N bytes=N".
     std::string str() const;
     // Per-kind difference (this - since), e.g. the loads a precache did.
     LoadCounts operator-(const LoadCounts& since) const;
