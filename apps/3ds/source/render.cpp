@@ -148,7 +148,17 @@ bool uploadTexture(const Image& img, C3D_Tex* tex, TexMode mode, std::string* re
     }
     int lw = w, lh = h;
     for (int level = 0; level <= maxLevel; ++level) {
-        swizzleLevel(cur.data(), lw, lh, C3D_Tex2DGetImagePtr(tex, level, nullptr), is565);
+        // VRAM is not CPU-writable on real hardware (data abort; Azahar lets it through):
+        // swizzle into a linear staging buffer and let citro3d copy it (memcpy for linear
+        // textures, a GX texture copy for VRAM ones).
+        u32 levelBytes = 0;
+        C3D_Tex2DGetImagePtr(tex, level, &levelBytes);
+        void* staging = linearAlloc(levelBytes);
+        if (!staging) return false;
+        swizzleLevel(cur.data(), lw, lh, staging, is565);
+        GSPGPU_FlushDataCache(staging, levelBytes);
+        C3D_TexLoadImage(tex, staging, GPU_TEXFACE_2D, level);
+        linearFree(staging);
         if (level == maxLevel) break;
         int nw = lw / 2, nh = lh / 2; // 2x2 box filter
         std::vector<u8> next(static_cast<size_t>(nw) * nh * 4);
