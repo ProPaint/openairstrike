@@ -353,7 +353,7 @@ TEST_CASE("game flow: settings reach the mixer and the key mapper; the profile s
         CHECK(h.keys.binding(0, InputAction::Fire, 0) == SDL_SCANCODE_LCTRL);
         // The attract level's music plays at the default volume.
         h.wait(30);
-        CHECK(mixLevel(h.audio, 4096) > 1e-4);
+        if (AS3D_WITH_OPENMPT) CHECK(mixLevel(h.audio, 4096) > 1e-4);  // no music in the stub build
         // Options: effects volume to 0 (the slider's left end): the music still plays; music
         // volume to 0: the mixer is silent.
         REQUIRE(h.tapItem(3));
@@ -363,7 +363,7 @@ TEST_CASE("game flow: settings reach the mixer and the key mapper; the profile s
         h.tap(sfx->x + 4, sfx->y + 5);
         CHECK(h.fe().profile().settings.sfxVolume == 0.0f);
         mixLevel(h.audio, 4096); // let the volume change through
-        CHECK(mixLevel(h.audio, 4096) > 1e-4);
+        if (AS3D_WITH_OPENMPT) CHECK(mixLevel(h.audio, 4096) > 1e-4);
         ui::MenuItem* music = h.fe().menus().top()->find(26);
         REQUIRE(music);
         h.tap(music->x + 4, music->y + 5);
