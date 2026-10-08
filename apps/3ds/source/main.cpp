@@ -9,7 +9,7 @@
 //    with citro3d for 300 frames while the world keeps stepping, measuring CPU and GPU time.
 // START quits at the end. With mode=probe in sdmc:/3ds/openairstrike/run.ini the GPU probe (probe.cpp) runs instead,
 // with mode=terraintest the terrain test (terrain_test.cpp), with mode=meshtest the mesh test (mesh_test.cpp),
-// with mode=shadowtest the shadow test (shadow_test.cpp), with mode=watertest the water and lightning test (water_test.cpp), with mode=markstest the ground mark test
+// with mode=shadowtest the shadow test (shadow_test.cpp), with mode=watertest the water and lightning test (water_test.cpp), with mode=envtest the environment map test (env_test.cpp), with mode=markstest the ground mark test
 // (mark_test.cpp).
 #include <3ds.h>
 #include <citro3d.h>
@@ -36,6 +36,7 @@
 #include "render.h"
 #include "mark_test.h"
 #include "water_test.h"
+#include "env_test.h"
 #include "shadow_test.h"
 #include "spike.h"
 #include "fx_test.h"
@@ -176,6 +177,12 @@ int runSpike() {
         }
         if (early.meshtest) { // mode=meshtest: the PICA mesh test (mesh_test.cpp) loads its own mission
             meshtest::run(kDir, early.holdFrames);
+            C3D_Fini();
+            gfxExit();
+            return 0;
+        }
+        if (early.envtest) { // mode=envtest: the PICA environment map test (env_test.cpp)
+            envtest::run(kDir, early.holdFrames, early.botFrames, early.only);
             C3D_Fini();
             gfxExit();
             return 0;

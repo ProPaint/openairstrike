@@ -197,6 +197,7 @@ RunConfig readRunConfig(const std::string& path) {
             c.shadowtest = val == "shadowtest";
             c.markstest = val == "markstest";
             c.watertest = val == "watertest";
+            c.envtest = val == "envtest";
         } else if (key == "only") c.only = val;
         else if (key == "hold") c.holdFrames = std::max(0, std::atoi(val.c_str()));
         else if (key == "frames") c.botFrames = std::max(0, std::atoi(val.c_str()));
