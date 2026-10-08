@@ -178,6 +178,14 @@ struct Entity {
     int parent = -1;
     std::vector<int> children;       // definition attachments, in attach order
     std::string tagName;             // parent tag ("origin" = parent origin)
+    // attachToTag's lookup of tagName in the parent's model (World::tagLocal), cached: it
+    // is reused while the parent's model and tagName are the ones it was made for (a
+    // world's models are never freed or replaced while it lives).
+    bool tagCacheValid = false;
+    bool tagCacheFound = false;
+    const ModelData* tagCacheModel = nullptr;
+    std::string tagCacheName;
+    Vec3 tagCachePos;
     bool absAttach = false;
     bool countedInRoot = false;      // +0x11
     int attachRefCount = 0;          // +0x12, roots only

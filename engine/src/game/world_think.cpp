@@ -59,7 +59,19 @@ void World::attachToTag(int idx) {
     if (!validIndex(e.parent)) return;
     const Entity& p = ents_[static_cast<size_t>(e.parent)];
     Vec3 tag;
-    if (!tagLocal(e.parent, e.tagName, tag)) {
+    bool found;
+    if (e.tagCacheValid && e.tagCacheModel == p.model && e.tagCacheName == e.tagName) {
+        found = e.tagCacheFound; // tagLocal depends only on the tag name and the model
+        tag = e.tagCachePos;
+    } else {
+        found = tagLocal(e.parent, e.tagName, tag);
+        e.tagCacheValid = true;
+        e.tagCacheFound = found;
+        e.tagCacheModel = p.model;
+        e.tagCacheName = e.tagName;
+        e.tagCachePos = tag;
+    }
+    if (!found) {
         // "Tag '%s' not found in model '%s'": the original detaches the child. A pool
         // entity is detached; a definition child keeps using the parent origin (it is
         // not in the pool list, so detaching it would orphan it).
