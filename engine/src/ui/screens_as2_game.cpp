@@ -78,8 +78,11 @@ Menu SequelScreens::inGame(Frontend& f) {
 // ---------------------------------------------------------------------------
 Menu SequelScreens::hint(Frontend& f) {
     Menu m = newMenu();
-    const HintLayout layout = layoutHint(FontMetrics::original(), f.hintText_, HintStyle::SequelPanel);
-    m.addSequelButton(1, 400, 520, trOr(f, "button.hint_ok", "button.ok"), kCentre);
+    // The layout's scale and button place: the original's (1, y 520) on the desktop; larger
+    // text and the button above the touch band on the 3DS bottom screen (HudLayout::hintScale).
+    const HintLayout layout = layoutHint(FontMetrics::original(), f.hintText_, HintStyle::SequelPanel, f.hintScale());
+    MenuItem& ok = m.addSequelButton(1, 400, layout.okButton.y, trOr(f, "button.hint_ok", "button.ok"), kCentre);
+    if (f.touch_ && layout.scale > 1.0f) ok.hit = {ok.hit.x - 20, ok.hit.y - 10, ok.hit.w + 40, ok.hit.h + 20}; // finger-sized
     auto close = [&f]() {
         f.menus_.pop();
         f.resumePlay();
@@ -100,8 +103,8 @@ Menu SequelScreens::hint(Frontend& f) {
         if (c.menu.open < 1) return;
         float y = layout.textTop;
         for (const std::string& line : layout.lines) {
-            text(c.r, c.a, 400, y, line, accent(), Align::Center, true);
-            y += 18.0f;
+            text(c.r, c.a, 400, y, line, accent(), Align::Center, true, layout.scale);
+            y += 18.0f * layout.scale;
         }
     };
     return m;

@@ -703,6 +703,39 @@ TEST_CASE("hud layout: every Bottom320x240 element is inside the screen, apart, 
   }
 }
 
+TEST_CASE("hud layout: the sequels' hint panel on the bottom screen keeps its Ok button above the touch band") {
+    for (GameId game : {GameId::AirStrike2, GameId::GulfThunder}) {
+        const HudLayout& L = hudLayout(game, HudTarget::Bottom320x240);
+        CAPTURE(std::string(L.name));
+        CHECK(hudLayout(game).hintScale == 1.0f);
+        CHECK(L.hintScale >= 1.5f);
+        for (int n : {1, 3, 6, 10}) {
+            CAPTURE(n);
+            std::string text = "Destroy the enemy convoy before it reaches the base";
+            for (int i = 1; i < n; i++) text += "^Use the missiles on the armoured targets";
+            // The desktop: the original's layout, button at y 520 whatever the box.
+            const HintLayout m = layoutHint(FontMetrics::original(), text, HintStyle::SequelPanel, hudLayout(game).hintScale);
+            CHECK(m.scale == 1.0f);
+            CHECK(m.okButton.y == 520.0f);
+            // The 3DS bottom screen: bigger text, the button above the band, the panel (its bottom
+            // frame 18 below the box, its title tab 47 above) above the button and inside the screen.
+            const HintLayout b = layoutHint(FontMetrics::original(), text, HintStyle::SequelPanel, L.hintScale);
+            CHECK(b.scale > 1.0f);
+            CHECK(b.okButton.y + b.okButton.h <= kHudBottomBandTop);
+            CHECK(b.okButton.x >= 0.0f);
+            CHECK(b.okButton.x + b.okButton.w <= 800.0f);
+            CHECK(b.box.y - 47.0f >= 0.0f);
+            CHECK(b.box.y + b.box.h + 18.0f <= b.okButton.y);
+            CHECK(b.box.x >= 0.0f);
+            CHECK(b.box.x + b.box.w <= 800.0f);
+            CHECK(b.textTop >= b.box.y);
+            CHECK(b.textTop + 18.0f * b.scale * static_cast<float>(b.lines.size()) <= b.box.y + b.box.h + 0.5f);
+            // On the 320x240 screen (scale 0.4): inside, and the button above the touch buttons.
+            CHECK((b.okButton.y + b.okButton.h) * 0.4f <= 240.0f - 36.0f);
+        }
+    }
+}
+
 TEST_CASE("hud layout: every element drawHud draws has a rectangle in each Bottom320x240 table") {
     for (GameId game : {GameId::AirStrike3D, GameId::AirStrike2, GameId::GulfThunder}) {
         const HudLayout& L = hudLayout(game, HudTarget::Bottom320x240);

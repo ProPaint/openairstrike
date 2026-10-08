@@ -86,8 +86,10 @@ float noiseRandom() {
     return static_cast<float>(state >> 8) / 16777216.0f;
 }
 
-void text(Renderer2D& r, const UiAssets& a, float x, float y, std::string_view s, Color c, Align al, bool markup) {
+void text(Renderer2D& r, const UiAssets& a, float x, float y, std::string_view s, Color c, Align al, bool markup,
+          float scale) {
     TextStyle st;
+    st.scale = scale;
     st.color = c;
     st.align = al;
     st.markup = markup;

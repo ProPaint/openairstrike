@@ -345,6 +345,7 @@ void makeSequelBottom(HudLayout& L, const char* name) {
     L.scoreScale = B;
     L.levelNameY = 250; L.levelNameScale = 1.5f;
     L.messageY = 400; L.messageScale = 1.5f;
+    L.hintScale = 1.5f; // the tutorial panel's text; its Ok button above the touch band (layoutHint)
 
     HudSide& s = L.onePlayer;
     s.livesX = 4; s.livesStep = 38; s.livesY = 62;

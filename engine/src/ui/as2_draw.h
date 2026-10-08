@@ -106,7 +106,7 @@ void textButton(Renderer2D& r, const UiAssets& a, float left, float yDrawn, floa
 
 // Additive text (the green text routine), `markup` switches braces to white.
 void text(Renderer2D& r, const UiAssets& a, float x, float y, std::string_view s, Color c, Align al = Align::Left,
-          bool markup = false);
+          bool markup = false, float scale = 1.0f);
 
 // The front end's own random source for the panel noise (issue 240 item 2), 0..1.
 float noiseRandom();

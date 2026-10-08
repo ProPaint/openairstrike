@@ -418,9 +418,16 @@ HintLayout layoutHint(const FontMetrics& m, std::string_view text, HintStyle sty
     L.box.x = static_cast<float>(ftol((kVirtualWidth - L.box.w) * 0.5f));
     L.box.y = static_cast<float>(ftol((kVirtualHeight - L.box.h) * 0.5f));
     if (style == HintStyle::SequelPanel) {
-        L.textTop = L.box.y + (L.box.h - 18.0f * scale * n) * 0.5f;
         const float bw = measureText(m, kSequelOkCaption, 1.0f, true) + 46.0f;
         L.okButton = {400.0f - bw * 0.5f, 520.0f, bw, 30.0f};
+        if (scale > 1.0f) {
+            // Ours (the 3DS bottom screen, docs/3ds-port.md M5.2): the button above the touch
+            // band (kHudBottomBandTop), the panel and its bottom frame (18 below the box) above
+            // the button, its title tab (47 above the box) inside the screen.
+            L.okButton.y = kHudBottomBandTop - 30.0f - 8.0f;
+            L.box.y = std::max(47.0f, std::min(L.box.y, L.okButton.y - 24.0f - L.box.h));
+        }
+        L.textTop = L.box.y + (L.box.h - 18.0f * scale * n) * 0.5f;
     } else {
         L.textTop = L.box.y + 20.0f * scale;
         L.okButton = {400.0f - 50.0f * scale, L.box.y + L.box.h - 60.0f * scale, 100.0f * scale, 64.0f * scale};
@@ -496,7 +503,7 @@ void drawHint(Renderer2D& r, const UiAssets& a, std::string_view text) {
     if (!font.metrics) return;
     if (sequelPanel(a)) {
         // Items first, then the panel over them, as the original's screens (as2/frontend.md 3.1).
-        HintLayout L = layoutHint(*font.metrics, text, HintStyle::SequelPanel);
+        HintLayout L = layoutHint(*font.metrics, text, HintStyle::SequelPanel, a.hudLayout().hintScale);
         drawHintOk(r, a, L, false, 0);
         drawHintPanel(r, a, L, 1.0f);
         return;
