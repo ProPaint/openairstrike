@@ -267,3 +267,15 @@ every change (intro, main, start, options, scores, name, ingame, hint, complete,
 `AS3D_MENU` with the visible items in the virtual 800x600 screen (for `T` taps: bottom pixel =
 virtual x 0.4), `AS3D_LEVEL_LOADED` and, at the end, the end state of the level running.
 docs/3ds-port.md, "M2.1".
+
+`--render-only terrain,models,particles,sprites,shadows,marks,skid,water,lightning` (the default full list now has water). docs/3ds-port.md, "M3.2".
+
+`mode=watertest` (optional `frames=N` bot frames, default 1400; `hold=N`; `precache=0`) runs
+`source/water_test.cpp`: mission 1 after N bot frames, then the world frozen and drawn mono: `t` terrain
+only, `w` terrain and water, `l` terrain and three synthetic lightning bolts, `f` the full frame, then 30
+more bot frames and `w2` (water again, the scroll moved). It writes `watertest_log.txt` (per frame water
+quads, drawn, draws, arena, planeZ, scroll offset; bolts) and `watertest_<phase>.ppm`. Compare `w` with
+`as3d_game --headless --level 1 --bot --frames 1400 --size 400x240 --screenshot-every 1400 --render-only
+terrain,water`, `w2` with the same at `--frames 1430`, `t` with `--render-only terrain`, `f` with
+`--render-only terrain,models,particles,sprites,shadows,marks,water,lightning`. docs/3ds-port.md,
+"M3.5 Water and M3.3 Lightning".

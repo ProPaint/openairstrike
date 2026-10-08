@@ -909,5 +909,68 @@ frames, 10.69 and 0.728, so the mark adds no error); full frame `terrain,models,
 shadows,marks,skid`: MAE 10.34, within 16 0.736 (the baseline of the water and the effects).
 `mode=bot level=1 frames=600` is unchanged: map_pos 452.0, 39 entities, created 243, freed 204.
 
-Deferred: water (7), lightning bolts and environment maps (M3.3 to M3.5); skid trails against a
+Deferred: water (7), lightning bolts and environment maps (done in M3.5/M3.3, environment maps M3.4); skid trails against a
 desktop reference need the sequels' data (only the synthetic trails were drawn); the hardware run.
+
+## M3.5 Water and M3.3 Lightning on the PICA (water_renderer_pica.cpp, lightning_renderer_pica.cpp)
+
+The first game's water as the GL `WaterRenderer` draws it, and the lightning bolts. Both go through
+the flat shader and `drawFlatRuns` (M1.6); nothing is created inside a frame.
+
+- Water (`pica::WaterPass`, pass 7, after the opaque list, before the transparent list). The GL plane:
+  one quad per 320 world units of map length (mission 1: 32 quads, 192 vertices), x 0..width*40,
+  uv (0,0)-(width/160, 2) per quad, z = `computeWaterParams().planeZ` (level + sin t, t = time*pi*0.1),
+  uv offset (0.4 sin t, 0.4 sin t/2), colour = sun*dir.z + ambient, alpha = the style's, alpha
+  blend, depth test and write on, no culling, fog towards the level colour (`blendKey(Alpha, true,
+  true, Off)`). The flat shader has neither a plane-z nor a uv-offset uniform, so the quads are
+  rewritten into the frame arena by the first eye of an arena frame (z and uv already moved, colour
+  and alpha in the vertex colour; 4.5 KB for mission 1) instead of using the terrain shader's detail
+  offset: a few quads, no shader change. Each eye culls the quads with the GL's conservative
+  clip-space test against its own matrix and draws adjacent visible quads as one run (5 of 32 quads,
+  1 draw in mission 1). The texture (`gfx\water\water_lake2.tga`, 128x128) is created at beginLevel
+  as an opaque RGB565 texture with mip chain (the plane's alpha is the style's: the GL ignores the
+  texture alpha), after the terrain's, so it goes to VRAM while the budget has room: 42.6 KB, VRAM in
+  mission 1 (`waterPicaStats().textureVram`). Sequel water (`WaterStyle::WaveGrid`: wave grid, two
+  textures) is M5.1: `build()` logs a TODO and leaves the pass inactive.
+- Lightning (`pica::LightningPass`, after the effect list, before the particles, as the GL).
+  `prepare()` (outside frames) runs `buildLightningBolts` on the scene's bolts (at most 64 kept) into
+  FlatVertex plus the run (additive, no depth test or write, no culling, fog towards black); the
+  first eye copies them to the arena (288 B per bolt) and draws the run. `gfx\lightning2.tga` is the
+  scene's cache texture (precached by the M1.10a closure). Mission 1 has no `Lightning()` call under
+  the bot (it is the Lightning Bomb pick-up), so `pica::setTestBolts` (test hook, like
+  `setTestSkidTrails`) supplies three synthetic bolts for the test.
+- Neutral changes: `WorldRenderOptions::water` and `::lightning` (default true) gate pass 7 and the
+  bolts in both backends (WorldScene collects no bolts without `lightning`); `as3d_game --render-only`
+  takes `water` and `lightning`, and `terrain` alone no longer draws the water (until now it did, so
+  the M1.4 to M3.2 desktop terrain references carried the water: M3.2's MAE 10.7 was that). The
+  earlier 3DS test modes set `water = lightning = false` in their terrain-only phases.
+  "Not drawn yet" at beginLevel now lists only the environment maps (M3.4).
+- `mode=watertest` (apps/3ds/source/water_test.cpp, `frames=N` default 1400, `hold=`): mission 1 after
+  N bot frames, mono dumps `watertest_t.ppm` (terrain), `_w` (terrain + water), `_l` (terrain + the
+  synthetic bolts), `_f` (full frame), then 30 more bot frames and `_w2` (terrain + water), with
+  `watertest_log.txt` (per frame: quads, drawn, draws, arena, planeZ, scroll offset, bolts, time).
+
+Azahar check (2026-10-08, `tools/3ds_screen_compare.py --direct --mask`, 400x240, against
+`as3d_game --headless --level 1 --bot --frames 1400 --size 400x240 --screenshot-every 1400
+--render-only terrain,water`):
+
+| frame | PICA phase | desktop list | MAE | within 16 |
+|-------|------------|--------------|-----|-----------|
+| 1400 before | terrain only | terrain,water | 10.15 | 0.743 |
+| 1400 | w | terrain,water | 1.41 | 0.997 |
+| 1400 | t | terrain | 1.43 | 0.999 |
+| 1430 | w2 | terrain,water (--frames 1430) | 1.40 | 0.997 |
+| 1400 | f | terrain,models,particles,sprites,shadows,marks,water,lightning | 1.95 | 0.982 |
+
+On the 25244 pixels the water changes on the desktop: PICA terrain only MAE 34.3, with the water 1.16
+(within 16: 0.992). The scroll: the logged offsets at time 23.333 s and 23.833 s are (0.3464, -0.2000)
+and (0.3734, -0.2266), planeZ -67.134 and -67.066 (the same `computeWaterParams` as the GL); the
+frame change 1400 to 1430 is MAE 15.6 on the PICA and 15.1 on the desktop, and the PICA's 1430 frame
+matches the desktop's 1430 (1.40) and not its 1400 frame (15.35). Lightning (`l`): three bolts, 36
+vertices, 0.84 KB, 1 draw, additive blue-white strokes on the terrain (no desktop reference: mission 1
+has no real bolt with the bot; the geometry is the shared `buildLightningBolts`). Draws added: water 1,
+lightning 1 per eye. Arena high water of the test 65 KB, 0 failures. `mode=bot level=1 frames=600`
+unchanged: map_pos 452.0, 39 entities, created 243, freed 204.
+
+Deferred: sequel water (M5.1: wave grid, two layers, animated per frame), environment maps (M3.4), a
+real in-game bolt against the desktop (Lightning Bomb; needs a script that picks it up), hardware timing.
