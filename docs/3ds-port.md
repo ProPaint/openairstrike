@@ -1989,6 +1989,21 @@ first). Not done:
    only the 8-bit rounding of the blends. Azahar stereo: as3d mission 1 156 -> 144 draws per frame,
    Gulf mission 1 319 -> 288; dumps at step 600 within MAE 0.16 of drop 4, sim end states equal.
 
+5. The owner's wash in the tutorial (drop 4 play session: while a hint box is up the water covers
+   terrain and roads, never the models; no bot run shows it). Suspect: the GPU's depth offset or
+   fragment state out of step with what the renderer believes. Two causes made safe:
+   applyMaterialState skipped its depth offset when it equalled its own tracked value, while
+   setDepthMapping (offset 0) and the terrain's tile overlays (the bias) change the GPU's offset
+   behind it, so a polygon offset could be lost or kept (since M1.3); it now always applies it (the
+   depth map's shadow copy drops a true repeat) and fillQuad restores the offset the GPU has
+   (pica::appliedDepthOffset). And the shadow copies of the fragment state and the texture
+   bindings (drop 2) are forgotten at every frameBegin and drawOn, so each frame and target issues
+   its state at least once: a mismatch cannot outlive a frame. No state call bypasses the copies
+   (every C3D_AlphaBlend / DepthTest / CullFace / AlphaTest / FogColor / DepthMap goes through
+   render_state_pica.cpp). Azahar `mode=play level=1` (no input, 750 frames): top and bottom dumps
+   equal to drop 4's; no hint box opens in that window in the direct mode, so the wash itself is not
+   reproduced: the console run in the tutorial with a hint up is the check.
+
 **What is next:**
 - Console: mono with the defaults should now hold 60 Hz (target ≥ 99 % one-step frames); stereo a
   steady 30 Hz (2 steps per frame).
