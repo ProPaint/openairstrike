@@ -20,6 +20,19 @@ pacer rules (mono starts at 60 and ignores load-caused misses, stereo starts at 
 screen's three Renderer2D lists, shadows grouped by texture, the depth-offset/state-copy fix for
 the water wash seen in play (see "Hardware tuning"), and the water near-plane cut.
 
+**The water wash, best diagnosis at the pause (drop 5 did NOT fix it):** the owner's photo of
+the mission-complete screen shows the whole ground covered by the pale water texture, and in play
+it lasts "a few seconds at a time": every time the world is PAUSED under an overlay (hint boxes
+in the tutorial, the in-game menu, mission complete). The bot never pauses, so no dump showed it.
+Mechanism to verify first: while paused the composer does not rebuild the per-frame geometry but
+still draws every frame; the water tiles (and any other pass fed from the frame arena) point at
+an arena half that the next frames' 2D overlays overwrite, so the GPU draws garbage triangles over
+the terrain; terrain and models live in permanent linear buffers and stay correct. Reproduce on
+Azahar with `mode=play menu_bot=0` once a hint box is up (the world pauses) and dump the top
+screen; fix = rebuild (or keep valid) all arena-fed geometry on every drawn frame regardless of
+the pause, or never skip `prepare()`. Second candidate if that is not it: the depth-test state
+while the overlay is drawn (drop 5 already resets the state copies per frame).
+
 **Open on the console:** confirm mono ≥ 99% one-step frames and stereo a clean 30 with drop 5;
 the tutorial water wash with a hint box up (hypothesis: the render-state copies, fixed
 defensively in drop 5); the menu-font legibility photo (M2.2); a Gulf stereo run for the GPU
