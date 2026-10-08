@@ -29,6 +29,8 @@
 #include "game_session.h"
 #include "mesh_renderer_pica.h"
 #include "model_view.h"
+#include "pass_profile.h"
+#include "shadow_pica.h"
 #include "pica_frame.h"
 #include "texture_budget.h"
 #include "ui_pica.h"
@@ -102,6 +104,26 @@ double kb(size_t b) { return static_cast<double>(b) / 1024.0; }
 // mapping on its bottom screen (the comparison of the report).
 constexpr float kModelPxPerVirtual = 0.8f;
 
+// A 2D pass (or the brightness pass) in the pass profile (pass_profile.h): its CPU ticks, the
+// 2D runs and vertices it drew.
+class UiMeter {
+public:
+    explicit UiMeter(pica::Pass p)
+        : p_(p), t0_(svcGetSystemTick()), d0_(ui::ui2dPicaStats().runs), v0_(ui::ui2dPicaStats().vertices) {}
+    ~UiMeter() {
+        const ui::Ui2dPicaStats& s = ui::ui2dPicaStats();
+        pica::passProfile().add(p_, svcGetSystemTick() - t0_, s.runs - d0_ + extraDraws, s.vertices - v0_ + extraVerts);
+    }
+    int extraDraws = 0, extraVerts = 0; // draws that are not 2D runs (the model view, the brightness quad)
+
+private:
+    pica::Pass p_;
+    u64 t0_;
+    int d0_, v0_;
+};
+
+constexpr unsigned kPassReportFrames = 300;
+
 } // namespace
 
 struct GameFrame::Impl {
@@ -149,6 +171,8 @@ struct GameFrame::Impl {
     size_t arenaUsed = 0;
     bool dumped = false;
     uint64_t lastLoadingFrame = 0;
+    uint64_t loadingTicks = 0; // the load profile (AS3D_LOAD): loading screen frames
+    int loadingFrames = 0;
     // dump_screens: the screen of the last frame, the pending dump.
     std::string screen;
     int screenSeq = 0;
@@ -167,6 +191,14 @@ struct GameFrame::Impl {
         const uint64_t now = svcGetSystemTick();
         if (!force && lastLoadingFrame && now - lastLoadingFrame < SYSCLOCK_ARM11 / 10) return;
         lastLoadingFrame = now;
+        struct Count { // the load profile: the time the loading screen costs
+            Impl& im;
+            u64 t0;
+            ~Count() {
+                im.loadingTicks += svcGetSystemTick() - t0;
+                ++im.loadingFrames;
+            }
+        } count{*this, now};
         const float p = std::clamp(progress, 0.0f, 1.0f);
         const bool original = flow && hudReady;
         if (original) {
@@ -228,6 +260,17 @@ struct GameFrame::Impl {
         }
         backend = true;
         if (void* warm = vramAlloc(0x100)) vramFree(warm);
+        // The hardware tuning switches (run.ini passes=, hud=, touch=, depthmap=).
+        std::string unknown;
+        uint32_t mask = run.passes.empty() ? pica::kAllPasses : pica::parsePassList(run.passes, &unknown);
+        if (!run.hud) mask &= ~(1u << static_cast<int>(pica::Pass::Hud));
+        if (!run.touch) mask &= ~(1u << static_cast<int>(pica::Pass::Touch));
+        pica::setPassMask(mask);
+        std::string off;
+        for (int i = 0; i < pica::kPassCount; ++i)
+            if (!pica::passBit(mask, static_cast<pica::Pass>(i))) off += std::string(off.empty() ? "" : ",") + pica::passName(static_cast<pica::Pass>(i));
+        AS3D_INFO("AS3D_TUNING passes_off=%s depthmap=%c%s%s", off.empty() ? "none" : off.c_str(),
+                  run.depthMapZ ? 'z' : 'w', unknown.empty() ? "" : " unknown_passes=", unknown.c_str());
         return true;
     }
 
@@ -259,13 +302,42 @@ struct GameFrame::Impl {
     void precacheLevel(as3d_game::GameSession& ses, float from, float to) {
         if (!run.precache || !ses.hasLevel()) return;
         World& world = ses.world();
+        const u64 t0 = svcGetSystemTick();
         PrecacheReport r = world.precacheScripts();
+        const u64 t1 = svcGetSystemTick();
         loadingFrame(from, true);
+        const pica::LoadProfile lp0 = pica::loadProfile();
+        const double shadowMs0 = pica::shadowPicaStats().generateMs;
+        const u64 frames0 = loadingTicks;
+        const u64 t2 = svcGetSystemTick();
         r += renderer->precache(world, ses.db(), [this, from, to](float q) { loadingFrame(from + (to - from) * q); });
+        const u64 t3 = svcGetSystemTick();
         const LoadCounts before = LoadStats::lazyLoads();
         if (hudReady) assets->precachePlay();
+        const u64 t4 = svcGetSystemTick();
         // The front end: the level's sounds (GameStack wires the view to its AudioBridge).
         if (precacheSounds && *precacheSounds && world.precacheSet()) (*precacheSounds)(*world.precacheSet());
+        const u64 t5 = svcGetSystemTick();
+        {
+            const pica::LoadProfile& lp = pica::loadProfile();
+            const double k = static_cast<double>(SYSCLOCK_ARM11) / 1000.0;
+            const double texMs = static_cast<double>(lp.texTicks - lp0.texTicks) / k;
+            const double meshMs = static_cast<double>(lp.meshTicks - lp0.meshTicks) / k;
+            const double shadowMs = pica::shadowPicaStats().generateMs - shadowMs0;
+            const double framesMs = static_cast<double>(loadingTicks - frames0) / k;
+            const double worldMs = static_cast<double>(t3 - t2) / k;
+            AS3D_INFO("AS3D_LOAD phase=precache_scripts ms=%.0f", static_cast<double>(t1 - t0) / k);
+            AS3D_INFO("AS3D_LOAD phase=precache_world ms=%.0f textures=%d tex_ms=%.0f (mip %.0f swizzle %.0f upload %.0f, "
+                      "%d levels, %.0f KB) meshes=%d mesh_ms=%.0f shadows_ms=%.0f loading_frames_ms=%.0f "
+                      "read_decode_parse_ms=%.0f",
+                      worldMs, lp.texCount - lp0.texCount, texMs, static_cast<double>(lp.texMipTicks - lp0.texMipTicks) / k,
+                      static_cast<double>(lp.texSwizzleTicks - lp0.texSwizzleTicks) / k,
+                      static_cast<double>(lp.texUploadTicks - lp0.texUploadTicks) / k, lp.texLevels - lp0.texLevels,
+                      static_cast<double>(lp.texBytes - lp0.texBytes) / 1024.0, lp.meshCount - lp0.meshCount, meshMs,
+                      shadowMs, framesMs, worldMs - texMs - meshMs - shadowMs - framesMs);
+            AS3D_INFO("AS3D_LOAD phase=precache_ui ms=%.0f", static_cast<double>(t4 - t3) / k);
+            if (t5 > t4) AS3D_INFO("AS3D_LOAD phase=precache_sounds ms=%.0f", static_cast<double>(t5 - t4) / k);
+        }
         const LoadCounts d = LoadStats::lazyLoads() - before;
         r.textures += static_cast<int>(d.of(LoadKind::Texture));
         r.sounds += static_cast<int>(d.of(LoadKind::Sound));
@@ -283,6 +355,15 @@ struct GameFrame::Impl {
                   ms(t0, t1), ms(t1, t2), ms(t2, t3), kb(ts.vramBytes), ts.vramCount, kb(ts.linearBytes), ts.linearCount,
                   ts.vramFallbacks, ts.failures, kb(linearSpaceFree()));
         logMem("start", gameKey(), mission);
+        const pica::LoadProfile& lp = pica::loadProfile();
+        const double k = static_cast<double>(SYSCLOCK_ARM11) / 1000.0;
+        AS3D_INFO("AS3D_LOAD phase=level_start ms=%.0f begin_level=%.0f ui=%.0f precache=%.0f loading_frames=%d "
+                  "loading_frames_ms=%.0f; since boot: textures=%d tex_ms=%.0f (mip %.0f swizzle %.0f upload %.0f) "
+                  "meshes=%d mesh_ms=%.0f",
+                  ms(t0, t3), ms(t0, t1), ms(t1, t2), ms(t2, t3), loadingFrames, static_cast<double>(loadingTicks) / k,
+                  lp.texCount, static_cast<double>(lp.texTicks) / k, static_cast<double>(lp.texMipTicks) / k,
+                  static_cast<double>(lp.texSwizzleTicks) / k, static_cast<double>(lp.texUploadTicks) / k, lp.meshCount,
+                  static_cast<double>(lp.meshTicks) / k);
     }
 
     const char* gameKey() const { return session && session->game() ? session->game()->key : ""; }
@@ -343,8 +424,8 @@ struct GameFrame::Impl {
         ui::Renderer2D& r = *r2dBottom;
         assets->hudTarget = ui::HudTarget::Bottom320x240;
         r.begin(kBottomW, kBottomH);
-        if (l.hud) ui::drawHud(r, *assets, l.hudState);
-        if (info && info->playing && info->touch && l.hud) {
+        if (l.hud && pica::passEnabled(pica::Pass::Hud)) ui::drawHud(r, *assets, l.hudState);
+        if (info && info->playing && info->touch && l.hud && pica::passEnabled(pica::Pass::Touch)) {
             ui::TouchControlsState ts;
             ts.assets = assets.get();
             ts.player = &l.hudState.players[0];
@@ -652,13 +733,24 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
     } else {
         clear(Vec4{0, 0, 0, 1}, true, 1.0f);
     }
-    if (im.topQuads) im.r2d->flush();
+    if (im.topQuads && pica::passEnabled(pica::Pass::Top2d)) {
+        UiMeter m(pica::Pass::Top2d);
+        im.r2d->flush();
+    }
     if (im.modelActive) {
+        UiMeter m(pica::Pass::Model);
         im.drawModelEye(eye);
         im.r2dTopOver->flush();
+        m.extraDraws = im.modelPass.lastStats().draws;
+        m.extraVerts = im.modelPass.lastStats().vertices;
     }
     // Pass 14 (0.5 is neutral: dst * 0.5 + 0.5 * dst).
-    if (im.worldDrawn && im.topBrightness != 0.5f) im.renderer->drawBrightness(kTopW, kTopH, im.topBrightness);
+    if (im.worldDrawn && im.topBrightness != 0.5f && pica::passEnabled(pica::Pass::Brightness)) {
+        UiMeter m(pica::Pass::Brightness);
+        im.renderer->drawBrightness(kTopW, kTopH, im.topBrightness);
+        m.extraDraws = 1;
+        m.extraVerts = 4;
+    }
 }
 
 void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
@@ -666,23 +758,27 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
     pica::drawOn(pica::FrameTarget{ctx.bottomTarget(), kBottomW, kBottomH, false});
     clear(Vec4{0, 0, 0, 1}, false, 1.0f);
     if (im.hudReady && im.flow) {
+        UiMeter m(pica::Pass::Bottom2d);
         if (im.haveLayers) im.r2dBottom->flush();
     } else if (im.hudReady) {
         const World& world = info.session->world();
         im.assets->hudTarget = ui::HudTarget::Bottom320x240;
         ui::Renderer2D& r = *im.r2d;
-        if (im.showHud) {
+        if (im.showHud && pica::passEnabled(pica::Pass::Hud)) {
+            UiMeter m(pica::Pass::Hud);
             r.begin(kBottomW, kBottomH);
             ui::drawHud(r, *im.assets, im.hud);
             r.flush();
         }
         // The hint box over the HUD (render-pipeline.md 1.1 pass 13).
-        if (info.session->hasLevel() && world.hintShowing()) {
+        if (info.session->hasLevel() && world.hintShowing() && pica::passEnabled(pica::Pass::Hint)) {
+            UiMeter m(pica::Pass::Hint);
             r.begin(kBottomW, kBottomH);
             ui::drawHint(r, *im.assets, world.hintText());
             r.flush();
         }
-        if (info.touch && im.showHud) {
+        if (info.touch && im.showHud && pica::passEnabled(pica::Pass::Touch)) {
+            UiMeter m(pica::Pass::Touch);
             ui::TouchControlsState ts;
             ts.assets = im.assets.get();
             ts.player = &im.hud.players[0];
@@ -709,6 +805,12 @@ void GameFrame::stats(FrameStats& out) {
     out.texLinearKb = static_cast<unsigned>(ts.linearBytes / 1024);
     out.lazyLoads = im.precached ? static_cast<unsigned>(LoadStats::lazyLoads().total()) : 0u;
     out.arenaKb = static_cast<unsigned>(im.arenaUsed / 1024);
+    // The per-pass CPU table (pass_profile.h), every kPassReportFrames displayed frames.
+    pica::PassProfile& pp = pica::passProfile();
+    pp.endFrame();
+    if (pp.frames() >= kPassReportFrames)
+        AS3D_INFO("AS3D_PASS_MS eyes=%d (ms/draws/verts per frame) %s", out.eyes,
+                  pp.report(static_cast<double>(SYSCLOCK_ARM11) / 1000.0).c_str());
 }
 
 void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {

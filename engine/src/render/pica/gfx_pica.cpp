@@ -20,6 +20,7 @@
 
 #include "as3d/texconv.h"
 #include "as3d/texture.h"
+#include "pass_profile.h"
 #include "texture_budget.h"
 
 namespace as3d {
@@ -138,6 +139,8 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
         budget.noteFailure();
         return;
     }
+    pica::LoadProfile& lp = pica::loadProfile();
+    const u64 t0 = svcGetSystemTick();
     const PicaFormat fmt = chooseFormat(image, options.cls);
     const int w = pica::textureSide(image.width), h = pica::textureSide(image.height);
     std::vector<Image> levels;
@@ -147,6 +150,9 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
         levels.push_back(w == image.width && h == image.height ? image : resizeNearest(image, w, h));
     }
     const int levelCount = static_cast<int>(levels.size());
+    const u64 tMip = svcGetSystemTick();
+    lp.texMipTicks += tMip - t0;
+    u64 swizzleTicks = 0;
     const size_t bytes = byteSize(w, h, fmt, levelCount);
 
     auto* p = new PicaTexture;
@@ -172,7 +178,9 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
         for (int level = 0; level < levelCount; ++level) {
             u32 size = 0;
             void* dst = C3D_Tex2DGetImagePtr(&p->tex, level, &size);
+            const u64 s0 = svcGetSystemTick();
             std::vector<uint8_t> data = swizzle(levels[static_cast<size_t>(level)], fmt);
+            swizzleTicks += svcGetSystemTick() - s0;
             std::memcpy(dst, data.data(), std::min<size_t>(size, data.size()));
         }
         C3D_TexFlush(&p->tex);
@@ -189,7 +197,9 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
         std::vector<size_t> offsets;
         size_t offset = 0;
         for (int level = 0; level < levelCount; ++level) {
+            const u64 s0 = svcGetSystemTick();
             std::vector<uint8_t> data = swizzle(levels[static_cast<size_t>(level)], fmt);
+            swizzleTicks += svcGetSystemTick() - s0;
             std::memcpy(staging + offset, data.data(), std::min(data.size(), bytes - offset));
             offsets.push_back(offset);
             offset += data.size();
@@ -200,6 +210,15 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
         linearFree(staging);
     }
 
+    {
+        const u64 t1 = svcGetSystemTick();
+        lp.texSwizzleTicks += swizzleTicks;
+        lp.texUploadTicks += (t1 - tMip) - swizzleTicks;
+        lp.texTicks += t1 - t0;
+        ++lp.texCount;
+        lp.texLevels += levelCount;
+        lp.texBytes += bytes;
+    }
     C3D_TexSetFilter(&p->tex, pica::toGpu(options.magFilter), pica::toGpu(options.minFilter));
     if (levelCount > 1) C3D_TexSetFilterMipmap(&p->tex, pica::toGpu(options.minFilter));
     C3D_TexSetWrap(&p->tex, pica::toGpu(options.wrapS), pica::toGpu(options.wrapT));

@@ -1,6 +1,7 @@
 #include "game_session.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 #include "as3d/defs.h"
@@ -68,21 +69,32 @@ GameSession::~GameSession() {
 
 bool GameSession::init(const GameOptions& options, std::string* error) {
     options_ = options;
+    using Clock = std::chrono::steady_clock;
+    auto ms = [](Clock::time_point a, Clock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+    const Clock::time_point t0 = Clock::now();
     std::string where;
     if (!mountGameFiles(options, vfs_, &where, error)) return false;
+    const Clock::time_point t1 = Clock::now();
     db_.reset(new DefDatabase());
     if (!db_->load(vfs_)) {
         if (error) *error = "cannot load definitions from " + where;
         return false;
     }
+    const Clock::time_point t2 = Clock::now();
     world_.reset(new World());
     {
         WorldConfig c = options.world;
         c.rules = &options.rules();
         world_->init(vfs_, *db_, c);
     }
+    const Clock::time_point t3 = Clock::now();
+    initTimes_.mountMs = ms(t0, t1);
+    initTimes_.defsMs = ms(t1, t2);
+    initTimes_.worldMs = ms(t2, t3);
     if (!options.startLevel) return true;
-    return startMission(std::min(std::max(options.mission, 1), options.rules().missionCount), error);
+    const bool ok = startMission(std::min(std::max(options.mission, 1), options.rules().missionCount), error);
+    initTimes_.levelMs = ms(t3, Clock::now());
+    return ok;
 }
 
 void GameSession::resetFlow() {

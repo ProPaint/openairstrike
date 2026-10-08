@@ -10,6 +10,7 @@
 
 #include "as3d/ambient_cube.h"
 #include "as3d/envmap.h"
+#include "pass_profile.h"
 #include "pica_frame.h"
 
 namespace as3d {
@@ -61,6 +62,7 @@ bool GpuMesh::upload(const RenderVertex* vertices, size_t vertexCount, const u16
         ++s.failures;
         return false;
     }
+    const u64 tLoad = svcGetSystemTick();
     std::vector<AmbientCubeWeightsU8> weights;
     bakeAmbientCubeWeights(vertices, vertexCount, weights);
 
@@ -121,6 +123,9 @@ bool GpuMesh::upload(const RenderVertex* vertices, size_t vertexCount, const u16
         ++s.envMeshes;
     }
     if (s.bytes > s.peakBytes) s.peakBytes = s.bytes;
+    pica::LoadProfile& lp = pica::loadProfile();
+    lp.meshTicks += svcGetSystemTick() - tLoad;
+    ++lp.meshCount;
     buffers_ = std::move(b);
     indexCount = count;
     valid = true;

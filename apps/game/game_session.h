@@ -125,12 +125,19 @@ public:
     // HUD score: ftol(p_scores) + banked (engine-behaviour.md 10.4).
     long long displayScore(int player = 0) const;
 
+    // Where init() spent its time (the 3DS load profile; wall clock, milliseconds).
+    struct InitTimes {
+        double mountMs = 0, defsMs = 0, worldMs = 0, levelMs = 0;
+    };
+    const InitTimes& initTimes() const { return initTimes_; }
+
 private:
     bool startMission(int mission, std::string* error);
     void bankScores();
     void resetFlow();
 
     GameOptions options_;
+    InitTimes initTimes_;
     as3d::Vfs vfs_;
     std::unique_ptr<as3d::DefDatabase> db_;
     std::unique_ptr<as3d::World> world_;

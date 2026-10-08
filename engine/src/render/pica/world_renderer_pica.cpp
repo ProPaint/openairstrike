@@ -73,6 +73,7 @@
 #include "fx_pica.h"
 #include "quality_pica.h"
 #include "mesh_renderer_pica.h"
+#include "pass_profile.h"
 #include "pica_frame.h"
 #include "shadow_pica.h"
 #include "lightning_renderer_pica.h"
@@ -87,6 +88,35 @@ namespace as3d {
 namespace pica {
 namespace {
 WorldPicaStats g_worldStats;
+
+// The passes of draw() in the pass profile (pass_profile.h): start(p) closes the running pass
+// and opens p; each adds its CPU ticks and the draw calls and vertices it added to the frame's
+// WorldRenderStats.
+class PassMeter {
+public:
+    explicit PassMeter(const WorldRenderStats& st) : s_(st) {}
+    ~PassMeter() { stop(); }
+    void start(Pass p) {
+        stop();
+        active_ = true;
+        p_ = p;
+        d0_ = s_.drawCalls;
+        v0_ = s_.vertices;
+        t0_ = svcGetSystemTick();
+    }
+    void stop() {
+        if (!active_) return;
+        active_ = false;
+        passProfile().add(p_, svcGetSystemTick() - t0_, s_.drawCalls - d0_, s_.vertices - v0_);
+    }
+
+private:
+    const WorldRenderStats& s_;
+    Pass p_ = Pass::Clear;
+    bool active_ = false;
+    u64 t0_ = 0;
+    int d0_ = 0, v0_ = 0;
+};
 } // namespace
 const WorldPicaStats& worldPicaStats() { return g_worldStats; }
 } // namespace pica
@@ -424,7 +454,15 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
             const double genBefore = pica::shadowPicaStats().generateMs;
             Impl::ShadowEntry& e = im.shadowEntry(*r.mesh, *r.material, key, r.spec, steps, generate);
             if (generate) {
-                lateMs += pica::shadowPicaStats().generateMs - genBefore;
+                const double ms = pica::shadowPicaStats().generateMs - genBefore;
+                // Which one the precache missed (the first 20 of a level).
+                if (im.lateShadowMaps < 20)
+                    AS3D_INFO("AS3D_LATE_SHADOW frame=%u model=%s skin=%s kind=%s steps=%d silhouette=%s ms=%.1f",
+                              static_cast<unsigned>(im.prepareSerial), r.modelPath ? r.modelPath->c_str() : "?",
+                              r.skinPath && !r.skinPath->empty() ? r.skinPath->c_str() : "-",
+                              r.spec.kind == ShadowKind::Planar ? "planar" : "projected", steps,
+                              e.map ? "yes" : "no", ms);
+                lateMs += ms;
                 --lateBudget;
                 ++late;
                 ++im.lateShadowMaps;
@@ -498,6 +536,10 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
         else pica::disableFog();
     };
 
+    using pica::Pass;
+    using pica::passEnabled;
+    pica::PassMeter meter(stats_);
+    meter.start(Pass::Clear);
     // Pass 0: clear to the fog colour (black without fog).
     setViewport(vx, vy, fr.viewport.width, fr.viewport.height);
     const Vec3 cc = fr.clearColour;
@@ -508,7 +550,8 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     levelDepthAndFog();
 
     // Pass 2: terrain.
-    if (options.terrain && im.haveTerrain) {
+    meter.start(Pass::Terrain);
+    if (options.terrain && im.haveTerrain && passEnabled(Pass::Terrain)) {
         TerrainViewParams tv;
         tv.view = wv.view;
         tv.projection = proj;
@@ -530,7 +573,8 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     setDepth(true, true);
     setCull(CullMode::Back);
     // Pass 4: ground marks, then the sequels' skid trails (between the marks and the shadows).
-    if (im.haveTerrain && im.markPass.active()) {
+    meter.start(Pass::Marks);
+    if (im.haveTerrain && im.markPass.active() && passEnabled(Pass::Marks)) {
         stats_.drawCalls += im.markPass.draw(wv.view, proj, light.fogColor, fr.hasFog ? light.fogStart : 1.0e9f,
                                              fr.hasFog ? light.fogEnd : 1.0e9f);
         stats_.skidTrails = pica::markPicaStats().skidTrails;
@@ -540,7 +584,8 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     }
     // Pass 5: shadows. The level's depth mapping and fog are in place (the passes before
     // restored them).
-    if (im.haveTerrain && im.shadowPass.shadowCount() > 0) {
+    meter.start(Pass::Shadows);
+    if (im.haveTerrain && im.shadowPass.shadowCount() > 0 && passEnabled(Pass::Shadows)) {
         const int drawsBefore = pica::shadowPicaStats().draws;
         im.shadowPass.draw(viewProj);
         stats_.drawCalls += pica::shadowPicaStats().draws - drawsBefore;
@@ -549,10 +594,14 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
         setCull(CullMode::Back);
     }
     // Pass 6: opaque list; pass 7: water; passes 8 and 9: transparent then effect list.
-    im.opaquePass.draw(viewProj);
-    stats_.drawCalls += im.opaquePass.lastStats().draws;
-    stats_.vertices += im.opaquePass.lastStats().vertices;
-    if (options.terrain && options.water && im.haveTerrain && im.waterPass.active()) {
+    meter.start(Pass::Opaque);
+    if (passEnabled(Pass::Opaque)) {
+        im.opaquePass.draw(viewProj);
+        stats_.drawCalls += im.opaquePass.lastStats().draws;
+        stats_.vertices += im.opaquePass.lastStats().vertices;
+    }
+    meter.start(Pass::Water);
+    if (options.terrain && options.water && im.haveTerrain && im.waterPass.active() && passEnabled(Pass::Water)) {
         stats_.drawCalls += im.waterPass.draw(wv.view, proj, light.fogColor, fr.hasFog ? light.fogStart : 1.0e9f,
                                               fr.hasFog ? light.fogEnd : 1.0e9f);
         const pica::WaterPicaStats& wst = pica::waterPicaStats();
@@ -563,14 +612,18 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
         setDepth(true, true);
         setCull(CullMode::Back);
     }
-    im.restPass.draw(viewProj);
-    stats_.drawCalls += im.restPass.lastStats().draws;
-    stats_.vertices += im.restPass.lastStats().vertices;
+    meter.start(Pass::Rest);
+    if (passEnabled(Pass::Rest)) {
+        im.restPass.draw(viewProj);
+        stats_.drawCalls += im.restPass.lastStats().draws;
+        stats_.vertices += im.restPass.lastStats().vertices;
+    }
     setBlend(GlBlend::Off);
     setDepth(true, true);
     setCull(CullMode::Back);
     // Lightning bolts, after the effect models (7.1).
-    if (options.lightning && im.lightningPass.active()) {
+    meter.start(Pass::Lightning);
+    if (options.lightning && im.lightningPass.active() && passEnabled(Pass::Lightning)) {
         stats_.drawCalls += im.lightningPass.draw(wv.view, proj, light.fogColor, fr.hasFog ? light.fogStart : 1.0e9f,
                                                   fr.hasFog ? light.fogEnd : 1.0e9f);
         stats_.bolts = pica::lightningPicaStats().bolts;
@@ -581,7 +634,8 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
         setCull(CullMode::Back);
     }
     // Pass 10: particles.
-    if (options.particles) {
+    meter.start(Pass::Particles);
+    if (options.particles && passEnabled(Pass::Particles)) {
         ParticleViewParams pv;
         pv.view = wv.view;
         pv.projection = proj;
@@ -598,7 +652,8 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
         stats_.particles = im.particles.lastParticleCount();
     }
     // Pass 12: sprites.
-    if (!sc.sprites.empty()) {
+    meter.start(Pass::Sprites);
+    if (!sc.sprites.empty() && passEnabled(Pass::Sprites)) {
         SpriteViewParams sv;
         sv.view = wv.view;
         sv.projection = proj;

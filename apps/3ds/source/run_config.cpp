@@ -157,6 +157,12 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.water = n != 0;
         } else if (key == "water_tile") {
             if (toFloat(val, &f) && f >= 0.0f) c.waterTile = f;
+        } else if (key == "passes") {
+            c.passes = val;
+        } else if (key == "hud") {
+            if (toInt(val, &n)) c.hud = n != 0;
+        } else if (key == "touch") {
+            if (toInt(val, &n)) c.touch = n != 0;
         }
     }
     return c;

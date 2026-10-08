@@ -25,6 +25,7 @@
 #include "as3d/core.h"
 #include "as3d/render_state.h"
 #include "as3d/ui.h"
+#include "pass_profile.h"
 #include "pica_frame.h"
 #include "pica_space.h"
 #include "shader_set.h"
@@ -135,6 +136,7 @@ int Renderer2D::flush() {
     const pica::FrameTarget& target = pica::currentTarget();
     if (!target.target) return 0;
 
+    const u64 tBatch = svcGetSystemTick();
     Batch2DOptions opts;
     opts.halfPixelShift = halfPixelShift_;
     opts.tessellateShapes = true;
@@ -145,6 +147,8 @@ int Renderer2D::flush() {
         for (const Run2D& run : im.runs)
             if (run.tex && !run.shape) snapQuads(im.verts, run.first, run.count);
 
+    const u64 tCopy = svcGetSystemTick();
+    pica::passProfile().add(pica::Pass::Ui2dBatch, tCopy - tBatch, 0, static_cast<int>(im.verts.size()));
     // Vertex arrays in the frame arena: FlatVertex for every vertex, Flat2Vertex for the
     // ranges of the two-texture runs.
     pica::LinearArena& arena = pica::frameArena();
@@ -169,6 +173,7 @@ int Renderer2D::flush() {
         o.uv[1] = s.v;
         for (int k = 0; k < 4; ++k) o.rgba[k] = s.rgba[k];
     }
+    pica::passProfile().add(pica::Pass::Ui2dCopy, svcGetSystemTick() - tCopy, 0, static_cast<int>(count));
 
     // The matrix: our pixel (x, y) is target pixel (x + originX, y + yTop), see the header.
     const int yTop = target.height - originY_ - mapping_.fbHeight;

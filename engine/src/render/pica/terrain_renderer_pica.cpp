@@ -29,6 +29,7 @@
 #include <cstring>
 #include <map>
 
+#include "as3d/core.h"
 #include "as3d/material_key.h"
 #include "as3d/render_state.h"
 #include "as3d/terrain_render.h"
@@ -318,6 +319,10 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
     const TerrainStyle& def = terrain.style();
     const int H = terrain.height();
 
+    // The load profile (AS3D_LOAD phase=terrain): read+decode, base generation, texture
+    // creation, geometry, vertex upload.
+    const u64 tStart = svcGetSystemTick();
+    u64 tGenerate = 0, tCreate = 0;
     // Base textures: RGB565 with mip chains, VRAM first (texture_budget.h).
     Image src[4];
     for (int i = 0; i < 4; i++)
@@ -335,6 +340,7 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
         img.width = img.height = kBaseTextureSize;
         img.rgba.resize(static_cast<size_t>(kBaseTextureSize) * kBaseTextureSize * 4);
         for (int b = 0; b < blocks; b++) {
+            const u64 g0 = svcGetSystemTick();
             generateBaseTextureRgb(level, src, b, rgb);
             for (size_t i = 0; i < static_cast<size_t>(kBaseTextureSize) * kBaseTextureSize; i++) {
                 img.rgba[i * 4 + 0] = rgb[i * 3 + 0];
@@ -342,7 +348,10 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
                 img.rgba[i * 4 + 2] = rgb[i * 3 + 2];
                 img.rgba[i * 4 + 3] = 255;
             }
+            const u64 g1 = svcGetSystemTick();
             im.baseTextures[static_cast<size_t>(b)].create(img, topts);
+            tGenerate += g1 - g0;
+            tCreate += svcGetSystemTick() - g1;
         }
     }
     for (Image& s : src) s = Image();
@@ -360,7 +369,9 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
         atlasImages[set] = std::move(img);
     }
 
+    const u64 tGeo0 = svcGetSystemTick();
     im.geo = buildTerrainGeometry(terrain, rules, atlasSizes);
+    const u64 tGeo1 = svcGetSystemTick();
     if (!im.geo.valid()) {
         if (error) *error = "terrain geometry empty";
         im.release();
@@ -378,8 +389,10 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
     aopts.wrapS = aopts.wrapT = Wrap::Repeat;
     aopts.cls = TextureClass::Auto; // RGBA5551 for cut-out atlases, RGBA4 with soft edges
     im.atlases.resize(im.geo.tiles.size());
+    const u64 tAtlas0 = svcGetSystemTick();
     for (size_t b = 0; b < im.geo.tiles.size(); ++b) im.atlases[b].create(atlasImages[im.geo.tiles[b].set], aopts);
     atlasImages.clear();
+    tCreate += svcGetSystemTick() - tAtlas0;
 
     // Detail uv = (column, row) * 0.25 from the position (the grid is regular).
     {
@@ -470,6 +483,16 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
     for (const Texture2D& t : im.baseTextures) count(t);
     count(im.detail);
     for (const Texture2D& t : im.atlases) count(t);
+    {
+        const double k = static_cast<double>(SYSCLOCK_ARM11) / 1000.0;
+        const u64 tEnd = svcGetSystemTick();
+        const u64 geo = tGeo1 - tGeo0;
+        const u64 rest = (tEnd - tStart) - tGenerate - tCreate - geo; // reads, decodes, vertex upload
+        AS3D_INFO("AS3D_LOAD phase=terrain ms=%.0f generate_base=%.0f (%d blocks) textures_create=%.0f geometry=%.0f "
+                  "read_decode_upload=%.0f",
+                  static_cast<double>(tEnd - tStart) / k, static_cast<double>(tGenerate) / k, blocks,
+                  static_cast<double>(tCreate) / k, static_cast<double>(geo) / k, static_cast<double>(rest) / k);
+    }
     return true;
 }
 

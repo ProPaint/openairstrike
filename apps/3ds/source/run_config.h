@@ -83,6 +83,10 @@ struct RunConfig {
     bool depthMapZ = false;    // depthmap=z|w: the world passes with the Z-buffer mapping instead of the W-buffer
     bool water = true;         // water=0: no water pass
     float waterTile = -1.0f;   // water_tile=N: the plane's tile size in world units (0 = the GL's 320-unit quads); -1 = the default
+    // Hardware tuning (A/B runs, docs/3ds-port.md "Hardware tuning"):
+    std::string passes;        // passes=a,b,..: only these passes draw (pass_profile.h names, world, all); empty = all
+    bool hud = true;           // hud=0: no HUD on the bottom screen
+    bool touch = true;         // touch=0: no touch band on the bottom screen
 
     // The real-time front end instead of a direct mission start.
     bool menu() const { return mode == Mode::Menu || (mode == Mode::Play && !levelGiven); }
