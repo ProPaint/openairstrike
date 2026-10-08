@@ -25,6 +25,7 @@ add_executable(openairstrike
   source/main.cpp
   source/pica_test.cpp
   source/mesh_test.cpp
+  source/shadow_test.cpp
   source/probe.cpp
   source/render.cpp
   source/terrain_test.cpp

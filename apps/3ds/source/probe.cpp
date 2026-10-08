@@ -194,10 +194,13 @@ RunConfig readRunConfig(const std::string& path) {
             c.meshtest = val == "meshtest";
             c.uitest = val == "uitest";
             c.audiotest = val == "audiotest";
+            c.shadowtest = val == "shadowtest";
         } else if (key == "only") c.only = val;
         else if (key == "hold") c.holdFrames = std::max(0, std::atoi(val.c_str()));
         else if (key == "frames") c.botFrames = std::max(0, std::atoi(val.c_str()));
         else if (key == "level") c.level = std::max(1, std::atoi(val.c_str()));
+        else if (key == "precache") c.precache = std::atoi(val.c_str()) != 0;
+        else if (key == "shadow_rotations") c.shadowRotations = std::atoi(val.c_str()) != 0;
     }
     std::fclose(f);
     return c;

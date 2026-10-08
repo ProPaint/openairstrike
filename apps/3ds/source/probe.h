@@ -22,6 +22,9 @@ struct RunConfig {
     bool audiotest = false;   // mode=audiotest: the sound test (audio_test.h)
     int botFrames = 0;  // frames=N: the effects test's bot frames before drawing (0: 300)
     bool meshtest = false; // mode=meshtest: the PICA mesh test (mesh_test.h), mission 1 from the SD paks
+    bool shadowtest = false; // mode=shadowtest: the PICA shadow test (shadow_test.h), mission 1 from the SD paks
+    bool precache = true;    // precache=0: the shadow test without the level-start precache (the late path)
+    bool shadowRotations = false; // shadow_rotations=1: the shadow test precaches every projected rotation
     int level = 1;      // level=N: the terrain test's mission
     int holdFrames = 0; // hold=N: keep drawing N frames after each variant (screenshots under Azahar);
                         // the terrain test's frames per phase
