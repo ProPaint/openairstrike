@@ -246,6 +246,12 @@ struct Entity {
 
     u32 fields[kEntityFieldCount] = {};
 
+    // setupTransform's anglesToAxisRows result for the angle field bits in axisCacheKey
+    // (a pure function of those bits; reused while the angles do not change).
+    bool axisCacheValid = false;
+    u32 axisCacheKey[3] = {0, 0, 0};
+    float axisCache[9] = {};
+
     // Field access by bit copy (defined inline below: these run hundreds of times per
     // entity per step).
     float f(int k) const;

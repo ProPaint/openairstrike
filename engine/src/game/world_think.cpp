@@ -134,7 +134,17 @@ void World::setupTransform(int idx) {
         float m[9] = {fwd.x, fwd.y, fwd.z, left.x, left.y, left.z, n.x, n.y, n.z};
         std::copy(m, m + 9, axis);
     } else {
-        anglesToAxisRows(e.f(F_ANGLES), e.f(F_ANGLES + 1), e.f(F_ANGLES + 2), axis);
+        // anglesToAxisRows is a pure function of the three angle values: its last result
+        // is reused while their bits are unchanged (most entities do not turn every frame;
+        // six sin/cos per call).
+        const u32* key = &e.fields[F_ANGLES];
+        if (!(e.axisCacheValid && e.axisCacheKey[0] == key[0] && e.axisCacheKey[1] == key[1] &&
+              e.axisCacheKey[2] == key[2])) {
+            anglesToAxisRows(e.f(F_ANGLES), e.f(F_ANGLES + 1), e.f(F_ANGLES + 2), e.axisCache);
+            for (int k = 0; k < 3; ++k) e.axisCacheKey[k] = key[k];
+            e.axisCacheValid = true;
+        }
+        std::copy(e.axisCache, e.axisCache + 9, axis);
     }
     if (!root && e.absAttach && validIndex(e.parent)) {
         // Child axis = own axis x tag axis (identity in v1.70, mdl.md) x parent axis.
