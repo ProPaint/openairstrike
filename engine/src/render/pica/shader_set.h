@@ -1,9 +1,9 @@
-// ShaderSet: the PICA backend's three vertex shaders (shaders/*.v.pica), their vertex layouts
+// ShaderSet: the PICA backend's vertex shaders (shaders/*.v.pica), their vertex layouts
 // and uniform locations. 3DS only.
 //
 // The .v.pica sources are assembled by picasso in the 3DS build (engine/src/render/module.cmake,
-// ctr_add_shader_library) and embedded into as3d_render as flat_shbin, mesh_shbin and
-// terrain_shbin (dkp_add_embedded_binary_library).
+// ctr_add_shader_library) and embedded into as3d_render as flat_shbin, flat2_shbin, mesh_shbin,
+// terrain_shbin and env_shbin (dkp_add_embedded_binary_library).
 //
 // PICA float uniforms are global registers, not per program: after bind() set every uniform
 // of the newly bound shader again (setMvp etc.) before drawing.
@@ -18,8 +18,8 @@
 
 namespace as3d::pica {
 
-enum class Shader { Flat = 0, Mesh = 1, Terrain = 2, Flat2 = 3 };
-constexpr int kShaderCount = 4;
+enum class Shader { Flat = 0, Mesh = 1, Terrain = 2, Flat2 = 3, Env = 4 };
+constexpr int kShaderCount = 5;
 
 // flat.v.pica: particles, sprites, decals, 2D quads, fills.
 struct FlatVertex {
@@ -46,6 +46,14 @@ struct MeshVertex {
     float uv[2];
 };
 static_assert(sizeof(MeshVertex) == 28, "MeshVertex layout");
+
+// env.v.pica: MeshVertex (stream 0) plus this stream (stream 1): the folded model normal
+// |n| * 255 of each vertex, kept by GpuMesh::upload for smooth-normal meshes (the only ones the
+// GL environment-maps).
+struct EnvNormal {
+    uint8_t n[4]; // |n.x|, |n.y|, |n.z|, 0
+};
+static_assert(sizeof(EnvNormal) == 4, "EnvNormal layout");
 
 // terrain.v.pica, static stream; the dynamic-light stream is one u8 x4 per vertex.
 struct TerrainVertexPica {
@@ -81,14 +89,22 @@ public:
     void setMeshCube(const Vec3 colors[6]);  // mesh: slots +X, +Y, +Z, -X, -Y, -Z
     void setMeshTint(const Vec4& rgba);      // mesh
     void setTerrainDetail(float sx, float sy, float ox, float oy); // terrain: uv1 = pos.xy * s + o
+    // env: `modelView` rows 0..2 (the eye position), `normalRows` (nmat, 3 rows of x y z),
+    // `select` (envsel: (0.5, 0) view normal, (0, 1) sphere map) and the ENV_QUAD rotation
+    // `rot` (2 rows of x y; identity for the other modes). See shaders/env.v.pica.
+    void setEnvUniforms(const Mat4& modelView, const float normalRows[3][3], float selView, float selSphere,
+                        const float rot[2][2]);
 
     // Vertex buffers (linear memory) of the bound shader: one interleaved stream for Flat, Flat2 and
     // Mesh; the static stream plus the dynamic-light stream (u8 x4 per vertex) for Terrain.
     void setVertices(const void* vertices);
     void setTerrainVertices(const TerrainVertexPica* vertices, const uint8_t (*dynamic)[4]);
+    // Env: the mesh stream plus the normal stream (same vertex count).
+    void setEnvVertices(const MeshVertex* vertices, const EnvNormal* normals);
 
     struct Locations {
         int mvp = -1, cube = -1, tint = -1, detail = -1;
+        int mv = -1, nmat = -1, envsel = -1, envrot = -1;
     };
     const Locations& locations(Shader s) const { return programs_[static_cast<int>(s)].loc; }
 

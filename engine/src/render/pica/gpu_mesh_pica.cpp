@@ -4,10 +4,12 @@
 
 #include <3ds.h>
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 
 #include "as3d/ambient_cube.h"
+#include "as3d/envmap.h"
 #include "pica_frame.h"
 
 namespace as3d {
@@ -30,6 +32,11 @@ GpuMeshBuffers::~GpuMeshBuffers() {
     if (vertices || indices) {
         s.bytes -= bytes < s.bytes ? bytes : s.bytes;
         if (s.meshes > 0) --s.meshes;
+    }
+    if (envNormals) {
+        s.envBytes -= envBytes < s.envBytes ? envBytes : s.envBytes;
+        if (s.envMeshes > 0) --s.envMeshes;
+        pica::deferLinearFree(envNormals);
     }
     if (vertices) pica::deferLinearFree(vertices);
     if (indices) pica::deferLinearFree(indices);
@@ -59,14 +66,17 @@ bool GpuMesh::upload(const RenderVertex* vertices, size_t vertexCount, const u16
 
     const size_t vbytes = vertexCount * sizeof(pica::MeshVertex);
     const size_t ibytes = count * sizeof(u16);
+    const size_t nbytes = model.smoothNormals ? vertexCount * sizeof(pica::EnvNormal) : 0;
     auto b = std::make_unique<GpuMeshBuffers>();
     auto* vbuf = static_cast<pica::MeshVertex*>(linearAlloc(vbytes));
     auto* ibuf = static_cast<u16*>(linearAlloc(ibytes));
-    if (!vbuf || !ibuf) {
-        AS3D_WARN("GpuMesh: no linear memory for %u bytes", static_cast<unsigned>(vbytes + ibytes));
+    auto* nbuf = nbytes ? static_cast<pica::EnvNormal*>(linearAlloc(nbytes)) : nullptr;
+    if (!vbuf || !ibuf || (nbytes && !nbuf)) {
+        AS3D_WARN("GpuMesh: no linear memory for %u bytes", static_cast<unsigned>(vbytes + ibytes + nbytes));
         // Never drawn: freed at once.
         if (vbuf) linearFree(vbuf);
         if (ibuf) linearFree(ibuf);
+        if (nbuf) linearFree(nbuf);
         ++s.failures;
         return false;
     }
@@ -82,17 +92,34 @@ bool GpuMesh::upload(const RenderVertex* vertices, size_t vertexCount, const u16
         v.uv[1] = r.uv.y;
     }
     std::memcpy(ibuf, indices, ibytes);
+    if (nbuf) {
+        // The GL env coordinates see only the folded normal (as3d/envmap.h foldEnvNormal).
+        for (size_t i = 0; i < vertexCount; ++i) {
+            const Vec3 n = foldEnvNormal(vertices[i].normal);
+            nbuf[i].n[0] = static_cast<u8>(std::min(n.x, 1.0f) * 255.0f + 0.5f);
+            nbuf[i].n[1] = static_cast<u8>(std::min(n.y, 1.0f) * 255.0f + 0.5f);
+            nbuf[i].n[2] = static_cast<u8>(std::min(n.z, 1.0f) * 255.0f + 0.5f);
+            nbuf[i].n[3] = 0;
+        }
+        GSPGPU_FlushDataCache(nbuf, static_cast<u32>(nbytes));
+    }
     GSPGPU_FlushDataCache(vbuf, static_cast<u32>(vbytes));
     GSPGPU_FlushDataCache(ibuf, static_cast<u32>(ibytes));
     b->vertices = vbuf;
     b->indices = ibuf;
+    b->envNormals = nbuf;
     b->vertexCount = static_cast<u32>(vertexCount);
     b->indexCount = static_cast<u32>(count);
-    b->bytes = vbytes + ibytes;
+    b->bytes = vbytes + ibytes + nbytes;
+    b->envBytes = nbytes;
     b->surfaces.push_back(GpuMeshBuffers::Surface{0, static_cast<u32>(count)});
 
     s.bytes += b->bytes;
     ++s.meshes;
+    if (nbuf) {
+        s.envBytes += nbytes;
+        ++s.envMeshes;
+    }
     if (s.bytes > s.peakBytes) s.peakBytes = s.bytes;
     buffers_ = std::move(b);
     indexCount = count;

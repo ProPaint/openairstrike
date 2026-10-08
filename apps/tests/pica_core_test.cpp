@@ -9,6 +9,7 @@
 #include <initializer_list>
 #include <vector>
 
+#include "as3d/envmap.h"
 #include "as3d/math.h"
 #include "as3d/world_render.h"
 #include "fx_pica.h"
@@ -291,6 +292,42 @@ TEST_CASE("pica tev presets: the combiner computes the GL shaders' formulas") {
     checkRgba(evaluate(tevCombine2(3), in), c.r * t2.r, c.g * t2.g, c.b * t2.b, c.a * t2.a);
     checkRgba(evaluate(tevCombine2(4), in), t2.r, t2.g, t2.b, t2.a);
     for (int m = 0; m <= 4; ++m) CHECK(tevCombine2(m).count == (m == 0 ? 1 : 2));
+}
+
+TEST_CASE("pica tev env presets: combineEnvMap (the GL mesh shader's env modes) in one draw") {
+    // Lit (Primary) and RF_NOLIGHTING (Constant) colours, against as3d/envmap.h on a grid of texels.
+    const float vals[3] = {0.0f, 0.4f, 1.0f};
+    for (float sv : vals)
+        for (float sa : vals)
+            for (float ev : vals)
+                for (float ea : vals) {
+                    TevInputs in;
+                    in.tex0 = {sv, 0.5f * sv, 1.0f - sv, sa};
+                    in.tex1 = {ev, 1.0f - ev, 0.6f, ea};
+                    in.primary = {0.8f, 0.3f, 1.0f, 1.0f};
+                    const Vec4 skin{in.tex0.r, in.tex0.g, in.tex0.b, in.tex0.a};
+                    const Vec4 env{in.tex1.r, in.tex1.g, in.tex1.b, in.tex1.a};
+                    const Vec4 lit{in.primary.r, in.primary.g, in.primary.b, in.primary.a};
+                    auto expect = [](const Rgba& got, const Vec4& w) {
+                        checkRgba(got, clamp01(w.x), clamp01(w.y), clamp01(w.z), clamp01(w.w));
+                    };
+                    expect(evaluate(tevEnvGlitter(TevSrc::Primary, true), in),
+                           combineEnvMap(EnvMapMode::Glitter, skin, env, lit));
+                    expect(evaluate(tevEnvChrome(TevSrc::Primary), in), combineEnvMap(EnvMapMode::Chrome, skin, env, lit));
+                    expect(evaluate(tevEnvQuad(TevSrc::Primary), in), combineEnvMap(EnvMapMode::Quad, skin, env, lit));
+                    // The sequels' glitter: alpha without the env alpha.
+                    Vec4 g = combineEnvMap(EnvMapMode::Glitter, skin, env, lit);
+                    g.w = skin.w * lit.w;
+                    expect(evaluate(tevEnvGlitter(TevSrc::Primary, false), in), g);
+                    // Unlit: the constant colour (0.2, 0.6, 1.0, 0.4) in place of the light.
+                    const Vec4 k{51.0f / 255.0f, 153.0f / 255.0f, 1.0f, 102.0f / 255.0f};
+                    expect(evaluate(tevEnvGlitter(TevSrc::Constant, true, 51, 153, 255, 102), in),
+                           combineEnvMap(EnvMapMode::Glitter, skin, env, k));
+                    expect(evaluate(tevEnvChrome(TevSrc::Constant, 51, 153, 255, 102), in),
+                           combineEnvMap(EnvMapMode::Chrome, skin, env, k));
+                    expect(evaluate(tevEnvQuad(TevSrc::Constant, 51, 153, 255, 102), in),
+                           combineEnvMap(EnvMapMode::Quad, skin, env, k));
+                }
 }
 
 TEST_CASE("pica space: GL rectangles on the rotated framebuffer") {

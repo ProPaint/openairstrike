@@ -80,6 +80,21 @@ TevConfig tevTerrain2Stage();
 // texture's alpha, RGB only), 2 Add (RGB only), 3 Modulate (RGBA), 4 Replace (RGBA by the
 // second texture); 0 None gives stage 0 alone.
 TevConfig tevCombine2(int combineMode);
+// Environment-mapped models (as3d/envmap.h combineEnvMap, the GL mesh fragment shader's three
+// modes in one draw): TEXTURE0 is the skin, TEXTURE1 the environment map (texcoord1 from
+// env.v.pica), `colour` the light: Primary (lit: the vertex colour, alpha 1) or Constant (RF_NOLIGHTING:
+// the entity colour, `r g b a`). The GL computes these without intermediate clamps; every
+// intermediate here stays within [0, 1] (products of values <= 1, or a mix), so only the final
+// sum of the glitter is clamped, as the framebuffer does.
+//   Glitter: stage 0 rgb = skin * colour, a = skin.a * colour.a; stage 1 rgb = previous + env,
+//            a = previous * env.a (envAlpha) or previous (the sequels, as2 delta 4.3)
+//   Chrome:  stage 0 rgba = env * colour; stage 1 rgb = skin * skin.a + previous * (1 - skin.a)
+//            (INTERPOLATE by the skin alpha), a = previous = env.a * colour.a
+//   Quad:    stage 0 rgba = env * colour (the skin is not drawn)
+TevConfig tevEnvGlitter(TevSrc colour, bool envAlpha, uint8_t r = 255, uint8_t g = 255, uint8_t b = 255,
+                        uint8_t a = 255);
+TevConfig tevEnvChrome(TevSrc colour, uint8_t r = 255, uint8_t g = 255, uint8_t b = 255, uint8_t a = 255);
+TevConfig tevEnvQuad(TevSrc colour, uint8_t r = 255, uint8_t g = 255, uint8_t b = 255, uint8_t a = 255);
 // Model shadows: constant black, alpha = texture alpha * alpha/255 (default 0.4).
 TevConfig tevShadow(uint8_t alpha = 102);
 

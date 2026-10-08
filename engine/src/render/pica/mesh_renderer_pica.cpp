@@ -5,9 +5,11 @@
 #include <citro3d.h>
 
 #include <algorithm>
+#include <cmath>
 
 #include "as3d/ambient_cube.h"
 #include "as3d/defs.h"
+#include "as3d/envmap.h"
 #include "gpu_mesh_pica.h"
 #include "pica_frame.h"
 #include "pica_space.h"
@@ -66,6 +68,12 @@ void MeshPass::begin(const SceneLighting& lighting, const DynamicLight* lights, 
     records_.clear();
 }
 
+void MeshPass::setEnvironment(const Mat4& view, float timeSeconds, bool viewNormal) {
+    envView_ = view;
+    envTime_ = timeSeconds;
+    envViewNormal_ = viewNormal;
+}
+
 void MeshPass::submit(const GpuMesh& mesh, const Material& material, const Mat4& model, const Vec4& colour) {
     const GpuMeshBuffers* gpu = mesh.buffers();
     if (!mesh.valid || mesh.indexCount == 0 || !gpu || !gpu->vertices) return;
@@ -96,6 +104,38 @@ void MeshPass::submit(const GpuMesh& mesh, const Material& material, const Mat4&
         }
         ambientCubeColors(lighting_, axes, dyn, r.cube);
     }
+    // Environment map: as GL (mesh_renderer.cpp), smooth-normal models with an envmap only.
+    EnvMapMode env = envMapModeFromInt(material.envModeRaw);
+    if (!material.envTexture || !material.envTexture->valid() || !mesh.model.smoothNormals || !gpu->envNormals)
+        env = EnvMapMode::None;
+    if (env != EnvMapMode::None && env != EnvMapMode::Quad && !r.textured) env = EnvMapMode::None;
+    if (env != EnvMapMode::None) {
+        r.env = static_cast<int>(env);
+        r.envTexture = material.envTexture;
+        r.envAlpha = !envViewNormal_;
+        r.modelView = envView_ * model;
+        Mat3 n;
+        if (envViewNormal_) {
+            // The sequels: the folded normal through the world matrix (scale kept) and the view.
+            n = mat3FromMat4(envView_) * mat3FromMat4(model);
+            r.envSelView = 0.5f;
+            r.envSelSphere = 0.0f;
+        } else {
+            n = envNormalMatrix(envView_, model); // GL uNormalMat
+            r.envSelView = 0.0f;
+            r.envSelSphere = 1.0f;
+        }
+        for (int row = 0; row < 3; ++row)
+            for (int col = 0; col < 3; ++col) r.normalRows[row][col] = n.at(col, row);
+        if (env == EnvMapMode::Quad) {
+            const float a = degToRad(envTime_ * kEnvQuadDegreesPerSecond);
+            const float c = std::cos(a), sn = std::sin(a);
+            r.rot[0][0] = c;
+            r.rot[0][1] = -sn;
+            r.rot[1][0] = sn;
+            r.rot[1][1] = c;
+        }
+    }
     records_.push_back(r);
 }
 
@@ -114,11 +154,42 @@ void MeshPass::draw(const Mat4& viewProj) {
     // TEV only changes between kinds (and unlit colours): 0 tex*colour, 1 primary, 2 constant.
     int lastTev = -1;
     u8 lastConstant[4] = {0, 0, 0, 0};
+    Shader bound = Shader::Mesh;
     for (const Record& r : records_) {
         applyMaterialState(r.key);
+        const Shader want = r.env != 0 ? Shader::Env : Shader::Mesh;
+        if (want != bound) {
+            // Float uniforms are global registers: everything again after the switch.
+            sh.bind(want);
+            sh.setMeshTint(Vec4{1.0f, 1.0f, 1.0f, 1.0f});
+            bound = want;
+        }
         sh.setMvp(viewProj * r.model);
         if (!r.unlit) sh.setMeshCube(r.cube);
         if (r.textured) r.texture->bind(0);
+        if (r.env != 0) {
+            sh.setEnvUniforms(r.modelView, r.normalRows, r.envSelView, r.envSelSphere, r.rot);
+            r.envTexture->bind(1);
+            const TevSrc colour = r.unlit ? TevSrc::Constant : TevSrc::Primary;
+            const u8* k = r.constant;
+            switch (static_cast<EnvMapMode>(r.env)) {
+            case EnvMapMode::Glitter: applyTev(tevEnvGlitter(colour, r.envAlpha, k[0], k[1], k[2], k[3])); break;
+            case EnvMapMode::Chrome: applyTev(tevEnvChrome(colour, k[0], k[1], k[2], k[3])); break;
+            default: applyTev(tevEnvQuad(colour, k[0], k[1], k[2], k[3])); break;
+            }
+            lastTev = -1;
+            sh.setEnvVertices(r.gpu->vertices, r.gpu->envNormals);
+            for (const GpuMeshBuffers::Surface& s : r.gpu->surfaces) {
+                C3D_DrawElements(GPU_TRIANGLES, static_cast<int>(s.indexCount), C3D_UNSIGNED_SHORT,
+                                 r.gpu->indices + s.firstIndex);
+                ++stats_.draws;
+                ++stats_.envDraws;
+            }
+            stats_.vertices += static_cast<int>(r.gpu->vertexCount);
+            stats_.triangles += static_cast<int>(r.gpu->indexCount / 3);
+            stats_.bytes += r.gpu->bytes;
+            continue;
+        }
         int tev;
         if (r.unlit) tev = r.textured ? 3 : 2;
         else tev = r.textured ? 0 : 1;
@@ -143,13 +214,14 @@ void MeshPass::draw(const Mat4& viewProj) {
         }
         stats_.vertices += static_cast<int>(r.gpu->vertexCount);
         stats_.triangles += static_cast<int>(r.gpu->indexCount / 3);
-        stats_.bytes += r.gpu->bytes;
+        stats_.bytes += r.gpu->bytes - r.gpu->envBytes; // the env normals are not read here
     }
     MeshDrawStats& f = currentFrameStats();
     f.draws += stats_.draws;
     f.vertices += stats_.vertices;
     f.triangles += stats_.triangles;
     f.bytes += stats_.bytes;
+    f.envDraws += stats_.envDraws;
 }
 
 } // namespace pica
@@ -165,8 +237,8 @@ struct MeshRenderer::Impl {
     SceneLighting lighting;
     std::vector<DynamicLight> lights;
     bool initialized = false;
-    float time = 0.0f;         // ENV_QUAD rotation (environment maps: M3.4)
-    bool envViewNormal = false; // the sequels' env coordinates (M3.4)
+    float time = 0.0f;          // ENV_QUAD rotation
+    bool envViewNormal = false; // the sequels' env coordinates
 };
 
 MeshRenderer::MeshRenderer() : impl_(std::make_unique<Impl>()) {}
@@ -183,6 +255,7 @@ void MeshRenderer::begin(const Camera& camera, const SceneLighting& lighting) {
     impl_->camera = camera;
     impl_->lighting = lighting;
     impl_->pass.begin(lighting, impl_->lights.data(), impl_->lights.size());
+    impl_->pass.setEnvironment(camera.viewMatrix(), impl_->time, impl_->envViewNormal);
 }
 
 void MeshRenderer::setDynamicLights(const DynamicLight* lights, size_t count) {

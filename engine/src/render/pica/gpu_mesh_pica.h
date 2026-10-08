@@ -5,7 +5,10 @@
 // the six ambient-cube weights of each vertex from its normal (as3d/ambient_cube.h,
 // bakeAmbientCubeWeights), so the stream is pica::MeshVertex (position, two u8x4 weight
 // triples, uv; 28 bytes) plus u16 indices, both in linear memory and flushed once at upload.
-// The normals are not kept (environment mapping, M3.4, will need its own stream).
+// Smooth-normal meshes (ModelData::smoothNormals: the only ones the GL environment-maps) also keep
+// a second stream for env.v.pica (M3.4): pica::EnvNormal, the folded normal |n| * 255 as u8 x4,
+// 4 bytes per vertex, in its own linear block (`envNormals`, null for faceted meshes), so the
+// MeshVertex stream of every mesh stays 28 bytes. The other meshes keep no normals.
 //
 // Index range: buildRenderMesh refuses models of more than 65535 distinct corners (u16
 // indices), so one mesh is always one vertex buffer; upload() logs and refuses a larger list
@@ -34,9 +37,11 @@ struct GpuMeshBuffers {
 
     pica::MeshVertex* vertices = nullptr; // linear memory, vertexCount entries
     u16* indices = nullptr;               // linear memory, indexCount entries
+    pica::EnvNormal* envNormals = nullptr; // linear memory, vertexCount entries; smooth-normal meshes only
     u32 vertexCount = 0;
     u32 indexCount = 0;
-    size_t bytes = 0; // vertex + index bytes in linear memory
+    size_t bytes = 0; // vertex + index (+ env normal) bytes in linear memory
+    size_t envBytes = 0; // of which the env normal stream
     std::vector<Surface> surfaces;
 
     GpuMeshBuffers() = default;
@@ -53,6 +58,8 @@ struct MeshMemoryStats {
     size_t bytes = 0;     // live vertex + index bytes
     size_t peakBytes = 0; // most bytes live at once since start
     int meshes = 0;       // live meshes
+    size_t envBytes = 0;  // of `bytes`: the env normal streams (smooth-normal meshes)
+    int envMeshes = 0;    // live meshes with an env normal stream
     int failures = 0;     // uploads refused: no linear memory, or more than 65535 vertices
 };
 MeshMemoryStats meshMemoryStats();

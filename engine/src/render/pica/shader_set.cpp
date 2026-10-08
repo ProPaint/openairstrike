@@ -1,6 +1,7 @@
 // ShaderSet (shader_set.h): the embedded shbins, attribute layouts and uniform locations.
 #include "shader_set.h"
 
+#include "env_shbin.h"
 #include "flat2_shbin.h"
 #include "flat_shbin.h"
 #include "mesh_shbin.h"
@@ -39,6 +40,10 @@ bool ShaderSet::loadOne(Shader s, const void* shbin, uint32_t size) {
     p.loc.cube = shaderInstanceGetUniformLocation(vsh, "cube");
     p.loc.tint = shaderInstanceGetUniformLocation(vsh, "tint");
     p.loc.detail = shaderInstanceGetUniformLocation(vsh, "detail");
+    p.loc.mv = shaderInstanceGetUniformLocation(vsh, "mv");
+    p.loc.nmat = shaderInstanceGetUniformLocation(vsh, "nmat");
+    p.loc.envsel = shaderInstanceGetUniformLocation(vsh, "envsel");
+    p.loc.envrot = shaderInstanceGetUniformLocation(vsh, "envrot");
 
     AttrInfo_Init(&p.attr);
     switch (s) {
@@ -62,6 +67,14 @@ bool ShaderSet::loadOne(Shader s, const void* shbin, uint32_t size) {
         AttrInfo_AddLoader(&p.attr, 3, GPU_FLOAT, 2);         // v3 texcoord
         p.stride = sizeof(MeshVertex);
         break;
+    case Shader::Env:
+        AttrInfo_AddLoader(&p.attr, 0, GPU_FLOAT, 3);         // v0 position   (mesh stream)
+        AttrInfo_AddLoader(&p.attr, 1, GPU_UNSIGNED_BYTE, 4); // v1 +X +Y +Z weights
+        AttrInfo_AddLoader(&p.attr, 2, GPU_UNSIGNED_BYTE, 4); // v2 -X -Y -Z weights
+        AttrInfo_AddLoader(&p.attr, 3, GPU_FLOAT, 2);         // v3 texcoord
+        AttrInfo_AddLoader(&p.attr, 4, GPU_UNSIGNED_BYTE, 4); // v4 folded normal (normal stream)
+        p.stride = sizeof(MeshVertex);
+        break;
     case Shader::Terrain:
         AttrInfo_AddLoader(&p.attr, 0, GPU_FLOAT, 3);         // v0 position   (static stream)
         AttrInfo_AddLoader(&p.attr, 1, GPU_UNSIGNED_BYTE, 4); // v1 colour     (static stream)
@@ -80,6 +93,7 @@ bool ShaderSet::load() {
     ok = loadOne(Shader::Flat2, flat2_shbin, flat2_shbin_size) && ok;
     ok = loadOne(Shader::Mesh, mesh_shbin, mesh_shbin_size) && ok;
     ok = loadOne(Shader::Terrain, terrain_shbin, terrain_shbin_size) && ok;
+    ok = loadOne(Shader::Env, env_shbin, env_shbin_size) && ok;
     loaded_ = ok;
     if (!ok) unload();
     return ok;
@@ -129,6 +143,25 @@ void ShaderSet::setMeshTint(const Vec4& c) {
 void ShaderSet::setTerrainDetail(float sx, float sy, float ox, float oy) {
     int loc = programs_[static_cast<int>(bound_)].loc.detail;
     if (loc >= 0) C3D_FVUnifSet(GPU_VERTEX_SHADER, loc, sx, sy, ox, oy);
+}
+
+void ShaderSet::setEnvUniforms(const Mat4& mv, const float n[3][3], float selView, float selSphere,
+                               const float rot[2][2]) {
+    const Locations& l = programs_[static_cast<int>(bound_)].loc;
+    if (l.mv >= 0)
+        for (int r = 0; r < 3; ++r) C3D_FVUnifSet(GPU_VERTEX_SHADER, l.mv + r, mv.at(0, r), mv.at(1, r), mv.at(2, r), mv.at(3, r));
+    if (l.nmat >= 0)
+        for (int r = 0; r < 3; ++r) C3D_FVUnifSet(GPU_VERTEX_SHADER, l.nmat + r, n[r][0], n[r][1], n[r][2], 0.0f);
+    if (l.envsel >= 0) C3D_FVUnifSet(GPU_VERTEX_SHADER, l.envsel, selView, selSphere, 0.0f, 0.0f);
+    if (l.envrot >= 0)
+        for (int r = 0; r < 2; ++r) C3D_FVUnifSet(GPU_VERTEX_SHADER, l.envrot + r, rot[r][0], rot[r][1], 0.0f, 0.0f);
+}
+
+void ShaderSet::setEnvVertices(const MeshVertex* vertices, const EnvNormal* normals) {
+    C3D_BufInfo* buf = C3D_GetBufInfo();
+    BufInfo_Init(buf);
+    BufInfo_Add(buf, vertices, sizeof(MeshVertex), 4, 0x3210);
+    BufInfo_Add(buf, normals, sizeof(EnvNormal), 1, 0x4);
 }
 
 void ShaderSet::setVertices(const void* vertices) {

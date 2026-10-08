@@ -34,8 +34,9 @@
 // the opaque list) and lightning bolts (lightning_renderer_pica.h, after the effect list, before
 // the particles; the bolts are built in prepare and copied to the arena by the first eye).
 //
-// Not drawn yet (listed once in the log at beginLevel): environment maps (the materials draw as
-// plain textured models, mesh_renderer_pica.h) and the sequels' wave-grid water (M5.1).
+// Environment maps (M3.4) draw inside the mesh passes (mesh_renderer_pica.h, shaders/env.v.pica)
+// with the central view and the frame's time. Not drawn yet: the sequels' wave-grid water (M5.1,
+// water_renderer_pica.h logs it at beginLevel).
 //
 // Textures: the 4.2 MB VRAM budget (texture_budget.h) is filled in creation order: the terrain's
 // textures at beginLevel first, then precache() puts the particle textures, then the level
@@ -239,8 +240,8 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     const Vec3 sun{st.sun[3], st.sun[4], st.sun[5]};
     im.towardsSun = length(sun) > 1e-6f ? normalize(sun) : Vec3{0.0f, 0.0f, 1.0f};
     const pica::TerrainPicaStats& ts = pica::terrainPicaStats();
-    AS3D_INFO("pica world: terrain %d chunks, %d textures %.1f KB (VRAM %.1f KB, linear %.1f KB); not drawn on "
-              "the PICA yet: environment maps",
+    AS3D_INFO("pica world: terrain %d chunks, %d textures %.1f KB (VRAM %.1f KB, linear %.1f KB); all passes on "
+              "the PICA",
               ts.chunks, ts.textures, static_cast<double>(ts.textureBytes) / 1024.0,
               static_cast<double>(ts.textureVramBytes) / 1024.0, static_cast<double>(ts.textureLinearBytes) / 1024.0);
     return true;
@@ -427,6 +428,8 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
     // The mesh passes: all per-model CPU work (cube colours, material keys) once per frame.
     const SceneLighting& light = sc.frame().light;
     im.opaquePass.begin(light, sc.lights.data(), sc.lights.size());
+    im.opaquePass.setEnvironment(sc.frame().wv.view, sc.frame().time, im.rules.envViewNormal);
+    im.restPass.setEnvironment(sc.frame().wv.view, sc.frame().time, im.rules.envViewNormal);
     for (const MeshRecord& r : sc.opaque) im.opaquePass.submit(*r.mesh, *r.material, r.model, r.colour);
     im.opaquePass.finish();
     im.restPass.begin(light, sc.lights.data(), sc.lights.size());

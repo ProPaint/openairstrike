@@ -101,6 +101,35 @@ TevConfig tevCombine2(int combineMode) {
     return c;
 }
 
+TevConfig tevEnvGlitter(TevSrc colour, bool envAlpha, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    TevConfig c;
+    c.count = 2;
+    c.stages[0] = stage(TevFunc::Modulate, TevSrc::Texture0, colour);
+    setConstant(c.stages[0], r, g, b, a);
+    c.stages[1] = stage(TevFunc::Add, TevSrc::Previous, TevSrc::Texture1);
+    if (envAlpha) setAlpha(c.stages[1], TevFunc::Modulate, TevSrc::Previous, TevSrc::Texture1);
+    else setAlpha(c.stages[1], TevFunc::Replace, TevSrc::Previous);
+    return c;
+}
+
+TevConfig tevEnvChrome(TevSrc colour, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    TevConfig c;
+    c.count = 2;
+    c.stages[0] = stage(TevFunc::Modulate, TevSrc::Texture1, colour);
+    setConstant(c.stages[0], r, g, b, a);
+    // skin * skin.a + previous * (1 - skin.a)
+    c.stages[1] = stage(TevFunc::Interpolate, TevSrc::Texture0, TevSrc::Previous, TevSrc::Texture0);
+    c.stages[1].opRgb[2] = TevOpRgb::SrcAlpha;
+    setAlpha(c.stages[1], TevFunc::Replace, TevSrc::Previous);
+    return c;
+}
+
+TevConfig tevEnvQuad(TevSrc colour, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    TevStage s = stage(TevFunc::Modulate, TevSrc::Texture1, colour);
+    setConstant(s, r, g, b, a);
+    return one(s);
+}
+
 TevConfig tevShadow(uint8_t alpha) {
     TevStage s = stage(TevFunc::Replace, TevSrc::Constant);
     setAlpha(s, TevFunc::Modulate, TevSrc::Texture0, TevSrc::Constant);
