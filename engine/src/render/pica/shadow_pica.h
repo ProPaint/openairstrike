@@ -30,6 +30,7 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 #include <cstdint>
 #include <functional>
 #include <unordered_map>
@@ -57,6 +58,24 @@ struct ShadowGenInfo {
     double ms = 0.0;              // rasteriser + texture creation
     bool skinAlpha = false;       // a skin with alpha took part
 };
+
+// The SD cache of silhouettes (docs/3ds-port.md "Load: shadows"): rasterising one costs about
+// 8 ms on the console, a level start rasterises 140. setShadowCacheFile loads the entries of a
+// file (key: a hash of everything the silhouette depends on: the model's positions, faces and
+// coordinates, the skin's alpha, kind, rotation, quality, sun, the rules' shadow fields, the side
+// cap; value: bounds, sizes and the alpha texels), ShadowRenderer::generate takes a cached
+// silhouette instead of rasterising it, and saveShadowCache writes the file again when new
+// silhouettes were made. The same texels either way. An empty path turns the cache off.
+void setShadowCacheFile(const std::string& path);
+struct ShadowCacheStats {
+    int loaded = 0;      // entries read from the file
+    int hits = 0, misses = 0;
+    double loadMs = 0.0, saveMs = 0.0;
+    size_t fileBytes = 0;
+};
+const ShadowCacheStats& shadowCacheStats();
+// Writes the file when entries were added since it was loaded; returns the entries written.
+int saveShadowCache();
 
 struct ShadowPicaStats {
     // Since resetShadowPicaStats() (WorldRenderer::beginLevel): silhouettes generated, failed,

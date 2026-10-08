@@ -88,6 +88,7 @@ struct RunConfig {
     bool hud = true;           // hud=0: no HUD on the bottom screen
     bool touch = true;         // touch=0: no touch band on the bottom screen
     bool prefetch = true;      // prefetch=0: no read plan (ctr_loop.h ReadPlan)
+    bool shadowCache = true;   // shadow_cache=0: every silhouette rasterised (no sdmc:/.../cache/*.shadows)
     int pakCacheKb = 0;        // pak_cache_kb=N: a block cache of N KB per pak stream (rw_stream_ctr.cpp); 0 = none (default)
     // Frame pacing (ctr_loop.h): pace=auto (0, the default: 60 Hz, 30 Hz while frames do not fit),
     // pace=60, pace=30. The simulation always steps once per vblank.

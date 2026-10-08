@@ -21,6 +21,7 @@
 // 0 = Xmin. For an A8 texture take the alpha bytes.
 #pragma once
 
+#include <cstdint>
 #include <vector>
 
 #include "as3d/core.h"
@@ -82,6 +83,8 @@ public:
     float sample(float u, float v, float lod) const;
     int width() const { return valid() ? levels_[0].w : 0; }
     int height() const { return valid() ? levels_[0].h : 0; }
+    // FNV-1a of the size and the alpha of the base level (keys of the 3DS silhouette cache).
+    std::uint64_t contentHash() const { return hash_; }
 
 private:
     struct Level {
@@ -90,6 +93,7 @@ private:
     };
     std::vector<Level> levels_;
     bool opaque_ = true;
+    std::uint64_t hash_ = 0;
     float bilinear(const Level& l, float u, float v) const;
 };
 

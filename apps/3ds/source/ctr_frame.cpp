@@ -312,9 +312,22 @@ struct GameFrame::Impl {
         const pica::LoadProfile lp0 = pica::loadProfile();
         const double shadowMs0 = pica::shadowPicaStats().generateMs;
         const u64 frames0 = loadingTicks;
+        // The silhouette cache of this level (shadow_pica.h): cached ones are not rasterised.
+        if (run.shadowCache) {
+            pica::setShadowCacheFile(std::string(kDataDir) + "/cache/" + (ses.game() ? ses.game()->key : "as3d") + "_m" +
+                                     std::to_string(ses.mission()) + (world.intermission() ? "_attract" : "") + ".shadows");
+        } else {
+            pica::setShadowCacheFile(std::string());
+        }
         const u64 t2 = svcGetSystemTick();
         r += renderer->precache(world, ses.db(), [this, from, to](float q) { loadingFrame(from + (to - from) * q); });
+        const int saved = pica::saveShadowCache();
         const u64 t3 = svcGetSystemTick();
+        if (run.shadowCache) {
+            const pica::ShadowCacheStats& cs = pica::shadowCacheStats();
+            AS3D_INFO("AS3D_SHADOW_CACHE loaded=%d (%.0f KB, %.0f ms) hits=%d misses=%d saved=%d (%.0f ms)", cs.loaded,
+                      static_cast<double>(cs.fileBytes) / 1024.0, cs.loadMs, cs.hits, cs.misses, saved, cs.saveMs);
+        }
         const as3d::ctr::StreamReadStats rd2 = as3d::ctr::streamReadStats();
         const LoadCounts before = LoadStats::lazyLoads();
         if (hudReady) assets->precachePlay();

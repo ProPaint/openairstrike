@@ -7,9 +7,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <unordered_map>
 #include <utility>
 
+#include "as3d/fs_util.h"
 #include "as3d/material_key.h"
 #include "as3d/render_state.h"
 #include "fx_pica.h"
@@ -222,6 +225,171 @@ void ShadowRenderer::setRules(const RenderRules& rules) {
     impl_->pass.setMultiply(rules.shadowMultiply);
 }
 
+namespace pica {
+namespace {
+
+constexpr u32 kShadowCacheMagic = 0x31574853; // "SHW1"
+constexpr u32 kShadowCacheVersion = 1;
+
+struct CachedSilhouette {
+    ShadowBounds bounds;
+    int width = 0, height = 0;  // the GL-side sizes (ShadowMap::width / height)
+    int texW = 0, texH = 0;     // the rasterised image
+    std::vector<u8> alpha;      // texW * texH, row 0 = the image's row 0
+};
+
+struct ShadowCache {
+    std::string path;
+    std::unordered_map<u64, CachedSilhouette> entries;
+    bool dirty = false;
+    ShadowCacheStats stats;
+};
+
+ShadowCache& cache() {
+    static ShadowCache c;
+    return c;
+}
+
+struct Fnv {
+    u64 h = 1469598103934665603ull;
+    void bytes(const void* p, size_t n) {
+        const u8* b = static_cast<const u8*>(p);
+        for (size_t i = 0; i < n; ++i) {
+            h ^= b[i];
+            h *= 1099511628211ull;
+        }
+    }
+    template <class T> void value(const T& v) { bytes(&v, sizeof v); }
+};
+
+u64 silhouetteKey(const ModelData& model, const ShadowSkin* skin, ShadowKind kind, const Vec3& towardsSun,
+                  int rotationSteps, ShadowQuality quality, const RenderRules& rules) {
+    Fnv f;
+    f.value(kShadowCacheVersion);
+    f.value(static_cast<u32>(model.positions.size()));
+    for (const Vec3& v : model.positions) {
+        f.value(v.x);
+        f.value(v.y);
+        f.value(v.z);
+    }
+    f.value(static_cast<u32>(model.uvs.size()));
+    for (const Vec2& v : model.uvs) {
+        f.value(v.x);
+        f.value(v.y);
+    }
+    f.value(static_cast<u32>(model.faces.size()));
+    for (const Face& fc : model.faces) {
+        for (int k = 0; k < 3; ++k) {
+            f.value(fc.v[k]);
+            f.value(fc.uv[k]);
+        }
+    }
+    f.value(skin ? skin->contentHash() : u64(0));
+    f.value(static_cast<int>(kind));
+    f.value(rotationSteps);
+    f.value(static_cast<int>(quality));
+    f.value(towardsSun.x);
+    f.value(towardsSun.y);
+    f.value(towardsSun.z);
+    f.value(rules.shadowHeightExpCap);
+    f.value(rules.shadowMaxSide);
+    f.value(rules.shadowEraseBelowGround);
+    f.value(rules.shadowMipmaps);
+    f.value(kMaxShadowSide);
+    return f.h;
+}
+
+template <class T> bool readValue(const u8*& p, const u8* end, T& v) {
+    if (static_cast<size_t>(end - p) < sizeof v) return false;
+    std::memcpy(&v, p, sizeof v);
+    p += sizeof v;
+    return true;
+}
+
+template <class T> void writeValue(std::vector<u8>& out, const T& v) {
+    const u8* b = reinterpret_cast<const u8*>(&v);
+    out.insert(out.end(), b, b + sizeof v);
+}
+
+} // namespace
+
+void setShadowCacheFile(const std::string& path) {
+    ShadowCache& c = cache();
+    c.path = path;
+    c.entries.clear();
+    c.dirty = false;
+    c.stats = ShadowCacheStats();
+    if (path.empty()) return;
+    const u64 t0 = svcGetSystemTick();
+    std::vector<u8> data;
+    if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+        if (std::fseek(f, 0, SEEK_END) == 0) {
+            const long n = std::ftell(f);
+            if (n > 0 && n < (32 << 20) && std::fseek(f, 0, SEEK_SET) == 0) {
+                data.resize(static_cast<size_t>(n));
+                if (std::fread(data.data(), 1, data.size(), f) != data.size()) data.clear();
+            }
+        }
+        std::fclose(f);
+    }
+    c.stats.fileBytes = data.size();
+    const u8* p = data.data();
+    const u8* end = p + data.size();
+    u32 magic = 0, version = 0, count = 0;
+    if (readValue(p, end, magic) && readValue(p, end, version) && readValue(p, end, count) &&
+        magic == kShadowCacheMagic && version == kShadowCacheVersion) {
+        for (u32 i = 0; i < count; ++i) {
+            u64 key = 0;
+            CachedSilhouette e;
+            if (!readValue(p, end, key) || !readValue(p, end, e.bounds.xmin) || !readValue(p, end, e.bounds.ymin) ||
+                !readValue(p, end, e.bounds.xmax) || !readValue(p, end, e.bounds.ymax) || !readValue(p, end, e.width) ||
+                !readValue(p, end, e.height) || !readValue(p, end, e.texW) || !readValue(p, end, e.texH))
+                break;
+            if (e.texW <= 0 || e.texH <= 0 || e.texW > 4096 || e.texH > 4096) break;
+            const size_t n = static_cast<size_t>(e.texW) * static_cast<size_t>(e.texH);
+            if (static_cast<size_t>(end - p) < n) break;
+            e.alpha.assign(p, p + n);
+            p += n;
+            c.entries.emplace(key, std::move(e));
+        }
+    }
+    c.stats.loaded = static_cast<int>(c.entries.size());
+    c.stats.loadMs = msSince(t0);
+}
+
+const ShadowCacheStats& shadowCacheStats() { return cache().stats; }
+
+int saveShadowCache() {
+    ShadowCache& c = cache();
+    if (c.path.empty() || !c.dirty) return 0;
+    const u64 t0 = svcGetSystemTick();
+    std::vector<u8> out;
+    writeValue(out, kShadowCacheMagic);
+    writeValue(out, kShadowCacheVersion);
+    writeValue(out, static_cast<u32>(c.entries.size()));
+    for (const auto& kv : c.entries) {
+        const CachedSilhouette& e = kv.second;
+        writeValue(out, kv.first);
+        writeValue(out, e.bounds.xmin);
+        writeValue(out, e.bounds.ymin);
+        writeValue(out, e.bounds.xmax);
+        writeValue(out, e.bounds.ymax);
+        writeValue(out, e.width);
+        writeValue(out, e.height);
+        writeValue(out, e.texW);
+        writeValue(out, e.texH);
+        out.insert(out.end(), e.alpha.begin(), e.alpha.end());
+    }
+    const size_t slash = c.path.find_last_of('/');
+    if (slash != std::string::npos) makeDirectories(c.path.substr(0, slash));
+    const bool ok = writeFileAtomic(c.path, out.data(), out.size());
+    c.dirty = !ok;
+    c.stats.saveMs = msSince(t0);
+    return ok ? static_cast<int>(c.entries.size()) : 0;
+}
+
+} // namespace pica
+
 bool ShadowRenderer::init(std::string* error) {
     if (impl_->pass.init()) return true;
     if (error) *error = "ShadowRenderer: cannot create the blob texture";
@@ -247,10 +415,49 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
     shadowTextureSize(computeShadowBounds(model, kind, towardsSun, rotationSteps), quality, glW, glH, impl_->rules);
     const bool capped = glW > pica::kMaxShadowSide || glH > pica::kMaxShadowSide;
     ShadowSilhouette sil;
-    if (!rasterizeShadowSilhouette(model, cpuSkin, kind, towardsSun, rotationSteps, quality, impl_->rules, sil,
-                                   pica::kMaxShadowSide)) {
-        ++st.failed;
-        return false;
+    pica::ShadowCache& sc = pica::cache();
+    u64 key = 0;
+    const pica::CachedSilhouette* hit = nullptr;
+    if (!sc.path.empty()) {
+        key = pica::silhouetteKey(model, cpuSkin, kind, towardsSun, rotationSteps, quality, impl_->rules);
+        auto it = sc.entries.find(key);
+        if (it != sc.entries.end()) hit = &it->second;
+    }
+    if (hit) {
+        // The cached texels: the alpha of the raster's image (its colour is the constant grey).
+        ++sc.stats.hits;
+        sil.bounds = hit->bounds;
+        sil.kind = kind;
+        sil.width = hit->width;
+        sil.height = hit->height;
+        sil.image.width = hit->texW;
+        sil.image.height = hit->texH;
+        sil.image.hasAlpha = true;
+        sil.image.rgba.resize(hit->alpha.size() * 4);
+        for (size_t i = 0; i < hit->alpha.size(); ++i) {
+            u8* o = &sil.image.rgba[i * 4];
+            o[0] = o[1] = o[2] = 114;
+            o[3] = hit->alpha[i];
+        }
+    } else {
+        if (!rasterizeShadowSilhouette(model, cpuSkin, kind, towardsSun, rotationSteps, quality, impl_->rules, sil,
+                                       pica::kMaxShadowSide)) {
+            ++st.failed;
+            return false;
+        }
+        if (!sc.path.empty()) {
+            ++sc.stats.misses;
+            pica::CachedSilhouette e;
+            e.bounds = sil.bounds;
+            e.width = sil.width;
+            e.height = sil.height;
+            e.texW = sil.image.width;
+            e.texH = sil.image.height;
+            e.alpha.resize(static_cast<size_t>(e.texW) * static_cast<size_t>(e.texH));
+            for (size_t i = 0; i < e.alpha.size(); ++i) e.alpha[i] = sil.image.rgba[i * 4 + 3];
+            sc.entries[key] = std::move(e);
+            sc.dirty = true;
+        }
     }
     Image img = std::move(sil.image);
     TextureOptions opts;

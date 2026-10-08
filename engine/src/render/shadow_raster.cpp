@@ -84,10 +84,19 @@ ShadowSkin::ShadowSkin(const Image& skin) {
     base.w = skin.width;
     base.h = skin.height;
     base.a.resize(static_cast<size_t>(base.w) * static_cast<size_t>(base.h));
+    std::uint64_t h = 1469598103934665603ull;
+    auto mix = [&h](std::uint64_t v) {
+        h ^= v;
+        h *= 1099511628211ull;
+    };
+    mix(static_cast<std::uint64_t>(base.w));
+    mix(static_cast<std::uint64_t>(base.h));
     for (size_t i = 0; i < base.a.size(); i++) {
         base.a[i] = skin.rgba[i * 4 + 3];
         if (base.a[i] != 255) opaque_ = false;
+        mix(base.a[i]);
     }
+    hash_ = h;
     levels_.push_back(std::move(base));
     if (opaque_) return; // every level would be 255: sample() answers 1 without them
     // glGenerateMipmap: each level halves (floor, at least 1) by a 2x2 box, rounded.
