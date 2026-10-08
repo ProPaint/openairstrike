@@ -6,6 +6,7 @@
 #include "flat_shbin.h"
 #include "mesh_shbin.h"
 #include "terrain_shbin.h"
+#include "water_shbin.h"
 
 namespace as3d::pica {
 
@@ -44,6 +45,9 @@ bool ShaderSet::loadOne(Shader s, const void* shbin, uint32_t size) {
     p.loc.nmat = shaderInstanceGetUniformLocation(vsh, "nmat");
     p.loc.envsel = shaderInstanceGetUniformLocation(vsh, "envsel");
     p.loc.envrot = shaderInstanceGetUniformLocation(vsh, "envrot");
+    p.loc.worig = shaderInstanceGetUniformLocation(vsh, "worig");
+    p.loc.wbase = shaderInstanceGetUniformLocation(vsh, "wbase");
+    p.loc.wshine = shaderInstanceGetUniformLocation(vsh, "wshine");
 
     AttrInfo_Init(&p.attr);
     switch (s) {
@@ -82,6 +86,12 @@ bool ShaderSet::loadOne(Shader s, const void* shbin, uint32_t size) {
         AttrInfo_AddLoader(&p.attr, 3, GPU_FLOAT, 2);         // v3 uv0        (static stream)
         p.stride = sizeof(TerrainVertexPica);
         break;
+    case Shader::Water:
+        AttrInfo_AddLoader(&p.attr, 0, GPU_FLOAT, 2);         // v0 position.xy (static stream)
+        AttrInfo_AddLoader(&p.attr, 1, GPU_UNSIGNED_BYTE, 4); // v1 colour      (static stream)
+        AttrInfo_AddLoader(&p.attr, 2, GPU_FLOAT, 1);         // v2 height      (dynamic stream)
+        p.stride = sizeof(WaterGridStaticPica);
+        break;
     }
     p.ok = p.loc.mvp >= 0;
     return p.ok;
@@ -94,6 +104,7 @@ bool ShaderSet::load() {
     ok = loadOne(Shader::Mesh, mesh_shbin, mesh_shbin_size) && ok;
     ok = loadOne(Shader::Terrain, terrain_shbin, terrain_shbin_size) && ok;
     ok = loadOne(Shader::Env, env_shbin, env_shbin_size) && ok;
+    ok = loadOne(Shader::Water, water_shbin, water_shbin_size) && ok;
     loaded_ = ok;
     if (!ok) unload();
     return ok;
@@ -155,6 +166,20 @@ void ShaderSet::setEnvUniforms(const Mat4& mv, const float n[3][3], float selVie
     if (l.envsel >= 0) C3D_FVUnifSet(GPU_VERTEX_SHADER, l.envsel, selView, selSphere, 0.0f, 0.0f);
     if (l.envrot >= 0)
         for (int r = 0; r < 2; ++r) C3D_FVUnifSet(GPU_VERTEX_SHADER, l.envrot + r, rot[r][0], rot[r][1], 0.0f, 0.0f);
+}
+
+void ShaderSet::setWaterUniforms(float ox, float oy, const float base[4], const float shine[4]) {
+    const Locations& l = programs_[static_cast<int>(bound_)].loc;
+    if (l.worig >= 0) C3D_FVUnifSet(GPU_VERTEX_SHADER, l.worig, ox, oy, 0.0f, 0.0f);
+    if (l.wbase >= 0) C3D_FVUnifSet(GPU_VERTEX_SHADER, l.wbase, base[0], base[1], base[2], base[3]);
+    if (l.wshine >= 0) C3D_FVUnifSet(GPU_VERTEX_SHADER, l.wshine, shine[0], shine[1], shine[2], shine[3]);
+}
+
+void ShaderSet::setWaterVertices(const WaterGridStaticPica* vertices, const float* heights) {
+    C3D_BufInfo* buf = C3D_GetBufInfo();
+    BufInfo_Init(buf);
+    BufInfo_Add(buf, vertices, sizeof(WaterGridStaticPica), 2, 0x10);
+    BufInfo_Add(buf, heights, sizeof(float), 1, 0x2);
 }
 
 void ShaderSet::setEnvVertices(const MeshVertex* vertices, const EnvNormal* normals) {

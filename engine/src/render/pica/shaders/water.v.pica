@@ -1,0 +1,57 @@
+; water.v.pica: the sequels' wave-grid water (water_renderer_pica.h). Two vertex streams
+; (shader_set.h): the static grid vertices (WaterGridStaticPica: x, y and the colour, built
+; once per level) and the per-frame heights (one float per vertex, the CPU wave of
+; as3d/water_build.h animateWaterGrid, written into the LinearArena).
+;   v0 position.xy  float x2   (static stream)
+;   v1 colour       u8 x4      (static stream: 255, 255, 255, weight * opacity)
+;   v2 height       float x1   (dynamic stream)
+; Uniforms: mvp (4 rows); worig = (ox, oy, 0, 0) added to the position before the texture
+; coordinates (the chunk's origin, so the coordinates stay small); wbase / wshine =
+; (sx, sy, ox, oy): texcoord0 = (pos.xy + worig.xy) * wbase.xy + wbase.zw (the base layer),
+; texcoord1 the same with wshine (the shine layer). The GL computes 1.5 * (c, r) / 4 + offset
+; and 2 * (c, r) / 4 + offset from the grid indices: the scales are 1.5 / 160 and 2 / 160 per
+; world unit, the offsets carry the chunk's whole-texture repeats removed.
+; Outputs: position, texcoord0, texcoord1, colour. The TEV preset is tevWaterGrid.
+
+.fvec mvp[4]
+.fvec worig
+.fvec wbase
+.fvec wshine
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0)
+.alias ones consts.yyyy
+.alias inv255 consts.zzzz
+
+.out outpos position
+.out outtc0 texcoord0
+.out outtc1 texcoord1
+.out outclr color
+
+.alias inxy v0
+.alias inclr v1
+.alias inz v2
+
+.proc main
+	mov r0.xy, inxy
+	mov r0.z, inz.x
+	mov r0.w, ones
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+
+	; local position = pos.xy + worig.xy
+	mov r1, worig
+	add r2.xy, r0.xy, r1.xy
+	; base layer
+	mov r3, wbase
+	mad r4.xy, r2.xy, r3.xy, r3.zw
+	mov outtc0, r4
+	; shine layer
+	mov r3, wshine
+	mad r5.xy, r2.xy, r3.xy, r3.zw
+	mov outtc1, r5
+
+	mul outclr, inv255, inclr
+	end
+.end

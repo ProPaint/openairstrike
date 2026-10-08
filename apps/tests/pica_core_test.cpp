@@ -280,6 +280,9 @@ TEST_CASE("pica tev presets: the combiner computes the GL shaders' formulas") {
     checkRgba(evaluate(tevTerrain2Stage(), in), 0.6f * 0.5f + 0.7f - 0.5f, 0.4f + 0.5f - 0.5f, 0.0f, 0.8f);
     // Shadow: black, texture alpha * 0.4.
     checkRgba(evaluate(tevShadow(), in), 0.0f, 0.0f, 0.0f, 0.5f * 102.0f / 255.0f);
+    // The sequels' water grid: mix(shine.rgb, base.rgb, base.a), the vertex alpha.
+    checkRgba(evaluate(tevWaterGrid(), in), 0.7f + (0.6f - 0.7f) * 0.5f, 0.5f + (0.4f - 0.5f) * 0.5f,
+              0.3f + (0.2f - 0.3f) * 0.5f, 0.8f);
 
     // The 2D layer's second texture (renderer2d_gl.cpp): c = tex * colour, then
     // 1 mix(c.rgb, t2.rgb, t2.a), 2 c.rgb + t2.rgb, 3 c * t2, else t2.

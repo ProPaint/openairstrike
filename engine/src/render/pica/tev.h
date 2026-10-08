@@ -95,6 +95,10 @@ TevConfig tevEnvGlitter(TevSrc colour, bool envAlpha, uint8_t r = 255, uint8_t g
                         uint8_t a = 255);
 TevConfig tevEnvChrome(TevSrc colour, uint8_t r = 255, uint8_t g = 255, uint8_t b = 255, uint8_t a = 255);
 TevConfig tevEnvQuad(TevSrc colour, uint8_t r = 255, uint8_t g = 255, uint8_t b = 255, uint8_t a = 255);
+// The sequels' wave-grid water (the GL kWaterGridFragmentSrc before the fog): TEXTURE0 the base
+// layer, TEXTURE1 the shine layer, rgb = INTERPOLATE(base, shine, base.a) = mix(shine, base,
+// base.a), alpha = the vertex alpha (weight * opacity).
+TevConfig tevWaterGrid();
 // Model shadows: constant black, alpha = texture alpha * alpha/255 (default 0.4).
 TevConfig tevShadow(uint8_t alpha = 102);
 

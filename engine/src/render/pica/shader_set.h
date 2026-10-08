@@ -3,7 +3,7 @@
 //
 // The .v.pica sources are assembled by picasso in the 3DS build (engine/src/render/module.cmake,
 // ctr_add_shader_library) and embedded into as3d_render as flat_shbin, flat2_shbin, mesh_shbin,
-// terrain_shbin and env_shbin (dkp_add_embedded_binary_library).
+// terrain_shbin, env_shbin and water_shbin (dkp_add_embedded_binary_library).
 //
 // PICA float uniforms are global registers, not per program: after bind() set every uniform
 // of the newly bound shader again (setMvp etc.) before drawing.
@@ -18,8 +18,8 @@
 
 namespace as3d::pica {
 
-enum class Shader { Flat = 0, Mesh = 1, Terrain = 2, Flat2 = 3, Env = 4 };
-constexpr int kShaderCount = 5;
+enum class Shader { Flat = 0, Mesh = 1, Terrain = 2, Flat2 = 3, Env = 4, Water = 5 };
+constexpr int kShaderCount = 6;
 
 // flat.v.pica: particles, sprites, decals, 2D quads, fills.
 struct FlatVertex {
@@ -63,6 +63,14 @@ struct TerrainVertexPica {
 };
 static_assert(sizeof(TerrainVertexPica) == 24, "TerrainVertexPica layout");
 
+// water.v.pica, static stream (the sequels' wave grid, water_renderer_pica.h); the dynamic
+// stream is one float per vertex, the height of this frame.
+struct WaterGridStaticPica {
+    float xy[2];
+    uint8_t rgba[4]; // 255, 255, 255, weight * opacity
+};
+static_assert(sizeof(WaterGridStaticPica) == 12, "WaterGridStaticPica layout");
+
 // as3d Mat4 (column-major, at(col, row)) to a citro3d matrix (rows) and back.
 void toC3D(const Mat4& m, C3D_Mtx* out);
 Mat4 fromC3D(const C3D_Mtx& m);
@@ -95,16 +103,22 @@ public:
     void setEnvUniforms(const Mat4& modelView, const float normalRows[3][3], float selView, float selSphere,
                         const float rot[2][2]);
 
+    // water: worig, wbase, wshine (see shaders/water.v.pica).
+    void setWaterUniforms(float ox, float oy, const float base[4], const float shine[4]);
+
     // Vertex buffers (linear memory) of the bound shader: one interleaved stream for Flat, Flat2 and
     // Mesh; the static stream plus the dynamic-light stream (u8 x4 per vertex) for Terrain.
     void setVertices(const void* vertices);
     void setTerrainVertices(const TerrainVertexPica* vertices, const uint8_t (*dynamic)[4]);
     // Env: the mesh stream plus the normal stream (same vertex count).
     void setEnvVertices(const MeshVertex* vertices, const EnvNormal* normals);
+    // Water: the static stream plus the per-frame heights (same vertex count).
+    void setWaterVertices(const WaterGridStaticPica* vertices, const float* heights);
 
     struct Locations {
         int mvp = -1, cube = -1, tint = -1, detail = -1;
         int mv = -1, nmat = -1, envsel = -1, envrot = -1;
+        int worig = -1, wbase = -1, wshine = -1;
     };
     const Locations& locations(Shader s) const { return programs_[static_cast<int>(s)].loc; }
 

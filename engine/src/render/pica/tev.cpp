@@ -130,6 +130,13 @@ TevConfig tevEnvQuad(TevSrc colour, uint8_t r, uint8_t g, uint8_t b, uint8_t a) 
     return one(s);
 }
 
+TevConfig tevWaterGrid() {
+    TevStage s = stage(TevFunc::Interpolate, TevSrc::Texture0, TevSrc::Texture1, TevSrc::Texture0);
+    s.opRgb[2] = TevOpRgb::SrcAlpha;
+    setAlpha(s, TevFunc::Replace, TevSrc::Primary);
+    return one(s);
+}
+
 TevConfig tevShadow(uint8_t alpha) {
     TevStage s = stage(TevFunc::Replace, TevSrc::Constant);
     setAlpha(s, TevFunc::Modulate, TevSrc::Texture0, TevSrc::Constant);
