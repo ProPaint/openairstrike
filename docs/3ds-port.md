@@ -1951,3 +1951,54 @@ first). Not done:
   spread over 12.7 MB), so whole-directory reads do not pay for the models.
 - The definitions' parsing (about 0.5 s) and the terrain base textures (0.45 s, a candidate for
   the SD cache next to the silhouettes).
+
+**Console numbers of drop 4** (20d61f3, New 3DS, `mode=bot level=1 frames=3600 perf=1 audio=1`):
+- Load: the first start 9.1 s (records the read plan; the silhouette cache write took 2.1 s, an
+  fsync'd 746 KB file), the next starts **2.9 s** (prefetch of the plan: 541 files, 7.8 MB in 41
+  reads, 1.15 s; level start 1.06 s; shadows from the cache 84 ms). The M1 load gate (≤ 3 s) is met
+  from the second start of a level.
+- Mono, `pace=60` (hw15): 97.3 % of frames carry one step (1=3413, 2=93, 0=0); prepare 1.67 ms,
+  recording 4.28, GPU 7.26 avg / 9.06 p95. The 93 double frames came once a second (gaps of 53 to
+  59 frames) with no column spiking before them: the log / perf.csv flush to the SD card on the main
+  thread. Mono with the default `pace=auto` (hw12) fell to 30 Hz on those misses (and the first
+  start's cache writes) and stayed there: 1658 of 1805 frames at 30.
+- Stereo, `pace=60 gpu_kick=0` (hw16/hw17): GPU 13.48 avg / 16.46 p95 with RGBA8 targets, 13.39 /
+  16.16 with `top_format=rgb565` (no gain: the stereo cost is vertices and texturing, not fill);
+  28 % double frames at 60 Hz (1=2041, 2=779). Stereo locks to 30 Hz for now (below).
+
+**Drop 5** (the last of this round):
+1. No SD write on the main thread during play (ctr_perf.cpp): the log lines and the perf.csv rows go
+   to memory buffers; a writer thread at the lowest priority (0x3F, core 0) writes them about once a
+   second while the main thread waits for the vblank or the GPU; `Perf::flush` (suspend, exit) and
+   `close` write on the calling thread.
+2. The pacer (ctr_loop.cpp updatePacer): one eye starts at 60 Hz, two eyes at 30 Hz (a slider move
+   switches); a miss (a frame shown for 2+ vblanks at 60 Hz, 3+ at 30) does not count during the
+   300 frames after a start or a level load, nor when the frame waited for a write on the main thread,
+   a dump or a late load; 3 counted misses in 120 frames at 60 Hz go to 30 Hz; at 30 Hz, 120 frames
+   in a row (doubled, up to 3600, after a fall back within 600 frames) whose CPU path (one step +
+   prepare + recording + end) stays under 13 ms and whose GPU time (first command list to the end of
+   the queue) under 14 ms go to 60 Hz. `AS3D_MISS` logs the first 40 counted misses with the columns
+   of both frames; `PERF_SUMMARY pace` gives changes, misses and excused misses per rate.
+   `pace=60` / `pace=30` fix the rate.
+3. The bottom screen's 2D lists split (ctr_frame.cpp): the HUD, the touch band and the front end's
+   menus each a Renderer2D, so the band stays in the 2D vertex cache while the HUD changes (Gulf on
+   Azahar rebuilt 600 to 1600 vertices a frame before).
+4. Shadows drawn one draw per silhouette texture (shadow_renderer_pica.cpp): the shadows grouped by
+   texture in the order each texture first appears (every blob in one draw, the copies of one
+   model's silhouette in one). Shadows write no depth and darken by a factor, so the order changes
+   only the 8-bit rounding of the blends. Azahar stereo: as3d mission 1 156 -> 144 draws per frame,
+   Gulf mission 1 319 -> 288; dumps at step 600 within MAE 0.16 of drop 4, sim end states equal.
+
+**What is next:**
+- Console: mono with the defaults should now hold 60 Hz (target ≥ 99 % one-step frames); stereo a
+  steady 30 Hz (2 steps per frame).
+- Stereo at 60 needs the GPU under about 14 ms for two eyes: terrain about 15.5k vertices for both
+  eyes (a coarser LOD for the far rows), shadows (silhouettes packed into A8 atlas pages, one draw
+  per page: pages aligned to power-of-two cells keep the mip levels apart; about 100 -> 10 draws in
+  stereo), opaque + transparent meshes about 12k vertices.
+- The sequels' CPU (Gulf mission 1 on Azahar: prepare 8.9 ms, recording 17 ms): profile prepare's
+  parts; sort the opaque list by texture and material (A/B for equal-depth ties); merge small
+  repeated effect meshes into the arena in submission order; merge a mesh's surfaces that share a
+  texture at upload.
+- Load: the first start of a level (see "Load: left for later"); the silhouette cache write
+  (2.1 s with the fsync) could go to the writer thread.
