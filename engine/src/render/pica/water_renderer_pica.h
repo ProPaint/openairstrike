@@ -58,6 +58,8 @@ struct WaterPicaStats {
     Vec2 uvOffset;              // (0.4 sin t, 0.4 sin t/2), the scroll
     // The last draw() (one eye).
     int quadsDrawn = 0;
+    int tilesDrawn = 0;         // with setWaterOptions' tiles: the tiles of the drawn quads kept
+    float minW = 0.0f, maxW = 0.0f; // clip w over the corners of the drawn quads (the eye's matrix)
     int draws = 0;
     size_t arenaBytes = 0;      // vertex bytes written to the frame arena this frame
     // Wave grid: build (beginLevel).
@@ -87,6 +89,13 @@ struct WaterPicaStats {
     int arenaFailures = 0;
 };
 const WaterPicaStats& waterPicaStats();
+
+// Hardware A/B of the first game's plane (run.ini water=, water_tile=; outside frames):
+// `enabled` false draws no water at all (both water styles); `tileSize` > 0 splits each 320-unit
+// quad into tiles of about that size (world units), each culled on its own against the eye, the
+// texture mapping unchanged; 0 keeps the GL's quads.
+void setWaterOptions(bool enabled, float tileSize);
+constexpr float kDefaultWaterTile = 80.0f;
 
 class WaterPass {
 public:

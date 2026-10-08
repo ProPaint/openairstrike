@@ -19,6 +19,7 @@ struct Backend {
     FrameTarget target;
     FogDepthMap depthMap = FogDepthMap::ZBuffer;
     float depthNear = 4.0f;
+    bool wAsZ = false; // setWBufferAsZBuffer: W-buffer requests get the Z-buffer mapping
     bool ready = false;
     std::vector<void*> pendingFree; // deferLinearFree blocks, freed at the next frameBegin
 };
@@ -95,10 +96,12 @@ ShaderSet& shaders() { return backend().shaders; }
 
 void setDepthMapping(FogDepthMap map, float nearPlane) {
     Backend& b = backend();
-    b.depthMap = map;
+    b.depthMap = (map == FogDepthMap::WBuffer && b.wAsZ) ? FogDepthMap::ZBuffer : map;
     b.depthNear = nearPlane > 0.0f ? nearPlane : 1.0f;
     applyDepthMap(0.0f);
 }
+
+void setWBufferAsZBuffer(bool on) { backend().wAsZ = on; }
 
 FogDepthMap depthMapping() { return backend().depthMap; }
 float depthMappingNear() { return backend().depthNear; }

@@ -79,6 +79,10 @@ struct RunConfig {
     bool dumpScreens = false;  // dump_screens=1: 40 frames after each front-end screen change,
                                // <prefix><nn>_<screen>_{top,bottom}.ppm
     std::string dumpPrefix = "fe_"; // dump_prefix=: the file name prefix of dump_every / dump_screens
+    // Hardware A/B of the world's depth and the water (docs/3ds-port.md "Water on hardware"):
+    bool depthMapZ = false;    // depthmap=z|w: the world passes with the Z-buffer mapping instead of the W-buffer
+    bool water = true;         // water=0: no water pass
+    float waterTile = -1.0f;   // water_tile=N: the plane's tile size in world units (0 = the GL's 320-unit quads); -1 = the default
 
     // The real-time front end instead of a direct mission start.
     bool menu() const { return mode == Mode::Menu || (mode == Mode::Play && !levelGiven); }

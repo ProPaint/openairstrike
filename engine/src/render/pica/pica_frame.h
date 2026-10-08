@@ -71,6 +71,9 @@ size_t deferredFreeCount();
 // the formulas). Both store 1 at the near plane and 0 at the far plane: depth test GREATER,
 // clear depth to 0. The fog table follows the mapping (fog_pica.cpp).
 void setDepthMapping(FogDepthMap map, float nearPlane);
+// Hardware A/B (run.ini depthmap=z): every later setDepthMapping(WBuffer, n) sets the Z-buffer
+// mapping instead; the fog table follows depthMapping(), so it is rebuilt for Z.
+void setWBufferAsZBuffer(bool on);
 FogDepthMap depthMapping();
 float depthMappingNear();
 // The bias applyMaterialState adds for MaterialKey::polygonOffset (GL glPolygonOffset(-1, -1)),

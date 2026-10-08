@@ -59,9 +59,19 @@ uint8_t byteOf(float f) { return static_cast<uint8_t>(std::min(std::max(f, 0.0f)
 const FlatVertex* g_arena = nullptr;
 unsigned g_arenaFrame = ~0u;
 
+// setWaterOptions (hardware A/B).
+bool g_waterEnabled = true;
+float g_waterTile = kDefaultWaterTile;
+unsigned g_drawCount = 0; // plane draws since start (one per eye), for the periodic log line
+
 } // namespace
 
 const WaterPicaStats& waterPicaStats() { return g_stats; }
+
+void setWaterOptions(bool enabled, float tileSize) {
+    g_waterEnabled = enabled;
+    g_waterTile = tileSize > 0.0f ? tileSize : 0.0f;
+}
 
 WaterPass::~WaterPass() { freeGrid(); }
 
@@ -153,52 +163,52 @@ void WaterPass::prepare(float timeSeconds) {
 }
 
 int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogColour, float fogStart, float fogEnd) {
-    if (!active_ || !backendReady()) return 0;
+    if (!active_ || !backendReady() || !g_waterEnabled) return 0;
     if (grid_) return drawGrid(view, projection, fogColour, fogStart, fogEnd);
     LinearArena& arena = frameArena();
-    if (!g_arena || g_arenaFrame != arena.frames()) {
+    const uint8_t cr = byteOf(params_.colour.x), cg = byteOf(params_.colour.y), cb = byteOf(params_.colour.z),
+                  ca = byteOf(params_.alpha);
+    const Vec2 off = params_.texOffset;
+    // One vertex of the plane: uv = (x / 160, (y - y0) / 160) + offset, y0 the quad's first row
+    // (the GL's (0,0)-(width/160, 2) per quad).
+    auto put = [&](FlatVertex& o, float x, float y, float y0) {
+        o.pos[0] = x;
+        o.pos[1] = y;
+        o.pos[2] = params_.planeZ;
+        o.uv[0] = x / 160.0f + off.x;
+        o.uv[1] = (y - y0) / 160.0f + off.y;
+        o.rgba[0] = cr;
+        o.rgba[1] = cg;
+        o.rgba[2] = cb;
+        o.rgba[3] = ca;
+    };
+    const bool tiled = g_waterTile > 0.0f && g_waterTile < kQuadHeight;
+    if (!tiled && (!g_arena || g_arenaFrame != arena.frames())) {
         g_arenaFrame = arena.frames();
         auto* v = arena.allocArray<FlatVertex>(static_cast<size_t>(quads_) * 6);
         g_arena = v;
         if (!v) return 0;
-        const uint8_t r = byteOf(params_.colour.x), g = byteOf(params_.colour.y), b = byteOf(params_.colour.z),
-                      a = byteOf(params_.alpha);
-        const float uMax = width_ / 160.0f, vMax = kQuadHeight / 160.0f;
-        const Vec2 off = params_.texOffset;
         for (int k = 0; k < quads_; ++k) {
             const float y0 = kQuadHeight * static_cast<float>(k), y1 = y0 + kQuadHeight;
             const float xs[4] = {0.0f, width_, width_, 0.0f}, ys[4] = {y0, y0, y1, y1};
-            const float us[4] = {0.0f, uMax, uMax, 0.0f}, vs[4] = {0.0f, 0.0f, vMax, vMax};
             const int order[6] = {0, 1, 2, 0, 2, 3}; // a b c, a c d
-            for (int i = 0; i < 6; ++i) {
-                FlatVertex& o = v[k * 6 + i];
-                const int c = order[i];
-                o.pos[0] = xs[c];
-                o.pos[1] = ys[c];
-                o.pos[2] = params_.planeZ;
-                o.uv[0] = us[c] + off.x;
-                o.uv[1] = vs[c] + off.y;
-                o.rgba[0] = r;
-                o.rgba[1] = g;
-                o.rgba[2] = b;
-                o.rgba[3] = a;
-            }
+            for (int i = 0; i < 6; ++i) put(v[k * 6 + i], xs[order[i]], ys[order[i]], y0);
         }
         g_stats.arenaBytes = static_cast<size_t>(quads_) * 6 * sizeof(FlatVertex);
     }
-    if (!g_arena) return 0;
+    if (!tiled && !g_arena) return 0;
 
-    // The GL's conservative clip-space test of each quad's 4 corners against this eye's matrix.
+    // The GL's conservative clip-space test of a rectangle's 4 corners against this eye's matrix.
     const Mat4 m = projection * view;
-    std::vector<DrawRun> runs;
-    const MaterialKey key = blendKey(RenderBlend::Alpha, true, true, CullMode::Off);
-    int drawn = 0;
-    for (int k = 0; k < quads_; ++k) {
-        const float y0 = kQuadHeight * static_cast<float>(k), y1 = y0 + kQuadHeight;
-        const float xs[2] = {0.0f, width_}, ys[2] = {y0, y1};
+    float minW = 1.0e30f, maxW = -1.0e30f;
+    auto visible = [&](float xa, float xb, float ya, float yb, bool track) {
+        const float xs[2] = {xa, xb}, ys[2] = {ya, yb};
         int outs[6] = {0, 0, 0, 0, 0, 0};
+        float lo = 1.0e30f, hi = -1.0e30f;
         for (int i = 0; i < 4; ++i) {
             const Vec4 c = m * Vec4{xs[i & 1], ys[i >> 1], params_.planeZ, 1.0f};
+            lo = std::min(lo, c.w);
+            hi = std::max(hi, c.w);
             if (c.x < -c.w) outs[0]++;
             if (c.x > c.w) outs[1]++;
             if (c.y < -c.w) outs[2]++;
@@ -206,19 +216,79 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
             if (c.z < -c.w) outs[4]++;
             if (c.z > c.w) outs[5]++;
         }
-        bool anyIn = true;
         for (int i = 0; i < 6; ++i)
-            if (outs[i] == 4) anyIn = false;
-        if (!anyIn) continue;
-        DrawRun r;
-        r.key = key;
-        r.texture = &texture_;
-        r.first = k * 6;
-        r.count = 6;
-        appendDrawRun(runs, r);
-        ++drawn;
+            if (outs[i] == 4) return false;
+        if (track) {
+            minW = std::min(minW, lo);
+            maxW = std::max(maxW, hi);
+        }
+        return true;
+    };
+    std::vector<DrawRun> runs;
+    const MaterialKey key = blendKey(RenderBlend::Alpha, true, true, CullMode::Off);
+    int drawn = 0, tiles = 0;
+    const FlatVertex* verts = g_arena;
+    if (!tiled) {
+        for (int k = 0; k < quads_; ++k) {
+            const float y0 = kQuadHeight * static_cast<float>(k);
+            if (!visible(0.0f, width_, y0, y0 + kQuadHeight, true)) continue;
+            DrawRun r;
+            r.key = key;
+            r.texture = &texture_;
+            r.first = k * 6;
+            r.count = 6;
+            appendDrawRun(runs, r);
+            ++drawn;
+        }
+    } else {
+        // Per eye: the tiles of the visible quads that pass the same test, written to the arena.
+        const int nx = std::max(1, static_cast<int>(std::ceil(width_ / g_waterTile)));
+        const int ny = std::max(1, static_cast<int>(std::ceil(kQuadHeight / g_waterTile)));
+        const float tx = width_ / static_cast<float>(nx), ty = kQuadHeight / static_cast<float>(ny);
+        std::vector<float> rects; // x0, x1, y0, y1, the quad's y0 per tile
+        for (int k = 0; k < quads_; ++k) {
+            const float qy = kQuadHeight * static_cast<float>(k);
+            if (!visible(0.0f, width_, qy, qy + kQuadHeight, true)) continue;
+            ++drawn;
+            for (int j = 0; j < ny; ++j)
+                for (int i = 0; i < nx; ++i) {
+                    const float x0 = tx * static_cast<float>(i), y0 = qy + ty * static_cast<float>(j);
+                    // The last tiles end exactly on the quad's edges.
+                    const float x1 = i + 1 == nx ? width_ : x0 + tx;
+                    const float y1 = j + 1 == ny ? qy + kQuadHeight : y0 + ty;
+                    if (!visible(x0, x1, y0, y1, false)) continue;
+                    rects.insert(rects.end(), {x0, x1, y0, y1, qy});
+                }
+        }
+        tiles = static_cast<int>(rects.size() / 5);
+        if (tiles > 0) {
+            auto* v = arena.allocArray<FlatVertex>(static_cast<size_t>(tiles) * 6);
+            if (!v) return 0;
+            for (int t = 0; t < tiles; ++t) {
+                const float* q = &rects[static_cast<size_t>(t) * 5];
+                const float xs[4] = {q[0], q[1], q[1], q[0]}, ys[4] = {q[2], q[2], q[3], q[3]};
+                const int order[6] = {0, 1, 2, 0, 2, 3};
+                for (int i = 0; i < 6; ++i) put(v[t * 6 + i], xs[order[i]], ys[order[i]], q[4]);
+            }
+            g_stats.arenaBytes += static_cast<size_t>(tiles) * 6 * sizeof(FlatVertex);
+            DrawRun r;
+            r.key = key;
+            r.texture = &texture_;
+            r.first = 0;
+            r.count = tiles * 6;
+            appendDrawRun(runs, r);
+            verts = v;
+        }
     }
     g_stats.quadsDrawn = drawn;
+    g_stats.tilesDrawn = tiles;
+    g_stats.minW = drawn ? minW : 0.0f;
+    g_stats.maxW = drawn ? maxW : 0.0f;
+    if (++g_drawCount % 600 == 1)
+        AS3D_INFO("pica water: draw %u planeZ %.2f quads %d of %d, tiles %d (tile %.0f), corner w %.1f..%.1f",
+                  g_drawCount, static_cast<double>(params_.planeZ), drawn, quads_, tiles,
+                  static_cast<double>(g_waterTile), static_cast<double>(g_stats.minW),
+                  static_cast<double>(g_stats.maxW));
     if (runs.empty()) return 0;
     FxEyeParams eye;
     eye.view = view;
@@ -226,7 +296,7 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
     eye.fogColour = fogColour;
     eye.fogStart = fogStart;
     eye.fogEnd = fogEnd;
-    g_stats.draws = drawFlatRuns(g_arena, runs, eye);
+    g_stats.draws = drawFlatRuns(verts, runs, eye);
     MaterialKey plain;
     applyMaterialState(plain);
     return g_stats.draws;

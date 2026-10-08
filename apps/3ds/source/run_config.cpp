@@ -150,6 +150,13 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.dumpScreens = n != 0;
         } else if (key == "dump_prefix") {
             c.dumpPrefix = val;
+        } else if (key == "depthmap") {
+            if (val == "z") c.depthMapZ = true;
+            else if (val == "w") c.depthMapZ = false;
+        } else if (key == "water") {
+            if (toInt(val, &n)) c.water = n != 0;
+        } else if (key == "water_tile") {
+            if (toFloat(val, &f) && f >= 0.0f) c.waterTile = f;
         }
     }
     return c;

@@ -8,13 +8,19 @@
 #include "ctr_loop.h"
 #include "ctr_save.h"
 #include "ctr_selector.h"
+#include "pica_frame.h"
 #include "run_config.h"
 #include "spike.h"
+#include "water_renderer_pica.h"
 
 int main() {
     ctrsave::installSleepGuard(); // no sleep mode while a save is being written
     ctrapp::CtrLoopOptions options;
     options.run = ctrapp::readRunConfig(std::string(ctrapp::kDataDir) + "/run.ini");
+    // Hardware A/B switches (run.ini depthmap=, water=, water_tile=; the test modes too).
+    as3d::pica::setWBufferAsZBuffer(options.run.depthMapZ);
+    as3d::pica::setWaterOptions(options.run.water, options.run.waterTile >= 0.0f ? options.run.waterTile
+                                                                                : as3d::pica::kDefaultWaterTile);
     if (!options.run.usesLoop()) return runSpike();
     // The front end without game= in run.ini: the game selector first (ctr_selector.h).
     if (options.run.menu() && !options.run.gameGiven) return ctrapp::runCtrFrontEnd(options.run);
