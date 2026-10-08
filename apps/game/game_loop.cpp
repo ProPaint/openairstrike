@@ -134,6 +134,8 @@ private:
     // The running game (session, renderer, audio, front end) or, between games, the selector.
     GameSession& ses() { return *stack_.session; }
     const GameSession& ses() const { return *stack_.session; }
+    // The stack's view is always a GameView here (sc.makeView = makeGameView).
+    GameView* gameView() const { return static_cast<GameView*>(stack_.view.get()); }
     bool startGame(std::string* err);               // builds stack_ from game_ / flowCfg_
     bool startChosen(const GameProfile& game);      // from the selector
     void openSelector();                            // tears the game down, shows the selector
@@ -269,10 +271,10 @@ void GameWindow::updateLayout() {
     }
     applyTouchSpeed(touch_.settings(), stack_.flow ? stack_.flow->profile().settings.touchSpeed : o_.touchSpeed);
     if (stack_.view) {
-        stack_.view->screenMode = screen;
-        stack_.view->stereoDebugEyeOffset = o_.stereoEyeOffset;
-        stack_.view->stereoDebugFocal = o_.stereoFocal;
-        stack_.view->dualScreen = o_.dualScreen;
+        gameView()->screenMode = screen;
+        gameView()->stereoDebugEyeOffset = o_.stereoEyeOffset;
+        gameView()->stereoDebugFocal = o_.stereoFocal;
+        gameView()->dualScreen = o_.dualScreen;
     }
     if (o_.dualScreen) touch_.settings().autoFire = false; // the pad's buttons fire; a tap only presses
     if (w == layoutW_ && h == layoutH_ && in.left == layoutInsets_.left && in.top == layoutInsets_.top &&
@@ -337,7 +339,7 @@ void GameWindow::presentLoading(float progress, bool intermission) {
         overlay_->begin(fbWidth(), fbHeight());
         // Behind the front end: the original's loading screen (frontend.md 3.16) once its
         // pictures are loaded; before that (and without the front end) a plain bar.
-        if (stack_.flow && stack_.view && stack_.view->hudAvailable()) ui::drawLoadingScreen(*overlay_, stack_.view->assets(), progress, intermission);
+        if (stack_.flow && stack_.view && gameView()->hudAvailable()) ui::drawLoadingScreen(*overlay_, gameView()->assets(), progress, intermission);
         else drawLoadingScreen(*overlay_, progress);
         overlay_->flush();
         gl_->swapBuffers();
@@ -350,7 +352,7 @@ void GameWindow::presentLoading(float progress, bool intermission) {
 void GameWindow::warmUp() {
     if (!stack_.view) return;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    if (ses().hasLevel()) stack_.view->draw(ses(), fbWidth(), fbHeight());
+    if (ses().hasLevel()) gameView()->draw(ses(), fbWidth(), fbHeight());
     glFinish();
     presentLoading(1.0f, ses().hasLevel() && ses().world().intermission());
 }
@@ -359,11 +361,11 @@ bool GameWindow::loadLevelView() {
     double t0 = nowSeconds();
     presentLoading(0.6f);
     std::string err;
-    bool ok = stack_.view->beginLevel(ses(), &err);
+    bool ok = gameView()->beginLevel(ses(), &err);
     if (!ok) std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
     else warmUp();
     if (o_.markers) AS3D_INFO("AS3D_LEVEL_LOADED mission=%d ms=%.0f shadow_maps=%d", ses().mission(), 1000.0 * (nowSeconds() - t0),
-              stack_.view->renderer().shadowMapCount());
+              gameView()->renderer().shadowMapCount());
     lastPresent_ = -1; // the load is not a frame time
     return ok;
 }
@@ -395,7 +397,7 @@ void GameWindow::rebuildGl(const char* why) {
     }
     presentLoading(0.3f);
     stack_.view.reset(new GameView());
-    if (!stack_.view->init(ses(), &err, ses().hasLevel())) {
+    if (!gameView()->init(ses(), &err, ses().hasLevel())) {
         AS3D_ERROR("FATAL: cannot rebuild the renderer after %s: %s", why, err.c_str());
         running_ = false;
         return;
@@ -831,13 +833,13 @@ void GameWindow::simulate(int steps) {
         if (stack_.flow) {
             // A bot or script confirm may close a hint box; the flow loads levels itself.
             if (stack_.flow->levelLoads() != loads) redraw_ = true;
-            else stack_.view->step(ses());
+            else gameView()->step(ses());
             logScreen();
         } else if (ev & GameSession::kLevelStarted) {
             loadLevelView();
             if (!o_.noAudio) stack_.audio.startLevel(ses().musicPath());
         } else {
-            stack_.view->step(ses());
+            gameView()->step(ses());
         }
         stack_.audio.drain(ses().world());
         status_.update(ses(), ev);
@@ -894,14 +896,14 @@ void GameWindow::draw() {
         hud = hudStateOf(ses()).players[0];
         ts.player = &hud;
     }
-    if (stack_.view && stack_.view->hudAvailable()) ts.assets = &stack_.view->assets();
+    if (stack_.view && gameView()->hudAvailable()) ts.assets = &gameView()->assets();
     ts.alpha = fade_.alpha(touch_.layout().alpha);
     ts.rules = &ses().rules(); // the game's next-item rules (touch_overlay.h)
     const bool showFps = (o_.fps || (stack_.flow && stack_.flow->profile().settings.showFps)) && ts.assets;
     if (stack_.flow && stack_.flow->loadPending()) {
         // A deferred level load runs on the next frame: this frame presents its loading screen.
         overlay_->begin(w, h);
-        if (stack_.view && stack_.view->hudAvailable()) ui::drawLoadingScreen(*overlay_, stack_.view->assets(), 0.1f, stack_.flow->loadPendingIntermission());
+        if (stack_.view && gameView()->hudAvailable()) ui::drawLoadingScreen(*overlay_, gameView()->assets(), 0.1f, stack_.flow->loadPendingIntermission());
         else drawLoadingScreen(*overlay_, 0.1f);
         overlay_->flush();
         pendingShown_ = true;
@@ -919,7 +921,7 @@ void GameWindow::draw() {
         }
         return;
     }
-    stack_.view->draw(ses(), w, h);
+    gameView()->draw(ses(), w, h);
     bool paused = pausedByPlayer(ses().world());
     if (touchMode_ || paused || showFps) {
         beginOverlay();
@@ -997,6 +999,7 @@ bool GameWindow::startGame(std::string* err) {
     // "Change game": in-engine with the selector's games, or the web page's own.
     sc.flow.changeGame = o_.frontend && (o_.launcher.games.size() > 1 || o_.changeGame);
     sc.noAudio = o_.noAudio;
+    sc.makeView = makeGameView;
     if (!stack_.build(sc, err, [this](float p) { presentLoading(p); })) return false;
     if (ses().hasLevel()) warmUp();
     layoutW_ = -1; // the touch layout follows the new game's settings
@@ -1008,7 +1011,7 @@ bool GameWindow::startGame(std::string* err) {
             warmUp();
             status_.update(ses(), GameSession::kLevelStarted);
             if (o_.markers)
-                AS3D_INFO("AS3D_LEVEL_LOADED mission=%d shadow_maps=%d", ses().mission(), stack_.view->renderer().shadowMapCount());
+                AS3D_INFO("AS3D_LEVEL_LOADED mission=%d shadow_maps=%d", ses().mission(), gameView()->renderer().shadowMapCount());
         };
         // The front end draws its own cursor (frontend.md 2.7) unless UseSystemMouse.
         SDL_ShowCursor(touchMode_ || stack_.flow->profile().settings.useSystemMouse ? SDL_ENABLE : SDL_DISABLE);

@@ -814,6 +814,7 @@ StackConfig stackFor(const GameProfile& g) {
     sc.flow.textsPath = d.extractedDir + "/" + g.textsFile;
     // profilePath stays empty: nothing is saved.
     sc.nullAudio = true;
+    sc.makeView = makeGameView;
     return sc;
 }
 

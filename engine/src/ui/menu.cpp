@@ -351,6 +351,36 @@ void MenuSystem::focusStep(Menu& m, int dir) {
     }
 }
 
+bool MenuSystem::padKey(Menu& m, int index, int code) {
+    MenuItem& it = m.items[static_cast<size_t>(index)];
+    if (code == keys::Up || code == keys::StickUp || code == keys::Down || code == keys::StickDown) {
+        focusStep(m, code == keys::Down || code == keys::StickDown ? 1 : -1);
+        return true;
+    }
+    const bool left = code == keys::Left || code == keys::StickLeft, right = code == keys::Right || code == keys::StickRight;
+    if (!left && !right) return false;
+    if (it.type == ItemType::List) return widgetKey(m, index, right ? keys::Down : keys::Up);
+    if (it.type == ItemType::HeliGrid) {
+        HeliGridRef& g = it.grid;
+        const int n = std::clamp(g.count, 0, kHelicopters);
+        if (!g.choice || n <= 0) return true;
+        const bool two = g.twoPlayers && *g.twoPlayers;
+        const int p = two && g.alternator && *g.alternator ? 1 : 0;
+        int c = std::clamp(g.choice[p], 0, n - 1);
+        for (int k = 0; k < n; k++) {
+            c = ((c + (right ? 1 : -1)) % n + n) % n;
+            if (g.locked && g.locked[c]) continue;
+            g.choice[p] = c;
+            if (two && g.alternator) *g.alternator = p ? 0 : 1;
+            playSound("sounds\\menu2.wav");
+            sendEvent(m, index, kActivate);
+            break;
+        }
+        return true;
+    }
+    return false;
+}
+
 void MenuSystem::activate(Menu& m, int index) {
     playSound("sounds\\menu1.wav");
     sendEvent(m, index, kActivate);
@@ -386,6 +416,7 @@ void MenuSystem::onPress(int code) {
     if (m->focused < 0) {
         if (isNavKey(code)) { focusFirst(*m); return; }
     } else if (!m->items[static_cast<size_t>(m->focused)].disabled()) {
+        if (padMode && padKey(*m, m->focused, code)) return;
         if (widgetKey(*m, m->focused, code)) return;
     }
     if (code == keys::Tab || code == keys::Down || code == keys::StickDown) { focusStep(*m, 1); return; }

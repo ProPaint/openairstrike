@@ -17,6 +17,7 @@
 #include <string>
 
 #include "../game/game_flow.cpp"
+#include "../game/game_view.h"
 #include "../game/ui_script.cpp"
 #include "as3d/defs.h"
 #include "test_data.h"
@@ -45,7 +46,7 @@ struct Harness {
     std::unique_ptr<GameFlow> flow;
     u32 frame = 0;
 
-    bool init(const std::string& profile, bool touch = false) {
+    bool init(const std::string& profile, bool touch = false, bool console = false) {
         GameOptions o;
         o.dataRoot = testdata::root();
         o.startLevel = false;
@@ -60,6 +61,7 @@ struct Harness {
         FlowConfig c;
         c.touch = touch;
         c.twoPlayerMode = !touch;
+        c.consoleOptions = console;
         c.profilePath = profile;
         c.attract = 1;
         c.showLogo = false;
@@ -495,4 +497,72 @@ TEST_CASE("game flow: Touch speed, Screen and Controls never reach keyboard or b
     }
     CHECK(dumps[0].size() > 1000);
     CHECK(dumps[0] == dumps[1]);
+}
+
+TEST_CASE("game flow: console options and pad navigation (the 3DS front end, M2.1)") {
+    if (!haveData()) return;
+    Harness h;
+    REQUIRE(h.init("", true, true)); // touch mode, console options, nothing saved
+    REQUIRE(h.menu(Screen::MainMenu));
+    auto item = [&](int id) -> const ui::MenuItem* {
+        const ui::Menu* m = h.fe().menus().top();
+        if (!m) return nullptr;
+        for (const ui::MenuItem& it : m->items)
+            if (it.id == id) return &it;
+        return nullptr;
+    };
+    auto focusedId = [&]() {
+        const ui::Menu* m = h.fe().menus().top();
+        return m && m->focused >= 0 ? m->items[static_cast<size_t>(m->focused)].id : -1;
+    };
+
+    // Options (main menu item 3): no Configure controls (2), Mouse Control (29), Screen (40),
+    // Controls hand (41) or touch speed (42); the volumes and the camera stay.
+    h.key(keys::Down); // the first press focuses Start Game
+    CHECK(focusedId() == 1);
+    h.key(keys::Down);
+    h.key(keys::Down);
+    CHECK(focusedId() == 3);
+    h.key(keys::Enter);
+    REQUIRE(h.menu(Screen::Options));
+    REQUIRE(item(2));
+    CHECK(item(2)->hidden());
+    REQUIRE(item(29));
+    CHECK(item(29)->hidden());
+    CHECK(item(40) == nullptr);
+    CHECK(item(41) == nullptr);
+    CHECK(item(42) == nullptr);
+    REQUIRE(item(28));
+    CHECK_FALSE(item(28)->hidden());
+    // Pad mode: Down leaves a spinner (the first game's spinners keep it otherwise).
+    h.key(keys::Down);
+    const int a = focusedId();
+    h.key(keys::Down);
+    CHECK(focusedId() != a);
+    h.key(keys::Escape);
+    REQUIRE(h.menu(Screen::MainMenu));
+
+    // Start Game by pad alone: Down to the list, the spinner, the grid, Back, Start; A starts.
+    h.key(keys::Down); // the focus starts anew on a menu shown again (touch mode)
+    CHECK(focusedId() == 1);
+    h.key(keys::Enter);
+    REQUIRE(h.menu(Screen::StartGame));
+    const ui::MenuItem* gm = item(5);
+    REQUIRE(gm);
+    CHECK(gm->hidden()); // one player only
+    h.key(keys::Down);
+    CHECK(focusedId() == 3); // the mission list
+    h.key(keys::Down);
+    CHECK(focusedId() == 4); // difficulty
+    h.key(keys::Down);
+    CHECK(focusedId() == 6); // the helicopter grid (game mode is hidden)
+    h.key(keys::Down);
+    CHECK(focusedId() == 1); // Back
+    h.key(keys::Down);
+    CHECK(focusedId() == 2); // Start
+    h.key(keys::Enter);
+    CHECK(h.fe().state() == ui::FrontendState::Playing);
+    CHECK_FALSE(h.fe().menuOpen());
+    CHECK(h.session.mission() == 1);
+    CHECK(h.world().numPlayers() == 1);
 }

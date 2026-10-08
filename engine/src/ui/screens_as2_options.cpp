@@ -84,6 +84,7 @@ Menu SequelScreens::options(Frontend& f) {
     m.addSequelButton(kApply, 620, 520, tr(f, "button.apply"), itemflag::Disabled | itemflag::Hidden);
 
     if (!f.content_.mouseControlOption) m.find(kMouse)->setShown(false);
+    if (!f.content_.keyBindingsOption) m.find(kConfKeys)->setShown(false);
     for (int id : {kResolution, kRefresh, kDepth, kFullscreen, kSound3D}) {
         MenuItem* it = m.find(id);
         if (!f.content_.videoOptions) it->setShown(false);

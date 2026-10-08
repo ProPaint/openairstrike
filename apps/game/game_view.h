@@ -13,6 +13,7 @@
 #include "as3d/vfs.h"
 #include "as3d/ui.h"
 #include "as3d/world_render.h"
+#include "flow_view.h"
 #include "game_session.h"
 
 namespace as3d::ui {
@@ -22,17 +23,7 @@ struct ModelView;
 
 namespace as3d_game {
 
-// config.ini Brightness default (render-pipeline.md 1.5).
-constexpr float kDefaultBrightness = 0.6f;
-
-// What one frame shows besides the world, behind the front end (game_flow.h).
-struct FrameLayers {
-    bool world = true;                     // the 3D level (false: black, e.g. the intro pages)
-    bool hud = false;
-    as3d::ui::HudState hudState;
-    as3d::ui::Frontend* frontend = nullptr; // menus, intro pages, banner
-    float brightness = kDefaultBrightness;
-};
+// kDefaultBrightness and FrameLayers are in flow_view.h.
 
 // The first game's main-menu banner (objects\banner.obj: the flaming title mesh, additive, unlit),
 // with its own mesh renderer and resources, drawn in a viewport of the bound framebuffer. The
@@ -84,14 +75,15 @@ struct DualScreenRects {
 };
 DualScreenRects dualScreenRects(int frameWidth, int frameHeight);
 
-class GameView {
+// The FlowView (flow_view.h) of the GL hosts: desktop, Android, the web.
+class GameView final : public FlowView {
 public:
     GameView();
-    ~GameView();
+    ~GameView() override;
     // With `level`, also beginLevel (the session must have a level loaded).
-    bool init(GameSession& session, std::string* error, bool level = true);
+    bool init(GameSession& session, std::string* error, bool level = true) override;
     // Call after every level load (GameSession::kLevelStarted and after init).
-    bool beginLevel(GameSession& session, std::string* error);
+    bool beginLevel(GameSession& session, std::string* error) override;
     // One fixed step of the render-side simulation (particles); not while paused.
     void step(const GameSession& session);
     // Draws the world, the HUD (and a hint box the world holds) and the brightness overlay
@@ -102,7 +94,7 @@ public:
     void draw(const GameSession& session, int width, int height);
     // The frame behind the front end: world, HUD, front end (with the banner between its two
     // halves), brightness.
-    void drawFrame(const GameSession& session, int width, int height, const FrameLayers& layers);
+    void drawFrame(const GameSession& session, int width, int height, const FrameLayers& layers) override;
     // The layers, for a host that draws them into separate targets. Each sets its own viewport
     // (and scissor) and lays its 2D content out with computeMapping(rect.width, rect.height), so
     // that a 320x240 rect gets the 0.4 scale layout.
@@ -138,7 +130,8 @@ public:
     // The sequels' model view (the helicopter selection's preview, as2/frontend.md 3.18): the
     // object with its attachments in a viewport of the frame drawFrame is drawing (or of the
     // last one drawn). Called through GameHost::drawModel.
-    void drawModel(GameSession& session, const as3d::ui::ModelView& view);
+    void drawModel(GameSession& session, const as3d::ui::ModelView& view) override;
+    void setScreenMode(int mode) override { screenMode = mode; }
 
     as3d::WorldRenderer& renderer() { return renderer_; }
     bool hudAvailable() const { return hudReady_; }
@@ -164,9 +157,7 @@ public:
     // the 3DS port's per-renderer tests). Defaults: everything.
     as3d::WorldRenderOptions worldOptions;
     bool worldOnly = false;
-    // With GameOptions::precache: loads the sounds of the level's precache set (the audio side,
-    // AudioBridge::precacheSounds); unset = no sound precache. Returns how many it looked up.
-    std::function<int(const as3d::PrecacheSet&)> precacheSounds;
+    // precacheSounds (FlowView): with GameOptions::precache, the level's sounds at beginLevel.
     // The report of the last level-start precache (GameOptions::precache).
     const as3d::PrecacheReport& lastPrecache() const { return lastPrecache_; }
 
@@ -188,6 +179,9 @@ private:
     as3d::PrecacheReport lastPrecache_;
     int precachedMission_ = -1;
 };
+
+// GameStack's factory of a GameView (StackConfig::makeView).
+std::unique_ptr<FlowView> makeGameView();
 
 // hudStateOf(session) is in game_session.h (shared with the 3DS app).
 

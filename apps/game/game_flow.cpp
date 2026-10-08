@@ -16,13 +16,6 @@ using ui::Screen;
 
 namespace {
 
-// profile.h Action order -> InputAction.
-constexpr InputAction kActionOf[kActionCount] = {
-    InputAction::Fire,        InputAction::NextWeapon, InputAction::Missile,  InputAction::NextMissile,
-    InputAction::PowerUp,     InputAction::NextPowerUp, InputAction::Forward, InputAction::Backward,
-    InputAction::Left,        InputAction::Right,
-};
-
 std::string textOf(const Blob& b) { return std::string(reinterpret_cast<const char*>(b.data()), b.size()); }
 
 } // namespace
@@ -54,16 +47,6 @@ void applyDesktopPlayer2Keys(Settings& s) {
         'W', 'S', 'A', 'D',
     };
     for (int a = 0; a < kActionCount; ++a) s.keys[1][a][0] = kKeys[a];
-}
-
-void applyBindings(const Settings& s, InputMapper& keys) {
-    keys.clearBindings();
-    for (int p = 0; p < 2; ++p)
-        for (int a = 0; a < kActionCount; ++a)
-            for (int slot = 0; slot < 2; ++slot) {
-                const int code = s.keys[p][a][slot];
-                keys.bind(p, kActionOf[a], slot, code > 0 ? vkToBinding(code) : kNoBinding);
-            }
 }
 
 GameFlow::GameFlow(GameSession& session, AudioBridge& audio) : session_(session), audio_(audio) {}
@@ -148,11 +131,14 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     // window is sized from the command line and sound is always 2D (issue 130).
     content.videoOptions = false;
     // The sequels' co-operative mode is not done yet: their Start Game offers one player.
-    content.twoPlayerMode = config_.twoPlayerMode && !plainGame && !sequelGame;
-    content.mouseControlOption = config_.mouseControlOption;
+    const bool console = config_.consoleOptions;
+    content.twoPlayerMode = config_.twoPlayerMode && !plainGame && !sequelGame && !console;
+    content.mouseControlOption = config_.mouseControlOption && !console;
     content.touchMenuButton = config_.touchMenuButton;
-    content.screenOption = config_.screenOptionAlways;
-    content.handOption = config_.touch;
+    content.screenOption = config_.screenOptionAlways && !console;
+    content.handOption = config_.touch && !console;
+    content.keyBindingsOption = !console;
+    content.padNavigation = console;
     content.changeGame = config_.changeGame;
     screenOverride_ = config_.screenOverride == kScreenWide || config_.screenOverride == kScreen4x3 ? config_.screenOverride : -1;
     lastScreenSetting_ = profile_.settings.screenMode;
@@ -175,11 +161,6 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
 }
 
 void GameFlow::boot() { fe_->boot(); }
-
-void GameFlow::setInputMapper(InputMapper* keys) {
-    keys_ = keys;
-    if (keys_) applyBindings(profile_.settings, *keys_);
-}
 
 bool GameFlow::playing() const {
     return fe_ && fe_->state() == FrontendState::Playing && !fe_->menuOpen() && !fe_->paused() && session_.hasLevel() &&
@@ -288,7 +269,7 @@ void GameFlow::clearPlayerActions() {
 
 void GameFlow::applySettings(const Settings& s) {
     audio_.setVolumes(s.sfxVolume, s.musicVolume);
-    if (keys_) applyBindings(s, *keys_);
+    if (keysHook_) keysHook_(s);
     if (session_.hasLevel()) session_.world().camera().mode = std::min(std::max(s.camera, 0), 3);
 }
 
@@ -300,7 +281,7 @@ void GameFlow::settingsChanged(const Settings& s) {
 }
 
 void GameFlow::setScreenSize(int width, int height) {
-    if (fe_) fe_->setScreenOptionShown(config_.screenOptionAlways || width * 3 > height * 4);
+    if (fe_) fe_->setScreenOptionShown(!config_.consoleOptions && (config_.screenOptionAlways || width * 3 > height * 4));
 }
 
 void GameFlow::saveProfile(const Profile& p) {
@@ -427,7 +408,7 @@ void GameFlow::draw(int width, int height) {
     }
     layers.frontend = fe_.get();
     layers.brightness = fe_->brightness();
-    view_->screenMode = screenMode();
+    view_->setScreenMode(screenMode());
     view_->drawFrame(session_, width, height, layers);
 }
 

@@ -87,6 +87,8 @@ bool BannerMesh::init(Vfs& vfs, const DefDatabase& db, std::string* error) {
 GameView::GameView() = default;
 GameView::~GameView() { logLazyLoads(); }
 
+std::unique_ptr<FlowView> makeGameView() { return std::unique_ptr<FlowView>(new GameView()); }
+
 bool GameView::init(GameSession& session, std::string* error, bool level) {
     if (!renderer_.init(session.vfs(), session.db(), error)) return false;
     // The HUD is optional: without its textures the game still runs (a warning is logged).

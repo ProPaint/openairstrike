@@ -87,6 +87,7 @@ Menu Frontend::buildOptions() {
     }
 
     if (!content_.mouseControlOption) m.find(kMouse)->setShown(false);
+    if (!content_.keyBindingsOption) m.find(kConfKeys)->setShown(false);
     // Video items: disabled during a mission, absent where there is no video mode to choose.
     for (int id : {kResolution, kRefresh, kDepth, kFullscreen, kSound3D}) {
         MenuItem* it = m.find(id);

@@ -227,6 +227,13 @@ public:
     // The sequels' menus (as2/frontend.md 2): their widget drawing (green, orange, the
     // interface.tga pieces), widgets hidden until the menu is open, text buttons and pictures.
     bool sequel = false;
+    // Ours (docs/3ds-port.md M2.1): a console pad drives the menus. The first game's widgets
+    // keep Up and Down for themselves (spinners swallow them, the mission list moves its
+    // selection, the helicopter grid takes every arrow), which leaves no way to the Start
+    // button without a mouse. In pad mode Up and Down always move the focus, and Left / Right
+    // change the focused widget's value: spinner and slider as before, the list's selection, the
+    // grid's helicopter (the next unlocked one).
+    bool padMode = false;
 
     // Pushes a menu (built right before, frontend.md 2.1). Resets the menu time, clears the new
     // menu's focus and re-runs the hover test. Beyond 16 menus the push is refused.
@@ -276,6 +283,7 @@ private:
     void onRelease(int code);
     void onChar(int c);
     bool widgetKey(Menu& m, int index, int code);
+    bool padKey(Menu& m, int index, int code); // padMode
     void focusFirst(Menu& m);
     void focusStep(Menu& m, int dir);
     void activate(Menu& m, int index);

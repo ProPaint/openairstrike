@@ -51,6 +51,7 @@ Frontend::Frontend(GameHost& host, Profile& profile, FrontendContent content, Te
     menus_.showHints = profile_.settings.showHints;
     menus_.drawCursor = !profile_.settings.useSystemMouse;
     menus_.plain = plain();
+    menus_.padMode = content_.padNavigation;
     pending_ = profile_.settings;
     refreshLocks();
     if (plain()) {

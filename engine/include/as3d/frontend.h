@@ -84,6 +84,11 @@ struct FrontendContent {
     bool twoPlayerMode = true;
     bool mouseControlOption = true;
     bool touchMenuButton = true;
+    // Ours (docs/3ds-port.md M2.1): Options offers "Configure controls" (a console host has no
+    // keyboard to bind; its pad bindings live in its own config).
+    bool keyBindingsOption = true;
+    // Ours (M2.1): the menus are driven by a console pad (MenuSystem::padMode).
+    bool padNavigation = false;
     // Ours (docs/spec/issues/140), in the Options screen's free rows: "Screen" (Wide / 4:3)
     // and in touch mode "Controls" (Right / Left).
     bool screenOption = false;

@@ -14,8 +14,12 @@ bool GameStack::build(const StackConfig& config, std::string* error, const std::
     session.reset(new GameSession());
     if (!session->init(config.game, error)) return fail();
     if (progress) progress(0.3f);
-    if (config.view) {
-        view.reset(new GameView());
+    if (config.makeView) {
+        view = config.makeView();
+        if (!view) {
+            if (error) *error = "renderer: no view";
+            return fail();
+        }
         std::string err;
         if (!view->init(*session, &err, session->hasLevel())) {
             if (error) *error = "renderer: " + err;

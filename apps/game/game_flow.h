@@ -19,8 +19,8 @@
 #include "as3d/input.h"
 #include "as3d/profile.h"
 #include "audio_bridge.h"
+#include "flow_view.h"
 #include "game_session.h"
-#include "game_view.h"
 
 namespace as3d_game {
 
@@ -49,6 +49,12 @@ struct FlowConfig {
     // More than one playable game (docs/spec/issues/163): the main menu offers "Change game";
     // choosing it sets changeGameRequested() for the window.
     bool changeGame = false;
+    // A console host (the 3DS, docs/3ds-port.md M2.1): a pad and a small touch screen, no
+    // keyboard, no mouse, one fixed screen. Options offers neither Configure controls, Mouse
+    // Control, Screen nor the touch rows (Controls hand, touch speed), whatever the other
+    // flags say; Start Game offers one player. The menus run in pad mode (as3d/menu.h
+    // MenuSystem::padMode: Up / Down move the focus, Left / Right change values).
+    bool consoleOptions = false;
 };
 
 // Level-start bits the loop reacts to (renderer and audio are handled inside).
@@ -66,8 +72,9 @@ public:
     void boot();
 
     // Optional pieces. The view is needed for drawing; the mapper gets the key bindings of
-    // the settings.
-    void setView(GameView* view) { view_ = view; }
+    // the settings now and at every settings change (inline below: GameFlow itself never
+    // touches InputMapper, which needs SDL's scancodes and does not exist on the 3DS).
+    void setView(FlowView* view) { view_ = view; }
     void setInputMapper(as3d::InputMapper* keys);
     // Called while a level loads (progress 0..1; `intermission`: attract level) and once it
     // is loaded (after the view's beginLevel), for the window to present the loading screen
@@ -155,8 +162,8 @@ private:
 
     GameSession& session_;
     AudioBridge& audio_;
-    GameView* view_ = nullptr;
-    as3d::InputMapper* keys_ = nullptr;
+    FlowView* view_ = nullptr;
+    std::function<void(const as3d::Settings&)> keysHook_; // setInputMapper
     FlowConfig config_;
     as3d::Profile profile_;
     std::unique_ptr<as3d::ui::Frontend> fe_;
@@ -191,7 +198,32 @@ std::string defaultProfilePath();
 void applyDesktopPlayer2Keys(as3d::Settings& s);
 
 // The settings' bindings (the original's codes) into the mapper's (SDL codes); the pause and
-// hint-confirm bindings are cleared, the front end handles P, Enter and Esc.
-void applyBindings(const as3d::Settings& s, as3d::InputMapper& keys);
+// hint-confirm bindings are cleared, the front end handles P, Enter and Esc. Inline, so that
+// only the hosts that have an InputMapper link it.
+inline void applyBindings(const as3d::Settings& s, as3d::InputMapper& keys) {
+    using as3d::InputAction;
+    // profile.h Action order -> InputAction.
+    static constexpr InputAction kActionOf[as3d::kActionCount] = {
+        InputAction::Fire,    InputAction::NextWeapon,  InputAction::Missile, InputAction::NextMissile,
+        InputAction::PowerUp, InputAction::NextPowerUp, InputAction::Forward, InputAction::Backward,
+        InputAction::Left,    InputAction::Right,
+    };
+    keys.clearBindings();
+    for (int p = 0; p < 2; ++p)
+        for (int a = 0; a < as3d::kActionCount; ++a)
+            for (int slot = 0; slot < 2; ++slot) {
+                const int code = s.keys[p][a][slot];
+                keys.bind(p, kActionOf[a], slot, code > 0 ? as3d::vkToBinding(code) : as3d::kNoBinding);
+            }
+}
+
+inline void GameFlow::setInputMapper(as3d::InputMapper* keys) {
+    if (!keys) {
+        keysHook_ = nullptr;
+        return;
+    }
+    keysHook_ = [keys](const as3d::Settings& s) { applyBindings(s, *keys); };
+    keysHook_(profile_.settings);
+}
 
 } // namespace as3d_game

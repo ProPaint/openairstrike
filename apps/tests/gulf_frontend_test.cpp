@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "../game/game_flow.h"
+#include "../game/game_view.h"
 #include "as3d/defs.h"
 #include "as3d/frontend.h"
 #include "as3d/game_data.h"
