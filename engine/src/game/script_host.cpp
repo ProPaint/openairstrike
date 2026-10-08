@@ -161,6 +161,29 @@ int unknownSlot(Addr addr, size_t count) {
 
 // `player2` of an entity of player index p (as2/rcsl-vm.delta.md): the other player's cell.
 int otherPlayer(int p) { return p == 1 ? 0 : 1; }
+
+// The globals whose cell depends on the running entity's player (readWord/writeWord use
+// World::currentPlayerIndex only for these: it is a pure lookup of `self`, skipped for the
+// other globals, which are most of the reads).
+bool isPlayerGlobal(int g) {
+    switch (g) {
+        case G_PLAYER:
+        case G_P_ACTION:
+        case G_P_SCORES:
+        case G_P_LIVES:
+        case G_P_STARS:
+        case G_P_SPEEDFACTOR:
+        case G_P_COUNTER1:
+        case G_P_COUNTER2:
+        case G_P_COUNTER3:
+        case G_P_WEAPON:
+        case G_PLAYER2:
+        case G_P_MAXHEALTH:
+            return true;
+        default:
+            return false;
+    }
+}
 } // namespace
 
 bool GameScriptHost::readWord(Addr addr, u32& out) {
@@ -181,7 +204,7 @@ bool GameScriptHost::readWord(Addr addr, u32& out) {
     }
     int g = globalSlot(w.game(), addr);
     if (g < 0) return false;
-    const int pi = w.currentPlayerIndex();
+    const int pi = isPlayerGlobal(g) ? w.currentPlayerIndex() : 0; // pi, pr unused otherwise
     const PlayerRecord& pr = w.player(pi);
     switch (g) {
         case G_SELF: out = w.selfBits; return true;
@@ -238,7 +261,7 @@ bool GameScriptHost::writeWord(Addr addr, u32 bits) {
     }
     int g = globalSlot(w.game(), addr);
     if (g < 0) return false;
-    const int pi = w.currentPlayerIndex();
+    const int pi = isPlayerGlobal(g) ? w.currentPlayerIndex() : 0; // pi, pr unused otherwise
     PlayerRecord& pr = w.player(pi);
     float v = bitsf(bits);
     switch (g) {

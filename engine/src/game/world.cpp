@@ -226,18 +226,6 @@ Entity* World::get(EntityHandle h) {
     return &e;
 }
 
-bool World::decodeEntityAddr(u32 addr, int& slot, u32& gen, u32& offset) {
-    if (addr < kEntityAddrBase || addr >= kEntityAddrEnd) return false;
-    u32 rel = addr - kEntityAddrBase;
-    gen = rel >> kRefGenShift;
-    u32 low = rel & ((1u << kRefGenShift) - 1u);
-    u32 s = low / kEntityAddrStride;
-    if (s >= static_cast<u32>(kMaxEntitySlots)) return false;
-    slot = static_cast<int>(s);
-    offset = low % kEntityAddrStride;
-    return true;
-}
-
 int World::liveIndexFromRef(u32 ref) const {
     int slot;
     u32 gen, off;

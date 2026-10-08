@@ -463,7 +463,17 @@ public:
     }
     // Decodes an entity-window address into slot, generation bits and byte offset from
     // the slot base; false outside the window.
-    static bool decodeEntityAddr(u32 addr, int& slot, u32& gen, u32& offset);
+    static bool decodeEntityAddr(u32 addr, int& slot, u32& gen, u32& offset) { // inline: every entity field access
+        if (addr < kEntityAddrBase || addr >= kEntityAddrEnd) return false;
+        u32 rel = addr - kEntityAddrBase;
+        gen = rel >> kRefGenShift;
+        u32 low = rel & ((1u << kRefGenShift) - 1u);
+        u32 s = low / kEntityAddrStride;
+        if (s >= static_cast<u32>(kMaxEntitySlots)) return false;
+        slot = static_cast<int>(s);
+        offset = low % kEntityAddrStride;
+        return true;
+    }
     // In-use slot index of a script reference whose generation matches, or -1 (0, stale,
     // malformed).
     int liveIndexFromRef(u32 ref) const;
