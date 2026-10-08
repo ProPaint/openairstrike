@@ -89,7 +89,7 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 |---|---|---|
 | `mode` | `spike` (default), `probe`, `sim`, `bot`, `play` | `spike` and `probe` run the old code paths. `sim`: the mission headless at full speed with the bot, no screens, ends after `frames` steps (reproduces `as3d_sim --bot`). `bot`: real-time 60 Hz loop with the bot's input and both screens through the frame composer (`ctr_frame.cpp`: the world on the top screen, in stereo with the 3D slider, the HUD, hint box and touch buttons on the bottom one, a loading screen while the level is precached). `play`: the same loop with the pad (circle pad / D-pad steer, A fire, B missile, X power-up, Y weapon, R next missile, START pause, ZR next power-up on a New 3DS; the bottom-screen buttons pause / next weapon / next missile / missile / power-up / next power-up work by touch; see `ctr_input.h`). |
 | `game` | profile key, default `as3d` | the game; its paks are read from `sdmc:/3ds/openairstrike/<key>/` |
-| `level` | N, default 1 | the mission to start (the front end is off: `startLevel=true`, `levelFlow=false`) |
+| `level` | N, default 1 | the mission to start directly (the front end is off: `startLevel=true`, `levelFlow=false`). `mode=play` without `level=` runs the front end instead (see "Front end (M2.1)") |
 | `frames` | N, default 0 | simulation steps, then the app quits cleanly; 0 means 600 in `sim` and unlimited otherwise |
 | `perf` | `0` (default) or `1` | write `perf.csv` |
 | `log_input` | `0` (default) or `1` | log `AS3D_INPUT held=0x... touch=<button\|none>` on every change of the held bits and on every touch-button hit |
@@ -103,6 +103,7 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `precache` | `1` (default) or `0` | `0` skips the level-start precache (everything loads on first use) |
 | `audio` | `1` (default) or `0` | sound in `bot` and `play` (never in `sim`): the ndsp device, or silence when `ndspInit` fails (no `sdmc:/3ds/dspfirm.cdc`); see "Sound (M2.3)" |
 | `hold`, `only` | | probe only (see above) |
+| `attract`, `logo`, `menu_bot`, `pad_script`, `dump_every`, `dump_screens`, `dump_prefix` | | the front end, see "Front end (M2.1)" |
 
 `mode=bot level=1 frames=3600 perf=1` is the M1 acceptance run. START+SELECT held together quits
 cleanly in every loop mode. HOME and sleep pause the world, call the save hook (none yet) and flush
@@ -225,3 +226,44 @@ vertices, draws, arena, texture bytes, build time) and `markstest_<phase>.ppm`. 
 `as3d_game --headless --level 1 --bot --frames 1400 --size 400x240 --screenshot-every 1400
 --render-only terrain,marks,skid` (and `--render-only terrain` as the base for `--darken`); `f` with
 `--render-only terrain,models,particles,sprites,shadows,marks,skid`. docs/3ds-port.md, "M3.2".
+
+## Front end (M2.1)
+
+`mode=menu`, or `mode=play` without `level=`, runs the game's real front end
+(`source/ctr_menu_loop.cpp`): `GameStack` with `GameFlow` over the session, the frame composer as
+its view. The menus, the intro pages, the HUD, the hint box, mission end, game over and the
+high scores are on the bottom screen (the 320x240 mapping, scale 0.4); the top screen shows the
+attract level behind the menus and the mission during play, mono or stereo as in `play`, with
+the game's title where the desktop's main menu has its 3D banner and PAUSED under the in-game
+menu. Missions start from Start Game and end through the menus (Restart, Continue, Quit); every
+level start shows the original's loading screen on both screens.
+
+Controls in the menus: D-pad up / down move the focus (held: repeats), left / right change the
+focused value (spinners, sliders, the mission list, the helicopter), A = Enter, B and START =
+back; touch = the mouse (tap an item; the name entry has its own keyboard). During play the pad
+is as in `play`; START or the touch pause button opens the in-game menu. START+SELECT quits;
+the main menu's Exit too. HOME / sleep during play open the in-game menu and save the profile.
+
+Files: the paks plus `Settings.xml` (intro pages, version and copyright line) and the texts
+imported from the user's executable (`texts_v170.txt` for AirStrike 3D: menu labels and
+Information pages) in `sdmc:/3ds/openairstrike/<game>/`, copied from the install like the paks
+(both are the game's, never commit them). The profile (settings, progress, high scores) is
+`sdmc:/3ds/openairstrike/<game>/profile.bin`, saved through `GameFlow` as on the desktop.
+Options offers brightness, the volumes, Show FPS and the camera (`FlowConfig::consoleOptions`:
+no Configure controls, Mouse Control, Screen, video or touch rows); Start Game one player.
+
+| key | values | meaning |
+|---|---|---|
+| `attract` | 0 (default: random), 1..4 | the attract level behind the main menu |
+| `logo` | `1` (default) or `0` | the intro pages at boot |
+| `menu_bot` | `0` (default) or `1` | the bot flies the missions started from the menus (it also closes the hint boxes) |
+| `pad_script` | `F:NAME,...` | presses injected into the pad at displayed frame F, held 6 frames: `A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT` (several joined by `+`), or `T<x>/<y>` for a touch at bottom-screen pixel (x, y); for unattended emulator runs |
+| `dump_screens` | `0` (default) or `1` | 40 frames after each change of screen, `<prefix><nn>_<screen>_top.ppm` and `_bottom.ppm` |
+| `dump_every` | N | every N displayed frames, `<prefix>f<frame>_top.ppm` and `_bottom.ppm` |
+| `dump_prefix` | default `fe_` | the file name prefix of those dumps |
+
+`frames=N` ends the run after N displayed frames. The log gets `AS3D_SCREEN name=<screen>` on
+every change (intro, main, start, options, scores, name, ingame, hint, complete, gameover, playing, ...),
+`AS3D_MENU` with the visible items in the virtual 800x600 screen (for `T` taps: bottom pixel =
+virtual x 0.4), `AS3D_LEVEL_LOADED` and, at the end, the end state of the level running.
+docs/3ds-port.md, "M2.1".

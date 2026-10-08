@@ -658,6 +658,118 @@ On hardware (owner):
 Deferred: music (M2.4: libopenmpt measured on the 3DS, else pre-rendered Ogg and a tremor
 decoder); per-entity 3D sound stays off as in the shipped config (`Sound3D=0`).
 
+## M2.1 Front end (apps/3ds/source/ctr_menu_loop.cpp, the FlowView seam)
+
+The seam. `GameFlow` needed five things of `GameView`: the level start (`beginLevel`), the frame
+behind the front end (`drawFrame` with `FrameLayers`), the sequels' model view, the screen mode
+and, through `GameStack`, `init` and the sound-precache hook. They are now the interface
+`FlowView` (`apps/game/flow_view.h`, no graphics API; `FrameLayers` and `kDefaultBrightness`
+moved there). `GameView` implements it unchanged; `GameStack` holds a `unique_ptr<FlowView>`
+made by `StackConfig::makeView` (`makeGameView` on the GL hosts, the window loop reaches its
+`GameView` through `gameView()`). The key bindings reach the `InputMapper` through an inline
+`applyBindings` and a hook, so `game_flow.cpp` links without the mapper (it needs SDL's
+scancodes; the 3DS has none). Chosen over splitting `GameView` because the 3DS draws its frame
+very differently (two targets, two eyes, lists built outside the frame) and needs none of
+`GameView`'s GL members; desktop, Android and the web keep their code paths (the goldens and the
+front-end tests of tools/ci.sh). The 3DS builds `game_flow.cpp` and `game_stack.cpp` with
+`game_session.cpp` and `audio_bridge.cpp`, not `game_view.cpp`.
+
+The view (`GameFrame::makeFlowView`, ctr_frame.cpp): `init` brings up the backend, the 2D layer
+(font and HUD atlases) and a renderer; `beginLevel` (every level, attract levels included):
+a loading frame, two empty frames (the GPU done with the last level), a fresh `WorldRenderer`
+and `UiAssets` (the last level's meshes and skins and the menu pictures loaded since leave VRAM:
+without it mission 1 started with 2 MB of menu pictures in VRAM), terrain, precache (scripts,
+renderer, `precachePlay`, the level's sounds through the stack's `AudioBridge`), loading
+frames. `drawFrame` is called from `prepare` (outside the frame: the menu pictures load on first
+use) and builds the bottom screen's list: the HUD (`HudTarget::Bottom320x240`), the touch
+buttons during play, `Frontend::drawUnder` / `drawOver` at `computeMapping(320, 240)` (scale 0.4,
+pixel-snapped by the PICA flush). The top screen: the world when the flow runs one (attract or
+mission, mono or stereo as `play`, the profile's brightness), the game's title at screen depth
+where the desktop's main menu has its 3D banner (and on black when there is no world), PAUSED
+under the in-game menu. `GameFlow::loadingHook` draws `ui::drawLoadingScreen` on both screens
+plus a visible progress bar (the original's is one virtual pixel high: 0.4 px here).
+
+The flow on the 3DS (`FlowConfig` as the Android template: touch mode without the front end's
+MENU button, one player, no mouse control; `consoleOptions`: no Configure controls, Screen,
+hand or touch-speed rows; `FrontendContent::padNavigation`):
+
+    boot -> intro pages (logo=1) -> attract level + main menu (bottom) -> Start Game / Options /
+    Top Scores / Information -> Start: loading screen (both) -> playing (HUD + touch buttons on
+    the bottom, world on top) -> START / touch pause: in-game menu (Resume, Options, Quit) ->
+    mission complete / game over / name entry / top scores (bottom) -> Continue or Quit ->
+    attract level + main menu; Exit ends the app.
+
+Input: while a menu is up, `CtrInput::uiInputs` (D-pad = arrows with repeat after 24 frames
+every 6, A = Enter, B / START = Escape, the touch screen = the pointer through the inverse of
+`computeMapping(320, 240)`); during play only the pause button reaches the front end (Escape:
+the in-game menu), the touch pause button through the step's `pausePressed`. The first game's
+widgets keep Up / Down for themselves (spinners swallow them, the list moves its selection, the
+helicopter grid takes every arrow), so Start was unreachable by keys: `MenuSystem::padMode`
+(ours, on with `consoleOptions`): Up / Down always move the focus, Left / Right change the
+focused spinner, slider, list selection or helicopter (the next unlocked). Desktop test: "game
+flow: console options and pad navigation".
+
+Saves: `GameFlow`'s own path, `<userDataDir>/<game>/profile.bin` = `sdmc:/3ds/openairstrike/as3d/
+profile.bin`, written with `replaceFile` when leaving Options, after a mission and at the name
+entry as on the desktop; APT suspend / sleep call `GameFlow::onBackground` (during play the
+in-game menu opens, so the game comes back paused; then the save), exit calls `saveNow` (and
+`GameStack::teardown` again). M2.5 checks the details on hardware.
+
+Sound: the stack's `AudioBridge` on the platform device (`CtrAudio::attach` follows APT and
+logs the summary); the menu sounds play; music is off while `AS3D_WITH_OPENMPT=OFF`
+(`AudioBridge::setMusicEnabled(false)`, M2.4). Under menus the sound is not paused (desktop rule).
+
+run.ini (apps/3ds/README.md, "Front end (M2.1)"): `mode=menu` or `mode=play` without `level=`;
+`attract`, `logo`, `menu_bot`, `pad_script` (scripted pad presses and touches, parsed by the
+neutral `parsePadScript`, tested), `dump_screens`, `dump_every`, `dump_prefix`. `level=N` keeps
+the direct start of M1.
+
+Azahar (2026-10-08, `mode=menu attract=1 logo=0 menu_bot=1 dump_screens=1 slider=0`, 950 frames,
+pad_script: Options, back, Start Game, five Downs to Start, A; 300 bot frames; START, Resume;
+START, Quit):
+
+- AS3D_SCREEN main (frame 0) -> options (90) -> main (150) -> start (180) -> mission 1 loaded
+  ("Mission 1: Tutorial") -> playing (300) -> ingame (620) -> playing (690) -> ingame (760) ->
+  intro1 loaded -> main (830). Every screen dumped (`fe_<nn>_<screen>_{top,bottom}.ppm`).
+- Front end ready (data, view, audio) in 1.1 s; the attract level start 5.6 s (beginLevel 1.2 s,
+  precache 4.3 s, of which 0.8 s shadows); mission 1 from the menu 10.8 s, as the direct start.
+- Mission 1 started from the menus: textures VRAM 94 = 4194 KB, linear 216 = 3264 KB (direct
+  start: 99 / 210); the second attract level start gives exactly the first one's numbers (VRAM
+  4169 KB, linear 316 KB: nothing of the mission is left). Menus at 60 fps (main menu: 5 frames
+  over 17 ms of 419, the loads); mission frames as the direct mode under Azahar.
+- `mode=bot level=1 frames=600` after the change: map_pos 452.0, 39 entities, created 243, freed
+  204, as before.
+- Main menu bottom against `as3d_game --dual-screen --headless --touch --attract 1 --no-logo
+  --ui-script` (shot at frame 40, crop `40,240,360,480`), `3ds_screen_compare.py --direct --mask`:
+  whole screen 4.13 (the desktop's 3D banner is on its bottom screen, the 3DS's title is on the top
+  one); without the banner rows (`--ignore 0,0,320,90`) 0.98, masked 16.4 over 2839 pixels; without
+  the corner rules as well 1.01, masked 16.7 over 2516 text pixels, best alignment at (0, 0). The
+  text residue is the pixel snap and RGBA4 against the desktop's bilinear RGBA8 (glyph edges); the
+  letterbox's long rule (`corner.tga`, a one-texel row stretched over 16 virtual rows, 6 px here)
+  falls between the sampled rows on the PICA and is missing right of the corner pieces. Both are
+  M2.2's (filter choice, snap, the 8x8 font): its inputs are the main, options and start dumps and
+  4x nearest crops in out/3ds/m21/ (local, game art).
+
+Hardware checklist (owner; copy `Settings.xml` and `texts_v170.txt` next to the paks; run.ini
+`mode=play` alone):
+
+- boot: intro pages (A speeds them up), then the main menu on the bottom screen at 60 fps over the
+  attract level on top; text legible at arm's length (the M2.2 photo: main menu, Start Game,
+  Options).
+- D-pad and A / B through Options (volumes move with left / right and are heard), Top Scores,
+  Information; touch taps on the same items land on them.
+- Start Game: the list, difficulty, helicopter with left / right, Start; the loading screen on
+  both screens; mission 1 plays as with `level=1`; START opens the in-game menu (PAUSED on top),
+  Resume; Quit returns to the main menu over the attract level.
+- HOME during play and back: the in-game menu is open, the game paused; close the lid and open:
+  the same; `as3d/profile.bin` exists and survives a power cycle (Options values kept).
+- `perf=1`: the menu frames under 16.7 ms, level start times.
+
+Stubbed / deferred: music (M2.4); the save details on hardware, `aptSetSleepAllowed` policy and
+no `*.tmp` (M2.5); the sequels' helicopter preview on the PICA (`drawModel` is a no-op) and their
+front end on the 3DS untested; the main menu's 3D banner on the PICA (the title text stands in);
+legibility (M2.2).
+
 ## M3.1 Shadows on the PICA (engine/src/render/pica/shadow_renderer_pica.cpp)
 
 `ShadowRenderer` (as3d/shadow_render.h, unchanged public API) gets a PICA pimpl; the design notes
