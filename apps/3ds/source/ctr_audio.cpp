@@ -14,14 +14,21 @@ namespace ctrapp {
 bool CtrAudio::start(as3d_game::GameSession& session, bool precache) {
     stop();
     precache_ = precache;
-    if (!bridge_.init(session.vfs(), false)) {
+    if (!bridge().init(session.vfs(), false)) {
         AS3D_WARN("audio: cannot start, no sound");
         return false;
     }
     started_ = true;
-    if (bridge_.nullDevice()) AS3D_INFO("audio: null device (silent)"); // the ndsp device logs its own line
+    if (bridge().nullDevice()) AS3D_INFO("audio: null device (silent)"); // the ndsp device logs its own line
     if (session.hasLevel()) levelStarted(session);
     return true;
+}
+
+void CtrAudio::attach(as3d_game::AudioBridge& b) {
+    stop();
+    external_ = &b;
+    started_ = b.active();
+    if (started_ && b.nullDevice()) AS3D_INFO("audio: null device (silent)");
 }
 
 void CtrAudio::precache(as3d_game::GameSession& session) {
@@ -32,7 +39,7 @@ void CtrAudio::precache(as3d_game::GameSession& session) {
     // It only loads (world.h): the simulation is the same with or without it.
     if (!w.precacheSet()) w.precacheScripts();
     const as3d::PrecacheSet* set = w.precacheSet();
-    precached_ = set ? bridge_.precacheSounds(*set) : 0;
+    precached_ = set ? bridge().precacheSounds(*set) : 0;
 }
 
 void CtrAudio::levelStarted(as3d_game::GameSession& session) {
@@ -40,19 +47,19 @@ void CtrAudio::levelStarted(as3d_game::GameSession& session) {
     const uint64_t t0 = nowTicks();
     precache(session);
 #if AS3D_WITH_OPENMPT
-    bridge_.startLevel(session.musicPath());
+    bridge().startLevel(session.musicPath());
 #else
-    bridge_.startLevel(std::string()); // no music decoder in this build (M2.4): stops the sounds only
+    bridge().startLevel(std::string()); // no music decoder in this build (M2.4): stops the sounds only
 #endif
     AS3D_INFO("audio: level start, %d sounds precached in %.0f ms%s", precached_, ticksToMs(nowTicks() - t0),
               AS3D_WITH_OPENMPT ? "" : ", no music (AS3D_WITH_OPENMPT=OFF)");
 }
 
 void CtrAudio::afterStep(as3d::World& world) {
-    bridge_.drain(world); // without a device it only clears the queue
+    bridge().drain(world); // without a device it only clears the queue
 }
 
-void CtrAudio::apply() { bridge_.setPaused(suspended_ || worldPaused_); }
+void CtrAudio::apply() { bridge().setPaused(suspended_ || worldPaused_); }
 
 void CtrAudio::setSuspended(bool suspended) {
     suspended_ = suspended;
@@ -70,9 +77,9 @@ void CtrAudio::logSummary() const {
         AS3D_INFO("PERF_SUMMARY audio off");
         return;
     }
-    const as3d_game::AudioBridge::Stats& b = bridge_.stats();
+    const as3d_game::AudioBridge::Stats& b = bridge().stats();
     AS3D_INFO("PERF_SUMMARY audio device=%s played=%llu loops=%llu missing=%llu precached=%d",
-              bridge_.nullDevice() ? "null" : "ndsp", b.played, b.loopsStarted, b.missing, precached_);
+              bridge().nullDevice() ? "null" : "ndsp", b.played, b.loopsStarted, b.missing, precached_);
     const as3d::audio::ndsp::NdspStats s = as3d::audio::ndsp::stats();
     if (!s.open) return;
     const double sec = static_cast<double>(s.openUs) / 1e6;
@@ -84,8 +91,9 @@ void CtrAudio::logSummary() const {
 }
 
 void CtrAudio::stop() {
-    if (started_) bridge_.shutdown();
+    if (started_ && !external_) bridge().shutdown();
     started_ = false;
+    external_ = nullptr;
 }
 
 } // namespace ctrapp

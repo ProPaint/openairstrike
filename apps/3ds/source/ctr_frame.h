@@ -24,13 +24,21 @@
 //                   the touch controls; pica::frameEnd
 //   stats()         perf.csv's renderer columns
 //   afterFrame()    run.ini dump_at=N: the first frame after N simulation steps writes
-//                   top_left.ppm, top_right.ppm (when two eyes were drawn) and bottom.ppm
+//                   top_left.ppm, top_right.ppm (when two eyes were drawn) and bottom.ppm;
+//                   dump_every=N and dump_screens=1 (the front end): <prefix>... PPMs
+//
+// The same composer is the front end's view (makeFlowView below, M2.1).
 #pragma once
 
 #include <memory>
 
 #include "ctr_loop.h"
+#include "flow_view.h"
 #include "run_config.h"
+
+namespace as3d_game {
+class GameFlow;
+}
 
 namespace ctrapp {
 
@@ -61,6 +69,22 @@ public:
     explicit GameFrame(const RunConfig& run);
     ~GameFrame() override;
 
+    // The front end (M2.1, runCtrMenuLoop): the FlowView GameStack builds (game_stack.h
+    // StackConfig::makeView). Its init loads the backend, the 2D layer (the menus need it before
+    // any level) and the renderer; its beginLevel replaces the renderer by a fresh one for each
+    // level (the last level's textures leave VRAM), then terrain and precache behind the loading
+    // screen; its drawFrame (GameFlow::draw, called from prepare()) takes the flow's layers and
+    // builds the bottom screen's 2D list: HUD, touch buttons during play, the front end's
+    // screens at the 320x240 mapping (scale 0.4). The top screen shows the world (attract level
+    // or mission; stereo as in play) with PAUSED under the in-game menu and the game's title
+    // where the desktop's main menu has its 3D banner, or the title on black without a world.
+    // The returned view must not outlive this object.
+    std::unique_ptr<as3d_game::FlowView> makeFlowView(as3d::ctr::CtrContext& ctx);
+    void setFlow(as3d_game::GameFlow* flow);
+    // GameFlow::loadingHook: a standalone frame of the original's loading screen on both screens
+    // (with a visible progress bar), at most every 100 ms unless progress is 1.
+    void loadingScreen(float progress, bool intermission);
+
     bool begin(as3d::ctr::CtrContext& ctx, as3d_game::GameSession& session) override;
     void prepare(const FrameInfo& info) override;
     void drawTop(as3d::ctr::CtrContext& ctx, int eye, const FrameInfo& info) override;
@@ -69,8 +93,9 @@ public:
     void afterFrame(as3d::ctr::CtrContext& ctx, const FrameInfo& info) override;
     void end() override;
 
+    struct Impl; // ctr_frame.cpp (its FlowView adapter reaches it)
+
 private:
-    struct Impl;
     std::unique_ptr<Impl> impl_;
 };
 

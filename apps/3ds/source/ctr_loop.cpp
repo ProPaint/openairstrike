@@ -65,6 +65,8 @@ void aptCallback(APT_HookType hook, void* param) {
     }
 }
 
+} // namespace
+
 // The summary lines of as3d_sim, to compare an end state against the desktop's.
 void logEndState(const as3d_game::GameSession& ses, int level, unsigned steps) {
     using namespace as3d;
@@ -84,11 +86,10 @@ void logEndState(const as3d_game::GameSession& ses, int level, unsigned steps) {
               pe >= 0 ? static_cast<double>(w.entity(pe).f(F_HEALTH)) : 0.0);
 }
 
-} // namespace
-
 int runCtrLoop(const CtrLoopOptions& opts) {
     using namespace as3d;
     const RunConfig& run = opts.run;
+    if (run.menu()) return runCtrMenuLoop(opts);
     const bool sim = run.mode == Mode::Sim;
     const bool bot = run.mode != Mode::Play;
     Perf perf;

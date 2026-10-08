@@ -12,6 +12,7 @@ const char* modeName(Mode m) {
         case Mode::Sim: return "sim";
         case Mode::Bot: return "bot";
         case Mode::Play: return "play";
+        case Mode::Menu: return "menu";
     }
     return "?";
 }
@@ -59,6 +60,7 @@ RunConfig parseRunConfig(const std::string& text) {
         float f = 0.0f;
         if (key == "mode") {
             if (val == "play") c.mode = Mode::Play;
+            else if (val == "menu") c.mode = Mode::Menu;
             else if (val == "bot") c.mode = Mode::Bot;
             else if (val == "sim") c.mode = Mode::Sim;
             else if (val == "probe") c.mode = Mode::Probe;
@@ -66,7 +68,10 @@ RunConfig parseRunConfig(const std::string& text) {
         } else if (key == "game") {
             if (!val.empty()) c.game = val;
         } else if (key == "level") {
-            if (toInt(val, &n) && n >= 1) c.level = n;
+            if (toInt(val, &n) && n >= 1) {
+                c.level = n;
+                c.levelGiven = true;
+            }
         } else if (key == "frames") {
             if (toInt(val, &n) && n >= 0) c.frames = n;
         } else if (key == "perf") {
@@ -91,6 +96,20 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.precache = n != 0;
         } else if (key == "audio") {
             if (toInt(val, &n)) c.audio = n != 0;
+        } else if (key == "attract") {
+            if (toInt(val, &n) && n >= 0) c.attract = n;
+        } else if (key == "logo") {
+            if (toInt(val, &n)) c.logo = n != 0;
+        } else if (key == "menu_bot") {
+            if (toInt(val, &n)) c.menuBot = n != 0;
+        } else if (key == "pad_script") {
+            c.padScript = val;
+        } else if (key == "dump_every") {
+            if (toInt(val, &n) && n >= 0) c.dumpEvery = n;
+        } else if (key == "dump_screens") {
+            if (toInt(val, &n)) c.dumpScreens = n != 0;
+        } else if (key == "dump_prefix") {
+            c.dumpPrefix = val;
         }
     }
     return c;

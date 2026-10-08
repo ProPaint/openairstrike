@@ -29,6 +29,8 @@ class CtrContext;
 
 namespace ctrapp {
 
+class GameFrame; // ctr_frame.h
+
 // What the hook is told about the frame.
 struct FrameInfo {
     unsigned frame = 0;       // displayed frames so far
@@ -39,6 +41,11 @@ struct FrameInfo {
     as3d_game::GameSession* session = nullptr;
     const as3d::TouchMapper* touch = nullptr; // the bottom-screen buttons (ctr_input.h), for drawing
     float lastCpuMs = 0.0f, lastGpuMs = 0.0f; // of the previous frame (the perf line)
+    // The front end (menu mode): the screen shown (AS3D_SCREEN names: intro, a menu's name,
+    // playing, paused; empty in the direct modes) and whether the gameplay controls are live
+    // (GameFlow::playing: the touch buttons are drawn).
+    const char* screen = "";
+    bool playing = true;
 };
 
 // The frame composer's slot (ctr_frame.h). The loop brackets the frame (beginFrame / endFrame)
@@ -66,13 +73,26 @@ public:
 struct CtrLoopOptions {
     RunConfig run;
     FrameHook* hook = nullptr;          // required in bot and play (ctr_frame.h GameFrame)
-    // Called when the app is suspended (HOME, sleep) and once at exit, with the world paused:
-    // the flow's profile save (GameFlow::saveNow) once the front end runs on the 3DS (M2).
+    // Called when the app is suspended (HOME, sleep) and once at exit, with the world paused.
+    // The menu mode sets it to the flow's profile save itself (GameFlow::onBackground on
+    // suspend: the in-game menu opens during play, then GameFlow::saveNow; saveNow at exit).
     std::function<void()> saveHook;
+    // The menu mode's view (ctr_frame.h GameFrame::makeFlowView, setFlow, loadingScreen).
+    GameFrame* frame = nullptr;
 };
 
 // Runs until the mission's `frames` steps are done, the user quits (START+SELECT) or the system
 // closes the app. Returns the process exit code (0, or 1 when the game data cannot be loaded).
+// With run.menu() it runs the front end instead (runCtrMenuLoop, below).
 int runCtrLoop(const CtrLoopOptions& options);
+
+// The front end (M2.1): GameStack with GameFlow over the session, the frame composer as its
+// view (menus on the bottom screen, the attract level or the mission on the top one), the pad
+// and the touch screen as the front end's input. Missions start and end through the menus;
+// `frames` (when not 0) ends the run after that many displayed frames.
+int runCtrMenuLoop(const CtrLoopOptions& options); // ctr_menu_loop.cpp
+
+// The end-state lines of as3d_sim (map_pos, entities, created / freed, ...) for `level`.
+void logEndState(const as3d_game::GameSession& session, int level, unsigned steps);
 
 } // namespace ctrapp

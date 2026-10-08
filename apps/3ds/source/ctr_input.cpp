@@ -12,6 +12,13 @@ constexpr int kCStickDead = 40;
 
 CtrInput::CtrInput(const RunConfig& run, bool new3ds)
     : bindings_(run.bindings), new3ds_(new3ds), logInput_(run.logInput) {
+    if (!run.padScript.empty()) {
+        if (parsePadScript(run.padScript, script_))
+            AS3D_INFO("pad_script: %d presses, last at frame %u", static_cast<int>(script_.size()),
+                      script_.empty() ? 0u : script_.back().frame);
+        else
+            AS3D_WARN("pad_script: syntax error after %d presses (used as far as it goes)", static_cast<int>(script_.size()));
+    }
     touch_.setScreen(kTouchW, kTouchH, TouchLayoutOptions::forBottomScreen320x240());
     touch_.settings().autoFire = false; // A fires; the bottom screen is HUD and buttons only
     touch_.setPlayerScreen(false, 0, 0);
@@ -43,8 +50,6 @@ const PadState& CtrInput::readPad() {
     }
     PadState p;
     p.held = held;
-    p.down = held & ~before_.held; // own edges: the merged held (hid + irrst) is the truth
-    p.up = before_.held & ~held;
     p.cx = cx;
     p.cy = cy;
     p.touch = (held & pad::Touch) != 0;
@@ -57,6 +62,14 @@ const PadState& CtrInput::readPad() {
         p.touchX = before_.touchX;
         p.touchY = before_.touchY;
     }
+    // run.ini pad_script: the scripted presses of this frame on top of the real pad.
+    if (!script_.empty()) {
+        applyPadScript(script_, frames_, kScriptHoldFrames, p);
+        held = p.held;
+    }
+    ++frames_;
+    p.down = held & ~before_.held; // own edges: the merged held (hid + irrst + script) is the truth
+    p.up = before_.held & ~held;
     now_ = p;
     firstStepOfFrame_ = true;
 
@@ -97,8 +110,28 @@ FrameInput CtrInput::frame(bool paused) {
     return mergeFrameInput(padToFrameInput(p, bindings_), t);
 }
 
-ui::UiInput CtrInput::uiInputs(const ui::Mapping& bottom) const {
-    return padToUiInputs(now_, before_, bottom, kTouchW, kTouchH);
+ui::UiInput CtrInput::uiInputs(const ui::Mapping& bottom) {
+    ui::UiInput in = padToUiInputs(now_, before_, bottom, kTouchW, kTouchH);
+    // A held D-pad direction repeats (sliders, lists): after 24 frames, every 6.
+    static const struct { uint32_t bit; int key; } kDirs[4] = {
+        {pad::DUp, ui::keys::Up}, {pad::DDown, ui::keys::Down}, {pad::DLeft, ui::keys::Left}, {pad::DRight, ui::keys::Right}};
+    for (int i = 0; i < 4; ++i) {
+        if (!(now_.held & kDirs[i].bit)) {
+            repeat_[i] = 0;
+            continue;
+        }
+        ++repeat_[i];
+        if (repeat_[i] > kRepeatDelay && (repeat_[i] - kRepeatDelay) % kRepeatEvery == 0) in.key(kDirs[i].key);
+    }
+    return in;
+}
+
+ui::UiInput CtrInput::playingUiInputs() const {
+    // During play only the pause button reaches the front end (it opens the in-game menu); A
+    // and B are fire and missile, the D-pad steers.
+    ui::UiInput in;
+    if (bindings_.pause && (now_.down & bindings_.pause)) in.key(ui::keys::Escape);
+    return in;
 }
 
 } // namespace ctrapp

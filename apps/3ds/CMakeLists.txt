@@ -12,12 +12,14 @@ add_link_options(-Wl,--gc-sections)
 ctr_add_shader_library(scene_shbin OUTPUT scene.shbin source/scene.v.pica)
 dkp_add_embedded_binary_library(scene_shbin_data scene_shbin)
 
-# game_session.cpp and audio_bridge.cpp are the apps/game files the 3DS app uses so far: GameStack
-# and GameFlow need GameView, which holds the GL-side layers; the 3DS composes its frame itself
-# (ctr_frame.cpp) and drives the AudioBridge itself (ctr_audio.cpp).
+# The apps/game files the 3DS app shares with the desktop: the session, the audio bridge, and the
+# front end's GameFlow and GameStack, which reach the renderer only through the FlowView seam
+# (flow_view.h): the desktop's GameView (game_view.cpp, GLES) is not built here, the frame
+# composer (ctr_frame.cpp) is the 3DS's view (docs/3ds-port.md M2.1).
 add_executable(openairstrike
   source/ctr_main.cpp
   source/ctr_loop.cpp
+  source/ctr_menu_loop.cpp
   source/ctr_frame.cpp
   source/ctr_input.cpp
   source/ctr_perf.cpp
@@ -35,7 +37,9 @@ add_executable(openairstrike
   source/audio_test.cpp
   source/ctr_audio.cpp
   ${AS3D_REPO_ROOT}/apps/game/game_session.cpp
-  ${AS3D_REPO_ROOT}/apps/game/audio_bridge.cpp)
+  ${AS3D_REPO_ROOT}/apps/game/audio_bridge.cpp
+  ${AS3D_REPO_ROOT}/apps/game/game_flow.cpp
+  ${AS3D_REPO_ROOT}/apps/game/game_stack.cpp)
 # The test modes and the composer use the render module's private headers (engine/src/render:
 # world_scene.h; engine/src/render/pica, engine/src/ui/pica: the PICA backend's own); ctr_audio.cpp
 # the ndsp device's counters (engine/src/audio/ndsp).

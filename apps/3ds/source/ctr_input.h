@@ -32,9 +32,12 @@ public:
     // tells the touch mapper that a tap only continues the game.
     as3d::FrameInput frame(bool paused);
 
-    // The front end's input for this frame (padToUiInputs) plus the touch as the pointer, with
-    // `bottom` the mapping of the 320x240 bottom screen to the virtual screen.
-    as3d::ui::UiInput uiInputs(const as3d::ui::Mapping& bottom) const;
+    // The front end's input for this frame while a menu is up (padToUiInputs: D-pad = arrows
+    // with repeat while held, A = Enter, B / START = Escape) plus the touch as the pointer, with
+    // `bottom` the mapping of the 320x240 bottom screen to the virtual screen. Once per frame.
+    as3d::ui::UiInput uiInputs(const as3d::ui::Mapping& bottom);
+    // The front end's input during play: Escape on the pause button's down edge, nothing else.
+    as3d::ui::UiInput playingUiInputs() const;
 
     // The player's helicopter on the top screen in the virtual 800x600 screen, once a renderer
     // can project it; unused by the bottom-screen preset (no drag area), disabled by default.
@@ -44,8 +47,14 @@ public:
     const as3d::TouchMapper& touch() const { return touch_; }
 
     static constexpr int kTouchW = 320, kTouchH = 240;
+    // A pad_script press is held this many displayed frames.
+    static constexpr unsigned kScriptHoldFrames = 6;
 
 private:
+    std::vector<as3d::PadScriptPress> script_; // run.ini pad_script
+    unsigned frames_ = 0;                       // readPad calls so far (the script's clock)
+    static constexpr int kRepeatDelay = 24, kRepeatEvery = 6;
+    int repeat_[4] = {0, 0, 0, 0};              // frames each D-pad direction is held (menus)
     as3d::PadBindings bindings_;
     as3d::TouchMapper touch_;
     as3d::PadState now_, before_;

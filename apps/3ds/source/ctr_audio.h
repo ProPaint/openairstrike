@@ -21,6 +21,10 @@ public:
     // could not start at all (nothing is played then); the Null fallback counts as started.
     // `precache` false (run.ini precache=0): no level-start precache, sounds load on first use.
     bool start(as3d_game::GameSession& session, bool precache = true);
+    // The front end (M2.1): GameStack owns the bridge and GameFlow starts the levels (the view
+    // precaches the sounds); this only follows APT suspend/sleep, drains the world's queue and
+    // logs the summary. stop() leaves the bridge to its owner.
+    void attach(as3d_game::AudioBridge& bridge);
     // A new level (GameSession::kLevelStarted).
     void levelStarted(as3d_game::GameSession& session);
     // After each simulation step: plays and clears the world's sound requests.
@@ -38,8 +42,11 @@ public:
 private:
     void apply();
     void precache(as3d_game::GameSession& session);
+    as3d_game::AudioBridge& bridge() { return external_ ? *external_ : bridge_; }
+    const as3d_game::AudioBridge& bridge() const { return external_ ? *external_ : bridge_; }
 
     as3d_game::AudioBridge bridge_;
+    as3d_game::AudioBridge* external_ = nullptr; // attach()
     bool started_ = false;
     bool suspended_ = false, worldPaused_ = false;
     int precached_ = 0;
