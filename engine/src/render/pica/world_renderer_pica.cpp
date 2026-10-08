@@ -71,6 +71,7 @@
 #include "flat_fill.h"
 #include "ground_marks_pica.h"
 #include "fx_pica.h"
+#include "quality_pica.h"
 #include "mesh_renderer_pica.h"
 #include "pica_frame.h"
 #include "shadow_pica.h"
@@ -266,10 +267,13 @@ PrecacheReport WorldRenderer::precache(const World& world, const DefDatabase& db
     const u64 tShadow0 = svcGetSystemTick();
     const pica::ShadowPicaStats ss0 = pica::shadowPicaStats();
     auto shadowHook = [&im](const GpuMesh& mesh, const std::string&, const Material& mat, const ShadowSpec& ss,
-                            int steps) { im.precacheShadow(mesh, mat, ss, steps); };
+                            int steps) {
+        if (!pica::renderQuality().blobShadowsOnly) im.precacheShadow(mesh, mat, ss, steps);
+    };
     // The closure's: planar ones, and the projected rotations only on request (shadow_pica.h).
     auto closureHook = [&im](const GpuMesh& mesh, const std::string&, const Material& mat, const ShadowSpec& ss,
                              int steps) {
+        if (pica::renderQuality().blobShadowsOnly) return;
         if (ss.kind == ShadowKind::Planar || pica::shadowPrecacheRotations()) im.precacheShadow(mesh, mat, ss, steps);
     };
     if (const Terrain* t = world.terrain()) {
@@ -416,7 +420,7 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
             const Impl::ShadowKey key = Impl::shadowKey(*r.mesh, *r.material, r.spec, steps);
             auto found = im.shadowMaps.find(key);
             const bool known = found != im.shadowMaps.end() && found->second.tried;
-            const bool generate = !known && lateBudget > 0;
+            const bool generate = !known && lateBudget > 0 && !pica::renderQuality().blobShadowsOnly;
             const double genBefore = pica::shadowPicaStats().generateMs;
             Impl::ShadowEntry& e = im.shadowEntry(*r.mesh, *r.material, key, r.spec, steps, generate);
             if (generate) {

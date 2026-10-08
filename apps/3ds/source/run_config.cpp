@@ -104,6 +104,10 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n) && n >= 0) c.attract = n;
         } else if (key == "logo") {
             if (toInt(val, &n)) c.logo = n != 0;
+        } else if (key == "quality") {
+            if (val == "auto") c.quality = QualityMode::Auto;
+            else if (val == "new") c.quality = QualityMode::New;
+            else if (val == "old") c.quality = QualityMode::Old;
         } else if (key == "menu_bot") {
             if (toInt(val, &n)) c.menuBot = n != 0;
         } else if (key == "pad_script") {

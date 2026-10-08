@@ -24,6 +24,7 @@ add_executable(openairstrike
   source/ctr_input.cpp
   source/ctr_perf.cpp
   source/run_config.cpp
+  source/quality_profile.cpp
   source/main.cpp
   source/pica_test.cpp
   source/mesh_test.cpp

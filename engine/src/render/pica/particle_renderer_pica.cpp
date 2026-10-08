@@ -18,6 +18,7 @@
 #include "as3d/particle_render.h"
 #include "fx_draw_pica.h"
 #include "fx_pica.h"
+#include "quality_pica.h"
 #include "pica_frame.h"
 
 namespace as3d {
@@ -136,11 +137,11 @@ void ParticleRenderer::draw(const ParticleEmitter* const* emitters, size_t count
                 return im.fallbackTexture();
             },
             im.verts, im.runs);
-        if (built > pica::kMaxParticleQuadsPica) {
-            st.particleQuadsDropped = built - pica::kMaxParticleQuadsPica;
-            const int kept = pica::capRuns(im.runs, static_cast<int>(im.verts.size()), pica::kMaxParticleQuadsPica * 6);
+        if (built > pica::renderQuality().particleCap) {
+            st.particleQuadsDropped = built - pica::renderQuality().particleCap;
+            const int kept = pica::capRuns(im.runs, static_cast<int>(im.verts.size()), pica::renderQuality().particleCap * 6);
             im.verts.resize(static_cast<size_t>(kept));
-            built = pica::kMaxParticleQuadsPica;
+            built = pica::renderQuality().particleCap;
         }
         if (!im.runs.empty()) {
             im.flat = pica::uploadBuilderVertices(reinterpret_cast<const float*>(im.verts.data()), im.verts.size());

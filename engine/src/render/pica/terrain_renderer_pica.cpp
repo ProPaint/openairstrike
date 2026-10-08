@@ -33,6 +33,7 @@
 #include "as3d/render_state.h"
 #include "as3d/terrain_render.h"
 #include "pica_frame.h"
+#include "quality_pica.h"
 #include "shader_set.h"
 #include "terrain_pica.h"
 #include "tev.h"
@@ -345,9 +346,10 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
         }
     }
     for (Image& s : src) s = Image();
-    Image det = loadTexture(vfs, def.texturesDir + "\\detail.tga", &missing_);
-    im.detail.create(det, topts);
-    det = Image();
+    if (pica::renderQuality().terrainDetail) { // M4.1: the Old 3DS profile has no detail texture
+        Image det = loadTexture(vfs, def.texturesDir + "\\detail.tga", &missing_);
+        im.detail.create(det, topts);
+    }
 
     // Tile atlases (their sizes give the overlay UVs).
     std::map<int, std::pair<int, int>> atlasSizes;
@@ -552,7 +554,7 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
     pica::ShaderSet& sh = pica::shaders();
     sh.bind(pica::Shader::Terrain);
     sh.setMvp(vp);
-    const bool useDetail = options.detail && im.detail.valid();
+    const bool useDetail = options.detail && pica::renderQuality().terrainDetail && im.detail.valid();
     pica::applyTev(useDetail ? pica::tevTerrain2Stage() : pica::tevModulateTexColor());
     if (useDetail) im.detail.bind(1);
 

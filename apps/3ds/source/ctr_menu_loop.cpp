@@ -32,6 +32,7 @@
 #include "ctr_context.h"
 #include "ctr_frame.h"
 #include "ctr_input.h"
+#include "quality_profile.h"
 #include "ctr_loop.h"
 #include "game_stack.h"
 
@@ -40,7 +41,7 @@ namespace {
 
 using as3d::ctr::CtrContext;
 
-constexpr int kMaxCatchUp = 2;
+
 constexpr double kMaxFrameSeconds = 0.25;
 
 struct MenuApt {
@@ -146,6 +147,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         return 1;
     }
     AS3D_INFO("graphics: %s", gl->description().c_str());
+    const QualityProfile quality = selectQuality(run.quality, new3ds);
+    applyQuality(quality, new3ds);
 
     const GameProfile* game = findGameProfile(run.game.c_str());
     if (!game) {
@@ -276,7 +279,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         last = now;
         int n = 0;
         const uint64_t s0 = nowTicks();
-        while (acc >= dt && n < kMaxCatchUp) {
+        while (acc >= dt && n < quality.maxCatchUp()) {
             if (!flow.worldRunning()) {
                 acc = 0.0;
                 break;
@@ -309,15 +312,16 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
             acc = 0.0;
         }
         sample.stepMs = static_cast<float>(ticksToMs(nowTicks() - s0));
+        sample.simSteps = n;
 
         FrameInfo info;
         info.frame = frameNo;
         info.step = steps;
-        info.eyes = ctx->eyeCount();
+        info.eyes = quality.stereoAllowed ? ctx->eyeCount() : 1;
         info.slider = ctx->sliderValue();
         if (run.slider >= 0.0f) {
             info.slider = run.slider;
-            info.eyes = run.slider > 0.02f ? 2 : 1;
+            info.eyes = run.slider > 0.02f && quality.stereoAllowed ? 2 : 1;
         }
         info.paused = ses.hasLevel() && ses.world().paused();
         info.session = &ses;

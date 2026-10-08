@@ -18,13 +18,14 @@
 #include "ctr_audio.h"
 #include "ctr_context.h"
 #include "ctr_input.h"
+#include "quality_profile.h"
 
 namespace ctrapp {
 namespace {
 
 using as3d::ctr::CtrContext;
 
-constexpr int kMaxCatchUp = 2; // steps per displayed frame; the rest of a stall is dropped
+
 constexpr double kMaxFrameSeconds = 0.25;
 
 double mb(size_t b) { return static_cast<double>(b) / (1024.0 * 1024.0); }
@@ -116,6 +117,10 @@ int runCtrLoop(const CtrLoopOptions& opts) {
             return 1;
         }
         AS3D_INFO("graphics: %s", gl->description().c_str());
+    }
+    const QualityProfile quality = sim ? newProfile() : selectQuality(run.quality, new3ds);
+    if (!sim) {
+        applyQuality(quality, new3ds);
     }
 
     // The game.
@@ -232,7 +237,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         last = now;
         int n = 0;
         const uint64_t s0 = nowTicks();
-        while (acc >= dt && n < kMaxCatchUp && !(maxSteps && steps >= maxSteps)) {
+        while (acc >= dt && n < quality.maxCatchUp() && !(maxSteps && steps >= maxSteps)) {
             acc -= dt;
             stepOnce();
             ++n;
@@ -242,16 +247,17 @@ int runCtrLoop(const CtrLoopOptions& opts) {
             acc = 0.0;
         }
         sample.stepMs = static_cast<float>(ticksToMs(nowTicks() - s0));
+        sample.simSteps = n;
         audio.followPause(session->world().paused());
 
         FrameInfo info;
         info.frame = frame;
         info.step = steps;
-        info.eyes = ctx->eyeCount();
+        info.eyes = quality.stereoAllowed ? ctx->eyeCount() : 1;
         info.slider = ctx->sliderValue();
         if (run.slider >= 0.0f) { // run.ini slider=: forced (the emulator, comparisons)
             info.slider = run.slider;
-            info.eyes = run.slider > 0.02f ? 2 : 1;
+            info.eyes = run.slider > 0.02f && quality.stereoAllowed ? 2 : 1;
         }
         info.paused = session->world().paused();
         info.session = session.get();

@@ -12,6 +12,8 @@ namespace ctrapp {
 
 constexpr const char* kDataDir = "sdmc:/3ds/openairstrike"; // no trailing slash
 
+enum class QualityMode { Auto, New, Old }; // run.ini quality=
+
 enum class Mode {
     Spike, // the feasibility spike (main.cpp), the default
     Probe, // the M1.0 GPU probe (probe.cpp)
@@ -45,6 +47,7 @@ struct RunConfig {
     int attract = 0;           // attract=N: the attract level 1..4 behind the main menu; 0 = random
     bool logo = true;          // logo=0: no intro pages
     bool menuBot = false;      // menu_bot=1: during a mission started from the menus the bot flies
+    QualityMode quality = QualityMode::Auto; // quality=auto/new/old: the quality profile (quality_profile.h)
     // pad_script=F:NAME[,F:NAME...]: presses injected into the pad at displayed frame F (held 6
     // frames): A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT, or T<x>/<y> for a touch at
     // bottom-screen pixel (x, y). Frames must not decrease. For scripted runs (the emulator).

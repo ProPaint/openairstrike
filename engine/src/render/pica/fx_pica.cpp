@@ -1,5 +1,6 @@
 // Counters and small helpers shared by the PICA particle and sprite renderers (fx_pica.h).
 #include "fx_pica.h"
+#include "quality_pica.h"
 
 #include <citro3d.h>
 
@@ -39,6 +40,12 @@ void planesOfProjection(const float* m, float* nearPlane, float* farPlane) {
 } // namespace detail
 
 const FxPicaStats& fxPicaStats() { return detail::fxStats(); }
+
+namespace {
+RenderQuality g_quality;
+}
+void setRenderQuality(const RenderQuality& q) { g_quality = q; }
+const RenderQuality& renderQuality() { return g_quality; }
 
 namespace {
 uint8_t toByte(float v) { return static_cast<uint8_t>(std::min(std::max(v, 0.0f), 1.0f) * 255.0f + 0.5f); }

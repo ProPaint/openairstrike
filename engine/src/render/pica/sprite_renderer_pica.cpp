@@ -12,6 +12,7 @@
 #include "as3d/sprite_render.h"
 #include "fx_draw_pica.h"
 #include "fx_pica.h"
+#include "quality_pica.h"
 #include "pica_frame.h"
 
 namespace as3d {
@@ -68,8 +69,8 @@ void SpriteRenderer::draw(const SpriteInstance* sprites, size_t count, const Spr
         im.verts.clear();
         im.runs.clear();
         // Cap before building (the builder keeps its own kMaxSprites = 512).
-        const size_t use = count < static_cast<size_t>(pica::kMaxSpriteQuadsPica) ? count
-                                                                                  : static_cast<size_t>(pica::kMaxSpriteQuadsPica);
+        const size_t use = count < static_cast<size_t>(pica::renderQuality().spriteCap) ? count
+                                                                                  : static_cast<size_t>(pica::renderQuality().spriteCap);
         int built = buildSpriteBatches(sprites, use, params.view, params.cullBackFaces, im.verts, im.runs);
         if (count > use) st.spriteQuadsDropped = static_cast<int>(count - use);
         if (!im.runs.empty()) {

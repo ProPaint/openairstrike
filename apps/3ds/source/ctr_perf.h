@@ -3,7 +3,7 @@
 // second) and, with perf=1, perf.csv with one row per displayed frame:
 //
 //   frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,
-//   linear_free_kb,lazy_loads,arena_kb
+//   linear_free_kb,lazy_loads,arena_kb,sim_steps
 //
 // The frame composer (ctr_frame.h) fills the renderer columns through FrameStats: prepare_ms the
 // CPU time of its prepare(), verts/draws the GPU work of both screens, the texture bytes of
@@ -31,6 +31,7 @@ struct FrameStats {
 struct FrameSample {
     unsigned frame = 0;
     float stepMs = 0.0f;   // all simulation steps of this frame
+    int simSteps = 1;      // how many simulation steps ran before this frame was drawn (2 at 30 Hz render)
     float cpuMs = 0.0f;    // C3D_GetProcessingTime
     float gpuMs = 0.0f;    // C3D_GetDrawingTime
     float periodMs = 0.0f; // time since the previous frame (0 for the first)
