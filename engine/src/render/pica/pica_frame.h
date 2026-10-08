@@ -65,10 +65,16 @@ ShaderSet& shaders();
 void setDepthMapping(FogDepthMap map, float nearPlane);
 FogDepthMap depthMapping();
 float depthMappingNear();
-// The bias applyMaterialState adds for MaterialKey::polygonOffset (GL glPolygonOffset(-1, -1)):
-// a constant offset towards the viewer in depth units (2^-18, 64 steps of the 24-bit buffer;
-// M1.4 tunes it on the terrain overlays).
-constexpr float kPolygonOffsetDepth = 1.0f / 262144.0f;
+// The bias applyMaterialState adds for MaterialKey::polygonOffset (GL glPolygonOffset(-1, -1)),
+// towards the viewer. C3D_DepthMap's offset is added before the W multiply (as Azahar emulates
+// the rasterizer; hardware assumed the same), so with the W-buffer mapping the world uses, the
+// bias is offset * w depth units, i.e. offset * w * (far - near) world units. 2^-22 is 4 * w
+// steps of the 24-bit buffer (16 at the near plane 4) and 0.24 world units at w = 1000 with
+// planes 4..1000; the Z-buffer mapping adds it unscaled (4 steps). M1.4 (Azahar, mission 1 road
+// tiles at a grazing angle): the terrain overlays, drawn with the terrain's own vertices, give
+// the same image with 0 and with 2^-18, so the bias only absorbs rounding; a small one limits
+// how far tiles can show through ridges in the distance.
+constexpr float kPolygonOffsetDepth = 1.0f / 4194304.0f;
 // Re-issues C3D_DepthMap for the current mapping with `offset` added (0 = none).
 void applyDepthMap(float offset);
 
