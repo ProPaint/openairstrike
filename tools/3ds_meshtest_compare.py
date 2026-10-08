@@ -13,8 +13,8 @@ The mask is the desktop pixels that differ from the clear colour (default: the m
 colour of the desktop image), minus the 10x10 corners where the 3DS test draws its markers.
 Prints the mean absolute error over the mask (per channel, 0..255) and the fraction of mask
 pixels whose largest channel difference is within 16/255; the same for the whole image.
---exclude leaves a rectangle out of the metrics (e.g. what the 3DS does not draw yet: the
-environment-mapped shield shell around the player, M3.4). Writes
+--exclude leaves a rectangle out of the metrics (e.g. what the 3DS did not draw before M3.4: the
+environment-mapped shield shell around the player). Writes
 desktop | 3DS | 4 x |difference| side by side.
 """
 import sys

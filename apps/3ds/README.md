@@ -279,3 +279,13 @@ quads, drawn, draws, arena, planeZ, scroll offset; bolts) and `watertest_<phase>
 terrain,water`, `w2` with the same at `--frames 1430`, `t` with `--render-only terrain`, `f` with
 `--render-only terrain,models,particles,sprites,shadows,marks,water,lightning`. docs/3ds-port.md,
 "M3.5 Water and M3.3 Lightning".
+
+`mode=envtest` (optional `frames=N` bot frames, default 120; `hold=N`) runs `source/env_test.cpp`: mission
+1 after N bot frames, the frame's model records drawn mono with the world camera through MeshPass: `a` the
+player and its attachments (the shield), `b` the environment-mapped records not on the player (the help
+items), `c` every record. With `only=f frames=1400` it draws the full frame through the PICA WorldRenderer
+instead (`f`). It writes `envtest_log.txt` (the env records, memory with the env normal streams, draws and
+env draws per test) and `envtest_<test>.ppm`. Compare `c` with `as3d_game --headless --level 1 --bot
+--frames 120 --size 400x240 --screenshot-every 120 --render-only models` (tools/3ds_meshtest_compare.py),
+`f` with `--frames 1400 ... --render-only terrain,models,particles,sprites,shadows,marks,water,lightning`
+(tools/3ds_screen_compare.py --direct --mask). docs/3ds-port.md, "M3.4 Environment maps".

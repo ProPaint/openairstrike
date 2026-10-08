@@ -269,7 +269,7 @@ Material, materialKeyFor, ambient_cube) is unchanged.
   sort; depth write follows RF_NODEPTHWRITE, as GL). TEV: lit textured `tevModulateTexColor`
   (tint 1, so alpha = skin alpha), RF_NOLIGHTING `tevModulateTexConstant` with entity colour x
   material tint (GL uColor), untextured the vertex colour or the constant alone. Environment
-  maps are not drawn yet: those materials draw as plain textured models (M3.4).
+  maps: M3.4 (`Shader::Env`, the env TEV presets).
 - `MeshRenderer` (begin/submit/end) wraps one MeshPass: `end()` sets the W-buffer mapping for
   the camera's near plane, the level fog (or none when fogStart is beyond the far plane) and
   draws with `picaTiltMatrix() * camera.projMatrix() * camera.viewMatrix()` (mono). M1.8's world
@@ -485,7 +485,8 @@ copies (their Azahar dumps are byte-identical to M1.5/M1.6's).
 
 - `beginLevel`: the terrain (`TerrainRenderer::build`: its 12 textures, 1.7 MB, are the first VRAM
   tenants), one log line listing what is not drawn yet (M1.8 time: shadows, ground marks, skid trails, water,
-  lightning, environment maps; now only water, lightning, environment maps; `lastStats()` reports them as 0).
+  lightning, environment maps; since M3.4 nothing: the line says "all passes on the PICA"; `lastStats()` reports
+  them as 0).
 - `precache`: the `WorldScene` walk with `drawnFirst` (the meshes and skins of the entities alive
   now, then of the level's placements with their attachments) and `particlesFirst`, then the rest
   of the closure. No silhouettes. `AS3D_TEXTURES` logs the split.
@@ -944,7 +945,7 @@ the flat shader and `drawFlatRuns` (M1.6); nothing is created inside a frame.
   takes `water` and `lightning`, and `terrain` alone no longer draws the water (until now it did, so
   the M1.4 to M3.2 desktop terrain references carried the water: M3.2's MAE 10.7 was that). The
   earlier 3DS test modes set `water = lightning = false` in their terrain-only phases.
-  "Not drawn yet" at beginLevel now lists only the environment maps (M3.4).
+  "Not drawn yet" at beginLevel then listed only the environment maps (drawn since M3.4).
 - `mode=watertest` (apps/3ds/source/water_test.cpp, `frames=N` default 1400, `hold=`): mission 1 after
   N bot frames, mono dumps `watertest_t.ppm` (terrain), `_w` (terrain + water), `_l` (terrain + the
   synthetic bolts), `_f` (full frame), then 30 more bot frames and `_w2` (terrain + water), with
@@ -972,5 +973,87 @@ has no real bolt with the bot; the geometry is the shared `buildLightningBolts`)
 lightning 1 per eye. Arena high water of the test 65 KB, 0 failures. `mode=bot level=1 frames=600`
 unchanged: map_pos 452.0, 39 entities, created 243, freed 204.
 
-Deferred: sequel water (M5.1: wave grid, two layers, animated per frame), environment maps (M3.4), a
+Deferred: sequel water (M5.1: wave grid, two layers, animated per frame), environment maps (M3.4, done), a
 real in-game bolt against the desktop (Lightning Bomb; needs a script that picks it up), hardware timing.
+
+## M3.4 Environment maps on the PICA (shaders/env.v.pica, mesh_renderer_pica.cpp)
+
+The GL draws an environment-mapped model in ONE pass (gles/shaders.cpp kMeshVertexSrc /
+kMeshFragmentSrc; CPU reference as3d/envmap.h): the env coordinate per vertex, the skin and the env
+texture combined in the fragment shader by mode, one blend (the material's). The PICA does the same in
+one draw with two texture units; nothing else changes (blend, depth, fog by `applyMaterialState`, the
+draw order of the lists).
+
+- Condition, as GL: `Material::envTexture` set and valid, `envModeRaw` 1..3, and a smooth-normal
+  mesh. Additionally (PICA only) a glitter or chrome material without a skin texture draws as a plain
+  model (none in mission 1).
+- `GpuMesh::upload` keeps a second stream for smooth-normal meshes: `pica::EnvNormal`, the folded
+  normal |n| x 255 as u8 x4 (4 bytes per vertex, its own linear block), so `MeshVertex` stays 28 bytes;
+  the GL coordinates only ever see |n| (render-pipeline.md 2.3). Mission 1 (the `mode=envtest`
+  closure): 129 of the 130 meshes are smooth, 37.7 KB of normals, meshes 343.2 KB in all (was 0.30 MB:
+  +12 %); the M1.10a closure at frame 1400 (`only=f`): 174 of 176 meshes, 50.7 KB of 460.9 KB.
+  `meshMemoryStats()` reports `envBytes`/`envMeshes`.
+- `shaders/env.v.pica` (`Shader::Env`): the mesh shader's position and light, plus texcoord1. Inputs v0..v3
+  from the mesh stream, v4 the normal stream (`ShaderSet::setEnvVertices`, two attribute buffers).
+  Uniforms per draw (`setEnvUniforms`): `mv` (rows 0..2 of view x model), `nmat` (3 rows), `envsel`,
+  `envrot` (2 rows). Mapping of the GLSL:
+
+  | GLSL (kMeshVertexSrc) | env.v.pica |
+  |---|---|
+  | `u = normalize(eyePos.xyz)` | `dp4` x3 with `mv`, `dp3`, `rsq`, `mul` |
+  | `ne = uNormalMat * abs(aNormal)` (envNormalMatrix: inverse transpose of view x model, not renormalised) | `nmat` = the same matrix (CPU, per record), `dp3` x3 on v4 / 255 |
+  | `r = u - 2 ne (ne . u)` | `dp3`, `add`, `mul`, `add` |
+  | `m = 2 sqrt(r.x^2 + r.y^2 + (r.z + 1)^2)`, `st = r.xy / m + 0.5` | `q` by `dp3`, `max(q, 1e-12)`, `r.xy * 0.5 rsq(q)` (1/m without `rcp`) |
+  | sequels (`uEnvView`): `st = 0.5 + 0.5 (mat3(uView) mat3(uModel) abs(aNormal)).xy` | `nmat` = mat3(view) x mat3(model), the same `dp3` |
+  | both | `st = 0.5 + envsel.x ne.xy + envsel.y r.xy / m`: `envsel` (0, 1) sphere map, (0.5, 0) view normal (no branch) |
+  | ENV_QUAD: rotation of st by time x 30 degrees about (0, 0) | `envrot` rows (c, -s), (s, c); identity rows otherwise |
+
+  The view is the central camera view (GL `uView`) for both eyes: `MeshPass::setEnvironment(view, time,
+  viewNormal)`, called by the world renderer with `wv.view`, the frame time and `RenderRules::envViewNormal`
+  (MeshRenderer::begin passes its camera, `setTime`, `setEnvViewNormal`).
+- TEV (tev.h, checked against `combineEnvMap` on a grid of texels in apps/tests/pica_core_test.cpp), TEXTURE0
+  the skin, TEXTURE1 the env map, colour = PRIMARY (lit: the baked cube light, alpha 1) or CONSTANT
+  (RF_NOLIGHTING: entity colour x tint):
+
+  | mode | stage 0 | stage 1 |
+  |---|---|---|
+  | glitter `tevEnvGlitter` | rgba = skin x colour | rgb = previous + env (clamped as the framebuffer clamps), a = previous x env.a (the sequels: previous) |
+  | chrome `tevEnvChrome` | rgba = env x colour | rgb = INTERPOLATE(skin, previous, skin.a), a = previous |
+  | quad `tevEnvQuad` | rgba = env x colour | |
+
+  All intermediates stay within [0, 1], so the per-stage clamps change nothing. The env texture is the
+  material's `Texture2D` (the cache's, VRAM while the budget has room).
+- `MeshPass::draw` switches between `Shader::Mesh` and `Shader::Env` per record in list order (the float
+  uniforms are global registers: tint, mvp and cube again after a switch); `MeshDrawStats::envDraws`.
+
+`mode=envtest` (apps/3ds/source/env_test.cpp): mission 1 after 120 bot frames (the M1.5 frame), the
+WorldScene records through MeshPass with the world camera, no terrain: `a` the player and its
+attachments, `b` the env records not on the player, `c` every record; `only=f frames=1400` instead draws the
+full frame through the PICA WorldRenderer (M3.5's frame `f`). Mission 1 at frame 120: 5 env records, all
+glitter or quad: the canopy `models\comanche\kabina2.tga` (glitter, 24 vertices), the two `points` help
+items (glitter, 36), and the two shield shells (quad, skin `gfx\black.tga`, 176 vertices each: the orange
+glow). Test a 7 draws (3 env), b 2 (2), c 35 draws (5 env), 1725 vertices, 57.4 KB; C3D CPU 1.41 ms for c
+(1.42 ms in M1.5: the env records cost nothing measurable under Azahar). Full frame 1400: 49 mesh draws, 8 env.
+
+Azahar check (2026-10-08), test c against `as3d_game --headless --level 1 --bot --frames 120 --size 400x240
+--screenshot-every 120 --render-only models` (tools/3ds_meshtest_compare.py, all 3902 model pixels):
+
+| | MAE | within 16 | interior (mask eroded 1 px, 2601 px) | half resolution (box 2x2, 1162 px) |
+|---|---|---|---|---|
+| M1.5 (no env) | 21.97 | 62.9 % | 27.22, 58.2 % | 17.62, 70.6 % |
+| M3.4 | 5.79 | 81.2 % | 4.81, 84.5 % | 3.29, 93.7 % |
+
+Over the helicopter (100..180 x 140..240, 2208 px): 35.0 / 42.5 % before, 6.97 / 75.0 % after; no
+bias (mean signed difference -0.8, +0.2, +0.1). The residual is pixel-scale: the desktop reference is
+rendered with 4x MSAA (apps/game/main.cpp `target.create(w, h, 4)`) and the shells are thin overlapping
+additive layers with many inner edges and a high-contrast env texture; a one-pixel shift doubles the error
+(12.2 to 19.4 MAE), the best of the 3x3 neighbourhood gives 88.3 %, the half-resolution comparison 93.7 %.
+The within-16 target of 85 % over all model pixels at full resolution is therefore not met (81.2 %); the
+MAE target (< 8) is. Full frame 1400 against `--render-only
+terrain,models,particles,sprites,shadows,marks,water,lightning` (tools/3ds_screen_compare.py --direct --mask):
+MAE 1.95 to 1.87, within 16 0.982 to 0.983 (the env surfaces are small in that frame). `mode=bot level=1
+frames=600` unchanged: map_pos 452.0, 39 entities, created 243, freed 204.
+
+Deferred: the front end's 3D banner model on the PICA (M2.1 draws the title text instead); a desktop
+reference without MSAA (or the PICA comparison at 4x supersampling) to measure the env shading without
+edge effects; hardware timing.
