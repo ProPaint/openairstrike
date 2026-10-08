@@ -4,6 +4,7 @@
 //            [--dump-state state.json] [--builtin-report report.json] [--data ROOT]
 //            [--bot | --pilot | --input-script FILE] [--record FILE] [--god] [--trace-player FILE]
 //            [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]
+//            [--time]
 //
 // Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT; --game KEY
 // (as3d, as2, gulf; default $AS3D_GAME, then as3d) picks the game, --paks DIR mounts its paks
@@ -24,9 +25,13 @@
 // clears the items); --powerup T / --missile T give 9 of that one type and select it;
 // --pause-every K pauses the world for 90 frames every K frames; --fault-player F makes
 // player 1's script fault as it is killed at frame F and every 25 s after, which exercises
-// the respawn watchdog. The summary ends with the deepest handler nesting, the forced
+// the respawn watchdog. --time measures each world step (wall clock) and prints one
+// `time:` line (mean, median, 99th percentile and worst step in ms, the level load) and one
+// `phases:` line (mean ms per step of each World::step phase, StepPhaseTimes); the clock
+// reads never touch the simulation (tools/sim_bench.sh). The summary ends with the deepest handler nesting, the forced
 // respawns, the entities stopped after a script error, and any faulted entity still around.
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -69,7 +74,8 @@ int usage() {
                  "                [--dump-state FILE] [--builtin-report FILE] [--data ROOT]\n"
                  "                [--bot | --pilot | --input-script FILE] [--record FILE] [--god]\n"
                  "                [--trace-player FILE] [--game as3d|as2|gulf] [--paks DIR] [--list-games]\n"
-                 "                [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]\n");
+                 "                [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]\n"
+                 "                [--time]\n");
     return 2;
 }
 
@@ -98,7 +104,7 @@ int main(int argc, char** argv) {
     std::string level = "1", dumpPath, reportPath, dataRoot, inputPath, tracePath, recordPath, gameKey, paksDir;
     bool listGames = false;
     long frames = 600;
-    bool bot = false, pilot = false;
+    bool bot = false, pilot = false, timeSteps = false;
     int upgrades = -1, items = -1, powerupType = -1, missileType = -1; long pauseEvery = 0, faultPlayerAt = -1; // developer options (see --help)
     WorldConfig cfg;
     for (int i = 1; i < argc; ++i) {
@@ -127,6 +133,7 @@ int main(int argc, char** argv) {
         else if (a == "--bot") bot = true;
         else if (a == "--pilot") pilot = true;
         else if (a == "--god") cfg.godMode = true;
+        else if (a == "--time") timeSteps = true;
         else if (a == "--upgrades" && next(v)) upgrades = std::atoi(v);
         else if (a == "--items" && next(v)) items = std::atoi(v);
         else if (a == "--powerup" && next(v)) powerupType = std::atoi(v);
@@ -198,9 +205,17 @@ int main(int argc, char** argv) {
     World world;
     world.init(vfs, db, cfg);
     std::string err;
+    using Clock = std::chrono::steady_clock;
+    const Clock::time_point loadStart = Clock::now();
     if (!world.loadLevel(level, &err)) {
         std::fprintf(stderr, "as3d_sim: cannot load level %s: %s\n", level.c_str(), err.c_str());
         return 1;
+    }
+    const double loadMs = std::chrono::duration<double, std::milli>(Clock::now() - loadStart).count();
+    std::vector<double> stepMs;
+    if (timeSteps) {
+        stepMs.reserve(static_cast<size_t>(frames));
+        world.setPhaseTiming(true);
     }
     PlayerInput input;
     InputRecorder recorder;
@@ -253,7 +268,13 @@ int main(int argc, char** argv) {
         } else {
             recorder.record(static_cast<u32>(f), FrameInput());
         }
-        world.step(input);
+        if (timeSteps) {
+            const Clock::time_point t0 = Clock::now();
+            world.step(input);
+            stepMs.push_back(std::chrono::duration<double, std::milli>(Clock::now() - t0).count());
+        } else {
+            world.step(input);
+        }
         if (trace) tracePlayer(trace, world);
         if (completeFrame < 0 && world.levelComplete()) completeFrame = f + 1;
         if (gameOverFrame < 0 && world.gameOver()) gameOverFrame = f + 1;
@@ -295,6 +316,24 @@ int main(int argc, char** argv) {
                     pe >= 0 ? static_cast<double>(world.entity(pe).f(F_ORIGIN)) : 0.0,
                     pe >= 0 ? static_cast<double>(world.entity(pe).f(F_ORIGIN + 1)) : 0.0,
                     pe >= 0 ? static_cast<double>(world.entity(pe).f(F_HEALTH)) : 0.0, world.terraMorphStampCount());
+    }
+    if (timeSteps && !stepMs.empty()) {
+        double sum = 0.0;
+        size_t worstAt = 0;
+        for (size_t k = 0; k < stepMs.size(); ++k) {
+            sum += stepMs[k];
+            if (stepMs[k] > stepMs[worstAt]) worstAt = k;
+        }
+        std::vector<double> sorted = stepMs;
+        std::sort(sorted.begin(), sorted.end());
+        const size_t n = sorted.size();
+        std::printf("time: steps %zu mean %.4f ms median %.4f ms p99 %.4f ms worst %.4f ms (frame %zu) load %.1f ms\n", n,
+                    sum / static_cast<double>(n), sorted[n / 2], sorted[std::min(n - 1, n * 99 / 100)], stepMs[worstAt],
+                    worstAt, loadMs);
+        const StepPhaseTimes& ph = world.phaseTimes();
+        const double k = ph.steps > 0 ? 1000.0 / static_cast<double>(ph.steps) : 0.0;
+        std::printf("phases: camera %.4f spawn %.4f player %.4f entities %.4f collisions %.4f after %.4f (mean ms per step)\n",
+                    ph.camera * k, ph.spawn * k, ph.player * k, ph.entities * k, ph.collisions * k, ph.after * k);
     }
     const std::vector<GameScriptHost::UnknownGlobal>& unknownGlobals = world.host().unknownGlobals();
     for (const auto& u : unknownGlobals) {

@@ -1,6 +1,7 @@
 // Entity pass: state machine, think, attachment and transforms
 // (docs/spec/engine-behaviour.md 2 step 6, 3.5, 4).
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 
@@ -228,7 +229,15 @@ void World::runEntities() {
         }
         i = older;
     }
+    if (!phaseTiming_) {
+        runCollisions();
+        return;
+    }
+    const auto t0 = std::chrono::steady_clock::now(); // as3d_sim --time (measurement only)
     runCollisions();
+    double dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    phaseTimes_.collisions += dt;
+    phaseTimes_.entities -= dt; // step() laps the whole entity pass
 }
 
 } // namespace as3d

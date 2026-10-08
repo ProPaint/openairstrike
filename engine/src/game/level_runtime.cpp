@@ -2,6 +2,7 @@
 // spawner and the player frame (docs/spec/engine-behaviour.md 1.2, 2, 3.4, 7, 9, 10.2;
 // docs/spec/hmap.md "Objects: spawning and activation").
 #include <algorithm>
+#include <chrono>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
@@ -183,6 +184,19 @@ void World::step(const PlayerInput& input) {
     frametimeGlobal = frametime_;
     time_ += frametime_;
     levelClock_ += frametime_;
+    // Phase timing (as3d_sim --time): reads the clock between the phases, nothing else.
+    using Clock = std::chrono::steady_clock;
+    Clock::time_point t0{}, t1{};
+    auto lap = [&](double& acc) {
+        if (!phaseTiming_) return;
+        t1 = Clock::now();
+        acc += std::chrono::duration<double>(t1 - t0).count();
+        t0 = t1;
+    };
+    if (phaseTiming_) {
+        t0 = Clock::now();
+        ++phaseTimes_.steps;
+    }
     applyInput(input); // the message pump runs before G_Frame
     if (paused_) {
         time_ -= frametime_;
@@ -190,13 +204,18 @@ void World::step(const PlayerInput& input) {
     }
     timeGlobal = time_;
     updateCamera();
+    lap(phaseTimes_.camera);
     activateMapObjects();
+    lap(phaseTimes_.spawn);
     if (!intermission_ && !gameOver_) playerFrame();
-    runEntities();
+    lap(phaseTimes_.player);
+    runEntities(); // times its collision pass into phaseTimes_.collisions
+    lap(phaseTimes_.entities);
     updateSkidTrails(); // after the entity pass, also while paused (as2 delta 2 step 7)
     updateParticles();
     renderPass();
     clampPlayerHealth();
+    lap(phaseTimes_.after);
     ++frame_;
 }
 

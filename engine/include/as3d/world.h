@@ -365,6 +365,19 @@ struct WorldStats {
     std::vector<std::string> firstErrors; // at most 16
 };
 
+// Wall-clock time per phase of World::step, summed over the steps run while
+// World::setPhaseTiming(true) (as3d_sim --time). Measurement only: it reads a clock and
+// never touches the simulation. `entities` excludes `collisions`, which runs at its end.
+struct StepPhaseTimes {
+    double camera = 0.0;     // input, camera
+    double spawn = 0.0;      // map spawner (activateMapObjects: builds, inits)
+    double player = 0.0;     // player frame
+    double entities = 0.0;   // entity pass: state machine, think (scripts), transforms
+    double collisions = 0.0; // collision pass (projection, pairs, touches)
+    double after = 0.0;      // skid trails, particles, render pass, health clamp
+    long steps = 0;
+};
+
 class World {
 public:
     World();
@@ -566,6 +579,9 @@ public:
     GameScriptHost& host() { return *host_; }
     script::BuiltinReport& report() { return report_; }
     const WorldStats& stats() const { return stats_; }
+    // Per-phase step timing (measurement only, see StepPhaseTimes); off by default.
+    void setPhaseTiming(bool on) { phaseTiming_ = on; }
+    const StepPhaseTimes& phaseTimes() const { return phaseTimes_; }
 
     // The return register shared by every script thread (rcsl-vm.md "Thread state").
     u32 returnRegister() const { return retreg_; }
@@ -661,6 +677,8 @@ private:
     u32 retreg_ = 0; // the shared return register (0x1fa7dfc)
     script::BuiltinReport report_;
     WorldStats stats_;
+    bool phaseTiming_ = false;
+    StepPhaseTimes phaseTimes_;
 
     std::vector<Entity> ents_;
     std::vector<int> freeList_; // LIFO
