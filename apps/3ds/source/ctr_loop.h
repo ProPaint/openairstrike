@@ -30,6 +30,7 @@ class CtrContext;
 namespace ctrapp {
 
 class GameFrame; // ctr_frame.h
+class CtrInput;  // ctr_input.h
 
 // What the hook is told about the frame.
 struct FrameInfo {
@@ -79,6 +80,13 @@ struct CtrLoopOptions {
     std::function<void()> saveHook;
     // The menu mode's view (ctr_frame.h GameFrame::makeFlowView, setFlow, loadingScreen).
     GameFrame* frame = nullptr;
+    // The game selector's front end (ctr_selector.cpp): the graphics context and the input it
+    // already made (borrowed; null = the loop makes its own), whether the main menu offers
+    // "Change game", and, as an output, whether the loop ended because it was chosen.
+    as3d::GraphicsContext* context = nullptr;
+    CtrInput* input = nullptr;
+    bool changeGameOffered = false;
+    mutable bool changeGameRequested = false;
 };
 
 // Runs until the mission's `frames` steps are done, the user quits (START+SELECT) or the system

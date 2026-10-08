@@ -7,6 +7,7 @@
 #include <mutex>
 
 #include "as3d/core.h"
+#include "ctr_mem.h"
 #include "run_config.h"
 
 namespace ctrapp {
@@ -51,7 +52,11 @@ Perf::~Perf() { close(); }
 void Perf::open(bool csv) {
     {
         std::lock_guard<std::mutex> lock(g_logMutex);
-        if (!g_logFile) g_logFile = std::fopen((std::string(kDataDir) + "/log.txt").c_str(), "w");
+        // The first open of the process truncates; later ones (the game selector, then the front
+        // end, then the selector again) append.
+        static bool opened = false;
+        if (!g_logFile) g_logFile = std::fopen((std::string(kDataDir) + "/log.txt").c_str(), opened ? "a" : "w");
+        opened = opened || g_logFile;
     }
     as3d::setLogSink(logSink);
     as3d::setLogLevel(as3d::LogLevel::Info);
@@ -77,6 +82,7 @@ void Perf::record(const FrameSample& s) {
         struct mallinfo mi = mallinfo();
         heapHigh_ = std::max(heapHigh_, static_cast<size_t>(mi.uordblks));
         heapArenaHigh_ = std::max(heapArenaHigh_, static_cast<size_t>(mi.arena));
+        heapSample();
     }
     stepSum_ += s.stepMs;
     stepMax_ = std::max<double>(stepMax_, s.stepMs);

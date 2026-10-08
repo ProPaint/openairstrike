@@ -7,6 +7,7 @@
 #include "ctr_frame.h"
 #include "ctr_loop.h"
 #include "ctr_save.h"
+#include "ctr_selector.h"
 #include "run_config.h"
 #include "spike.h"
 
@@ -15,6 +16,8 @@ int main() {
     ctrapp::CtrLoopOptions options;
     options.run = ctrapp::readRunConfig(std::string(ctrapp::kDataDir) + "/run.ini");
     if (!options.run.usesLoop()) return runSpike();
+    // The front end without game= in run.ini: the game selector first (ctr_selector.h).
+    if (options.run.menu() && !options.run.gameGiven) return ctrapp::runCtrFrontEnd(options.run);
     // bot, play and the front end draw through the frame composer; sim draws nothing.
     ctrapp::GameFrame frame(options.run);
     if (options.run.mode != ctrapp::Mode::Sim) options.hook = &frame;

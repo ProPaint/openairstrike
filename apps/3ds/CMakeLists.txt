@@ -20,6 +20,9 @@ add_executable(openairstrike
   source/ctr_main.cpp
   source/ctr_loop.cpp
   source/ctr_menu_loop.cpp
+  source/ctr_selector.cpp
+  source/ctr_install.cpp
+  source/ctr_mem.cpp
   source/ctr_frame.cpp
   source/ctr_input.cpp
   source/ctr_perf.cpp

@@ -32,6 +32,7 @@
 #include "ctr_context.h"
 #include "ctr_frame.h"
 #include "ctr_input.h"
+#include "ctr_mem.h"
 #include "quality_profile.h"
 #include "ctr_loop.h"
 #include "game_stack.h"
@@ -140,7 +141,10 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         return 1;
     }
 
-    std::unique_ptr<GraphicsContext> gl = createGraphicsContext(GraphicsConfig());
+    // The game selector (ctr_selector.cpp) lends its context and input to the front end.
+    std::unique_ptr<GraphicsContext> ownGl;
+    if (!opts.context) ownGl = createGraphicsContext(GraphicsConfig());
+    GraphicsContext* gl = opts.context ? opts.context : ownGl.get();
     CtrContext* ctx = as3d::ctr::ctrContext();
     if (!gl || !ctx) {
         AS3D_ERROR("cannot create the graphics context");
@@ -167,6 +171,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     if (run.difficulty >= 0) sc.game.world.difficulty = run.difficulty;
     sc.frontend = true;
     sc.flow = consoleFlow(run, *game, dir);
+    sc.flow.changeGame = opts.changeGameOffered; // the main menu's "Change game" (more than one game installed)
     sc.makeView = [frame, ctx]() { return frame->makeFlowView(*ctx); };
     sc.noAudio = !run.audio;
 
@@ -177,7 +182,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         AS3D_ERROR("cannot start the game: %s", err.c_str());
         frame->end();
         stack.teardown();
-        gl.reset();
+        ownGl.reset();
         perf.close();
         return 1;
     }
@@ -217,7 +222,9 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     aptHook(&cookie, menuAptCallback, &apt);
 
     const ui::Mapping bottomMap = ui::computeMapping(CtrInput::kTouchW, CtrInput::kTouchH);
-    CtrInput input(run, new3ds);
+    std::unique_ptr<CtrInput> ownInput;
+    if (!opts.input) ownInput.reset(new CtrInput(run, new3ds));
+    CtrInput& input = opts.input ? *opts.input : *ownInput;
     const unsigned maxFrames = static_cast<unsigned>(std::max(run.frames, 0));
     unsigned frameNo = 0, steps = 0, dropped = 0, runStep = 0, levelSteps = 0;
     double acc = 0.0;
@@ -260,6 +267,11 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         flow.uiFrame(uiDt, uin);
         if (flow.quitRequested()) {
             AS3D_INFO("quit: the front end's Exit");
+            break;
+        }
+        if (flow.changeGameRequested()) {
+            AS3D_INFO("front end: Change game (profile saved)");
+            opts.changeGameRequested = true;
             break;
         }
         if (flow.levelLoads() != loads || levelLoaded) {
@@ -412,7 +424,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     audio.stop();
     frame->end();     // GPU resources, while the graphics context exists
     stack.teardown(); // profile, front end, audio device, view, session
-    gl.reset();
+    ownGl.reset();
+    logMem("exit", game->key, 0);
     perf.close();
     return 0;
 }

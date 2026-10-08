@@ -30,7 +30,10 @@
 // The same composer is the front end's view (makeFlowView below, M2.1).
 #pragma once
 
+#include <citro3d.h>
+
 #include <memory>
+#include <string>
 
 #include "ctr_loop.h"
 #include "flow_view.h"
@@ -63,6 +66,9 @@ struct StereoParams {
 };
 // slider in [0, 1] (0 or below the dead zone: mono), the camera-to-player depth.
 StereoParams stereoFor(float slider, float playerDepth, float maxEyeOffset, float minFocal);
+
+// A render target as an upright binary PPM (run.ini dumps; the game selector's too).
+bool dumpRenderTarget(C3D_RenderTarget* t, int width, const std::string& path);
 
 class GameFrame final : public FrameHook {
 public:

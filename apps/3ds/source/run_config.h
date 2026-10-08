@@ -26,6 +26,7 @@ enum class Mode {
 struct RunConfig {
     Mode mode = Mode::Spike;
     std::string game = "as3d"; // game=KEY: a profile key of as3d/game_data.h; its paks live in <dir>/<key>/
+    bool gameGiven = false;    // game=KEY is in the file (not absent, not game=select): no game selector
     int level = 1;             // level=N: the mission to start (1..the game's mission count)
     bool levelGiven = false;   // level= is in the file (mode=play without it runs the front end)
     int frames = 0;            // frames=N: simulation steps, then quit; 0 = 600 in sim, unlimited otherwise

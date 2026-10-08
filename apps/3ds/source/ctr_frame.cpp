@@ -23,6 +23,7 @@
 #include "as3d/world.h"
 #include "as3d/world_render.h"
 #include "ctr_context.h"
+#include "ctr_mem.h"
 #include "flat_fill.h"
 #include "game_flow.h"
 #include "game_session.h"
@@ -56,7 +57,9 @@ constexpr float kAspect = static_cast<float>(kTopW) / static_cast<float>(kTopH);
 // A render target as an upright binary PPM. The colour buffer is 240 x width (the screen is
 // rotated); the display transfer gives it as the LCD sees it: memory row x is screen column x,
 // from the bottom of the screen up (bytes A B G R).
-bool dumpTarget(C3D_RenderTarget* t, int width, const std::string& path) {
+} // namespace
+
+bool dumpRenderTarget(C3D_RenderTarget* t, int width, const std::string& path) {
     const size_t bytes = static_cast<size_t>(240) * static_cast<size_t>(width) * 4;
     auto* lin = static_cast<u8*>(linearAlloc(bytes));
     if (!lin) return false;
@@ -84,6 +87,10 @@ bool dumpTarget(C3D_RenderTarget* t, int width, const std::string& path) {
     linearFree(lin);
     return ok;
 }
+
+namespace {
+
+bool dumpTarget(C3D_RenderTarget* t, int width, const std::string& path) { return dumpRenderTarget(t, width, path); }
 
 double kb(size_t b) { return static_cast<double>(b) / 1024.0; }
 
@@ -275,10 +282,16 @@ struct GameFrame::Impl {
                   "%.1f KB (%d), VRAM fallbacks %d, failures %d; linear free %.1f KB",
                   ms(t0, t1), ms(t1, t2), ms(t2, t3), kb(ts.vramBytes), ts.vramCount, kb(ts.linearBytes), ts.linearCount,
                   ts.vramFallbacks, ts.failures, kb(linearSpaceFree()));
+        logMem("start", gameKey(), mission);
     }
 
+    const char* gameKey() const { return session && session->game() ? session->game()->key : ""; }
+
     void logLazyLoads() {
-        if (precached) AS3D_INFO("AS3D_LAZY_LOADS mission=%d %s", mission, LoadStats::lazyLoads().str().c_str());
+        if (precached) {
+            AS3D_INFO("AS3D_LAZY_LOADS mission=%d %s", mission, LoadStats::lazyLoads().str().c_str());
+            logMem("end", gameKey(), mission); // the level's renderer is still alive
+        }
         precached = false;
     }
 

@@ -66,7 +66,12 @@ RunConfig parseRunConfig(const std::string& text) {
             else if (val == "probe") c.mode = Mode::Probe;
             else if (val == "spike") c.mode = Mode::Spike;
         } else if (key == "game") {
-            if (!val.empty()) c.game = val;
+            if (val == "select") {
+                c.gameGiven = false; // the selector (ctr_selector.h)
+            } else if (!val.empty()) {
+                c.game = val;
+                c.gameGiven = true;
+            }
         } else if (key == "level") {
             if (toInt(val, &n) && n >= 1) {
                 c.level = n;
