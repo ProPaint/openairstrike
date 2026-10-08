@@ -7,12 +7,15 @@
 //   aptMainLoop -> hidScanInput -> quit chord? -> clock: acc += min(0.25 s, elapsed)
 //   -> up to 2 steps of GameSession::step (bot input or pad) -> hook.prepare
 //   -> ctx.beginFrame (waits for the vblank) -> hook.drawTop(eye) per eye -> hook.drawBottom
-//   -> ctx.endFrame -> perf row.
+//   -> ctx.endFrame -> hook.stats -> hook.afterFrame -> perf row.
+// Before the loop hook.begin (the level start: renderer, precache, loading screen), after it
+// hook.end (while the graphics context still exists).
 // Mode sim runs the same steps back to back with no screens and no clock.
 #pragma once
 
 #include <functional>
 
+#include "as3d/input.h"
 #include "as3d/platform.h"
 #include "ctr_perf.h"
 #include "game_session.h"
@@ -31,18 +34,22 @@ struct FrameInfo {
     unsigned frame = 0;       // displayed frames so far
     unsigned step = 0;        // simulation steps so far
     int eyes = 1;             // top-screen eyes to draw: 2 with the 3D slider up, else 1
-    float slider = 0.0f;      // osGet3DSliderState
+    float slider = 0.0f;      // osGet3DSliderState, or run.ini slider= when given
     bool paused = false;      // the world is paused (suspend, in-game pause)
     as3d_game::GameSession* session = nullptr;
+    const as3d::TouchMapper* touch = nullptr; // the bottom-screen buttons (ctr_input.h), for drawing
+    float lastCpuMs = 0.0f, lastGpuMs = 0.0f; // of the previous frame (the perf line)
 };
 
-// The frame composer's slot. The loop brackets the frame (beginFrame / endFrame) and calls these
-// in order; the hook binds the targets itself (C3D_FrameDrawOn on ctx.topTarget(eye) and
-// ctx.bottomTarget()). Without a hook the loop clears the screens to a colour that changes with
-// the frame number.
+// The frame composer's slot (ctr_frame.h). The loop brackets the frame (beginFrame / endFrame)
+// and calls these in order; the hook binds the targets itself (pica::drawOn on ctx.topTarget(eye)
+// and ctx.bottomTarget()). Required in the real-time modes (bot, play).
 class FrameHook {
 public:
     virtual ~FrameHook() = default;
+    // Once, after the mission loaded and before the first step: the renderer's level start
+    // (precache, loading screen). False: the app stops.
+    virtual bool begin(as3d::ctr::CtrContext&, as3d_game::GameSession&) { return true; }
     // Once per displayed frame, after the steps and before the frame opens (CPU work: culling,
     // entity lists).
     virtual void prepare(const FrameInfo&) {}
@@ -50,11 +57,15 @@ public:
     virtual void drawBottom(as3d::ctr::CtrContext& ctx, const FrameInfo&) = 0;
     // The renderer columns of perf.csv for the frame just drawn.
     virtual void stats(FrameStats&) {}
+    // After ctx.endFrame (the frame is submitted): read-backs (run.ini dump_at).
+    virtual void afterFrame(as3d::ctr::CtrContext&, const FrameInfo&) {}
+    // Once at the end, before the session and the graphics context go: release GPU resources.
+    virtual void end() {}
 };
 
 struct CtrLoopOptions {
     RunConfig run;
-    FrameHook* hook = nullptr;          // null: the colour-cycling clear
+    FrameHook* hook = nullptr;          // required in bot and play (ctr_frame.h GameFrame)
     // Called when the app is suspended (HOME, sleep) and once at exit, with the world paused:
     // the flow's profile save (GameFlow::saveNow) once the front end runs on the 3DS (M2).
     std::function<void()> saveHook;

@@ -59,7 +59,7 @@ void Perf::open(bool csv) {
         csv_ = std::fopen((std::string(kDataDir) + "/perf.csv").c_str(), "w");
         if (csv_) {
             std::fputs("frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,"
-                       "linear_free_kb,lazy_loads\n",
+                       "linear_free_kb,lazy_loads,arena_kb\n",
                        csv_);
         } else {
             AS3D_WARN("cannot open perf.csv");
@@ -89,10 +89,11 @@ void Perf::record(const FrameSample& s) {
         if (periods_.size() < kMaxSamples) periods_.push_back(s.periodMs);
     }
     lazyMax_ = std::max(lazyMax_, s.stats.lazyLoads);
+    arenaMax_ = std::max(arenaMax_, s.stats.arenaKb);
     if (csv_) {
-        std::fprintf(csv_, "%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%u,%u,%u,%u\n", s.frame, s.stepMs, s.stats.prepareMs,
+        std::fprintf(csv_, "%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%u,%u,%u,%u,%u\n", s.frame, s.stepMs, s.stats.prepareMs,
                      s.cpuMs, s.gpuMs, s.stats.eyes, s.stats.verts, s.stats.draws, s.stats.texVramKb,
-                     s.stats.texLinearKb, static_cast<unsigned>(linearFree / 1024), s.stats.lazyLoads);
+                     s.stats.texLinearKb, static_cast<unsigned>(linearFree / 1024), s.stats.lazyLoads, s.stats.arenaKb);
     }
     service();
 }
@@ -127,6 +128,7 @@ void Perf::writeSummary(unsigned frames, unsigned steps, unsigned dropped) {
     AS3D_INFO("PERF_SUMMARY linear_free_kb now=%zu min=%zu", static_cast<size_t>(linearSpaceFree()) / 1024,
               (linearFreeMin_ == SIZE_MAX ? 0 : linearFreeMin_) / 1024);
     AS3D_INFO("PERF_SUMMARY lazy_loads max=%u", lazyMax_);
+    AS3D_INFO("PERF_SUMMARY arena_kb max=%u", arenaMax_);
     flush();
 }
 

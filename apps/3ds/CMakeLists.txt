@@ -13,10 +13,11 @@ ctr_add_shader_library(scene_shbin OUTPUT scene.shbin source/scene.v.pica)
 dkp_add_embedded_binary_library(scene_shbin_data scene_shbin)
 
 # game_session.cpp is the one apps/game file the 3DS app uses so far: GameStack and GameFlow
-# need GameView, hence the PICA renderer (M1.3, M1.8).
+# need GameView, which holds the GL-side layers; the 3DS composes its frame itself (ctr_frame.cpp).
 add_executable(openairstrike
   source/ctr_main.cpp
   source/ctr_loop.cpp
+  source/ctr_frame.cpp
   source/ctr_input.cpp
   source/ctr_perf.cpp
   source/run_config.cpp
@@ -29,8 +30,10 @@ add_executable(openairstrike
   source/fx_test.cpp
   source/ui_test.cpp
   ${AS3D_REPO_ROOT}/apps/game/game_session.cpp)
-# pica_test.cpp uses the PICA backend's own headers (engine/src/render/pica).
+# The test modes and the composer use the render module's private headers (engine/src/render:
+# world_scene.h; engine/src/render/pica, engine/src/ui/pica: the PICA backend's own).
 target_include_directories(openairstrike PRIVATE source ${AS3D_REPO_ROOT}/apps/game
+                                                 ${AS3D_REPO_ROOT}/engine/src/render
                                                  ${AS3D_REPO_ROOT}/engine/src/platform/ctr
                                                  ${AS3D_REPO_ROOT}/engine/src/render/pica
                                                  ${AS3D_REPO_ROOT}/engine/src/ui/pica)

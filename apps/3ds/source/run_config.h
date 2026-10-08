@@ -29,6 +29,13 @@ struct RunConfig {
     bool logInput = false;     // log_input=1: an AS3D_INPUT line per change of held bits / touch button
     as3d::PadBindings bindings = as3d::defaultBindings(); // bind_fire=A ... (see console_pad.h)
     int difficulty = -1;       // difficulty=N: -1 = the engine's default
+    // The frame composer (ctr_frame.h):
+    int dumpAt = 0;            // dump_at=N: at displayed frame N write top_left/top_right/bottom PPMs; 0 = never
+    float brightness = 0.6f;   // brightness=F: config.ini Brightness (0.5 = neutral: no pass), default 0.6
+    float slider = -1.0f;      // slider=F: force the 3D slider to F in [0, 1]; -1 = the hardware slider
+    float eyeOffset = 0.0f;    // eye_offset=F: world units at slider 1; 0 = ctr_frame.h kMaxEyeOffset
+    float minFocal = 0.0f;     // min_focal=F: smallest focal distance; 0 = ctr_frame.h kMinFocalDistance
+    bool precache = true;      // precache=0: skip the level-start precache (first-use loads, for comparison)
 
     bool usesLoop() const { return mode == Mode::Sim || mode == Mode::Bot || mode == Mode::Play; }
     int effectiveFrames() const { return frames > 0 ? frames : (mode == Mode::Sim ? 600 : 0); }

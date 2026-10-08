@@ -3,10 +3,12 @@
 // second) and, with perf=1, perf.csv with one row per displayed frame:
 //
 //   frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,
-//   linear_free_kb,lazy_loads
+//   linear_free_kb,lazy_loads,arena_kb
 //
-// The renderer columns are zero until the PICA backend (M1.3) and the frame composer (M1.8)
-// fill FrameStats; lazy_loads is zero until M1.10 has the counters. The summary block written at
+// The frame composer (ctr_frame.h) fills the renderer columns through FrameStats: prepare_ms the
+// CPU time of its prepare(), verts/draws the GPU work of both screens, the texture bytes of
+// pica::textureStats, lazy_loads the first-use loads since the precache (LoadStats), arena_kb the
+// frame arena bytes this frame used. The summary block written at
 // the end (PERF_SUMMARY lines in log.txt) is read by tools/3ds_perf_report.py.
 #pragma once
 
@@ -23,6 +25,7 @@ struct FrameStats {
     int eyes = 0, verts = 0, draws = 0;
     unsigned texVramKb = 0, texLinearKb = 0;
     unsigned lazyLoads = 0;
+    unsigned arenaKb = 0;  // frame arena bytes used by this frame
 };
 
 struct FrameSample {
@@ -57,7 +60,7 @@ private:
     std::FILE* csv_ = nullptr;
     std::vector<float> steps_, periods_;
     double stepSum_ = 0, periodSum_ = 0, stepMax_ = 0, periodMax_ = 0, loadMs_ = 0;
-    unsigned over_ = 0, periodCount_ = 0, lazyMax_ = 0;
+    unsigned over_ = 0, periodCount_ = 0, lazyMax_ = 0, arenaMax_ = 0;
     size_t heapHigh_ = 0, heapArenaHigh_ = 0, linearFreeMin_ = SIZE_MAX;
     uint64_t lastFlush_ = 0;
 };

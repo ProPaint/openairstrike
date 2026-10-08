@@ -33,6 +33,14 @@ bool toInt(const std::string& v, int* out) {
     return true;
 }
 
+bool toFloat(const std::string& v, float* out) {
+    char* end = nullptr;
+    float f = std::strtof(v.c_str(), &end);
+    if (v.empty() || *end != '\0') return false;
+    *out = f;
+    return true;
+}
+
 } // namespace
 
 RunConfig parseRunConfig(const std::string& text) {
@@ -48,6 +56,7 @@ RunConfig parseRunConfig(const std::string& text) {
         if (eq == std::string::npos) continue;
         std::string key = trim(line.substr(0, eq)), val = trim(line.substr(eq + 1));
         int n = 0;
+        float f = 0.0f;
         if (key == "mode") {
             if (val == "play") c.mode = Mode::Play;
             else if (val == "bot") c.mode = Mode::Bot;
@@ -68,6 +77,18 @@ RunConfig parseRunConfig(const std::string& text) {
             as3d::applyBindingOption(c.bindings, key, val);
         } else if (key == "difficulty") {
             if (toInt(val, &n) && n >= 0) c.difficulty = n;
+        } else if (key == "dump_at") {
+            if (toInt(val, &n) && n >= 0) c.dumpAt = n;
+        } else if (key == "brightness") {
+            if (toFloat(val, &f) && f >= 0.0f && f <= 1.0f) c.brightness = f;
+        } else if (key == "slider") {
+            if (toFloat(val, &f) && f >= 0.0f && f <= 1.0f) c.slider = f;
+        } else if (key == "eye_offset") {
+            if (toFloat(val, &f) && f >= 0.0f && f <= 50.0f) c.eyeOffset = f;
+        } else if (key == "min_focal") {
+            if (toFloat(val, &f) && f >= 1.0f) c.minFocal = f;
+        } else if (key == "precache") {
+            if (toInt(val, &n)) c.precache = n != 0;
         }
     }
     return c;

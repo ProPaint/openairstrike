@@ -61,42 +61,6 @@ void aptCallback(APT_HookType hook, void* param) {
     }
 }
 
-// Colour for the frame: a hue wheel, one turn in about 6 s.
-u32 frameColour(unsigned frame, int salt) {
-    const float h = std::fmod(static_cast<float>(frame) * 1.0f + salt * 60.0f, 360.0f) / 60.0f;
-    const int i = static_cast<int>(h);
-    const float f = h - static_cast<float>(i);
-    const float v = 0.35f; // dark enough to read as a status colour
-    const float p = 0.0f, q = v * (1.0f - f), t = v * f;
-    float r = v, g = t, b = p;
-    switch (i % 6) {
-        case 0: r = v; g = t; b = p; break;
-        case 1: r = q; g = v; b = p; break;
-        case 2: r = p; g = v; b = t; break;
-        case 3: r = p; g = q; b = v; break;
-        case 4: r = t; g = p; b = v; break;
-        default: r = v; g = p; b = q; break;
-    }
-    auto byte = [](float x) { return static_cast<u32>(x * 255.0f) & 0xFF; };
-    return (byte(r) << 24) | (byte(g) << 16) | (byte(b) << 8) | 0xFF;
-}
-
-// The hook of M1.2: no renderer yet, so the screens are cleared to a colour that cycles with the
-// frame count (life sign), the bottom screen offset by half a turn.
-class ColourHook final : public FrameHook {
-public:
-    void drawTop(CtrContext& ctx, int eye, const FrameInfo& info) override {
-        C3D_RenderTarget* t = ctx.topTarget(eye);
-        C3D_RenderTargetClear(t, C3D_CLEAR_ALL, frameColour(info.frame, eye), 0);
-        C3D_FrameDrawOn(t);
-    }
-    void drawBottom(CtrContext& ctx, const FrameInfo& info) override {
-        C3D_RenderTarget* t = ctx.bottomTarget();
-        C3D_RenderTargetClear(t, C3D_CLEAR_ALL, frameColour(info.frame, 3), 0);
-        C3D_FrameDrawOn(t);
-    }
-};
-
 // The summary lines of as3d_sim, to compare an end state against the desktop's.
 void logEndState(const as3d_game::GameSession& ses, int level, unsigned steps) {
     using namespace as3d;
@@ -174,9 +138,28 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         perf.close();
         return 1;
     }
+    const double simLoadMs = ticksToMs(nowTicks() - loadStart);
+    AS3D_INFO("mission %d loaded in %.0f ms", run.level, simLoadMs);
+
+    FrameHook* hook = opts.hook;
+    if (!sim && !hook) {
+        AS3D_ERROR("mode %s needs a frame hook", modeName(run.mode));
+        session.reset();
+        gl.reset();
+        perf.close();
+        return 1;
+    }
+    if (hook && !sim && !hook->begin(*ctx, *session)) {
+        AS3D_ERROR("the level start failed");
+        hook->end();
+        session.reset();
+        gl.reset();
+        perf.close();
+        return 1;
+    }
     const double loadMs = ticksToMs(nowTicks() - loadStart);
     perf.setLoadMs(loadMs);
-    AS3D_INFO("mission %d loaded in %.0f ms", run.level, loadMs);
+    if (!sim) AS3D_INFO("level start (mission and renderer) %.0f ms", loadMs);
 
     AptState apt;
     apt.session = session.get();
@@ -186,14 +169,12 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     aptHookCookie cookie;
     aptHook(&cookie, aptCallback, &apt);
 
-    ColourHook colourHook;
-    FrameHook* hook = opts.hook ? opts.hook : &colourHook;
-
     const double dt = session->world().config().dt;
     const unsigned maxSteps = static_cast<unsigned>(run.effectiveFrames());
     unsigned frame = 0, steps = 0, dropped = 0;
     double acc = 0.0;
     uint64_t last = nowTicks(), lastFrame = 0;
+    float lastCpu = 0.0f, lastGpu = 0.0f;
 
     CtrInput input(run, new3ds);
 
@@ -254,8 +235,15 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         info.step = steps;
         info.eyes = ctx->eyeCount();
         info.slider = ctx->sliderValue();
+        if (run.slider >= 0.0f) { // run.ini slider=: forced (the emulator, comparisons)
+            info.slider = run.slider;
+            info.eyes = run.slider > 0.02f ? 2 : 1;
+        }
         info.paused = session->world().paused();
         info.session = session.get();
+        info.touch = &input.touch();
+        info.lastCpuMs = lastCpu;
+        info.lastGpuMs = lastGpu;
 
         hook->prepare(info);
         if (ctx->beginFrame()) {
@@ -265,8 +253,11 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         }
         sample.cpuMs = C3D_GetProcessingTime();
         sample.gpuMs = C3D_GetDrawingTime();
+        lastCpu = sample.cpuMs;
+        lastGpu = sample.gpuMs;
         hook->stats(sample.stats);
         if (sample.stats.eyes == 0) sample.stats.eyes = info.eyes;
+        hook->afterFrame(*ctx, info);
         const uint64_t end = nowTicks();
         sample.periodMs = lastFrame ? static_cast<float>(ticksToMs(end - lastFrame)) : 0.0f;
         lastFrame = end;
@@ -281,6 +272,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     AS3D_INFO("stopped after %u frames, %u steps", frame, steps);
     logEndState(*session, run.level, steps);
     perf.writeSummary(frame, steps, dropped);
+    if (hook && !sim) hook->end();
     aptUnhook(&cookie);
     apt.session = nullptr;
     session.reset();
