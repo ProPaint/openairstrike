@@ -7,7 +7,8 @@
 //    the engine's own log goes to sdmc:/3ds/openairstrike/engine_log.txt.
 // 3. Reloads mission 1 and, on the top screen, draws its terrain and the player's helicopter
 //    with citro3d for 300 frames while the world keeps stepping, measuring CPU and GPU time.
-// START quits at the end. With mode=probe in sdmc:/3ds/openairstrike/run.ini the GPU probe (probe.cpp) runs instead.
+// START quits at the end. With mode=probe in sdmc:/3ds/openairstrike/run.ini the GPU probe (probe.cpp) runs instead,
+// with mode=terraintest the terrain test (terrain_test.cpp).
 #include <3ds.h>
 #include <citro3d.h>
 #include <malloc.h>
@@ -31,6 +32,7 @@
 #include "probe.h"
 #include "render.h"
 #include "spike.h"
+#include "terrain_test.h"
 
 extern "C" {
 extern u32 __ctru_heap_size;
@@ -222,6 +224,16 @@ int runSpike() {
         if (g_log) std::fclose(g_log);
         g_log = nullptr;
         probe::run(vfs, db, *game, std::string(kDir) + "/probe_log.txt", vramAtStart, runCfg);
+        std::fflush(stderr);
+        C3D_Fini();
+        gfxExit();
+        return 0;
+    }
+    // mode=terraintest: the M1.4 terrain test (terrain_test.cpp).
+    if (runCfg.terraintest) {
+        if (g_log) std::fclose(g_log);
+        g_log = nullptr;
+        terraintest::run(vfs, db, *game, kDir, runCfg.level, runCfg.holdFrames);
         std::fflush(stderr);
         C3D_Fini();
         gfxExit();

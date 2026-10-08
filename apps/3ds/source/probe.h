@@ -16,7 +16,10 @@ namespace probe {
 struct RunConfig {
     bool probe = false; // mode=probe (default and anything else: the spike)
     bool picatest = false; // mode=picatest: the PICA core test (pica_test.h), no game data needed
-    int holdFrames = 0; // hold=N: keep drawing N frames after each variant (screenshots under Azahar)
+    bool terraintest = false; // mode=terraintest: the terrain test (terrain_test.h)
+    int level = 1;      // level=N: the terrain test's mission
+    int holdFrames = 0; // hold=N: keep drawing N frames after each variant (screenshots under Azahar);
+                        // the terrain test's frames per phase
     std::string only;   // only=CH: run just these variants (default: all)
 };
 

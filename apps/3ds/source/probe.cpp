@@ -189,8 +189,10 @@ RunConfig readRunConfig(const std::string& path) {
         if (key == "mode") {
             c.probe = val == "probe";
             c.picatest = val == "picatest";
+            c.terraintest = val == "terraintest";
         } else if (key == "only") c.only = val;
         else if (key == "hold") c.holdFrames = std::max(0, std::atoi(val.c_str()));
+        else if (key == "level") c.level = std::max(1, std::atoi(val.c_str()));
     }
     std::fclose(f);
     return c;
