@@ -168,7 +168,8 @@ void fillQuad(bool color, const Vec4& c, bool depth, float glDepth) {
     detail::c3dDepthTest(true, GPU_ALWAYS,
                   static_cast<GPU_WRITEMASK>((color ? GPU_WRITE_COLOR : 0) | (depth ? GPU_WRITE_DEPTH : 0)));
     detail::c3dCullFace(GPU_CULL_NONE);
-    if (state().depthOffset != 0.0f) applyDepthMap(0.0f);
+    const float offset = appliedDepthOffset();
+    if (offset != 0.0f) applyDepthMap(0.0f);
     const bool full = state().viewportFull;
     state().viewportFull = true;
     issueViewport();
@@ -176,7 +177,7 @@ void fillQuad(bool color, const Vec4& c, bool depth, float glDepth) {
     // Back to the tracked state.
     state().viewportFull = full;
     issueViewport();
-    if (state().depthOffset != 0.0f) applyDepthMap(state().depthOffset);
+    if (offset != 0.0f) applyDepthMap(offset);
     issueBlend();
     issueDepth();
     issueCull();
@@ -339,7 +340,9 @@ void applyMaterialState(const MaterialKey& key) {
     s.cull = key.cull;
     pica::issueCull();
     const float offset = key.polygonOffset ? pica::kPolygonOffsetDepth : 0.0f;
-    if (offset != s.depthOffset) {
+    // Always applied (the depth map's shadow copy drops a repeat): setDepthMapping and the
+    // terrain's overlays change the offset behind this tracked value.
+    {
         s.depthOffset = offset;
         pica::applyDepthMap(offset);
     }

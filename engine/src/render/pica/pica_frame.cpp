@@ -26,6 +26,7 @@ struct Backend {
     FrameTarget target;
     FogDepthMap depthMap = FogDepthMap::ZBuffer;
     float depthNear = 4.0f;
+    float depthOffset = 0.0f; // the offset of the last applyDepthMap
     bool wAsZ = false; // setWBufferAsZBuffer: W-buffer requests get the Z-buffer mapping
     bool ready = false;
     std::vector<void*> pendingFree; // deferLinearFree blocks, freed at the next frameBegin
@@ -78,6 +79,10 @@ void frameBegin() {
     Backend& b = backend();
     releasePending(b); // C3D_FrameBegin waited for the GPU
     b.arena.beginFrame();
+    // Each frame issues its fragment state and texture bindings at least once (the shadow copies
+    // of render_state_pica.cpp only skip repeats inside a frame and a target).
+    detail::c3dInvalidate();
+    detail::forgetTextureBindings();
 }
 
 void deferLinearFree(void* p) {
@@ -93,6 +98,8 @@ void drawOn(const FrameTarget& t) {
     Backend& b = backend();
     b.target = t;
     if (t.target) C3D_FrameDrawOn(t.target);
+    detail::c3dInvalidate(); // a new target: every state call is issued again
+    detail::forgetTextureBindings();
     detail::resetViewState();
 }
 
@@ -137,11 +144,14 @@ void setDepthMapping(FogDepthMap map, float nearPlane) {
 
 void setWBufferAsZBuffer(bool on) { backend().wAsZ = on; }
 
+float appliedDepthOffset() { return backend().depthOffset; }
+
 FogDepthMap depthMapping() { return backend().depthMap; }
 float depthMappingNear() { return backend().depthNear; }
 
 void applyDepthMap(float offset) {
-    const Backend& b = backend();
+    Backend& b = backend();
+    b.depthOffset = offset;
     if (b.depthMap == FogDepthMap::WBuffer) detail::c3dDepthMap(false, -1.0f / b.depthNear, offset);
     else detail::c3dDepthMap(true, -1.0f, offset);
 }

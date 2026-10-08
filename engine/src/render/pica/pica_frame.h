@@ -103,6 +103,9 @@ float depthMappingNear();
 constexpr float kPolygonOffsetDepth = 1.0f / 4194304.0f;
 // Re-issues C3D_DepthMap for the current mapping with `offset` added (0 = none).
 void applyDepthMap(float offset);
+// The offset the GPU has now (the last applyDepthMap: setDepthMapping applies 0, the terrain's
+// overlays and applyMaterialState their bias).
+float appliedDepthOffset();
 
 // Fog (fog_pica.cpp). setFog builds and binds the table for these planes when they changed
 // (C3D_FogLutBind / FogLut_FromArray) and turns the unit on (C3D_FogGasMode(GPU_FOG,
