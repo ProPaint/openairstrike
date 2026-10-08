@@ -30,13 +30,14 @@
 // until the set changes or a crater changes the terrain; the skid trails are rebuilt each frame;
 // both are drawn per eye between the terrain and the shadows, as the GL renderer.
 //
-// Water (pass 7, water_renderer_pica.h; the first game's flat scrolling plane, drawn per eye after
-// the opaque list) and lightning bolts (lightning_renderer_pica.h, after the effect list, before
-// the particles; the bolts are built in prepare and copied to the arena by the first eye).
+// Water (pass 7, water_renderer_pica.h, drawn per eye after the opaque list): the first game's
+// flat scrolling plane, or the sequels' wave grid (RenderRules::water; the surface built as the
+// GL beginLevel does, its dry vertices following the craters, the wave animated on the CPU per
+// visible chunk, M5.1) and lightning bolts (lightning_renderer_pica.h, after the effect list,
+// before the particles; the bolts are built in prepare and copied to the arena by the first eye).
 //
 // Environment maps (M3.4) draw inside the mesh passes (mesh_renderer_pica.h, shaders/env.v.pica)
-// with the central view and the frame's time. Not drawn yet: the sequels' wave-grid water (M5.1,
-// water_renderer_pica.h logs it at beginLevel).
+// with the central view and the frame's time.
 //
 // Textures: the 4.2 MB VRAM budget (texture_budget.h) is filled in creation order: the terrain's
 // textures at beginLevel first, then precache() puts the particle textures, then the level
@@ -66,6 +67,7 @@
 #include "as3d/sprite_render.h"
 #include "as3d/terrain_render.h"
 #include "as3d/vfs.h"
+#include "as3d/water.h"
 #include "flat_fill.h"
 #include "ground_marks_pica.h"
 #include "fx_pica.h"
@@ -235,7 +237,16 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     if (!tr->build(*t, *im.vfs, error, im.rules)) return false;
     im.terrain = std::move(tr);
     im.terrainOf = t;
-    if (!im.waterPass.build(*t, *im.vfs, im.rules.water == WaterStyle::WaveGrid, error)) return false;
+    if (im.rules.water == WaterStyle::WaveGrid) {
+        // As the GL: the shine texture is not in TerrainStyle, the level's definition has it.
+        std::string shine;
+        for (const LevelDef& d : im.db->levels())
+            if (d.id == t->style().id) shine = d.waterShine;
+        const WaterSurface surface = buildWaterSurface(*t, true, shine);
+        if (!im.waterPass.build(*t, *im.vfs, &surface, TerrainGridView::of(*t), error)) return false;
+    } else if (!im.waterPass.build(*t, *im.vfs, nullptr, TerrainGridView(), error)) {
+        return false;
+    }
     const TerrainStyle& st = t->style();
     const Vec3 sun{st.sun[3], st.sun[4], st.sun[5]};
     im.towardsSun = length(sun) > 1e-6f ? normalize(sun) : Vec3{0.0f, 0.0f, 1.0f};
@@ -362,7 +373,9 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
     // Craters since the last frame (copy-on-write chunks, terrain_pica.h).
     const std::vector<VertexRect>& rects = sc.terrainChanges(world, im.terrainOf);
     if (!rects.empty() && im.terrain) {
-        im.terrain->update(rects.data(), rects.size(), TerrainGridView::of(*im.terrainOf));
+        const TerrainGridView grid = TerrainGridView::of(*im.terrainOf);
+        im.terrain->update(rects.data(), rects.size(), grid);
+        im.waterPass.update(rects.data(), rects.size(), grid); // the wave grid's dry vertices
         im.shadowPass.invalidate(); // the shadows follow the new heights
         im.markPass.invalidate();   // and so do the marks
     }
@@ -538,8 +551,9 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     if (options.terrain && options.water && im.haveTerrain && im.waterPass.active()) {
         stats_.drawCalls += im.waterPass.draw(wv.view, proj, light.fogColor, fr.hasFog ? light.fogStart : 1.0e9f,
                                               fr.hasFog ? light.fogEnd : 1.0e9f);
-        stats_.waterChunks = pica::waterPicaStats().quadsDrawn;
-        stats_.vertices += pica::waterPicaStats().quadsDrawn * 6;
+        const pica::WaterPicaStats& wst = pica::waterPicaStats();
+        stats_.waterChunks = wst.quadsDrawn;
+        stats_.vertices += wst.grid ? wst.trianglesDrawn * 3 : wst.quadsDrawn * 6;
         levelDepthAndFog();
         setBlend(GlBlend::Off);
         setDepth(true, true);
