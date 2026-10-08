@@ -1373,3 +1373,124 @@ Deferred: the sequels' front ends (M5.2), their HUD tables on the 3DS (M5.3), th
 memory re-measure (M5.4); the third missions of each game and the hardware run; whether the water textures
 should yield VRAM to the models (RGBA4 base, or created after the precache) if hardware shows the
 linear-memory skins.
+
+## M4.2 Simulation hot spots (engine/src/game, engine/src/script)
+
+Goal: a cheaper `World::step` for the Old 3DS 60 Hz simulation (the M1.0 hardware run: mission 1
+at 4.1 ms per step at 268 MHz without the speed-up, mission 14 about 8 ms), with **zero behaviour
+change**: integer, container, lookup and allocation changes only; no float operation reordered or
+retyped.
+
+**Tools.** `as3d_sim --time` prints one `time:` line (mean, median, p99 and worst step in ms, the
+level load) and one `phases:` line (mean ms per step of each phase of `World::step`: camera,
+spawn, player, entities, collisions, after; `World::setPhaseTiming`, measurement only).
+`tools/sim_bench.sh` prints the table below for the standard set (missions 1, 6, 14 of each game
+and the three heaviest of each, 3600 bot frames, best of 3 runs); `tools/sim_bench.sh --all 600`
+sweeps every mission. The heaviest missions by that sweep: as3d 20, 19, 16; as2 3, 14, 8;
+gulf 23, 18, 7 (the sequels' busy missions cost 2 to 2.5 times as3d 14).
+
+**Profile (desktop, before).** `perf` is not usable on this machine (`perf_event_paranoid` 4) and
+valgrind is not installed, so the profile came from a SIGPROF sampler preloaded into `as3d_sim`
+(interrupted PC symbolized with addr2line, library samples attributed by symbol and caller;
+level loads included, about 10 % of the samples). Self time, as3d 1/6/14 (16.4k samples) and
+as2 3/8/14 + gulf 7/18/23 (36k samples):
+
+| symbol | as3d | sequels |
+|---|---|---|
+| `ScriptThread::decode` (RCSL operand decoding) | 17.9 % | 21.7 % |
+| `World::runEntities` (the RT_THOUGHT sweep of all 4096 slots) | 8.7 % | 4.4 % |
+| `World::touchEntity` (list walk per toucher) | 2.9 % | 9.9 % |
+| `ScriptThread::runInvocation` | 4.7 % | 5.5 % |
+| `BuiltinReport::noteCall` + its string compares | 5.2 % | 5.1 % |
+| `ModelData::findTag` + `asciiEqualCI` (tag lookup per child per frame) | 4.0 % | 3.8 % |
+| `World::setupTransform` + sinf/cosf | 6.1 % | 5.3 % |
+| `ParticleEmitter::update`, `WorldParticles::update` | 4.0 % | 4.5 % |
+| `World::think`, `computeScreenBounds`, `projectPoint`, `Terrain::heightAt` | 9.0 % | 7.2 % |
+| `Entity::f`/`setF` calls (out of line) | 1.6 % | 2.5 % |
+| level load (file syscalls, parsing) | ~10 % | ~4 % |
+
+Allocations: 28 mallocs per step on as3d 14, 47 on as2 3, 50 on gulf 23 (per-step entity lists,
+spawned threads).
+
+**Changes, in order, with the desktop step time after each** (as3d 14 / as2 14 / gulf 23, mean ms
+over 3600 bot frames, best of 5, all binaries run round-robin in one session):
+
+| commit | change | as3d 14 | as2 14 | gulf 23 |
+|---|---|---|---|---|
+| 38bc62d | baseline (`--time` added) | 0.104 | 0.228 | 0.255 |
+| b4215ab | RT_THOUGHT cleared on the slots that thought (list kept by `think`), not a 4096-slot sweep; `freeRemoved` scratch reused | 0.100 | 0.221 | 0.245 |
+| f558fc0 | touch pass: candidate snapshot kept between touchers until a touch handler runs | 0.095 | 0.202 | 0.218 |
+| 2620829 | builtin report: per-thread cached entry index (`BuiltinReport::entryFor`/`noteCallAt`) | 0.088 | 0.191 | 0.201 |
+| effda39 | `attachToTag`: the child keeps its tag lookup (model pointer + tag name as the key) | 0.088 | 0.185 | 0.199 |
+| 6989490 | `Entity::f/setF/v3/setV3/flagBits` inline | 0.077 | 0.172 | 0.181 |
+| 01cb19b | entity lists without allocations (particle scratch, `World::EntityListScope`) | 0.076 | 0.168 | 0.182 |
+| c431b9a | VM `decode` inline, operands resolved in place, role table | 0.066 | 0.142 | 0.154 |
+| 4cfc421 | `setupTransform`: last angles-to-axis result reused while the angle bits are unchanged | 0.062 | 0.139 | 0.148 |
+| 6019de1 | hashed builtin and global name lookups at thread binding | 0.062 | 0.138 | 0.147 |
+| 1e49c37 | player index only for player globals; `decodeEntityAddr` inline | 0.058 | 0.130 | 0.137 |
+| b006d85 | VM operand helpers forced inline, frame window handled in place | 0.050 | 0.115 | 0.120 |
+
+Mallocs per step after: 11 (as3d 14), 30 (as2 3), 29 (gulf 23); what remains is the spawn path
+(a script thread per spawned entity: frame, stack, binding tables, path strings).
+
+**Standard set, before and after** (`tools/sim_bench.sh`, desktop x86-64 RelWithDebInfo, mean ms
+per step; the before/after columns from an interleaved run of both binaries, best of 5):
+
+| game | mission | before | after | after / before |
+|---|---|---|---|---|
+| as3d | 1 | 0.057 | 0.026 | 0.45 |
+| as3d | 6 | 0.063 | 0.029 | 0.46 |
+| as3d | 14 | 0.116 | 0.055 | 0.48 |
+| as3d | 16 | 0.092 | 0.043 | 0.46 |
+| as3d | 19 | 0.113 | 0.055 | 0.49 |
+| as3d | 20 | 0.121 | 0.058 | 0.48 |
+| as2 | 1 | 0.152 | 0.073 | 0.48 |
+| as2 | 3 | 0.174 | 0.081 | 0.46 |
+| as2 | 6 | 0.129 | 0.062 | 0.48 |
+| as2 | 8 | 0.167 | 0.083 | 0.49 |
+| as2 | 14 | 0.247 | 0.123 | 0.50 |
+| gulf | 1 | 0.133 | 0.064 | 0.48 |
+| gulf | 6 | 0.218 | 0.105 | 0.48 |
+| gulf | 7 | 0.241 | 0.113 | 0.47 |
+| gulf | 14 | 0.235 | 0.118 | 0.50 |
+| gulf | 18 | 0.285 | 0.129 | 0.45 |
+| gulf | 23 | 0.273 | 0.129 | 0.47 |
+
+Per phase (gulf 23, ms): entities 0.210 to 0.103, collisions 0.042 to 0.010, after (particles,
+render pass) 0.017 to 0.016.
+
+**ARM caveat.** These are x86-64 numbers. The biggest single desktop win (the VM `decode`
+rewrite) removed store-forwarding stalls that are an x86 effect; on the ARM11 that change saves
+the call and copy overhead only. Conversely the memory-bound changes (the 4096-slot sweep, the
+touch list walks, the tag string compares, the per-call report search, software sinf/cosf) should
+gain more on the Old 3DS (16 KB L1, no L2, slow FCRAM, newlib libm) than here. A uniform scaling
+of the desktop ratio would put mission 14 near 4 ms at 268 MHz, but that is not a measurement:
+the owner's hardware run (the 3DS `mode=sim`/bot step log, with and without the speed-up) is the
+number to use. Expected order: 25 to 45 % less on the ARM11.
+
+**Proof of identity.** `as3d_sim --dump-state` after 3600 frames, before (38bc62d) and after,
+for all 62 missions of the three games, in three configurations: `--bot`; `--pilot --god
+--upgrades 3 --items 5` (more weapons, more collisions); `--bot --players 2 --seed 7
+--difficulty 3`. All 310 dumps and the summaries (which list the builtin call counts and the
+unknown globals) are byte-identical. New tests: the report cache follows report changes
+(`script_test`), a touch handler's removal is seen by the next toucher in the same pass
+(`collision_test`; it fails if the snapshot is not invalidated), nested `EntityListScope`s
+(`world_test`); ci.sh (goldens, precache_test, world_test) passes for as3d, as2 and gulf.
+
+**Memory.** `Entity` grows by the tag cache and the axis cache: 840 to 960 bytes on x86-64,
+about 95 bytes more per slot on the ARM11, so about 0.4 MB for the 4096 slots (M4.4 budget).
+
+**Left as is, and why.**
+- `ParticleEmitter::update`, `computeScreenBounds`, `projectPoint`, `Terrain::heightAt`, the
+  rest of `setupTransform`: float arithmetic; any restructuring would risk the operation order.
+- `freeTree` walks the list once per freed entity to detach AttachEntity children; a skip when no
+  list entity has a parent was measured and gave nothing (attached entities are common), so it
+  was dropped.
+- The spawn path (one `ScriptThread` per spawned entity: 2 KB frame, stack reserve, binding
+  vectors, path normalisation and `std::map` lookups of the program and model): about 20
+  allocations per step on the busy sequel missions; a thread pool is the next step if the
+  hardware run shows malloc time.
+- TerraMorph's stamp lookup is a short linear string compare on a rare call (no stamps in as3d;
+  a few in the sequels): not on the per-step path.
+- `DefDatabase::find*` lowercases its key into a `std::string` per call (hashed since M1.10a):
+  a few calls per step.
