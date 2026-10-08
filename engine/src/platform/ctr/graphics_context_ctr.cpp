@@ -3,6 +3,7 @@
 // single-buffered, while the display transfer writes RGB8).
 #include <3ds.h>
 
+#include <cmath>
 #include <cstdio>
 #include <string>
 
@@ -19,6 +20,11 @@ namespace {
      GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO))
 
 CtrContext* g_live = nullptr;
+
+// The GPU command buffer (linear memory). citro3d's default 256 KB overflows in stereo: Gulf
+// Thunder mission 1 reached 93 % at 435 draws for the two eyes and both screens (frame 345 of
+// the bot run under Azahar) and hung on the next frame. 1 MB is about 1800 such draws.
+constexpr size_t kCmdBufBytes = 0x100000;
 
 class Impl final : public CtrContext {
 public:
@@ -40,7 +46,7 @@ public:
         // Before any target on the bottom screen exists.
         gfxSetScreenFormat(GFX_BOTTOM, GSP_BGR8_OES);
         gfxSetDoubleBuffering(GFX_BOTTOM, true);
-        if (!C3D_Init(C3D_DEFAULT_CMDBUF_SIZE)) {
+        if (!C3D_Init(kCmdBufBytes)) {
             AS3D_ERROR("ctr: C3D_Init failed");
             return false;
         }
@@ -82,6 +88,15 @@ public:
     }
     void endFrame() override {
         if (!inFrame_) return;
+        // A full command buffer drops the frame's last commands and the GPU never signals the
+        // end of the frame (the app hangs in the next C3D_FrameBegin): warn at each new 10 %
+        // step of the high-water mark above 50 %.
+        const float use = C3D_GetCmdBufUsage();
+        if (use > 0.5f && use >= cmdBufWarned_ + 0.1f) {
+            cmdBufWarned_ = std::floor(use * 10.0f) / 10.0f;
+            AS3D_WARN("ctr: GPU command buffer %.1f %% of %u KB used in one frame", use * 100.0,
+                      static_cast<unsigned>(kCmdBufBytes / 1024));
+        }
         C3D_FrameEnd(0);
         inFrame_ = false;
     }
@@ -93,6 +108,7 @@ public:
 private:
     C3D_RenderTarget* top_[2] = {nullptr, nullptr};
     C3D_RenderTarget* bottom_ = nullptr;
+    float cmdBufWarned_ = 0.4f;
     bool gfxInit_ = false, c3dInit_ = false, inFrame_ = false, new3ds_ = false;
     std::string description_;
 };
