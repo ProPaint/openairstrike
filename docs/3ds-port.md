@@ -193,3 +193,54 @@ Azahar screenshot (screen located by corner markers). 2026-10-08 on Azahar: 81/8
 within tolerance (texture formats exact, blends, depth, cull, viewport, scissor, terrain TEV
 off by 1, mesh shader, both fog rows, stereo markers at the GL eye positions); texture bytes
 39424 = sum of texconv::byteSize, VRAM free dropped by exactly the VRAM share (35328).
+
+## M1.4 Terrain on the PICA (engine/src/render/pica/terrain_renderer_pica.cpp)
+
+`TerrainRenderer` (as3d/terrain_render.h, unchanged public API) gets a PICA pimpl over the M0.4a
+geometry (as3d/terrain_build.h); `terrain_pica.h` adds the byte counters and the overlay bias.
+
+- Buffers (linear memory): one `TerrainVertexPica` buffer per 8-row chunk (uv1 and the normals
+  dropped: the detail uv comes from the position in `terrain.v.pica`, the normals stay on the CPU
+  for the lights), one per chunk and tile atlas for the overlay quads, one u16 index list shared
+  by every chunk (a shorter last chunk draws its prefix), one zero light stream for unlit draws.
+- Textures: base blocks 256x256 RGB565 with mip chains, detail RGB565 with mips, atlases by
+  content (`TextureClass::Auto`: RGBA5551 or RGBA4), all through the VRAM-first budget.
+- `render(params)`: `params.projection` is the eye's `picaEyeProjection`, `params.view` the
+  central view. Per call: W-buffer depth mapping for the near plane read from the projection,
+  fog table for its near/far and the level's fog range, cull against projection * view (the GL
+  planes with the far plane replaced by the PICA's clip z <= 0), so each eye culls itself. Chunks:
+  cull off, depth test + write, `tevTerrain2Stage`, base on unit 0 (bound per 32-row block),
+  detail on unit 1, `setTerrainDetail` per chunk with the whole repeats of the chunk's first row
+  taken out (small interpolated uvs). Overlays: alpha blend, depth test without write,
+  `kPolygonOffsetDepth` through `applyDepthMap`, `tevModulateTexColor`. The state is left as GL
+  leaves it (depth test + write, no blend, cull off).
+- Dynamic lights: per visible chunk the lights whose radius reaches its box, nearest first, at
+  most 8; `terrainDynamicLightColors` gives the lit colour, the stream holds lit minus baked (the
+  shader adds and clamps, so the sum is the CPU's exact byte). Overlay vertices copy the stream
+  of their grid vertex. Computed once per frame and chunk (keyed by the arena's frame number), so
+  the second eye reuses them.
+- `update()` (craters): `updateChunkHeights`, then new buffers for each touched chunk and its
+  overlays; the old ones are freed two frames later (the frame in flight may still read them).
+- `options.wireframe` is ignored (the PICA has no line primitive).
+
+Mission 1 numbers (Azahar, `mode=terraintest`): 32 x 256 cells, 32 chunks, 9504 chunk vertices,
+3 tile atlases with 246 quads (1476 vertices). Linear memory 257.3 KB of vertex buffers + 4.2 KB
+of index list and zero stream (`linearSpaceFree` dropped 263.9 KB); 12 textures, 1727.6 KB, all
+in VRAM (8 base blocks, detail, 3 atlases). From the world camera after 120 bot frames: 5 chunks
+visible, 7 draw calls, 7746 indices; 3 lights light 2 chunks with 2376 bytes of arena. A crater
+on 7x7 vertices re-uploads 2 chunks in 0.38 ms. `build()` takes 2.3 s under Azahar (base texture
+generation, mip chains and swizzling; to be measured on hardware against the 3 s load budget).
+
+Azahar check (2026-10-08). The test dumps its top target to `terraintest_<phase>.ppm` (exact
+pixels; window captures add the emulator's scaling and gave MAE 5.5). Phase 1 against
+`as3d_game --headless --level 1 --bot --frames 120 --size 400x240 --screenshot-every 120
+--render-only terrain` with `tools/3ds_screen_compare.py`: mean abs error 1.56/255 (R 1.80,
+G 1.25, B 1.63), 99.8 % of pixels within 8, 100 % within 16. Same framing, orientation, detail
+layer, fog and tiles; the residue is RGB565 quantisation and filtering in the distant rows. The
+crater (19k pixels change) and the three lights (red left, green right, blue further, 33k pixels)
+land where placed. Grazing view of the road tiles: the overlay pass changes 620 pixels (solid
+tile areas, no speckle), and the image with bias 0 equals the image with 2^-18 and with 2^-22
+pixel for pixel: the overlays reuse the terrain's vertices, so equal depths pass GEQUAL and the
+bias only absorbs rounding. `kPolygonOffsetDepth` is now 2^-22 (pica_frame.h explains the w
+scaling of the offset under the W-buffer). Azahar's GPU times are constants (0.25 ms): the
+terrain's GPU cost needs the hardware run.

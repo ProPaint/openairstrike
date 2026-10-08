@@ -123,3 +123,12 @@ private header `ctr_context.h`).
 patterns through `engine/src/render/pica` on the top screen, `picatest_log.txt` and
 `picatest_checks.txt` next to `run.ini`. Check a screenshot with
 `tools/3ds_picatest_check.py shot.png picatest_checks.txt` (docs/3ds-port.md, "M1.3").
+
+`mode=terraintest` (optional `level=N`, `hold=N` frames per phase, default 300) runs
+`source/terrain_test.cpp`: the mission's terrain alone through the PICA `TerrainRenderer` after
+120 bot frames, in six phases (plain, crater, three lights, a grazing view of the tile overlays,
+the same without overlays, the same without depth bias). It writes `terraintest_log.txt` (bytes,
+chunk and draw counts, GPU time) and one `terraintest_<phase>.ppm` per phase (the top target,
+400x240). Compare phase 1 with the desktop: `as3d_game --headless --level 1 --bot --frames 120
+--size 400x240 --screenshot-every 120 --render-only terrain`, then
+`tools/3ds_screen_compare.py terraintest_1.png frame_000120.png` (docs/3ds-port.md, "M1.4").
