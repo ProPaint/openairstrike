@@ -80,6 +80,8 @@ private:
     std::uint64_t refused_ = 0;
     float damageToPlayers_ = 0.0f;
     float damageToEnemies_ = 0.0f;
+    // Scratch lists of update() and applyDamage(), kept to avoid allocations per step.
+    std::vector<int> roots_, dfs_, damageList_;
 };
 
 } // namespace as3d

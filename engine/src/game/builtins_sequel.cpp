@@ -134,7 +134,8 @@ void bLightning(BuiltinArgs& a, void*) {
     const GameRules& rl = w.rules();
     const ObjectDef* effect = rl.lightningEffectObject ? w.db().findObject(rl.lightningEffectObject) : nullptr;
     const Vec3 o = w.entity(s).v3(F_ORIGIN);
-    for (int i : w.listEntities()) {
+    World::EntityListScope listScope(w); // the list, without an allocation per call
+    for (int i : listScope.list()) {
         if (!w.validIndex(i)) continue;
         const Entity& e = w.entity(i);
         if (e.f(F_DEAD) != 0.0f || !(e.rt & RT_COLLIDABLE) || e.f(F_CLASS) != kClassEnemy) continue;

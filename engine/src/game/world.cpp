@@ -193,9 +193,23 @@ void World::unlink(int idx) {
 
 std::vector<int> World::listEntities() const {
     std::vector<int> out;
-    for (int i = newest_; i != -1; i = ents_[static_cast<size_t>(i)].older) out.push_back(i);
+    listEntitiesInto(out);
     return out;
 }
+
+void World::listEntitiesInto(std::vector<int>& out) const {
+    out.clear();
+    for (int i = newest_; i != -1; i = ents_[static_cast<size_t>(i)].older) out.push_back(i);
+}
+
+World::EntityListScope::EntityListScope(const World& w) : w_(w) {
+    if (w.listPool_.size() <= w.listDepth_) w.listPool_.emplace_back(new std::vector<int>());
+    std::vector<int>& buf = *w.listPool_[w.listDepth_++];
+    w.listEntitiesInto(buf);
+    list_ = &buf;
+}
+
+World::EntityListScope::~EntityListScope() { --w_.listDepth_; }
 
 EntityHandle World::handleOf(int idx) const {
     EntityHandle h;

@@ -466,6 +466,23 @@ public:
     bool readRefField(u32 ref, int k, u32& out) const;
     // Newest-first list of pool entities (a snapshot).
     std::vector<int> listEntities() const;
+    // listEntities into `out` (cleared first), reusing its storage.
+    void listEntitiesInto(std::vector<int>& out) const;
+    // listEntities into a buffer of the world's that is reused from call to call; the
+    // list stays valid while the scope lives, and scopes nest (a builtin that loops over
+    // the list can run handlers whose builtins open their own scope).
+    class EntityListScope {
+    public:
+        explicit EntityListScope(const World& w);
+        ~EntityListScope();
+        EntityListScope(const EntityListScope&) = delete;
+        EntityListScope& operator=(const EntityListScope&) = delete;
+        const std::vector<int>& list() const { return *list_; }
+
+    private:
+        const World& w_;
+        const std::vector<int>* list_;
+    };
     int listCount() const { return listCount_; }
     int slotsInUse() const { return slotsInUse_; }
 
@@ -722,6 +739,9 @@ private:
     // only place that sets the bit; a slot may appear twice when it was reused).
     std::vector<int> thoughtSlots_;
     std::vector<int> doomedScratch_; // freeRemoved's list, kept to avoid an allocation per step
+    // EntityListScope's buffers, one per nesting depth (unique_ptr: stable addresses).
+    mutable std::vector<std::unique_ptr<std::vector<int>>> listPool_;
+    mutable size_t listDepth_ = 0;
     // Touch pass candidates (collision.cpp, touchEntity): valid until a touch handler runs.
     std::vector<int> touchSnap_;
     bool touchSnapValid_ = false;

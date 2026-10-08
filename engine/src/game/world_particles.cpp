@@ -79,8 +79,9 @@ void WorldParticles::update(World& world, float dt) {
 
     // 2. New holders, oldest root first, parents before children (a deterministic order;
     //    it only matters when the pool is full).
-    std::vector<int> roots = world.listEntities();
-    std::vector<int> stack;
+    std::vector<int>& roots = roots_;
+    world.listEntitiesInto(roots);
+    std::vector<int>& stack = dfs_;
     for (auto it = roots.rbegin(); it != roots.rend(); ++it) {
         stack.clear();
         stack.push_back(*it);
@@ -155,7 +156,8 @@ void WorldParticles::applyDamage(World& world, const Instance& inst) {
     const ParticleDamage& d = inst.damage;
     const std::vector<Particle>& ps = em.particles();
     const float life = em.desc().lifeTime;
-    std::vector<int> list;
+    std::vector<int>& list = damageList_; // taken at the first particle that needs it
+    list.clear();
     for (size_t k = 0; k < ps.size(); k += static_cast<size_t>(d.every)) {
         const Particle& p = ps[k];
         if (!em.isLive(p)) continue;
@@ -180,7 +182,7 @@ void WorldParticles::applyDamage(World& world, const Instance& inst) {
             }
         } else {
             // TOUCH_ENEMIES: the first on-screen enemy (newest first) that contains it.
-            if (list.empty()) list = world.listEntities();
+            if (list.empty()) world.listEntitiesInto(list);
             for (int i : list) {
                 if (!world.validIndex(i)) continue;
                 const Entity& e = world.entity(i);
@@ -214,7 +216,7 @@ void applyDamageBits(World& world, int bits, const float win[3], float amount, s
         }
         return;
     }
-    if (list.empty()) list = world.listEntities();
+    if (list.empty()) world.listEntitiesInto(list);
     for (int i : list) {
         if (!world.validIndex(i)) continue;
         const Entity& e = world.entity(i);

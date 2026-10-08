@@ -106,7 +106,8 @@ void bRadialDamage(BuiltinArgs& a, void*) {
     float radius = a.f32(1), rate = a.f32(2);
     if (!(radius > 0.0f)) return; // guards the 0/0 of the original; negative: nothing in range
     int attacker = w.attackerFor(selfOf(w));
-    for (int i : w.listEntities()) {
+    World::EntityListScope listScope(w); // the list, without an allocation per call
+    for (int i : listScope.list()) {
         const Entity& e = w.entity(i);
         const bool target = e.f(F_CLASS) == kClassEnemy || (w.rules().civilians && e.f(F_CLASS) == kClassCivilian);
         if (!e.inUse || (e.rt & RT_REMOVED) || !target || !(e.f(F_HEALTH) > 0.0f)) continue;
@@ -145,7 +146,8 @@ void bTraceLine(BuiltinArgs& a, void*) {
     }
     const bool civilians = w.rules().civilians && (mask & TOUCH_BIT_CIVILIAN);
     if ((mask & 1) || civilians) {
-        for (int i : w.listEntities()) {
+        World::EntityListScope listScope(w); // the list, without an allocation per call
+        for (int i : listScope.list()) {
             const Entity& e = w.entity(i);
             const float cls = e.f(F_CLASS);
             const bool accepted = ((mask & 1) && cls == kClassEnemy) || (civilians && cls == kClassCivilian);
@@ -181,7 +183,8 @@ void bTraceLineDamage(BuiltinArgs& a, void*) {
             }
         }
         if (tm == TOUCH_BIT_PLAYER) return;
-        for (int i : w.listEntities()) {
+        World::EntityListScope listScope(w); // the list, without an allocation per call
+        for (int i : listScope.list()) {
             const Entity& e = w.entity(i);
             const float cls = e.f(F_CLASS);
             const bool accepted = ((tm & TOUCH_BIT_ENEMIES) && cls == kClassEnemy) ||
@@ -199,7 +202,8 @@ void bTraceLineDamage(BuiltinArgs& a, void*) {
             if (World::segmentHitsRect(s0, s1, w.entity(pi).rect)) w.damageEntity(pi, dmg, -1);
         }
     } else if (tm == 1) {
-        for (int i : w.listEntities()) {
+        World::EntityListScope listScope(w); // the list, without an allocation per call
+        for (int i : listScope.list()) {
             const Entity& e = w.entity(i);
             if ((e.rt & RT_REMOVED) || !(e.rt & RT_COLLIDABLE) || e.f(F_CLASS) != kClassEnemy) continue;
             if (e.fields[F_RENDER_TYPE] != 0 || (e.flagBits() & FL_POINT_COLLISION) || e.f(F_DEAD) != 0.0f) continue;
@@ -216,7 +220,8 @@ void bLightning(BuiltinArgs& a, void*) {
     int s = selfOf(w);
     if (s < 0) return;
     Vec3 o = w.entity(s).v3(F_ORIGIN);
-    for (int i : w.listEntities()) {
+    World::EntityListScope listScope(w); // the list, without an allocation per call
+    for (int i : listScope.list()) {
         const Entity& e = w.entity(i);
         if (e.f(F_DEAD) != 0.0f || !(e.rt & RT_COLLIDABLE) || e.f(F_CLASS) != kClassEnemy) continue;
         if (!(length(e.v3(F_ORIGIN) - o) <= 500.0f)) continue;
@@ -231,7 +236,8 @@ void bLockTarget(BuiltinArgs& a, void*) {
     World& w = worldOf(a);
     float best = 9999.0f;
     int found = -1;
-    for (int i : w.listEntities()) {
+    World::EntityListScope listScope(w); // the list, without an allocation per call
+    for (int i : listScope.list()) {
         const Entity& e = w.entity(i);
         if ((e.rt & RT_REMOVED) || e.f(F_CLASS) != kClassEnemy || (e.flagBits() & FL_NONTARGET)) continue;
         if (!(e.rt & RT_COLLIDABLE) || e.f(F_DEAD) != 0.0f || !(e.f(F_HEALTH) > 0.0f)) continue;
