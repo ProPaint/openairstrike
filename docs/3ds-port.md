@@ -1939,3 +1939,15 @@ precache_world 335 reads for 5.3 MB in 2.4 s), then 1.0 s of shadow rasterisatio
 Azahar, second start of mission 1: load 5.7 s (was 7.8; Azahar reads at about 5 MB/s, so the 1.7 s
 prefetch there says little about the console), shadows 2.4 s -> 0.3 s, script precache 0.35 -> 0.09
 s. The first start of a level (no plan, no shadow file yet) costs what it did before.
+
+**Load: left for later** (the owner, 2026-10-08: a loading screen is acceptable, the feel comes
+first). Not done:
+- The first start of a level (no read plan yet): read the precache set's files ahead before the
+  precache, the models first, then their meshes loaded to learn the textures the models name, then
+  the textures, particle textures and sounds (a `WorldScene::prefetchPrecacheSet` called at the
+  start of the PICA `WorldRenderer::precache`, before the placements' shadows); the scripts
+  directory is one contiguous 418 KB region of pak0 (339 files) and could be read ahead whole
+  before `World::precacheScripts`. Mission 1's first start read 289 of pak0's 766 models (4.1 MB
+  spread over 12.7 MB), so whole-directory reads do not pay for the models.
+- The definitions' parsing (about 0.5 s) and the terrain base textures (0.45 s, a candidate for
+  the SD cache next to the silhouettes).
