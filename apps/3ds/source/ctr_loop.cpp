@@ -168,7 +168,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
 
     // Sound (M2.3, ctr_audio.h): bot and play, not sim.
     CtrAudio audio;
-    audio.setMusic(run.music, run.musicTaps);
+    audio.setMusic(run.music, run.musicTaps, std::string(kDataDir) + "/" + game->key + "/music");
     if (!sim && run.audio) audio.start(*session, run.precache);
 
     AptState apt;

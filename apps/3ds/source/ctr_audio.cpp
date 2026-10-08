@@ -21,6 +21,7 @@ bool CtrAudio::start(as3d_game::GameSession& session, bool precache) {
     started_ = true;
     bridge().setMusicEnabled(music_);
     bridge().audio().setMusicInterpolation(taps_);
+    bridge().audio().setPrerenderedMusicDir(prerenderedDir_);
     if (bridge().nullDevice()) AS3D_INFO("audio: null device (silent)"); // the ndsp device logs its own line
     if (session.hasLevel()) levelStarted(session);
     return true;
@@ -31,6 +32,7 @@ void CtrAudio::attach(as3d_game::AudioBridge& b) {
     external_ = &b;
     b.setMusicEnabled(music_);
     b.audio().setMusicInterpolation(taps_);
+    b.audio().setPrerenderedMusicDir(prerenderedDir_);
     started_ = b.active();
     if (started_ && b.nullDevice()) AS3D_INFO("audio: null device (silent)");
 }
@@ -51,10 +53,11 @@ void CtrAudio::levelStarted(as3d_game::GameSession& session) {
     const uint64_t t0 = nowTicks();
     precache(session);
     bridge().startLevel(session.musicPath()); // no module when the music is off (setMusic)
-    AS3D_INFO("audio: level start, %d sounds precached, music %s, in %.0f ms", precached_,
-              !music_ ? (AS3D_WITH_OPENMPT ? "off (run.ini music=0)" : "off (AS3D_WITH_OPENMPT=OFF)")
+    const bool decoder = AS3D_WITH_OPENMPT || AS3D_WITH_TREMOR;
+    AS3D_INFO("audio: level start, %d sounds precached, music %s (%s), in %.0f ms", precached_,
+              !music_ ? (decoder ? "off (run.ini music=0)" : "off (no decoder in this build)")
                       : (bridge().audio().isMusicPlaying() ? session.musicPath().c_str() : "none"),
-              ticksToMs(nowTicks() - t0));
+              bridge().audio().musicDecoderName(), ticksToMs(nowTicks() - t0));
 }
 
 void CtrAudio::afterStep(as3d::World& world) {
@@ -88,7 +91,9 @@ void CtrAudio::logSummary() {
     const as3d::audio::ndsp::NdspStats s = as3d::audio::ndsp::stats();
     const double musicSec = static_cast<double>(m.frames) / 32728.0;
     AS3D_INFO("PERF_SUMMARY music decoder=%s decoded_s=%.1f cpu_share=%.1f%% max_decode_ms=%.2f underruns=%lu",
-              !music_ ? (AS3D_WITH_OPENMPT ? "off" : "none") : "openmpt", musicSec,
+              !music_ ? ((AS3D_WITH_OPENMPT || AS3D_WITH_TREMOR) ? "off" : "none")
+                      : bridge().audio().musicDecoderName(),
+              musicSec,
               musicSec > 0 ? 100.0 * static_cast<double>(m.decodeUs) / (musicSec * 1e6) : 0.0,
               m.maxCallUs / 1000.0, static_cast<unsigned long>(s.underruns));
     if (!s.open) return;

@@ -179,8 +179,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     }
     as3d_game::GameSession& ses = *stack.session;
     as3d_game::GameFlow& flow = *stack.flow;
-    // Music (M2.4): run.ini music, and only in a libopenmpt build (CtrAudio::setMusic).
-    stack.audio.setMusicEnabled(run.music && AS3D_WITH_OPENMPT);
+    // Music (M2.4): run.ini music, and only in a build with a decoder (CtrAudio::setMusic).
+    stack.audio.setMusicEnabled(run.music && (AS3D_WITH_OPENMPT || AS3D_WITH_TREMOR));
     frame->setFlow(&flow);
     flow.setScreenSize(CtrInput::kTouchW, CtrInput::kTouchH);
     flow.frontend().setHudTarget(ui::HudTarget::Bottom320x240);
@@ -192,7 +192,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
                   ses.hasLevel() && ses.world().intermission() ? 1 : 0, ses.levelName().c_str());
     };
     CtrAudio audio;
-    audio.setMusic(run.music, run.musicTaps);
+    audio.setMusic(run.music, run.musicTaps, dir + "/music");
     if (run.audio) audio.attach(stack.audio);
     const double loadMs = ticksToMs(nowTicks() - loadStart);
     perf.setLoadMs(loadMs);

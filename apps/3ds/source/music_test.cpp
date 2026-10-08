@@ -8,6 +8,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "as3d/audio.h"
@@ -101,6 +102,7 @@ std::vector<std::string> pickModules(Vfs& vfs, const DefDatabase& db, const std:
 
 struct PassResult {
     std::string module;
+    std::string decoder;
     bool fast = true;
     bool loaded = false;
     double loadMs = 0;
@@ -127,8 +129,10 @@ PassResult pass(Audio& audio, bool device, const std::string& module, bool fast,
     const u64 l0 = svcGetSystemTick();
     r.loaded = audio.playMusic(module.c_str(), true);
     r.loadMs = ms(svcGetSystemTick() - l0);
-    say("-- %s, %s: load %s in %.0f ms, heap +%.0f KB (module and decoded samples), title '%s'\n", module.c_str(),
-        fast ? "current clock" : "268 MHz (speedup off)", r.loaded ? "ok" : "FAILED", r.loadMs,
+    r.decoder = audio.musicDecoderName();
+    say("-- %s, %s, decoder %s: load %s in %.0f ms, heap +%.0f KB (file and decoded data), title '%s'\n",
+        module.c_str(), fast ? "current clock" : "268 MHz (speedup off)", r.decoder.c_str(), r.loaded ? "ok" : "FAILED",
+        r.loadMs,
         (static_cast<double>(heapUsed()) - static_cast<double>(heap0)) / 1024.0, audio.musicTitle().c_str());
     if (!r.loaded) return r;
 
@@ -197,12 +201,13 @@ PassResult pass(Audio& audio, bool device, const std::string& module, bool fast,
 
 void verdict(const PassResult& r) {
     if (!r.loaded) {
-        say("MUSICTEST module=%s clock=%s load=FAILED\n", r.module.c_str(), r.fast ? "current" : "268MHz");
+        say("MUSICTEST module=%s clock=%s decoder=%s load=FAILED\n", r.module.c_str(), r.fast ? "current" : "268MHz",
+            r.decoder.c_str());
         return;
     }
-    say("MUSICTEST module=%s clock=%s load_ms=%.0f decoder_share=%.1f%% worst_second=%.1f%% max_call_ms=%.2f "
+    say("MUSICTEST module=%s clock=%s decoder=%s load_ms=%.0f decoder_share=%.1f%% worst_second=%.1f%% max_call_ms=%.2f "
         "(%d frames) feeder_cpu=%.1f%% max_fill_ms=%.2f underruns=%u device=%s -> %s (rule: <= %.0f%% of core 1)\n",
-        r.module.c_str(), r.fast ? "current" : "268MHz", r.loadMs, r.share, r.worstShare, r.maxCallMs,
+        r.module.c_str(), r.fast ? "current" : "268MHz", r.decoder.c_str(), r.loadMs, r.share, r.worstShare, r.maxCallMs,
         r.maxCallFrames, r.feederCpu, r.maxFillMs, r.underruns, r.device ? "ndsp" : "null",
         r.worstShare <= kUsableShare ? "USABLE" : "TOO SLOW", kUsableShare);
 }
@@ -216,7 +221,9 @@ void run(Vfs& vfs, const DefDatabase& db, const std::string& dir, const Options&
     APT_CheckNew3DS(&n3ds);
     say("music test (M2.4): %s 3DS, %d frames per pass, interpolation %d taps%s\n", n3ds ? "New" : "Old", frames,
         o.taps, o.taps ? "" : " (libopenmpt's default, 8)");
-    say("built %s libopenmpt (AS3D_WITH_OPENMPT=%d)\n", AS3D_WITH_OPENMPT ? "with" : "WITHOUT", AS3D_WITH_OPENMPT);
+    say("built %s libopenmpt (AS3D_WITH_OPENMPT=%d), %s tremor (AS3D_WITH_TREMOR=%d)\n",
+        AS3D_WITH_OPENMPT ? "with" : "WITHOUT", AS3D_WITH_OPENMPT, AS3D_WITH_TREMOR ? "with" : "without",
+        AS3D_WITH_TREMOR);
     setLogLevel(LogLevel::Info);
     if (n3ds) osSetSpeedupEnable(true);
 
@@ -232,19 +239,33 @@ void run(Vfs& vfs, const DefDatabase& db, const std::string& dir, const Options&
     audio.setMusicInterpolation(o.taps);
     audio.setMusicVolume(0.5f); // config.ini MusicVolume as shipped
 
-    std::vector<PassResult> results;
+    // Each module pre-rendered (<dir>/<game>/music/<name>.ogg, when the file is there) and as a
+    // module (libopenmpt).
+    const std::string oggDir = dir + "/" + o.game + "/music";
+    std::vector<std::pair<std::string, bool>> runs; // module, pre-rendered
     for (const std::string& m : modules) {
-        if (!aptMainLoop()) break;
-        results.push_back(pass(audio, device, m, true, frames));
-    }
-    if (n3ds) {
-        osSetSpeedupEnable(false);
-        for (const std::string& m : modules) {
-            if (!aptMainLoop()) break;
-            results.push_back(pass(audio, device, m, false, frames));
+        std::string base = m.substr(m.find_last_of("\\/") + 1);
+        base = lower(base.substr(0, base.find_last_of('.')));
+        const std::string ogg = oggDir + "/" + base + ".ogg";
+        if (std::FILE* f = std::fopen(ogg.c_str(), "rb")) {
+            std::fclose(f);
+            if (AS3D_WITH_TREMOR) runs.emplace_back(m, true);
+            say("%s: pre-rendered %s%s\n", m.c_str(), ogg.c_str(), AS3D_WITH_TREMOR ? "" : " (ignored: no tremor)");
+        } else {
+            say("%s: no pre-rendered %s\n", m.c_str(), ogg.c_str());
         }
-        osSetSpeedupEnable(true);
+        if (AS3D_WITH_OPENMPT) runs.emplace_back(m, false);
     }
+    std::vector<PassResult> results;
+    for (int clock = 0; clock < (n3ds ? 2 : 1); ++clock) {
+        if (clock == 1) osSetSpeedupEnable(false);
+        for (const auto& run : runs) {
+            if (!aptMainLoop()) break;
+            audio.setPrerenderedMusicDir(run.second ? oggDir : std::string());
+            results.push_back(pass(audio, device, run.first, clock == 0, frames));
+        }
+    }
+    if (n3ds) osSetSpeedupEnable(true);
     for (const PassResult& r : results) verdict(r);
     audio.shutdown();
     say("music test done\n");

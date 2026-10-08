@@ -2,11 +2,14 @@
 // engine/src/audio/ndsp/, or the Null device when ndspInit fails), driven like the desktop
 // game_stack / game_loop: precache of the level's sounds and startLevel at level start, the
 // world's sound queue drained after every step, paused with the world and on APT suspend/sleep,
-// stopped at exit. Music (M2.4): the level's module through libopenmpt when the build has it
-// (AS3D_WITH_OPENMPT) and run.ini music is not 0; the decoder runs on the feeder thread (core 1).
+// stopped at exit. Music (M2.4), when run.ini music is not 0: the level's module pre-rendered
+// as <game dir>/music/<name>.ogg (tremor, AS3D_WITH_TREMOR) when the file exists, else the
+// module through libopenmpt (AS3D_WITH_OPENMPT), else none; the decoder runs on the feeder
+// thread (core 1).
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "audio_bridge.h"
 
@@ -18,10 +21,12 @@ namespace ctrapp {
 
 class CtrAudio {
 public:
-    // run.ini music=0|1; call before start() / attach(). Off in a build without libopenmpt.
-    void setMusic(bool on, int taps = 0) {
-        music_ = on && AS3D_WITH_OPENMPT;
+    // run.ini music=0|1 and music_taps, the pre-rendered files' directory; call before start() /
+    // attach(). Off in a build without a music decoder.
+    void setMusic(bool on, int taps, const std::string& prerenderedDir) {
+        music_ = on && (AS3D_WITH_OPENMPT || AS3D_WITH_TREMOR);
         taps_ = taps;
+        prerenderedDir_ = prerenderedDir;
     }
     bool music() const { return music_; }
     // Opens the device and starts the session's level (precache, startLevel). False when audio
@@ -58,8 +63,9 @@ private:
     bool suspended_ = false, worldPaused_ = false;
     int precached_ = 0;
     bool precache_ = true;
-    bool music_ = AS3D_WITH_OPENMPT;
+    bool music_ = AS3D_WITH_OPENMPT || AS3D_WITH_TREMOR;
     int taps_ = 0; // run.ini music_taps
+    std::string prerenderedDir_;
 };
 
 } // namespace ctrapp
