@@ -20,6 +20,9 @@ struct RunConfig {
     bool fxtest = false;      // mode=fxtest: the effects test (fx_test.h)
     bool uitest = false;      // mode=uitest: the 2D layer test (ui_test.h)
     bool audiotest = false;   // mode=audiotest: the sound test (audio_test.h)
+    bool musictest = false;   // mode=musictest: the music decoder measurement (music_test.h)
+    int musicTaps = 0;        // music_taps=N: the music test's interpolation filter length (0: default)
+    std::string musicFiles;   // music_files=a,b: the music test's modules
     int botFrames = 0;  // frames=N: the effects test's bot frames before drawing (0: 300)
     bool meshtest = false; // mode=meshtest: the PICA mesh test (mesh_test.h), mission 1 from the SD paks
     bool markstest = false; // mode=markstest: the PICA ground mark test (mark_test.h), mission 1 from the SD paks

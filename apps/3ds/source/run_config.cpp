@@ -96,6 +96,10 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.precache = n != 0;
         } else if (key == "audio") {
             if (toInt(val, &n)) c.audio = n != 0;
+        } else if (key == "music") {
+            if (toInt(val, &n)) c.music = n != 0;
+        } else if (key == "music_taps") {
+            if (toInt(val, &n) && (n == 0 || n == 1 || n == 2 || n == 4 || n == 8)) c.musicTaps = n;
         } else if (key == "attract") {
             if (toInt(val, &n) && n >= 0) c.attract = n;
         } else if (key == "logo") {

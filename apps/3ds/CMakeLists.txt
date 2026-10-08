@@ -37,6 +37,7 @@ add_executable(openairstrike
   source/fx_test.cpp
   source/ui_test.cpp
   source/audio_test.cpp
+  source/music_test.cpp
   source/ctr_audio.cpp
   ${AS3D_REPO_ROOT}/apps/game/game_session.cpp
   ${AS3D_REPO_ROOT}/apps/game/audio_bridge.cpp

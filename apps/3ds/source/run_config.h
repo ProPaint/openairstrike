@@ -39,6 +39,8 @@ struct RunConfig {
     float minFocal = 0.0f;     // min_focal=F: smallest focal distance; 0 = ctr_frame.h kMinFocalDistance
     bool precache = true;      // precache=0: skip the level-start precache (first-use loads, for comparison)
     bool audio = true;         // audio=0|1: sound in bot and play (ctr_audio.h); never in sim
+    bool music = true;         // music=0|1: the level and menu music (M2.4; needs a libopenmpt build)
+    int musicTaps = 0;         // music_taps=N: libopenmpt's interpolation (1, 2, 4, 8 taps); 0 = its default, 8
     // The front end (mode=menu, or mode=play without level=; ctr_loop.cpp):
     int attract = 0;           // attract=N: the attract level 1..4 behind the main menu; 0 = random
     bool logo = true;          // logo=0: no intro pages

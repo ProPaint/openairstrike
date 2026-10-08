@@ -2,7 +2,8 @@
 // engine/src/audio/ndsp/, or the Null device when ndspInit fails), driven like the desktop
 // game_stack / game_loop: precache of the level's sounds and startLevel at level start, the
 // world's sound queue drained after every step, paused with the world and on APT suspend/sleep,
-// stopped at exit. Music stays off on the 3DS for now (AS3D_WITH_OPENMPT=OFF, M2.4).
+// stopped at exit. Music (M2.4): the level's module through libopenmpt when the build has it
+// (AS3D_WITH_OPENMPT) and run.ini music is not 0; the decoder runs on the feeder thread (core 1).
 #pragma once
 
 #include <cstdint>
@@ -17,6 +18,12 @@ namespace ctrapp {
 
 class CtrAudio {
 public:
+    // run.ini music=0|1; call before start() / attach(). Off in a build without libopenmpt.
+    void setMusic(bool on, int taps = 0) {
+        music_ = on && AS3D_WITH_OPENMPT;
+        taps_ = taps;
+    }
+    bool music() const { return music_; }
     // Opens the device and starts the session's level (precache, startLevel). False when audio
     // could not start at all (nothing is played then); the Null fallback counts as started.
     // `precache` false (run.ini precache=0): no level-start precache, sounds load on first use.
@@ -33,8 +40,8 @@ public:
     void setSuspended(bool suspended);
     // Once per displayed frame: follows the world's pause (START, the bottom-screen button).
     void followPause(bool worldPaused);
-    // The PERF_SUMMARY audio lines.
-    void logSummary() const;
+    // The PERF_SUMMARY audio lines (audio, audio_feed, music).
+    void logSummary();
     void stop();
 
     bool active() const { return started_; }
@@ -51,6 +58,8 @@ private:
     bool suspended_ = false, worldPaused_ = false;
     int precached_ = 0;
     bool precache_ = true;
+    bool music_ = AS3D_WITH_OPENMPT;
+    int taps_ = 0; // run.ini music_taps
 };
 
 } // namespace ctrapp

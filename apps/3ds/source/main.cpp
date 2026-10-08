@@ -43,6 +43,7 @@
 #include "terrain_test.h"
 #include "ui_test.h"
 #include "audio_test.h"
+#include "music_test.h"
 
 extern "C" {
 extern u32 __ctru_heap_size;
@@ -307,6 +308,21 @@ int runSpike() {
         if (g_log) std::fclose(g_log);
         g_log = nullptr;
         audiotest::run(vfs, db, *game, kDir, runCfg.botFrames);
+        std::fflush(stderr);
+        C3D_Fini();
+        gfxExit();
+        return 0;
+    }
+
+    // mode=musictest: the M2.4 music decoder measurement (music_test.cpp).
+    if (runCfg.musictest) {
+        if (g_log) std::fclose(g_log);
+        g_log = nullptr;
+        musictest::Options mo;
+        mo.frames = runCfg.botFrames;
+        mo.taps = runCfg.musicTaps;
+        mo.files = runCfg.musicFiles;
+        musictest::run(vfs, db, kDir, mo);
         std::fflush(stderr);
         C3D_Fini();
         gfxExit();
