@@ -33,6 +33,8 @@ public:
 
     // Stops every sound and starts the level's music module (empty: no music).
     void startLevel(const std::string& musicPath);
+    // Off: startLevel plays no module (a build without a music decoder, the 3DS until M2.4).
+    void setMusicEnabled(bool on) { music_ = on; }
     // Level-start precache (as3d/precache.h): decodes every sound of the set now, so that the
     // world's first request of each loads nothing. Returns how many were looked up.
     int precacheSounds(const as3d::PrecacheSet& set);
@@ -65,6 +67,7 @@ private:
     bool ok_ = false;
     bool null_ = true;
     bool paused_ = false;
+    bool music_ = true;
     std::vector<Loop> loops_;
     std::vector<float> scratch_;
     Stats stats_;

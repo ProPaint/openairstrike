@@ -43,7 +43,7 @@ void AudioBridge::startLevel(const std::string& musicPath) {
     loops_.clear();
     // The music is read with the level, not on first use: not a lazy load (as3d/load_stats.h).
     LoadStats::Site site;
-    if (!musicPath.empty() && !audio_.playMusic(musicPath.c_str(), true))
+    if (music_ && !musicPath.empty() && !audio_.playMusic(musicPath.c_str(), true))
         AS3D_WARN("audio: cannot play music '%s'", musicPath.c_str());
 }
 
