@@ -584,3 +584,76 @@ dump_at=600`):
 - touch: pause, next weapon, next missile, missile, power-up buttons react and their icons/counts
   update on the bottom screen; START pauses (PAUSED on the top screen at screen depth).
 - perf.csv / PERF_SUMMARY: load_ms, frame times at slider 0 and max, lazy_loads 0, arena_kb.
+
+## M2.3 Sound: the ndsp device (engine/src/audio/ndsp/audio_device_ndsp.cpp)
+
+`IAudioDevice` over libctru's ndsp, selected by `AudioBackend::Platform` (`makePlatformAudioDevice`,
+the ndsp backend directory). `AudioBridge` now opens `Platform` instead of `Sdl` (the sdl backend
+returns its SDL device there, so desktop, Android and the web are unchanged).
+
+- Init: `makePlatformAudioDevice` calls `ndspInit`; it needs the DSP firmware
+  `sdmc:/3ds/dspfirm.cdc`. On failure it logs once (`audio: ndspInit failed (0x...)`) and returns
+  null; `Audio::init` now returns false for a null device (it used to dereference it), and
+  `AudioBridge` falls back to the Null device: the game runs silent. The device owns `ndspExit`.
+- Output: one channel, `NDSP_FORMAT_STEREO_PCM16`, rate `NDSP_SAMPLE_RATE` (32728.5 Hz, the DSP's
+  own: no DSP resampling, `NDSP_INTERP_NONE`), the mixer at `setDeviceRate(32728)` (15 ppm slow:
+  inaudible). Four wave buffers of 1024 frames (4 KB each, 16 KB of linear memory, 125 ms queued,
+  31.25 ms each), primed with four renders at open.
+- Feeder: a libctru `Thread` on core 1 (`APT_SetAppCpuTimeLimit(30)` once; priority one step
+  above the opening thread, 0x2F under the main loop; 32 KB stack; joinable), falling back to
+  core 0 when core 1 is refused. It sleeps on a `LightEvent` that `ndspSetCallback` signals every
+  DSP frame (about 4.9 ms) and, when the next buffer in play order is `NDSP_WBUF_DONE`, renders
+  every finished buffer through `Mixer::renderS16`, flushes it (`DSP_FlushDataCache`) and queues
+  it. `close()` stops and joins the thread, clears and resets the channel, waits 20 ms for the
+  DSP to let go of the memory and frees it. `setPaused` is `ndspChnSetPaused`.
+- Locking: the mixer's own `std::mutex` (render and every game-thread call take it). Finding:
+  under devkitARM gcc 16 / current libctru `std::thread` and `std::mutex` compile, link and work
+  (newlib's locks and the pthread layer are libctru LightLocks and Threads); `mode=audiotest`
+  checks two threads adding 100000 each under one mutex (200000, 111 ms on Azahar). No
+  `thread_compat.h` was needed. The feeder is still a libctru `Thread` because `std::thread`
+  cannot pick core 1.
+- Counters (`audio_device_ndsp.h`, `ndsp::stats()`): fills (after the priming), underruns (a fill
+  that found no buffer still queued or playing while not paused: the DSP ran dry), the longest
+  fill, time in `renderS16` (the feeder's CPU share), the peak sample since the last read,
+  `ndspGetDroppedFrames`.
+
+The 3DS loop (`apps/3ds/source/ctr_audio.cpp`, run.ini `audio=0|1`, default 1, never in `sim`)
+drives an `AudioBridge` as `game_stack` and `game_loop` do: at level start the level's precache
+set (`World::precacheScripts` when the renderer has not computed it; it only loads, the
+simulation is unchanged; `precache=0` skips it, sounds then load on first use) goes to
+`AudioBridge::precacheSounds` and `startLevel` stops the sounds;
+after every step the world's sound queue is drained; the sound pauses with the world (START) and
+on APT suspend/sleep and resumes on restore/wake; it stops at exit. Music is off: with
+`AS3D_WITH_OPENMPT=OFF` the loop passes no module (M2.4). `log.txt` gets the device line and
+`PERF_SUMMARY audio` / `PERF_SUMMARY audio_feed` lines.
+
+Azahar (HLE DSP, 2026-10-08): without `dspfirm.cdc` `ndspInit` fails (0xD880A7FA), the Null
+fallback is clean and the loop runs. Azahar's HLE accepts any component file: with a dummy
+768-byte `dspfirm.cdc` (only the `DSP1` magic) `ndspInit` succeeds and the real path runs.
+
+| run | result |
+|---|---|
+| `mode=audiotest`, no firmware | `Null device fallback`, 360 frames in 6012 ms, shutdown clean |
+| `mode=audiotest`, dummy firmware | fills +32 every second (192 in 6 s), 0 underruns, 0 dropped; peak 11125 in the tone second (expected about 11000), 17152 / 24197 with the missile and the panned explosion; feeder on core 1 prio 0x2F; shutdown (join, ndspExit) 25.5 ms |
+| `mode=bot level=1 frames=600 audio=1`, dummy firmware | map_pos 452.0, 39 entities, created 243, freed 204 (= the desktop); `audio device=ndsp played=97 missing=0 precached=22`, `audio_feed fills=344 (31.9/s) underruns=0`, frames over 17 ms 0 of 599 |
+| the same, no firmware | the same end state; `audio device=null played=97` |
+
+The fill time (7.5 ms a buffer) and feeder CPU (15 to 16 %) are emulator numbers, not hardware
+ones. The level-start precache of mission 1 (scripts and 22 sounds) took 760 to 800 ms on Azahar.
+
+On hardware (owner):
+
+1. Dump the DSP firmware once: run the DSP1 homebrew (`DSP1.3dsx` from its releases page) from
+   the Homebrew Launcher; it writes `sdmc:/3ds/dspfirm.cdc`.
+2. `mode=audiotest`: `audiotest_log.txt` must show `platform device: ndsp: ...feeder core 1`,
+   fills +32 every second, `underruns 0 (+0)` after the first second, a peak about 11000 in
+   second 1, and the `max_fill` and `cpu` numbers (the real feeder cost: with 30 % of core 1 a
+   fill must stay well under 31 ms). Listen for: a clean 440 Hz beep for 1 s, then the machine gun
+   ten times, a missile, an explosion on the right; no crackle or gaps.
+3. `mode=bot level=1 frames=3600 perf=1`: the end state unchanged, `PERF_SUMMARY audio_feed
+   ... underruns=0 core1=1`, step and frame times as without sound (`audio=0` to compare).
+4. `mode=play`: press HOME and come back, close the lid and open it: the sound stops and
+   resumes with the game, no burst of stale sound, no hang; START pauses the sound.
+
+Deferred: music (M2.4: libopenmpt measured on the 3DS, else pre-rendered Ogg and a tremor
+decoder); per-entity 3D sound stays off as in the shipped config (`Sound3D=0`).

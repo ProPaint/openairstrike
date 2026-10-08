@@ -1,5 +1,7 @@
 #include "ctr_audio.h"
 
+#include <string>
+
 #include "as3d/core.h"
 #include "as3d/precache.h"
 #include "as3d/world.h"
@@ -17,7 +19,7 @@ bool CtrAudio::start(as3d_game::GameSession& session, bool precache) {
         return false;
     }
     started_ = true;
-    AS3D_INFO("audio: %s", bridge_.nullDevice() ? "null device (silent)" : as3d::audio::ndsp::description());
+    if (bridge_.nullDevice()) AS3D_INFO("audio: null device (silent)"); // the ndsp device logs its own line
     if (session.hasLevel()) levelStarted(session);
     return true;
 }
@@ -37,8 +39,13 @@ void CtrAudio::levelStarted(as3d_game::GameSession& session) {
     if (!started_) return;
     const uint64_t t0 = nowTicks();
     precache(session);
-    bridge_.startLevel(session.musicPath()); // music: the stub fails cleanly (M2.4)
-    AS3D_INFO("audio: level start, %d sounds precached in %.0f ms", precached_, ticksToMs(nowTicks() - t0));
+#if AS3D_WITH_OPENMPT
+    bridge_.startLevel(session.musicPath());
+#else
+    bridge_.startLevel(std::string()); // no music decoder in this build (M2.4): stops the sounds only
+#endif
+    AS3D_INFO("audio: level start, %d sounds precached in %.0f ms%s", precached_, ticksToMs(nowTicks() - t0),
+              AS3D_WITH_OPENMPT ? "" : ", no music (AS3D_WITH_OPENMPT=OFF)");
 }
 
 void CtrAudio::afterStep(as3d::World& world) {
