@@ -133,3 +133,31 @@ TEST_CASE("pad: touch screen becomes a pointer press, drag and release") {
 
     CHECK(padToUiInputs(idle, idle, map, 320, 240).events.empty());
 }
+
+TEST_CASE("pad: button names and run.ini binding overrides") {
+    uint32_t v = 99;
+    CHECK(padButtonFromName("ZR", &v));
+    CHECK(v == pad::ZR);
+    CHECK(padButtonFromName("start", &v));
+    CHECK(v == pad::Start);
+    CHECK(padButtonFromName("none", &v));
+    CHECK(v == 0u);
+    v = 7;
+    CHECK_FALSE(padButtonFromName("Q", &v));
+    CHECK(v == 7u);
+
+    PadBindings b = defaultBindings();
+    CHECK(applyBindingOption(b, "bind_fire", "B"));
+    CHECK(applyBindingOption(b, "BIND_NextMissile", "l"));
+    CHECK(applyBindingOption(b, "bind_pause", "none"));
+    CHECK(b.fire == pad::B);
+    CHECK(b.nextMissile == pad::L);
+    CHECK(b.pause == 0u);
+    CHECK(b.missile == pad::B); // the caller owns duplicates
+
+    const PadBindings before = b;
+    CHECK_FALSE(applyBindingOption(b, "bind_fire", "bogus"));
+    CHECK_FALSE(applyBindingOption(b, "bind_jump", "A"));
+    CHECK_FALSE(applyBindingOption(b, "level", "1"));
+    CHECK(b.fire == before.fire);
+}

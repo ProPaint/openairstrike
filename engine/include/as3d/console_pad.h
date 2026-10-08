@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "as3d/input.h"
 #include "as3d/menu.h"
@@ -42,6 +43,14 @@ struct PadBindings {
 // A fire, B missile, X power-up, Y next weapon, R next missile, ZR next power-up, START
 // pause. L is never required.
 PadBindings defaultBindings();
+
+// A pad button by name (case-insensitive): A B X Y L R ZL ZR START SELECT, and NONE or an empty
+// name for 0 (unbound). False for anything else (`out` unchanged).
+bool padButtonFromName(const std::string& name, uint32_t* out);
+// One "bind_<action>=<button>" override of a config file (run.ini): the actions are fire,
+// missile, powerup, nextweapon, nextmissile, nextpowerup, pause. False when the key is not a
+// binding or the button is unknown (bindings unchanged).
+bool applyBindingOption(PadBindings& bindings, const std::string& key, const std::string& value);
 
 // Player 1's FrameInput from the pad: directions from the D-pad or from the circle pad beyond
 // `deadZone` (up = Forward), the bound buttons as action bits, `pausePressed` on the pause

@@ -1,6 +1,7 @@
 // Console pad to FrameInput and UiInput (as3d/console_pad.h).
 #include "as3d/console_pad.h"
 
+#include <cctype>
 #include <cstdlib>
 
 namespace as3d {
@@ -15,6 +16,46 @@ PadBindings defaultBindings() {
     b.nextPowerUp = pad::ZR;
     b.pause = pad::Start;
     return b;
+}
+
+namespace {
+std::string lower(const std::string& s) {
+    std::string o;
+    for (char c : s) o += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return o;
+}
+} // namespace
+
+bool padButtonFromName(const std::string& name, uint32_t* out) {
+    static const struct { const char* n; uint32_t bit; } kNames[] = {
+        {"a", pad::A}, {"b", pad::B}, {"x", pad::X}, {"y", pad::Y}, {"l", pad::L}, {"r", pad::R},
+        {"zl", pad::ZL}, {"zr", pad::ZR}, {"start", pad::Start}, {"select", pad::Select},
+        {"none", 0}, {"", 0}};
+    const std::string n = lower(name);
+    for (const auto& e : kNames)
+        if (n == e.n) {
+            *out = e.bit;
+            return true;
+        }
+    return false;
+}
+
+bool applyBindingOption(PadBindings& b, const std::string& key, const std::string& value) {
+    const std::string k = lower(key);
+    if (k.compare(0, 5, "bind_") != 0) return false;
+    uint32_t* slot = nullptr;
+    const std::string what = k.substr(5);
+    if (what == "fire") slot = &b.fire;
+    else if (what == "missile") slot = &b.missile;
+    else if (what == "powerup") slot = &b.powerUp;
+    else if (what == "nextweapon") slot = &b.nextWeapon;
+    else if (what == "nextmissile") slot = &b.nextMissile;
+    else if (what == "nextpowerup") slot = &b.nextPowerUp;
+    else if (what == "pause") slot = &b.pause;
+    uint32_t bit = 0;
+    if (!slot || !padButtonFromName(value, &bit)) return false;
+    *slot = bit;
+    return true;
 }
 
 FrameInput padToFrameInput(const PadState& p, const PadBindings& b, int deadZone) {
