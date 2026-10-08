@@ -24,7 +24,7 @@ struct RoleSet {
 
 // Returns false for an opcode outside 0x00..0x1E (never valid; the loader rejects such
 // programs, so the interpreter never actually sees one).
-inline bool roleSetFor(u8 op, RoleSet& out) {
+constexpr bool roleSetFor(u8 op, RoleSet& out) {
     switch (op) {
         case OP_END:
             out = {Role::None, Role::None, Role::None};
@@ -89,6 +89,21 @@ inline bool roleSetFor(u8 op, RoleSet& out) {
             return false;
     }
 }
+
+// roleSetFor as a table for the interpreter: kRoleTable[op] is the role set of op, or
+// {None, None, None} for an opcode roleSetFor rejects (never reached: the loader rejects
+// such programs).
+struct RoleTable {
+    RoleSet roles[256];
+    constexpr RoleTable() : roles() {
+        for (int op = 0; op < 256; ++op) {
+            RoleSet r{Role::None, Role::None, Role::None};
+            roleSetFor(static_cast<u8>(op), r);
+            roles[op] = r;
+        }
+    }
+};
+inline constexpr RoleTable kRoleTable{};
 
 inline u32 floatToBits(float f) {
     u32 b;

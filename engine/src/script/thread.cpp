@@ -20,7 +20,6 @@ using detail::itof;
 using detail::quiet;
 using detail::Role;
 using detail::RoleSet;
-using detail::roleSetFor;
 
 constexpr int kStallBudget = 10000;
 constexpr size_t kStackSize = 512;
@@ -219,77 +218,79 @@ bool ScriptThread::storeOp(const Loc& loc, u32 bits) {
     return false;
 }
 
+// `out` may be `in` (decode resolves an operand in place): `in` is read before `out` is
+// written.
 bool ScriptThread::derefOperand(const Loc& in, bool used, Loc& out) {
     if (used) {
         u32 v;
         if (!loadOp(in, v)) return false;
-        out = Loc{Loc::Kind::Addr, v};
+        out.kind = Loc::Kind::Addr;
+        out.value = v;
         return true;
     }
     // Soft read for an operand the handler does not use: never faults, reads 0 from
     // unmapped memory (rcsl-vm.md quirk 7).
     if (in.kind == Loc::Kind::Imm) {
-        out = Loc{Loc::Kind::Addr, in.value};
+        const u32 bits = in.value; // the immediate's bits become the address
+        out.kind = Loc::Kind::Addr;
+        out.value = bits;
         return true;
     }
     u32 v = 0;
     readWord(in.value, v); // ignore failure: v stays 0
-    out = Loc{Loc::Kind::Addr, v};
+    out.kind = Loc::Kind::Addr;
+    out.value = v;
     return true;
 }
 
-bool ScriptThread::decode(const Instruction& ins, Loc& aOut, Loc& bOut, Loc& cOut) {
-    RoleSet roles{Role::None, Role::None, Role::None};
-    roleSetFor(ins.op, roles); // always succeeds: the loader rejects unknown opcodes
+// Inlined into runInvocation (its only caller), and writing the operands straight into
+// a, b and c field by field: built in locals and copied out whole, each Loc was stored
+// as a byte and a word and reloaded as one 8-byte value, a store-forwarding stall per
+// operand on x86 (a quarter of the step was spent here). Same decisions, same values.
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((always_inline))
+#endif
+inline bool ScriptThread::decode(const Instruction& ins, Loc& a, Loc& b, Loc& c) {
+    const RoleSet& roles = detail::kRoleTable.roles[ins.op]; // = roleSetFor(ins.op)
 
     // Operand A.
-    Loc a;
     if (ins.mode & M_IMM1) {
-        a = Loc{Loc::Kind::Imm, quiet(static_cast<u32>(ins.a))};
+        a.kind = Loc::Kind::Imm;
+        a.value = quiet(static_cast<u32>(ins.a));
     } else if (ins.a < 0 && ins.op != OP_ALLOC && ins.op != OP_JMP && ins.op != OP_CALL &&
                ins.op != OP_LCALL) {
-        a = Loc{Loc::Kind::Addr, globalAddr(ins.a)};
+        a.kind = Loc::Kind::Addr;
+        a.value = globalAddr(ins.a);
     } else {
-        a = Loc{Loc::Kind::Addr, slotAddr(ins.a)};
+        a.kind = Loc::Kind::Addr;
+        a.value = slotAddr(ins.a);
     }
     if (ins.mode & M_IND1) {
-        Loc tmp;
-        if (!derefOperand(a, roles.a != Role::None, tmp)) return false;
-        a = tmp;
+        if (!derefOperand(a, roles.a != Role::None, a)) return false;
     }
 
     // Operand B.
-    Loc b;
     if (ins.mode & M_IMM2) {
-        b = Loc{Loc::Kind::Imm, quiet(static_cast<u32>(ins.b))};
+        b.kind = Loc::Kind::Imm;
+        b.value = quiet(static_cast<u32>(ins.b));
     } else if (ins.b < 0 && ins.op != OP_JNZ && ins.op != OP_JZ) {
-        b = Loc{Loc::Kind::Addr, globalAddr(ins.b)};
+        b.kind = Loc::Kind::Addr;
+        b.value = globalAddr(ins.b);
     } else {
-        b = Loc{Loc::Kind::Addr, slotAddr(ins.b)};
+        b.kind = Loc::Kind::Addr;
+        b.value = slotAddr(ins.b);
     }
     if (ins.mode & M_IND2) {
         bool used = (roles.b == Role::Read || roles.b == Role::Write);
-        Loc tmp;
-        if (!derefOperand(b, used, tmp)) return false;
-        b = tmp;
+        if (!derefOperand(b, used, b)) return false;
     }
 
     // Operand C: never immediate.
-    Loc c;
-    if (ins.c < 0) {
-        c = Loc{Loc::Kind::Addr, globalAddr(ins.c)};
-    } else {
-        c = Loc{Loc::Kind::Addr, slotAddr(ins.c)};
-    }
+    c.kind = Loc::Kind::Addr;
+    c.value = ins.c < 0 ? globalAddr(ins.c) : slotAddr(ins.c);
     if (ins.mode & M_IND3) {
-        Loc tmp;
-        if (!derefOperand(c, roles.c != Role::None, tmp)) return false;
-        c = tmp;
+        if (!derefOperand(c, roles.c != Role::None, c)) return false;
     }
-
-    aOut = a;
-    bOut = b;
-    cOut = c;
     return true;
 }
 
