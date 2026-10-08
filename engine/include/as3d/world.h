@@ -692,6 +692,10 @@ private:
     // only place that sets the bit; a slot may appear twice when it was reused).
     std::vector<int> thoughtSlots_;
     std::vector<int> doomedScratch_; // freeRemoved's list, kept to avoid an allocation per step
+    // Touch pass candidates (collision.cpp, touchEntity): valid until a touch handler runs.
+    std::vector<int> touchSnap_;
+    bool touchSnapValid_ = false;
+    bool inCollisionPass_ = false;
 
     PlayerRecord players_[kMaxPlayers];
     CameraState camera_;

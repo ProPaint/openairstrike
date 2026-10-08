@@ -147,6 +147,7 @@ void World::touchEntity(int idx) {
             if (hit) {
                 t.playerIndex = p;
                 runTouch(idx, pi);
+                touchSnapValid_ = false;
                 return; // one player per frame; the enemy scan is skipped
             }
         }
@@ -154,40 +155,82 @@ void World::touchEntity(int idx) {
     // The first game: enemies for mode bit 0x1. The sequels (as2/rcsl-vm.delta.md, touch
     // dispatch): every mode but exactly 2 scans the list for (bit 0x1, class 2) or (bit 0x4,
     // class 5) candidates that are not dead.
-    if (bits ? tm != TOUCH_BIT_PLAYER : (tm & 1) != 0) {
-        for (int c = newest_; c != -1; c = ents_[static_cast<size_t>(c)].older) {
+    if (!(bits ? tm != TOUCH_BIT_PLAYER : (tm & 1) != 0)) return;
+    // The candidate test of one list entity (pure: no side effects).
+    auto hits = [&](const Entity& ce) {
+        if (bits) {
+            const float cls = ce.f(F_CLASS);
+            const bool accepted = ((tm & TOUCH_BIT_ENEMIES) && cls == kClassEnemy) ||
+                                  ((tm & TOUCH_BIT_CIVILIAN) && cls == kClassCivilian);
+            if (!accepted || ce.f(F_DEAD) != 0.0f) return false;
+        } else if (ce.f(F_CLASS) != kClassEnemy) {
+            return false;
+        }
+        bool cPoint = isPointCollider(ce);
+        if (!tPoint && !cPoint) return rectsOverlap(t.rect, ce.rect);
+        if (tPoint && !cPoint) return segmentHitsRect(t.rect.min, t.rect.max, ce.rect);
+        return !tPoint && cPoint;
+    };
+    // The live walk, newest first, from `start`.
+    auto walk = [&](int start) {
+        for (int c = start; c != -1; c = ents_[static_cast<size_t>(c)].older) {
             if (c == idx) continue;
             const Entity& ce = ents_[static_cast<size_t>(c)];
             if (ce.rt & (RT_REMOVED | RT_HEALTH_FROZEN)) continue;
             if (!(ce.rt & RT_COLLIDABLE)) continue;
-            if (bits) {
-                const float cls = ce.f(F_CLASS);
-                const bool accepted = ((tm & TOUCH_BIT_ENEMIES) && cls == kClassEnemy) ||
-                                      ((tm & TOUCH_BIT_CIVILIAN) && cls == kClassCivilian);
-                if (!accepted || ce.f(F_DEAD) != 0.0f) continue;
-            } else if (ce.f(F_CLASS) != kClassEnemy) {
-                continue;
-            }
-            bool cPoint = isPointCollider(ce);
-            bool hit;
-            if (!tPoint && !cPoint) hit = rectsOverlap(t.rect, ce.rect);
-            else if (tPoint && !cPoint) hit = segmentHitsRect(t.rect.min, t.rect.max, ce.rect);
-            else if (!tPoint && cPoint) hit = true;
-            else hit = false;
-            if (!hit) continue;
+            if (!hits(ce)) continue;
             runTouch(idx, c);
+            touchSnapValid_ = false;
             if (t.rt & RT_REMOVED) break;
         }
+    };
+    if (!inCollisionPass_) {
+        walk(newest_);
+        return;
+    }
+    // Inside runCollisions: the list entities that can be a candidate at all (not removed or
+    // frozen, collidable, class enemy or civilian), in walk order, are kept between touchers
+    // until a touch handler runs (runTouch is the only thing in the pass that changes the
+    // list, the flags, the fields or the rectangles). Walking that snapshot visits the same
+    // candidates in the same order as the live walk up to the first hit; from the hit on
+    // the live walk continues, as before.
+    if (!touchSnapValid_) {
+        touchSnap_.clear();
+        for (int c = newest_; c != -1; c = ents_[static_cast<size_t>(c)].older) {
+            const Entity& ce = ents_[static_cast<size_t>(c)];
+            if (ce.rt & (RT_REMOVED | RT_HEALTH_FROZEN)) continue;
+            if (!(ce.rt & RT_COLLIDABLE)) continue;
+            const float cls = ce.f(F_CLASS);
+            if (cls != kClassEnemy && cls != kClassCivilian) continue;
+            touchSnap_.push_back(c);
+        }
+        touchSnapValid_ = true;
+    }
+    for (size_t k = 0; k < touchSnap_.size(); ++k) {
+        const int c = touchSnap_[k];
+        if (c == idx) continue;
+        const Entity& ce = ents_[static_cast<size_t>(c)];
+        if (!hits(ce)) continue;
+        runTouch(idx, c);
+        touchSnapValid_ = false;
+        if (t.rt & RT_REMOVED) return;
+        walk(ce.older);
+        return;
     }
 }
 
 void World::runCollisions() {
+    const bool outerPass = inCollisionPass_;
+    inCollisionPass_ = true;
+    touchSnapValid_ = false;
     for (int i = newest_; i != -1;) {
         Entity& e = ents_[static_cast<size_t>(i)];
         int older = e.older;
         if (e.touchMode != 0 && (e.rt & RT_COLLIDABLE) && !(e.rt & RT_REMOVED)) touchEntity(i);
         i = older;
     }
+    inCollisionPass_ = outerPass;
+    touchSnapValid_ = false;
     // Two-player push-apart (5.4).
     if (config_.players == 2) {
         int a = playerEntityIndex(0), b = playerEntityIndex(1);
