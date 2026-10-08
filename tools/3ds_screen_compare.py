@@ -3,7 +3,7 @@
 
 Usage: tools/3ds_screen_compare.py <screenshot.png> <reference.png> [--crop-out top.png]
                                    [--diff-out diff.png] [--side-out side.png] [--mask]
-                                   [--ignore X0,Y0,X1,Y1 ...]
+                                   [--ignore X0,Y0,X1,Y1 ...] [--direct]
 
 The top screen is located by the three 6x6 corner markers the 3DS test modes draw (as
 tools/3ds_picatest_check.py: top-left (250,10,130), top-right (10,250,130), bottom-left
@@ -12,7 +12,9 @@ out of the metrics. Prints the mean absolute error per channel (0..255) and the 
 pixels whose largest channel difference is within 8, 16 and 32. --mask also prints the same over
 the non-background pixels (those where the reference or the screenshot differs from the
 reference's most common colour by more than 8: the effects, for images that are mostly a flat
-clear colour). PIL only. The images show game
+clear colour). --direct: the screenshot is the screen itself (a PPM dumped from inside the app, any
+size such as the bottom screen's 320x240, equal to the reference's): no marker search and no
+corner exclusion. PIL only. The images show game
 art: keep them under out/ (gitignored).
 """
 import argparse
@@ -66,9 +68,13 @@ def top_screen(img):
 IGNORE = []  # rectangles (x0, y0, x1, y1) left out of the metrics, from --ignore
 
 
+W, H = 400, 240
+DIRECT = False
+
+
 def in_marker(x, y):
     """True for the corner marker squares and for the --ignore rectangles."""
-    if (x < 8 or x >= 392) and (y < 8 or y >= 232):
+    if not DIRECT and (x < 8 or x >= W - 8) and (y < 8 or y >= H - 8):
         return True
     return any(x0 <= x < x1 and y0 <= y < y1 for x0, y0, x1, y1 in IGNORE)
 
@@ -81,15 +87,22 @@ def main(argv):
     ap.add_argument("--diff-out")
     ap.add_argument("--side-out")
     ap.add_argument("--mask", action="store_true")
+    ap.add_argument("--direct", action="store_true")
     ap.add_argument("--ignore", action="append", default=[], metavar="X0,Y0,X1,Y1")
     a = ap.parse_args(argv)
     IGNORE.extend(tuple(int(v) for v in r.split(",")) for r in a.ignore)
     shot = Image.open(a.screenshot).convert("RGB")
     ref = Image.open(a.reference).convert("RGB")
-    if ref.size != (400, 240):
+    global W, H, DIRECT
+    DIRECT = a.direct
+    W, H = ref.size
+    if not a.direct and ref.size != (400, 240):
         print(f"reference is {ref.size}, expected 400x240")
         return 2
-    top = shot if shot.size == (400, 240) else top_screen(shot)
+    if a.direct and shot.size != ref.size:
+        print(f"screenshot is {shot.size}, reference {ref.size}")
+        return 2
+    top = shot if (a.direct or shot.size == (400, 240)) else top_screen(shot)
     if top is None:
         print("top screen markers not found")
         return 2
@@ -99,10 +112,10 @@ def main(argv):
     n = 0
     err = [0, 0, 0]
     within = {8: 0, 16: 0, 32: 0}
-    diff = Image.new("RGB", (400, 240))
+    diff = Image.new("RGB", (W, H))
     d = diff.load()
-    for y in range(240):
-        for x in range(400):
+    for y in range(H):
+        for x in range(W):
             if in_marker(x, y):
                 continue
             a_, b_ = p[x, y], q[x, y]
@@ -118,14 +131,14 @@ def main(argv):
             d[x, y] = (v, v, v)
     if a.mask:
         counts = {}
-        for y in range(240):
-            for x in range(400):
+        for y in range(H):
+            for x in range(W):
                 if not in_marker(x, y):
                     counts[q[x, y]] = counts.get(q[x, y], 0) + 1
         bg = max(counts, key=counts.get)
         mn, merr, mw = 0, [0, 0, 0], {8: 0, 16: 0, 32: 0}
-        for y in range(240):
-            for x in range(400):
+        for y in range(H):
+            for x in range(W):
                 if in_marker(x, y):
                     continue
                 a_, b_ = p[x, y], q[x, y]
@@ -151,10 +164,10 @@ def main(argv):
     if a.diff_out:
         diff.save(a.diff_out)
     if a.side_out:
-        side = Image.new("RGB", (1200, 240))
+        side = Image.new("RGB", (3 * W, H))
         side.paste(top, (0, 0))
-        side.paste(ref, (400, 0))
-        side.paste(diff, (800, 0))
+        side.paste(ref, (W, 0))
+        side.paste(diff, (2 * W, 0))
         side.save(a.side_out)
     return 0
 

@@ -369,3 +369,100 @@ builders exist); the GL-free entity pass that collects the sprite list (a copy s
 `fx_test.cpp` until the PICA WorldRenderer of M1.8); the `LoadKind::Texture` count of the GL
 `ParticleRenderer` lookup (GL loads stay in the Other bucket); the GPU fill cost on hardware.
 
+
+## M1.7 The 2D layer on the PICA (engine/src/ui/pica/renderer2d_pica.cpp)
+
+`Renderer2D::flush()` for the 3DS, the counterpart of `ui/gles/renderer2d_gl.cpp`; the quad list,
+`begin()` mapping and `buildBatch2D` stay neutral.
+
+- Batch: `buildBatch2D` with `tessellateShapes` forced on (no `fwidth` on the PICA: circles and
+  rings are CPU fans with a one-pixel alpha ramp, as `batch2d.h` describes), then the vertices
+  are copied as `FlatVertex` (z = 0, the 8-bit colour of the batch) into the frame arena: 24 bytes
+  a vertex, a rectangle is 6 (144 B).
+- Matrix: `picaTiltMatrix() * ortho(0, W, H, 0, -1, 1)` of the current target's upright size
+  (`pica::currentTarget()`: 400x240 top, 320x240 bottom); the `begin()` origin (GL convention)
+  shifts the layout in the target as `glViewport` does. This is `Mtx_OrthoTilt` without citro3d
+  (the same tilt as the 3D projections, tested on the desktop); the vertex shader is the flat one.
+- Per run: blend (`C3D_AlphaBlend` with the GL factors: Alpha SRC_ALPHA/ONE_MINUS_SRC_ALPHA, Add
+  ONE/ONE, Filter DST_COLOR/ZERO, Opaque ONE/ZERO; alpha channel ZERO/ONE), TEV and textures,
+  `C3D_DrawArrays`. Texture * vertex colour is `tevModulateTexColor`; an untextured run uses the
+  vertex colour alone (the colours differ per quad inside one run, so `tevConstantColor`, one
+  constant per stage, does not apply). A second texture uses `tevCombine2(mode)` on unit 1 and a
+  new fourth shader, `flat2.v.pica` (`Shader::Flat2`, `Flat2Vertex` = `FlatVertex` + uv2, 32 B):
+  the flat shader has no second texture coordinate. Only those runs pay the extra 8 B a vertex.
+- State: fog off, depth test and write off, no culling, alpha test off during the flush; blend off,
+  depth on and cull back after it (what the other PICA renderers expect). The scissor is the
+  caller's: `as3d::setScissor` with GL rectangles before the flush (`Renderer2D` has no scissor
+  of its own; the GL flush disables it).
+- Pixel snapping (`ui2dPicaSetSnap`, default on): the 12x6 px glyphs of the bottom screen's 0.4
+  mapping would be smeared by bilinear filtering across fractional pen positions (advances of 5.6
+  px). The corners of every axis-aligned two-triangle quad with a texture are rounded to whole
+  target pixels (shapes, lines, rotated quads and untextured fills keep their coordinates). The
+  mapping itself cannot be rounded (the scale is 0.4); its offset is 0 at 320x240 and 40 px at
+  400x240.
+- Textures: created outside frames (`UiAssets::load`, `texture()`); a run that meets an unloaded
+  texture draws white and counts it (`Ui2dPicaStats::missingTextures`, 0 in the test).
+  `UiAssets` now passes `TextureClass::Font` (LA8) for `font.tga` and `font_alpha.tga` and
+  `Alpha` (RGBA4) for the HUD atlases, life icon and cursors; `texture()` pictures keep `Auto`.
+  The GL backend ignores the class. Mission 1 at the bottom layout: 13 textures, 519.1 KB, all in
+  VRAM (font 256x256 LA8 128 KB, `mainbar` 64 KB, weapons, missiles and items atlases 64 KB each,
+  life 2 KB, cursors, the test's two 8x8).
+- Counters: `ui2dPicaStats()` / `ui2dPicaResetStats()` (flushes, runs, two-texture runs,
+  vertices, arena bytes, arena failures, missing textures).
+
+The touch controls were lifted out of `apps/game/touch_overlay.cpp` into the engine
+(`as3d/touch_controls.h`, `engine/src/input/touch_controls.cpp`, `ui::drawTouchControls` with
+`ui::TouchControlsState`); the game's `touch_overlay.h` aliases the state and re-exports the
+function, so the desktop, Android and web call sites are unchanged. `as3d_input` now links
+`as3d_ui`.
+
+Mission 1 numbers (`mode=uitest`, Azahar, 120 bot frames):
+
+| content | runs | vertices | arena |
+|---------|------|----------|-------|
+| bottom HUD + touch band (phase 2) | 16 | 16164 | 378.8 KB |
+| font block bottom (phase 1) | 3 | 1170 | 27.4 KB |
+| quads test (blends, 4 two-texture runs, discs) | 13 | 1380 | 33.0 KB |
+
+The HUD plus touch band is the heavy case: 16 164 vertices (2.7 k quads: the touch icons are
+filled with horizontal strips and the discs and rings are 48-segment fans), 379 KB, a quarter of
+one 1.5 MB arena half. Azahar's GPU time is constant (0.5 ms here), so the fill cost of the 2D
+layer needs the hardware run. The frame time in Azahar (CPU side, vsync-bound) is 16.8 ms in phases 1
+and 3 and 33.6 ms in phase 2: the 16 k-vertex HUD frame (batch build and conversion on the emulated
+ARM11, plus the frame's two screens) misses one vblank there; to measure on hardware.
+
+Azahar check (2026-10-08): the bottom target dumped from the app (`uitest_2.ppm`, 320x240)
+against the bottom half of `as3d_game --dual-screen --headless --level 1 --bot --frames 120
+--screenshot-every 120` (400x480 frame, crop `40,240,360,480`),
+`tools/3ds_screen_compare.py --direct --mask`: 8518 non-background pixels, mean abs error 5.18
+(R 7.71, G 5.19, B 2.64), within 8: 0.680, within 16: 0.845, within 32: 0.972; over the whole
+screen 0.58, 0.965 / 0.983 / 0.997. The layout, bars, icons, touch buttons, counts and text match
+to the pixel; the residue is the RGBA4 atlases against the desktop's RGBA8, the pixel snap, and
+the edges of the tessellated rings. The 24 probes of phase 3 (blend modes, five combine modes
+of the second texture, a scissored fill, a tessellated disc and ring) all pass exactly
+(`tools/3ds_picatest_check.py --ppm`).
+
+Legibility of the font at the bottom screen's 0.4 mapping (glyphs 12x6 px, scale 1.0): upper case
+and digits read clearly; lower case is thin but readable ("The quick brown fox" in the alpha
+font, the additive ASCII rows); punctuation is the weakest. This is the input of the M2.2 gate
+(filter choice, built-in 8x8 font): a 4x nearest crop is in out/ui/font_ascii_4x.png (local, game art).
+
+For M1.8: the bottom HUD is drawn once per frame, after the world, on the bottom target:
+`pica::drawOn({bottom, 320, 240, false})`, clear, `assets.hudTarget = Bottom320x240`,
+`r2d.begin(320, 240)`, `ui::drawHud`, `flush`, then `r2d.begin(320, 240)` and
+`ui::drawTouchControls`, `flush` (the bottom screen is not stereoscopic and does not depend on
+the eye). Top-screen overlays (hint box, level end, pause) are drawn per eye after the world, on
+that eye's target with `r2d.begin(400, 240)`: the quads are laid out in framebuffer pixels, so
+an overlay at screen depth is the same 2D picture on both eyes (build it once per frame and
+`flush` it twice; `flush` rebuilds the batch from the quad list, so keep the list and flush on
+each eye, or add a parallax shift of a few pixels by calling `begin` with a different origin
+per eye). Textures must exist before the frame (`UiAssets::load`, `precachePlay`, `texture()`
+at the level start). Call `ui2dPicaResetStats()` once per frame if the counters are wanted per
+frame.
+
+Deferred: `hudStateOf` for the 3DS (a copy of the world part sits in `ui_test.cpp` until the
+PICA `GameView` of M1.8); the top-screen overlays in stereo (the per-eye origin above is
+untested); the scissor per quad (no such field in the quad list; the caller sets it around a
+flush); the filter choice for the font and the 8x8 fallback (M2.2); GPU cost of 16 k 2D
+vertices on hardware (a strip-based touch icon draws about 2.7 k quads; a texture or fewer strips
+would cut it).

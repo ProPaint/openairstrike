@@ -153,3 +153,16 @@ writes `meshtest_log.txt` (memory, records, draws, vertices, bytes, GPU time),
 with `as3d_game --headless --level 1 --bot --frames 120 --size 400x240 --screenshot-every 120
 --render-only models` and `tools/3ds_meshtest_compare.py frame_000120.png meshtest_b.ppm
 side.png` (docs/3ds-port.md, "M1.5").
+
+`mode=uitest` (optional `level=N`, `frames=N` bot frames, default 120; `hold=N` frames per phase,
+default 30) runs `source/ui_test.cpp`: the 2D layer through the PICA `Renderer2D` flush, on both
+screens (the bottom screen is a 320x240 target without depth, the console is replaced). Phase 1
+draws the font (HUD-scale text, the number routine, the ASCII set at scale 1.0 = 12x6 px glyphs,
+the alpha font) on the bottom screen and once on the top; phase 2 the mission's HUD
+(`HudTarget::Bottom320x240`) and the touch controls band; phase 3 blend, second-texture combine
+and scissor quads with expected pixels. It writes `uitest_log.txt` (runs, vertices, arena bytes,
+textures), `uitest_<phase>.ppm` (bottom, 320x240), `uitest_top_1.ppm` (400x240) and
+`uitest_checks.txt`. Checks: `tools/3ds_picatest_check.py --ppm uitest_3.ppm uitest_checks.txt`.
+Compare phase 2 with the bottom half of `as3d_game --dual-screen --headless --level 1 --bot
+--frames 120 --screenshot-every 120` (crop `40,240,360,480` of the 400x480 frame) with
+`tools/3ds_screen_compare.py uitest_2.ppm bottom.png --direct --mask`. docs/3ds-port.md, "M1.7".
