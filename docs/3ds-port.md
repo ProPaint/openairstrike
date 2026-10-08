@@ -27,7 +27,8 @@ the bottom screen format fix, citro3d, targets top left/right 400x240 RGBA8 + D2
 (stdio streams) and `user_data_ctr.cpp` (`sdmc:/3ds/openairstrike/`). `as3d::setLogSink`
 (core.h) lets the app route the engine log to `log.txt`. The loop, run.ini keys and outputs are in
 [apps/3ds/README.md](../apps/3ds/README.md). The loop drives `GameSession` directly: `GameStack`
-and `GameFlow` link `GameView`, which needs the PICA render backend (M1.3, M1.8).
+and `GameFlow` link `GameView`, which holds the desktop's layers; the 3DS composes its frame in
+`ctr_frame.cpp` (M1.8).
 
 ## M1.0 GPU probe
 
@@ -466,3 +467,120 @@ untested); the scissor per quad (no such field in the quad list; the caller sets
 flush); the filter choice for the font and the 8x8 fallback (M2.2); GPU cost of 16 k 2D
 vertices on hardware (a strip-based touch icon draws about 2.7 k quads; a texture or fewer strips
 would cut it).
+
+## M1.8 Frame composer and stereo (apps/3ds/source/ctr_frame.cpp)
+
+The neutral half of `WorldRenderer::prepare` moved out of the GL renderer into
+`engine/src/render/world_scene.{h,cpp}` (`WorldScene`, private to the render module and the 3DS
+app): `worldViewOf`, `worldRenderOrder`, the entity pass in think order (model records with the
+material per (definition, skin), list caps, sprites, health bars, ground-mark descriptions, skid
+trails, bolts, emitters), the dynamic lights, the level lighting and fog, the cull volume, the
+terrain change rectangles (`terrainChanges`), and the precache closure walk (`precache`, with
+hooks for the shadow silhouettes and the particle textures). What only a backend can do stays
+there: the GL renderer turns `ShadowRequest`s into silhouettes and cuts the mark geometry. The
+GL goldens are unchanged (tools/ci.sh). `mesh_test.cpp` and `fx_test.cpp` use it instead of their
+copies (their Azahar dumps are byte-identical to M1.5/M1.6's).
+
+`engine/src/render/pica/world_renderer_pica.cpp` is the PICA `WorldRenderer` (same public API):
+
+- `beginLevel`: the terrain (`TerrainRenderer::build`: its 12 textures, 1.7 MB, are the first VRAM
+  tenants), one log line listing what is not drawn yet: shadows, ground marks, skid trails, water,
+  lightning, environment maps (`lastStats()` reports them as 0).
+- `precache`: the `WorldScene` walk with `drawnFirst` (the meshes and skins of the entities alive
+  now, then of the level's placements with their attachments) and `particlesFirst`, then the rest
+  of the closure. No silhouettes. `AS3D_TEXTURES` logs the split.
+- `prepare`: crater updates, `WorldScene::prepare`, then the two `pica::MeshPass`es (opaque; trans
+  + effect) begun, submitted and finished: all per-model CPU work once per frame.
+- `draw(eye)`, GL pass order: clear to the fog colour (black without fog), W-buffer depth mapping
+  and level fog, projection = `picaEyeProjection(view, eye, aspect)` with the central view;
+  terrain, opaque meshes, trans + effect meshes, particles, sprites (health bars included). The
+  particle and sprite quads are built by the first eye and reused by the second (fx_pica.h).
+- `drawBrightness`: a `pica::fillRect` (flat_fill.h) with `RenderBlend::Brightness`.
+- `WorldRenderStats::drawCalls` / `vertices` (new, 0 on GL) sum every `draw()` since `prepare()`.
+  `pica::worldPicaStats()` (world_pica.h) counts the records drawn from linear-memory textures.
+
+The composer is the `FrameHook` of mode=bot and mode=play (`ctr_main.cpp`; mode=sim stays
+headless). Per displayed frame, after the simulation steps:
+
+    prepare      hudStateOf(session) (game_session.h, shared with the desktop and mode=uitest);
+                 stereo = stereoFor(slider, camera-to-player depth); renderer.prepare(world,
+                 Viewport{400x240, maxEyeOffset = eye offset, minFocalDistance = focal});
+                 the top 2D quads (PAUSED, the perf line with perf=1), built once
+    beginFrame   (C3D_FrameBegin)
+    drawTop(0)   pica::frameBegin; drawOn(top left); renderer.draw(EyeView{-e, D}) (clears);
+                 top quads flushed (zero parallax); brightness pass unless brightness = 0.5
+    drawTop(1)   only with two eyes: the same on top right with EyeView{+e, D}
+    drawBottom   drawOn(bottom); clear black; drawHud (HudTarget::Bottom320x240), drawHint,
+                 drawTouchControls (the input's TouchMapper); pica::frameEnd
+    endFrame     (C3D_FrameEnd)
+    stats        perf.csv: prepare_ms, eyes, verts, draws (world + 2D), tex_vram_kb,
+                 tex_linear_kb, lazy_loads, arena_kb (new column)
+    afterFrame   run.ini dump_at=N: top_left.ppm, top_right.ppm, bottom.ppm + AS3D_DUMP
+
+Level start (`begin`, before the first step): `pica::initBackend`, a loading frame (progress bar on
+both screens and both eyes, "LOADING" once the font is loaded; at most one per 100 ms while the
+precache reports progress), renderer init and `beginLevel`, `UiAssets::load`, then
+`World::precacheScripts`, `WorldRenderer::precache`, `UiAssets::precachePlay`, `AS3D_PRECACHE`,
+`LoadStats::reset`. At the end (`end`, before the context goes): `AS3D_LAZY_LOADS`, two empty
+frames, the renderer and the UI released, `pica::shutdownBackend`. The spike's `render.cpp` and
+`scene.v.pica` stay: mode=spike and the probe use them. The colour-cycling hook is gone.
+
+Stereo. `eyeOffset = slider * kMaxEyeOffset` (4 world units at slider 1, run.ini `eye_offset=`),
+`focal = max(camera-to-player depth, kMinFocalDistance = 40)` (run.ini `min_focal=`): the player's
+helicopter sits on the screen plane, the ground goes into the screen, nearer things come out. With
+A = 1/(aspect tan(fovY/2)) = 1.04, a point at depth d has the disparity 400 A e (1/D - 1/d) px;
+mission 1's camera is 179 units from the helicopter, so the far limit is 9.3 px at slider 1 (2.3 %
+of the width). Mono below the context's dead zone (slider <= 0.02): left eye only, `EyeView{}`.
+Azahar's slider is qt-config.ini `factor_3d` (percent); run.ini `slider=` forces a value.
+
+VRAM split, mission 1 (Azahar, budget 4.2 MB): VRAM 94 textures = 4193 KB in creation order:
+terrain 1728 KB, the UI font and atlases, the models alive and placed (the player's Comanche
+included), the 6 particle textures, then closure skins until full; linear memory 86 textures =
+2315 KB (`level start` line): 44 model skins = 1382 KB (the other helicopters' colour variants,
+the planes and the spawned items: `models\apache\apache_*`, `models\comanche\comanche_*`,
+`models\helics\...`, `item_armor50`, ...) and 6 UI textures `precachePlay` adds. Of the 38 records
+drawn at step 600, 6 use a linear texture (`mgun_flash`, `mgun_proj`: weapon effects spawned by
+scripts). Before `drawnFirst` the player's own skin was in linear memory (9 of 38 records).
+
+Azahar check (2026-10-08, `mode=bot level=1 frames=600 perf=1 dump_at=600 brightness=0.5`):
+
+- End state after 600 steps equals `as3d_sim --level 1 --frames 600 --bot`: map_pos 452.0, list
+  entities 39, slots 76 (max 81), created 243, freed 204, no script errors.
+- Mono (factor_3d 0): eyes 1, no top_right. `top_left.ppm` against `as3d_game --headless --level 1
+  --bot --frames 600 --size 400x240 --screenshot-every 600 --render-only
+  terrain,models,particles,sprites` with `tools/3ds_screen_compare.py --direct --mask --ignore
+  0,222,170,240` (the perf line): mean abs error 1.77/255 (non-background 1.85), 98.4 % within 8,
+  99.3 % within 16. The difference sits on the player's helicopter (the env-mapped shield and the
+  rotor), the help item (ENV_GLITTER), model silhouettes and the horizon band; the terrain, fog,
+  lighting, particles and sprites match.
+- Stereo (factor_3d 100, slider 1.00, e = 4, D = 178.7): the eyes differ in 91832 of 96000 pixels.
+  Horizontal shift of the right eye against the left (best match per window): the helicopter
+  0 px (zero parallax, both eyes project it at x = 141.3), the ground near it +4, mid distance
+  +5 and +6, the far hills +7 (the far limit is 9.3). factor_3d 50: e = 2, shifts +2 and +3:
+  half. The bottom screen is identical in both runs (HUD, the five touch buttons, the lives,
+  weapon and missile panels).
+- lazy_loads 0 in every row and `AS3D_LAZY_LOADS ... textures=0 models=0 scripts=0 ...`;
+  `AS3D_PRECACHE mission=1 objects=291 textures=154 models=347 scripts=125`.
+- Level start 9.4 s under Azahar (mission 1.6 s, beginLevel 2.3 s, UI 0.3 s, precache 5.2 s):
+  the hardware run decides against the 3 s budget.
+
+perf.csv (Azahar: its GPU time is a constant, its CPU time is not the console's):
+
+    frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,linear_free_kb,lazy_loads,arena_kb
+    280,3.689,1.322,27.824,0.501,1,26356,72,4193,2314,24854,0,389      (mono)
+    200,3.913,1.257,29.713,0.751,2,33042,118,4193,2315,24854,0,392     (stereo)
+
+The 2D band (HUD + touch discs) is about 16k of the vertices and most of the arena (M1.7).
+
+Hardware checklist (owner, `mode=play level=1 perf=1`, then `mode=bot level=1 frames=3600 perf=1
+dump_at=600`):
+
+- slider 0: one eye, no ghosting; slider 50 %: depth visible, the helicopter on the screen
+  plane; slider max: the far hills comfortable (9 px), no eye strain over a minute; if too strong
+  or too weak, try `eye_offset=` 2..6 and report the value.
+- HOME and resume, lid close and open: the game resumes paused-then-running, the picture is
+  intact on both screens, no crash.
+- START+SELECT quits cleanly (log.txt ends with the PERF_SUMMARY lines).
+- touch: pause, next weapon, next missile, missile, power-up buttons react and their icons/counts
+  update on the bottom screen; START pauses (PAUSED on the top screen at screen depth).
+- perf.csv / PERF_SUMMARY: load_ms, frame times at slider 0 and max, lazy_loads 0, arena_kb.

@@ -87,7 +87,7 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 
 | key | values | meaning |
 |---|---|---|
-| `mode` | `spike` (default), `probe`, `sim`, `bot`, `play` | `spike` and `probe` run the old code paths. `sim`: the mission headless at full speed with the bot, no screens, ends after `frames` steps (reproduces `as3d_sim --bot`). `bot`: real-time 60 Hz loop with the bot's input and the screens through the frame hook (for now cleared to a colour that cycles with the frame count). `play`: the same loop with the pad (circle pad / D-pad steer, A fire, B missile, X power-up, Y weapon, R next missile, START pause, ZR next power-up on a New 3DS; the bottom-screen buttons pause / next weapon / next missile / missile / power-up / next power-up work by touch; see `ctr_input.h`). |
+| `mode` | `spike` (default), `probe`, `sim`, `bot`, `play` | `spike` and `probe` run the old code paths. `sim`: the mission headless at full speed with the bot, no screens, ends after `frames` steps (reproduces `as3d_sim --bot`). `bot`: real-time 60 Hz loop with the bot's input and both screens through the frame composer (`ctr_frame.cpp`: the world on the top screen, in stereo with the 3D slider, the HUD, hint box and touch buttons on the bottom one, a loading screen while the level is precached). `play`: the same loop with the pad (circle pad / D-pad steer, A fire, B missile, X power-up, Y weapon, R next missile, START pause, ZR next power-up on a New 3DS; the bottom-screen buttons pause / next weapon / next missile / missile / power-up / next power-up work by touch; see `ctr_input.h`). |
 | `game` | profile key, default `as3d` | the game; its paks are read from `sdmc:/3ds/openairstrike/<key>/` |
 | `level` | N, default 1 | the mission to start (the front end is off: `startLevel=true`, `levelFlow=false`) |
 | `frames` | N, default 0 | simulation steps, then the app quits cleanly; 0 means 600 in `sim` and unlimited otherwise |
@@ -95,6 +95,12 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `log_input` | `0` (default) or `1` | log `AS3D_INPUT held=0x... touch=<button\|none>` on every change of the held bits and on every touch-button hit |
 | `bind_fire`, `bind_missile`, `bind_powerup`, `bind_nextweapon`, `bind_nextmissile`, `bind_nextpowerup`, `bind_pause` | `A B X Y L R ZL ZR START SELECT NONE` | remap a pad button (defaults: A, B, X, Y, R, ZR, START); an unknown value is ignored |
 | `difficulty` | N | the engine default when absent |
+| `dump_at` | N, default 0 (never) | bot/play: the first frame after N simulation steps writes `top_left.ppm`, `top_right.ppm` (only when two eyes were drawn) and `bottom.ppm` (upright 400x240 / 320x240 PPMs read back from the targets) and an `AS3D_DUMP` line (stereo parameters, the player's pixel in each eye, the predicted far disparity, the model records drawn from linear-memory textures) |
+| `brightness` | 0..1, default 0.6 | config.ini Brightness for the brightness pass (DST_COLOR, SRC_COLOR) over the top screen; 0.5 is neutral and skips the pass (use it to compare with `as3d_game --render-only`, which has no brightness pass) |
+| `slider` | 0..1 | force the 3D slider (the emulator, comparisons); absent: the hardware slider |
+| `eye_offset` | world units, default 4 | the eye offset at slider 1 (each eye moves this far along the camera's right axis; `ctr_frame.h` kMaxEyeOffset) |
+| `min_focal` | world units, default 40 | the smallest zero-parallax distance (`ctr_frame.h` kMinFocalDistance; the focal distance is the camera-to-player depth) |
+| `precache` | `1` (default) or `0` | `0` skips the level-start precache (everything loads on first use) |
 | `hold`, `only` | | probe only (see above) |
 
 `mode=bot level=1 frames=3600 perf=1` is the M1 acceptance run. START+SELECT held together quits
@@ -105,15 +111,19 @@ speed-up on.
 Outputs, all in `sdmc:/3ds/openairstrike/`: `log.txt` (every `AS3D_INFO/WARN/ERROR` of the engine and
 the app, written once a second; replaced at each start), and with `perf=1` `perf.csv`, one row per
 displayed frame: `frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,
-linear_free_kb,lazy_loads`. The renderer columns are 0 until the PICA backend and the frame composer
-fill them, `lazy_loads` until M1.10. At the end `log.txt` gets the end state in the format of
+linear_free_kb,lazy_loads,arena_kb` (prepare_ms: the composer's CPU prepare; verts/draws: the GPU work
+of both screens and both eyes; lazy_loads: first-use loads since the precache; arena_kb: the frame
+arena bytes the frame used). The log also gets `AS3D_PRECACHE` and `AS3D_TEXTURES` at the level
+start and `AS3D_LAZY_LOADS` at the end. At the end `log.txt` gets the end state in the format of
 `as3d_sim` and `PERF_SUMMARY` lines (step and frame time avg/p95/max, frames over 17 ms, load time,
-heap high-water, linear free). Fetch with ftpd and report:
+heap high-water, linear free, lazy loads, arena). Fetch with ftpd and report:
 
     tools/3ds_fetch_logs.sh 192.168.1.133         # -> out/3ds/<date>-<commit>/
     python3 tools/3ds_perf_report.py out/3ds/<date>-<commit>
 
-Code: `ctr_main.cpp` (entry), `run_config.*`, `ctr_loop.*` (the loop, `FrameHook`), `ctr_perf.*`;
+Code: `ctr_main.cpp` (entry), `run_config.*`, `ctr_loop.*` (the loop, `FrameHook`), `ctr_frame.*`
+(the frame composer: PICA WorldRenderer, 2D layer, stereo, loading screen; docs/3ds-port.md
+"M1.8"), `ctr_perf.*`;
 the graphics context is the engine's ctr platform backend (`engine/src/platform/ctr/`, its
 private header `ctr_context.h`).
 
