@@ -43,45 +43,56 @@ struct P3 {
     float x, y, z;
 };
 
+// A triangle clipped by the four edges of the rectangle has at most 7 corners; fixed storage,
+// no allocation per terrain triangle (the 3DS drapes every shadow every frame).
+struct Poly {
+    P3 p[8];
+    int n = 0;
+};
+
 // Clips a convex polygon against the half plane w(p) >= 0, where w is linear in xy.
 template <typename F>
-void clipPolygon(std::vector<P3>& poly, F w) {
-    std::vector<P3> out;
-    size_t n = poly.size();
-    for (size_t i = 0; i < n; i++) {
-        const P3& a = poly[i];
-        const P3& b = poly[(i + 1) % n];
+void clipPolygon(Poly& poly, F w) {
+    Poly out;
+    const int n = poly.n;
+    for (int i = 0; i < n; i++) {
+        const P3& a = poly.p[i];
+        const P3& b = poly.p[(i + 1) % n];
         float wa = w(a), wb = w(b);
         bool ina = wa >= 0.0f, inb = wb >= 0.0f;
-        if (ina) out.push_back(a);
-        if (ina != inb) {
+        if (ina && out.n < 8) out.p[out.n++] = a;
+        if (ina != inb && out.n < 8) {
             float t = wa / (wa - wb);
-            out.push_back({a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t});
+            out.p[out.n++] = {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
         }
     }
-    poly.swap(out);
+    poly = out;
 }
 
 void emitClipped(const GroundRect& rect, P3 a, P3 b, P3 c, std::vector<DecalVertex>& out) {
-    std::vector<P3> poly{a, b, c};
+    Poly poly;
+    poly.p[0] = a;
+    poly.p[1] = b;
+    poly.p[2] = c;
+    poly.n = 3;
     auto sCoord = [&](const P3& p) { return (p.x - rect.origin.x) * rect.axisX.x + (p.y - rect.origin.y) * rect.axisX.y; };
     auto tCoord = [&](const P3& p) { return (p.x - rect.origin.x) * rect.axisY.x + (p.y - rect.origin.y) * rect.axisY.y; };
     clipPolygon(poly, [&](const P3& p) { return sCoord(p); });
-    if (poly.size() < 3) return;
+    if (poly.n < 3) return;
     clipPolygon(poly, [&](const P3& p) { return rect.sizeX - sCoord(p); });
-    if (poly.size() < 3) return;
+    if (poly.n < 3) return;
     clipPolygon(poly, [&](const P3& p) { return tCoord(p); });
-    if (poly.size() < 3) return;
+    if (poly.n < 3) return;
     clipPolygon(poly, [&](const P3& p) { return rect.sizeY - tCoord(p); });
-    if (poly.size() < 3) return;
+    if (poly.n < 3) return;
     auto vert = [&](const P3& p) {
         Vec2 st = rect.coords(p.x, p.y);
         return DecalVertex{p.x, p.y, p.z, st.x, 1.0f - st.y};
     };
-    for (size_t i = 1; i + 1 < poly.size(); i++) {
-        out.push_back(vert(poly[0]));
-        out.push_back(vert(poly[i]));
-        out.push_back(vert(poly[i + 1]));
+    for (int i = 1; i + 1 < poly.n; i++) {
+        out.push_back(vert(poly.p[0]));
+        out.push_back(vert(poly.p[i]));
+        out.push_back(vert(poly.p[i + 1]));
     }
 }
 

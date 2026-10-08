@@ -112,12 +112,15 @@ ShadowSkin::ShadowSkin(const Image& skin) {
 
 float ShadowSkin::bilinear(const Level& l, float u, float v) const {
     // GL_LINEAR with GL_REPEAT: texel centres at (i + 0.5) / size, v = 0 at image row 0.
+    // (sample() keeps |u|, |v| below 1e6, so the floors fit an int.)
     float x = u * static_cast<float>(l.w) - 0.5f;
     float y = v * static_cast<float>(l.h) - 0.5f;
-    float fx = std::floor(x), fy = std::floor(y);
-    float ax = x - fx, ay = y - fy;
-    int ix = static_cast<int>(std::fmod(fx, static_cast<float>(l.w)));
-    int iy = static_cast<int>(std::fmod(fy, static_cast<float>(l.h)));
+    int fx = static_cast<int>(x), fy = static_cast<int>(y);
+    if (static_cast<float>(fx) > x) --fx; // floor
+    if (static_cast<float>(fy) > y) --fy;
+    float ax = x - static_cast<float>(fx), ay = y - static_cast<float>(fy);
+    int ix = fx % l.w;
+    int iy = fy % l.h;
     if (ix < 0) ix += l.w;
     if (iy < 0) iy += l.h;
     int ix1 = ix + 1 >= l.w ? 0 : ix + 1;
@@ -175,13 +178,17 @@ int lastCentreUpTo(std::int64_t m) {
 
 bool rasterizeShadowSilhouette(const ModelData& model, const ShadowSkin* skin, ShadowKind kind,
                                const Vec3& towardsSun, int rotationSteps, ShadowQuality quality,
-                               const RenderRules& rules, ShadowSilhouette& out) {
+                               const RenderRules& rules, ShadowSilhouette& out, int maxSide) {
     if (model.faces.empty() || model.positions.empty()) return false;
     if (kind == ShadowKind::Planar) rotationSteps = 0;
     const Vec3 L = shadowLightDirection(kind, towardsSun);
     const ShadowBounds bounds = computeShadowBounds(model, kind, towardsSun, rotationSteps);
     int W, H;
     shadowTextureSize(bounds, quality, W, H, rules);
+    if (maxSide > 0) {
+        W = std::min(W, maxSide);
+        H = std::min(H, maxSide);
+    }
     const int rw = 2 * W, rh = 2 * H; // supersampled grid, as generate()'s FBO
     const float sx = static_cast<float>(rw) / static_cast<float>(bounds.xmax - bounds.xmin);
     const float sy = static_cast<float>(rh) / static_cast<float>(bounds.ymax - bounds.ymin);
@@ -263,6 +270,24 @@ bool rasterizeShadowSilhouette(const ModelData& model, const ShadowSkin* skin, S
         const Corner& c0 = *q[0];
         const Corner& c1 = *q[1];
         const Corner& c2 = *q[2];
+        // z, u and v are affine in the sample position: their value at the first sample of the
+        // box and their steps per sample right and up, from the edge functions (exact
+        // barycentrics in double once per triangle, then float steps: the 3DS's ARM11 converts
+        // 64-bit integers and rounds through library calls, too slow per sample).
+        auto plane = [&](float a0, float a1, float a2, float& at0, float& dx, float& dy) {
+            // value = (e1 * a0 + e2 * a1 + e0 * a2) / area
+            const double v0 = (static_cast<double>(E0[1]) * a0 + static_cast<double>(E0[2]) * a1 +
+                               static_cast<double>(E0[0]) * a2) * inv;
+            const double vx = (static_cast<double>(A[1]) * a0 + static_cast<double>(A[2]) * a1 +
+                               static_cast<double>(A[0]) * a2) * inv;
+            const double vy = (static_cast<double>(B[1]) * a0 + static_cast<double>(B[2]) * a1 +
+                               static_cast<double>(B[0]) * a2) * inv;
+            at0 = static_cast<float>(v0);
+            dx = static_cast<float>(vx);
+            dy = static_cast<float>(vy);
+        };
+        float z0, zdx, zdy, u0 = 0, udx = 0, udy = 0, v0 = 0, vdx = 0, vdy = 0;
+        plane(c0.z, c1.z, c2.z, z0, zdx, zdy);
 
         float lod = 0.0f;
         if (textured) {
@@ -280,31 +305,50 @@ bool rasterizeShadowSilhouette(const ModelData& model, const ShadowSkin* skin, S
             const double p = sdx * sdx + tdx * tdx, q = sdy * sdy + tdy * tdy, r = sdx * sdy + tdx * tdy;
             const double major2 = 0.5 * (p + q + std::sqrt((p - q) * (p - q) + 4.0 * r * r));
             lod = major2 > 0.0 ? static_cast<float>(0.5 * std::log2(major2)) : -100.0f;
+            plane(c0.u, c1.u, c2.u, u0, udx, udy);
+            plane(c0.v, c1.v, c2.v, v0, vdx, vdy);
         }
 
         for (int y = y0; y <= y1; y++) {
-            std::int64_t e0 = E0[0] + B[0] * (y - y0);
-            std::int64_t e1 = E0[1] + B[1] * (y - y0);
-            std::int64_t e2 = E0[2] + B[2] * (y - y0);
+            const int64_t dyRows = y - y0;
+            std::int64_t e0 = E0[0] + B[0] * dyRows;
+            std::int64_t e1 = E0[1] + B[1] * dyRows;
+            std::int64_t e2 = E0[2] + B[2] * dyRows;
+            // The covered run of this row: the samples where every edge function is >= 0
+            // (each is linear in x: a lower bound where it rises, an upper one where it falls).
+            int xa = x0, xb = x1;
+            const std::int64_t span = x1 - x0 + 1;
+            const std::int64_t er[3] = {e0, e1, e2};
+            for (int e = 0; e < 3 && xa <= xb; e++) {
+                const std::int64_t a = A[e], ev = er[e];
+                if (a == 0) {
+                    if (ev < 0) xa = xb + 1;
+                } else if (a > 0) {
+                    if (ev < 0) xa = std::max(xa, x0 + static_cast<int>(std::min<std::int64_t>((-ev + a - 1) / a, span)));
+                } else if (ev < 0) {
+                    xa = xb + 1;
+                } else {
+                    xb = std::min(xb, x0 + static_cast<int>(std::min<std::int64_t>(ev / -a, span)));
+                }
+            }
+            if (xa > xb) continue;
             u8* crow = &colour[static_cast<size_t>(y) * rw];
             float* drow = &depth[static_cast<size_t>(y) * rw];
-            for (int x = x0; x <= x1; x++, e0 += A[0], e1 += A[1], e2 += A[2]) {
-                if ((e0 | e1 | e2) < 0) continue;
-                const double w2 = static_cast<double>(e0) * inv; // edge 0 (corner 0 -> 1)
-                const double w0 = static_cast<double>(e1) * inv; // edge 1 (corner 1 -> 2)
-                const double w1 = static_cast<double>(e2) * inv; // edge 2 (corner 2 -> 0)
-                const float z = static_cast<float>(w0 * c0.z + w1 * c1.z + w2 * c2.z);
+            const float fy = static_cast<float>(dyRows);
+            const float zr = z0 + zdy * fy, ur = u0 + udy * fy, vr = v0 + vdy * fy;
+            for (int x = xa; x <= xb; x++) {
+                const float k = static_cast<float>(x - x0);
+                const float z = zr + zdx * k;
                 float& d = drow[x];
                 if (z < d - depthEps) continue; // GL_LEQUAL: the highest z wins, ties pass
                 d = z;
-                float alpha = 1.0f;
-                if (textured) {
-                    const float u = static_cast<float>(w0 * c0.u + w1 * c1.u + w2 * c2.u);
-                    const float v = static_cast<float>(w0 * c0.v + w1 * c1.v + w2 * c2.v);
-                    alpha = skin->sample(u, v, lod);
+                if (!textured) {
+                    crow[x] = 0; // black at alpha 1
+                    continue;
                 }
-                // Black blended by alpha into the 8-bit target: dst * (1 - alpha).
-                crow[x] = static_cast<u8>(std::lround(static_cast<float>(crow[x]) * (1.0f - alpha)));
+                const float alpha = skin->sample(ur + udx * k, vr + vdx * k, lod);
+                // Black blended by alpha into the 8-bit target: dst * (1 - alpha), rounded.
+                crow[x] = static_cast<u8>(static_cast<float>(crow[x]) * (1.0f - alpha) + 0.5f);
             }
         }
     }

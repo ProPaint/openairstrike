@@ -104,9 +104,10 @@ struct ShadowSilhouette {
 // The silhouette ShadowRenderer::generate() renders for the same arguments, on the CPU.
 // `skin` null (or opaque) casts at full strength, like generate() without a skin texture.
 // `rules` are the game's (ShadowRenderer::setRules). False when the model has no faces or
-// fewer than three valid corners, as generate().
+// fewer than three valid corners, as generate(). `maxSide` > 0 caps W and H (the PICA's
+// smaller textures: the silhouette is rasterised at the capped size, over the same bounds).
 bool rasterizeShadowSilhouette(const ModelData& model, const ShadowSkin* skin, ShadowKind kind,
                                const Vec3& towardsSun, int rotationSteps, ShadowQuality quality,
-                               const RenderRules& rules, ShadowSilhouette& out);
+                               const RenderRules& rules, ShadowSilhouette& out, int maxSide = 0);
 
 } // namespace as3d
