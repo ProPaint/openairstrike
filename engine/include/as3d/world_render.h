@@ -12,7 +12,10 @@
 // lightning bolts (7.1) after the effect list, and the brightness overlay after the 2D layer.
 //
 // Needs a current GLES 3.0 context for everything except worldViewOf, worldRenderOrder and the
-// eye functions (eyeViewMatrix, eyePosition, eyeProjection, eyeCullFrustum).
+// eye functions (eyeViewMatrix, eyePosition, eyeProjection, eyeCullFrustum). Two backends
+// implement the class: engine/src/render/gles/world_render.cpp and, on the 3DS,
+// engine/src/render/pica/world_renderer_pica.cpp (fewer passes, see there); both read the world
+// through the neutral WorldScene (engine/src/render/world_scene.h).
 #pragma once
 
 #include <cstdint>
@@ -175,6 +178,10 @@ struct WorldRenderStats {
     int waterChunks = 0;
     int healthBars = 0;   // enemy health bars (engine-behaviour.md 6.5)
     int terrainChunks = 0;
+    // The PICA backend's GPU work (0 on GL): draw calls and vertices of every draw() since the
+    // last prepare(), so a stereo frame counts both eyes (the 3DS perf log).
+    int drawCalls = 0;
+    int vertices = 0;
 };
 
 class WorldRenderer {
