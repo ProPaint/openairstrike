@@ -6,10 +6,12 @@
 
 #include "ctr_frame.h"
 #include "ctr_loop.h"
+#include "ctr_save.h"
 #include "run_config.h"
 #include "spike.h"
 
 int main() {
+    ctrsave::installSleepGuard(); // no sleep mode while a save is being written
     ctrapp::CtrLoopOptions options;
     options.run = ctrapp::readRunConfig(std::string(ctrapp::kDataDir) + "/run.ini");
     if (!options.run.usesLoop()) return runSpike();

@@ -26,6 +26,7 @@ struct RunConfig {
     int botFrames = 0;  // frames=N: the effects test's bot frames before drawing (0: 300)
     bool meshtest = false; // mode=meshtest: the PICA mesh test (mesh_test.h), mission 1 from the SD paks
     bool markstest = false; // mode=markstest: the PICA ground mark test (mark_test.h), mission 1 from the SD paks
+    bool savetest = false;   // mode=savetest: the save path test (ctr_save.h), no game data needed
     bool envtest = false;    // mode=envtest: the PICA environment map test (env_test.h), mission 1 from the SD paks
     bool watertest = false;  // mode=watertest: the PICA water and lightning test (water_test.h), mission 1 from the SD paks
     bool shadowtest = false; // mode=shadowtest: the PICA shadow test (shadow_test.h), mission 1 from the SD paks

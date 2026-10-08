@@ -317,3 +317,12 @@ env draws per test) and `envtest_<test>.ppm`. Compare `c` with `as3d_game --head
 --frames 120 --size 400x240 --screenshot-every 120 --render-only models` (tools/3ds_meshtest_compare.py),
 `f` with `--frames 1400 ... --render-only terrain,models,particles,sprites,shadows,marks,water,lightning`
 (tools/3ds_screen_compare.py --direct --mask). docs/3ds-port.md, "M3.4 Environment maps".
+
+`mode=savetest` runs `source/ctr_save.cpp` (no game data needed): 50 profile saves read back byte for
+byte, the failing-replace, missing-directory and stale-temporary paths, the `fsync` result and the sleep
+guard. It writes `savetest_log.txt` (`PASSED: 0 failed checks`) and the files under `savetest/`.
+
+Saves in the app: the profile is written by `as3d::writeFileAtomic` (temporary in the same directory,
+`fsync`, rename with the FAT remove fallback) on level end, option changes, HOME/lid and exit; the log
+line is `AS3D_SAVE profile bytes=N ms=X ok=1`; `aptSetSleepAllowed(false)` only during a write. Policy and
+the hardware checklist: docs/3ds-port.md, "M2.5 Saves".

@@ -31,6 +31,7 @@ add_executable(openairstrike
   source/mark_test.cpp
   source/water_test.cpp
   source/env_test.cpp
+  source/ctr_save.cpp
   source/probe.cpp
   source/render.cpp
   source/terrain_test.cpp

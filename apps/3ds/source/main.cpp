@@ -37,6 +37,7 @@
 #include "mark_test.h"
 #include "water_test.h"
 #include "env_test.h"
+#include "ctr_save.h"
 #include "shadow_test.h"
 #include "spike.h"
 #include "fx_test.h"
@@ -178,6 +179,12 @@ int runSpike() {
         }
         if (early.meshtest) { // mode=meshtest: the PICA mesh test (mesh_test.cpp) loads its own mission
             meshtest::run(kDir, early.holdFrames);
+            C3D_Fini();
+            gfxExit();
+            return 0;
+        }
+        if (early.savetest) { // mode=savetest: the save path test (ctr_save.cpp)
+            ctrsave::runTest(kDir);
             C3D_Fini();
             gfxExit();
             return 0;

@@ -1168,3 +1168,91 @@ frames=600` unchanged: map_pos 452.0, 39 entities, created 243, freed 204.
 Deferred: the front end's 3D banner model on the PICA (M2.1 draws the title text instead); a desktop
 reference without MSAA (or the PICA comparison at 4x supersampling) to measure the env shading without
 edge effects; hardware timing.
+
+
+## M2.5 Saves: the write path, the policy, the checklist (engine/src/core/fs_util.cpp, apps/3ds/source/ctr_save.cpp)
+
+What is saved: one file, `sdmc:/3ds/openairstrike/<game>/profile.bin` (settings, high scores, unlocks,
+sequel checkpoint) plus `launcher.bin` (the chosen game). High scores are inside the profile, so there is no
+separate dirty flag: every profile write carries them.
+
+**Audit of the path as it was (M2.1).** `saveProfileFile` already wrote `profile.bin.tmp` and
+`replaceFile`d it (remove then rename when the rename over an existing file fails, as FAT does on the
+console SD), and removed the temporary on a failed write or replace. What was unsafe or missing:
+
+- no `fsync`: `fclose` alone was relied on to put the data on the card (see below);
+- no directory creation on a save (only `userDataDir()` made `sdmc:/3ds/openairstrike`, `gameDataDir` the
+  game directory; a deleted directory made every save fail);
+- `writeLauncherChoice` and the import's `writeWhole` repeated the pattern without the flush, and
+  `moveInto` left a half-copied temporary when `copy_file` failed;
+- a temporary left by a write cut short by a power loss stayed on the card forever (the next save only
+  overwrote it): the owner's "no `*.tmp`" check would fail after a power cut;
+- a failing save (full card, card out) logged `cannot save the profile` on every attempt;
+- nothing stopped the lid from closing in the middle of a write (sleep mode is entered at once);
+- no log line to read on hardware.
+
+**Now** (`as3d::writeFileAtomic`, shared by the profile, the launcher choice and the import writes):
+`<dst>.tmp` in the same directory (the directory is made if missing; `makeDirectories` skips the device
+root `sdmc:`) -> `fwrite` -> `fflush` + `fsync` -> `fclose` -> `replaceFile` -> the temporary removed on every
+failure. `loadProfileForGame` removes a stale `<path>.tmp` before reading. `GameFlow::saveProfile` logs an
+error only when the failure differs from the last one (a recovered save clears it).
+
+**fsync on the SD.** newlib's `fsync()` calls the devoptab's `fsync_r`; libctru's `archive_dev.c` (the
+`sdmc:` device) defines `archive_fsync`, which calls `FSFILE_Flush` (verified in the pinned image's
+`libctru.a`: `archive_dev.o` has `archive_fsync` and the undefined reference `FSFILE_Flush`). Azahar:
+`fsync(sdmc file) = 0` (`savetest_log.txt`). `fclose` then does `FSFILE_Close`. So when `AS3D_SAVE ... ok=1`
+is logged, the temporary's data was flushed before the rename; the rename itself is an FS-service operation
+on the FAT metadata. Limit, not removable from here: a power cut between the remove of the old file and
+the rename (the FAT fallback path, which is the normal path on hardware) leaves `profile.bin` missing and
+the complete `profile.bin.tmp`. The load does not recover it (it deletes the temporary): the profile
+starts fresh, as the first run. The window is a few milliseconds and the guard below keeps the lid and
+the HOME menu's sleep out of it; a power-off from the HOME menu is not an abrupt cut (the system closes the
+app). A battery pull or a crash in the window is the only way in. Recovering the temporary at load was
+considered and not done: it would resurrect a file whose write may not have completed on a card whose
+`fsync` is unverified on hardware (the temporary is the newer, complete file only if `ok` was reached).
+
+**Policy.**
+
+| Event | What happens |
+|---|---|
+| level end, a score entered, Options left, game chosen, "Change game" | the front end calls `save()` (`engine/src/ui`), as on the desktop |
+| HOME (APT suspend) and lid (APT sleep) in a menu or in play | `GameFlow::onBackground`: the in-game menu opens during play (the game comes back paused), then `saveNow()`; the world is paused, audio suspended, perf flushed |
+| exit (START+SELECT, HOME "Close", the menu's Exit) | `saveNow()` after the loop (`ctr_menu_loop.cpp`), `GameStack::teardown` |
+| power off from the HOME menu | the app is suspended first, so the suspend save already happened |
+| `aptSetSleepAllowed` | `false` only inside a `FileWriteScope` (every `writeFileAtomic`), `true` after; installed in `ctr_main.cpp` through `as3d::setFileWriteHook`; HOME is never blocked (`aptSetHomeAllowed` untouched) |
+
+A closed lid during a save is therefore refused for the few milliseconds of the write (libctru replies
+sleep as not allowed to the OS while the flag is false) and the SLEEP hook itself saves
+inside the hook, before the app yields. Only the menu mode has a profile; `mode=play level=N`, `bot` and `sim`
+write none.
+
+**Log.** Every profile write logs `AS3D_SAVE profile bytes=N ms=X ok=1` (`ok=0` on failure, with the
+`cannot ...` error line before it). Beside it `apt: suspend|sleep|restore|wake up` lines. In `log.txt`.
+
+**Azahar `mode=savetest`** (`source/ctr_save.cpp`, no game data needed; output `savetest_log.txt`,
+`savetest_engine_log.txt`, files under `savetest/`): `fsync` returns 0; 50 saves with changed options and
+scores, each read back and compared byte for byte (0 mismatches; 14 ms average, worst 17 ms on the
+emulator, meaningless as hardware time); no `*.tmp`; the sleep hook ran 50 times and `aptIsSleepAllowed()`
+was false inside each write and true after; a directory (non-empty) named like the target makes the save
+fail with `cannot replace ...` leaving no temporary and the directory intact; a missing directory
+`fresh/a/b` is created; a stale `profile.bin.tmp` is deleted at load; no `*.tmp` anywhere in the tree.
+Azahar's `rename` replaces files (host `rename`), so it does not reproduce the FAT refusal: that path is
+covered by the desktop test below and by the hardware checklist. Desktop: `apps/tests/fs_util_test.cpp`
+(`writeFileAtomic` with the first rename forced to fail, a blocking directory, a destination under a
+regular file, the scope hook counted, no device-root directory) and `launcher_test.cpp`.
+
+**Hardware checklist (owner).** `mode=menu` (or `mode=play` without `level=`) in run.ini, the paks in place.
+
+1. Change an option (e.g. Music volume), leave Options. `log.txt` shows an `AS3D_SAVE profile ... ok=1` line.
+2. Press HOME, come back: the option is still set; `log.txt` shows `apt: suspend`, `AS3D_SAVE`, `apt: restore`.
+3. Close the lid, open it: `apt: sleep`, `AS3D_SAVE`, `apt: wake up`; the option is still set.
+4. Change a second option, HOME, and power off from the HOME menu. Reboot, start the game: the option persists.
+5. Play a level to the end (or lose) and enter a high score: the score is in the table after a restart.
+6. `ls` over ftpd in `sdmc:/3ds/openairstrike/as3d/`: `profile.bin`, no `profile.bin.tmp`; none in `/3ds/openairstrike/`.
+7. Run `mode=savetest` once on the console: `PASSED: 0 failed checks`, and read the `AS3D_SAVE ... ms=` times
+   and the `fsync` line in `savetest_log.txt` (the numbers that matter are the hardware ones; Azahar's are not).
+   The "blocked target" check there is the only one that exercises the failing replace on real FAT.
+
+Deferred: recovery of a complete `profile.bin.tmp` after a cut in the remove-rename window (see above;
+decide with the hardware save times); co-op/shared config (todo list); the HOME-menu "Close" is assumed to end
+`aptMainLoop` (M1.2) and is part of checklist step 4.
