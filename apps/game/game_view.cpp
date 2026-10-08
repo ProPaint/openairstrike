@@ -9,6 +9,7 @@
 #include "as3d/object_tree.h"
 #include "as3d/render_state.h"
 #include "as3d/scene.h"
+#include "model_view.h"
 
 namespace as3d_game {
 
@@ -30,36 +31,9 @@ struct GameView::Preview {
     std::unique_ptr<ResourceCache> cache;
     MeshRenderer mesh;
     std::string object;
-    struct Part {
-        const GpuMesh* gpu = nullptr;
-        Material material;
-        Mat4 local;
-        Vec4 colour{1, 1, 1, 1};
-    };
-    std::vector<Part> parts;
+    std::vector<ModelViewPart> parts;
 };
 
-namespace {
-
-// AnglesToAxis (engine-behaviour.md 4.3) with the angles as fields 14..16, in degrees, and the
-// origin: the entity's model matrix (as the banner's).
-Mat4 entityMatrix(const float angles[3], const float origin[3]) {
-    const float kDeg = 3.14159265f / 180.0f;
-    const float ax = angles[0] * kDeg, ay = angles[1] * kDeg, az = angles[2] * kDeg;
-    const float sa = std::sin(ax), ca = std::cos(ax), sb = std::sin(ay), cb = std::cos(ay), sc = std::sin(az),
-                cc = std::cos(az);
-    const Vec3 fwd{cb * cc, cb * sc, sb};
-    const Vec3 left{sa * sb * cc - ca * sc, sa * sb * sc + ca * cc, -sa * cb};
-    const Vec3 up{-sa * sc - ca * sb * cc, sa * cc - ca * sb * sc, ca * cb};
-    Mat4 model;
-    model.at(0, 0) = fwd.x; model.at(0, 1) = fwd.y; model.at(0, 2) = fwd.z; model.at(0, 3) = 0;
-    model.at(1, 0) = left.x; model.at(1, 1) = left.y; model.at(1, 2) = left.z; model.at(1, 3) = 0;
-    model.at(2, 0) = up.x; model.at(2, 1) = up.y; model.at(2, 2) = up.z; model.at(2, 3) = 0;
-    model.at(3, 0) = origin[0]; model.at(3, 1) = origin[1]; model.at(3, 2) = origin[2]; model.at(3, 3) = 1;
-    return model;
-}
-
-} // namespace
 
 BannerMesh::BannerMesh() = default;
 BannerMesh::~BannerMesh() = default;
@@ -337,23 +311,7 @@ void GameView::drawModel(GameSession& session, const ui::ModelView& v) {
     Preview& p = *preview_;
     if (p.object != v.object) {
         p.object = v.object;
-        p.parts.clear();
-        ObjectTree tree = ObjectTree::build(session.db(), session.vfs(), v.object);
-        const auto& nodes = tree.nodes();
-        std::vector<char> hidden(nodes.size(), 0);
-        for (size_t i = 0; i < nodes.size(); ++i) {
-            const ObjectNode& n = nodes[i];
-            if (!n.active || (n.parent >= 0 && hidden[static_cast<size_t>(n.parent)])) hidden[i] = 1;
-            if (hidden[i] || n.kind != NodeKind::Object || !n.def || n.def->model.empty() || (n.def->flags & FL_NODRAW)) continue;
-            const GpuMesh& gpu = p.cache->mesh(n.def->model);
-            if (!gpu.valid) continue;
-            Preview::Part part;
-            part.gpu = &gpu;
-            part.material = Material::fromObjectDef(*n.def, *p.cache);
-            part.local = n.world;
-            part.colour = n.colour;
-            p.parts.push_back(part);
-        }
+        p.parts = modelViewParts(session.db(), session.vfs(), *p.cache, v.object);
     }
     if (p.parts.empty()) return;
     // The viewport over the virtual rectangle, scaled to the frame, depth cleared inside it.
@@ -378,7 +336,7 @@ void GameView::drawModel(GameSession& session, const ui::ModelView& v) {
     cam.farPlane = v.farPlane;
     const Mat4 model = entityMatrix(v.angles, v.origin);
     p.mesh.begin(cam, SceneLighting());
-    for (const Preview::Part& part : p.parts) p.mesh.submit(*part.gpu, part.material, model * part.local, part.colour);
+    for (const ModelViewPart& part : p.parts) p.mesh.submit(*part.gpu, part.material, model * part.local, part.colour);
     p.mesh.end();
     as3d::setScissor(false);
     as3d::setViewport(frameRect_.x, frameRect_.y, frameRect_.width, frameRect_.height);
