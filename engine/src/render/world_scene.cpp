@@ -160,6 +160,7 @@ const Material& WorldScene::materialFor(const ObjectDef& def, const std::string&
         ResourceCache::LoadedTexture t = cache_->texture(skinOverride);
         m->texture = t.texture;
         m->textureHasAlpha = t.hasAlpha;
+        m->texturePath = skinOverride;
     }
     const Material& ref = *m;
     materials_.emplace(key, std::move(m));
@@ -311,33 +312,40 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
         switch (def.type) {
             case ObjectType::Model: {
                 // The entity's model handle: SetModel swaps it (damaged helicopters).
-                if (!options.models || !e.model || e.modelPath.empty()) break;
+                // Shadows (5.3): opaque and transparent records only. With options.models off
+                // the records are not listed but their shadows still are (--render-only shadows).
+                const ShadowSpec ss = shadowSpecOf(def.shadow);
+                const bool castsShadow = withShadows && options.shadows && ss.any && def.sort != SortMode::Effect;
+                if ((!options.models && !castsShadow) || !e.model || e.modelPath.empty()) break;
                 const GpuMesh& mesh = cache_->mesh(e.modelPath);
                 if (!mesh.valid) break;
-                std::vector<MeshRecord>* list = &opaque;
-                int cap = kOpaqueCap;
-                if (def.sort == SortMode::Trans) {
-                    list = &trans;
-                    cap = kTransCap;
-                } else if (def.sort == SortMode::Effect) {
-                    list = &effect;
-                    cap = kEffectCap;
-                }
-                if (static_cast<int>(list->size()) >= cap) {
-                    ++dropped;
-                    break;
+                std::vector<MeshRecord>* list = nullptr;
+                if (options.models) {
+                    list = &opaque;
+                    int cap = kOpaqueCap;
+                    if (def.sort == SortMode::Trans) {
+                        list = &trans;
+                        cap = kTransCap;
+                    } else if (def.sort == SortMode::Effect) {
+                        list = &effect;
+                        cap = kEffectCap;
+                    }
+                    if (static_cast<int>(list->size()) >= cap) {
+                        ++dropped;
+                        break;
+                    }
                 }
                 const Material& mat = materialFor(def, e.skinPath);
-                MeshRecord rec;
-                rec.mesh = &mesh;
-                rec.material = &mat;
-                rec.model = entityMatrix(e);
-                rec.colour = colour;
-                rec.entity = i;
-                list->push_back(rec);
-                // Shadows (5.3): opaque and transparent records only.
-                ShadowSpec ss = shadowSpecOf(def.shadow);
-                if (withShadows && options.shadows && ss.any && def.sort != SortMode::Effect) {
+                if (list) {
+                    MeshRecord rec;
+                    rec.mesh = &mesh;
+                    rec.material = &mat;
+                    rec.model = entityMatrix(e);
+                    rec.colour = colour;
+                    rec.entity = i;
+                    list->push_back(rec);
+                }
+                if (castsShadow) {
                     ShadowRequest sr;
                     sr.mesh = &mesh;
                     sr.material = &mat;

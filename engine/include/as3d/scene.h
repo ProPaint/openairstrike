@@ -122,6 +122,10 @@ enum class SortBucket { Opaque, Trans, Effect };
 struct Material {
     const Texture2D* texture = nullptr; // never null (ResourceCache placeholder on failure)
     bool textureHasAlpha = false;
+    // The game path `texture` was loaded from (the skin, else the model's own texture path; the
+    // skin override of WorldScene::materialFor), empty without one. A backend that cannot read a
+    // texture back (the PICA's CPU shadow silhouettes) reloads the image from it.
+    std::string texturePath;
     MaterialBlend blend = MaterialBlend::Opaque;
     // as3d::EnvMode's underlying value (obj.md: 0 none, 1 glitter, 2 chrome, 3 quad);
     // not implemented, kept only so a TODO/debug view can report which mode was asked

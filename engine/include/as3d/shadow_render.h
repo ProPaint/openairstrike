@@ -43,8 +43,11 @@ struct ShadowInstance {
     float yawDegrees = 0.0f;
 };
 
-// The world rectangle a shadow instance covers.
+// The world rectangle a shadow instance covers (engine/src/render/shadow_drape.cpp, neutral):
+// Projected shadows the axis-aligned bounds at the origin, Planar ones the bounds turned by the
+// yaw about the origin. The bounds form serves a silhouette not generated yet (the PICA's blob).
 GroundRect shadowRect(const ShadowMap& map, const Vec3& origin, float yawDegrees);
+GroundRect shadowRect(const ShadowBounds& bounds, ShadowKind kind, const Vec3& origin, float yawDegrees);
 
 class ShadowRenderer {
 public:

@@ -64,16 +64,6 @@ void main() {
 
 } // namespace
 
-GroundRect shadowRect(const ShadowMap& map, const Vec3& origin, float yawDegrees) {
-    const ShadowBounds& b = map.bounds;
-    if (map.kind == ShadowKind::Projected) {
-        return GroundRect::axisAligned(origin.x + static_cast<float>(b.xmin), origin.y + static_cast<float>(b.ymin),
-                                       origin.x + static_cast<float>(b.xmax), origin.y + static_cast<float>(b.ymax));
-    }
-    return GroundRect::rotated({origin.x, origin.y}, yawDegrees, static_cast<float>(b.xmin), static_cast<float>(b.ymin),
-                               static_cast<float>(b.xmax), static_cast<float>(b.ymax));
-}
-
 struct ShadowRenderer::Impl {
     DecalDrawer drawer;
     ShaderProgram silProgram;

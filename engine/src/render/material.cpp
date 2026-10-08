@@ -46,6 +46,7 @@ Material Material::fromObjectDef(const ObjectDef& def, ResourceCache& cache) {
     ResourceCache::LoadedTexture tex = cache.texture(skinPath);
     mat.texture = tex.texture;
     mat.textureHasAlpha = tex.hasAlpha;
+    mat.texturePath = skinPath;
 
     mat.blend = toMaterialBlend(def.blend);
     // ENV_GLITTER/CHROME/QUAD (docs/spec/obj.md "envmode"): drawn by MeshRenderer from
