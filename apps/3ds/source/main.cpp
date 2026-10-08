@@ -8,7 +8,7 @@
 // 3. Reloads mission 1 and, on the top screen, draws its terrain and the player's helicopter
 //    with citro3d for 300 frames while the world keeps stepping, measuring CPU and GPU time.
 // START quits at the end. With mode=probe in sdmc:/3ds/openairstrike/run.ini the GPU probe (probe.cpp) runs instead,
-// with mode=terraintest the terrain test (terrain_test.cpp).
+// with mode=terraintest the terrain test (terrain_test.cpp), with mode=meshtest the mesh test (mesh_test.cpp).
 #include <3ds.h>
 #include <citro3d.h>
 #include <malloc.h>
@@ -28,6 +28,7 @@
 #include "as3d/vfs.h"
 #include "as3d/world.h"
 
+#include "mesh_test.h"
 #include "pica_test.h"
 #include "probe.h"
 #include "render.h"
@@ -162,6 +163,12 @@ int runSpike() {
         probe::RunConfig early = probe::readRunConfig(std::string(kDir) + "/run.ini");
         if (early.picatest) {
             picatest::run(kDir, early.holdFrames);
+            C3D_Fini();
+            gfxExit();
+            return 0;
+        }
+        if (early.meshtest) { // mode=meshtest: the PICA mesh test (mesh_test.cpp) loads its own mission
+            meshtest::run(kDir, early.holdFrames);
             C3D_Fini();
             gfxExit();
             return 0;

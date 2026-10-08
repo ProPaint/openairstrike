@@ -8,7 +8,10 @@ The checks file has one line per probe, "name x y r g b tol": the expected colou
 screenshot by the three 6x6 corner markers the test draws (top-left (250,10,130), top-right
 (10,250,130), bottom-left (130,10,250)), so any window size or emulator scale works. Each
 probe reads the 3x3 median around its pixel. Exit status 0 when every probe is within its
-tolerance (per channel).
+tolerance (per channel). A negative tolerance inverts the probe: the pixel must differ from
+(r, g, b) by more than -tol in some channel (apps/3ds/source/mesh_test.cpp: "a model covers
+this pixel"). The same checks work on an upright 400x240 image of the top screen (the mesh
+test's .ppm read-back), where the markers sit at their own positions.
 """
 import sys
 
@@ -73,7 +76,7 @@ def main():
             name, x, y, r, g, b, tol = parts[0], *map(int, parts[1:])
             got = sample(x, y)
             diff = max(abs(got[0] - r), abs(got[1] - g), abs(got[2] - b))
-            ok = diff <= tol
+            ok = diff > -tol if tol < 0 else diff <= tol
             total += 1
             failures += 0 if ok else 1
             print(f"{'ok  ' if ok else 'FAIL'} {name:20s} ({x:3d},{y:3d}) expected ({r:3d},{g:3d},{b:3d}) "

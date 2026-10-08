@@ -19,6 +19,7 @@ struct RunConfig {
     bool terraintest = false; // mode=terraintest: the terrain test (terrain_test.h)
     bool fxtest = false;      // mode=fxtest: the effects test (fx_test.h)
     int botFrames = 0;  // frames=N: the effects test's bot frames before drawing (0: 300)
+    bool meshtest = false; // mode=meshtest: the PICA mesh test (mesh_test.h), mission 1 from the SD paks
     int level = 1;      // level=N: the terrain test's mission
     int holdFrames = 0; // hold=N: keep drawing N frames after each variant (screenshots under Azahar);
                         // the terrain test's frames per phase
