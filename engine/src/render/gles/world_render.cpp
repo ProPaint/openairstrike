@@ -420,7 +420,7 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     for (const MeshRecord& r : sc.opaque) im.meshes.submit(*r.mesh, *r.material, r.model, r.colour);
     im.meshes.end();
     // Pass 7: water.
-    if (options.terrain && haveTerrain && im.water) {
+    if (options.terrain && options.water && haveTerrain && im.water) {
         im.water->render(tv);
         stats_.waterChunks = im.water->lastVisibleChunks();
     }

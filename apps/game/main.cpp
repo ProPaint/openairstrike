@@ -130,7 +130,7 @@ int usage() {
                  "                 [--dual-screen]  (3DS preview: 400x240 world above a 320x240 touch screen, 400x480 window)\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
                  "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n"
-                 "                 [--render-only LIST]  (terrain,models,particles,sprites,healthbars,shadows,marks,skid: only these passes, no 2D layer)\n"
+                 "                 [--render-only LIST]  (terrain,models,particles,sprites,healthbars,shadows,marks,skid,water,lightning: only these passes, no 2D layer)\n"
                  "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n"
                  "       as3d_game --headless --selector-shot FILE.png [--selector-games K1,K2] [--size WxH] [--touch]\n"
                  "                      [--screen wide|4x3] [--insets L,T,R,B] [--selector-focus N] [--selector-time SECONDS]\n");
@@ -163,13 +163,13 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--fps") a.fps = true;
         else if (s == "--dual-screen") a.dual = true;
         else if (s == "--render-only" && next()) {
-            // A comma separated list of terrain, models, particles, sprites, healthbars, shadows, marks, skid.
+            // A comma separated list of terrain, models, particles, sprites, healthbars, shadows, marks, skid, water, lightning.
             std::string list = std::string(",") + v + ",";
             for (size_t i = 1; i + 1 < list.size();) {
                 size_t e = list.find(',', i);
                 std::string name = list.substr(i, e - i);
                 if (name != "terrain" && name != "models" && name != "particles" && name != "sprites" && name != "healthbars" &&
-                    name != "shadows" && name != "marks" && name != "skid")
+                    name != "shadows" && name != "marks" && name != "skid" && name != "water" && name != "lightning")
                     return false;
                 i = e + 1;
             }
@@ -274,7 +274,7 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
         view->dualScreen = a.dual;
         if (!a.renderOnly.empty()) {
             // --render-only LIST: only the named world passes (comma separated: terrain,
-            // models, particles, sprites, healthbars, shadows), no 2D layer or brightness
+            // models, particles, sprites, healthbars, shadows, marks, skid, water, lightning), no 2D layer or brightness
             // (reference images for the 3DS port's per-renderer tests, docs/3ds-port.md M1.4 to
             // M1.6, M3.1). Health bars are sprites of the sprite pass: "healthbars" is "sprites".
             // "models" keeps the dynamic lights on: they light the models as in the game.
@@ -288,6 +288,8 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
             view->worldOptions.particles = has("particles");
             view->worldOptions.sprites = has("sprites") || has("healthbars");
             view->worldOptions.marks = has("marks") || has("skid"); // ground marks and skid trails (M3.2)
+            view->worldOptions.water = has("water");                // M3.5
+            view->worldOptions.lightning = has("lightning");        // M3.3
             view->worldOnly = true;
         }
         if (!view->init(session, &err)) {

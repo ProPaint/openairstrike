@@ -437,6 +437,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
     // the entity pass (7.1).
     boltStarts.clear();
     boltEnds.clear();
+    if (options.lightning)
     for (const LightningBolt& b : world.lightningBolts()) {
         boltStarts.push_back(b.start);
         boltEnds.push_back(b.end);

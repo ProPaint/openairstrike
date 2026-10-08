@@ -152,6 +152,8 @@ struct WorldRenderOptions {
     bool particles = true;
     bool sprites = true;   // sprites (and the enemy health bars)
     bool marks = true;     // ground marks and the sequels' skid trails
+    bool water = true;     // pass 7 (needs terrain too)
+    bool lightning = true; // lightning bolts (7.1)
 };
 
 // The rectangle of the bound framebuffer the world is drawn into (GL convention, y from the
