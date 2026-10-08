@@ -566,3 +566,270 @@ TEST_CASE("game flow: console options and pad navigation (the 3DS front end, M2.
     CHECK(h.session.mission() == 1);
     CHECK(h.world().numPlayers() == 1);
 }
+
+// ---------------------------------------------------------------------------------------
+// The sequels' front end on a console (the 3DS, docs/3ds-port.md M5.2): touch mode, console
+// options and pad navigation, through the real GameFlow over the game's session.
+// ---------------------------------------------------------------------------------------
+namespace {
+
+bool haveSequelData() {
+    if (testdata::game().frontend != FrontendStyle::SequelMenus) {
+        std::fprintf(stderr, "SKIPPED (game '%s': these drive the sequels' menus): %s\n", testdata::gameKey().c_str(),
+                     __FILE__);
+        return false;
+    }
+    if (testdata::available() && testdata::playable()) return true;
+    std::fprintf(stderr, "SKIPPED (no game data): %s\n", __FILE__);
+    return false;
+}
+
+struct SequelHarness {
+    GameSession session;
+    AudioBridge audio;
+    std::unique_ptr<GameFlow> flow;
+
+    bool init() {
+        GameOptions o;
+        o.dataRoot = testdata::root();
+        o.game = &testdata::game();
+        o.startLevel = false;
+        o.levelFlow = false;
+        std::string err;
+        if (!session.init(o, &err)) {
+            FAIL_CHECK(err);
+            return false;
+        }
+        audio.init(session.vfs(), true);
+        flow.reset(new GameFlow(session, audio));
+        FlowConfig c;
+        c.touch = true;
+        c.twoPlayerMode = false;
+        c.mouseControlOption = false;
+        c.touchMenuButton = false;
+        c.consoleOptions = true;
+        c.attract = 1;
+        c.showLogo = false;
+        c.textsPath = testdata::extractedDir() + "/" + testdata::game().textsFile;
+        c.settingsXml = testdata::installDir() + "/data/Settings.xml";
+        if (!flow->init(c, &err)) {
+            FAIL_CHECK(err);
+            return false;
+        }
+        flow->frontend().setHudTarget(ui::HudTarget::Bottom320x240);
+        flow->boot();
+        return true;
+    }
+    ui::Frontend& fe() { return flow->frontend(); }
+    World& world() { return session.world(); }
+    bool menu(Screen s) { return fe().menuOpen() && fe().topScreen() == s; }
+    void step(const ui::UiInput& ui = {}, const FrameInput& in = {}) {
+        flow->uiFrame(1.0f / 60.0f, ui);
+        flow->step(in);
+        if (session.hasLevel()) audio.drain(world());
+        audio.pump(735);
+    }
+    void wait(int frames) {
+        for (int i = 0; i < frames; ++i) step();
+    }
+    void key(int code) {
+        step(ui::UiInput().key(code));
+        wait(10); // the sequels' menus open over 0.125 s
+    }
+    int focusedId() {
+        const ui::Menu* m = fe().menus().top();
+        return m && m->focused >= 0 ? m->items[static_cast<size_t>(m->focused)].id : -1;
+    }
+    // Down until the item `id` has the focus (at most 12 presses).
+    bool focus(int id) {
+        for (int k = 0; k < 12 && focusedId() != id; ++k) key(keys::Down);
+        return focusedId() == id;
+    }
+};
+
+// Counts the model views GameFlow::draw asks the view for, as the 3DS composer draws them.
+struct CountingView : FlowView {
+    int drawn = 0;
+    std::string object;
+    bool init(GameSession&, std::string*, bool) override { return true; }
+    bool beginLevel(GameSession&, std::string*) override { return true; }
+    void drawFrame(const GameSession&, int, int, const FrameLayers& l) override {
+        if (l.frontend && l.frontend->modelViewVisible()) l.frontend->drawModelViews();
+    }
+    void drawModel(GameSession&, const ui::ModelView& v) override {
+        ++drawn;
+        object = v.object;
+    }
+};
+
+} // namespace
+
+TEST_CASE("game flow: the sequels' front end by pad, model view and mission 1 as --level 1 (3DS, M5.2)") {
+    if (!haveSequelData()) return;
+    const GameRules& rules = testdata::game().rules;
+    SequelHarness h;
+    REQUIRE(h.init());
+    h.wait(30);
+    REQUIRE(h.menu(Screen::MainMenu));
+    // Options: no Configure controls.
+    REQUIRE(h.focus(3));
+    h.key(keys::Enter);
+    REQUIRE(h.menu(Screen::Options));
+    for (const ui::MenuItem& it : h.fe().menus().top()->items)
+        if (it.id == 2) CHECK(it.hidden());
+    h.key(keys::Escape);
+    REQUIRE(h.menu(Screen::MainMenu));
+    // Start Game -> Next by pad.
+    REQUIRE(h.focus(1));
+    h.key(keys::Enter);
+    REQUIRE(h.menu(Screen::StartGame));
+    REQUIRE(h.focus(2));
+    h.key(keys::Enter);
+    REQUIRE(h.menu(Screen::HeliSelect));
+    // The model view of the first helicopter; Left / Right browse (locked ones show no model).
+    ui::ModelView v;
+    REQUIRE(h.fe().modelView(v));
+    CHECK(v.object == rules.heliObjects[0]);
+    CHECK(h.fe().helicopters()[0] == 0);
+    h.key(keys::Right);
+    CHECK(h.fe().helicopters()[0] == 1);
+    h.key(keys::Left);
+    CHECK(h.fe().helicopters()[0] == 0);
+    h.key(keys::Left);
+    CHECK(h.fe().helicopters()[0] == rules.helicopterCount - 1);
+    h.key(keys::Right);
+    REQUIRE(h.fe().modelView(v));
+    CountingView view;
+    h.flow->setView(&view);
+    h.flow->draw(320, 240);
+    CHECK(view.drawn == 1);
+    CHECK(view.object == rules.heliObjects[0]);
+    h.flow->setView(nullptr);
+    // Start: the mission loads; AirStrike 2's start dialogue pauses it (Gulf Thunder's mission 1
+    // has none). Each frame as the 3DS loop with menu_bot: the UI first, then a step, the bot's
+    // unless a menu holds the world (a hint box does not: the bot's confirm closes it).
+    REQUIRE(h.focus(1));
+    u32 bot = 0;
+    auto frame = [&](const ui::UiInput& in) {
+        h.flow->uiFrame(1.0f / 60.0f, in);
+        const bool hint = h.world().hintShowing() && h.menu(Screen::Hint);
+        h.flow->step(h.fe().menuOpen() && !hint ? FrameInput() : botInput(bot++));
+    };
+    frame(ui::UiInput().key(keys::Enter));
+    REQUIRE(h.fe().state() == ui::FrontendState::Playing);
+    REQUIRE(h.session.mission() == 1);
+    // The world stays paused (its clock still) until the dialogue closes; Enter pages through it.
+    for (int k = 0; k < 60 && h.fe().menuOpen(); ++k) {
+        CHECK(h.menu(Screen::Dialogue));
+        CHECK(h.world().paused());
+        CHECK(h.world().time() == 0.0f);
+        frame(ui::UiInput().key(keys::Enter));
+        for (int w = 0; w < 10 && h.fe().menuOpen(); ++w) frame({});
+    }
+    REQUIRE_FALSE(h.fe().menuOpen());
+    REQUIRE_FALSE(h.world().paused());
+    // 600 bot steps of the running world (hint boxes closed by the bot's confirm), then the
+    // state equals a direct start's after 600 bot frames (as3d_sim --bot).
+    for (int k = 0; k < 3000 && bot < 600; ++k) frame({});
+    REQUIRE(bot == 600);
+    GameSession direct;
+    GameOptions o;
+    o.dataRoot = testdata::root();
+    o.game = &testdata::game();
+    o.levelFlow = false;
+    // The menus' helicopter: a fresh save of a sequel unlocks entry 0 only (as3d_sim --heli 0;
+    // its default, 1, is locked there).
+    o.world.heli[0] = h.fe().helicopters()[0];
+    std::string err;
+    REQUIRE_MESSAGE(direct.init(o, &err), err);
+    for (u32 f = 0; f < 600; ++f) direct.step(botInput(f));
+    // The end state of as3d_sim --bot (the lines mode=bot and the 3DS's menu_bot_steps log).
+    // Not the whole state dump: the attract level used the entity slots first, so a free slot
+    // can be another one (Gulf Thunder: one effect lands in slot 32 instead of 158), and the
+    // world's frame counter also counts the steps paused under the start dialogue.
+    const World& m = h.world();
+    const World& d = direct.world();
+    CHECK(m.mapPos() == d.mapPos());
+    CHECK(m.time() == d.time());
+    CHECK(m.frame() >= d.frame());
+    CHECK(m.listCount() == d.listCount());
+    CHECK(m.slotsInUse() == d.slotsInUse());
+    CHECK(m.stats().entitiesCreated == d.stats().entitiesCreated);
+    CHECK(m.stats().entitiesFreed == d.stats().entitiesFreed);
+    CHECK(m.stats().maxSlotsInUse == d.stats().maxSlotsInUse);
+    CHECK(m.player(0).scores == d.player(0).scores);
+    CHECK(m.player(0).kills == d.player(0).kills);
+    const int pm = m.playerEntityIndex(0), pd = d.playerEntityIndex(0);
+    REQUIRE(pm >= 0);
+    REQUIRE(pd >= 0);
+    CHECK(m.entity(pm).f(F_ORIGIN) == d.entity(pd).f(F_ORIGIN));
+    CHECK(m.entity(pm).f(F_ORIGIN + 1) == d.entity(pd).f(F_ORIGIN + 1));
+    CHECK(m.entity(pm).f(F_HEALTH) == d.entity(pd).f(F_HEALTH));
+    MESSAGE(testdata::gameKey() << " mission 1 from the menus, 600 bot steps: map_pos " << m.mapPos() << ", list "
+                                << m.listCount() << ", created " << m.stats().entitiesCreated << " / freed "
+                                << m.stats().entitiesFreed << ", score " << m.player(0).scores);
+}
+
+TEST_CASE("game flow: the sequels' end screens by pad, back to the main menu (3DS, M5.2)") {
+    if (!haveSequelData()) return;
+    SequelHarness h;
+    REQUIRE(h.init());
+    h.wait(30);
+    auto start = [&]() {
+        REQUIRE(h.menu(Screen::MainMenu));
+        REQUIRE(h.focus(1));
+        h.key(keys::Enter);
+        REQUIRE(h.focus(2));
+        h.key(keys::Enter);
+        REQUIRE(h.menu(Screen::HeliSelect));
+        REQUIRE(h.focus(1));
+        h.key(keys::Enter);
+        for (int k = 0; k < 60 && h.fe().menuOpen(); ++k) h.key(keys::Enter);
+        REQUIRE(h.fe().state() == ui::FrontendState::Playing);
+        REQUIRE_FALSE(h.fe().menuOpen());
+    };
+    start();
+    // The in-game menu (START), Resume by pad.
+    h.key(keys::Escape);
+    REQUIRE(h.menu(Screen::InGame));
+    CHECK(h.world().paused());
+    REQUIRE(h.focus(1));
+    h.key(keys::Enter);
+    CHECK_FALSE(h.fe().menuOpen());
+    CHECK_FALSE(h.world().paused());
+    // Mission complete (EndLevel): the end dialogue if any, then Mission Complete; Quit.
+    h.world().endLevel();
+    h.step();
+    for (int k = 0; k < 60 && h.menu(Screen::Dialogue); ++k) h.key(keys::Enter);
+    REQUIRE(h.menu(Screen::MissionComplete));
+    REQUIRE(h.focus(1)); // Quit
+    h.key(keys::Enter);
+    h.wait(5);
+    REQUIRE(h.menu(Screen::MainMenu));
+    // Game over: Quit banks and checks the high scores (the name entry when it qualifies).
+    start();
+    h.world().player(0).lives = -1.0f;
+    h.world().player(1).lives = -1.0f;
+    h.step();
+    REQUIRE(h.menu(Screen::GameOver));
+    REQUIRE(h.focus(2)); // Quit
+    h.key(keys::Enter);
+    h.wait(5);
+    if (h.menu(Screen::NameEntry)) {
+        // Pad mode over the touch keyboard: Down to its first key, A types it, Right the next.
+        h.key(keys::Down);
+        h.key(keys::Enter);
+        h.key(keys::Right);
+        h.key(keys::Enter);
+        std::string name;
+        for (const ui::MenuItem& it : h.fe().menus().top()->items)
+            if (it.id == 2) name = it.text;
+        CHECK(name == "AB");
+        h.key(keys::Up); // the name field; A commits
+        CHECK(h.focusedId() == 2);
+        h.key(keys::Enter);
+    }
+    if (h.menu(Screen::TopScores)) h.key(keys::Escape);
+    h.wait(5);
+    CHECK(h.menu(Screen::MainMenu));
+}
