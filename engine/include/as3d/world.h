@@ -687,6 +687,11 @@ private:
     int slotsInUse_ = 0;
     int current_ = -1;          // entity whose handler is running
     int dispatchDepth_ = 0;
+    // Slots whose RT_THOUGHT bit think() set since the last entity pass started: the pass
+    // clears the bit on these instead of sweeping all kMaxEntitySlots slots (think() is the
+    // only place that sets the bit; a slot may appear twice when it was reused).
+    std::vector<int> thoughtSlots_;
+    std::vector<int> doomedScratch_; // freeRemoved's list, kept to avoid an allocation per step
 
     PlayerRecord players_[kMaxPlayers];
     CameraState camera_;

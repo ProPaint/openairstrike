@@ -126,6 +126,8 @@ void World::resetPools() {
     newest_ = -1;
     listCount_ = 0;
     slotsInUse_ = 0;
+    thoughtSlots_.clear();
+    thoughtSlots_.reserve(kMaxEntitySlots);
     current_ = -1;
     dispatchDepth_ = 0;
     resetSkidTrails(); // rebuilt with the entity pool (as2@0x40e474)

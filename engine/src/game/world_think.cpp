@@ -150,6 +150,7 @@ void World::think(int idx) {
     Entity& e = ents_[static_cast<size_t>(idx)];
     if (e.rt & (RT_REMOVED | RT_THOUGHT)) return;
     e.rt |= RT_THOUGHT;
+    thoughtSlots_.push_back(idx);
     // For an attached pool entity the parent is thought first.
     if (e.inList && validIndex(e.parent)) {
         int r = rootOf(e.parent);
@@ -184,7 +185,8 @@ bool World::inActivationArea(const Entity& e) const {
 }
 
 void World::freeRemoved() {
-    std::vector<int> doomed;
+    std::vector<int>& doomed = doomedScratch_;
+    doomed.clear();
     for (int i = newest_; i != -1; i = ents_[static_cast<size_t>(i)].older) {
         const Entity& e = ents_[static_cast<size_t>(i)];
         if ((e.rt & RT_REMOVED) && e.attachRefCount < 1) doomed.push_back(i);
@@ -202,9 +204,13 @@ void World::runEntities() {
     // this point in the frame (map spawns, their inits' creates) think again here; ones
     // created during the pass are newer than the walk and keep the bit from their
     // immediate think (GUESS for where the original clears the bit: issue 031).
-    for (Entity& e : ents_) {
+    // Only slots in thoughtSlots_ can carry the bit, so this equals clearing it on every
+    // slot in use.
+    for (int i : thoughtSlots_) {
+        Entity& e = ents_[static_cast<size_t>(i)];
         if (e.inUse) e.rt &= ~RT_THOUGHT;
     }
+    thoughtSlots_.clear();
     for (int i = newest_; i != -1;) {
         Entity& e = ents_[static_cast<size_t>(i)];
         int older = e.older;
