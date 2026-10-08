@@ -20,18 +20,19 @@ pacer rules (mono starts at 60 and ignores load-caused misses, stereo starts at 
 screen's three Renderer2D lists, shadows grouped by texture, the depth-offset/state-copy fix for
 the water wash seen in play (see "Hardware tuning"), and the water near-plane cut.
 
-**The water wash, best diagnosis at the pause (drop 5 did NOT fix it):** the owner's photo of
-the mission-complete screen shows the whole ground covered by the pale water texture, and in play
-it lasts "a few seconds at a time": every time the world is PAUSED under an overlay (hint boxes
-in the tutorial, the in-game menu, mission complete). The bot never pauses, so no dump showed it.
-Mechanism to verify first: while paused the composer does not rebuild the per-frame geometry but
-still draws every frame; the water tiles (and any other pass fed from the frame arena) point at
-an arena half that the next frames' 2D overlays overwrite, so the GPU draws garbage triangles over
-the terrain; terrain and models live in permanent linear buffers and stay correct. Reproduce on
-Azahar with `mode=play menu_bot=0` once a hint box is up (the world pauses) and dump the top
-screen; fix = rebuild (or keep valid) all arena-fed geometry on every drawn frame regardless of
-the pause, or never skip `prepare()`. Second candidate if that is not it: the depth-test state
-while the overlay is drawn (drop 5 already resets the state copies per frame).
+**The water wash (drop 5 did NOT fix it):** facts from the owner's play sessions: during normal
+play it appears for a few seconds at a time and goes away (NOT tied to hint boxes or pauses: the
+owner checked), it was on screen at the mission-complete screen of the tutorial, it covers terrain
+and roads but never the models, and no bot run or dump ever caught it (the bot's camera and timing
+differ from play). The two console-verified causes so far were static (1280-unit quads, fixed by
+the tiles) and are not this one. Plan for the next session, console A/B in `mode=play` with the
+owner watching (the agent's list): `water=0` (is it the water pass at all?), `water_tile=0` (the
+old quads), `gpu_kick=0` (mid-frame submission ordering), `pace=60` vs `pace=30`, `shadows`
+and `passes=` toggles; then the first candidate from the code: anything arena-fed drawn from a
+half the GPU may still read when frames run long (gpu_kick), a depth-map/offset mismatch between
+the terrain and water passes when the near plane or the pacer state changes, or the water pass
+inheriting a 2D overlay's depth state. Reproduce on Azahar in `mode=play` with real input
+(pad_script flying over water for a minute, dump_every=30) before fixing.
 
 **Open on the console:** confirm mono ≥ 99% one-step frames and stereo a clean 30 with drop 5;
 the tutorial water wash with a hint box up (hypothesis: the render-state copies, fixed
