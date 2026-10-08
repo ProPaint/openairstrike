@@ -113,7 +113,7 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `water` | `1` (default) or `0` | `0` draws no water (hardware A/B) |
 | `fog` | `1` (default) or `0` | `0`: the level fog stays off (the terrain, models and sprites keep their unfogged colours; the clear colour is the fog colour as before), for the hardware A/B of the fog table |
 | `depthmap` | `w` (default) or `z` | `z`: the world passes use the Z-buffer depth mapping instead of the W-buffer, with the fog table rebuilt for it (hardware A/B) |
-| `pace` | `auto` (default), `60`, `30` | the render rate (`ctr_loop.h`): the simulation steps once per vblank (the frame clock counts the vblanks since the last frame, never 0 steps); `auto` renders at 60 Hz and drops to 30 Hz (two steps per frame) after 3 frames that missed a vblank in 120, back after 240 frames that would fit; `AS3D_PACE` lines log the changes. The Old 3DS profile stays at 30 |
+| `pace` | `auto` (default), `60`, `30` | the render rate (`ctr_loop.h`): the simulation steps once per vblank (the frame clock counts the vblanks since the last frame, never 0 steps); `auto`: one eye starts at 60 Hz, two eyes at 30 Hz (two steps per frame); 3 counted misses in 120 frames at 60 Hz drop to 30 Hz (misses after a load, an SD write, a dump or a late load do not count); at 30 Hz, 120 frames whose CPU path stays under 13 ms and GPU time under 14 ms return to 60 Hz. `AS3D_PACE`, `AS3D_MISS` and `PERF_SUMMARY pace` in the log |
 | `gpu_kick` | `1` (default) or `0` | the GPU starts each eye's command list while the CPU records the next (`pica_frame.h` kickGpu); implies `end_flush=cmdlist`. gpu_ms then only times the tail after C3D_FrameEnd: measure the GPU gate with `gpu_kick=0` |
 | `end_flush` | `all` (default) or `cmdlist` | C3D_FrameEnd(0) flushes the whole linear heap; `cmdlist` only the command list (every other GPU buffer is flushed when written) |
 | `passes` | names, default all | only these passes draw, for A/B hardware runs: `clear terrain marks shadows opaque water rest lightning particles sprites brightness top2d model hud hint touch bottom2d`, `world` (the world passes), `all`, `none`; comma separated |
@@ -129,7 +129,7 @@ the log; the clock restarts on resume (no replay of the time away). On a New 3DS
 speed-up on.
 
 Outputs, all in `sdmc:/3ds/openairstrike/`: `log.txt` (every `AS3D_INFO/WARN/ERROR` of the engine and
-the app, written once a second; replaced at each start), and with `perf=1` `perf.csv`, one row per
+the app, kept in memory and written about once a second by a low-priority writer thread, never on the main thread during play; replaced at each start), and with `perf=1` `perf.csv`, one row per
 displayed frame: `frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,
 linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz` (prepare_ms: the
 composer's CPU prepare; verts/draws: the GPU work of both screens and both eyes; lazy_loads: first-use
