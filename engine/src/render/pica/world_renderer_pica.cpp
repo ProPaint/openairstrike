@@ -30,9 +30,12 @@
 // until the set changes or a crater changes the terrain; the skid trails are rebuilt each frame;
 // both are drawn per eye between the terrain and the shadows, as the GL renderer.
 //
-// Not drawn yet (counted 0 in lastStats(), listed once in the log at beginLevel): water (7),
-// lightning bolts, environment maps (the materials draw as plain textured models,
-// mesh_renderer_pica.h).
+// Water (pass 7, water_renderer_pica.h; the first game's flat scrolling plane, drawn per eye after
+// the opaque list) and lightning bolts (lightning_renderer_pica.h, after the effect list, before
+// the particles; the bolts are built in prepare and copied to the arena by the first eye).
+//
+// Not drawn yet (listed once in the log at beginLevel): environment maps (the materials draw as
+// plain textured models, mesh_renderer_pica.h) and the sequels' wave-grid water (M5.1).
 //
 // Textures: the 4.2 MB VRAM budget (texture_budget.h) is filled in creation order: the terrain's
 // textures at beginLevel first, then precache() puts the particle textures, then the level
@@ -68,8 +71,10 @@
 #include "mesh_renderer_pica.h"
 #include "pica_frame.h"
 #include "shadow_pica.h"
+#include "lightning_renderer_pica.h"
 #include "terrain_pica.h"
 #include "texture_budget.h"
+#include "water_renderer_pica.h"
 #include "world_pica.h"
 #include "world_scene.h"
 
@@ -102,6 +107,8 @@ struct WorldRenderer::Impl {
     ShadowRenderer shadows;
     pica::ShadowPass shadowPass;
     pica::MarkPass markPass;
+    pica::WaterPass waterPass;
+    pica::LightningPass lightningPass;
     SkidTrailParams skidParams;
     Vec3 towardsSun{0.0f, 0.0f, 1.0f};
     struct ShadowEntry {
@@ -215,6 +222,8 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     im.skins.clear();
     im.shadowPass.invalidate();
     im.markPass.reset();
+    im.waterPass.reset();
+    im.lightningPass.reset();
     im.skidParams = skidTrailParams(world.rules());
     im.lateShadowMaps = 0;
     pica::resetShadowPicaStats();
@@ -225,12 +234,13 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     if (!tr->build(*t, *im.vfs, error, im.rules)) return false;
     im.terrain = std::move(tr);
     im.terrainOf = t;
+    if (!im.waterPass.build(*t, *im.vfs, im.rules.water == WaterStyle::WaveGrid, error)) return false;
     const TerrainStyle& st = t->style();
     const Vec3 sun{st.sun[3], st.sun[4], st.sun[5]};
     im.towardsSun = length(sun) > 1e-6f ? normalize(sun) : Vec3{0.0f, 0.0f, 1.0f};
     const pica::TerrainPicaStats& ts = pica::terrainPicaStats();
     AS3D_INFO("pica world: terrain %d chunks, %d textures %.1f KB (VRAM %.1f KB, linear %.1f KB); not drawn on "
-              "the PICA yet: water, lightning, environment maps",
+              "the PICA yet: environment maps",
               ts.chunks, ts.textures, static_cast<double>(ts.textureBytes) / 1024.0,
               static_cast<double>(ts.textureVramBytes) / 1024.0, static_cast<double>(ts.textureLinearBytes) / 1024.0);
     return true;
@@ -368,6 +378,16 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
         im.markPass.setSkids(test ? test->data() : sc.skidTrails.data(), test ? test->size() : sc.skidTrailCount, grid,
                              im.skidParams,
                              [&rc](const std::string& path) { return rc.texture(path).texture; });
+    }
+
+    // Water (pass 7) at the world's time, lightning bolts at the camera-independent scroll.
+    im.waterPass.prepare(sc.frame().time);
+    if (const pica::TestBolts* tb = pica::testBolts()) {
+        im.lightningPass.prepare(tb->starts.data(), tb->ends.data(), tb->starts.size(), sc.frame().time,
+                                 im.cache->texture("gfx\\lightning2.tga").texture);
+    } else {
+        im.lightningPass.prepare(sc.boltStarts.data(), sc.boltEnds.data(), sc.boltStarts.size(), sc.frame().time,
+                                 sc.frame().boltTexture);
     }
 
     // Shadows (5.3): a silhouette, or the blob while it is not ready (at most one generated per
@@ -508,17 +528,37 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
         setDepth(true, true);
         setCull(CullMode::Back);
     }
-    // Pass 6: opaque list; passes 8 and 9: transparent then effect list (pass 7, water, is not
-    // drawn on the PICA yet).
+    // Pass 6: opaque list; pass 7: water; passes 8 and 9: transparent then effect list.
     im.opaquePass.draw(viewProj);
     stats_.drawCalls += im.opaquePass.lastStats().draws;
     stats_.vertices += im.opaquePass.lastStats().vertices;
+    if (options.terrain && options.water && im.haveTerrain && im.waterPass.active()) {
+        stats_.drawCalls += im.waterPass.draw(wv.view, proj, light.fogColor, fr.hasFog ? light.fogStart : 1.0e9f,
+                                              fr.hasFog ? light.fogEnd : 1.0e9f);
+        stats_.waterChunks = pica::waterPicaStats().quadsDrawn;
+        stats_.vertices += pica::waterPicaStats().quadsDrawn * 6;
+        levelDepthAndFog();
+        setBlend(GlBlend::Off);
+        setDepth(true, true);
+        setCull(CullMode::Back);
+    }
     im.restPass.draw(viewProj);
     stats_.drawCalls += im.restPass.lastStats().draws;
     stats_.vertices += im.restPass.lastStats().vertices;
     setBlend(GlBlend::Off);
     setDepth(true, true);
     setCull(CullMode::Back);
+    // Lightning bolts, after the effect models (7.1).
+    if (options.lightning && im.lightningPass.active()) {
+        stats_.drawCalls += im.lightningPass.draw(wv.view, proj, light.fogColor, fr.hasFog ? light.fogStart : 1.0e9f,
+                                                  fr.hasFog ? light.fogEnd : 1.0e9f);
+        stats_.bolts = pica::lightningPicaStats().bolts;
+        stats_.vertices += pica::lightningPicaStats().vertices;
+        levelDepthAndFog();
+        setBlend(GlBlend::Off);
+        setDepth(true, true);
+        setCull(CullMode::Back);
+    }
     // Pass 10: particles.
     if (options.particles) {
         ParticleViewParams pv;

@@ -214,7 +214,7 @@ void run(const std::string& dir, int holdFrames, int botFrames, bool precache) {
     // t: terrain only; m: terrain + marks + skid trails; f: everything.
     WorldRenderOptions terrainOnly;
     terrainOnly.models = terrainOnly.lights = terrainOnly.particles = terrainOnly.sprites = terrainOnly.shadows = false;
-    terrainOnly.marks = false;
+    terrainOnly.marks = terrainOnly.water = terrainOnly.lightning = false; // desktop "terrain" lists no water since M3.5
     WorldRenderOptions marksOnly = terrainOnly;
     marksOnly.marks = true;
     const WorldRenderOptions full;

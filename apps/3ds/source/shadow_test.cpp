@@ -190,6 +190,7 @@ void run(const std::string& dir, int holdFrames, bool precache, bool allRotation
     vp.height = kH;
     WorldRenderOptions shadowsOnly;
     shadowsOnly.models = shadowsOnly.lights = shadowsOnly.particles = shadowsOnly.sprites = false;
+    shadowsOnly.water = shadowsOnly.lightning = false; // desktop "terrain" lists no water since M3.5
     WorldRenderOptions terrainOnly = shadowsOnly;
     terrainOnly.shadows = false;
     const WorldRenderOptions full;
