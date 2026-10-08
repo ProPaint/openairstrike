@@ -159,6 +159,11 @@ public:
     // (HudTarget::Bottom320x240, no brightness pass: the screen is mostly black). The touch
     // buttons are the host's.
     bool dualScreen = false;
+    // as3d_game --render-only terrain: the passes the world draws (WorldRenderOptions), and
+    // worldOnly = no 2D layer and no brightness pass (reference images of one renderer, e.g.
+    // the 3DS port's terrain test). Defaults: everything.
+    as3d::WorldRenderOptions worldOptions;
+    bool worldOnly = false;
     // With GameOptions::precache: loads the sounds of the level's precache set (the audio side,
     // AudioBridge::precacheSounds); unset = no sound precache. Returns how many it looked up.
     std::function<int(const as3d::PrecacheSet&)> precacheSounds;

@@ -189,7 +189,7 @@ void GameView::prepareWorld(const GameSession& session, const ViewRect& rect, fl
     vp.height = rect.height;
     vp.maxEyeOffset = maxEyeOffset;
     vp.minFocalDistance = minFocalDistance;
-    renderer_.prepare(session.world(), vp);
+    renderer_.prepare(session.world(), vp, worldOptions);
 }
 
 void GameView::drawWorld(const GameSession&, const ViewRect& rect, const EyeView& eye) {
@@ -328,6 +328,7 @@ void GameView::draw(const GameSession& session, int width, int height) {
         return;
     }
     renderWorld(session, frame);
+    if (worldOnly) return;
     // Pass 13: the 2D layer (HUD, then the hint box), pass 14: brightness.
     drawHud(session, frame, HudTarget::Main);
     drawFront(session, frame, nullptr, true);

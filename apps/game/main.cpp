@@ -107,6 +107,7 @@ struct Args {
     bool fps = false;
     float stereoEyeOffset = 0.0f, stereoFocal = 0.0f; // --stereo-debug E[,D]
     bool dual = false, sizeGiven = false;              // --dual-screen, --size
+    std::string renderOnly;                            // --render-only terrain
     std::string gameKey, paksDir;
     bool listGames = false, errorShown = false;
     bool allowUnfinished = false;
@@ -129,6 +130,7 @@ int usage() {
                  "                 [--dual-screen]  (3DS preview: 400x240 world above a 320x240 touch screen, 400x480 window)\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
                  "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n"
+                 "                 [--render-only terrain]  (the terrain pass alone, no 2D layer)\n"
                  "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n"
                  "       as3d_game --headless --selector-shot FILE.png [--selector-games K1,K2] [--size WxH] [--touch]\n"
                  "                      [--screen wide|4x3] [--insets L,T,R,B] [--selector-focus N] [--selector-time SECONDS]\n");
@@ -160,6 +162,10 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--left-handed") a.leftHanded = true;
         else if (s == "--fps") a.fps = true;
         else if (s == "--dual-screen") a.dual = true;
+        else if (s == "--render-only" && next()) {
+            if (std::strcmp(v, "terrain") != 0) return false;
+            a.renderOnly = v;
+        }
         else if (s == "--precache") a.game.precache = true;
         else if (s == "--stereo-debug" && next()) {
             if (std::sscanf(v, "%f,%f", &a.stereoEyeOffset, &a.stereoFocal) < 1) return false;
@@ -257,6 +263,14 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
         view->stereoDebugEyeOffset = a.stereoEyeOffset;
         view->stereoDebugFocal = a.stereoFocal;
         view->dualScreen = a.dual;
+        if (a.renderOnly == "terrain") {
+            // The terrain alone: no models, shadows, lights, particles, sprites, 2D layer or
+            // brightness (reference images for the 3DS terrain test, docs/3ds-port.md M1.4).
+            view->worldOptions = WorldRenderOptions{};
+            view->worldOptions.models = view->worldOptions.shadows = view->worldOptions.lights = false;
+            view->worldOptions.particles = view->worldOptions.sprites = false;
+            view->worldOnly = true;
+        }
         if (!view->init(session, &err)) {
             std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
             return 1;
