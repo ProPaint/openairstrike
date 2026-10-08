@@ -159,3 +159,37 @@ Decisions taken from the numbers:
 - **CPU**: with the speed-up the simulation of mission 1 takes about 2 ms per frame; the
   stereo submit is negligible (0.07 ms). The New 3DS frame budget is comfortable; the Old 3DS
   (no speed-up: 5 ms here, 8 ms in mission 14) is the one that needs the M4 tiers.
+
+## M1.3 PICA core (engine/src/render/pica)
+
+| File | What |
+|---|---|
+| `pica_frame.h/.cpp` | the frame interface: `initBackend`, `frameBegin`, `drawOn(FrameTarget)`, `frameEnd`, `frameArena()`, `shaders()`, depth mapping, fog, `picaEyeProjection`; never creates targets (platform/ctr does, M1.8 connects them) |
+| `gfx_pica.cpp`, `texture_budget.h` | `Texture2D` via texconv (format from `TextureOptions::cls`, pow2 8..512, mip chain, swizzle), VRAM first within `TextureBudget` (4.2 MiB), linear beyond, `Residency` forces; VRAM upload from linear staging with `C3D_TexLoadImage`; `pica::textureStats()` |
+| `render_state_pica.cpp` | `render_state.h` and `applyMaterialState` over citro3d (GEQUAL depth, CCW cull, GL rectangles mapped onto the rotated framebuffer, clears as GX fills or a scissored quad) |
+| `tev.h/.cpp` | TEV presets as data + `applyTev` |
+| `linear_arena.h/.cpp` | double-buffered per-frame linear memory (2 x 1.5 MB), one flush per frame |
+| `shader_set.h/.cpp`, `shaders/*.v.pica` | flat, mesh (baked ambient-cube weights), terrain (static + dynamic-light streams); assembled and embedded by `engine/src/render/module.cmake` |
+| `fog_pica.cpp` | fog table from `as3d/fog_lut.h` |
+| `eye_projection_pica.cpp`, `pica_space.h` | `Mtx_PerspStereoTilt` with iod = 2·A·eyeOffset, screen = A·focalDistance (A = 1/(aspect·tan(fovY/2))) |
+
+Verified conventions:
+
+- Fog table: entry i is depth i/128 with depth 1 at the near plane (citro3d `FogLut_Exp`,
+  `FogLut_CalcZ`), 256 floats with differences; zFlip off. With the Z-buffer and planes 4..2000
+  the game's fog range sits in entries 0..4, so the table is up to 0.2 off the GL linear fog
+  (z 500: 0.60 against 0.71); a W-buffer (`C3D_DepthMap(false, -1/near, 0)`, Azahar-checked,
+  hardware not yet) reproduces it exactly. M1.4 decides which mapping the world uses.
+- Eye projection: citro3d's translation term iod/2 is in clip units, so the naive iod = 2e,
+  screen = D mapping is off by A (4 % at 60 degrees); with the mapping above
+  `picaEyeProjection` equals tilt * `eyeProjection` * T(-e) to 5e-7 (on the console).
+- Cull: Back = `GPU_CULL_BACK_CCW` (the tilt is a rotation). Depth: GEQUAL; a disabled test also
+  drops the depth write, as GL.
+
+`mode=picatest` in run.ini runs `apps/3ds/source/pica_test.cpp` (no game data): it writes
+`picatest_log.txt` (byte accounting, matrix comparison, fog values) and `picatest_checks.txt`
+(expected pixels); `tools/3ds_picatest_check.py shot.png picatest_checks.txt` checks an
+Azahar screenshot (screen located by corner markers). 2026-10-08 on Azahar: 81/81 probes
+within tolerance (texture formats exact, blends, depth, cull, viewport, scissor, terrain TEV
+off by 1, mesh shader, both fog rows, stereo markers at the GL eye positions); texture bytes
+39424 = sum of texconv::byteSize, VRAM free dropped by exactly the VRAM share (35328).

@@ -18,12 +18,13 @@ MARKERS = {"tl": (250, 10, 130), "tr": (10, 250, 130), "bl": (130, 10, 250)}
 MARKER_CENTRES = {"tl": (3.0, 3.0), "tr": (397.0, 3.0), "bl": (3.0, 237.0)}
 
 
-def find_marker(img, colour, tol=24):
+def find_marker(img, colour, tol=12, xr=None, yr=None):
+    """Centroid of the pixels within `tol` of `colour`, inside the optional x/y ranges."""
     w, h = img.size
     px = img.load()
     xs, ys = [], []
-    for y in range(h):
-        for x in range(w):
+    for y in range(*(yr or (0, h))):
+        for x in range(*(xr or (0, w))):
             p = px[x, y]
             if all(abs(p[i] - colour[i]) <= tol for i in range(3)):
                 xs.append(x)
@@ -38,13 +39,18 @@ def main():
         print(__doc__)
         return 2
     img = Image.open(sys.argv[1]).convert("RGB")
-    found = {}
-    for name, colour in MARKERS.items():
-        m = find_marker(img, colour)
-        if m is None:
-            print(f"marker {name} {colour} not found")
+    # The top-left marker anywhere, then the other two on its row and column only (the
+    # emulator's status bar has similar greens).
+    w, h = img.size
+    found = {"tl": find_marker(img, MARKERS["tl"])}
+    if found["tl"]:
+        x0, y0 = int(found["tl"][0]), int(found["tl"][1])
+        found["tr"] = find_marker(img, MARKERS["tr"], xr=(x0 + 8, w), yr=(max(y0 - 12, 0), min(y0 + 12, h)))
+        found["bl"] = find_marker(img, MARKERS["bl"], xr=(max(x0 - 12, 0), min(x0 + 12, w)), yr=(y0 + 8, h))
+    for name in MARKERS:
+        if not found.get(name):
+            print(f"marker {name} {MARKERS[name]} not found")
             return 1
-        found[name] = m
     (tlx, tly, _), (trx, _, _), (_, bly, _) = found["tl"], found["tr"], found["bl"]
     sx = (trx - tlx) / (MARKER_CENTRES["tr"][0] - MARKER_CENTRES["tl"][0])
     sy = (bly - tly) / (MARKER_CENTRES["bl"][1] - MARKER_CENTRES["tl"][1])
