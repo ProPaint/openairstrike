@@ -3,6 +3,42 @@
 Working notes of the port (plan: M1.0 onwards). The feasibility spike is in
 [3ds-spike.md](3ds-spike.md); its app is [apps/3ds](../apps/3ds/README.md).
 
+## State on 2026-10-08 and how to resume
+
+Paused after "drop 5" (main `098f524`): every package of the plan is merged (M0 to M5.4, the
+hardware tuning round 1 and the water fixes). Last console-verified state (New 3DS, drop 4):
+
+| | mono | stereo |
+|---|---|---|
+| frames with one simulation step at 60 Hz | 97.3% (the rest = the once-a-second SD write, moved off the main thread in drop 5) | n/a: stereo now locks to a steady 30 Hz (2 steps per frame) because two eyes need 13.5 ms of GPU on average, 16.5 ms p95; 16-bit targets gave no gain |
+| GPU p95 | 9.1 ms (gate 11) | 16.5 ms (gate 15) |
+| simulation vs desktop | identical over 3600 steps | identical |
+| level load, second start | 2.9 s (first start 7-9 s; the owner accepts a loading screen) | |
+
+Drop 5 (not yet console-verified when the project paused): the writer thread for log/perf, the
+pacer rules (mono starts at 60 and ignores load-caused misses, stereo starts at 30), the bottom
+screen's three Renderer2D lists, shadows grouped by texture, the depth-offset/state-copy fix for
+the water wash seen in play (see "Hardware tuning"), and the water near-plane cut.
+
+**Open on the console:** confirm mono ≥ 99% one-step frames and stereo a clean 30 with drop 5;
+the tutorial water wash with a hint box up (hypothesis: the render-state copies, fixed
+defensively in drop 5); the menu-font legibility photo (M2.2); a Gulf stereo run for the GPU
+command-buffer headroom; the uniform darker dump at step 3500 (a dump read-back artefact, most
+likely). **Next engineering:** stereo at 60 (terrain LOD for far rows, shadow atlas, fewer mesh
+vertices), the sequels' CPU (prepare profile, opaque sort by texture, small-mesh merging), the
+first-start load (prefetch of the precache closure), the Old 3DS run (profile exists, no console).
+
+**How to resume a console session:** `tools/3ds_build.sh all` builds `build-3ds/apps/3ds/openairstrike.3dsx`;
+upload it with `run.ini` over ftpd (port 5000) to `sdmc:/3ds/openairstrike/` (the paks,
+`Settings.xml`, `texts_v170.txt`, `music/*.ogg` from `audio_tool render-music --all` and
+`sdmc:/3ds/dspfirm.cdc` are already on the owner's card); quit ftpd, Homebrew Launcher, Y, then
+`tools/3ds_netload.sh 192.168.1.133 <file.3dsx>` (never `3ds_build.sh netload` for an agent's
+binary: it rebuilds and sends the main checkout's); afterwards ftpd again and
+`tools/3ds_fetch_logs.sh 192.168.1.133` + `tools/3ds_perf_report.py`. `run.ini` keys are in
+[apps/3ds/README.md](../apps/3ds/README.md); `mode=play` is the game, `mode=bot level=1
+frames=3600 perf=1` the acceptance run. Azahar (emulator) is for correctness only; it never
+showed the two water bugs (large triangles, state copies) that the console did.
+
 ## Build (M1.1)
 
     tools/3ds_build.sh [all|clean|netload <ip>]    # -> build-3ds/apps/3ds/openairstrike.3dsx
