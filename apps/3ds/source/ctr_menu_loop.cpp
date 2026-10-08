@@ -368,6 +368,15 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
                     in = running ? botInput(runStep) : FrameInput();
                     in.pausePressed = pause;
                 }
+            // menu_bot: the bot flies the mission (its confirm also closes the hint boxes; the
+            // flow ignores its controls while a menu is up).
+            if (run.menuBot && flow.frontend().state() == ui::FrontendState::Playing && !ses.world().intermission()) {
+                const bool pause = in.pausePressed;
+                // The bot's clock is the mission's: it does not run while the sequels' opening
+                // dialogue holds the world (as3d_sim has none), so that the end state after N
+                // bot steps is the desktop's.
+                in = botInput(screen == "dialogue" ? botStep : botStep++);
+                in.pausePressed = pause;
             }
             const int before = flow.levelLoads();
             flow.step(in);
@@ -398,11 +407,13 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
             ++steps;
             ++n;
             if (ses.hasLevel() && !ses.world().intermission()) ++levelSteps;
-            // run.ini report_at=N: the end-state lines of the mission once, at its step N.
-            if (run.reportAt > 0 && levelSteps == static_cast<unsigned>(run.reportAt) && reportedLoads != flow.levelLoads()) {
+            // run.ini report_at=N: the end-state lines of the mission once, when its world has
+            // run N frames (dialogues and hint boxes hold the world, not the step count).
+            if (run.reportAt > 0 && run.menuBot && ses.hasLevel() && !ses.world().intermission() &&
+                botStep == static_cast<unsigned>(run.reportAt) && reportedLoads != flow.levelLoads()) {
                 reportedLoads = flow.levelLoads();
-                AS3D_INFO("report_at: mission %d at step %u", ses.mission(), levelSteps);
-                logEndState(ses, ses.mission(), levelSteps);
+                AS3D_INFO("report_at: mission %d after %u bot steps (%u loop steps)", ses.mission(), botStep, levelSteps);
+                logEndState(ses, ses.mission(), botStep);
             }
             if (flow.levelLoads() != before) {
                 acc = 0.0;
