@@ -1827,3 +1827,54 @@ Deferred (M4.4 and later): heap split by subsystem (sound cache, world pools, pa
 Old 3DS's 40 MB; the selector's first-game banner mesh (marquee) and the logos' memory (the
 selector holds about 0.5 MB of pictures while it is up); START-held and one-game paths and the
 incomplete-install card on Azahar with a scratch SD card; hardware run on the 3DS.
+
+## Hardware tuning, round 1 (M3.6/M3.7, the M1 gate)
+
+The first console runs (drop c9623f7, New 3DS, `mode=bot level=1 frames=3600`): frame avg 39.3 ms
+stereo / 36.7 mono, cpu_ms (citro3d's FrameBegin..FrameEnd) 19.4 / 18.0, GPU 13.3 ms for two eyes
+(9.7 p95 mono), load 10.2 s. The CPU side was the whole problem.
+
+**Instrumentation** (kept; see apps/3ds/README.md for the columns and keys):
+- perf.csv `submit_ms, wait_ms, end_ms, after_ms, sync_ms` and `PERF_SUMMARY split_ms`.
+- `AS3D_PASS_MS` every 300 frames (engine/src/render/pica/pass_profile.h): CPU ms, draws and
+  vertices per pass and frame, the 2D batch build and conversion apart (ui_batch, ui_copy).
+- `AS3D_LOAD phase=...`: session (mount, defs, world, level, pak reads), terrain (base generation,
+  texture creation, geometry), precache scripts / world (texture creation split mip / swizzle /
+  upload, meshes, shadows, loading frames, pak reads, decode and parse) / UI, level start.
+- `AS3D_LATE_SHADOW` names a silhouette the precache missed.
+- run.ini switches for A/B console runs: `passes=`, `hud=`, `touch=`, `depthmap=w|z`, `vsync=`,
+  `gpu_kick=`, `end_flush=`, `pak_cache_kb=`.
+
+**What the console said** (drop 6cad453, mono, `gpu_kick=1 vsync=lazy`): frame 23.9 ms (was 36.7),
+submit 17.3 ms of which the touch band 13.4 (buildBatch2D tessellating the 48-segment circles
+11.0, conversion 2.6); every world pass 0.1 to 1.5 ms. Stereo: submit 19.1, the second eye about
+1.8 ms. Load: session 1.5 s (defs 0.6, level 0.8), terrain 1.0 s (base generation 0.48), script
+precache 1.65 s, world precache 5.75 s (texture creation 1.0 of which mip chains 0.76; shadows 1.06;
+reads + decode + parse 3.5).
+
+**Changes:**
+1. Overlap (`gpu_kick=1`, pica_frame.h kickGpu): citro3d starts its GX queue only at
+   C3D_FrameEnd, so the GPU idled while the CPU recorded. After each eye the command list is split
+   (flushed) and citro3d's queue is started (its context's first member; libctru gxqueue.c then
+   starts every later list as it is added). Every split flushes itself (the clears too) and the
+   frame ends with C3D_FrameEnd(GX_CMDLIST_FLUSH): the arena is flushed by range before each split
+   (LinearArena::flushPending), every other GPU buffer when written, so the whole-heap flush goes.
+   gpu_ms then only times the tail after C3D_FrameEnd: the GPU gate is measured with gpu_kick=0.
+2. `vsync=lazy`: C3D_FrameBegin without SYNCDRAW; a vblank is waited for before C3D_FrameEnd only
+   when none came since the frame began (at most one swap per vblank), so a late frame is not
+   pushed to the next vblank.
+3. 2D vertex cache (renderer2d_pica.cpp): the converted vertices of the last 6 lists of each
+   Renderer2D stay in linear buffers of their own; an unchanged list (the touch band, the top list
+   on the second eye, a static HUD) is drawn from them without building the batch. Azahar: touch
+   24 ms to 0.7 ms.
+4. Redundant citro3d state: blend, depth test, cull, alpha test, fog colour and depth map go
+   through shadow copies (pica::detail::c3d*), Texture2D::bind skips the texture already bound.
+5. Load: texconv swizzle per format with tables (byte-identical, checked on random images in every
+   format), mip levels converted in place without a chain of copies; the terrain base blend
+   tabulated per height (the same double operations); the TGA decoder writes true-colour rows in
+   place; paks read with FSFILE_Read at an offset (timed), an optional block cache
+   (`pak_cache_kb=`, off: on Azahar it read four times the bytes for few hits); the closure's
+   projected shadows precached at step 0 (mission 1's late ruins_big, lazy_loads 1 -> 0).
+
+Azahar, stereo, drop 2: frame 16.9 ms (vblank bound; was 49.9), submit 7.7, load 7.8 s (was 10.8),
+images unchanged (MAE 0.1, the perf text line), sim end state unchanged.
