@@ -1465,7 +1465,7 @@ the call and copy overhead only. Conversely the memory-bound changes (the 4096-s
 touch list walks, the tag string compares, the per-call report search, software sinf/cosf) should
 gain more on the Old 3DS (16 KB L1, no L2, slow FCRAM, newlib libm) than here. A uniform scaling
 of the desktop ratio would put mission 14 near 4 ms at 268 MHz, but that is not a measurement:
-the owner's hardware run (the 3DS `mode=sim`/bot step log, with and without the speed-up) is the
+the owner's hardware run (`mode=spike` or `mode=bot` step times, with and without the speed-up) is the
 number to use. Expected order: 25 to 45 % less on the ARM11.
 
 **Proof of identity.** `as3d_sim --dump-state` after 3600 frames, before (38bc62d) and after,

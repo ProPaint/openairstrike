@@ -4,7 +4,7 @@
 # per-step milliseconds: mean, median, p99 and worst, plus the per-phase means.
 # Each mission runs R times; the table keeps the run with the lowest mean (the least
 # disturbed by the rest of the machine). Desktop numbers only: the 3DS numbers come from
-# the hardware run (apps/3ds mode=simbench is not part of this script).
+# the hardware run (apps/3ds mode=spike or mode=bot step times).
 #
 #   tools/sim_bench.sh                    the standard set (below), 3600 frames, 3 runs
 #   tools/sim_bench.sh --all [FRAMES]     every mission of every game present, 1 run
