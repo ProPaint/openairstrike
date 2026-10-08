@@ -100,6 +100,11 @@ int runCtrLoop(const CtrLoopOptions& options);
 // `frames` (when not 0) ends the run after that many displayed frames.
 int runCtrMenuLoop(const CtrLoopOptions& options); // ctr_menu_loop.cpp
 
+// One displayed frame through the hook: prepare, the frame (beginFrame, drawTop per eye,
+// drawBottom, endFrame), stats, afterFrame; fills the sample's cpu/gpu and split columns
+// (wait, submit, end, after) and its stats. Shared by both loops.
+void drawFrame(as3d::ctr::CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSample& sample);
+
 // The end-state lines of as3d_sim (map_pos, entities, created / freed, ...) for `level`.
 void logEndState(const as3d_game::GameSession& session, int level, unsigned steps);
 

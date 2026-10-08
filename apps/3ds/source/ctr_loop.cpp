@@ -14,6 +14,7 @@
 #include "as3d/game_data.h"
 #include "as3d/game_profile.h"
 #include "as3d/input.h"
+#include "as3d/load_stats.h"
 #include "as3d/world.h"
 #include "ctr_audio.h"
 #include "ctr_context.h"
@@ -87,6 +88,28 @@ void logEndState(const as3d_game::GameSession& ses, int level, unsigned steps) {
               pe >= 0 ? static_cast<double>(w.entity(pe).f(F_HEALTH)) : 0.0);
 }
 
+void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSample& sample) {
+    hook.prepare(info);
+    const uint64_t w0 = nowTicks();
+    if (ctx.beginFrame()) {
+        const uint64_t w1 = nowTicks();
+        for (int eye = 0; eye < info.eyes; ++eye) hook.drawTop(ctx, eye, info);
+        hook.drawBottom(ctx, info);
+        const uint64_t w2 = nowTicks();
+        ctx.endFrame();
+        sample.waitMs = static_cast<float>(ticksToMs(w1 - w0));
+        sample.submitMs = static_cast<float>(ticksToMs(w2 - w1));
+        sample.endMs = static_cast<float>(ticksToMs(nowTicks() - w2));
+    }
+    sample.cpuMs = C3D_GetProcessingTime();
+    sample.gpuMs = C3D_GetDrawingTime();
+    hook.stats(sample.stats);
+    if (sample.stats.eyes == 0) sample.stats.eyes = info.eyes;
+    const uint64_t a0 = nowTicks();
+    hook.afterFrame(ctx, info);
+    sample.afterMs = static_cast<float>(ticksToMs(nowTicks() - a0));
+}
+
 int runCtrLoop(const CtrLoopOptions& opts) {
     using namespace as3d;
     const RunConfig& run = opts.run;
@@ -150,6 +173,11 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     }
     const double simLoadMs = ticksToMs(nowTicks() - loadStart);
     AS3D_INFO("mission %d loaded in %.0f ms", run.level, simLoadMs);
+    {
+        const as3d_game::GameSession::InitTimes& it = session->initTimes();
+        AS3D_INFO("AS3D_LOAD phase=session ms=%.0f mount=%.0f defs=%.0f world_init=%.0f level=%.0f", simLoadMs, it.mountMs,
+                  it.defsMs, it.worldMs, it.levelMs);
+    }
 
     FrameHook* hook = opts.hook;
     if (!sim && !hook) {
@@ -174,7 +202,13 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     // Sound (M2.3, ctr_audio.h): bot and play, not sim.
     CtrAudio audio;
     audio.setMusic(run.music, run.musicTaps, std::string(kDataDir) + "/" + game->key + "/music");
-    if (!sim && run.audio) audio.start(*session, run.precache);
+    if (!sim && run.audio) {
+        audio.start(*session, run.precache);
+        // The sounds are part of the level-start precache: the hook's begin() closed the
+        // precache window (LoadStats::reset) before they loaded; close it again after them, so
+        // that only loads during play count as lazy.
+        if (run.precache) LoadStats::reset();
+    }
 
     AptState apt;
     apt.session = session.get();
@@ -265,19 +299,9 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         info.lastCpuMs = lastCpu;
         info.lastGpuMs = lastGpu;
 
-        hook->prepare(info);
-        if (ctx->beginFrame()) {
-            for (int eye = 0; eye < info.eyes; ++eye) hook->drawTop(*ctx, eye, info);
-            hook->drawBottom(*ctx, info);
-            ctx->endFrame();
-        }
-        sample.cpuMs = C3D_GetProcessingTime();
-        sample.gpuMs = C3D_GetDrawingTime();
+        drawFrame(*ctx, *hook, info, sample);
         lastCpu = sample.cpuMs;
         lastGpu = sample.gpuMs;
-        hook->stats(sample.stats);
-        if (sample.stats.eyes == 0) sample.stats.eyes = info.eyes;
-        hook->afterFrame(*ctx, info);
         const uint64_t end = nowTicks();
         sample.periodMs = lastFrame ? static_cast<float>(ticksToMs(end - lastFrame)) : 0.0f;
         lastFrame = end;

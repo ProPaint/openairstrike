@@ -436,19 +436,9 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         info.screen = screen.c_str();
         info.playing = flow.playing();
 
-        frame->prepare(info);
-        if (ctx->beginFrame()) {
-            for (int eye = 0; eye < info.eyes; ++eye) frame->drawTop(*ctx, eye, info);
-            frame->drawBottom(*ctx, info);
-            ctx->endFrame();
-        }
-        sample.cpuMs = C3D_GetProcessingTime();
-        sample.gpuMs = C3D_GetDrawingTime();
+        drawFrame(*ctx, *frame, info, sample);
         lastCpu = sample.cpuMs;
         lastGpu = sample.gpuMs;
-        frame->stats(sample.stats);
-        if (sample.stats.eyes == 0) sample.stats.eyes = info.eyes;
-        frame->afterFrame(*ctx, info);
         const uint64_t end = nowTicks();
         sample.periodMs = lastFrame ? static_cast<float>(ticksToMs(end - lastFrame)) : 0.0f;
         lastFrame = end;
