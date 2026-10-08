@@ -4,6 +4,7 @@
 Usage: tools/3ds_screen_compare.py <screenshot.png> <reference.png> [--crop-out top.png]
                                    [--diff-out diff.png] [--side-out side.png] [--mask]
                                    [--ignore X0,Y0,X1,Y1 ...] [--direct]
+                                   [--darken SHOT_BASE,REF_BASE [--darken-threshold T]]
 
 The top screen is located by the three 6x6 corner markers the 3DS test modes draw (as
 tools/3ds_picatest_check.py: top-left (250,10,130), top-right (10,250,130), bottom-left
@@ -14,7 +15,11 @@ the non-background pixels (those where the reference or the screenshot differs f
 reference's most common colour by more than 8: the effects, for images that are mostly a flat
 clear colour). --direct: the screenshot is the screen itself (a PPM dumped from inside the app, any
 size such as the bottom screen's 320x240, equal to the reference's): no marker search and no
-corner exclusion. PIL only. The images show game
+corner exclusion. --darken compares what darkens the picture (the shadows): SHOT_BASE and
+REF_BASE are the same frames without it (e.g. --render-only terrain against terrain,shadows); a
+pixel is darkened where its mean channel is more than T (default 6) below the base's; prints the
+two darkened-pixel counts, their intersection over union, and the mean abs error over their union.
+PIL only. The images show game
 art: keep them under out/ (gitignored).
 """
 import argparse
@@ -89,6 +94,8 @@ def main(argv):
     ap.add_argument("--mask", action="store_true")
     ap.add_argument("--direct", action="store_true")
     ap.add_argument("--ignore", action="append", default=[], metavar="X0,Y0,X1,Y1")
+    ap.add_argument("--darken", metavar="SHOT_BASE,REF_BASE")
+    ap.add_argument("--darken-threshold", type=float, default=6.0)
     a = ap.parse_args(argv)
     IGNORE.extend(tuple(int(v) for v in r.split(",")) for r in a.ignore)
     shot = Image.open(a.screenshot).convert("RGB")
@@ -158,6 +165,28 @@ def main(argv):
                   f"within 32: {mw[32] / mn:.3f}")
         else:
             print("non-background mask: empty")
+    if a.darken:
+        sb_path, rb_path = a.darken.split(",")
+        sb = Image.open(sb_path).convert("RGB").load()
+        rb = Image.open(rb_path).convert("RGB").load()
+        t = a.darken_threshold
+        ns = nr = both = union = 0
+        uerr = 0.0
+        for y in range(H):
+            for x in range(W):
+                if in_marker(x, y):
+                    continue
+                ds = sum(sb[x, y]) / 3.0 - sum(p[x, y]) / 3.0 > t
+                dr = sum(rb[x, y]) / 3.0 - sum(q[x, y]) / 3.0 > t
+                ns += ds
+                nr += dr
+                both += ds and dr
+                if ds or dr:
+                    union += 1
+                    uerr += sum(abs(p[x, y][i] - q[x, y][i]) for i in range(3)) / 3.0
+        iou = both / union if union else 1.0
+        print(f"darkened pixels (threshold {t:g}): screenshot {ns}, reference {nr}, both {both}, IoU {iou:.3f}; "
+              f"mean abs error over their union {uerr / union if union else 0.0:.2f}")
     mae = [e / n for e in err]
     print(f"mean abs error R {mae[0]:.2f} G {mae[1]:.2f} B {mae[2]:.2f} (all {sum(mae) / 3:.2f})")
     print("within 8: {:.3f}, within 16: {:.3f}, within 32: {:.3f}".format(*(within[t] / n for t in (8, 16, 32))))
