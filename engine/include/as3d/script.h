@@ -496,12 +496,13 @@ private:
     };
 
     bool bind();
-    bool loadOp(const Loc& loc, u32& outBits);
-    bool storeOp(const Loc& loc, u32 bits);
-    bool decode(const Instruction& ins, Loc& a, Loc& b, Loc& c);
-    Addr globalAddr(i32 raw) const;
-    static Addr slotAddr(i32 v);
-    bool derefOperand(const Loc& in, bool used, Loc& out);
+    // The interpreter's operand helpers: inline, defined in thread.cpp (its only user).
+    inline bool loadOp(const Loc& loc, u32& outBits);
+    inline bool storeOp(const Loc& loc, u32 bits);
+    inline bool decode(const Instruction& ins, Loc& a, Loc& b, Loc& c);
+    inline Addr globalAddr(i32 raw) const;
+    static inline Addr slotAddr(i32 v);
+    inline bool derefOperand(const Loc& in, bool used, Loc& out);
 
     // Runs from the current pc until END/RET/an LCALL stops the invocation, or an error
     // occurs. Returns false on error (an X line has already been emitted if a sink is

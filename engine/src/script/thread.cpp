@@ -22,6 +22,14 @@ using detail::Role;
 using detail::RoleSet;
 
 constexpr int kStallBudget = 10000;
+
+// The interpreter's per-operand helpers are forced inline into runInvocation (one call per
+// operand per instruction otherwise).
+#if defined(__GNUC__) || defined(__clang__)
+#define AS3D_VM_INLINE __attribute__((always_inline)) inline
+#else
+#define AS3D_VM_INLINE inline
+#endif
 constexpr size_t kStackSize = 512;
 
 // BuiltinArgs backed directly by a ScriptThread's frame and host. Argument k is exactly
@@ -191,7 +199,7 @@ bool ScriptThread::writeWord(Addr addr, u32 bits) {
     return host_.writeWord(addr, bits);
 }
 
-Addr ScriptThread::globalAddr(i32 raw) const {
+AS3D_VM_INLINE Addr ScriptThread::globalAddr(i32 raw) const {
     u32 i = static_cast<u32>(-raw - 1);
     if (i >= defsAddr_.size()) return 0; // out-of-range index on an unused operand: never
                                           // actually dereferenced meaningfully (rcsl-vm.md
@@ -199,28 +207,40 @@ Addr ScriptThread::globalAddr(i32 raw) const {
     return defsAddr_[i];
 }
 
-Addr ScriptThread::slotAddr(i32 v) { return kFrameBase + 4u * static_cast<u32>(v); }
+AS3D_VM_INLINE Addr ScriptThread::slotAddr(i32 v) { return kFrameBase + 4u * static_cast<u32>(v); }
 
-bool ScriptThread::loadOp(const Loc& loc, u32& outBits) {
+AS3D_VM_INLINE bool ScriptThread::loadOp(const Loc& loc, u32& outBits) {
     if (loc.kind == Loc::Kind::Imm) {
         outBits = loc.value;
         return true;
     }
-    if (readWord(loc.value, outBits)) return true;
+    // readWord, with the frame window handled here.
+    const Addr addr = loc.value;
+    if (addr >= kFrameBase && addr < kFrameWindowEnd) {
+        outBits = frame_[(addr - kFrameBase) / 4];
+        return true;
+    }
+    if (host_.readWord(addr, outBits)) return true;
     fail(static_cast<u32>(pc_), "access to unmapped address");
     return false;
 }
 
-bool ScriptThread::storeOp(const Loc& loc, u32 bits) {
+AS3D_VM_INLINE bool ScriptThread::storeOp(const Loc& loc, u32 bits) {
     if (loc.kind == Loc::Kind::Imm) return true; // original writes a scratch copy; no effect
-    if (writeWord(loc.value, bits)) return true;
+    // writeWord, with the frame window handled here.
+    const Addr addr = loc.value;
+    if (addr >= kFrameBase && addr < kFrameWindowEnd) {
+        frame_[(addr - kFrameBase) / 4] = bits;
+        return true;
+    }
+    if (host_.writeWord(addr, bits)) return true;
     fail(static_cast<u32>(pc_), "access to unmapped address");
     return false;
 }
 
 // `out` may be `in` (decode resolves an operand in place): `in` is read before `out` is
 // written.
-bool ScriptThread::derefOperand(const Loc& in, bool used, Loc& out) {
+AS3D_VM_INLINE bool ScriptThread::derefOperand(const Loc& in, bool used, Loc& out) {
     if (used) {
         u32 v;
         if (!loadOp(in, v)) return false;
@@ -247,10 +267,7 @@ bool ScriptThread::derefOperand(const Loc& in, bool used, Loc& out) {
 // a, b and c field by field: built in locals and copied out whole, each Loc was stored
 // as a byte and a word and reloaded as one 8-byte value, a store-forwarding stall per
 // operand on x86 (a quarter of the step was spent here). Same decisions, same values.
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((always_inline))
-#endif
-inline bool ScriptThread::decode(const Instruction& ins, Loc& a, Loc& b, Loc& c) {
+AS3D_VM_INLINE bool ScriptThread::decode(const Instruction& ins, Loc& a, Loc& b, Loc& c) {
     const RoleSet& roles = detail::kRoleTable.roles[ins.op]; // = roleSetFor(ins.op)
 
     // Operand A.
