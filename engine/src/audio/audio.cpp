@@ -32,6 +32,7 @@ struct Audio::Impl {
 
     std::string musicTitle;
     bool musicLoop = true;
+    int musicTaps = 0;
 };
 
 Audio::Audio() : impl_(new Impl()) {}
@@ -127,6 +128,7 @@ bool Audio::playMusic(const char* gamePath, bool loop) {
         return false;
     }
     decoder->setLoop(loop);
+    if (impl_->musicTaps > 0) decoder->setInterpolation(impl_->musicTaps);
     impl_->musicTitle = decoder->title();
     impl_->musicLoop = loop;
     impl_->mixer.setMusic(decoder.release());  // Mixer now owns it
@@ -141,6 +143,8 @@ void Audio::stopMusic() {
 bool Audio::isMusicPlaying() const { return impl_->mixer.hasMusic(); }
 bool Audio::jumpMusicToOrder(int order) { return impl_->mixer.jumpMusicToOrder(order); }
 int Audio::musicOrder() const { return impl_->mixer.musicOrder(); }
+void Audio::setMusicInterpolation(int taps) { impl_->musicTaps = taps; }
+MusicDecodeStats Audio::musicDecodeStats(bool resetMax) { return impl_->mixer.musicCost(resetMax); }
 std::string Audio::musicTitle() const { return impl_->musicTitle; }
 
 void Audio::setSfxVolume(float linear) { impl_->mixer.setSfxVolume(linear); }

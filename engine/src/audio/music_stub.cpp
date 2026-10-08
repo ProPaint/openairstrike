@@ -15,6 +15,7 @@ bool MusicDecoder::load(const Blob&) {
     return false;
 }
 void MusicDecoder::setLoop(bool) {}
+void MusicDecoder::setInterpolation(int) {}
 bool MusicDecoder::read(int, float* out, int frames) {
     for (int i = 0; i < frames * 2; ++i) out[i] = 0.0f;
     return false;

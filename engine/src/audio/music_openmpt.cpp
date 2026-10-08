@@ -56,6 +56,10 @@ void MusicDecoder::setLoop(bool loop) {
     if (impl_->mod) openmpt_module_set_repeat_count(impl_->mod, loop ? -1 : 0);
 }
 
+void MusicDecoder::setInterpolation(int taps) {
+    if (impl_->mod) openmpt_module_set_render_param(impl_->mod, OPENMPT_MODULE_RENDER_INTERPOLATIONFILTER_LENGTH, taps);
+}
+
 bool MusicDecoder::read(int sampleRate, float* out, int frames) {
     if (!impl_->mod || frames <= 0) {
         if (out && frames > 0) std::memset(out, 0, sizeof(float) * 2 * static_cast<size_t>(frames));

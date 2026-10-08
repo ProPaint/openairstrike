@@ -58,6 +58,15 @@ struct AudioStats {
     bool musicPlaying = false;
 };
 
+// The music decoder's cost on the audio thread (Audio::musicDecodeStats): the time spent
+// decoding against the audio decoded tells the decoder's CPU share (docs/3ds-port.md M2.4).
+struct MusicDecodeStats {
+    u64 decodeUs = 0;       // total time in the decoder since init
+    u64 frames = 0;         // total frames decoded at the device rate
+    u64 maxCallUs = 0;      // the longest decode of one mixer render call (since the last reset)
+    int maxCallFrames = 0;  // the frame count of that call
+};
+
 // Opaque base for the two backends; games do not interact with this
 // directly beyond choosing an AudioBackend in Audio::init().
 class AudioDevice {
@@ -107,6 +116,11 @@ public:
     bool jumpMusicToOrder(int order);
     // Current pattern order of the music, -1 without music.
     int musicOrder() const;
+    // Interpolation filter length of the modules started from now on: 0 = the decoder's
+    // default (libopenmpt: 8-tap), 1 = none, 2 = linear, 4 = cubic, 8 = windowed sinc.
+    void setMusicInterpolation(int taps);
+    // The decoder's cost; `resetMax` restarts maxCallUs.
+    MusicDecodeStats musicDecodeStats(bool resetMax = false);
 
     void setSfxVolume(float linear);
     void setMusicVolume(float linear);

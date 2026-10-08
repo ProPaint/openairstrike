@@ -1,12 +1,15 @@
 // Fixed-voice-count software mixer: linear-interpolation resampling,
 // constant-power pan, looping, voice stealing, and a soft output limiter.
 //
-// Concurrency: a single mutex guards the whole voice table (and the music
-// decoder slot). This is deliberately not a lock-free design -- see the
-// comment on Mixer below and engine/include/as3d/audio.h's header comment
-// for why a plain mutex is the right trade-off here.
+// Concurrency: one mutex guards the voice table, a second one the music
+// decoder slot (a module decode can take milliseconds on a slow CPU, and the
+// game thread's play()/stop() must not wait for it). This is deliberately not
+// a lock-free design -- see the comment on Mixer below and
+// engine/include/as3d/audio.h's header comment for why a plain mutex is the
+// right trade-off here.
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 
@@ -81,11 +84,18 @@ public:
     u64 voicesStolenCount() const;
     u64 totalVoicesStartedCount() const;
 
+    // The music decoder's cost, measured around MusicDecoder::read in render() (lock free:
+    // atomics written by the audio thread). `resetMax` restarts the longest-call figure.
+    MusicDecodeStats musicCost(bool resetMax = false);
+
 private:
     int allocateSlot();  // caller holds mutex_
+    bool mixVoices(float* out, int frames);  // false when paused (out is silence)
+    void mixMusic(float* out, int frames);
     void applyPan(Voice& v, const PlayParams& params) const;
 
-    mutable std::mutex mutex_;
+    mutable std::mutex mutex_;       // the voices, volumes, rate and pause flag
+    mutable std::mutex musicMutex_;  // music_ (never held together with mutex_)
     Voice voices_[kMaxVoices]{};
     int deviceRate_ = 44100;
     float sfxVolume_ = 1.0f;
@@ -94,7 +104,14 @@ private:
     u64 nextSeq_ = 1;
     u64 stolen_ = 0;
     u64 started_ = 0;
-    MusicDecoder* music_ = nullptr;  // owned
+    float musicGain_ = 1.0f;  // musicVolume_ and deviceRate_ as of the current render() call
+    int musicRate_ = 44100;
+    MusicDecoder* music_ = nullptr;  // owned, under musicMutex_
+    std::atomic<bool> hasMusic_{false};
+    std::atomic<u64> musicDecodeUs_{0};
+    std::atomic<u64> musicFrames_{0};
+    std::atomic<u64> musicMaxCallUs_{0};
+    std::atomic<int> musicMaxCallFrames_{0};
 };
 
 }  // namespace as3d::audio

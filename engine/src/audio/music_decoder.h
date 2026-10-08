@@ -23,6 +23,8 @@ public:
     bool load(const Blob& data);
 
     void setLoop(bool loop);
+    // Interpolation filter length (1, 2, 4 or 8 taps); the default is the library's.
+    void setInterpolation(int taps);
     // Writes exactly `frames` interleaved stereo float frames into `out`
     // (2*frames floats). Pads with silence and returns false once the
     // (non-looping) module has ended; used on the audio thread, does not

@@ -1,6 +1,7 @@
 #include "mixer.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 
@@ -97,32 +98,39 @@ void Mixer::stopAll() {
 }
 
 void Mixer::setMusic(MusicDecoder* decoder) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    delete music_;
-    music_ = decoder;
+    MusicDecoder* old = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(musicMutex_);
+        old = music_;
+        music_ = decoder;
+        hasMusic_ = decoder != nullptr;
+    }
+    delete old;
 }
 
-void Mixer::clearMusic() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    delete music_;
-    music_ = nullptr;
-}
+void Mixer::clearMusic() { setMusic(nullptr); }
 
 bool Mixer::jumpMusicToOrder(int order) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(musicMutex_);
     if (!music_) return false;
     if (order < 0 || order >= music_->numOrders()) order = 0;
     return music_->setOrder(order);
 }
 
 int Mixer::musicOrder() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(musicMutex_);
     return music_ ? music_->currentOrder() : -1;
 }
 
-bool Mixer::hasMusic() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return music_ != nullptr;
+bool Mixer::hasMusic() const { return hasMusic_; }
+
+MusicDecodeStats Mixer::musicCost(bool resetMax) {
+    MusicDecodeStats c;
+    c.decodeUs = musicDecodeUs_;
+    c.frames = musicFrames_;
+    c.maxCallUs = resetMax ? musicMaxCallUs_.exchange(0) : musicMaxCallUs_.load();
+    c.maxCallFrames = musicMaxCallFrames_;
+    return c;
 }
 
 void Mixer::setSfxVolume(float v) {
@@ -159,9 +167,18 @@ void Mixer::setPaused(bool paused) {
 
 void Mixer::render(float* out, int frames) {
     if (frames <= 0) return;
+    if (!mixVoices(out, frames)) return;  // paused: silence, the music does not advance
+    mixMusic(out, frames);
+    const size_t total = static_cast<size_t>(frames) * 2;
+    for (size_t i = 0; i < total; ++i) out[i] = std::tanh(out[i]);
+}
+
+bool Mixer::mixVoices(float* out, int frames) {
     std::lock_guard<std::mutex> lock(mutex_);
     std::memset(out, 0, sizeof(float) * 2 * static_cast<size_t>(frames));
-    if (paused_) return;
+    if (paused_) return false;
+    musicGain_ = musicVolume_;
+    musicRate_ = deviceRate_;
 
     for (auto& v : voices_) {
         if (!v.active) continue;
@@ -206,22 +223,35 @@ void Mixer::render(float* out, int frames) {
         }
     }
 
-    if (music_) {
-        constexpr int kChunk = 256;
-        float scratch[kChunk * 2];
-        int remaining = frames;
-        int offset = 0;
-        while (remaining > 0) {
-            int n = std::min(remaining, kChunk);
-            music_->read(deviceRate_, scratch, n);
-            for (int i = 0; i < n * 2; ++i) out[offset * 2 + i] += scratch[i] * musicVolume_;
-            offset += n;
-            remaining -= n;
-        }
-    }
+    return true;
+}
 
-    const size_t total = static_cast<size_t>(frames) * 2;
-    for (size_t i = 0; i < total; ++i) out[i] = std::tanh(out[i]);
+// Outside the voice lock: only the audio thread calls render(), so musicGain_ and musicRate_
+// (set by mixVoices just before) need no lock.
+void Mixer::mixMusic(float* out, int frames) {
+    std::lock_guard<std::mutex> lock(musicMutex_);
+    if (!music_) return;
+    using Clock = std::chrono::steady_clock;
+    const Clock::time_point t0 = Clock::now();
+    constexpr int kChunk = 256;
+    float scratch[kChunk * 2];
+    int remaining = frames;
+    int offset = 0;
+    while (remaining > 0) {
+        int n = std::min(remaining, kChunk);
+        music_->read(musicRate_, scratch, n);
+        for (int i = 0; i < n * 2; ++i) out[offset * 2 + i] += scratch[i] * musicGain_;
+        offset += n;
+        remaining -= n;
+    }
+    const u64 us =
+        static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - t0).count());
+    musicDecodeUs_ += us;
+    musicFrames_ += static_cast<u64>(frames);
+    if (us > musicMaxCallUs_) {
+        musicMaxCallUs_ = us;
+        musicMaxCallFrames_ = frames;
+    }
 }
 
 int Mixer::activeVoiceCount() const {
