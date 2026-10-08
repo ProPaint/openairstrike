@@ -17,6 +17,7 @@
 #include "as3d/load_stats.h"
 #include "as3d/precache.h"
 #include "as3d/render_state.h"
+#include "as3d/scene.h"
 #include "as3d/touch_controls.h"
 #include "as3d/ui.h"
 #include "as3d/world.h"
@@ -25,6 +26,8 @@
 #include "flat_fill.h"
 #include "game_flow.h"
 #include "game_session.h"
+#include "mesh_renderer_pica.h"
+#include "model_view.h"
 #include "pica_frame.h"
 #include "texture_budget.h"
 #include "ui_pica.h"
@@ -84,6 +87,14 @@ bool dumpTarget(C3D_RenderTarget* t, int width, const std::string& path) {
 
 double kb(size_t b) { return static_cast<double>(b) / 1024.0; }
 
+// The sequels' model view on the top screen (docs/3ds-port.md M5.2): the desktop draws it on its
+// bottom screen inside the view's virtual rectangle, mapped at 0.4 px per virtual pixel; the top
+// screen has nothing else to show while the helicopter selection is open, so the rectangle is
+// drawn there at twice that, 0.8 (460 x 270 -> 368 x 216 px), centred, over the selection's dot
+// grid at the same mapping. The desktop's dual-screen frame at --size 800x960 has the same
+// mapping on its bottom screen (the comparison of the report).
+constexpr float kModelPxPerVirtual = 0.8f;
+
 } // namespace
 
 struct GameFrame::Impl {
@@ -106,6 +117,19 @@ struct GameFrame::Impl {
     as3d_game::FrameLayers layers;
     const FrameInfo* info = nullptr; // during prepare
     bool worldDrawn = true;
+    // The sequels' model view (FlowView::drawModel, from GameFlow::draw in prepare): the object's
+    // parts (meshes and skins in a cache of their own, released with the renderer at every level
+    // start), the pass prepared in prepare and drawn on each eye of the top screen.
+    struct ModelPreview {
+        std::unique_ptr<ResourceCache> cache;
+        std::string object;
+        std::vector<as3d_game::ModelViewPart> parts;
+    };
+    std::unique_ptr<ModelPreview> preview;
+    bool modelActive = false;
+    ui::ModelView modelView;
+    pica::MeshPass modelPass;
+    int modelX = 0, modelY = 0, modelW = 0, modelH = 0; // the viewport, top screen pixels from the top left
     float topBrightness = 0.6f;
     // The frame.
     StereoParams stereo;
@@ -271,6 +295,7 @@ struct GameFrame::Impl {
         // first: the GPU is then done with everything the loading frame above read.
         if (levelBegun) {
             emptyFrames();
+            preview.reset();
             if (!makeRenderer(ses)) {
                 if (error) *error = "renderer";
                 return false;
@@ -313,14 +338,77 @@ struct GameFrame::Impl {
         }
         // frontend.md 4.1: the menus after the HUD. The main menu's 3D banner (between the two
         // halves on the desktop) is the title on the top screen here; the sequels' model view
-        // is not drawn yet.
+        // (between the halves as well) is prepared for the top screen (setModel).
         if (ui::Frontend* fe = l.frontend) {
             fe->drawUnder(r, *assets);
+            if (fe->modelViewVisible()) fe->drawModelViews();
             fe->drawOver(r, *assets);
         }
     }
 
-    // The top screen's 2D list (prepare): PAUSED, the title, the perf line.
+    // FlowView::drawModel (prepare, from GameFlow::draw): the parts of the view's object (loaded
+    // when it changes), the pass with the view's entity matrix, the viewport on the top screen.
+    void setModel(as3d_game::GameSession& ses, const ui::ModelView& v) {
+        if (!preview) {
+            preview.reset(new ModelPreview());
+            preview->cache.reset(new ResourceCache(ses.vfs()));
+        }
+        ModelPreview& p = *preview;
+        if (p.object != v.object) {
+            const uint64_t t0 = svcGetSystemTick();
+            p.object = v.object;
+            p.parts = as3d_game::modelViewParts(ses.db(), ses.vfs(), *p.cache, v.object);
+            AS3D_INFO("AS3D_MODELVIEW object=%s parts=%d load_ms=%.1f", v.object.c_str(), static_cast<int>(p.parts.size()),
+                      static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11);
+        }
+        modelView = v;
+        modelActive = !p.parts.empty();
+        if (!modelActive) return;
+        // The desktop's rectangle (GameView::drawModel: computeMapping, rounded) at kModelPxPerVirtual,
+        // centred on the top screen.
+        modelW = static_cast<int>(std::lround(v.viewport.w * kModelPxPerVirtual));
+        modelH = static_cast<int>(std::lround(v.viewport.h * kModelPxPerVirtual));
+        modelX = (kTopW - modelW) / 2;
+        modelY = (kTopH - modelH) / 2;
+        // GameView::drawModel: MeshRenderer::begin(camera at the origin, SceneLighting()), the
+        // model matrix of the view's angles and origin times each part's.
+        const Mat4 model = as3d_game::entityMatrix(v.angles, v.origin);
+        modelPass.begin(SceneLighting(), nullptr, 0);
+        modelPass.setEnvironment(Mat4::identity(), 0.0f, false);
+        for (const as3d_game::ModelViewPart& part : p.parts) modelPass.submit(*part.gpu, part.material, model * part.local, part.colour);
+        modelPass.finish();
+    }
+
+    // One eye of the model view: the viewport and its depth, the GL MeshRenderer's depth mapping
+    // and fog (SceneLighting's linear 650..900: none at the model's distance), the eye's projection.
+    void drawModelEye(int eye) {
+        const int glY = kTopH - modelY - modelH;
+        setViewport(modelX, glY, modelW, modelH);
+        setScissor(true, modelX, glY, modelW, modelH);
+        clearDepth();
+        WorldView wv;
+        wv.view = Mat4::identity();
+        wv.fovY = modelView.fovY;
+        wv.nearPlane = modelView.nearPlane;
+        wv.farPlane = modelView.farPlane;
+        EyeView ev;
+        if (stereo.eyes == 2) {
+            ev.eyeOffset = eye == 0 ? -stereo.eyeOffset : stereo.eyeOffset;
+            ev.focalDistance = stereo.focal;
+        }
+        const SceneLighting light;
+        pica::setDepthMapping(FogDepthMap::WBuffer, wv.nearPlane);
+        pica::setLevelFogColor(light.fogColor);
+        if (light.fogStart < wv.farPlane) pica::setFog(wv.nearPlane, wv.farPlane, light.fogStart, light.fogEnd);
+        else pica::disableFog();
+        const float aspect = static_cast<float>(modelW) / static_cast<float>(modelH);
+        modelPass.draw(pica::picaEyeProjection(wv, ev, aspect) * wv.view);
+        pica::disableFog();
+        setScissor(false);
+        setViewport(0, 0, kTopW, kTopH);
+    }
+
+    // The top screen's 2D list (prepare): PAUSED, the title, the model view's backdrop, the perf line.
     void buildTopQuads(const FrameInfo& fi) {
         topQuads = false;
         if (!hudReady) return;
@@ -329,10 +417,19 @@ struct GameFrame::Impl {
         bool title = false;
         if (flow) {
             paused = fe && fe->state() == ui::FrontendState::Playing && fe->menuOpen() && fe->topScreen() == ui::Screen::InGame;
-            title = fe && (fe->bannerVisible() || (!worldDrawn && fe->state() != ui::FrontendState::Intro));
+            title = fe && !modelActive && (fe->bannerVisible() || (!worldDrawn && fe->state() != ui::FrontendState::Intro));
         }
-        if (!paused && !title && !run.perf) return;
+        if (!paused && !title && !modelActive && !run.perf) return;
         r2d->begin(kTopW, kTopH);
+        if (modelActive) {
+            // The selection's dot grid, mapped as the model's rectangle: virtual v at pixel
+            // model corner + kModelPxPerVirtual (v - viewport corner).
+            const ui::Mapping& m = r2d->mapping();
+            const float s = kModelPxPerVirtual / m.scaleX;
+            const float ox = (static_cast<float>(modelX) - kModelPxPerVirtual * modelView.viewport.x - m.offsetX) / m.scaleX;
+            const float oy = (static_cast<float>(modelY) - kModelPxPerVirtual * modelView.viewport.y - m.offsetY) / m.scaleY;
+            ui::drawModelViewBackdrop(*r2d, *assets, ox, oy, s);
+        }
         ui::TextStyle st;
         if (title && session && session->game()) {
             st.scale = 3.0f;
@@ -364,6 +461,15 @@ struct GameFrame::Impl {
         const bool b = dumpTarget(ctx->bottomTarget(), kBottomW, dir + base + "_bottom.ppm");
         AS3D_INFO("AS3D_DUMP %s frame=%u step=%u screen=%s top=%d bottom=%d", base.c_str(), fi.frame, fi.step,
                   fi.screen, t ? 1 : 0, b ? 1 : 0);
+        if (modelActive) {
+            const pica::MeshDrawStats& ms = modelPass.lastStats();
+            AS3D_INFO("AS3D_MODELVIEW_DUMP %s object=%s angles=(%.2f, %.2f, %.2f) viewport=(%d, %d, %d, %d) eyes=%d "
+                      "eye_offset=%.2f focal=%.1f draws=%d vertices=%d triangles=%d env_draws=%d",
+                      base.c_str(), modelView.object.c_str(), static_cast<double>(modelView.angles[0]),
+                      static_cast<double>(modelView.angles[1]), static_cast<double>(modelView.angles[2]), modelX, modelY,
+                      modelW, modelH, stereo.eyes, static_cast<double>(stereo.eyeOffset), static_cast<double>(stereo.focal),
+                      ms.draws, ms.vertices, ms.triangles, ms.envDraws);
+        }
     }
 };
 
@@ -395,6 +501,7 @@ public:
     void drawFrame(const as3d_game::GameSession& ses, int, int, const as3d_game::FrameLayers& layers) override {
         im_.flowLayers(ses, layers);
     }
+    void drawModel(as3d_game::GameSession& ses, const ui::ModelView& v) override { im_.setModel(ses, v); }
 
 private:
     GameFrame::Impl& im_;
@@ -462,8 +569,10 @@ void GameFrame::prepare(const FrameInfo& info) {
         // builds the bottom screen's list here, outside the frame (menu pictures load on first
         // use).
         im.haveLayers = false;
+        im.modelActive = false;
         im.flow->draw(kBottomW, kBottomH);
-        im.worldDrawn = im.haveLayers && im.layers.world && ses.hasLevel() && im.levelBegun;
+        // The model view takes the top screen (on black, as the desktop's bottom screen under it).
+        im.worldDrawn = im.haveLayers && im.layers.world && ses.hasLevel() && im.levelBegun && !im.modelActive;
         im.topBrightness = im.haveLayers ? im.layers.brightness : as3d_game::kDefaultBrightness;
         im.showHud = false; // in the list already
     } else {
@@ -499,6 +608,10 @@ void GameFrame::prepare(const FrameInfo& info) {
         im.renderer->prepare(world, vp);
     }
 
+    // The model view: zero parallax at the model's distance.
+    if (im.modelActive)
+        im.stereo = stereoFor(info.eyes == 2 ? info.slider : 0.0f, -im.modelView.origin[2], im.maxEyeOffset(), im.minFocal());
+
     // The top screen's 2D layer, built once and flushed on each eye at screen depth.
     im.buildTopQuads(info);
     im.prepareMs = static_cast<float>(static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11);
@@ -522,6 +635,7 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
         clear(Vec4{0, 0, 0, 1}, true, 1.0f);
     }
     if (im.topQuads) im.r2d->flush();
+    if (im.modelActive) im.drawModelEye(eye);
     // Pass 14 (0.5 is neutral: dst * 0.5 + 0.5 * dst).
     if (im.worldDrawn && im.topBrightness != 0.5f) im.renderer->drawBrightness(kTopW, kTopH, im.topBrightness);
 }
@@ -566,8 +680,8 @@ void GameFrame::stats(FrameStats& out) {
     const WorldRenderStats& ws = im.renderer->lastStats();
     const ui::Ui2dPicaStats& us = ui::ui2dPicaStats();
     out.prepareMs = im.prepareMs;
-    out.eyes = im.worldDrawn ? im.stereo.eyes : 1;
-    out.draws = (im.worldDrawn ? ws.drawCalls : 0) + us.runs;
+    out.eyes = im.worldDrawn || im.modelActive ? im.stereo.eyes : 1;
+    out.draws = (im.worldDrawn ? ws.drawCalls : 0) + (im.modelActive ? im.modelPass.lastStats().draws : 0) + us.runs;
     out.verts = (im.worldDrawn ? ws.vertices : 0) + us.vertices;
     const pica::TextureStats ts = pica::textureStats();
     out.texVramKb = static_cast<unsigned>(ts.vramBytes / 1024);
@@ -653,6 +767,7 @@ void GameFrame::end() {
             im.ctx->endFrame();
         }
     }
+    im.preview.reset();
     im.renderer.reset();
     im.assets.reset();
     im.r2d.reset();
