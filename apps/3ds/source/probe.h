@@ -19,6 +19,7 @@ struct RunConfig {
     bool terraintest = false; // mode=terraintest: the terrain test (terrain_test.h)
     bool fxtest = false;      // mode=fxtest: the effects test (fx_test.h)
     bool uitest = false;      // mode=uitest: the 2D layer test (ui_test.h)
+    bool audiotest = false;   // mode=audiotest: the sound test (audio_test.h)
     int botFrames = 0;  // frames=N: the effects test's bot frames before drawing (0: 300)
     bool meshtest = false; // mode=meshtest: the PICA mesh test (mesh_test.h), mission 1 from the SD paks
     int level = 1;      // level=N: the terrain test's mission

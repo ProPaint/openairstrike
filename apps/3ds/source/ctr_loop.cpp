@@ -15,6 +15,7 @@
 #include "as3d/game_profile.h"
 #include "as3d/input.h"
 #include "as3d/world.h"
+#include "ctr_audio.h"
 #include "ctr_context.h"
 #include "ctr_input.h"
 
@@ -33,6 +34,7 @@ struct AptState {
     as3d_game::GameSession* session = nullptr;
     Perf* perf = nullptr;
     const std::function<void()>* saveHook = nullptr;
+    CtrAudio* audio = nullptr; // M2.3: paused while suspended
     bool pausedBySuspend = false;
     bool resumed = false; // the loop resets its clock
 };
@@ -47,6 +49,7 @@ void aptCallback(APT_HookType hook, void* param) {
                 st->session->world().setPaused(true);
                 st->pausedBySuspend = true;
             }
+            if (st->audio) st->audio->setSuspended(true);
             if (st->saveHook && *st->saveHook) (*st->saveHook)();
             if (st->perf) st->perf->flush();
             break;
@@ -55,6 +58,7 @@ void aptCallback(APT_HookType hook, void* param) {
             AS3D_INFO("apt: %s", hook == APTHOOK_ONRESTORE ? "restore" : "wake up");
             if (st->session && st->pausedBySuspend) st->session->world().setPaused(false);
             st->pausedBySuspend = false;
+            if (st->audio) st->audio->setSuspended(false);
             st->resumed = true;
             break;
         default: break;
@@ -161,10 +165,15 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     perf.setLoadMs(loadMs);
     if (!sim) AS3D_INFO("level start (mission and renderer) %.0f ms", loadMs);
 
+    // Sound (M2.3, ctr_audio.h): bot and play, not sim.
+    CtrAudio audio;
+    if (!sim && run.audio) audio.start(*session, run.precache);
+
     AptState apt;
     apt.session = session.get();
     apt.perf = &perf;
     apt.saveHook = &opts.saveHook;
+    apt.audio = &audio;
     aptSetSleepAllowed(true);
     aptHookCookie cookie;
     aptHook(&cookie, aptCallback, &apt);
@@ -180,7 +189,9 @@ int runCtrLoop(const CtrLoopOptions& opts) {
 
     auto stepOnce = [&]() {
         FrameInput in = bot ? botInput(steps) : input.frame(session->world().paused());
-        session->step(in);
+        const int ev = session->step(in);
+        if (ev & as3d_game::GameSession::kLevelStarted) audio.levelStarted(*session);
+        audio.afterStep(session->world());
         ++steps;
     };
 
@@ -229,6 +240,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
             acc = 0.0;
         }
         sample.stepMs = static_cast<float>(ticksToMs(nowTicks() - s0));
+        audio.followPause(session->world().paused());
 
         FrameInfo info;
         info.frame = frame;
@@ -272,9 +284,12 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     AS3D_INFO("stopped after %u frames, %u steps", frame, steps);
     logEndState(*session, run.level, steps);
     perf.writeSummary(frame, steps, dropped);
+    if (!sim) audio.logSummary();
     if (hook && !sim) hook->end();
     aptUnhook(&cookie);
     apt.session = nullptr;
+    apt.audio = nullptr;
+    audio.stop();
     session.reset();
     gl.reset(); // C3D_Fini, gfxExit
     perf.close();

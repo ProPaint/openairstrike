@@ -101,6 +101,7 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `eye_offset` | world units, default 4 | the eye offset at slider 1 (each eye moves this far along the camera's right axis; `ctr_frame.h` kMaxEyeOffset) |
 | `min_focal` | world units, default 40 | the smallest zero-parallax distance (`ctr_frame.h` kMinFocalDistance; the focal distance is the camera-to-player depth) |
 | `precache` | `1` (default) or `0` | `0` skips the level-start precache (everything loads on first use) |
+| `audio` | `1` (default) or `0` | sound in `bot` and `play` (never in `sim`): the ndsp device, or silence when `ndspInit` fails (no `sdmc:/3ds/dspfirm.cdc`); see "Sound (M2.3)" |
 | `hold`, `only` | | probe only (see above) |
 
 `mode=bot level=1 frames=3600 perf=1` is the M1 acceptance run. START+SELECT held together quits
@@ -176,3 +177,26 @@ textures), `uitest_<phase>.ppm` (bottom, 320x240), `uitest_top_1.ppm` (400x240) 
 Compare phase 2 with the bottom half of `as3d_game --dual-screen --headless --level 1 --bot
 --frames 120 --screenshot-every 120` (crop `40,240,360,480` of the 400x480 frame) with
 `tools/3ds_screen_compare.py uitest_2.ppm bottom.png --direct --mask`. docs/3ds-port.md, "M1.7".
+
+## Sound (M2.3)
+
+The engine's ndsp device (`engine/src/audio/ndsp/`) plays the mixer on one stereo PCM16 channel at
+32728 Hz, four 1024-frame buffers, fed by a thread on core 1. `ndspInit` needs the DSP firmware
+`sdmc:/3ds/dspfirm.cdc` (dump it once with the DSP1 homebrew); without it the log says
+`audio: ndspInit failed (0x...)` once and the game runs silent on the Null device.
+
+In `bot` and `play` (`audio=1`, the default) `source/ctr_audio.cpp` drives an `AudioBridge` as the
+desktop game does: the level's sounds are precached at level start, the world's sound requests
+are played after every step, the sound pauses with the world (START) and on HOME / sleep, and
+stops at exit. Music is not played yet (`AS3D_WITH_OPENMPT=OFF`, M2.4). `log.txt` gets
+`audio: ndsp: channel 0 stereo pcm16 32728 Hz, 4 x 1024 frames ...` at start and two summary lines:
+
+    PERF_SUMMARY audio device=ndsp played=N loops=N missing=N precached=N
+    PERF_SUMMARY audio_feed fills=N (32.0/s) underruns=N max_fill_ms=X feeder_cpu=X% dropped=N core1=1
+
+`mode=audiotest` (optional `frames=N`, default 360 = 6 s) runs `source/audio_test.cpp`: a check of
+`std::thread` + `std::mutex`, then `as3d::Audio` on the platform device plays a generated 440 Hz
+tone for 1 s, then three sounds of mission 1's precache set (a looping one, one repeated every 12
+frames, one once). Every second it logs fills (+32 per second expected), underruns, the peak
+sample of that second's buffers (about 11000 for the tone), the longest fill and the feeder's CPU
+share; it writes `audiotest_log.txt`. docs/3ds-port.md, "M2.3".

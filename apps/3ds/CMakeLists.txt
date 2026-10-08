@@ -12,8 +12,9 @@ add_link_options(-Wl,--gc-sections)
 ctr_add_shader_library(scene_shbin OUTPUT scene.shbin source/scene.v.pica)
 dkp_add_embedded_binary_library(scene_shbin_data scene_shbin)
 
-# game_session.cpp is the one apps/game file the 3DS app uses so far: GameStack and GameFlow
-# need GameView, which holds the GL-side layers; the 3DS composes its frame itself (ctr_frame.cpp).
+# game_session.cpp and audio_bridge.cpp are the apps/game files the 3DS app uses so far: GameStack
+# and GameFlow need GameView, which holds the GL-side layers; the 3DS composes its frame itself
+# (ctr_frame.cpp) and drives the AudioBridge itself (ctr_audio.cpp).
 add_executable(openairstrike
   source/ctr_main.cpp
   source/ctr_loop.cpp
@@ -29,14 +30,19 @@ add_executable(openairstrike
   source/terrain_test.cpp
   source/fx_test.cpp
   source/ui_test.cpp
-  ${AS3D_REPO_ROOT}/apps/game/game_session.cpp)
+  source/audio_test.cpp
+  source/ctr_audio.cpp
+  ${AS3D_REPO_ROOT}/apps/game/game_session.cpp
+  ${AS3D_REPO_ROOT}/apps/game/audio_bridge.cpp)
 # The test modes and the composer use the render module's private headers (engine/src/render:
-# world_scene.h; engine/src/render/pica, engine/src/ui/pica: the PICA backend's own).
+# world_scene.h; engine/src/render/pica, engine/src/ui/pica: the PICA backend's own); ctr_audio.cpp
+# the ndsp device's counters (engine/src/audio/ndsp).
 target_include_directories(openairstrike PRIVATE source ${AS3D_REPO_ROOT}/apps/game
                                                  ${AS3D_REPO_ROOT}/engine/src/render
                                                  ${AS3D_REPO_ROOT}/engine/src/platform/ctr
                                                  ${AS3D_REPO_ROOT}/engine/src/render/pica
-                                                 ${AS3D_REPO_ROOT}/engine/src/ui/pica)
+                                                 ${AS3D_REPO_ROOT}/engine/src/ui/pica
+                                                 ${AS3D_REPO_ROOT}/engine/src/audio/ndsp)
 target_link_libraries(openairstrike PRIVATE scene_shbin_data ${AS3D_MODULES} ${AS3D_MODULES}
                                             citro3d ctru m)
 target_compile_options(openairstrike PRIVATE -fno-exceptions)

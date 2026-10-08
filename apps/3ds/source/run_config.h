@@ -36,6 +36,7 @@ struct RunConfig {
     float eyeOffset = 0.0f;    // eye_offset=F: world units at slider 1; 0 = ctr_frame.h kMaxEyeOffset
     float minFocal = 0.0f;     // min_focal=F: smallest focal distance; 0 = ctr_frame.h kMinFocalDistance
     bool precache = true;      // precache=0: skip the level-start precache (first-use loads, for comparison)
+    bool audio = true;         // audio=0|1: sound in bot and play (ctr_audio.h); never in sim
 
     bool usesLoop() const { return mode == Mode::Sim || mode == Mode::Bot || mode == Mode::Play; }
     int effectiveFrames() const { return frames > 0 ? frames : (mode == Mode::Sim ? 600 : 0); }

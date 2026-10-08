@@ -89,6 +89,8 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toFloat(val, &f) && f >= 1.0f) c.minFocal = f;
         } else if (key == "precache") {
             if (toInt(val, &n)) c.precache = n != 0;
+        } else if (key == "audio") {
+            if (toInt(val, &n)) c.audio = n != 0;
         }
     }
     return c;
