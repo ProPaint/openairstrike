@@ -117,6 +117,8 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `end_flush` | `all` (default) or `cmdlist` | C3D_FrameEnd(0) flushes the whole linear heap; `cmdlist` only the command list (every other GPU buffer is flushed when written) |
 | `passes` | names, default all | only these passes draw, for A/B hardware runs: `clear terrain marks shadows opaque water rest lightning particles sprites brightness top2d model hud hint touch bottom2d`, `world` (the world passes), `all`, `none`; comma separated |
 | `hud`, `touch` | `1` (default) or `0` | `0` leaves the HUD / the touch band off the bottom screen |
+| `prefetch` | `1` (default) or `0` | the read plan (`ctr_loop.h` ReadPlan): each level start records the files it read in `sdmc:/3ds/openairstrike/cache/<game>_m<N>.plan` (file names only) and the next start of that level reads them ahead in a few large reads per pak (`AS3D_LOAD phase=prefetch`, `AS3D_READPLAN`) |
+| `shadow_cache` | `1` (default) or `0` | the silhouette cache (`shadow_pica.h`): `cache/<game>_m<N>.shadows` keeps the rasterised silhouettes of the level, keyed by a hash of their inputs, and the next start reuses them (`AS3D_SHADOW_CACHE`) |
 | `pak_cache_kb` | N, default 0 | a block cache of N KB (64 KB blocks) per pak stream; the paks are read with FSFILE_Read at an offset either way (`AS3D_LOAD ... read_ms`) |
 
 `mode=bot level=1 frames=3600 perf=1` is the M1 acceptance run. START+SELECT held together quits

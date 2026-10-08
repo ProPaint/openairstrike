@@ -1888,3 +1888,25 @@ reads + decode + parse 3.5).
 
 Azahar, stereo, drop 2: frame 16.9 ms (vblank bound; was 49.9), submit 7.7, load 7.8 s (was 10.8),
 images unchanged (MAE 0.1, the perf text line), sim end state unchanged.
+
+**Load: reads and shadows** (drop 4). The console's drop-2 load (7.3 s) was 3.9 s of read latency:
+about 5 to 7 ms per FSFILE_Read whatever its size (precache_scripts 295 reads for 495 KB in 1.5 s;
+precache_world 335 reads for 5.3 MB in 2.4 s), then 1.0 s of shadow rasterisation.
+- `Vfs::prefetch(paths)` (as3d/vfs.h, pak_source.cpp): the pak entries are sorted by offset and read
+  in runs (gaps up to 64 KB read through, runs up to 2 MB), kept until `dropPrefetched`; the data
+  is the same as without. DefDatabase reads its obj/wpn/ps files ahead (the session's defs: 106
+  reads -> 28 on the first start).
+- The read plan (ctr_loop.h ReadPlan, run.ini `prefetch=`): a level start records the paths it
+  reads (Vfs::setReadObserver) into `sdmc:/3ds/openairstrike/cache/<game>_m<N>.plan` (names only;
+  `_fe` / `_attract` for the front end's starts); the next start of the level prefetches them right
+  after the mount (direct modes: GameOptions::afterMount, before the definitions). Mission 1: 519
+  files, 7.0 MB, read in 38 runs (8.3 MB with the gaps); the rest of the level start then makes 12
+  file reads.
+- The silhouette cache (shadow_pica.h, run.ini `shadow_cache=`): `cache/<game>_m<N>.shadows` holds
+  each silhouette's alpha texels, bounds and sizes under a 64-bit hash of everything the raster
+  depends on (positions, faces, coordinates, the skin's alpha, kind, rotation, quality, sun, the
+  rules' shadow fields, the side cap); a hit skips the raster (mission 1: 144 silhouettes, 746 KB).
+  Same texels: the Azahar dumps with and without are identical (MAE 0).
+Azahar, second start of mission 1: load 5.7 s (was 7.8; Azahar reads at about 5 MB/s, so the 1.7 s
+prefetch there says little about the console), shadows 2.4 s -> 0.3 s, script precache 0.35 -> 0.09
+s. The first start of a level (no plan, no shadow file yet) costs what it did before.
