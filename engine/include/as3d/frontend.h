@@ -181,6 +181,11 @@ struct ModelView {
     float angles[3] = {0.0f, 0.0f, 0.0f};
 };
 
+// The dot grid the sequels' helicopter selection draws behind its model view (virtual
+// rectangle (210, 190, 381, 231), green, additive), for a host that shows the model elsewhere
+// (the 3DS: on the top screen). Each virtual coordinate v is drawn at (ox + s x, oy + s y).
+void drawModelViewBackdrop(Renderer2D& r, const UiAssets& a, float ox = 0, float oy = 0, float s = 1);
+
 class GameHost {
 public:
     virtual ~GameHost() = default;
@@ -295,6 +300,9 @@ public:
 
     // Queries for the game loop.
     FrontendState state() const { return state_; }
+    // The intro page on screen (0-based: the logo pages of Settings.xml, then the sequels'
+    // comic pages), -1 outside the intro.
+    int introPage() const;
     bool paused() const { return paused_; }
     bool hudVisible() const { return state_ == FrontendState::Playing && !hudHidden_; }
     bool menuOpen() const { return !menus_.empty(); }

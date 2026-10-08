@@ -184,9 +184,53 @@ Menu SequelScreens::nameEntry(Frontend& f) {
                 e->cursor++;
             }
         }
+        if (f.menus_.padMode) return; // the pad stays on the key it pressed
         for (size_t i = 0; i < menu.items.size(); i++)
             if (menu.items[i].id == kEditId) f.menus_.focus(menu, static_cast<int>(i));
     };
+    // Ours (pad mode with the touch keyboard, docs/3ds-port.md M5.2): the D-pad moves over the
+    // key grid (Left / Right along a row, Up / Down between rows; above the first row the name,
+    // below the last one Ok; Right of the name the Del key), A presses the key.
+    if (f.menus_.padMode && f.touch_) {
+        m.onKey = [&f](Menu& menu, int code) {
+            const bool up = code == keys::Up || code == keys::StickUp, down = code == keys::Down || code == keys::StickDown;
+            const bool left = code == keys::Left || code == keys::StickLeft, right = code == keys::Right || code == keys::StickRight;
+            if (!up && !down && !left && !right) return false;
+            auto indexOf = [&menu](int id) {
+                for (size_t i = 0; i < menu.items.size(); i++)
+                    if (menu.items[i].id == id) return static_cast<int>(i);
+                return -1;
+            };
+            auto keyAt = [&indexOf](int row, int col) { return indexOf(kKeyBase + kKeyRows[row][col]); };
+            const int fid = menu.focused >= 0 ? menu.items[static_cast<size_t>(menu.focused)].id : -1;
+            int row = -1, col = -1;
+            for (int r = 0; r < 4; r++)
+                for (int c = 0; c < 10; c++)
+                    if (fid == kKeyBase + kKeyRows[r][c]) {
+                        row = r;
+                        col = c;
+                    }
+            int target = -1;
+            if (row >= 0) {
+                if (left || right) target = keyAt(row, (col + (right ? 1 : 9)) % 10);
+                else if (up) target = row == 0 ? indexOf(kEditId) : keyAt(row - 1, col);
+                else target = row == 3 ? indexOf(kOkId) : keyAt(row + 1, col);
+            } else if (fid == kOkId) {
+                if (up) target = keyAt(3, 0);
+            } else if (fid == kDelId) {
+                if (left) target = indexOf(kEditId);
+                else if (down) target = keyAt(0, 9);
+            } else { // the name (or nothing yet)
+                if (down) target = keyAt(0, 0);
+                else if (right) target = indexOf(kDelId);
+            }
+            if (target >= 0) {
+                f.menus_.focus(menu, target);
+                f.menus_.playSound("sounds\\menu2.wav");
+            }
+            return true;
+        };
+    }
     m.drawFront = [&f](MenuDrawContext& c) { panel(c.r, c.a, 210, 220, 380, 160, c.menu.open, tr(f, "title.enter_name")); };
     return m;
 }

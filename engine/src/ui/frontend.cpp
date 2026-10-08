@@ -105,6 +105,10 @@ float Frontend::hintScale() const {
     return hudLayout(content_.game ? content_.game->id : GameId::AirStrike3D, hudTarget_).hintScale;
 }
 
+int Frontend::introPage() const {
+    return state_ == FrontendState::Intro && intro_ ? static_cast<int>(intro_->index) : -1;
+}
+
 float Frontend::brightness() const { return state_ == FrontendState::Intro ? 0.5f : profile_.settings.brightness; }
 
 bool Frontend::bannerVisible() const {

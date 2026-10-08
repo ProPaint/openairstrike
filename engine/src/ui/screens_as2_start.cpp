@@ -79,6 +79,19 @@ Menu SequelScreens::startGame(Frontend& f) {
 // ---------------------------------------------------------------------------
 // Helicopter selection
 // ---------------------------------------------------------------------------
+void drawModelViewBackdrop(Renderer2D& r, const UiAssets& a, float ox, float oy, float s) {
+    // The dot grid behind the preview, 120-px tiles of texels 0..120 (issue 240 item 6).
+    const Texture2D* t = a.texture("gfx\\ui\\grid.tga");
+    if (!t) return;
+    const float x0 = 210, y0 = 190, w = 381, h = 231;
+    for (float y = 0; y < h; y += 120)
+        for (float x = 0; x < w; x += 120) {
+            const float tw = std::min(120.0f, w - x), th = std::min(120.0f, h - y);
+            r.quad(ox + s * (x0 + x), oy + s * (y0 + y), s * tw, s * th, 0, 0, tw / 128.0f, th / 128.0f, t,
+                   {0, 0.376f, 0, 1}, Blend::Add);
+        }
+}
+
 Menu SequelScreens::heliSelect(Frontend& f) {
     Menu m = newMenu();
     Frontend::SequelState& s = *f.sq_;
@@ -129,22 +142,26 @@ Menu SequelScreens::heliSelect(Frontend& f) {
             default: break;
         }
     };
-    m.onKey = [leave](Menu&, int code) {
+    m.onKey = [&f, leave](Menu& menu, int code) {
+        // Ours (pad mode, docs/3ds-port.md M5.2): Left / Right are the arrows, whatever has the
+        // focus (but the player spinner, which they change).
+        const bool left = code == keys::Left || code == keys::StickLeft, right = code == keys::Right || code == keys::StickRight;
+        if (f.menus_.padMode && (left || right)) {
+            const bool spinner = menu.focused >= 0 && menu.items[static_cast<size_t>(menu.focused)].type == ItemType::Spinner;
+            if (spinner) return false;
+            for (size_t i = 0; i < menu.items.size(); i++)
+                if (menu.items[i].id == (right ? kArrowNext : kArrowPrev)) {
+                    f.menus_.playSound("sounds\\menu2.wav");
+                    f.menus_.sendEvent(menu, static_cast<int>(i), kActivate);
+                }
+            return true;
+        }
         if (code != keys::Escape && code != keys::Mouse2) return false;
         leave();
         return true;
     };
     m.drawBack = [](MenuDrawContext& c) {
-        if (c.menu.open < 1) return;
-        // The dot grid behind the preview, 120-px tiles of texels 0..120 (issue 240 item 6).
-        const Texture2D* t = c.a.texture("gfx\\ui\\grid.tga");
-        if (!t) return;
-        const float x0 = 210, y0 = 190, w = 381, h = 231;
-        for (float y = 0; y < h; y += 120)
-            for (float x = 0; x < w; x += 120) {
-                const float tw = std::min(120.0f, w - x), th = std::min(120.0f, h - y);
-                c.r.quad(x0 + x, y0 + y, tw, th, 0, 0, tw / 128.0f, th / 128.0f, t, {0, 0.376f, 0, 1}, Blend::Add);
-            }
+        if (c.menu.open >= 1) drawModelViewBackdrop(c.r, c.a);
     };
     m.drawFront = [&f, two](MenuDrawContext& c) {
         const Frontend::SequelState& st = *f.sq_;
