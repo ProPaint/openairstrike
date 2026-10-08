@@ -17,6 +17,7 @@
 #include "as3d/profile.h"
 #include "as3d/vfs.h"
 #include "as3d/script.h"
+#include "as3d/ui.h"
 #include "as3d/world.h"
 
 namespace as3d {
@@ -140,5 +141,12 @@ private:
     as3d::script::u64 hintsSeen_ = 0;
     as3d::u32 totalFrames_ = 0;
 };
+
+// The HUD state for the current frame, from the world: health, lives, score (scores + banked,
+// as GameSession::displayScore), weapon, missiles, power-ups, and the level name with the level
+// clock for the typewriter. The World form takes the level name from the caller (the 3DS test
+// modes have no session); the session form is the one the game draws.
+as3d::ui::HudState hudStateOf(const as3d::World& world, const std::string& levelName);
+as3d::ui::HudState hudStateOf(const GameSession& session);
 
 } // namespace as3d_game

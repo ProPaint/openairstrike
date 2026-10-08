@@ -21,6 +21,7 @@
 #include "as3d/ui.h"
 #include "as3d/vfs.h"
 #include "as3d/world.h"
+#include "game_session.h"
 #include "pica_frame.h"
 #include "texture_budget.h"
 #include "ui_pica.h"
@@ -82,37 +83,13 @@ void dumpTarget(C3D_RenderTarget* t, int width, const std::string& path) {
     linearFree(lin);
 }
 
-// hudStateOf (apps/game/game_view.cpp) from a World: the 3DS app has no GameView yet (M1.8).
-ui::HudState hudOf(const World& w, const DefDatabase& db) {
-    const GameRules& rules = w.rules();
-    ui::HudState hs;
-    hs.playerCount = std::min(std::max(w.numPlayers(), 1), 2);
-    for (int p = 0; p < hs.playerCount; ++p) {
-        const PlayerRecord& pr = w.player(p);
-        ui::HudPlayer& hp = hs.players[p];
-        const int pi = w.playerEntityIndex(p);
-        hp.health = pi >= 0 ? std::max(w.entity(pi).f(F_HEALTH), 0.0f) : 0.0f;
-        hp.maxHealth = ui::kFullHealth;
-        if (rules.healthBarScaleFromMax && pi >= 0 && w.entity(pi).maxHealth > 0.0f) hp.maxHealth = w.entity(pi).maxHealth;
-        hp.lives = pr.lives > 0.0f ? static_cast<int>(std::min(pr.lives, 99.0f)) : 0;
-        const float s = pr.scores;
-        hp.score = ((s > -2.0e9f && s < 2.0e9f) ? static_cast<long long>(s) : 0LL) + pr.banked;
-        hp.weapon = (pr.weapon >= 0.0f && pr.weapon < 64.0f) ? static_cast<int>(pr.weapon) : 0;
-        for (int k = 0; k < ui::kWeaponSlots; ++k) hp.upgrades[k] = std::max(pr.upgrades[k], 0);
-        hp.missileSelected = pr.currentMissile;
-        for (int t = 0; t < ui::kMissileTypes; ++t) hp.missiles[t] = std::max(pr.missiles[t], 0);
-        hp.powerupSelected = pr.currentPowerup;
-        for (int k = 0; k < ui::kPowerupSlots; ++k) hp.powerups[k] = std::max(pr.powerups[k], 0);
-    }
+// The level's display name (GameSession::levelName without a session).
+std::string levelNameOf(const World& w, const DefDatabase& db) {
     if (const Terrain* t = w.terrain()) {
         for (const LevelDef& d : db.levels())
-            if (d.id == t->style().id) {
-                hs.levelName = d.name.empty() ? d.id : d.name;
-                break;
-            }
+            if (d.id == t->style().id) return d.name.empty() ? d.id : d.name;
     }
-    hs.levelTime = w.time();
-    return hs;
+    return std::string();
 }
 
 // ---- phase 1: the font ----
@@ -312,7 +289,7 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
         return;
     }
     for (u32 f = 0; f < static_cast<u32>(bot); ++f) world->step(botInput(f).toPlayerInput());
-    const ui::HudState hud = hudOf(*world, db);
+    const ui::HudState hud = as3d_game::hudStateOf(*world, levelNameOf(*world, db));
     say("hud: health %.0f/%.0f, lives %d, score %lld, weapon %d, missiles %d/%d/%d/%d/%d, level '%s', t %.2f\n",
         static_cast<double>(hud.players[0].health), static_cast<double>(hud.players[0].maxHealth), hud.players[0].lives,
         static_cast<long long>(hud.players[0].score), hud.players[0].weapon, hud.players[0].missiles[0],

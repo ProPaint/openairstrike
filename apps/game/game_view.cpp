@@ -137,40 +137,6 @@ void GameView::step(const GameSession& session) {
     if (!w.paused()) renderer_.step(w, w.config().dt);
 }
 
-ui::HudState hudStateOf(const GameSession& session) {
-    const World& w = session.world();
-    const GameRules& rules = w.rules();
-    ui::HudState hs;
-    hs.playerCount = std::min(std::max(w.numPlayers(), 1), 2);
-    for (int p = 0; p < hs.playerCount; ++p) {
-        const PlayerRecord& pr = w.player(p);
-        ui::HudPlayer& hp = hs.players[p];
-        int pi = w.playerEntityIndex(p);
-        hp.health = pi >= 0 ? std::max(w.entity(pi).f(F_HEALTH), 0.0f) : 0.0f;
-        // The sequels measure the bar against the helicopter's maximum health (entity +0x70,
-        // from its definition; as2/engine-behaviour.delta.md 7.4, 11.2); the first game against 400.
-        hp.maxHealth = ui::kFullHealth;
-        if (rules.healthBarScaleFromMax && pi >= 0 && w.entity(pi).maxHealth > 0.0f) hp.maxHealth = w.entity(pi).maxHealth;
-        hp.lives = pr.lives > 0.0f ? static_cast<int>(std::min(pr.lives, 99.0f)) : 0;
-        hp.score = session.displayScore(p);
-        // The sequels round p_weapon (as2/frontend.md 4.2), the first game truncates.
-        if (pr.weapon >= 0.0f && pr.weapon < 64.0f)
-            hp.weapon = w.game() != GameId::AirStrike3D ? static_cast<int>(std::lround(pr.weapon)) : static_cast<int>(pr.weapon);
-        else
-            hp.weapon = 0;
-        for (int k = 0; k < ui::kWeaponSlots; ++k) hp.upgrades[k] = std::max(pr.upgrades[k], 0);
-        hp.missileSelected = pr.currentMissile;
-        for (int t = 0; t < ui::kMissileTypes; ++t) hp.missiles[t] = std::max(pr.missiles[t], 0);
-        hp.powerupSelected = pr.currentPowerup;
-        for (int k = 0; k < ui::kPowerupSlots; ++k) hp.powerups[k] = std::max(pr.powerups[k], 0);
-    }
-    // Level-name typewriter (frontend.md 4.5): the world's clock stops while paused, like the
-    // original's level clock.
-    hs.levelName = session.levelName();
-    hs.levelTime = w.time();
-    return hs;
-}
-
 ViewRect GameView::worldRect(const ViewRect& frame) const {
     if (screenMode == kScreen4x3) {
         int x, y, w, h;

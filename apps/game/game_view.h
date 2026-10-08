@@ -189,8 +189,6 @@ private:
     int precachedMission_ = -1;
 };
 
-// The HUD state for the current frame, from the world: health, lives, score, weapon,
-// missiles, power-ups, and the level name with the level clock for the typewriter.
-as3d::ui::HudState hudStateOf(const GameSession& session);
+// hudStateOf(session) is in game_session.h (shared with the 3DS app).
 
 } // namespace as3d_game
