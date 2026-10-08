@@ -10,6 +10,7 @@
 // as3d::BlendMode); definitions are forward-declared.
 #pragma once
 
+#include <cstring>
 #include <map>
 #include <memory>
 #include <string>
@@ -245,12 +246,33 @@ struct Entity {
 
     u32 fields[kEntityFieldCount] = {};
 
+    // Field access by bit copy (defined inline below: these run hundreds of times per
+    // entity per step).
     float f(int k) const;
     void setF(int k, float v);
     Vec3 v3(int k) const;
     void setV3(int k, const Vec3& v);
     int flagBits() const; // ftol(field 3)
 };
+
+inline float Entity::f(int k) const {
+    float v;
+    std::memcpy(&v, &fields[k], sizeof v);
+    return v;
+}
+inline void Entity::setF(int k, float v) { std::memcpy(&fields[k], &v, sizeof v); }
+inline Vec3 Entity::v3(int k) const { return {f(k), f(k + 1), f(k + 2)}; }
+inline void Entity::setV3(int k, const Vec3& v) {
+    setF(k, v.x);
+    setF(k + 1, v.y);
+    setF(k + 2, v.z);
+}
+// ftol of world_internal.h (the executable's 0x440870: truncation, INT32_MIN outside range).
+inline int Entity::flagBits() const {
+    const float v = f(F_FLAGS);
+    if (!(v > -2147483649.0f && v < 2147483648.0f)) return static_cast<int>(0x80000000u);
+    return static_cast<int>(v);
+}
 
 struct PlayerRecord {
     u32 entityRef = 0;          // +0x00 as a script reference (0 = none)

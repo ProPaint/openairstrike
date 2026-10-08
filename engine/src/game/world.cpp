@@ -21,20 +21,6 @@ namespace as3d {
 using script::DispatchResult;
 using script::EntryPoint;
 
-// ---------------------------------------------------------------------------------------
-// Entity field helpers.
-// ---------------------------------------------------------------------------------------
-
-float Entity::f(int k) const { return bitsf(fields[k]); }
-void Entity::setF(int k, float v) { fields[k] = fbits(v); }
-Vec3 Entity::v3(int k) const { return {f(k), f(k + 1), f(k + 2)}; }
-void Entity::setV3(int k, const Vec3& v) {
-    setF(k, v.x);
-    setF(k + 1, v.y);
-    setF(k + 2, v.z);
-}
-int Entity::flagBits() const { return ftol(f(F_FLAGS)); }
-
 namespace {
 
 // Class value (field 2) of a definition: 1 player, 2 enemy, 3 item, 5 civilian (the sequels'
