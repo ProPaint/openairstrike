@@ -13,7 +13,8 @@
 #    there (declared in audio_device.h); AudioBackend::Platform selects it.
 #    The device pulls samples with Mixer::render() (float) or
 #    Mixer::renderS16() (int16 interleaved stereo). The sdl backend returns
-#    its SDL device. Link any backend libraries from this file.
+#    its SDL device, the ndsp backend (3DS) its ndsp device or null when
+#    ndspInit fails. Link any backend libraries from this file.
 #  - Music: a second axis, independent of the backend directory. The neutral
 #    glob picks up both music_openmpt.cpp and music_stub.cpp; this file
 #    removes them from the target and adds exactly one, chosen by
@@ -40,6 +41,11 @@ if(DEFINED ENV{AS3D_DATA_ROOT} AND NOT "$ENV{AS3D_DATA_ROOT}" STREQUAL "")
   set(AS3D_AUDIO_DATA_ROOT "$ENV{AS3D_DATA_ROOT}")
 else()
   set(AS3D_AUDIO_DATA_ROOT "${AS3D_REPO_ROOT}")
+endif()
+
+# ---- ndsp (the 3DS output device, audio/ndsp/) ----
+if(NINTENDO_3DS)
+  target_link_libraries(as3d_audio PUBLIC ctru)
 endif()
 
 # ---- SDL2 (output device) ----

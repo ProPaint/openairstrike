@@ -46,6 +46,9 @@ bool Audio::init(Vfs& vfs, AudioBackend backend, int preferredRate) {
         case AudioBackend::Platform: impl_->device = audio::makePlatformAudioDevice(); break;
         default: impl_->device = audio::makeNullAudioDevice(); break;
     }
+    // A backend may have no device (the 3DS without DSP firmware, Sdl on the 3DS): init fails
+    // and the caller decides (AudioBridge falls back to the Null backend).
+    if (!impl_->device) return false;
     if (!impl_->device->open(preferredRate, &impl_->mixer)) {
         impl_->device.reset();
         return false;

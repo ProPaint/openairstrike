@@ -17,7 +17,7 @@ constexpr size_t kMaxLoops = 32;     // entity-attached channels (engine-behavio
 bool AudioBridge::init(Vfs& vfs, bool nullDevice) {
     shutdown();
     null_ = nullDevice;
-    ok_ = audio_.init(vfs, nullDevice ? AudioBackend::Null : AudioBackend::Sdl);
+    ok_ = audio_.init(vfs, nullDevice ? AudioBackend::Null : AudioBackend::Platform);
     if (!ok_ && !nullDevice) {
         AS3D_WARN("audio: no output device, continuing silent");
         null_ = true;

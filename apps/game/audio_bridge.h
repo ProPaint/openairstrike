@@ -26,7 +26,8 @@ public:
     };
 
     // `nullDevice`: no output device, the mixer is pulled by pump() (headless, tests).
-    // Falls back to the null device when the SDL device cannot be opened.
+    // Otherwise the platform's device (AudioBackend::Platform: SDL on desktop, Android and the web,
+    // ndsp on the 3DS); falls back to the null device when it cannot be opened.
     bool init(as3d::Vfs& vfs, bool nullDevice);
     void shutdown();
 
