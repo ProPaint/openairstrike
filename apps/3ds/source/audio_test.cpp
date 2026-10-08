@@ -142,14 +142,14 @@ std::vector<std::string> missionSounds(Vfs& vfs, const DefDatabase& db, const Ga
                 }
         return std::string();
     };
+    // Mission 1's set has no looping sound (the rotor is not a sample of AirStrike 3D): the
+    // machine gun, a missile and an explosion; whatever exists when names differ.
     std::vector<std::string> out;
-    std::string a = pick({"rotor", "heli", "engine"});
-    std::string b = pick({"gun", "mg", "shot", "fire"});
-    if (a.empty() && !all.empty()) a = pick({""});
-    if (b.empty() && !all.empty()) b = pick({""});
-    std::string c = pick({"expl", ""});
-    for (const std::string* s : {&a, &b, &c})
-        if (!s->empty()) out.push_back(*s);
+    for (std::initializer_list<const char*> keys :
+         {std::initializer_list<const char*>{"uzi", "gun", ""}, {"missile", ""}, {"expl", ""}}) {
+        std::string n = pick(keys);
+        if (!n.empty()) out.push_back(n);
+    }
     return out;
 }
 
@@ -208,20 +208,19 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
         tone != kInvalidSoundId ? "loaded" : "MISSING");
 
     Second prev;
-    VoiceId loop = kInvalidVoiceId;
     const u64 t0 = svcGetSystemTick();
     int f = 0;
     for (; f < total && aptMainLoop(); ++f) {
         hidScanInput();
         if (hidKeysDown() & KEY_START) break;
         if (f == 0) audio.play(tone);
-        if (f == 75 && ids.size() > 0) {
+        if (f >= 75 && f < 195 && (f - 75) % 12 == 0 && ids.size() > 0) audio.play(ids[0]);
+        if (f == 210 && ids.size() > 1) audio.play(ids[1]);
+        if (f == 240 && ids.size() > 2) {
             PlayParams p;
-            p.loop = true;
-            loop = audio.play(ids[0], p);
+            p.pan = 0.6f; // off centre: the stereo path
+            audio.play(ids[2], p);
         }
-        if (f >= 90 && f < 210 && (f - 90) % 12 == 0 && ids.size() > 1) audio.play(ids[1]);
-        if (f == 240 && ids.size() > 2) audio.play(ids[2]);
         if (f > 0 && f % 60 == 0) {
             char tag[16];
             std::snprintf(tag, sizeof tag, "s%d", f / 60);
@@ -229,7 +228,6 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
         }
         gspWaitForVBlank();
     }
-    if (loop != kInvalidVoiceId) audio.stop(loop);
     say("ran %d frames in %.0f ms\n", f, ms(svcGetSystemTick() - t0));
     report("end", audio, prev);
     const u64 c0 = svcGetSystemTick();

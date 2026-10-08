@@ -2,10 +2,9 @@
 // Opens as3d::Audio on the platform device (the ndsp device; the Null device when ndspInit fails,
 // e.g. without sdmc:/3ds/dspfirm.cdc), then, one frame per vblank:
 //   frames   0..59  a generated 440 Hz tone (a WAV built in memory, mounted as audiotest\tone.wav)
-//   frame   75      the first looping sound of mission 1's precache set (the rotor, if any), until
-//                   the end
-//   frames  90..    the second sound (a gun, if any) every 12 frames for 2 s
-//   frame  240      the third sound, once
+//   frames  75..194 mission 1's machine gun (sounds\uzi.wav, from its precache set) every 12 frames
+//   frame  210      a missile
+//   frame  240      an explosion, panned right
 // and ends after `frames` frames (default 360). Every second, and at the end, it logs the device
 // counters: fills (expected 32728 / 1024 = 32 per second), underruns, the peak sample of the
 // buffers filled that second, the longest fill, the feeder's CPU share, active voices. Before the

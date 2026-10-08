@@ -196,7 +196,7 @@ stops at exit. Music is not played yet (`AS3D_WITH_OPENMPT=OFF`, M2.4). `log.txt
 
 `mode=audiotest` (optional `frames=N`, default 360 = 6 s) runs `source/audio_test.cpp`: a check of
 `std::thread` + `std::mutex`, then `as3d::Audio` on the platform device plays a generated 440 Hz
-tone for 1 s, then three sounds of mission 1's precache set (a looping one, one repeated every 12
-frames, one once). Every second it logs fills (+32 per second expected), underruns, the peak
+tone for 1 s, then three sounds of mission 1's precache set (the machine gun every 12 frames for 2 s,
+a missile, an explosion panned right). Every second it logs fills (+32 per second expected), underruns, the peak
 sample of that second's buffers (about 11000 for the tone), the longest fill and the feeder's CPU
 share; it writes `audiotest_log.txt`. docs/3ds-port.md, "M2.3".
