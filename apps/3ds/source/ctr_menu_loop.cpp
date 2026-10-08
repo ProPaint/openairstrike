@@ -437,6 +437,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     AS3D_INFO("stopped after %u frames, %u steps (%u in the last level), screen %s", frameNo, steps, levelSteps,
               screen.c_str());
     if (ses.hasLevel()) logEndState(ses, ses.mission(), levelSteps);
+    logPaceSummary();
     perf.writeSummary(frameNo, steps, dropped);
     audio.logSummary();
     aptUnhook(&cookie);

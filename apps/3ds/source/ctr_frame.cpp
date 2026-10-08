@@ -148,7 +148,14 @@ struct GameFrame::Impl {
     std::unique_ptr<WorldRenderer> renderer;
     std::unique_ptr<ui::Renderer2D> r2d;       // the top screen's 2D list (built once, flushed per eye)
     std::unique_ptr<ui::Renderer2D> r2dTopOver; // the top screen's list over the model view (its static fill)
-    std::unique_ptr<ui::Renderer2D> r2dBottom; // the front end: the bottom screen's list, built in prepare
+    std::unique_ptr<ui::Renderer2D> r2dBottom; // the bottom screen's HUD (the front end: built in prepare)
+    // The bottom screen's touch band and the front end's menus, each a list of its own: the band
+    // rarely changes, so its converted vertices stay cached (renderer2d_pica.cpp) while the HUD's
+    // digits and bars change under it.
+    std::unique_ptr<ui::Renderer2D> r2dTouch;
+    std::unique_ptr<ui::Renderer2D> r2dMenu;
+    bool touchQuads = false, menuQuads = false; // the front end's frame filled them
+    uint64_t kickTick = 0; // the first gpu_kick of the frame (the pacer's GPU time)
     std::unique_ptr<ui::UiAssets> assets;
     bool hudReady = false;
     bool precached = false;
@@ -307,11 +314,14 @@ struct GameFrame::Impl {
         r2d.reset(new ui::Renderer2D());
         r2dBottom.reset(new ui::Renderer2D());
         r2dTopOver.reset(new ui::Renderer2D());
+        r2dTouch.reset(new ui::Renderer2D());
+        r2dMenu.reset(new ui::Renderer2D());
         assets.reset(new ui::UiAssets());
         std::string hudError;
         const GameId game = ses.game() ? ses.game()->id : GameId::AirStrike3D;
         assets->hudTarget = ui::HudTarget::Bottom320x240;
-        hudReady = r2d->init(&hudError) && r2dBottom->init(&hudError) && r2dTopOver->init(&hudError) && assets->load(ses.vfs(), &hudError, game);
+        hudReady = r2d->init(&hudError) && r2dBottom->init(&hudError) && r2dTopOver->init(&hudError) &&
+                   r2dTouch->init(&hudError) && r2dMenu->init(&hudError) && assets->load(ses.vfs(), &hudError, game);
         if (!hudReady) AS3D_WARN("HUD unavailable: %s", hudError.c_str());
     }
 
@@ -471,20 +481,27 @@ struct GameFrame::Impl {
         assets->hudTarget = ui::HudTarget::Bottom320x240;
         r.begin(kBottomW, kBottomH);
         if (l.hud && pica::passEnabled(pica::Pass::Hud)) ui::drawHud(r, *assets, l.hudState);
+        touchQuads = false;
         if (info && info->playing && info->touch && l.hud && pica::passEnabled(pica::Pass::Touch)) {
             ui::TouchControlsState ts;
             ts.assets = assets.get();
             ts.player = &l.hudState.players[0];
             ts.rules = &ses.rules();
-            ui::drawTouchControls(r, *info->touch, ts);
+            r2dTouch->begin(kBottomW, kBottomH);
+            ui::drawTouchControls(*r2dTouch, *info->touch, ts);
+            touchQuads = true;
         }
         // frontend.md 4.1: the menus after the HUD. The main menu's 3D banner (between the two
         // halves on the desktop) is the title on the top screen here; the sequels' model view
         // (between the halves as well) is prepared for the top screen (setModel).
+        menuQuads = false;
         if (ui::Frontend* fe = l.frontend) {
-            fe->drawUnder(r, *assets);
+            ui::Renderer2D& m = *r2dMenu;
+            m.begin(kBottomW, kBottomH);
+            fe->drawUnder(m, *assets);
             if (fe->modelViewVisible()) fe->drawModelViews();
-            fe->drawOver(r, *assets);
+            fe->drawOver(m, *assets);
+            menuQuads = true;
         }
     }
 
@@ -801,6 +818,7 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
     }
     im.cmdUsageMax = std::max(im.cmdUsageMax, C3D_GetCmdBufUsage());
     // gpu_kick=1: the GPU draws this eye while the CPU records the next (pica_frame.h).
+    if (eye == 0) im.kickTick = pica::gpuKick() ? svcGetSystemTick() : 0;
     pica::kickGpu();
 }
 
@@ -810,16 +828,21 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
     clear(Vec4{0, 0, 0, 1}, false, 1.0f);
     if (im.hudReady && im.flow) {
         UiMeter m(pica::Pass::Bottom2d);
-        if (im.haveLayers) im.r2dBottom->flush();
+        if (im.haveLayers) {
+            im.r2dBottom->flush();
+            if (im.touchQuads) im.r2dTouch->flush();
+            if (im.menuQuads) im.r2dMenu->flush();
+        }
     } else if (im.hudReady) {
         const World& world = info.session->world();
         im.assets->hudTarget = ui::HudTarget::Bottom320x240;
         ui::Renderer2D& r = *im.r2d;
         if (im.showHud && pica::passEnabled(pica::Pass::Hud)) {
             UiMeter m(pica::Pass::Hud);
-            r.begin(kBottomW, kBottomH);
-            ui::drawHud(r, *im.assets, im.hud);
-            r.flush();
+            ui::Renderer2D& h = *im.r2dBottom;
+            h.begin(kBottomW, kBottomH);
+            ui::drawHud(h, *im.assets, im.hud);
+            h.flush();
         }
         // The hint box over the HUD (render-pipeline.md 1.1 pass 13).
         if (info.session->hasLevel() && world.hintShowing() && pica::passEnabled(pica::Pass::Hint)) {
@@ -834,9 +857,10 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
             ts.assets = im.assets.get();
             ts.player = &im.hud.players[0];
             ts.rules = &world.rules();
-            r.begin(kBottomW, kBottomH);
-            ui::drawTouchControls(r, *info.touch, ts);
-            r.flush();
+            ui::Renderer2D& t = *im.r2dTouch;
+            t.begin(kBottomW, kBottomH);
+            ui::drawTouchControls(t, *info.touch, ts);
+            t.flush();
         }
     }
     im.arenaUsed = pica::frameArena().used();
@@ -856,6 +880,7 @@ void GameFrame::stats(FrameStats& out) {
     out.texLinearKb = static_cast<unsigned>(ts.linearBytes / 1024);
     out.lazyLoads = im.precached ? static_cast<unsigned>(LoadStats::lazyLoads().total()) : 0u;
     out.arenaKb = static_cast<unsigned>(im.arenaUsed / 1024);
+    out.gpuStartTick = im.kickTick;
     // The per-pass CPU table (pass_profile.h), every kPassReportFrames displayed frames.
     pica::PassProfile& pp = pica::passProfile();
     pp.endFrame();
@@ -962,6 +987,8 @@ void GameFrame::end() {
     im.r2d.reset();
     im.r2dBottom.reset();
     im.r2dTopOver.reset();
+    im.r2dTouch.reset();
+    im.r2dMenu.reset();
     if (im.backend) pica::shutdownBackend();
     im.backend = false;
 }

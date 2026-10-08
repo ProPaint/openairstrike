@@ -14,6 +14,9 @@
 // processing time (FrameBegin to FrameEnd, about submit_ms); gpu_ms the GPU time from
 // FrameEnd to the end of the queue.
 //
+// The log and the rows are kept in memory and written by a low-priority writer thread (about once
+// a second, while the main thread waits): no SD write on the main thread during play.
+//
 // The frame composer (ctr_frame.h) fills the renderer columns through FrameStats: prepare_ms the
 // CPU time of its prepare(), verts/draws the GPU work of both screens, the texture bytes of
 // pica::textureStats, lazy_loads the first-use loads since the precache (LoadStats), arena_kb the
@@ -35,6 +38,7 @@ struct FrameStats {
     unsigned texVramKb = 0, texLinearKb = 0;
     unsigned lazyLoads = 0;
     unsigned arenaKb = 0;  // frame arena bytes used by this frame
+    uint64_t gpuStartTick = 0; // when the GPU got the frame's first command list (gpu_kick), 0: at C3D_FrameEnd
 };
 
 struct FrameSample {
@@ -48,10 +52,15 @@ struct FrameSample {
     float submitMs = 0.0f; // between C3D_FrameBegin and C3D_FrameEnd
     float syncMs = 0.0f;   // the vblank wait before the frame (C3D_FrameSync)
     int renderHz = 60;     // the pacing's rate when the frame was drawn (pace=auto)
+    uint64_t endTick = 0;  // when C3D_FrameEnd was called
     float endMs = 0.0f;    // in C3D_FrameEnd
     float afterMs = 0.0f;  // the hook's afterFrame (dumps)
     FrameStats stats;
 };
+
+// True once after Perf wrote log.txt / perf.csv to the SD card (the pacer excuses the frame
+// that waited for it); reading clears it.
+bool takePerfIoFlag();
 
 // Wall clock of the app: the ARM11 system tick (268.111856 MHz).
 uint64_t nowTicks();

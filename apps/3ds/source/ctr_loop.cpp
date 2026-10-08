@@ -106,7 +106,7 @@ struct ClockState {
 };
 ClockState g_clock;
 
-// pace=auto (ctr_loop.h): the miss ring at 60 Hz, the fit streak at 30 Hz.
+// pace=auto (ctr_loop.h): the miss ring at 60 Hz, the fit streak at 30 Hz, the excuses.
 struct PacerState {
     int baseHz = 60;   // the quality profile's render rate
     int hz = 60;       // the current one
@@ -116,8 +116,108 @@ struct PacerState {
     int missAt = 0, misses = 0;
     int fitStreak = 0;
     unsigned changes = 0;
+    int grace = 300;          // frames after a start / level load whose misses do not count
+    uint64_t lastSync = 0;    // the sync of the last frame the pacer saw
+    FrameSample prev;         // that frame's columns (the miss logs)
+    long long lazyLoads = 0;  // LoadStats total at the last frame (a late load excuses a miss)
+    int eyes = 1;             // of the last frame (pace=auto: stereo starts at 30 Hz)
+    int fitNeeded = 120;      // fitting frames in a row to go to 60 Hz (doubled after a quick fall back)
+    unsigned promotedAt = 0, frameNo = 0;
+    // The summary.
+    unsigned frames60 = 0, misses60 = 0, excused60 = 0, frames30 = 0, misses30 = 0, logged = 0;
 };
 PacerState g_pacer;
+
+void setRenderHz(int hz, const char* why);
+
+// After each frame: the vblanks since the last frame's sync decide a miss (2+ at 60 Hz, 3+ at
+// 30). Not counted (excused): the 300 frames after a start or a level load, a frame that waited
+// for an SD write of the log (perf=1), a dump, or a late load. A miss is logged with the columns
+// of the frame before (what ran between the two syncs) and this frame's step and prepare.
+// pace=auto: two eyes start at 30 Hz (the console's stereo GPU is 13.5 ms avg, 16.5 p95), one
+// eye at 60 Hz; 3 counted misses in 120 frames at 60 Hz go to 30 Hz; at 30 Hz, fitNeeded (120)
+// frames in a row whose CPU path (one step + prepare + recording + end) stays under 13 ms and
+// whose GPU time (from the first command list to the end of the queue) under 14 ms go to 60 Hz;
+// a fall back within 600 frames of that doubles fitNeeded (at most 3600).
+void updatePacer(const FrameSample& sample) {
+    PacerState& p = g_pacer;
+    const bool io = takePerfIoFlag();
+    const long long lazy = as3d::LoadStats::lazyLoads().total();
+    const bool lateLoad = lazy != p.lazyLoads;
+    p.lazyLoads = lazy;
+    int interval = 1;
+    if (p.lastSync != 0)
+        interval = static_cast<int>(static_cast<double>(g_clock.lastSync - p.lastSync) / kVblankTicks + 0.5);
+    p.lastSync = g_clock.lastSync;
+    const int expected = 60 / p.hz;
+    const bool late = interval > expected;
+    const bool excused = p.grace > 0 || io || lateLoad || p.prev.afterMs > 5.0f;
+    if (p.grace > 0) --p.grace;
+    if (p.hz == 60) ++p.frames60;
+    else ++p.frames30;
+    if (late) {
+        if (excused) {
+            if (p.hz == 60) ++p.excused60;
+        } else if (p.hz == 60) {
+            ++p.misses60;
+        } else {
+            ++p.misses30;
+        }
+        if (!excused && (p.logged < 40 || (p.misses60 + p.misses30) % 100 == 0)) {
+            ++p.logged;
+            const FrameSample& q = p.prev;
+            AS3D_INFO("AS3D_MISS hz=%d vblanks=%d prev: submit=%.1f end=%.1f after=%.1f gpu_tail=%.1f; now: steps=%d "
+                      "step=%.1f prepare=%.1f wait=%.1f",
+                      p.hz, interval, static_cast<double>(q.submitMs), static_cast<double>(q.endMs),
+                      static_cast<double>(q.afterMs), static_cast<double>(q.gpuMs), sample.simSteps,
+                      static_cast<double>(sample.stepMs), static_cast<double>(sample.stats.prepareMs),
+                      static_cast<double>(sample.waitMs));
+        }
+    }
+    // The previous frame's GPU time: from its first command list to the end of the queue (the
+    // tail C3D_GetDrawingTime gives now is the previous frame's).
+    const FrameSample& q = p.prev;
+    const uint64_t gpuStart = q.stats.gpuStartTick ? q.stats.gpuStartTick : q.endTick;
+    const float gpuFull = (q.endTick > gpuStart ? static_cast<float>(ticksToMs(q.endTick - gpuStart)) : 0.0f) + sample.gpuMs;
+    p.prev = sample;
+    ++p.frameNo;
+    if (!p.autoMode) return;
+    const int eyes = sample.stats.eyes > 0 ? sample.stats.eyes : 1;
+    if (eyes != p.eyes) {
+        p.eyes = eyes;
+        p.fitNeeded = 120;
+        if (eyes == 2 && p.hz == 60) setRenderHz(30, "stereo");
+        else if (eyes == 1 && p.hz == 30) setRenderHz(60, "mono");
+        p.grace = std::max(p.grace, 60);
+        return;
+    }
+    if (p.hz == 60) {
+        const uint8_t m = late && !excused ? 1 : 0;
+        p.misses += m - p.miss[p.missAt];
+        p.miss[p.missAt] = m;
+        p.missAt = (p.missAt + 1) % PacerState::kWindow;
+        if (p.misses >= 3) {
+            if (p.promotedAt && p.frameNo - p.promotedAt < 600) p.fitNeeded = std::min(p.fitNeeded * 2, 3600);
+            setRenderHz(30, "misses");
+        }
+    } else {
+        const float steps = sample.simSteps > 0 ? static_cast<float>(sample.simSteps) : 1.0f;
+        const float cpu = sample.stepMs / steps + sample.stats.prepareMs + sample.submitMs + sample.endMs;
+        const bool fits = cpu < 13.0f && gpuFull < 14.0f;
+        if (!excused) p.fitStreak = fits ? p.fitStreak + 1 : 0;
+        if (p.fitStreak >= p.fitNeeded) {
+            p.promotedAt = p.frameNo;
+            setRenderHz(60, "fits");
+        }
+    }
+}
+
+void logPaceSummaryImpl() {
+    const PacerState& p = g_pacer;
+    AS3D_INFO("PERF_SUMMARY pace changes=%u frames60=%u misses60=%u (%.2f%%) excused60=%u frames30=%u misses30=%u",
+              p.changes, p.frames60, p.misses60, p.frames60 ? 100.0 * p.misses60 / p.frames60 : 0.0, p.excused60,
+              p.frames30, p.misses30);
+}
 
 void setRenderHz(int hz, const char* why) {
     if (g_pacer.hz == hz) return;
@@ -131,6 +231,8 @@ void setRenderHz(int hz, const char* why) {
 }
 
 } // namespace
+
+void logPaceSummary() { logPaceSummaryImpl(); }
 
 void setFramePacing(const RunConfig& run) {
     g_pacing.gpuKick = run.gpuKick;
@@ -149,8 +251,10 @@ void startPacing(int profileHz) {
     g_pacer.baseHz = profileHz;
     g_pacer.autoMode = g_pacing.pace == 0 && profileHz == 60;
     const int want = g_pacing.pace == 30 ? 30 : (g_pacing.pace == 60 ? 60 : profileHz);
+    g_pacer.eyes = 1; // the first stereo frame switches to 30 Hz (pace=auto)
     C3D_FrameRate(static_cast<float>(want));
     g_pacer.hz = want;
+    g_pacer.lazyLoads = as3d::LoadStats::lazyLoads().total();
     g_clock = ClockState();
     AS3D_INFO("AS3D_PACE hz=%d reason=start auto=%d", want, g_pacer.autoMode ? 1 : 0);
 }
@@ -159,7 +263,11 @@ int renderHz() { return g_pacer.hz; }
 int maxCatchUp() { return g_pacer.hz == 30 ? 4 : 2; }
 unsigned paceChanges() { return g_pacer.changes; }
 
-void FrameClock::reset() { g_clock.fresh = 2; }
+void FrameClock::reset() {
+    g_clock.fresh = 2;
+    g_pacer.grace = 300; // a level load: its first seconds' misses do not count
+    g_pacer.lastSync = 0;
+}
 
 int FrameClock::due(unsigned* dropped) {
     const int perTick = 60 / g_pacer.hz;
@@ -200,6 +308,7 @@ void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSam
         for (int eye = 0; eye < info.eyes; ++eye) hook.drawTop(ctx, eye, info);
         hook.drawBottom(ctx, info);
         const uint64_t w2 = nowTicks();
+        sample.endTick = w2;
         ctx.endFrame(g_pacing.cmdlistFlush ? GX_CMDLIST_FLUSH : 0);
         sample.waitMs = static_cast<float>(ticksToMs(w1 - ws));
         sample.submitMs = static_cast<float>(ticksToMs(w2 - w1));
@@ -213,26 +322,7 @@ void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSam
     hook.afterFrame(ctx, info);
     sample.afterMs = static_cast<float>(ticksToMs(nowTicks() - a0));
     sample.renderHz = g_pacer.hz;
-    // pace=auto: 60 Hz while frames fit, 30 Hz (two steps per frame) while they do not. A miss
-    // is a frame shown for two vblanks or more at 60 Hz; 3 in the last 120 frames go to 30 Hz.
-    // At 30 Hz a frame "fits" when the GPU wait, its recording, its end and the larger of the GPU
-    // tail and one step + prepare stay under 14.5 ms; 240 such frames in a row go back to 60 Hz.
-    if (g_pacer.autoMode) {
-        PacerState& p = g_pacer;
-        if (p.hz == 60) {
-            const uint8_t m = g_clock.lastInterval >= 2 ? 1 : 0;
-            p.misses += m - p.miss[p.missAt];
-            p.miss[p.missAt] = m;
-            p.missAt = (p.missAt + 1) % PacerState::kWindow;
-            if (p.misses >= 3) setRenderHz(30, "misses");
-        } else {
-            const float steps = sample.simSteps > 0 ? static_cast<float>(sample.simSteps) : 1.0f;
-            const float onePrepare = sample.stats.prepareMs + sample.stepMs / steps;
-            const float work = sample.waitMs + sample.submitMs + sample.endMs + std::max(sample.gpuMs, onePrepare);
-            p.fitStreak = work < 14.5f ? p.fitStreak + 1 : 0;
-            if (p.fitStreak >= 240) setRenderHz(60, "fits");
-        }
-    }
+    updatePacer(sample);
 }
 
 namespace {
@@ -518,6 +608,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     if (opts.saveHook) opts.saveHook();
     AS3D_INFO("stopped after %u frames, %u steps", frame, steps);
     logEndState(*session, run.level, steps);
+    if (!sim) logPaceSummary();
     perf.writeSummary(frame, steps, dropped);
     if (!sim) audio.logSummary();
     if (hook && !sim) hook->end();

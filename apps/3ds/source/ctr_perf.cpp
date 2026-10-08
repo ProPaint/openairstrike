@@ -13,24 +13,82 @@
 namespace ctrapp {
 namespace {
 
-// The log file and its line buffer. Shared with the engine's log sink, which may be called from
-// any thread.
-std::mutex g_logMutex;
+// The log file and perf.csv, and their pending text. The engine's log sink (any thread) and
+// Perf::record append to the buffers under g_logMutex; the SD writes happen on the writer thread
+// (lowest priority, so it runs while the main thread waits for the vblank or the GPU), never on
+// the main thread during play: a second's flush there cost a frame (the console's mono runs had
+// a double frame every 53-59 frames). Perf::flush (suspend, exit) writes on the calling thread.
+std::mutex g_logMutex;  // the buffers
+std::mutex g_fileMutex; // the files (the writer, Perf::flush, close)
 std::FILE* g_logFile = nullptr;
-std::string g_logBuf;
+std::FILE* g_csvFile = nullptr;
+std::string g_logBuf, g_csvBuf;
+bool g_ioFlag = false; // a write on the main thread happened (Perf::flush)
 
-void flushLogLocked() {
-    if (g_logFile && !g_logBuf.empty()) {
-        std::fwrite(g_logBuf.data(), 1, g_logBuf.size(), g_logFile);
+struct Writer {
+    Thread thread = nullptr;
+    LightEvent wake;
+    volatile bool quit = false;
+};
+Writer g_writer;
+
+// Takes the pending text and writes it (fwrite + fflush, no fsync).
+void drainToFiles() {
+    std::string log, csv;
+    {
+        std::lock_guard<std::mutex> lock(g_logMutex);
+        log.swap(g_logBuf);
+        csv.swap(g_csvBuf);
+    }
+    if (log.empty() && csv.empty()) return;
+    std::lock_guard<std::mutex> files(g_fileMutex);
+    if (g_logFile && !log.empty()) {
+        std::fwrite(log.data(), 1, log.size(), g_logFile);
         std::fflush(g_logFile);
-        g_logBuf.clear();
+    }
+    if (g_csvFile && !csv.empty()) {
+        std::fwrite(csv.data(), 1, csv.size(), g_csvFile);
+        std::fflush(g_csvFile);
     }
 }
 
+void writerEntry(void*) {
+    while (!g_writer.quit) {
+        LightEvent_WaitTimeout(&g_writer.wake, 2000000000LL); // signalled about once a second
+        drainToFiles();
+    }
+}
+
+void startWriter() {
+    if (g_writer.thread) return;
+    LightEvent_Init(&g_writer.wake, RESET_ONESHOT);
+    g_writer.quit = false;
+    g_writer.thread = threadCreate(writerEntry, nullptr, 16 * 1024, 0x3F, -2, false);
+    if (!g_writer.thread) AS3D_WARN("perf: no writer thread, the log is written on the main thread");
+}
+
+void stopWriter() {
+    if (!g_writer.thread) return;
+    g_writer.quit = true;
+    LightEvent_Signal(&g_writer.wake);
+    threadJoin(g_writer.thread, U64_MAX);
+    threadFree(g_writer.thread);
+    g_writer.thread = nullptr;
+}
+
+void wakeWriter() {
+    if (g_writer.thread) LightEvent_Signal(&g_writer.wake);
+    else drainToFiles(); // no thread: the old behaviour
+}
+
 void logSink(as3d::LogLevel level, const char* line) {
-    std::lock_guard<std::mutex> lock(g_logMutex);
-    g_logBuf += line;
-    if (level >= as3d::LogLevel::Error || g_logBuf.size() > 16384) flushLogLocked();
+    bool wake = false;
+    {
+        std::lock_guard<std::mutex> lock(g_logMutex);
+        g_logBuf += line;
+        wake = level >= as3d::LogLevel::Error || g_logBuf.size() > 65536;
+    }
+    if (wake) wakeWriter();
 }
 
 double percentile(std::vector<float>& v, double p) {
@@ -44,6 +102,12 @@ constexpr size_t kMaxSamples = 36000; // ten minutes at 60 Hz; the statistics be
 
 } // namespace
 
+bool takePerfIoFlag() {
+    const bool f = g_ioFlag;
+    g_ioFlag = false;
+    return f;
+}
+
 uint64_t nowTicks() { return svcGetSystemTick(); }
 double ticksToMs(uint64_t ticks) { return static_cast<double>(ticks) * 1000.0 / SYSCLOCK_ARM11; }
 
@@ -55,20 +119,23 @@ void Perf::open(bool csv) {
         // The first open of the process truncates; later ones (the game selector, then the front
         // end, then the selector again) append.
         static bool opened = false;
+        std::lock_guard<std::mutex> files(g_fileMutex);
         if (!g_logFile) g_logFile = std::fopen((std::string(kDataDir) + "/log.txt").c_str(), opened ? "a" : "w");
         opened = opened || g_logFile;
     }
+    startWriter();
     as3d::setLogSink(logSink);
     as3d::setLogLevel(as3d::LogLevel::Info);
     if (csv) {
-        csv_ = std::fopen((std::string(kDataDir) + "/perf.csv").c_str(), "w");
-        // A large stdio buffer: about a second of rows per SD write (the flush is once a second,
-        // service(); never an fsync).
-        if (csv_) std::setvbuf(csv_, nullptr, _IOFBF, 32 * 1024);
+        {
+            std::lock_guard<std::mutex> files(g_fileMutex);
+            if (!g_csvFile) g_csvFile = std::fopen((std::string(kDataDir) + "/perf.csv").c_str(), "w");
+            csv_ = g_csvFile;
+        }
         if (csv_) {
-            std::fputs("frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,"
-                       "linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz\n",
-                       csv_);
+            std::lock_guard<std::mutex> lock(g_logMutex);
+            g_csvBuf += "frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,"
+                        "linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz\n";
         } else {
             AS3D_WARN("cannot open perf.csv");
         }
@@ -111,10 +178,16 @@ void Perf::record(const FrameSample& s) {
     lazyMax_ = std::max(lazyMax_, s.stats.lazyLoads);
     arenaMax_ = std::max(arenaMax_, s.stats.arenaKb);
     if (csv_) {
-        std::fprintf(csv_, "%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%u,%u,%u,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%d\n", s.frame, s.stepMs, s.stats.prepareMs,
-                     s.cpuMs, s.gpuMs, s.stats.eyes, s.stats.verts, s.stats.draws, s.stats.texVramKb,
-                     s.stats.texLinearKb, static_cast<unsigned>(linearFree / 1024), s.stats.lazyLoads, s.stats.arenaKb,
-                     s.simSteps, s.submitMs, s.waitMs, s.endMs, s.afterMs, s.syncMs, s.renderHz);
+        char row[256];
+        const int n = std::snprintf(row, sizeof row, "%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%u,%u,%u,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%d\n",
+                                    s.frame, s.stepMs, s.stats.prepareMs, s.cpuMs, s.gpuMs, s.stats.eyes, s.stats.verts,
+                                    s.stats.draws, s.stats.texVramKb, s.stats.texLinearKb,
+                                    static_cast<unsigned>(linearFree / 1024), s.stats.lazyLoads, s.stats.arenaKb,
+                                    s.simSteps, s.submitMs, s.waitMs, s.endMs, s.afterMs, s.syncMs, s.renderHz);
+        if (n > 0) {
+            std::lock_guard<std::mutex> lock(g_logMutex);
+            g_csvBuf.append(row, static_cast<size_t>(std::min(n, static_cast<int>(sizeof row) - 1)));
+        }
     }
     service();
 }
@@ -122,14 +195,14 @@ void Perf::record(const FrameSample& s) {
 void Perf::service() {
     const uint64_t now = nowTicks();
     if (now - lastFlush_ < SYSCLOCK_ARM11) return;
-    flush();
+    lastFlush_ = now;
+    wakeWriter(); // the writer thread writes; nothing on this thread
 }
 
 void Perf::flush() {
     lastFlush_ = nowTicks();
-    if (csv_) std::fflush(csv_);
-    std::lock_guard<std::mutex> lock(g_logMutex);
-    flushLogLocked();
+    g_ioFlag = true;
+    drainToFiles();
 }
 
 void Perf::writeSummary(unsigned frames, unsigned steps, unsigned dropped) {
@@ -163,14 +236,15 @@ void Perf::writeSummary(unsigned frames, unsigned steps, unsigned dropped) {
 }
 
 void Perf::close() {
-    flush();
-    if (csv_) {
-        std::fclose(csv_);
-        csv_ = nullptr;
-    }
     as3d::setLogSink(nullptr);
-    std::lock_guard<std::mutex> lock(g_logMutex);
-    flushLogLocked();
+    stopWriter();
+    drainToFiles();
+    std::lock_guard<std::mutex> files(g_fileMutex);
+    if (g_csvFile) {
+        std::fclose(g_csvFile);
+        g_csvFile = nullptr;
+    }
+    csv_ = nullptr;
     if (g_logFile) {
         std::fclose(g_logFile);
         g_logFile = nullptr;

@@ -126,6 +126,7 @@ void startPacing(int profileHz);
 int renderHz();
 int maxCatchUp();
 unsigned paceChanges();
+void logPaceSummary(); // PERF_SUMMARY pace: changes, misses at 60 / 30 Hz, excused ones
 
 class FrameClock {
 public:
