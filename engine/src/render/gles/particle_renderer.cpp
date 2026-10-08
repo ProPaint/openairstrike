@@ -74,6 +74,11 @@ bool ParticleRenderer::init(Vfs& vfs, std::string* error) {
     return true;
 }
 
+void ParticleRenderer::preload(const std::string& path) {
+    if (path.empty() || !impl_->vfs) return;
+    impl_->texture(path, missing_);
+}
+
 void ParticleRenderer::draw(const ParticleEmitter* const* emitters, size_t count, const ParticleViewParams& params) {
     Impl& im = *impl_;
     lastParticles_ = 0;

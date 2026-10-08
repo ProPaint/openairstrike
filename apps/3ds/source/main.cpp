@@ -32,6 +32,7 @@
 #include "probe.h"
 #include "render.h"
 #include "spike.h"
+#include "fx_test.h"
 #include "terrain_test.h"
 
 extern "C" {
@@ -234,6 +235,17 @@ int runSpike() {
         if (g_log) std::fclose(g_log);
         g_log = nullptr;
         terraintest::run(vfs, db, *game, kDir, runCfg.level, runCfg.holdFrames);
+        std::fflush(stderr);
+        C3D_Fini();
+        gfxExit();
+        return 0;
+    }
+
+    // mode=fxtest: the M1.6 particle, sprite and health bar test (fx_test.cpp).
+    if (runCfg.fxtest) {
+        if (g_log) std::fclose(g_log);
+        g_log = nullptr;
+        fxtest::run(vfs, db, *game, kDir, runCfg.level, runCfg.botFrames, runCfg.holdFrames);
         std::fflush(stderr);
         C3D_Fini();
         gfxExit();

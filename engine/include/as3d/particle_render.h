@@ -73,6 +73,11 @@ public:
         draw(&e, 1, params);
     }
 
+    // Loads and caches the texture of an emitter ahead of its first draw (a game path, as
+    // ParticleDesc::texture). The level-start precache calls it; on the 3DS textures are never
+    // created inside a frame, so a texture that was not preloaded is drawn white and counted.
+    void preload(const std::string& path);
+
     // Stats of the last draw call.
     int lastParticleCount() const { return lastParticles_; }
     int missingTextures() const { return missing_; }

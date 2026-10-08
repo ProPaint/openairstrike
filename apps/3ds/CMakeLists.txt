@@ -25,6 +25,7 @@ add_executable(openairstrike
   source/probe.cpp
   source/render.cpp
   source/terrain_test.cpp
+  source/fx_test.cpp
   ${AS3D_REPO_ROOT}/apps/game/game_session.cpp)
 # pica_test.cpp uses the PICA backend's own headers (engine/src/render/pica).
 target_include_directories(openairstrike PRIVATE source ${AS3D_REPO_ROOT}/apps/game

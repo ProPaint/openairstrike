@@ -326,31 +326,13 @@ struct WorldRenderer::Impl {
         }
     }
 
-    // ParticleRenderer loads an emitter's texture the first time it draws it, from a cache of
-    // its own (engine/src/render/gles/particle_renderer.cpp, which has no preload): draw one
-    // invisible particle (size 0, alpha 0, scissored to nothing) per texture.
+    // Loads the particle textures of the level's particle systems ahead of their first draw
+    // (ParticleRenderer keeps a texture cache of its own).
     void precacheParticleTextures(const std::vector<const ParticleSystemDef*>& systems) {
-        std::vector<std::string> seen;
-        setScissor(true, 0, 0, 0, 0);
         for (const ParticleSystemDef* ps : systems) {
-            ParticleDesc d = ParticleDesc::fromDef(*ps);
-            if (d.texture.empty()) continue;
-            const std::string key = normalizePath(d.texture);
-            if (std::find(seen.begin(), seen.end(), key) != seen.end()) continue;
-            seen.push_back(key);
-            d.emitOnce = true;
-            d.emitRate = 1;
-            d.lifeTime = 1.0f;
-            d.initSize[0] = d.initSize[1] = 0.0f;
-            d.sizeRate = 0.0f;
-            for (float& c : d.initColor) c = 0.0f;
-            ParticleEmitter e(d, 1u);
-            ParticleViewParams pv;
-            pv.view = Mat4();
-            pv.projection = Mat4();
-            particles.draw(e, pv);
+            const ParticleDesc d = ParticleDesc::fromDef(*ps);
+            if (!d.texture.empty()) particles.preload(d.texture);
         }
-        setScissor(false);
     }
 
     // Looks up the health bar objects named by the rules; hbarReady is false without them.
