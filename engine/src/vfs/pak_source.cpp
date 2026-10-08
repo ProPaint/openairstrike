@@ -1,4 +1,5 @@
 // PAK archive source. See docs/spec/pak.md. Reference: tools/paktool.py.
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -43,6 +44,14 @@ public:
         auto it = entries_.find(path);
         if (it == entries_.end()) return false;
         const PakEntry& e = it->second;
+        auto pf = prefetched_.find(path);
+        if (pf != prefetched_.end()) { // read ahead (prefetch): already in memory, encrypted
+            out = pf->second; // kept until dropPrefetched: a file is often read twice (a skin, its shadow)
+            if (e.flag) {
+                for (size_t j = 0; j < out.size(); ++j) out[j] ^= key_[j % kKeySize];
+            }
+            return true;
+        }
         out.resize(e.size);
         if (e.size != 0 && !stream_->readAt(e.offset, out.data(), e.size)) {
             out.clear();
@@ -59,7 +68,66 @@ public:
         for (const auto& kv : entries_) out.push_back(kv.first);
     }
 
+    // The entries sorted by offset, read in runs: neighbours closer than kGap are read together
+    // (the bytes between them are read and dropped), a run stops at kMaxRun.
+    size_t prefetch(const std::vector<std::string>& paths) override {
+        static constexpr u32 kGap = 64 * 1024;
+        static constexpr u32 kMaxRun = 2u << 20;
+        struct Want {
+            const std::string* path;
+            PakEntry e;
+        };
+        std::vector<Want> want;
+        want.reserve(paths.size());
+        for (const std::string& p : paths) {
+            auto it = entries_.find(p);
+            if (it == entries_.end() || it->second.size == 0 || prefetched_.count(p)) continue;
+            want.push_back(Want{&it->first, it->second});
+        }
+        std::sort(want.begin(), want.end(), [](const Want& a, const Want& b) { return a.e.offset < b.e.offset; });
+        size_t kept = 0;
+        Blob run;
+        for (size_t i = 0; i < want.size();) {
+            const u32 start = want[i].e.offset;
+            u32 end = start + want[i].e.size;
+            size_t j = i + 1;
+            while (j < want.size() && want[j].e.offset <= end + kGap &&
+                   std::max(end, want[j].e.offset + want[j].e.size) - start <= kMaxRun) {
+                end = std::max(end, want[j].e.offset + want[j].e.size);
+                ++j;
+            }
+            run.resize(end - start);
+            if (stream_->readAt(start, run.data(), run.size())) {
+                for (size_t k = i; k < j; ++k) {
+                    const PakEntry& e = want[k].e;
+                    Blob b(run.begin() + (e.offset - start), run.begin() + (e.offset - start + e.size));
+                    kept += b.size();
+                    prefetched_[*want[k].path] = std::move(b);
+                }
+            }
+            i = j;
+        }
+        prefetchedBytes_ += kept;
+        return kept;
+    }
+
+    void dropPrefetched(const std::vector<std::string>* paths) override {
+        if (!paths) {
+            prefetched_.clear();
+            prefetchedBytes_ = 0;
+            return;
+        }
+        for (const std::string& p : *paths) {
+            auto it = prefetched_.find(p);
+            if (it == prefetched_.end()) continue;
+            prefetchedBytes_ -= it->second.size();
+            prefetched_.erase(it);
+        }
+    }
+
 private:
+    std::unordered_map<std::string, Blob> prefetched_;
+    size_t prefetchedBytes_ = 0;
     std::unique_ptr<IStream> stream_;
     std::array<u8, kKeySize> key_;
     std::unordered_map<std::string, PakEntry> entries_;

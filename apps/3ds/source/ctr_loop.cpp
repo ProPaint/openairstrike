@@ -14,7 +14,9 @@
 #include "as3d/game_data.h"
 #include "as3d/game_profile.h"
 #include "as3d/input.h"
+#include "as3d/fs_util.h"
 #include "as3d/load_stats.h"
+#include "as3d/vfs.h"
 #include "as3d/world.h"
 #include "ctr_audio.h"
 #include "ctr_context.h"
@@ -233,6 +235,77 @@ void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSam
     }
 }
 
+namespace {
+std::string planPath(const std::string& key) { return std::string(kDataDir) + "/cache/" + key + ".plan"; }
+constexpr const char* kPlanHeader = "openairstrike read plan 1";
+} // namespace
+
+void ReadPlan::begin(as3d::Vfs& vfs, const std::string& key, bool enabled) {
+    end();
+    if (!enabled) return;
+    vfs_ = &vfs;
+    key_ = key;
+    loaded_.clear();
+    recorded_.clear();
+    seen_.clear();
+    planned_.clear();
+    start_ = nowTicks();
+    if (std::FILE* f = std::fopen(planPath(key).c_str(), "rb")) {
+        char line[512];
+        bool header = false;
+        while (std::fgets(line, sizeof line, f)) {
+            std::string s(line);
+            while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
+            if (!header) {
+                header = s == kPlanHeader;
+                if (!header) break; // another version: record a new one
+                continue;
+            }
+            if (!s.empty()) loaded_.push_back(s);
+        }
+        std::fclose(f);
+    }
+    planned_.insert(loaded_.begin(), loaded_.end());
+    if (!loaded_.empty()) {
+        const as3d::ctr::StreamReadStats r0 = as3d::ctr::streamReadStats();
+        const uint64_t t0 = nowTicks();
+        const size_t bytes = vfs.prefetch(loaded_);
+        const as3d::ctr::StreamReadStats& r1 = as3d::ctr::streamReadStats();
+        AS3D_INFO("AS3D_LOAD phase=prefetch plan=%s files=%d kb=%.0f ms=%.0f (%lu file reads, %.0f KB read)", key.c_str(),
+                  static_cast<int>(loaded_.size()), static_cast<double>(bytes) / 1024.0, ticksToMs(nowTicks() - t0),
+                  static_cast<unsigned long>(r1.reads - r0.reads), static_cast<double>(r1.bytes - r0.bytes) / 1024.0);
+    } else {
+        AS3D_INFO("AS3D_LOAD phase=prefetch plan=%s none yet (recording it)", key.c_str());
+    }
+    vfs.setReadObserver([this](const std::string& path) {
+        if (seen_.insert(path).second) recorded_.push_back(path);
+    });
+}
+
+void ReadPlan::end() {
+    if (!vfs_) return;
+    vfs_->setReadObserver(nullptr);
+    vfs_->dropPrefetched();
+    int hits = 0;
+    for (const std::string& p : recorded_) hits += planned_.count(p) ? 1 : 0;
+    const bool changed = recorded_ != loaded_;
+    bool stored = false;
+    if (changed && !recorded_.empty()) {
+        std::string text = std::string(kPlanHeader) + "\n";
+        for (const std::string& p : recorded_) text += p + "\n";
+        as3d::makeDirectories(std::string(kDataDir) + "/cache");
+        stored = as3d::writeFileAtomic(planPath(key_), text.data(), text.size());
+    }
+    AS3D_INFO("AS3D_READPLAN plan=%s read=%d planned=%d hits=%d %s in %.0f ms", key_.c_str(),
+              static_cast<int>(recorded_.size()), static_cast<int>(loaded_.size()), hits,
+              changed ? (stored ? "stored" : "not stored") : "unchanged", ticksToMs(nowTicks() - start_));
+    vfs_ = nullptr;
+    loaded_.clear();
+    recorded_.clear();
+    seen_.clear();
+    planned_.clear();
+}
+
 int runCtrLoop(const CtrLoopOptions& opts) {
     using namespace as3d;
     const RunConfig& run = opts.run;
@@ -286,6 +359,13 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     go.startLevel = true;  // the front end is off: the mission starts at once
     go.levelFlow = false;  // no restart or next mission: the run ends where the mission does
     if (run.difficulty >= 0) go.world.difficulty = run.difficulty;
+    // The read plan of this start (the session's definitions and level, the renderer's level
+    // start and precache, the sounds): prefetched right after the mount, recorded until the
+    // first frame.
+    ReadPlan plan;
+    go.afterMount = [&plan, &run, game, sim](as3d::Vfs& vfs) {
+        plan.begin(vfs, std::string(game->key) + "_m" + std::to_string(run.level) + (sim ? "_sim" : ""), run.prefetch);
+    };
 
     auto session = std::make_unique<as3d_game::GameSession>();
     const uint64_t loadStart = nowTicks();
@@ -338,6 +418,8 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         // that only loads during play count as lazy.
         if (run.precache) LoadStats::reset();
     }
+
+    plan.end(); // the level start's reads are done: store the plan, free what was not read
 
     AptState apt;
     apt.session = session.get();

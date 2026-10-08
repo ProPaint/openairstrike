@@ -14,6 +14,9 @@
 #pragma once
 
 #include <functional>
+#include <string>
+#include <unordered_set>
+#include <vector>
 
 #include "as3d/input.h"
 #include "as3d/platform.h"
@@ -132,6 +135,26 @@ public:
     // to *dropped.
     int due(unsigned* dropped);
     int lastInterval() const; // vblanks between the last two frames, uncapped
+};
+
+// The read plan of a level start (docs/3ds-port.md "Load: reads"): on the console each read of
+// the SD card costs about 5 ms whatever its size, and a level start reads 600 files. begin()
+// loads sdmc:/3ds/openairstrike/cache/<key>.plan (the paths the same level start read last time,
+// file names only) and prefetches them (as3d::Vfs::prefetch: a few large reads per pak), then
+// records every path read until end(), which frees what was not used and stores the plan when it
+// changed. The data read is the same with or without a plan. run.ini prefetch=0 turns it off.
+class ReadPlan {
+public:
+    void begin(as3d::Vfs& vfs, const std::string& key, bool enabled);
+    void end();
+    bool active() const { return vfs_ != nullptr; }
+
+private:
+    as3d::Vfs* vfs_ = nullptr;
+    std::string key_;
+    std::vector<std::string> loaded_, recorded_;
+    std::unordered_set<std::string> seen_, planned_;
+    uint64_t start_ = 0;
 };
 
 // One displayed frame through the hook: prepare, the frame (beginFrame, drawTop per eye,

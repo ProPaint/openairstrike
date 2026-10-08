@@ -8,6 +8,7 @@
 // sound around it, and tests drive it directly.
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -53,6 +54,9 @@ struct GameOptions {
     // the load counters (as3d/load_stats.h) and logs AS3D_LAZY_LOADS with them when the level
     // ends. Off by default: everything loads on first use, as before.
     bool precache = false;
+    // Called by GameSession::init once the files are mounted, before the definitions and the
+    // level are read (the 3DS app prefetches the reads it recorded for this level start).
+    std::function<void(as3d::Vfs&)> afterMount;
 
     const as3d::GameRules& rules() const { return game ? game->rules : as3d::defaultGameRules(); }
 };

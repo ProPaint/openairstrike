@@ -74,6 +74,7 @@ bool GameSession::init(const GameOptions& options, std::string* error) {
     const Clock::time_point t0 = Clock::now();
     std::string where;
     if (!mountGameFiles(options, vfs_, &where, error)) return false;
+    if (options.afterMount) options.afterMount(vfs_);
     const Clock::time_point t1 = Clock::now();
     db_.reset(new DefDatabase());
     if (!db_->load(vfs_)) {

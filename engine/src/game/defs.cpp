@@ -369,6 +369,18 @@ bool DefDatabase::load(Vfs& vfs) {
     // correctness does not depend on this (TextFile's vectors are moved,
     // not copied, on any reallocation, so TextBlock addresses stay valid).
     sourceFiles_.reserve(objFiles.size() + wpnFiles.size() + psFiles.size() + 1);
+    std::vector<std::string> prefetched; // freed at the end (Vfs::dropPrefetched)
+    {
+        // Read-ahead (Vfs::prefetch: on the 3DS each SD read costs milliseconds, these are
+        // hundreds of small files next to each other in the pak). The same bytes either way.
+        std::vector<std::string> all;
+        all.reserve(objFiles.size() + wpnFiles.size() + psFiles.size() + 1);
+        all.insert(all.end(), objFiles.begin(), objFiles.end());
+        all.insert(all.end(), wpnFiles.begin(), wpnFiles.end());
+        all.insert(all.end(), psFiles.begin(), psFiles.end());
+        all.push_back("maps\\levels.txt");
+        prefetched = vfs.prefetch(all) > 0 ? std::move(all) : std::vector<std::string>();
+    }
     std::set<std::string> unknownKeys; // kind:key pairs already reported
 
     for (auto& path : objFiles) {
@@ -409,6 +421,7 @@ bool DefDatabase::load(Vfs& vfs) {
     // point (nothing appends to them later), and DefDef::source pointers
     // into sourceFiles_ are unaffected either way (see reserve() note).
     buildIndex();
+    if (!prefetched.empty()) vfs.dropPrefetched(&prefetched);
     return true;
 }
 

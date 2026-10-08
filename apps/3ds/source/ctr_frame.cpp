@@ -408,16 +408,25 @@ struct GameFrame::Impl {
             loadingFrame(0.25f, true, intermission);
         }
         levelBegun = false;
+        // The read plan of this level start (ctr_loop.h ReadPlan): the renderer's level start,
+        // the precache and the sounds.
+        ReadPlan plan;
+        plan.begin(ses.vfs(),
+                   std::string(ses.game() ? ses.game()->key : "as3d") + "_m" + std::to_string(mission) +
+                       (intermission ? "_attract" : "_fe"),
+                   run.prefetch && run.precache);
         std::string err;
         if (!renderer->beginLevel(ses.world(), &err)) {
             AS3D_ERROR("WorldRenderer::beginLevel: %s", err.c_str());
             if (error) *error = err;
+            plan.end();
             return false;
         }
         levelBegun = true;
         const uint64_t t1 = svcGetSystemTick();
         loadingFrame(0.3f, true, intermission);
         precacheLevel(ses, 0.35f, 0.95f);
+        plan.end();
         const uint64_t t3 = svcGetSystemTick();
         logLevelStart(t0, t1, t1, t3);
         loadingFrame(1.0f, true, intermission);
