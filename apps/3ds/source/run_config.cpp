@@ -128,6 +128,18 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n) && n >= 0) c.unlockHeli = n;
         } else if (key == "ui_fixed_dt") {
             if (toInt(val, &n)) c.uiFixedDt = n != 0;
+        } else if (key == "cycle") {
+            // cycle=1,6,1,6: the memory growth check (M5.4), see run_config.h
+            c.cycle.clear();
+            size_t at = 0;
+            while (at < val.size()) {
+                size_t comma = val.find(',', at);
+                if (comma == std::string::npos) comma = val.size();
+                if (toInt(trim(val.substr(at, comma - at)), &n) && n >= 1) c.cycle.push_back(n);
+                at = comma + 1;
+            }
+        } else if (key == "cycle_frames") {
+            if (toInt(val, &n) && n >= 1) c.cycleFrames = n;
         } else if (key == "pad_script") {
             c.padScript = val;
         } else if (key == "dump_every") {

@@ -232,6 +232,9 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     uint64_t last = nowTicks(), lastFrame = 0, lastUi = 0;
     float lastCpu = 0.0f, lastGpu = 0.0f;
     bool queuedEscape = false;
+    int cycleState = 0; // run.ini cycle=: 0 waiting for the main menu, 1 in a mission, 2 back in the attract level
+    size_t cycleIdx = 0;
+    unsigned cycleAt = 0;
     std::string screen;
     int focusedItem = -1;
 
@@ -261,6 +264,40 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         if (queuedEscape) {
             queuedEscape = false;
             if (flow.playing()) uin.key(ui::keys::Escape);
+        }
+        // run.ini cycle=: the memory growth check starts and leaves the missions itself.
+        if (!run.cycle.empty()) {
+            bool resetClock = false;
+            if (cycleState == 0 && frameNo >= 120 && screen == "main" && cycleIdx < run.cycle.size()) {
+                ui::MissionStart ms;
+                ms.mission = run.cycle[cycleIdx] - 1;
+                if (run.difficulty >= 0) ms.difficulty = run.difficulty;
+                AS3D_INFO("cycle: start mission %d (%zu of %zu)", run.cycle[cycleIdx], cycleIdx + 1, run.cycle.size());
+                flow.startMission(ms);
+                cycleState = 1;
+                cycleAt = frameNo;
+                resetClock = true;
+            } else if (cycleState == 1 && frameNo >= cycleAt + static_cast<unsigned>(run.cycleFrames)) {
+                AS3D_INFO("cycle: leave mission %d", run.cycle[cycleIdx]);
+                flow.loadAttract();
+                cycleState = 2;
+                cycleAt = frameNo;
+                resetClock = true;
+            } else if (cycleState == 2 && frameNo >= cycleAt + 60) {
+                cycleState = 0;
+                if (++cycleIdx >= run.cycle.size()) {
+                    AS3D_INFO("cycle: done");
+                    break;
+                }
+            }
+            if (resetClock) {
+                last = nowTicks();
+                acc = 0.0;
+                lastFrame = 0;
+                botStep = 0;
+                levelSteps = 0;
+                if (ses.hasLevel()) dt = ses.world().config().dt;
+            }
         }
         const int loads = flow.levelLoads();
         levelLoaded = false;

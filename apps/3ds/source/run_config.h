@@ -5,6 +5,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "as3d/console_pad.h"
 
@@ -48,6 +49,13 @@ struct RunConfig {
     int attract = 0;           // attract=N: the attract level 1..4 behind the main menu; 0 = random
     bool logo = true;          // logo=0: no intro pages
     bool menuBot = false;      // menu_bot=1: during a mission started from the menus the bot flies
+    // cycle=1,6,1,6: the memory growth check of M5.4 (front end only). From the main menu the
+    // loop starts each listed mission through GameFlow::startMission, lets it run cycle_frames
+    // displayed frames (default 240), leaves it through GameFlow::loadAttract (what "Quit" in the
+    // in-game menu does), waits 60 frames, takes the next; then the app stops. Level start and
+    // level end log AS3D_MEM as always.
+    std::vector<int> cycle;
+    int cycleFrames = 240;
     QualityMode quality = QualityMode::Auto; // quality=auto/new/old: the quality profile (quality_profile.h)
     // menu_bot_steps=N: after the N-th running step of a mission (the world's steps but those the
     // front end holds: the start dialogue, the menus) the end state is logged as in mode=bot (the run
