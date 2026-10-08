@@ -4,6 +4,8 @@
 
 #include <3ds.h>
 
+#include <vector>
+
 namespace as3d::pica {
 namespace {
 
@@ -18,11 +20,17 @@ struct Backend {
     FogDepthMap depthMap = FogDepthMap::ZBuffer;
     float depthNear = 4.0f;
     bool ready = false;
+    std::vector<void*> pendingFree; // deferLinearFree blocks, freed at the next frameBegin
 };
 
 Backend& backend() {
     static Backend b;
     return b;
+}
+
+void releasePending(Backend& b) {
+    for (void* p : b.pendingFree) linearFree(p);
+    b.pendingFree.clear();
 }
 
 } // namespace
@@ -48,6 +56,7 @@ bool initBackend(size_t arenaHalfBytes) {
 
 void shutdownBackend() {
     Backend& b = backend();
+    releasePending(b);
     b.arena.shutdown();
     b.shaders.unload();
     b.ready = false;
@@ -55,7 +64,20 @@ void shutdownBackend() {
 
 bool backendReady() { return backend().ready; }
 
-void frameBegin() { backend().arena.beginFrame(); }
+void frameBegin() {
+    Backend& b = backend();
+    releasePending(b); // C3D_FrameBegin waited for the GPU
+    b.arena.beginFrame();
+}
+
+void deferLinearFree(void* p) {
+    if (!p) return;
+    Backend& b = backend();
+    if (!b.ready) linearFree(p);
+    else b.pendingFree.push_back(p);
+}
+
+size_t deferredFreeCount() { return backend().pendingFree.size(); }
 
 void drawOn(const FrameTarget& t) {
     Backend& b = backend();

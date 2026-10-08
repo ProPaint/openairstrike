@@ -58,6 +58,14 @@ void frameEnd();
 LinearArena& frameArena();
 ShaderSet& shaders();
 
+// Frees a linearAlloc block the GPU may still read (a destroyed mesh): at the next frameBegin(),
+// C3D_FrameBegin having waited for the GPU to finish every command list submitted so far.
+// Freed at once when the backend is not initialised (no frame can reference it);
+// shutdownBackend() frees what is still pending (call it after the last C3D_FrameEnd).
+void deferLinearFree(void* p);
+// The number of blocks waiting for the next frameBegin() (tests).
+size_t deferredFreeCount();
+
 // Depth mapping (C3D_DepthMap). ZBuffer is citro3d's default C3D_DepthMap(true, -1, 0); WBuffer
 // is C3D_DepthMap(false, -1/near, 0), a depth linear in the eye distance (as3d/fog_lut.h has
 // the formulas). Both store 1 at the near plane and 0 at the far plane: depth test GREATER,
