@@ -92,7 +92,7 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | key | values | meaning |
 |---|---|---|
 | `mode` | `spike` (default), `probe`, `sim`, `bot`, `play` | `spike` and `probe` run the old code paths. `sim`: the mission headless at full speed with the bot, no screens, ends after `frames` steps (reproduces `as3d_sim --bot`). `bot`: real-time 60 Hz loop with the bot's input and both screens through the frame composer (`ctr_frame.cpp`: the world on the top screen, in stereo with the 3D slider, the HUD, hint box and touch buttons on the bottom one, a loading screen while the level is precached). `play`: the same loop with the pad (circle pad / D-pad steer, A fire, B missile, X power-up, Y weapon, R next missile, START pause, ZR next power-up on a New 3DS; the bottom-screen buttons pause / next weapon / next missile / missile / power-up / next power-up work by touch; see `ctr_input.h`). |
-| `game` | profile key, default `as3d` | the game; its paks are read from `sdmc:/3ds/openairstrike/<key>/` |
+| `game` | profile key (`as3d`, `as2`, `gulf`) or `select` | the game; its paks are read from `sdmc:/3ds/openairstrike/<key>/`. In the front end (`mode=menu`, or `mode=play` without `level=`) an absent `game=` or `game=select` shows the game selector first (see "Game selector (M5.4)"); the direct modes (`sim`, `bot`, `play` with `level=`) use `as3d` when it is absent |
 | `level` | N, default 1 | the mission to start directly (the front end is off: `startLevel=true`, `levelFlow=false`). `mode=play` without `level=` runs the front end instead (see "Front end (M2.1)") |
 | `frames` | N, default 0 | simulation steps, then the app quits cleanly; 0 means 600 in `sim` and unlimited otherwise |
 | `perf` | `0` (default) or `1` | write `perf.csv` |
@@ -296,12 +296,28 @@ no Configure controls, Mouse Control, Screen, video or touch rows); Start Game o
 | `dump_screens` | `0` (default) or `1` | 40 frames after each change of screen, `<prefix><nn>_<screen>_top.ppm` and `_bottom.ppm` |
 | `dump_every` | N | every N displayed frames, `<prefix>f<frame>_top.ppm` and `_bottom.ppm` |
 | `dump_prefix` | default `fe_` | the file name prefix of those dumps |
+| `report_at` | N | with `menu_bot=1`: the end-state lines (`level N: ... map_pos`, `created ... freed`) once after N bot steps of the mission (the bot's clock stops during the sequels' opening dialogue) |
+| `cycle` | `1,6,1,6` | memory growth check (M5.4): from the main menu start each listed mission (`GameFlow::startMission`), leave it after `cycle_frames` displayed frames (`GameFlow::loadAttract`, what the in-game menu's Quit does), then stop the app |
+| `cycle_frames` | N, default 240 | see `cycle` |
 
 `frames=N` ends the run after N displayed frames. The log gets `AS3D_SCREEN name=<screen>` on
 every change (intro, main, start, options, scores, name, ingame, hint, complete, gameover, playing, ...),
 `AS3D_SCREEN name=intro<N>` for the intro pages (the logo pages, then the sequels' comic pages), `AS3D_MENU` with the visible items in the virtual 800x600 screen (for `T` taps: bottom pixel =
 virtual x 0.4), `AS3D_LEVEL_LOADED` and, at the end, the end state of the level running.
 docs/3ds-port.md, "M2.1".
+
+## Game selector (M5.4)
+
+With `mode=menu` (or `mode=play` without `level=`) and no `game=` in run.ini (or `game=select`):
+the app looks for the games under `sdmc:/3ds/openairstrike/{as3d,as2,gulf}/` (each game's paks,
+`Settings.xml` and its texts file; missing files are logged as `selector: <key> incomplete,
+missing: ...` and shown on its card, which cannot be started), shows the selector on the bottom
+screen (D-pad and A, or a tap; B or the Exit button leaves the app; the top screen names the
+focused game), writes the choice to `sdmc:/3ds/openairstrike/launcher.bin` (the next start
+focuses it) and runs that game's front end. "Change game" on the main menu (offered when two or
+more games are complete) comes back to the selector. One complete game and nothing else
+installed: no selector, that game starts; hold START while the app starts to see the selector
+anyway. docs/3ds-port.md, "M5.4".
 
 `--render-only terrain,models,particles,sprites,shadows,marks,skid,water,lightning` (the default full list now has water). docs/3ds-port.md, "M3.2".
 

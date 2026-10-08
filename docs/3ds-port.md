@@ -1668,3 +1668,130 @@ Found, not fixed (M5.1's): Gulf Thunder mission 1 with `slider=1` stops under Az
 `mode=bot level=1` as in the menus (the log ends, the emulator keeps running); mono runs and AirStrike 2 missions 1
 and 2 in stereo are fine. Deferred: the first game's name entry keyboard by D-pad (its keys are linear for Up /
 Down), the name entry and comics on hardware, the stereo model view checked by eye on the console.
+
+
+## M5.4 Game selector and memory budgets (apps/3ds/source/ctr_selector.cpp, ctr_install.cpp, ctr_mem.cpp)
+
+**Selector.** `ctr_main.cpp`: with the front end (`mode=menu`, or `mode=play` without `level=`) and no
+`game=` in run.ini (or `game=select`; `RunConfig::gameGiven`), `runCtrFrontEnd` (ctr_selector.cpp) runs
+instead of `runCtrMenuLoop` alone:
+
+1. `detectInstalls` (ctr_install.cpp, plain file checks): for `as3d`, `as2`, `gulf` under
+   `sdmc:/3ds/openairstrike/<key>/`, the paks of the profile, `Settings.xml` and the texts file.
+   Complete = none missing. The log gets `selector: <key> installed (N files)`, `selector: <key>
+   incomplete, missing: a, b` (WARN) or `selector: <key> not installed`.
+2. One complete game and no part-installed one: no selector, that game starts (`selector: one game
+   installed (...), skipped`), unless START is held when the app starts (then the selector shows
+   with its one card). Otherwise the selector: `ui::GameSelector`, the desktop's own, on the bottom
+   screen through the PICA `Renderer2D` at the 320x240 mapping (4:3 mode: everything inside the
+   800x600 field, three cards of 94 px; text as small as in the menus), the font and HUD atlases
+   from the first game whose paks are all there, the sequels' marquees from their own pictures
+   (`gfx\logo\logo.tga`, `clouds`, `glow`, `two3`, mounted from each game's paks for the time the
+   selector is up), the first game's banner mesh replaced by its title in text (the mesh renderer is
+   not wired here). Input as in the menus (`CtrInput::uiInputs`: D-pad = arrows, A = Enter, B / START =
+   Escape = Exit, touch = pointer). The top screen shows the focused game's title, version and the
+   keys (or its missing files in red). Cards of a game with files missing show `Missing: <first>`
+   and "and N more", and cannot be started (`selector: <key> cannot start, missing: ...`).
+3. The choice is written with `writeLauncherChoice` (the desktop's atomic write) to
+   `sdmc:/3ds/openairstrike/launcher.bin`; the next start focuses it (`readLauncherChoice`).
+4. `runCtrMenuLoop` runs with the selector's graphics context and `CtrInput` (so the pad_script clock
+   is continuous; `CtrLoopOptions::context/input`), `FlowConfig::changeGame` set when two or more
+   games are complete. "Change game" (the main menu's last item) ends the loop (`front end: Change
+   game (profile saved)`), the GameFrame, pica backend and stack are torn down, and the selector
+   shows again. Dumps of the later phases are prefixed `<prefix>g<phase>_`; the selector's
+   `<prefix>sel_<nn>_<key>_{top,bottom}.ppm` (`dump_screens=1`, 12 frames after each focus change).
+
+With `game=KEY` in run.ini nothing of this runs. Not exercised under Azahar: the one-game skip, START
+held at boot and a part-installed card (the single SD card is shared with other runs, so no game
+directory was moved away); those paths are the three-line decision in `runCtrFrontEnd` and the
+`cardLines` text.
+
+**Azahar (2026-10-08, `mode=menu logo=0 attract=1 menu_bot=1 report_at=600 dump_screens=1 slider=0`, no
+`game=`, no launcher.bin; pad_script RIGHT, A, taps on Start Game / Mission 1 / Next / Next, A for the
+dialogue, START, tap Quit, tap Change game, RIGHT, A, START+SELECT):**
+
+| step | log |
+|---|---|
+| boot | `selector: as3d installed (5 files)`, `as2 installed (5 files)`, `gulf installed (6 files)`; `AS3D_SELECTOR focus=as3d`; selector dumped (three cards, as3d focused, top screen "AirStrike 3D, Version 1.70") |
+| RIGHT, A | `selector: chose as2 after 70 frames`; `AS3D_MEM ... when=selector` heap 73 KB (selector torn down) |
+| as2 front end | attract level 1 loaded, `AS3D_SCREEN name=main` with items 1..5 and `60` (Change game); main menu dumped |
+| taps | `start` (frame 229), `heli` (349), `AS3D_LEVEL_LOADED mission=1 "Mission 1: Tutorial"`, `dialogue` (469), `playing` (735) |
+| mission 1 | `report_at: mission 1 after 600 bot steps`: **map_pos 452.0, 101 entities, created 396, freed 295** |
+| START, Quit | `ingame` (1629), the attract level loaded again, `main` (1689) |
+| Change game | `front end: Change game (profile saved)`, `stopped after 1829 frames`, the stack torn down (heap 125 KB), `selector: ... installed` x3, the selector with as2 focused (launcher.bin) |
+| RIGHT, A | `selector: chose gulf after 199 frames`, gulf's attract level, `AS3D_SCREEN name=main` (gulf's main menu), START+SELECT: `quit: START+SELECT` |
+
+The as2 mission 1 end state through the menus is map_pos 452.0 as `as3d_sim --game as2 --level 1
+--frames 600 --bot`, but 101 entities and 396 / 295 created / freed against 103 and 402 / 299: the
+campaign start differs from the sim's (opening dialogue, the helicopter and loadout of the start
+screens, the seed); the direct start (`mode=bot level=1`) is identical (table below). The bot's
+clock stops during the sequels' opening dialogue (`ctr_menu_loop.cpp`), so that "600 bot steps" means
+the same mission frames as the sim; before that fix the end state at 600 loop steps was map_pos 265.8
+(the world had been held by the dialogue).
+
+**Memory counters.** `ctr_mem.cpp`: `AS3D_MEM heap_kb= heap_hw_kb= linear_free_kb= linear_tex_kb=
+linear_geom_kb= vram_kb= vram_fallbacks= when=start|end|selector|exit game= mission=` (heap = mallinfo
+`uordblks`, the high-water sampled every 32 frames and at each line; linear free = `linearSpaceFree`;
+linear textures = `pica::textureStats().linearBytes`; geometry = live `GpuMesh` vertex+index bytes plus
+the terrain's vertex+index and the water's static+index buffers; VRAM = the texture budget's VRAM
+bytes; fallbacks = textures the budget sent to VRAM whose `vramAlloc` failed, cumulative per
+process). `start` is logged at the end of the level start (after the precache), `end` when the next
+level start or the app's end tears the level down. `PERF_SUMMARY heap_kb` is unchanged.
+
+**The nine missions** (`mode=bot game=G level=N frames=600 slider=0 perf=1`, quality auto = new,
+Azahar, mono, 2026-10-08; the sim columns are `as3d_sim --game G --level N --frames 600 --bot`, all
+nine identical: map_pos, list entities, created / freed):
+
+| mission | level start | heap start / end / hw (MB) | linear free (MB) | linear tex (MB) | geometry (MB) | VRAM (KB) / fallbacks | end state = sim |
+|---|---|---|---|---|---|---|---|
+| as3d 1 | 10.8 s | 9.2 / 14.8 / 14.8 | 23.4 | 3.1 | 0.7 | 4193 / 81 | 452.0, 39, 243 / 204 |
+| as3d 6 | 12.5 s | 9.5 / 15.7 / 15.7 | 22.1 | 4.2 | 0.9 | 4193 / 122 | 452.0, 67, 241 / 174 |
+| as3d 14 | 10.4 s | 9.4 / 15.9 / 15.9 | 22.9 | 3.4 | 0.8 | 4193 / 111 | 452.0, 85, 348 / 263 |
+| as2 1 | 15.5 s | 11.9 / 18.2 / 18.2 | 19.9 | 6.0 | 1.3 | 4193 / 129 | 452.0, 103, 402 / 299 |
+| as2 6 | 15.9 s | 12.4 / 19.6 / 19.6 | 18.8 | 6.8 | 1.5 | 4215 / 146 | 452.0, 133, 408 / 275 |
+| as2 14 | 17.2 s | 12.7 / 20.3 / 20.3 | 16.9 | 8.6 | 1.7 | 4193 / 149 | 452.0, 169, 717 / 548 |
+| gulf 1 | 15.2 s | 11.0 / 17.4 / 17.4 | 18.2 | 7.5 | 1.5 | 4192 / 138 | 614.3, 119, 733 / 614 |
+| gulf 6 | 15.3 s | 11.4 / 18.4 / 18.4 | 17.8 | 7.7 | 1.6 | 4192 / 125 | 614.3, 197, 1385 / 1188 |
+| gulf 14 | 15.0 s | 11.1 / 17.7 / 17.7 | 18.0 | 7.6 | 1.6 | 4193 / 123 | 614.3, 190, 1371 / 1181 |
+
+(level start = beginLevel + UI + precache; heap in MB of 1024 KB; the exact KB values are in the
+`AS3D_MEM` lines.)
+
+Budgets of the plan (heap 40 MB, linear textures 14 MB, static geometry 6 MB): **no mission is over
+any of them.** The largest values: heap high-water 20.3 MB (as2 14, half the budget), linear textures
+8.6 MB (as2 14, 62 %), geometry 1.7 MB (as2 14, 29 %). Linear free never goes below 16.9 MB with the
+32 MB linear region (the arenas included). No texture failures (`failures 0`), so no top-10 list is
+needed. Flags for M4.4:
+
+- **VRAM fallbacks are not zero in any mission** (81 to 149 textures the budget wanted in VRAM that did
+  not fit: VRAM is full at 4.2 MB from the terrain on, they live in linear memory); their cost is
+  GPU read speed, not memory. The sequels have more of them and 2 to 5 MB more linear textures than
+  the first game.
+- **The heap grows 5.6 to 7.6 MB between level start and the 600th step** in every mission
+  (as3d 1: 9.2 to 14.8 MB; as2 14: 12.7 to 20.3 MB). Possibly bot mode loads its sounds lazily from the paks
+  into the heap (`audio=1`; the precache report says `sounds=0`: the direct mode has no precache of
+  sounds), and the world's pools fill; which of the two dominates was not split here. The growth
+  stops at the level's end (the growth check below shows the next level starting from the same
+  heap), but it is the number M4.4 must budget for the Old 3DS's 40 MB: at as2 14 it is 20 MB, so
+  there are about 19 MB of margin.
+- The level start is 10 to 17 s (precache 8 to 14 s) under Azahar: M4.3's cache.
+
+**Growth check** (`mode=menu game=as3d logo=0 attract=1 cycle=1,6,1,6,1,6,1,6 cycle_frames=240`;
+`ctr_menu_loop.cpp`: mission 1, leave to the attract level, mission 6, leave, four times): the
+per-level numbers are identical from the second cycle on, to the KB: mission 1 starts at heap 14026
+KB and ends at 13629 KB every time, mission 6 at 14197 KB and 14293 KB, the attract level at
+12898 to 13230 KB; linear free 23903 / 22638 / 27198 KB the same each time. **Heap high-water after
+the first mission 6: 14923 KB; after the fourth: 14925 KB (+2 KB; the limit was 1 MB): no leak in
+level teardown.** The first mission 1 starts 238 KB higher than later ones (first-use caches). The
+scripted Change game from as2 to gulf above also returns the heap to 118 to 125 KB between games.
+Caveat: the cycle starts missions with `GameFlow::startMission` and leaves with `loadAttract`, the
+host calls the menus make, not by tapping the menus.
+
+Verification: `tools/3ds_ci.sh` green (compile-only, no desktop code changed: desktop `ci.sh` not
+run). The three games' first three missions at the M3 numbers are the table above (the direct-mode
+end states equal the sim).
+
+Deferred (M4.4 and later): heap split by subsystem (sound cache, world pools, pak indexes) for the
+Old 3DS's 40 MB; the selector's first-game banner mesh (marquee) and the logos' memory (the
+selector holds about 0.5 MB of pictures while it is up); START-held and one-game paths and the
+incomplete-install card on Azahar with a scratch SD card; hardware run on the 3DS.
