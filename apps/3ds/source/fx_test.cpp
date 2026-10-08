@@ -31,6 +31,7 @@
 #include "shader_set.h"
 #include "tev.h"
 #include "texture_budget.h"
+#include "world_scene.h"
 
 using namespace as3d;
 
@@ -59,22 +60,6 @@ void say(const char* fmt, ...) {
 }
 
 double kb(size_t b) { return static_cast<double>(b) / 1024.0; }
-
-// worldViewOf (engine/src/render/gles/world_render.cpp; the PICA WorldRenderer of M1.8 gets its
-// own copy or the function moves to eye_view.cpp).
-WorldView cameraOf(const World& world, float aspect) {
-    const CameraState& c = world.camera();
-    WorldView v;
-    v.eye = Vec3{c.field[15], c.field[16], c.field[17]};
-    v.fovY = c.field[14] > 1.0f ? c.field[14] : 60.0f;
-    v.farPlane = 2000.0f;
-    if (const Terrain* t = world.terrain()) {
-        if (t->style().hasFog) v.farPlane = std::max(t->style().fogFar, 1000.0f);
-    }
-    v.view = rotationX(c.field[18]) * rotationY(c.field[19]) * rotationZ(c.field[20]) * translation(-v.eye);
-    v.projection = perspective(v.fovY, aspect, v.nearPlane, v.farPlane);
-    return v;
-}
 
 Mat4 pixelMatrix() { return pica::picaTiltMatrix() * ortho(0.0f, 400.0f, 240.0f, 0.0f, -1.0f, 1.0f); }
 
@@ -135,175 +120,6 @@ void dumpTarget(C3D_RenderTarget* t, const std::string& path) {
     linearFree(lin);
 }
 
-// ---- the sprite list of the entity pass (engine/src/render/gles/world_render.cpp prepare():
-// worldRenderOrder, the sprite and health bar parts), copied until the PICA WorldRenderer (M1.8).
-
-int rootOfEntity(const World& w, int i) {
-    for (int guard = 0; guard < 64 && w.validIndex(i) && w.entity(i).parent >= 0; ++guard) i = w.entity(i).parent;
-    return i;
-}
-
-void visitThinkOrder(const World& w, int i, std::vector<int>& order, std::vector<char>& visited, int depth) {
-    if (depth > 64 || !w.validIndex(i) || visited[static_cast<size_t>(i)]) return;
-    const Entity& e = w.entity(i);
-    if (e.rt & RT_REMOVED) return;
-    visited[static_cast<size_t>(i)] = 1;
-    if (e.inList && w.validIndex(e.parent)) {
-        int r = rootOfEntity(w, e.parent);
-        if (w.validIndex(r) && w.entity(r).inList) visitThinkOrder(w, r, order, visited, depth + 1);
-    }
-    order.push_back(i);
-    if (e.emitter) return;
-    for (int c : e.children) {
-        if (w.validIndex(c) && w.entity(c).parent == i) visitThinkOrder(w, c, order, visited, depth + 1);
-    }
-}
-
-DecalBlend decalBlendOf(decltype(ObjectDef::blend) b) {
-    using B = decltype(ObjectDef::blend);
-    switch (b) {
-        case B::Alpha: return DecalBlend::Alpha;
-        case B::Add: return DecalBlend::Add;
-        case B::Filter: return DecalBlend::Filter;
-        default: return DecalBlend::None;
-    }
-}
-
-// Textures of the test, created outside frames (the ResourceCache of the GL renderer without the
-// meshes).
-struct TextureCache {
-    Vfs* vfs = nullptr;
-    std::map<std::string, std::unique_ptr<Texture2D>> map;
-    Texture2D white;
-
-    const Texture2D* get(const std::string& path) {
-        const std::string key = normalizePath(path);
-        auto it = map.find(key);
-        if (it != map.end()) return it->second.get();
-        Blob blob;
-        Image image;
-        auto tex = std::make_unique<Texture2D>();
-        if (!path.empty() && vfs->read(path, blob) && decodeTga(blob.data(), blob.size(), image)) {
-            TextureOptions opts;
-            opts.mipmaps = true;
-            tex->create(image, opts);
-        }
-        if (!tex->valid()) {
-            say("texture '%s' missing, white\n", path.c_str());
-            if (!white.valid()) {
-                Image w;
-                w.width = w.height = 8;
-                w.rgba.assign(8 * 8 * 4, 255);
-                white.create(w);
-            }
-            return &white;
-        }
-        const Texture2D* raw = tex.get();
-        map[key] = std::move(tex);
-        return raw;
-    }
-};
-
-struct SpriteScene {
-    std::vector<SpriteInstance> list;
-    HealthBarSpriteDef hbEmpty, hbFull;
-    bool hbReady = false;
-    int healthBars = 0;
-    int dropped = 0;
-};
-
-void resolveHealthBar(SpriteScene& sc, const DefDatabase& db, const GameRules& rules, TextureCache& cache) {
-    const ObjectDef* he = rules.healthBarEmptyObject ? db.findObject(rules.healthBarEmptyObject) : nullptr;
-    const ObjectDef* hf = rules.healthBarFullObject ? db.findObject(rules.healthBarFullObject) : nullptr;
-    sc.hbReady = he && hf && he->hasBbox && hf->hasBbox;
-    if (!sc.hbReady) return;
-    HealthBarSpriteDef* outs[2] = {&sc.hbEmpty, &sc.hbFull};
-    const ObjectDef* defs[2] = {he, hf};
-    for (int k = 0; k < 2; ++k) {
-        const ObjectDef& d = *defs[k];
-        HealthBarSpriteDef& o = *outs[k];
-        o.minX = d.bboxMin[0];
-        o.minY = d.bboxMin[1];
-        o.minS = d.bboxMin[2];
-        o.minT = d.bboxMin[3];
-        o.maxX = d.bboxMax[0];
-        o.maxY = d.bboxMax[1];
-        o.maxS = d.bboxMax[2];
-        o.maxT = d.bboxMax[3];
-        o.texture = d.skin.empty() ? nullptr : cache.get(d.skin);
-        o.blend = decalBlendOf(d.blend);
-        o.noDepthTest = (d.rflag & RF_NODEPTHTEST) != 0;
-        o.noDepthWrite = (d.rflag & RF_NODEPTHWRITE) != 0;
-    }
-}
-
-void collectSprites(const World& world, SpriteScene& sc, TextureCache& cache) {
-    sc.list.clear();
-    sc.healthBars = sc.dropped = 0;
-    std::vector<int> order;
-    std::vector<char> visited(static_cast<size_t>(kMaxEntitySlots), 0);
-    for (int i : world.listEntities()) visitThinkOrder(world, i, order, visited, 0);
-    auto addHealthBar = [&](const Entity& e) {
-        if (!sc.hbReady) return;
-        SpriteInstance bar[2];
-        const int n = buildHealthBar(e, sc.hbEmpty, sc.hbFull, bar);
-        for (int k = 0; k < n; ++k) {
-            if (sc.list.size() >= kMaxSprites) {
-                ++sc.dropped;
-                break;
-            }
-            sc.list.push_back(bar[k]);
-        }
-        sc.healthBars += n > 0 ? 1 : 0;
-    };
-    for (int i : order) {
-        const Entity& e = world.entity(i);
-        if (!e.def || (e.flagBits() & FL_NODRAW)) {
-            addHealthBar(e);
-            continue;
-        }
-        const ObjectDef& def = *e.def;
-        const Vec4 colour{e.f(F_COLOR), e.f(F_COLOR + 1), e.f(F_COLOR + 2), e.f(F_COLOR + 3)};
-        const Vec3 origin = e.v3(F_BASE_ORIGIN);
-        if ((def.type == ObjectType::Sprite || def.type == ObjectType::HSprite || def.type == ObjectType::VSprite) &&
-            def.hasBbox) {
-            const std::string& skin = e.skinPath.empty() ? def.skin : e.skinPath;
-            if (sc.list.size() >= kMaxSprites) {
-                ++sc.dropped;
-            } else if (!skin.empty()) {
-                SpriteInstance sp;
-                sp.kind = def.type == ObjectType::Sprite    ? SpriteKind::Billboard
-                          : def.type == ObjectType::HSprite ? SpriteKind::Horizontal
-                                                            : SpriteKind::Vertical;
-                sp.origin = origin;
-                sp.yawDegrees = e.f(F_ANGLES + 2);
-                sp.scale = e.f(F_SCALE);
-                sp.colour = colour;
-                sp.minX = def.bboxMin[0];
-                sp.minY = def.bboxMin[1];
-                sp.minS = def.bboxMin[2];
-                sp.minT = def.bboxMin[3];
-                sp.maxX = def.bboxMax[0];
-                sp.maxY = def.bboxMax[1];
-                sp.maxS = def.bboxMax[2];
-                sp.maxT = def.bboxMax[3];
-                if (def.hasFrames && def.frameStart > 0) {
-                    sp.frameCols = def.frameStart;
-                    sp.frameRows = std::max(def.frameEnd, 1);
-                    const float fr = e.f(F_FRAME);
-                    sp.frame = (fr > -1.0e7f && fr < 1.0e7f) ? static_cast<int>(fr) : 0;
-                }
-                sp.texture = cache.get(skin);
-                sp.blend = decalBlendOf(def.blend);
-                sp.noDepthTest = (def.rflag & RF_NODEPTHTEST) != 0;
-                sp.noDepthWrite = (def.rflag & RF_NODEPTHWRITE) != 0;
-                sc.list.push_back(sp);
-            }
-        }
-        addHealthBar(e);
-    }
-}
-
 constexpr int kPhases = 6;
 const char* kPhaseNames[kPhases] = {"particles", "sprites", "all", "stress1536", "hbars", "eyes"};
 
@@ -361,7 +177,6 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
     const u64 ts0 = svcGetSystemTick();
     for (u32 f = 0; f < static_cast<u32>(bot); ++f) world->step(botInput(f).toPlayerInput());
     say("%d bot frames in %.0f ms\n", bot, static_cast<double>(svcGetSystemTick() - ts0) / (SYSCLOCK_ARM11 / 1000.0));
-    const Terrain* terrain = world->terrain();
 
     if (void* warm = vramAlloc(0x100)) vramFree(warm);
     C3D_RenderTarget* top = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
@@ -379,9 +194,8 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
     }
 
     auto particlesPtr = std::make_unique<ParticleRenderer>();
-    auto cachePtr = std::make_unique<TextureCache>();
+    auto cachePtr = std::make_unique<ResourceCache>(vfs);
     ParticleRenderer& particles = *particlesPtr;
-    TextureCache& cache = *cachePtr;
     SpriteRenderer sprites;
     if (!particles.init(vfs, &err) || !sprites.init(&err)) {
         say("renderer init failed: %s\n", err.c_str());
@@ -390,13 +204,23 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
         if (g_log) std::fclose(g_log);
         return;
     }
-    cache.vfs = &vfs;
-    SpriteScene scene;
-    resolveHealthBar(scene, db, game.rules, cache);
+    // The sprite list and the emitters through the neutral entity pass (world_scene.h).
+    auto scenePtr = std::make_unique<WorldScene>();
+    WorldScene& scene = *scenePtr;
+    scene.init(*cachePtr, vfs, db);
+    scene.resolveHealthBar(game.rules);
+    scene.beginLevel(*world, renderRules(game.id));
 
-    // Level-start work, outside frames: the particle textures of the live emitters, the sprites.
-    std::vector<const ParticleEmitter*> emitters;
-    world->particles().collect(emitters);
+    // Level-start work, outside frames: the sprites (their textures load here), the particle
+    // textures of the live emitters.
+    Viewport vp;
+    vp.width = 400;
+    vp.height = 240;
+    WorldRenderOptions wo;
+    wo.models = wo.shadows = false;
+    WorldRenderStats ws;
+    scene.prepare(*world, vp, wo, false, false, ws);
+    const std::vector<const ParticleEmitter*>& emitters = scene.emitters;
     std::string stressTexture;
     int liveParticles = 0;
     for (const ParticleEmitter* e : emitters) {
@@ -412,14 +236,13 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
                 break;
             }
     particles.preload(stressTexture);
-    collectSprites(*world, scene, cache);
     {
         int blendCount[4] = {0, 0, 0, 0};
         for (const ParticleEmitter* e : emitters) blendCount[static_cast<int>(e->desc().blend)] += e->liveCount();
         say("world: %zu emitters, %d live particles (none %d, alpha %d, add %d, filter %d)\n", emitters.size(),
             liveParticles, blendCount[0], blendCount[1], blendCount[2], blendCount[3]);
-        say("world: %zu sprites (%d health bars, %d dropped), stress texture '%s'\n", scene.list.size(),
-            scene.healthBars, scene.dropped, stressTexture.c_str());
+        say("world: %zu sprites (%d health bars, %d dropped), stress texture '%s'\n", scene.sprites.size(),
+            ws.healthBars, scene.dropped, stressTexture.c_str());
         const pica::FxPicaStats& fs = pica::fxPicaStats();
         const pica::TextureStats ts = pica::textureStats();
         say("particle textures: %d, %.1f KB; all textures: vram %.1f KB (%d), linear %.1f KB (%d), failures %d\n",
@@ -428,14 +251,13 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
     }
 
     const float aspect = 400.0f / 240.0f;
-    const WorldView wv = cameraOf(*world, aspect);
+    const WorldView wv = scene.frame().wv;
     Vec3 fogColour{0, 0, 0};
     float fogStart = 1.0e8f, fogEnd = 2.0e8f;
-    if (terrain && terrain->style().hasFog) {
-        const TerrainStyle& st = terrain->style();
-        fogColour = Vec3{st.fogColor[0], st.fogColor[1], st.fogColor[2]};
-        fogStart = st.fogNear;
-        fogEnd = st.fogFar;
+    if (scene.frame().hasFog) {
+        fogColour = scene.frame().light.fogColor;
+        fogStart = scene.frame().light.fogStart;
+        fogEnd = scene.frame().light.fogEnd;
     }
     say("camera eye (%.1f, %.1f, %.1f), fov %.1f, far %.0f, fog %.0f..%.0f\n", static_cast<double>(wv.eye.x),
         static_cast<double>(wv.eye.y), static_cast<double>(wv.eye.z), static_cast<double>(wv.fovY),
@@ -448,7 +270,7 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
     Stress stress;
     stress.make(stressTexture, ahead);
     std::vector<SpriteInstance> bars;
-    if (scene.hbReady) {
+    if (scene.hbarReady()) {
         const float fractions[3] = {1.0f, 0.5f, 0.15f};
         const Vec3 right{wv.view.at(0, 0), wv.view.at(1, 0), wv.view.at(2, 0)};
         for (int k = 0; k < 3; ++k) {
@@ -470,8 +292,8 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
                 s.noDepthTest = d.noDepthTest;
                 s.noDepthWrite = d.noDepthWrite;
             };
-            fill(e, scene.hbEmpty);
-            fill(f, scene.hbFull);
+            fill(e, scene.hbarEmpty());
+            fill(f, scene.hbarFull());
             f.maxX = f.minX + (f.maxX - f.minX) * fractions[k];
             f.maxS = f.minS + (f.maxS - f.minS) * fractions[k];
             bars.push_back(e);
@@ -524,7 +346,7 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
                 if (!bars.empty()) sprites.draw(bars.data(), bars.size(), sv);
             } else {
                 if (drawParticles && !emitters.empty()) particles.draw(emitters.data(), emitters.size(), pv);
-                if (drawSprites && !scene.list.empty()) sprites.draw(scene.list.data(), scene.list.size(), sv);
+                if (drawSprites && !scene.sprites.empty()) sprites.draw(scene.sprites.data(), scene.sprites.size(), sv);
             }
         };
         if (phase == 5) {
@@ -574,8 +396,7 @@ void run(Vfs& vfs, const DefDatabase& db, const GameProfile& game, const std::st
     say("fxtest: done\n");
     stress.emitters.clear();
     bars.clear();
-    scene.list.clear();
-    scene.hbEmpty.texture = scene.hbFull.texture = nullptr;
+    scenePtr.reset();
     particlesPtr.reset();
     cachePtr.reset();
     pica::shutdownBackend();

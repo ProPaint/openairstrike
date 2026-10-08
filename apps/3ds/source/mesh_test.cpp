@@ -1,10 +1,9 @@
 // The PICA mesh test (mesh_test.h).
 //
-// The model records of the frame are collected as WorldRenderer::prepare does on the desktop
-// (engine/src/render/gles/world_render.cpp: the think order, FL_NODRAW, the entity matrix and
+// The model records of the frame come from the neutral entity pass both world renderers use
+// (WorldScene, engine/src/render/world_scene.h: the think order, FL_NODRAW, the entity matrix and
 // colour, the material per (definition, skin), the three lists and their caps, the PlaceLight
-// queue plus the definition lights of the drawn entities). The GL file is not part of the 3DS
-// build, so the few helpers are repeated here; M1.8 moves them to a neutral file.
+// queue plus the definition lights of the drawn entities).
 #include "mesh_test.h"
 
 #include <3ds.h>
@@ -36,6 +35,7 @@
 #include "pica_space.h"
 #include "tev.h"
 #include "texture_budget.h"
+#include "world_scene.h"
 #include "as3d/defs.h"
 
 using namespace as3d;
@@ -75,55 +75,8 @@ double mb(size_t b) { return static_cast<double>(b) / (1024.0 * 1024.0); }
 u8 byte(float v) { return static_cast<u8>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); }
 
 // ---------------------------------------------------------------------------------------
-// The desktop entity pass, models only (world_render.cpp).
+// The frame's model records: the neutral entity pass (WorldScene, engine/src/render/world_scene.h).
 // ---------------------------------------------------------------------------------------
-
-WorldView worldViewOfWorld(const World& world, float aspect) {
-    const CameraState& c = world.camera();
-    WorldView v;
-    v.eye = Vec3{c.field[15], c.field[16], c.field[17]};
-    v.fovY = c.field[14] > 1.0f ? c.field[14] : 60.0f;
-    v.farPlane = 2000.0f;
-    if (const Terrain* t = world.terrain()) {
-        if (t->style().hasFog) v.farPlane = std::max(t->style().fogFar, 1000.0f);
-    }
-    v.view = rotationX(c.field[18]) * rotationY(c.field[19]) * rotationZ(c.field[20]) * translation(-v.eye);
-    v.projection = perspective(v.fovY, aspect, v.nearPlane, v.farPlane);
-    return v;
-}
-
-Mat4 entityMatrix(const Entity& e) {
-    Vec3 a0 = e.v3(F_AXIS), a1 = e.v3(F_AXIS + 3), a2 = e.v3(F_AXIS + 6), o = e.v3(F_BASE_ORIGIN);
-    Mat4 m;
-    m.at(0, 0) = a0.x; m.at(0, 1) = a0.y; m.at(0, 2) = a0.z; m.at(0, 3) = 0.0f;
-    m.at(1, 0) = a1.x; m.at(1, 1) = a1.y; m.at(1, 2) = a1.z; m.at(1, 3) = 0.0f;
-    m.at(2, 0) = a2.x; m.at(2, 1) = a2.y; m.at(2, 2) = a2.z; m.at(2, 3) = 0.0f;
-    m.at(3, 0) = o.x;  m.at(3, 1) = o.y;  m.at(3, 2) = o.z;  m.at(3, 3) = 1.0f;
-    float s = e.f(F_SCALE);
-    if (s > 0.001f) m = m * scale(Vec3{s, s, s});
-    return m;
-}
-
-int rootOfEntity(const World& w, int i) {
-    for (int guard = 0; guard < 64 && w.validIndex(i) && w.entity(i).parent >= 0; ++guard) i = w.entity(i).parent;
-    return i;
-}
-
-void visitThinkOrder(const World& w, int i, std::vector<int>& order, std::vector<char>& visited, int depth) {
-    if (depth > 64 || !w.validIndex(i) || visited[static_cast<size_t>(i)]) return;
-    const Entity& e = w.entity(i);
-    if (e.rt & RT_REMOVED) return;
-    visited[static_cast<size_t>(i)] = 1;
-    if (e.inList && w.validIndex(e.parent)) {
-        int r = rootOfEntity(w, e.parent);
-        if (w.validIndex(r) && w.entity(r).inList) visitThinkOrder(w, r, order, visited, depth + 1);
-    }
-    order.push_back(i);
-    if (e.emitter) return;
-    for (int c : e.children) {
-        if (w.validIndex(c) && w.entity(c).parent == i) visitThinkOrder(w, c, order, visited, depth + 1);
-    }
-}
 
 struct Record {
     const GpuMesh* mesh = nullptr;
@@ -136,7 +89,7 @@ struct Record {
 
 struct Scene {
     std::unique_ptr<ResourceCache> cache;
-    std::map<std::pair<const ObjectDef*, std::string>, std::unique_ptr<Material>> materials;
+    WorldScene ws;
     std::vector<Record> opaque, trans, effect;
     std::vector<DynamicLight> lights;
     SceneLighting light;
@@ -145,121 +98,46 @@ struct Scene {
     Vec3 clear{0.0f, 0.0f, 0.0f};
     int player = -1;
     int dropped = 0;
-
-    const Material& materialFor(const ObjectDef& def, const std::string& skinOverride) {
-        auto key = std::make_pair(&def, skinOverride);
-        auto it = materials.find(key);
-        if (it != materials.end()) return *it->second;
-        std::unique_ptr<Material> m(new Material(Material::fromObjectDef(def, *cache)));
-        if (!skinOverride.empty()) {
-            ResourceCache::LoadedTexture t = cache->texture(skinOverride);
-            m->texture = t.texture;
-            m->textureHasAlpha = t.hasAlpha;
-        }
-        const Material& ref = *m;
-        materials.emplace(key, std::move(m));
-        return ref;
-    }
 };
 
-// The level's closure (as WorldRenderer::precache, without shadows): every mesh and skin the
-// mission can draw, so the memory numbers are the mission's.
+// The level's closure (WorldRenderer::precache's walk, without shadows and particles): every
+// mesh and skin the mission can draw, so the memory numbers are the mission's.
 void precacheMission(const World& world, const DefDatabase& db, Scene& s) {
-    PrecacheSet local;
-    const PrecacheSet* set = world.precacheSet();
-    if (!set) {
-        local = collectPrecacheSet(world, db, [&world](const std::string& path) { return world.compiledProgram(path); });
-        set = &local;
-    }
-    for (const ObjectDef* def : set->objects) {
-        for (const SkidMarkDef& sk : def->skidMarks)
-            if (!sk.texture.empty()) s.cache->texture(sk.texture);
-        if (def->type == ObjectType::Model && !def->model.empty()) {
-            if (s.cache->mesh(def->model).valid) s.materialFor(*def, std::string());
-        } else if (!def->skin.empty()) {
-            s.cache->texture(def->skin);
-        }
-    }
-    for (const std::string& m : set->models) s.cache->mesh(m);
-    for (const auto& om : set->objectModels)
-        if (om.first->type == ObjectType::Model && !om.second.empty()) s.cache->mesh(om.second);
-    for (const std::string& t : set->textures) s.cache->texture(t);
-    say("precache: %d objects, %d models, %d textures\n", static_cast<int>(set->objects.size()),
-        static_cast<int>(set->models.size()), static_cast<int>(set->textures.size()));
+    const PrecacheReport r = s.ws.precache(world, db, {}, WorldScene::PrecacheHooks{});
+    say("precache: %s\n", r.str().c_str());
 }
 
 void collect(const World& world, Scene& s) {
-    constexpr int kOpaqueCap = 512, kTransCap = 128, kEffectCap = 256;
-    s.wv = worldViewOfWorld(world, kAspect);
-    s.light = SceneLighting();
-    s.hasFog = false;
-    if (const Terrain* terrain = world.terrain()) {
-        const TerrainStyle& st = terrain->style();
-        s.light.sunColor = Vec3{st.sun[0], st.sun[1], st.sun[2]};
-        s.light.sunDirection = Vec3{st.sun[3], st.sun[4], st.sun[5]};
-        s.light.ambientColor = Vec3{st.sun[6], st.sun[7], st.sun[8]};
-        s.light.fogColor = Vec3{st.fogColor[0], st.fogColor[1], st.fogColor[2]};
-        s.light.fogStart = st.fogNear;
-        s.light.fogEnd = st.fogFar;
-        s.hasFog = st.hasFog;
-    }
-    if (!s.hasFog) {
-        s.light.fogStart = 1.0e8f;
-        s.light.fogEnd = 2.0e8f;
-    }
-    s.clear = s.hasFog ? s.light.fogColor : Vec3{0.0f, 0.0f, 0.0f};
-    DynamicLightList lights;
-    for (const QueuedLight& q : world.lights()) lights.add(DynamicLight::point(q.pos, q.color, q.radius));
-    s.opaque.clear();
-    s.trans.clear();
-    s.effect.clear();
-    s.dropped = 0;
-    std::vector<int> order;
-    std::vector<char> visited(static_cast<size_t>(kMaxEntitySlots), 0);
-    for (int i : world.listEntities()) visitThinkOrder(world, i, order, visited, 0);
-    for (int i : order) {
-        const Entity& e = world.entity(i);
-        if (!e.def || (e.flagBits() & FL_NODRAW)) continue;
-        const ObjectDef& def = *e.def;
-        const Vec4 colour{e.f(F_COLOR), e.f(F_COLOR + 1), e.f(F_COLOR + 2), e.f(F_COLOR + 3)};
-        const Vec3 origin = e.v3(F_BASE_ORIGIN);
-        if ((def.hasLight || def.hasLightDir) && def.lightRadius > 0) {
-            Vec3 col{def.lightColor[0], def.lightColor[1], def.lightColor[2]};
-            float radius = static_cast<float>(def.lightRadius);
-            if (def.hasLightDir) {
-                Vec3 d = e.v3(F_AXIS) * def.lightDir[0] + e.v3(F_AXIS + 3) * def.lightDir[1] +
-                         e.v3(F_AXIS + 6) * def.lightDir[2];
-                lights.add(DynamicLight::spotLight(origin, col, radius, d, def.lightConeAngle));
-            } else {
-                lights.add(DynamicLight::point(origin, col, radius));
-            }
+    Viewport vp;
+    vp.width = kW;
+    vp.height = kH;
+    WorldRenderOptions o;
+    o.sprites = o.particles = o.shadows = false;
+    WorldRenderStats stats;
+    s.ws.prepare(world, vp, o, false, false, stats);
+    const WorldScene::Frame& fr = s.ws.frame();
+    s.wv = fr.wv;
+    s.light = fr.light;
+    s.hasFog = fr.hasFog;
+    s.clear = fr.clearColour;
+    s.dropped = s.ws.dropped;
+    auto copy = [&](const std::vector<MeshRecord>& from, std::vector<Record>& to) {
+        to.clear();
+        for (const MeshRecord& m : from) {
+            Record r;
+            r.mesh = m.mesh;
+            r.material = m.material;
+            r.model = m.model;
+            r.colour = m.colour;
+            r.entity = m.entity;
+            r.root = rootOfEntity(world, m.entity);
+            to.push_back(r);
         }
-        if (def.type != ObjectType::Model || !e.model || e.modelPath.empty()) continue;
-        const GpuMesh& mesh = s.cache->mesh(e.modelPath);
-        if (!mesh.valid) continue;
-        std::vector<Record>* list = &s.opaque;
-        int cap = kOpaqueCap;
-        if (def.sort == SortMode::Trans) {
-            list = &s.trans;
-            cap = kTransCap;
-        } else if (def.sort == SortMode::Effect) {
-            list = &s.effect;
-            cap = kEffectCap;
-        }
-        if (static_cast<int>(list->size()) >= cap) {
-            ++s.dropped;
-            continue;
-        }
-        Record r;
-        r.mesh = &mesh;
-        r.material = &s.materialFor(def, e.skinPath);
-        r.model = entityMatrix(e);
-        r.colour = colour;
-        r.entity = i;
-        r.root = rootOfEntity(world, i);
-        list->push_back(r);
-    }
-    s.lights.assign(lights.data(), lights.data() + lights.size());
+    };
+    copy(s.ws.opaque, s.opaque);
+    copy(s.ws.trans, s.trans);
+    copy(s.ws.effect, s.effect);
+    s.lights.assign(s.ws.lights.data(), s.ws.lights.data() + s.ws.lights.size());
     s.player = world.playerEntityIndex(0);
 }
 
@@ -587,6 +465,7 @@ void run(const std::string& dir, int holdFrames) {
     // Everything that creates textures or meshes runs before the first frame.
     auto scene = std::make_unique<Scene>();
     scene->cache.reset(new ResourceCache(session->vfs()));
+    scene->ws.init(*scene->cache, session->vfs(), session->db());
     const u64 t0 = svcGetSystemTick();
     precacheMission(world, session->db(), *scene);
     say("precache %.0f ms\n", static_cast<double>(svcGetSystemTick() - t0) / (SYSCLOCK_ARM11 / 1000.0));
