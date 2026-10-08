@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -613,10 +614,29 @@ bool rectsOverlap(const HudElementRect& a, const HudElementRect& b) {
 }
 } // namespace
 
-TEST_CASE("hud layout: Main is unchanged and the sequels' bottom tables alias it") {
+TEST_CASE("hud layout: Main is unchanged and each game has its own bottom table") {
     CHECK(&hudLayout(GameId::AirStrike3D, HudTarget::Main) == &hudLayout(GameId::AirStrike3D));
-    CHECK(&hudLayout(GameId::AirStrike2, HudTarget::Bottom320x240) == &hudLayout(GameId::AirStrike2));
-    CHECK(&hudLayout(GameId::GulfThunder, HudTarget::Bottom320x240) == &hudLayout(GameId::GulfThunder));
+    CHECK(&hudLayout(GameId::AirStrike2, HudTarget::Main) == &hudLayout(GameId::AirStrike2));
+    CHECK(&hudLayout(GameId::GulfThunder, HudTarget::Main) == &hudLayout(GameId::GulfThunder));
+    for (GameId g : {GameId::AirStrike2, GameId::GulfThunder}) {
+        const HudLayout& m = hudLayout(g);
+        const HudLayout& b = hudLayout(g, HudTarget::Bottom320x240);
+        CHECK(&b != &m);
+        CHECK(b.game == g);
+        // The same art and icon tables, only places and sizes differ; Main keeps its values.
+        CHECK(std::string(b.barAtlas) == std::string(m.barAtlas));
+        CHECK(sameUv(b.barFrame.uv, m.barFrame.uv));
+        CHECK(sameUv(b.box.uv, m.box.uv));
+        CHECK(b.weapons.size() == m.weapons.size());
+        CHECK(b.weaponLevelMax == m.weaponLevelMax);
+        CHECK(b.hint == HintStyle::SequelPanel);
+        CHECK(m.scoreScale == 1.0f);
+        CHECK(m.fillDrawScale == 1.0f);
+        CHECK(m.levelNameY == 500);
+        CHECK(m.onePlayer.barY == 6);
+        CHECK(b.onePlayer.livesY < kHudBottomBandTop);
+    }
+    CHECK(hudLayout(GameId::AirStrike2, HudTarget::Bottom320x240).weapons.size() == 9);
     const HudLayout& m = hudLayout(GameId::AirStrike3D);
     CHECK(m.scoreScale == 1.0f);
     CHECK(m.levelNameY == 500);
@@ -633,8 +653,11 @@ TEST_CASE("hud layout: Main is unchanged and the sequels' bottom tables alias it
 }
 
 TEST_CASE("hud layout: every Bottom320x240 element is inside the screen, apart, above the touch band") {
-    const HudLayout& L = hudLayout(GameId::AirStrike3D, HudTarget::Bottom320x240);
-    const std::vector<HudElementRect> r = hudElementRects(L);
+  for (GameId game : {GameId::AirStrike3D, GameId::AirStrike2, GameId::GulfThunder}) {
+    const HudLayout& L = hudLayout(game, HudTarget::Bottom320x240);
+    CAPTURE(std::string(L.name));
+    // The first game shows 4 power-up kinds; the sequels' column holds 10 above the band.
+    const std::vector<HudElementRect> r = hudElementRects(L, game == GameId::AirStrike3D ? kPowerupIconKinds : 10);
     REQUIRE(r.size() >= 8u);
     for (const HudElementRect& e : r) {
         CAPTURE(e.name);
@@ -657,12 +680,118 @@ TEST_CASE("hud layout: every Bottom320x240 element is inside the screen, apart, 
         }
     // Legible: the digits, the boxes and the text are at least 1.5 times the original's.
     CHECK(L.scoreScale >= 1.5f);
-    CHECK(L.box.w >= 1.5f * 70);
-    CHECK(L.iconW >= 1.5f * 66);
+    // Boxes and icons: 1.5 times the first game's, 1.1 times the sequels' (their column of six
+    // boxes would not fit above the band any bigger).
+    const HudLayout& Mn = hudLayout(game);
+    const float boxScale = game == GameId::AirStrike3D ? 1.5f : 1.1f;
+    CHECK(L.box.w >= boxScale * Mn.box.w - 1.0f);
+    CHECK(L.box.h >= boxScale * Mn.box.h - 1.0f);
+    CHECK(L.iconW >= boxScale * Mn.iconW - 1.0f);
     CHECK(L.levelNameScale >= 1.5f);
     // The health fill stays inside its frame.
     CHECK(L.onePlayer.fillX + L.fillWidth <= L.onePlayer.barX + L.barFrame.w);
     CHECK(L.onePlayer.fillY + L.fill.h <= L.onePlayer.barY + L.barFrame.h);
+    if (L.fillStyle == HudFill::Segmented)
+        CHECK(L.onePlayer.fillX + (L.fillCap + L.fillSegment * static_cast<float>(L.fillSegments)) * L.fillDrawScale <=
+              L.onePlayer.barX + L.barFrame.w);
+    // The longest level-pip run and the widest score stay in their element.
+    if (!L.weaponLevelMax.empty()) {
+        const int mx = std::max(*std::max_element(L.weaponLevelMax.begin(), L.weaponLevelMax.end()), 8);
+        CHECK(L.onePlayer.levelX + L.levelOn.w * static_cast<float>(mx) <= L.onePlayer.weaponBoxX + L.box.w);
+        CHECK(L.onePlayer.levelY + L.levelOn.h <= L.onePlayer.weaponBoxY + L.box.h);
+    }
+  }
+}
+
+TEST_CASE("hud layout: every element drawHud draws has a rectangle in each Bottom320x240 table") {
+    for (GameId game : {GameId::AirStrike3D, GameId::AirStrike2, GameId::GulfThunder}) {
+        const HudLayout& L = hudLayout(game, HudTarget::Bottom320x240);
+        const HudLayout& M = hudLayout(game);
+        CAPTURE(std::string(L.name));
+        const std::vector<HudElementRect> rects = hudElementRects(L, 4);
+        auto has = [&](const char* name) {
+            for (const HudElementRect& e : rects)
+                if (std::string(e.name) == name) return true;
+            return false;
+        };
+        CHECK(!L.onePlayer.order.empty());
+        CHECK(L.onePlayer.order.size() == M.onePlayer.order.size()); // nothing dropped
+        for (HudElement e : L.onePlayer.order) {
+            switch (e) {
+                case HudElement::Lives: CHECK(has("lives")); break;
+                case HudElement::HealthFrame: case HudElement::HealthFill: CHECK(has("health")); break;
+                case HudElement::ScoreFrame: case HudElement::Score: CHECK(has("score")); break;
+                case HudElement::WeaponBox: case HudElement::WeaponIcon: case HudElement::WeaponLevel: CHECK(has("weapon")); break;
+                case HudElement::Missiles: CHECK(has("missiles")); break;
+                case HudElement::Powerups: CHECK(has("powerups")); break; // never followsMissiles on this screen
+            }
+        }
+        CHECK(has("level_name"));
+        CHECK(has("message"));
+        // Not the Main positions: at least the health bar or the weapon box moved or grew.
+        CHECK((L.onePlayer.livesY != M.onePlayer.livesY || L.onePlayer.weaponBoxY != M.onePlayer.weaponBoxY));
+        CHECK(L.onePlayer.livesY + L.life.h <= kHudBottomBandTop);
+        CHECK_FALSE(L.onePlayer.powerups.followsMissiles);
+    }
+}
+
+// The sequels' fullest bottom HUD (every missile type, ten power-up kinds, ten lives, a
+// ten-digit score, the level name and a message) draws inside the element rectangles and above
+// the touch band. AS3D_HUD_DUMP=<dir> also writes the 320x240 image of each game there.
+TEST_CASE("hud layout: the sequels' fullest Bottom320x240 HUD draws inside its rectangles") {
+    AS3D_REQUIRE_GLES();
+    for (GameId game : {GameId::AirStrike2, GameId::GulfThunder}) {
+        REQUIRE_GAME_VFS(gv, game);
+        UiAssets a;
+        std::string err;
+        REQUIRE_MESSAGE(a.load(gv.vfs, &err, game), err);
+        a.hudTarget = HudTarget::Bottom320x240;
+        const HudLayout& L = a.hudLayout();
+        CHECK(&L == &hudLayout(game, HudTarget::Bottom320x240));
+        HudState st;
+        HudPlayer& p = st.players[0];
+        p = richPlayer();
+        p.lives = 10;
+        p.score = 1234567890;
+        p.health = 500;
+        p.maxHealth = 500;
+        for (int t = 0; t < kMissileTypes; t++) p.missiles[t] = 12;
+        for (int k = 0; k < kPowerupSlots; k++) p.powerups[k] = k < 10 ? 3 : 0;
+        p.weapon = 2;
+        p.upgrades[2] = 7;
+        st.levelName = "{Operation Thunderstrike}";
+        st.levelTime = 4.0f;
+        st.message = "Cheat enabled";
+        st.messageAge = 0.5f;
+        const std::vector<HudElementRect> rects = hudElementRects(L, 10);
+        Renderer2D r;
+        REQUIRE_MESSAGE(r.init(&err), err);
+        RenderTarget target;
+        REQUIRE(target.create(320, 240, 0));
+        target.bind();
+        clear({0.2f, 0.25f, 0.15f, 1}, true);
+        r.begin(320, 240);
+        drawHud(r, a, st);
+        CHECK(r.dropped() == 0);
+        REQUIRE(r.quads().size() > 20u);
+        for (const Quad& q : r.quads()) {
+            // A number's glyph cell is 32 wide for a 14 pixel advance (the extra is transparent).
+            const float qw = (q.h == 16.0f * L.countScale && q.w == 32.0f * L.countScale) ? 14.0f * L.countScale : q.w;
+            bool inside = false;
+            for (const HudElementRect& e : rects)
+                inside = inside || (q.x >= e.x - 1.0f && q.y >= e.y - 1.0f && q.x + qw <= e.x + e.w + 1.0f &&
+                                    q.y + q.h <= e.y + e.h + 1.0f);
+            INFO(L.name << " quad " << q.x << "," << q.y << " " << q.w << "x" << q.h);
+            CHECK(inside);
+            CHECK(q.y + q.h <= kHudBottomBandTop + 1.0f);
+        }
+        r.flush();
+        if (const char* dir = std::getenv("AS3D_HUD_DUMP")) {
+            Image img;
+            REQUIRE(target.readPixels(img));
+            writePng((std::string(dir) + "/" + L.name + "-full.png").c_str(), img);
+        }
+    }
 }
 
 TEST_CASE("hud layout: the Bottom320x240 hint box is bigger and fits the screen") {

@@ -119,6 +119,7 @@ struct HudLayout {
     float fillSpanTexels = 0;            // Proportional: texels of a full bar (s1 = f x span / atlas)
     float fillCap = 0, fillSegment = 0;  // Segmented: texels (= pixels) of the cap and of a segment
     int fillSegments = 0;
+    float fillDrawScale = 1.0f;          // Segmented: drawn size per texel (the UVs stay 1 texel per texel)
     HudPiece levelOn, levelMax;          // weapon level pips (w, h: one pip); none if w == 0
     HudPiece selLine;                    // selection line; none if w == 0
     HudPiece life;                       // uv, size, colour and blend of one life icon
@@ -157,8 +158,8 @@ struct HudLayout {
 // The layout of a game. Gulf Thunder's is AirStrike 2's with its own tables and panel.
 const HudLayout& hudLayout(GameId game);
 // The layout for a target (HudTarget in ui.h). Main is hudLayout(game). Bottom320x240 is the
-// 3DS bottom screen's: AirStrike 3D has its own tables (hud_layouts.cpp); the sequels' alias
-// Main until theirs are made.
+// 3DS bottom screen's: AirStrike 3D has its own tables (hud_layouts.cpp); the sequels have their own
+// (makeSequelBottom, one player).
 const HudLayout& hudLayout(GameId game, HudTarget target);
 
 // Bottom320x240: the virtual y where the band reserved for the touch pickers and the pause

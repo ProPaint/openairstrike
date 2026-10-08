@@ -67,7 +67,8 @@ struct Hud {
         const float w = L.fillCap + L.fillSegment * static_cast<float>(n);
         SpecUv uv = L.fill.uv;
         uv.s1 = uv.s0 + w / L.barAtlasW;
-        piece(a.mainbar, s.fillFromRight ? s.fillX - w : s.fillX, s.fillY, w, L.fill.h, uv, s.fillFromRight,
+        const float dw = w * L.fillDrawScale;
+        piece(a.mainbar, s.fillFromRight ? s.fillX - dw : s.fillX, s.fillY, dw, L.fill.h, uv, s.fillFromRight,
               L.fill.color, L.fill.blend);
     }
 

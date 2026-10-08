@@ -315,6 +315,52 @@ HudLayout makeGulf() {
     return L;
 }
 
+
+// ---------------------------------------------------------------------------
+// The sequels on the 3DS bottom screen (HudTarget::Bottom320x240): the same elements, atlases
+// and icon tables as Main, laid out for a 320x240 screen at the 0.4 scale, one player. Bars
+// and score at 1.5 times, boxes, icons, counts and pips at 1.1 times (a box is 38 x 26 px on
+// that screen: the left column is the weapon box and the five missile boxes, which at 1.5
+// would not fit above the touch band). Rows, top to bottom: health bar (left) and score frame
+// (right) at y 6, the life icons at y 62, then at the left the weapon box (with its level
+// pips) at y 102 and the missile column under it, at the right the power-up column from y 62
+// (no frames, as in Main; packed closer, step 42, so that all ten kinds fit above the band), the
+// level name and the cheat message in the free middle. The second player's tables are not
+// made (the screen belongs to one player).
+// ---------------------------------------------------------------------------
+void makeSequelBottom(HudLayout& L, const char* name) {
+    L.name = name;
+    const float B = 1.5f, S = 1.1f; // bars and score; boxes, icons, counts, pips
+    L.barFrame.w = 232 * B; L.barFrame.h = 34 * B;
+    L.scoreFrame.w = 232 * B; L.scoreFrame.h = 34 * B;
+    L.fill.w = 227 * B; L.fill.h = 34 * B;
+    L.fillDrawScale = B;
+    L.box.w = 96; L.box.h = 66;
+    L.levelOn.w = 8; L.levelOn.h = 7;
+    L.levelMax.w = 8; L.levelMax.h = 7;
+    L.selLine.w = 58; L.selLine.h = 1;
+    L.life.w = 36; L.life.h = 36;
+    L.iconW = 72; L.iconH = 39;
+    L.countScale = 1.0f;
+    L.scoreScale = B;
+    L.levelNameY = 250; L.levelNameScale = 1.5f;
+    L.messageY = 400; L.messageScale = 1.5f;
+
+    HudSide& s = L.onePlayer;
+    s.livesX = 4; s.livesStep = 38; s.livesY = 62;
+    s.barX = 0; s.barY = 6;
+    s.fillX = 0; s.fillY = 6;
+    s.scoreFrameX = 452; s.scoreFrameY = 6; s.scoreFrameMirror = true;
+    s.scoreX = 500; s.scoreY = 22;
+    s.weaponBoxX = 0; s.weaponBoxY = 102;
+    s.weaponIconX = 16.5f; s.weaponIconY = 102 + 17 * S;
+    s.levelX = 20; s.levelY = 102 + 11 * S;
+    const float step = 66;
+    // frameX, firstY, step, mirror, followsMissiles, iconX, iconDy, countRight, countDy, lineX, lineDy, frames, line, iconAfterCount
+    s.missiles = {0, 168, step, false, false, 15 * S, 17 * S, 80 * S, 13 * S, 22 * S, 5 * S, true, true};
+    s.powerups = {704, 62, 42, true, false, 704 + 8 * S, 17 * S, 704 + 69 * S, 13 * S, 704 + 12 * S, 5 * S, false, false, true};
+}
+
 } // namespace
 
 const HudLayout& hudLayout(GameId game) { return hudLayout(game, HudTarget::Main); }
@@ -324,8 +370,15 @@ const HudLayout& hudLayout(GameId game, HudTarget target) {
     static const HudLayout as2 = makeAs2();
     static const HudLayout gulf = makeGulf();
     static const HudLayout v170Bottom = makeV170Bottom();
-    // The sequels' bottom tables alias Main until they are made (M5.3).
-    if (target == HudTarget::Bottom320x240 && game == GameId::AirStrike3D) return v170Bottom;
+    static const HudLayout as2Bottom = [] { HudLayout L = makeAs2(); makeSequelBottom(L, "as2-bottom"); return L; }();
+    static const HudLayout gulfBottom = [] { HudLayout L = makeGulf(); makeSequelBottom(L, "gulf-bottom"); return L; }();
+    if (target == HudTarget::Bottom320x240) {
+        switch (game) {
+            case GameId::AirStrike2: return as2Bottom;
+            case GameId::GulfThunder: return gulfBottom;
+            default: return v170Bottom;
+        }
+    }
     switch (game) {
         case GameId::AirStrike2: return as2;
         case GameId::GulfThunder: return gulf;
@@ -353,9 +406,12 @@ std::vector<HudElementRect> hudElementRects(const HudLayout& L, int powerupEntri
     v.push_back({"weapon", s.weaponBoxX, s.weaponBoxY, L.box.w, L.box.h});
     v.push_back({"missiles", s.missiles.frameX, s.missiles.firstY, L.box.w,
                  s.missiles.step * static_cast<float>(kMissileTypes - 1) + L.box.h});
-    if (!s.powerups.followsMissiles && powerupEntries > 0)
+    if (!s.powerups.followsMissiles && powerupEntries > 0) {
+        // Without frames the last entry ends with its icon.
+        const float last = s.powerups.drawFrames ? L.box.h : s.powerups.iconDy + L.iconH;
         v.push_back({"powerups", s.powerups.frameX, s.powerups.firstY, L.box.w,
-                     s.powerups.step * static_cast<float>(powerupEntries - 1) + L.box.h});
+                     s.powerups.step * static_cast<float>(powerupEntries - 1) + last});
+    }
     v.push_back({"level_name", 140, L.levelNameY, 520, 18.0f * L.levelNameScale});
     v.push_back({"message", 140, L.messageY, 520, 18.0f * L.messageScale});
     return v;
