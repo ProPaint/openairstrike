@@ -163,6 +163,8 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.hud = n != 0;
         } else if (key == "touch") {
             if (toInt(val, &n)) c.touch = n != 0;
+        } else if (key == "pak_cache_kb") {
+            if (toInt(val, &n) && n >= 0 && n <= 8192) c.pakCacheKb = n;
         } else if (key == "vsync") {
             if (val == "lazy") c.lazyVsync = true;
             else if (val == "1") c.lazyVsync = false;

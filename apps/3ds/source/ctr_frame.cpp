@@ -303,9 +303,11 @@ struct GameFrame::Impl {
     void precacheLevel(as3d_game::GameSession& ses, float from, float to) {
         if (!run.precache || !ses.hasLevel()) return;
         World& world = ses.world();
+        const as3d::ctr::StreamReadStats rd0 = as3d::ctr::streamReadStats();
         const u64 t0 = svcGetSystemTick();
         PrecacheReport r = world.precacheScripts();
         const u64 t1 = svcGetSystemTick();
+        const as3d::ctr::StreamReadStats rd1 = as3d::ctr::streamReadStats();
         loadingFrame(from, true);
         const pica::LoadProfile lp0 = pica::loadProfile();
         const double shadowMs0 = pica::shadowPicaStats().generateMs;
@@ -313,6 +315,7 @@ struct GameFrame::Impl {
         const u64 t2 = svcGetSystemTick();
         r += renderer->precache(world, ses.db(), [this, from, to](float q) { loadingFrame(from + (to - from) * q); });
         const u64 t3 = svcGetSystemTick();
+        const as3d::ctr::StreamReadStats rd2 = as3d::ctr::streamReadStats();
         const LoadCounts before = LoadStats::lazyLoads();
         if (hudReady) assets->precachePlay();
         const u64 t4 = svcGetSystemTick();
@@ -327,15 +330,19 @@ struct GameFrame::Impl {
             const double shadowMs = pica::shadowPicaStats().generateMs - shadowMs0;
             const double framesMs = static_cast<double>(loadingTicks - frames0) / k;
             const double worldMs = static_cast<double>(t3 - t2) / k;
-            AS3D_INFO("AS3D_LOAD phase=precache_scripts ms=%.0f", static_cast<double>(t1 - t0) / k);
+            AS3D_INFO("AS3D_LOAD phase=precache_scripts ms=%.0f read_ms=%.0f (%lu file reads, %.0f KB)",
+                      static_cast<double>(t1 - t0) / k, static_cast<double>(rd1.ticks - rd0.ticks) / k,
+                      static_cast<unsigned long>(rd1.reads - rd0.reads), static_cast<double>(rd1.bytes - rd0.bytes) / 1024.0);
+            const double readMs = static_cast<double>(rd2.ticks - rd1.ticks) / k;
             AS3D_INFO("AS3D_LOAD phase=precache_world ms=%.0f textures=%d tex_ms=%.0f (mip %.0f swizzle %.0f upload %.0f, "
                       "%d levels, %.0f KB) meshes=%d mesh_ms=%.0f shadows_ms=%.0f loading_frames_ms=%.0f "
-                      "read_decode_parse_ms=%.0f",
+                      "read_ms=%.0f (%lu file reads, %.0f KB) decode_parse_ms=%.0f",
                       worldMs, lp.texCount - lp0.texCount, texMs, static_cast<double>(lp.texMipTicks - lp0.texMipTicks) / k,
                       static_cast<double>(lp.texSwizzleTicks - lp0.texSwizzleTicks) / k,
                       static_cast<double>(lp.texUploadTicks - lp0.texUploadTicks) / k, lp.texLevels - lp0.texLevels,
                       static_cast<double>(lp.texBytes - lp0.texBytes) / 1024.0, lp.meshCount - lp0.meshCount, meshMs,
-                      shadowMs, framesMs, worldMs - texMs - meshMs - shadowMs - framesMs);
+                      shadowMs, framesMs, readMs, static_cast<unsigned long>(rd2.reads - rd1.reads),
+                      static_cast<double>(rd2.bytes - rd1.bytes) / 1024.0, worldMs - texMs - meshMs - shadowMs - framesMs - readMs);
             AS3D_INFO("AS3D_LOAD phase=precache_ui ms=%.0f", static_cast<double>(t4 - t3) / k);
             if (t5 > t4) AS3D_INFO("AS3D_LOAD phase=precache_sounds ms=%.0f", static_cast<double>(t5 - t4) / k);
         }

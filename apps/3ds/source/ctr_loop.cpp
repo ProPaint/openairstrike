@@ -96,8 +96,9 @@ void setFramePacing(const RunConfig& run) {
     g_pacing.lazyVsync = run.lazyVsync;
     g_pacing.gpuKick = run.gpuKick;
     g_pacing.cmdlistFlush = run.cmdlistFlush || run.gpuKick;
-    AS3D_INFO("AS3D_PACING vsync=%s gpu_kick=%d end_flush=%s", g_pacing.lazyVsync ? "lazy" : "1", g_pacing.gpuKick ? 1 : 0,
-              g_pacing.cmdlistFlush ? "cmdlist" : "all");
+    as3d::ctr::setStreamBlockCache(static_cast<size_t>(run.pakCacheKb) * 1024);
+    AS3D_INFO("AS3D_PACING vsync=%s gpu_kick=%d end_flush=%s pak_cache_kb=%d", g_pacing.lazyVsync ? "lazy" : "1",
+              g_pacing.gpuKick ? 1 : 0, g_pacing.cmdlistFlush ? "cmdlist" : "all", run.pakCacheKb);
 }
 
 const FramePacing& framePacing() { return g_pacing; }
@@ -198,8 +199,12 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     AS3D_INFO("mission %d loaded in %.0f ms", run.level, simLoadMs);
     {
         const as3d_game::GameSession::InitTimes& it = session->initTimes();
-        AS3D_INFO("AS3D_LOAD phase=session ms=%.0f mount=%.0f defs=%.0f world_init=%.0f level=%.0f", simLoadMs, it.mountMs,
-                  it.defsMs, it.worldMs, it.levelMs);
+        const as3d::ctr::StreamReadStats& rd = as3d::ctr::streamReadStats();
+        AS3D_INFO("AS3D_LOAD phase=session ms=%.0f mount=%.0f defs=%.0f world_init=%.0f level=%.0f; pak reads so far %.0f ms "
+                  "(%lu file reads, %.0f KB, %lu block cache hits)",
+                  simLoadMs, it.mountMs, it.defsMs, it.worldMs, it.levelMs, ticksToMs(rd.ticks),
+                  static_cast<unsigned long>(rd.reads), static_cast<double>(rd.bytes) / 1024.0,
+                  static_cast<unsigned long>(rd.cacheHits));
     }
 
     FrameHook* hook = opts.hook;

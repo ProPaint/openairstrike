@@ -87,6 +87,7 @@ struct RunConfig {
     std::string passes;        // passes=a,b,..: only these passes draw (pass_profile.h names, world, all); empty = all
     bool hud = true;           // hud=0: no HUD on the bottom screen
     bool touch = true;         // touch=0: no touch band on the bottom screen
+    int pakCacheKb = 0;        // pak_cache_kb=N: a block cache of N KB per pak stream (rw_stream_ctr.cpp); 0 = none (default)
     // Frame pacing (ctr_loop.cpp drawFrame): vsync=1 waits for a vblank before every frame
     // (C3D_FRAME_SYNCDRAW, the default); vsync=lazy only when no vblank came since the frame
     // began (at most one frame per vblank, no wait when the frame is late anyway).

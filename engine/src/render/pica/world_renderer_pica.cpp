@@ -300,11 +300,15 @@ PrecacheReport WorldRenderer::precache(const World& world, const DefDatabase& db
                             int steps) {
         if (!pica::renderQuality().blobShadowsOnly) im.precacheShadow(mesh, mat, ss, steps);
     };
-    // The closure's: planar ones, and the projected rotations only on request (shadow_pica.h).
+    // The closure's: planar ones, the projected ones at step 0, the other rotations only on
+    // request (shadow_pica.h).
     auto closureHook = [&im](const GpuMesh& mesh, const std::string&, const Material& mat, const ShadowSpec& ss,
                              int steps) {
         if (pica::renderQuality().blobShadowsOnly) return;
-        if (ss.kind == ShadowKind::Planar || pica::shadowPrecacheRotations()) im.precacheShadow(mesh, mat, ss, steps);
+        // Projected: the unrotated one (step 0, the spawns that keep the root's default yaw:
+        // mission 1's late ruins_big) always, the other 11 rotations on request.
+        if (ss.kind == ShadowKind::Planar || steps == 0 || pica::shadowPrecacheRotations())
+            im.precacheShadow(mesh, mat, ss, steps);
     };
     if (const Terrain* t = world.terrain()) {
         if (const LevelData* level = t->level()) {

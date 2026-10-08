@@ -51,5 +51,18 @@ public:
 // The live context, or null (before createGraphicsContext and after it was destroyed).
 CtrContext* ctrContext();
 
+// The reads of the platform streams (the game's paks, openPlatformStream: FSFILE_Read at an
+// offset), since start: the load profile's read time (AS3D_LOAD).
+struct StreamReadStats {
+    u64 ticks = 0;
+    u64 bytes = 0;
+    u32 reads = 0;     // FSFILE_Read calls (cache misses and large reads)
+    u32 cacheHits = 0; // reads served from the block cache
+};
+const StreamReadStats& streamReadStats();
+// The block cache of each platform stream opened from now on (bytes, 64 KB blocks; 0 = none).
+// run.ini pak_cache_kb=; default 0.
+void setStreamBlockCache(size_t bytes);
+
 } // namespace ctr
 } // namespace as3d

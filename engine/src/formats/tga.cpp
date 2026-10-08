@@ -217,6 +217,39 @@ bool decodeTga(const u8* data, size_t size, Image& out) {
         if (needed > r.remaining()) return false;
     }
 
+    // The common case (uncompressed true colour, rows left to right): each file row decoded
+    // straight into its place in the output, no intermediate buffer or per-pixel dispatch.
+    if (!isRle && typeClass == TypeClass::TrueColor && !((h.descriptor >> 4) & 1) &&
+        (h.pixelDepth == 24 || h.pixelDepth == 32)) {
+        const bool topDown = (h.descriptor >> 5) & 1;
+        out.width = static_cast<int>(width);
+        out.height = static_cast<int>(height);
+        out.hasAlpha = hasAlpha;
+        out.rgba.resize(rgbaBytes);
+        const u8* p = data + r.pos();
+        const size_t pb = static_cast<size_t>(pixelBytes);
+        for (size_t y = 0; y < height; ++y) {
+            u8* o = &out.rgba[(topDown ? y : height - 1 - y) * width * 4];
+            const u8* q = p + y * width * pb;
+            if (pb == 4) {
+                for (size_t x = 0; x < width; ++x, o += 4, q += 4) {
+                    o[0] = q[2];
+                    o[1] = q[1];
+                    o[2] = q[0];
+                    o[3] = q[3];
+                }
+            } else {
+                for (size_t x = 0; x < width; ++x, o += 4, q += 3) {
+                    o[0] = q[2];
+                    o[1] = q[1];
+                    o[2] = q[0];
+                    o[3] = 255;
+                }
+            }
+        }
+        return true;
+    }
+
     std::vector<u8> src(rgbaBytes, 0); // decoded pixels, still in file row order
 
     auto store = [&](size_t index, const Rgba& c) {
