@@ -5,6 +5,8 @@
 // the rules' flags where the games differ). Names not listed bind to the VM's counted
 // auto-stub.
 #include <cstring>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "builtins_common.h"
@@ -49,14 +51,33 @@ const std::vector<script::BuiltinDesc>& table(GameId game) {
     return t[i >= 0 && i < kGameCount ? i : 0];
 }
 
+// Name -> the first table entry with that name (the result of a front-to-back strcmp
+// search), hashed: every script thread binds each of its FUNC names here when it is
+// created (several per frame on a busy mission).
+using NameIndex = std::unordered_map<std::string_view, const script::BuiltinDesc*>;
+
+NameIndex buildIndex(GameId game) {
+    NameIndex m;
+    const std::vector<script::BuiltinDesc>& t = table(game);
+    m.reserve(t.size());
+    for (const script::BuiltinDesc& d : t) m.emplace(std::string_view(d.name), &d); // keeps the first
+    return m;
+}
+
+const NameIndex& builtinIndex(GameId game) {
+    static const NameIndex idx[kGameCount] = {buildIndex(GameId::AirStrike3D), buildIndex(GameId::AirStrike2),
+                                              buildIndex(GameId::GulfThunder)};
+    int i = static_cast<int>(game);
+    return idx[i >= 0 && i < kGameCount ? i : 0];
+}
+
 } // namespace
 
 const script::BuiltinDesc* findGameBuiltin(GameId game, const char* name) {
     if (!name) return nullptr;
-    for (const script::BuiltinDesc& d : table(game)) {
-        if (std::strcmp(d.name, name) == 0) return &d;
-    }
-    return nullptr;
+    const NameIndex& m = builtinIndex(game);
+    auto it = m.find(std::string_view(name));
+    return it == m.end() ? nullptr : it->second;
 }
 
 size_t gameBuiltinCount(GameId game) { return table(game).size(); }

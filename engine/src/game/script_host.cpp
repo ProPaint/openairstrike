@@ -3,6 +3,8 @@
 #include "as3d/script_host.h"
 
 #include <cstring>
+#include <string_view>
+#include <unordered_map>
 
 #include "as3d/load_stats.h"
 #include "as3d/vfs.h"
@@ -79,11 +81,21 @@ const char* scriptGlobalName(GameId game, int index) {
 
 int scriptGlobalIndex(GameId game, const char* name) {
     if (!name) return -1;
-    GlobalTable t = tableOf(game);
-    for (int i = 0; i < t.count; ++i) {
-        if (std::strcmp(kSlotNames[t.slots[i]], name) == 0) return i;
-    }
-    return -1;
+    // Name -> the first index with that name (what a front-to-back strcmp search finds),
+    // hashed: every script thread binds each of its DEFS names when it is created.
+    using NameIndex = std::unordered_map<std::string_view, int>;
+    auto build = [](GameId g) {
+        NameIndex m;
+        GlobalTable t = tableOf(g);
+        m.reserve(static_cast<size_t>(t.count));
+        for (int i = 0; i < t.count; ++i) m.emplace(std::string_view(kSlotNames[t.slots[i]]), i); // keeps the first
+        return m;
+    };
+    static const NameIndex idx[2] = {build(GameId::AirStrike3D), build(GameId::AirStrike2)};
+    // tableOf: the first game's table, else the sequels' (one table for both sequels).
+    const NameIndex& m = idx[game == GameId::AirStrike3D ? 0 : 1];
+    auto it = m.find(std::string_view(name));
+    return it == m.end() ? -1 : it->second;
 }
 
 u32 scriptGlobalAddress(GameId game, const char* name) {
