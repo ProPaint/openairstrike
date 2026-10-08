@@ -72,10 +72,11 @@ void menuAptCallback(APT_HookType hook, void* param) {
     }
 }
 
-// The screen name of game_loop.cpp's AS3D_SCREEN markers.
+// The screen name of game_loop.cpp's AS3D_SCREEN markers; the intro pages by number (intro1, ...:
+// the logo pages of Settings.xml, then the sequels' comic pages).
 std::string screenOf(as3d_game::GameFlow& flow) {
     const as3d::ui::Frontend& fe = flow.frontend();
-    if (fe.state() == as3d::ui::FrontendState::Intro) return "intro";
+    if (fe.state() == as3d::ui::FrontendState::Intro) return "intro" + std::to_string(fe.introPage() + 1);
     if (fe.menuOpen()) return as3d::ui::screenName(fe.topScreen());
     if (fe.state() == as3d::ui::FrontendState::Playing) return fe.paused() ? "paused" : "playing";
     return "none";
@@ -201,6 +202,10 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     perf.setLoadMs(loadMs);
     AS3D_INFO("front end: data, view and audio in %.0f ms; profile %s; attract level %d", loadMs,
               flow.config().profilePath.c_str(), flow.attractLevel());
+    if (run.unlockHeli >= 0 && run.unlockHeli < ses.rules().helicopterCount && run.unlockHeli < kMaxHelicopters) {
+        flow.frontend().profile().progress.helicopterUnlocked[run.unlockHeli] = true;
+        AS3D_INFO("unlock_heli: helicopter %d unlocked", run.unlockHeli);
+    }
     flow.boot();
 
     MenuApt apt;
@@ -214,13 +219,14 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     const ui::Mapping bottomMap = ui::computeMapping(CtrInput::kTouchW, CtrInput::kTouchH);
     CtrInput input(run, new3ds);
     const unsigned maxFrames = static_cast<unsigned>(std::max(run.frames, 0));
-    unsigned frameNo = 0, steps = 0, dropped = 0, botStep = 0, levelSteps = 0;
+    unsigned frameNo = 0, steps = 0, dropped = 0, runStep = 0, levelSteps = 0;
     double acc = 0.0;
     double dt = 1.0 / 60.0;
     uint64_t last = nowTicks(), lastFrame = 0, lastUi = 0;
     float lastCpu = 0.0f, lastGpu = 0.0f;
     bool queuedEscape = false;
     std::string screen;
+    int focusedItem = -1;
 
     while (aptMainLoop()) {
         const PadState& pad = input.readPad();
@@ -241,7 +247,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
 
         // The front end's frame (menu time on the wall clock).
         const uint64_t nowUi = nowTicks();
-        const float uiDt = lastUi ? static_cast<float>(std::min(0.1, ticksToMs(nowUi - lastUi) / 1000.0)) : 0.0f;
+        float uiDt = lastUi ? static_cast<float>(std::min(0.1, ticksToMs(nowUi - lastUi) / 1000.0)) : 0.0f;
+        if (run.uiFixedDt) uiDt = 1.0f / 60.0f;
         lastUi = nowUi;
         ui::UiInput uin = flow.playing() ? input.playingUiInputs() : input.uiInputs(bottomMap);
         if (queuedEscape) {
@@ -260,7 +267,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
             last = nowTicks();
             acc = 0.0;
             lastFrame = 0;
-            botStep = 0;
+            runStep = 0;
             levelSteps = 0;
             if (ses.hasLevel()) dt = ses.world().config().dt;
         }
@@ -270,6 +277,13 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
                 screen = s;
                 AS3D_INFO("AS3D_SCREEN name=%s frame=%u mission=%d", s.c_str(), frameNo, ses.hasLevel() ? ses.mission() : 0);
                 if (flow.frontend().menuOpen()) AS3D_INFO("AS3D_MENU name=%s items=%s", s.c_str(), menuItems(flow).c_str());
+            }
+            // The focused item (pad navigation), on every change.
+            const ui::Menu* top = flow.frontend().menus().top();
+            const int f = top && top->focused >= 0 ? top->items[static_cast<size_t>(top->focused)].id : -1;
+            if (f != focusedItem) {
+                focusedItem = f;
+                if (top) AS3D_INFO("AS3D_FOCUS screen=%s item=%d frame=%u", s.c_str(), f, frameNo);
             }
         }
 
@@ -286,15 +300,47 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
             }
             acc -= dt;
             FrameInput in = input.frame(ses.world().paused()); // also drains the touch buttons
-            // menu_bot: the bot flies the mission (its confirm also closes the hint boxes; the
-            // flow ignores its controls while a menu is up).
-            if (run.menuBot && flow.frontend().state() == ui::FrontendState::Playing && !ses.world().intermission()) {
-                const bool pause = in.pausePressed;
-                in = botInput(botStep++);
-                in.pausePressed = pause;
+            // The mission's running steps (runStep, reset at every level load): the world's clock,
+            // hint boxes included (they pause the world in mode=bot too), but not while the front
+            // end holds it (the sequels' start dialogue, the in-game menu, the end screens), so
+            // that the N-th one is the N-th step of `mode=bot` (as3d_sim --bot). menu_bot: the bot
+            // flies them (its confirm also closes the hint boxes); menu_bot_steps and end_at count
+            // them.
+            bool running = false;
+            if (flow.frontend().state() == ui::FrontendState::Playing && ses.hasLevel() && !ses.world().intermission()) {
+                const ui::Frontend& fe = flow.frontend();
+                const bool hint = ses.world().hintShowing();
+                const bool frontPaused = fe.menuOpen() && !(hint && fe.topScreen() == ui::Screen::Hint);
+                running = !frontPaused && (!ses.world().paused() || hint) && !ses.world().levelComplete() &&
+                          !ses.world().gameOver();
+                if (run.menuBot) {
+                    const bool pause = in.pausePressed;
+                    in = running ? botInput(runStep) : FrameInput();
+                    in.pausePressed = pause;
+                }
             }
             const int before = flow.levelLoads();
             flow.step(in);
+            if (running) {
+                ++runStep;
+                if (run.menuBotSteps > 0 && runStep == static_cast<unsigned>(run.menuBotSteps)) {
+                    AS3D_INFO("AS3D_BOT_END mission=%d steps=%u bot=%d frame=%u", ses.mission(), runStep, run.menuBot ? 1 : 0,
+                              frameNo);
+                    logEndState(ses, ses.mission(), runStep);
+                }
+                if (run.endAt > 0 && runStep == static_cast<unsigned>(run.endAt) && !ses.world().levelComplete() &&
+                    !ses.world().gameOver()) {
+                    // As the desktop flow tests: EndLevel, or every life lost (the next step reports it).
+                    AS3D_INFO("AS3D_FORCE_END %s mission=%d steps=%u", run.endGameOver ? "gameover" : "complete",
+                              ses.mission(), runStep);
+                    if (run.endGameOver) {
+                        ses.world().player(0).lives = -1.0f;
+                        ses.world().player(1).lives = -1.0f;
+                    } else {
+                        ses.world().endLevel();
+                    }
+                }
+            }
             // The touch pause button during play: the in-game menu on the next UI frame.
             if (in.pausePressed && flow.playing()) queuedEscape = true;
             if (ses.hasLevel()) audio.afterStep(ses.world());

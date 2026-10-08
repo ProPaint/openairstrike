@@ -48,6 +48,18 @@ struct RunConfig {
     bool logo = true;          // logo=0: no intro pages
     bool menuBot = false;      // menu_bot=1: during a mission started from the menus the bot flies
     QualityMode quality = QualityMode::Auto; // quality=auto/new/old: the quality profile (quality_profile.h)
+    // menu_bot_steps=N: after the N-th running step of a mission (the world's steps but those the
+    // front end holds: the start dialogue, the menus) the end state is logged as in mode=bot (the run
+    // goes on); 0 = never.
+    int menuBotSteps = 0;
+    // end_at=N, end_kind=complete|gameover: at the N-th running step the mission ends as EndLevel
+    // or the last life would (for scripted runs through Mission Complete and Game Over); 0 = never.
+    int endAt = 0;
+    bool endGameOver = false;
+    // unlock_heli=N: the profile has helicopter N unlocked at start (a fresh sequel save has entry
+    // 0 only; as3d_sim's default is 1). For comparisons with mode=bot; the unlock is saved.
+    int unlockHeli = -1;
+    bool uiFixedDt = false;   // ui_fixed_dt=1: the menus' clock advances 1/60 s per displayed frame (comparisons)
     // pad_script=F:NAME[,F:NAME...]: presses injected into the pad at displayed frame F (held 6
     // frames): A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT, or T<x>/<y> for a touch at
     // bottom-screen pixel (x, y). Frames must not decrease. For scripted runs (the emulator).

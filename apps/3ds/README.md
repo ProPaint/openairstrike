@@ -285,7 +285,12 @@ no Configure controls, Mouse Control, Screen, video or touch rows); Start Game o
 |---|---|---|
 | `attract` | 0 (default: random), 1..4 | the attract level behind the main menu |
 | `logo` | `1` (default) or `0` | the intro pages at boot |
-| `menu_bot` | `0` (default) or `1` | the bot flies the missions started from the menus (it also closes the hint boxes) |
+| `menu_bot` | `0` (default) or `1` | the bot flies the missions started from the menus (it also closes the hint boxes); its clock runs with the world's (hint boxes included, not the front end's pauses: the sequels' start dialogue, the in-game menu), so its N-th step is `mode=bot`'s |
+
+| `menu_bot_steps` | N, default 0 | after the N-th running step of a mission (the world's steps but those the front end holds: the bot's steps with `menu_bot=1`), `AS3D_BOT_END` and the end state in the lines of `as3d_sim` (the run goes on) |
+| `end_at`, `end_kind` | N; `complete` (default) or `gameover` | at the N-th running step the mission ends as EndLevel or the last life would (scripted runs through Mission Complete, Game Over, the name entry) |
+| `unlock_heli` | N | helicopter N unlocked in the profile at start (a fresh sequel save has entry 0 only, `as3d_sim`'s default is 1; the unlock is saved) |
+| `ui_fixed_dt` | `0` (default) or `1` | the menus' clock advances 1/60 s per displayed frame, as `as3d_game --ui-script` (comparisons of animated screens) |
 | `pad_script` | `F:NAME,...` | presses injected into the pad at displayed frame F, held 6 frames: `A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT` (several joined by `+`), or `T<x>/<y>` for a touch at bottom-screen pixel (x, y); for unattended emulator runs |
 | `dump_screens` | `0` (default) or `1` | 40 frames after each change of screen, `<prefix><nn>_<screen>_top.ppm` and `_bottom.ppm` |
 | `dump_every` | N | every N displayed frames, `<prefix>f<frame>_top.ppm` and `_bottom.ppm` |
@@ -293,7 +298,7 @@ no Configure controls, Mouse Control, Screen, video or touch rows); Start Game o
 
 `frames=N` ends the run after N displayed frames. The log gets `AS3D_SCREEN name=<screen>` on
 every change (intro, main, start, options, scores, name, ingame, hint, complete, gameover, playing, ...),
-`AS3D_MENU` with the visible items in the virtual 800x600 screen (for `T` taps: bottom pixel =
+`AS3D_SCREEN name=intro<N>` for the intro pages (the logo pages, then the sequels' comic pages), `AS3D_MENU` with the visible items in the virtual 800x600 screen (for `T` taps: bottom pixel =
 virtual x 0.4), `AS3D_LEVEL_LOADED` and, at the end, the end state of the level running.
 docs/3ds-port.md, "M2.1".
 

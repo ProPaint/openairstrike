@@ -110,6 +110,17 @@ RunConfig parseRunConfig(const std::string& text) {
             else if (val == "old") c.quality = QualityMode::Old;
         } else if (key == "menu_bot") {
             if (toInt(val, &n)) c.menuBot = n != 0;
+        } else if (key == "menu_bot_steps") {
+            if (toInt(val, &n) && n >= 0) c.menuBotSteps = n;
+        } else if (key == "end_at") {
+            if (toInt(val, &n) && n >= 0) c.endAt = n;
+        } else if (key == "end_kind") {
+            if (val == "complete") c.endGameOver = false;
+            else if (val == "gameover") c.endGameOver = true;
+        } else if (key == "unlock_heli") {
+            if (toInt(val, &n) && n >= 0) c.unlockHeli = n;
+        } else if (key == "ui_fixed_dt") {
+            if (toInt(val, &n)) c.uiFixedDt = n != 0;
         } else if (key == "pad_script") {
             c.padScript = val;
         } else if (key == "dump_every") {
