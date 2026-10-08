@@ -2,13 +2,17 @@
 """Compares the top screen of an Azahar screenshot with a 400x240 desktop reference.
 
 Usage: tools/3ds_screen_compare.py <screenshot.png> <reference.png> [--crop-out top.png]
-                                   [--diff-out diff.png] [--side-out side.png]
+                                   [--diff-out diff.png] [--side-out side.png] [--mask]
+                                   [--ignore X0,Y0,X1,Y1 ...]
 
 The top screen is located by the three 6x6 corner markers the 3DS test modes draw (as
 tools/3ds_picatest_check.py: top-left (250,10,130), top-right (10,250,130), bottom-left
 (130,10,250)) and resampled to 400x240 (nearest). The 8x8 corners holding the markers are left
 out of the metrics. Prints the mean absolute error per channel (0..255) and the fraction of
-pixels whose largest channel difference is within 8, 16 and 32. PIL only. The images show game
+pixels whose largest channel difference is within 8, 16 and 32. --mask also prints the same over
+the non-background pixels (those where the reference or the screenshot differs from the
+reference's most common colour by more than 8: the effects, for images that are mostly a flat
+clear colour). PIL only. The images show game
 art: keep them under out/ (gitignored).
 """
 import argparse
@@ -59,8 +63,14 @@ def top_screen(img):
     return out
 
 
+IGNORE = []  # rectangles (x0, y0, x1, y1) left out of the metrics, from --ignore
+
+
 def in_marker(x, y):
-    return (x < 8 or x >= 392) and (y < 8 or y >= 232)
+    """True for the corner marker squares and for the --ignore rectangles."""
+    if (x < 8 or x >= 392) and (y < 8 or y >= 232):
+        return True
+    return any(x0 <= x < x1 and y0 <= y < y1 for x0, y0, x1, y1 in IGNORE)
 
 
 def main(argv):
@@ -70,7 +80,10 @@ def main(argv):
     ap.add_argument("--crop-out")
     ap.add_argument("--diff-out")
     ap.add_argument("--side-out")
+    ap.add_argument("--mask", action="store_true")
+    ap.add_argument("--ignore", action="append", default=[], metavar="X0,Y0,X1,Y1")
     a = ap.parse_args(argv)
+    IGNORE.extend(tuple(int(v) for v in r.split(",")) for r in a.ignore)
     shot = Image.open(a.screenshot).convert("RGB")
     ref = Image.open(a.reference).convert("RGB")
     if ref.size != (400, 240):
@@ -103,6 +116,35 @@ def main(argv):
             n += 1
             v = min(255, m * 4)
             d[x, y] = (v, v, v)
+    if a.mask:
+        counts = {}
+        for y in range(240):
+            for x in range(400):
+                if not in_marker(x, y):
+                    counts[q[x, y]] = counts.get(q[x, y], 0) + 1
+        bg = max(counts, key=counts.get)
+        mn, merr, mw = 0, [0, 0, 0], {8: 0, 16: 0, 32: 0}
+        for y in range(240):
+            for x in range(400):
+                if in_marker(x, y):
+                    continue
+                a_, b_ = p[x, y], q[x, y]
+                if max(abs(b_[i] - bg[i]) for i in range(3)) <= 8 and max(abs(a_[i] - bg[i]) for i in range(3)) <= 8:
+                    continue
+                dd = [abs(a_[i] - b_[i]) for i in range(3)]
+                for i in range(3):
+                    merr[i] += dd[i]
+                for t in mw:
+                    if max(dd) <= t:
+                        mw[t] += 1
+                mn += 1
+        if mn:
+            mm = [e / mn for e in merr]
+            print(f"non-background mask: {mn} pixels (background {bg}); mean abs error R {mm[0]:.2f} G {mm[1]:.2f} "
+                  f"B {mm[2]:.2f} (all {sum(mm) / 3:.2f}); within 8: {mw[8] / mn:.3f}, within 16: {mw[16] / mn:.3f}, "
+                  f"within 32: {mw[32] / mn:.3f}")
+        else:
+            print("non-background mask: empty")
     mae = [e / n for e in err]
     print(f"mean abs error R {mae[0]:.2f} G {mae[1]:.2f} B {mae[2]:.2f} (all {sum(mae) / 3:.2f})")
     print("within 8: {:.3f}, within 16: {:.3f}, within 32: {:.3f}".format(*(within[t] / n for t in (8, 16, 32))))

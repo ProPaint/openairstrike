@@ -132,3 +132,14 @@ chunk and draw counts, GPU time) and one `terraintest_<phase>.ppm` per phase (th
 400x240). Compare phase 1 with the desktop: `as3d_game --headless --level 1 --bot --frames 120
 --size 400x240 --screenshot-every 120 --render-only terrain`, then
 `tools/3ds_screen_compare.py terraintest_1.png frame_000120.png` (docs/3ds-port.md, "M1.4").
+
+`mode=fxtest` (optional `level=N`, `frames=N` bot frames before drawing, default 300; `hold=N`
+frames per phase, default 90) runs `source/fx_test.cpp`: after the bot frames the world is frozen
+and the PICA `ParticleRenderer` and `SpriteRenderer` (health bars are sprites) draw it in six
+phases (particles, sprites, all, a synthetic 1536-quad stress, synthetic health bars, two stereo
+eyes in the screen halves). It writes `fxtest_log.txt` (quads, drops, draws, arena bytes,
+textures, GPU time) and `fxtest_<phase>.ppm`. Compare phases 1 to 3 with
+`as3d_game --headless --level 1 --bot --frames 1400 --size 400x240 --screenshot-every 1400
+--render-only particles` (or `sprites,healthbars`, `particles,sprites,healthbars`) and
+`tools/3ds_screen_compare.py fxtest_1.png frame_001400.png --mask` (use `frames=1400`: at frame
+300 mission 1 has almost no effects). docs/3ds-port.md, "M1.6".

@@ -244,3 +244,72 @@ pixel for pixel: the overlays reuse the terrain's vertices, so equal depths pass
 bias only absorbs rounding. `kPolygonOffsetDepth` is now 2^-22 (pica_frame.h explains the w
 scaling of the offset under the W-buffer). Azahar's GPU times are constants (0.25 ms): the
 terrain's GPU cost needs the hardware run.
+
+## M1.6 Particles, sprites and health bars on the PICA (engine/src/render/pica/)
+
+`ParticleRenderer` (as3d/particle_render.h) and `SpriteRenderer` (as3d/sprite_render.h) get PICA
+pimpls (`particle_renderer_pica.cpp`, `sprite_renderer_pica.cpp`) over the neutral builders of
+M0.4c (`buildParticleQuads`, `buildSpriteBatches`). The public API is unchanged except for one
+new method, `ParticleRenderer::preload(path)` (GL: loads into the renderer's own cache; the GL
+`WorldRenderer::precache` now calls it instead of drawing an invisible particle per texture).
+There is no health bar renderer to port: `buildHealthBar` (health_bar.cpp) makes two
+`SpriteInstance`s that the world appends to the sprite list, so the bars go through the sprite
+renderer (the plan's `health_bar_pica.cpp` is not needed). `fx_pica.h` has the caps, the counters
+(`fxPicaStats()`) and `capRuns`; `fx_draw_pica.h/.cpp` the shared upload and draw.
+
+- Build: the builders fill `ParticleVertex` / `SpriteVertex` (9 floats) vectors and DrawRuns;
+  the renderer cuts them at 1536 particle quads (the sprite builder caps itself at 512, the plan's
+  768 is the upper bound) with `capRuns`, converts to `FlatVertex` (24 bytes, colour rounded to
+  u8) straight into the frame arena, and counts quads, dropped quads and arena bytes.
+- Draw (`drawFlatRuns`): W-buffer depth mapping and fog table from the projection's planes (as
+  the terrain), `Shader::Flat` bound once with `mvp = projection * view`, the vertex stream set
+  once, then per run `applyMaterialState(run.key)` (blend, depth test without write for
+  particles, cull, the fog colour per blend: black for Add, white for Filter), the TEV
+  (`tevModulateTexColor`; `tevClampAddTexColor` for texMode 2 = the Filter blend's clamp-add
+  look; the vertex colour alone for a run without texture), the texture on unit 0 and one
+  `C3D_DrawArrays`. The state is left as GL leaves it (blend off, depth test + write).
+- Textures: `ParticleRenderer::preload` reads the TGA and creates the `Texture2D` (mipmaps,
+  repeat, `TextureClass::Auto`: RGB565, RGBA5551 or RGBA4 by the pixels) outside any frame and
+  counts a `LoadKind::Texture`. A texture first seen inside `draw()` is never created there: the
+  run draws with a white 8x8 fallback and `particleLateTextures` counts it (0 after a precache).
+  Sprite textures come with the instances (the caller's cache).
+
+Per-eye contract for M1.8 (the same text is in `fx_pica.h`): both renderers keep `draw(list,
+params)` and are called once per eye. The first call of an arena frame (`frameArena().frames()`)
+builds the quads with the billboard axes of `params.view` into the arena; further calls of the
+same frame with the same list pointer, count and axes (the second eye: the eye offset is a
+translation, so the central and the eye view share their rotation) reuse the vertices and only
+redo the per-eye part: matrix, depth mapping and fog table, fog colour, shader bind, one draw per
+run. So `params.view` is the CENTRAL view and `params.projection` the eye's `picaEyeProjection`
+(as the terrain), and the world must not step between the two eyes. Sprites additionally key on
+`cullBackFaces`. Textures: preload at the level start (the precache).
+
+Mission 1 (`mode=fxtest`, 1400 bot frames; at frame 300 there is almost nothing to draw): 35
+emitters, 85 live particles (75 add, 10 filter) = 85 quads, 12.0 KB of arena, 6 draws; 19
+sprites, 2.7 KB, 10 draws; no health bar on screen. 6 particle textures, 212.9 KB (all textures
+of the test 280.2 KB, 16, all in VRAM, none in linear memory), 0 late textures. The synthetic
+stress of 1536 quads (three emitters of 512: alpha, additive, filter) uses 216.0 KB of the
+1.5 MB arena half, 3 draws, 0 failures, nothing dropped; two eyes in the screen halves cost the
+arena of one build (14.6 KB). Azahar's GPU time is the constant 0.25 ms: the fill cost of the
+stress needs the hardware run.
+
+Azahar check (2026-10-08, `tools/3ds_screen_compare.py --mask`, 400x240 PPM dumps against
+`as3d_game ... --frames 1400 --render-only ...`; mask = pixels that differ from the clear colour
+in either image):
+
+| phase | pixels | mean abs error | within 8 | within 16 | within 32 |
+|-------|--------|----------------|----------|-----------|-----------|
+| 1 particles | 971 | 1.62 | 0.955 | 0.981 | 0.995 |
+| 2 sprites (health bars) | 2440 | 1.12 | 0.975 | 0.990 | 0.998 |
+| 3 particles + sprites | 2829 | 1.29 | 0.971 | 0.988 | 0.996 |
+
+Additive glows, the clamp-add fire, the alpha smoke and the draw order match; the residue is the
+RGBA4/RGB565 quantisation and the texture filtering. Phases 2 and 3 leave out a 75x70 rectangle
+(`--ignore 225,170,300,240`): the desktop `sprites` pass also draws the ground marks (the black
+explosion scorch there), which the PICA does not have yet.
+
+Deferred: ground marks, skid trails, decals and lightning on the PICA (M3 or later; the neutral
+builders exist); the GL-free entity pass that collects the sprite list (a copy sits in
+`fx_test.cpp` until the PICA WorldRenderer of M1.8); the `LoadKind::Texture` count of the GL
+`ParticleRenderer` lookup (GL loads stay in the Other bucket); the GPU fill cost on hardware.
+
