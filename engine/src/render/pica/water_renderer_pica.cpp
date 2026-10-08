@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <vector>
 
 #include "as3d/core.h"
@@ -63,6 +64,13 @@ unsigned g_arenaFrame = ~0u;
 bool g_waterEnabled = true;
 float g_waterTile = kDefaultWaterTile;
 unsigned g_drawCount = 0; // plane draws since start (one per eye), for the periodic log line
+std::vector<FlatVertex> g_tileVerts; // the tiled plane of one eye, before the copy to the arena
+
+// The tiled plane: a tile is split in four while it spans more than this in NDC (2 = the screen),
+// at most kMaxTileSplits times and not below kMinTileSize world units.
+constexpr float kMaxTileSpan = 0.6f;
+constexpr int kMaxTileSplits = 3;
+constexpr float kMinTileSize = 10.0f;
 
 } // namespace
 
@@ -201,25 +209,18 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
     // The GL's conservative clip-space test of a rectangle's 4 corners against this eye's matrix.
     const Mat4 m = projection * view;
     float minW = 1.0e30f, maxW = -1.0e30f;
-    // Diagnostics of the kept tiles: the largest span in NDC (2 = the whole screen) of a tile whose
-    // corners are all in front of the eye, and the tiles with a corner at w <= 1.
-    float maxSpan = 0.0f;
-    int nearTiles = 0;
+    // Diagnostics of the emitted tiles: the largest span in NDC (2 = the whole screen) after the cut,
+    // the tiles cut at the near plane, the tiles split, the smallest w emitted.
+    float maxSpan = 0.0f, minCutW = 1.0e30f;
+    int nearTiles = 0, splitTiles = 0;
     auto visible = [&](float xa, float xb, float ya, float yb, bool track) {
         const float xs[2] = {xa, xb}, ys[2] = {ya, yb};
         int outs[6] = {0, 0, 0, 0, 0, 0};
         float lo = 1.0e30f, hi = -1.0e30f;
-        float nx0 = 1.0e30f, nx1 = -1.0e30f, ny0 = 1.0e30f, ny1 = -1.0e30f;
         for (int i = 0; i < 4; ++i) {
             const Vec4 c = m * Vec4{xs[i & 1], ys[i >> 1], params_.planeZ, 1.0f};
             lo = std::min(lo, c.w);
             hi = std::max(hi, c.w);
-            if (c.w > 1.0f) {
-                nx0 = std::min(nx0, c.x / c.w);
-                nx1 = std::max(nx1, c.x / c.w);
-                ny0 = std::min(ny0, c.y / c.w);
-                ny1 = std::max(ny1, c.y / c.w);
-            }
             if (c.x < -c.w) outs[0]++;
             if (c.x > c.w) outs[1]++;
             if (c.y < -c.w) outs[2]++;
@@ -232,10 +233,6 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
         if (track) {
             minW = std::min(minW, lo);
             maxW = std::max(maxW, hi);
-        } else if (lo <= 1.0f) {
-            ++nearTiles;
-        } else {
-            maxSpan = std::max(maxSpan, std::max(nx1 - nx0, ny1 - ny0));
         }
         return true;
     };
@@ -256,11 +253,88 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
             ++drawn;
         }
     } else {
-        // Per eye: the tiles of the visible quads that pass the same test, written to the arena.
+        // Per eye: the tiles of the visible quads, each culled with the same test, cut at the eye's
+        // near plane on the CPU (a polygon with a corner behind the camera goes through the PICA's
+        // clipper with the precision failure of the large quads), and split in four while one spans
+        // more than kMaxTileSpan of the screen (no water triangle is ever large on screen).
+        float nearPlane = 4.0f, farPlane = 2000.0f;
+        detail::planesOfProjection(projection.m, &nearPlane, &farPlane);
+        const float wCut = nearPlane * 1.01f + 0.01f;
+        std::vector<FlatVertex>& out = g_tileVerts;
+        out.clear();
+        struct Pt {
+            float x, y;
+            Vec4 c;
+        };
+        auto clipOf = [&](float x, float y) { return m * Vec4{x, y, params_.planeZ, 1.0f}; };
+        std::function<void(float, float, float, float, float, int)> tile = [&](float x0, float x1, float y0, float y1,
+                                                                               float qy, int depth) {
+            const Pt corners[4] = {{x0, y0, clipOf(x0, y0)}, {x1, y0, clipOf(x1, y0)}, {x1, y1, clipOf(x1, y1)},
+                                   {x0, y1, clipOf(x0, y1)}};
+            int outs[6] = {0, 0, 0, 0, 0, 0};
+            float hi = -1.0e30f, lo = 1.0e30f;
+            for (const Pt& p : corners) {
+                const Vec4& c = p.c;
+                hi = std::max(hi, c.w);
+                lo = std::min(lo, c.w);
+                if (c.x < -c.w) outs[0]++;
+                if (c.x > c.w) outs[1]++;
+                if (c.y < -c.w) outs[2]++;
+                if (c.y > c.w) outs[3]++;
+                if (c.z < -c.w) outs[4]++;
+                if (c.z > c.w) outs[5]++;
+            }
+            for (int i = 0; i < 6; ++i)
+                if (outs[i] == 4) return;
+            if (hi <= wCut) return; // wholly behind the near plane
+            // Sutherland-Hodgman against w >= wCut (w is affine in the plane's x, y).
+            Pt poly[5];
+            int n = 0;
+            for (int i = 0; i < 4; ++i) {
+                const Pt& a = corners[i];
+                const Pt& b = corners[(i + 1) % 4];
+                const bool ain = a.c.w >= wCut, bin = b.c.w >= wCut;
+                if (ain) poly[n++] = a;
+                if (ain != bin) {
+                    const float t = (wCut - a.c.w) / (b.c.w - a.c.w);
+                    const float x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+                    poly[n++] = {x, y, clipOf(x, y)};
+                }
+            }
+            if (n < 3) return;
+            float nx0 = 1.0e30f, nx1 = -1.0e30f, ny0 = 1.0e30f, ny1 = -1.0e30f;
+            for (int i = 0; i < n; ++i) {
+                const Vec4& c = poly[i].c;
+                nx0 = std::min(nx0, c.x / c.w);
+                nx1 = std::max(nx1, c.x / c.w);
+                ny0 = std::min(ny0, c.y / c.w);
+                ny1 = std::max(ny1, c.y / c.w);
+            }
+            const float span = std::max(nx1 - nx0, ny1 - ny0);
+            if (span > kMaxTileSpan && depth < kMaxTileSplits && x1 - x0 > kMinTileSize) {
+                const float xm = 0.5f * (x0 + x1), ym = 0.5f * (y0 + y1);
+                tile(x0, xm, y0, ym, qy, depth + 1);
+                tile(xm, x1, y0, ym, qy, depth + 1);
+                tile(x0, xm, ym, y1, qy, depth + 1);
+                tile(xm, x1, ym, y1, qy, depth + 1);
+                ++splitTiles;
+                return;
+            }
+            if (lo < wCut) ++nearTiles;
+            maxSpan = std::max(maxSpan, span);
+            for (int i = 0; i < n; ++i) minCutW = std::min(minCutW, poly[i].c.w);
+            for (int i = 1; i + 1 < n; ++i) {
+                const Pt* tri[3] = {&poly[0], &poly[i], &poly[i + 1]};
+                for (const Pt* p : tri) {
+                    out.emplace_back();
+                    put(out.back(), p->x, p->y, qy);
+                }
+            }
+            ++tiles;
+        };
         const int nx = std::max(1, static_cast<int>(std::ceil(width_ / g_waterTile)));
         const int ny = std::max(1, static_cast<int>(std::ceil(kQuadHeight / g_waterTile)));
         const float tx = width_ / static_cast<float>(nx), ty = kQuadHeight / static_cast<float>(ny);
-        std::vector<float> rects; // x0, x1, y0, y1, the quad's y0 per tile
         for (int k = 0; k < quads_; ++k) {
             const float qy = kQuadHeight * static_cast<float>(k);
             if (!visible(0.0f, width_, qy, qy + kQuadHeight, true)) continue;
@@ -271,26 +345,19 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
                     // The last tiles end exactly on the quad's edges.
                     const float x1 = i + 1 == nx ? width_ : x0 + tx;
                     const float y1 = j + 1 == ny ? qy + kQuadHeight : y0 + ty;
-                    if (!visible(x0, x1, y0, y1, false)) continue;
-                    rects.insert(rects.end(), {x0, x1, y0, y1, qy});
+                    tile(x0, x1, y0, y1, qy, 0);
                 }
         }
-        tiles = static_cast<int>(rects.size() / 5);
-        if (tiles > 0) {
-            auto* v = arena.allocArray<FlatVertex>(static_cast<size_t>(tiles) * 6);
+        if (!out.empty()) {
+            auto* v = arena.allocArray<FlatVertex>(out.size());
             if (!v) return 0;
-            for (int t = 0; t < tiles; ++t) {
-                const float* q = &rects[static_cast<size_t>(t) * 5];
-                const float xs[4] = {q[0], q[1], q[1], q[0]}, ys[4] = {q[2], q[2], q[3], q[3]};
-                const int order[6] = {0, 1, 2, 0, 2, 3};
-                for (int i = 0; i < 6; ++i) put(v[t * 6 + i], xs[order[i]], ys[order[i]], q[4]);
-            }
-            g_stats.arenaBytes += static_cast<size_t>(tiles) * 6 * sizeof(FlatVertex);
+            std::copy(out.begin(), out.end(), v);
+            g_stats.arenaBytes += out.size() * sizeof(FlatVertex);
             DrawRun r;
             r.key = key;
             r.texture = &texture_;
             r.first = 0;
-            r.count = tiles * 6;
+            r.count = static_cast<int>(out.size());
             appendDrawRun(runs, r);
             verts = v;
         }
@@ -300,11 +367,12 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
     g_stats.minW = drawn ? minW : 0.0f;
     g_stats.maxW = drawn ? maxW : 0.0f;
     if (++g_drawCount % 300 == 1)
-        AS3D_INFO("pica water: draw %u planeZ %.2f quads %d of %d, tiles %d (tile %.0f), corner w %.1f..%.1f, "
-                  "largest tile span %.2f NDC, near tiles %d",
+        AS3D_INFO("pica water: draw %u planeZ %.2f quads %d of %d, tiles %d (tile %.0f, %d split), quad corner w "
+                  "%.1f..%.1f, tiles cut at the near plane %d, smallest w drawn %.1f, largest tile span %.2f NDC",
                   g_drawCount, static_cast<double>(params_.planeZ), drawn, quads_, tiles,
-                  static_cast<double>(g_waterTile), static_cast<double>(g_stats.minW),
-                  static_cast<double>(g_stats.maxW), static_cast<double>(maxSpan), nearTiles);
+                  static_cast<double>(g_waterTile), splitTiles, static_cast<double>(g_stats.minW),
+                  static_cast<double>(g_stats.maxW), nearTiles, static_cast<double>(tiles ? minCutW : 0.0f),
+                  static_cast<double>(maxSpan));
     if (runs.empty()) return 0;
     FxEyeParams eye;
     eye.view = view;

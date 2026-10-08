@@ -1105,8 +1105,37 @@ in world units. The terrain (40-unit cells), the wave grid (per cell), marks, sh
 The full-screen quads (scissored clears through `fillQuad`, the brightness pass, the 2D layer) are at a
 constant depth or have no depth test, so they are not affected. Run.ini switches for hardware A/B
 (README): `water_tile=N` (0 = the GL's quads), `water=0`, and `depthmap=z` (the world passes use the
-Z-buffer mapping, with the fog table rebuilt for it). A `pica water: draw N` line every 600 draws logs
-planeZ, quads, tiles and the corner w.
+Z-buffer mapping, with the fog table rebuilt for it).
+
+Second rule (2026-10-08, after the owner's play session on drop 4): **never submit a water triangle
+that crosses the near plane, and never one that is large on screen.** In the attract level behind the
+menus (level 3, planeZ about -60, 8 or 9 of 32 quads visible), the corners of the visible 1280 x 320
+quads reach w = -84, behind the camera. So each tile is now also cut against the eye's near plane on the
+CPU: Sutherland-Hodgman against w >= 1.01 near + 0.01 (w is affine in the plane's x and y), the polygon
+fanned into triangles, tiles wholly behind dropped. A tile whose part in front of the camera spans more
+than 0.6 NDC (`kMaxTileSpan`; 2 = the whole screen) is split in four, at most 3 times
+(`kMaxTileSplits`) and not below 10 units (`kMinTileSize`). The vertices of one eye are built in a CPU
+vector and copied to the arena, still one draw. Azahar measurements:
+- Attract level 3 (`mode=menu attract=3`, mono and stereo, 900 frames): 379 to 429 tiles (9 or 10 of
+  them split). No tile was cut at the near plane: the smallest w drawn is 261. The negative corners
+  belong to tiles of the visible quads that the cull drops. So the near cut is a guard for closer
+  cameras; the attract level did not need it.
+- Mission 1 bot run 600 to 2700, every 100 steps: against the GL quads (`water_tile=0`) MAE at most
+  0.003, at most 3 pixels off by more than 16. No splits; the smallest w drawn is 257.
+- The cut itself, with a test build cutting at w = 400 instead of the near plane (mission 1, step 1400):
+  11 or 12 tiles cut each frame, smallest w drawn exactly 400. The water ends on a straight edge, with
+  no gap or overlap between the cut tiles.
+- A raised plane (planeZ + 0.5, a test build) changes only shoreline pixels (at most 250 per frame,
+  MAE at most 0.34) and floods nothing. So the terrain away from the river is not within a fraction of
+  a unit of the water: the step-2700 wash on the console was an error of several units, not a near tie.
+
+The `pica water: draw N` line (every 300 draws, one per eye) logs: planeZ, the quads, the tiles (and
+how many were split), the w range of the visible quads' corners, the tiles cut at the near plane, the
+smallest w drawn (never below the near plane) and the largest tile span in NDC. The owner's play
+session still showed a wash "a few seconds at a time". If it persists with this drop, the next A/B
+switches are `water_tile=40` (smaller triangles) and `gpu_kick=0`. The second one tests the other
+hypothesis: the wash covers the terrain but never the models, as if the terrain's depth were missing,
+which a clear or a draw reordered by the mid-frame submission would also produce.
 
 **GPU command buffer (2026-10-08).** Gulf Thunder mission 1 in stereo stopped under Azahar at bot frame
 345 (step about 690): the log ended and the emulator kept running. citro3d's default buffer

@@ -14,7 +14,8 @@
 // culls the quads against its own matrix as the GL does (conservative clip-space test of the 4
 // corners) and draws the visible ones, adjacent quads as one draw call. On the console the quads'
 // large triangles lose depth precision (the plane showed through the terrain), so by default each
-// visible quad is cut into tiles of about kDefaultWaterTile units, each culled the same way and
+// visible quad is cut into tiles of about kDefaultWaterTile units, each culled the same way, cut at
+// the eye's near plane on the CPU, split in four while it spans more than 0.6 of the screen, and
 // written to the arena per eye (docs/3ds-port.md "Water on hardware").
 //
 // The texture is created at beginLevel (after the terrain's, so it goes to VRAM while the 4.2 MB
