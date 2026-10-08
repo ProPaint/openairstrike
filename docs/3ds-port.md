@@ -1494,3 +1494,88 @@ about 95 bytes more per slot on the ARM11, so about 0.4 MB for the 4096 slots (M
   a few in the sequels): not on the per-step path.
 - `DefDatabase::find*` lowercases its key into a `std::string` per call (hashed since M1.10a):
   a few calls per step.
+
+## M4.1 Quality profile (apps/3ds/source/quality_profile.{h,cpp}, engine/src/render/pica/quality_pica.h)
+
+The Old 3DS has the New 3DS's GPU but a 268 MHz ARM11 without L2: the CPU side is the problem
+(M1.0, M4.2). The profile is the list of things it gives up; the simulation is never one of them.
+
+`QualityProfile` is chosen at the start of both loops (`ctr_loop.cpp`, `ctr_menu_loop.cpp`) from
+`APT_CheckNew3DS`, or from run.ini `quality=auto|new|old` (`auto`, the default, detects; `new` and
+`old` force a preset, to test the Old profile on a New 3DS or in Azahar). It is applied after the
+graphics context exists and before the level starts, and logged once:
+
+    AS3D_QUALITY profile=old hardware=new renderHz=30 particleCap=768 spriteCap=384 blobShadowsOnly=1 terrainDetail=0 stereoAllowed=1 prerenderedMusic=1
+
+| field | New 3DS | Old 3DS | where it acts |
+|---|---|---|---|
+| `renderHz` | 60 | 30 | the loops: `C3D_FrameRate(30)`, two sim steps per drawn frame |
+| `particleCap` | 1536 quads | 768 | `particle_renderer_pica.cpp` (`pica::renderQuality()`) |
+| `spriteCap` | 768 quads | 384 | `sprite_renderer_pica.cpp` |
+| `blobShadowsOnly` | no | yes | `world_renderer_pica.cpp`: no silhouette is generated (level start or late), every shadow is the blob over the model's bounds |
+| `terrainDetail` | yes | no | `terrain_renderer_pica.cpp`: the detail texture is not loaded (170 KB less) and the terrain draws with the 1-stage TEV `tevModulateTexColor` |
+| `stereoAllowed` | yes | yes | the loops: with false `info.eyes` stays 1. Kept true on the Old 3DS: the slider decides (two eyes double the GPU work; the owner leaves it at 0 if 30 Hz is not held) |
+| `preferPrerenderedMusic` | no | yes (informational) | M2.4 already plays `music/*.ogg` when present, the module otherwise; on the Old 3DS ship the Ogg files (libopenmpt on 268 MHz does not fit) |
+
+The PICA knobs live in `pica::RenderQuality` (`quality_pica.h`, `setRenderQuality`), a process-wide
+setting whose defaults are the New 3DS values, so the tests and probes are unchanged. Only
+`engine/src/render/pica/` and `apps/3ds/` changed; no neutral or desktop file.
+
+The loop change. The simulation stays a 60 Hz fixed step, one `input.frame()` per step, audio
+untouched (`audio.afterStep` per step). `C3D_FrameRate(30)` makes `C3D_FrameBegin(SYNCDRAW)` wait for
+every second vblank, so one iteration of the loop is 33 ms and the clock accumulator yields two
+steps. The bounded catch-up goes from 2 to 4 steps per drawn frame at 30 Hz (the same two
+frames' worth of slack, `QualityProfile::maxCatchUp()`); a longer stall is still dropped. perf.csv
+keeps its columns and gets a last one, `sim_steps` (steps run before that frame was drawn); `step_ms`
+is the sum of those steps, so at 30 Hz a frame's `step_ms` is two steps' time, and the report's
+per-frame step limit is then a per-two-steps limit.
+
+Azahar evidence (New 3DS emulation, `mode=bot level=1 frames=600 perf=1 dump_at=600 brightness=0.5
+slider=0 audio=0`, same emulator, timings only relative):
+
+| | `quality=new` | `quality=old` |
+|---|---|---|
+| log | `profile=new ... renderHz=60 particleCap=1536 ...` | `profile=old ... renderHz=30 particleCap=768 spriteCap=384 blobShadowsOnly=1 terrainDetail=0` |
+| displayed frames for 600 steps | 302 | 204 |
+| `sim_steps` histogram | 2: 299, 1: 2, 0: 1 | 2: 104, 3: 4, 4: 95, 0: 1 |
+| end state | map_pos 452.0, 39 entities, created 243, freed 204 | the same |
+| shadow silhouettes at level start | 126, 818 KB, 2699 ms of generation | 0 |
+| precache | 8120 ms | 5284 ms |
+| level start (mission and renderer) | 12402 ms | 9477 ms |
+| textures VRAM / linear | 4193 KB (101) / 3179 KB (209) | 4193 KB (98) / 2190 KB (85) |
+
+Azahar does not keep real time (a displayed frame took 50 ms there, the 30 Hz target is 33 ms), so
+the clock asks for 3 to 4 steps in about half of the old-profile frames: on hardware the steady
+state is the 2 of the first column. The dropped silhouette generation (2.7 s here, the same figure
+M3.1 measured) is most of the 2.9 s saved at level start.
+
+Top-screen dump at step 600 against `quality=new`: mean absolute error 6.13 / 255, 29 % of the pixels
+differ by more than 8. What differs: the terrain, which loses the detail texture's high-frequency
+grain (the old profile's ground is smoother and a little blurrier, the base texture is 256 pixels
+per 32 rows); the shadows, which are the blob (a soft round patch over the model's footprint,
+no helicopter silhouette). Models, sprites, HUD and fog are identical, and the particle and sprite
+caps did not bite in this frame (the caps only matter in heavy explosion scenes).
+
+Not verified here: the Old 3DS hardware setting of Azahar (`is_new_3ds=false` in `qt-config.ini`)
+with `quality=auto`. The config is shared with another agent's runs and the change was not allowed
+from this session; `selectQuality(Auto, false)` is the only line that differs, and the same preset
+was exercised with `quality=old`.
+
+Hardware checklist for the Old 3DS (the owner has none yet; a New 3DS runs the same code paths with
+`quality=old` in run.ini):
+
+1. `mode=play level=14 perf=1 quality=old` (or `mode=bot level=14 frames=3600 perf=1 quality=old`):
+   `log.txt` shows the AS3D_QUALITY line, no `silhouettes` in AS3D_SHADOWS, no ERROR.
+2. perf.csv: `sim_steps` is 2 in steady state; the `frame` period p95 near 33 ms
+   (PERF_SUMMARY frame_ms); `step_ms` per frame under 33 ms with room (two steps; M4.2 tables the per-step cost).
+3. The end state of `mode=bot level=1 frames=600` is unchanged (map_pos 452.0, 39 entities,
+   created 243, freed 204).
+4. Look: ground without grain, blob shadows, 30 Hz motion; the slider at 0 and then up (stereo at
+   30 Hz: GPU p95 under 33 ms?). If not, set `stereoAllowed=false` in `oldProfile()`.
+5. Music: with `music/*.ogg` on the card the module path is not used (`log.txt` audio lines).
+6. On a New 3DS, `quality=old` must show the same look and `sim_steps` 2; `quality=new` is the
+   default there.
+
+Deferred: M4.3 (ETC1 texture cache, which cuts the 3.5 to 5 s precache and its VRAM/linear split),
+M4.4 (heap and linear budgets per profile: the Old 3DS has 64 MB APPLICATION memory in the
+default mode against 124 MB on the New one; `RenderQuality` has no memory fields yet).

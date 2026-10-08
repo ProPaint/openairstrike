@@ -108,6 +108,7 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `audio` | `1` (default) or `0` | sound in `bot` and `play` (never in `sim`): the ndsp device, or silence when `ndspInit` fails (no `sdmc:/3ds/dspfirm.cdc`); see "Sound (M2.3)" |
 | `hold`, `only` | | probe only (see above) |
 | `attract`, `logo`, `menu_bot`, `pad_script`, `dump_every`, `dump_screens`, `dump_prefix` | | the front end, see "Front end (M2.1)" |
+| `quality` | `auto` (default), `new`, `old` | the quality profile (M4.1): `auto` picks by APT_CheckNew3DS; `old` = 30 Hz render, particle/sprite caps, blob shadows, no terrain detail |
 
 `mode=bot level=1 frames=3600 perf=1` is the M1 acceptance run. START+SELECT held together quits
 cleanly in every loop mode. HOME and sleep pause the world, call the save hook (none yet) and flush
