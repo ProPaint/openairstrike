@@ -245,6 +245,62 @@ bias only absorbs rounding. `kPolygonOffsetDepth` is now 2^-22 (pica_frame.h exp
 scaling of the offset under the W-buffer). Azahar's GPU times are constants (0.25 ms): the
 terrain's GPU cost needs the hardware run.
 
+## M1.5 Meshes on the PICA (engine/src/render/pica/gpu_mesh_pica.cpp, mesh_renderer_pica.cpp)
+
+`GpuMesh` (as3d/scene.h) and `MeshRenderer` get PICA bodies; the neutral side (ResourceCache,
+Material, materialKeyFor, ambient_cube) is unchanged.
+
+- `GpuMesh::upload` (gpu_mesh_pica.h) takes the buildRenderMesh list and bakes the six ambient-cube
+  weights per vertex from its normal (`bakeAmbientCubeWeights`), so the stream is `MeshVertex`
+  (28 bytes) + u16 indices in linear memory, flushed once. buildRenderMesh already refuses more
+  than 65535 corners, so there is no splitting; `upload` logs and refuses a larger list.
+  `pica::meshMemoryStats()` counts the bytes. The destructor hands both blocks to
+  `pica::deferLinearFree` (pica_frame.h), freed at the next `pica::frameBegin()`
+  (C3D_FrameBegin has waited for the GPU), at once when the backend is down, the rest at
+  `shutdownBackend()`.
+- `pica::MeshPass` (mesh_renderer_pica.h) is the per-eye contract: `begin(lighting, lights)`,
+  `submit()` per record and `finish()` once per frame (all CPU work: the six cube colours of
+  `ambientCubeColors` with the dynamic lights of `accumulateModelLights`, exactly the GL shader's
+  cPos/cNeg; the MaterialKey; the TEV kind), then `draw(picaEyeProjection(view, eye, aspect) *
+  view.view)` per eye (uniforms, `applyMaterialState`, texture, TEV, `C3D_DrawElements`). The
+  caller sets the depth mapping, fog and viewport. Order as GL's mesh renderer: stable by
+  SortBucket (opaque, trans, effect), submission order inside (render-pipeline.md 1.2: no depth
+  sort; depth write follows RF_NODEPTHWRITE, as GL). TEV: lit textured `tevModulateTexColor`
+  (tint 1, so alpha = skin alpha), RF_NOLIGHTING `tevModulateTexConstant` with entity colour x
+  material tint (GL uColor), untextured the vertex colour or the constant alone. Environment
+  maps are not drawn yet: those materials draw as plain textured models (M3.4).
+- `MeshRenderer` (begin/submit/end) wraps one MeshPass: `end()` sets the W-buffer mapping for
+  the camera's near plane, the level fog (or none when fogStart is beyond the far plane) and
+  draws with `picaTiltMatrix() * camera.projMatrix() * camera.viewMatrix()` (mono). M1.8's world
+  pass should use MeshPass directly: two passes (opaque list; trans + effect lists) prepared in
+  `prepare()`, drawn per eye in `draw(EyeView)`, so the cube colours are computed once.
+  `pica::meshFrameStats()` sums draws, vertices, triangles and bytes since `frameBegin()`.
+
+Mission 1 numbers (Azahar, `mode=meshtest`, the closure of the level loaded as
+`WorldRenderer::precache` does without shadows): 130 meshes, 0.30 MB of linear memory; 113
+textures (skins), 3.13 MB, all in VRAM (with no terrain loaded; with M1.4's 1.7 MB of terrain
+textures the 4.2 MB VRAM budget overflows, so some skins will go to linear memory: M1.8/M1.10
+decide the order). After 120 bot frames: 35 model records (17 opaque, 10 trans, 8 effect), 3
+dynamic lights; 35 draws, 1725 vertices, 1453 triangles, 57 KB read; C3D CPU time 1.42 ms for
+the 35 draws under Azahar (GPU time is a constant 0.25 ms there: hardware run pending).
+
+Azahar check (2026-10-08). Test b (every model record of the frame, world camera) read back as
+`meshtest_b.ppm` against `as3d_game --headless --level 1 --bot --frames 120 --size 400x240
+--screenshot-every 120 --render-only models` with `tools/3ds_meshtest_compare.py` (mask: the
+desktop pixels that differ from the clear colour): over all 3902 model pixels mean abs error
+21.97/255, 62.9 % within 16; the difference is the environment maps the PICA does not draw yet:
+the player's `p_apache_shield` shell (black skin + `gfx\effects\shield.tga` env, additive: the
+orange glow around the helicopter on the desktop, nothing on the 3DS) and the ENV_GLITTER help
+item. Excluding those two rectangles: 1531 pixels, mean abs error 3.98/255, 91.3 % within 16
+(the rest are silhouette pixels of the palms and texture filtering; the lit colours match: no
+quantisation step of the u8 weights shows). Whole image: 1.21/255, 98.5 % within 16. Rotor
+discs (trans list, alpha) and the helicopter's flares (effect list) draw in the GL order and
+look the same. The checks files (`meshtest_checks_<t>.txt`: corner markers, clear colour on a
+grid away from every model, a model's largest front triangle covered) pass 4/4, 28/28, 28/28.
+Test c adds a red, a green and a blue point light near the player: only the blue channel moves
+visibly (+13 on average over the helicopter), red and green being already clamped at 1 by the
+sun and ambient of mission 1, as GL clamps them.
+
 ## M1.6 Particles, sprites and health bars on the PICA (engine/src/render/pica/)
 
 `ParticleRenderer` (as3d/particle_render.h) and `SpriteRenderer` (as3d/sprite_render.h) get PICA

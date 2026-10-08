@@ -143,3 +143,13 @@ textures, GPU time) and `fxtest_<phase>.ppm`. Compare phases 1 to 3 with
 --render-only particles` (or `sprites,healthbars`, `particles,sprites,healthbars`) and
 `tools/3ds_screen_compare.py fxtest_1.png frame_001400.png --mask` (use `frames=1400`: at frame
 300 mission 1 has almost no effects). docs/3ds-port.md, "M1.6".
+
+`mode=meshtest` (optional `hold=N` frames per test, default 300; with `hold` given the app quits
+after one cycle) runs `source/mesh_test.cpp`: mission 1 after 120 bot frames, then (a) the
+player's helicopter and its attachments through `MeshRenderer`, (b) every model record of the
+frame with the world camera through `pica::MeshPass`, (c) b with three extra point lights. It
+writes `meshtest_log.txt` (memory, records, draws, vertices, bytes, GPU time),
+`meshtest_checks_<t>.txt` (for `tools/3ds_picatest_check.py`) and `meshtest_<t>.ppm`. Compare b
+with `as3d_game --headless --level 1 --bot --frames 120 --size 400x240 --screenshot-every 120
+--render-only models` and `tools/3ds_meshtest_compare.py frame_000120.png meshtest_b.ppm
+side.png` (docs/3ds-port.md, "M1.5").
