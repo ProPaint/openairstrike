@@ -3,7 +3,8 @@
 # into third_party_local/ (gitignored), rather than committing SDL's source
 # tree to this repository. See docs/android.md.
 #
-# Usage: tools/fetch_third_party.sh
+# Usage: tools/fetch_third_party.sh [openmpt]
+#        (openmpt: libopenmpt only, for tools/3ds_build.sh)
 # Env:   AS3D_DATA_ROOT   repo checkout to put third_party_local/ under
 #                          (default: this repo's root; use the main checkout
 #                          from a worktree so the download is shared).
@@ -25,7 +26,9 @@ SDL_DIR="${TPL_DIR}/SDL2-${SDL_VERSION}"
 
 mkdir -p "${DL_DIR}"
 
-if [ -f "${SDL_DIR}/include/SDL.h" ]; then
+if [ "${1:-}" = "openmpt" ]; then
+    echo "fetch_third_party: libopenmpt only"
+elif [ -f "${SDL_DIR}/include/SDL.h" ]; then
     echo "fetch_third_party: SDL2 ${SDL_VERSION} already present at ${SDL_DIR}"
 else
     TARBALL_PATH="${DL_DIR}/${SDL_TARBALL}"
@@ -49,7 +52,7 @@ else
     tar xzf "${TARBALL_PATH}" -C "${TPL_DIR}"
 fi
 
-echo "fetch_third_party: AS3D_SDL2_DIR=${SDL_DIR}"
+[ "${1:-}" = "openmpt" ] || echo "fetch_third_party: AS3D_SDL2_DIR=${SDL_DIR}"
 
 # --- libopenmpt (tracker/MO3 music decoding; see docs/audio.md) ---
 # The "+release.makefile" source flavour (as opposed to "+release.autotools")

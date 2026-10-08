@@ -18,7 +18,20 @@ option(AS3D_SANITIZE "Build with ASan and UBSan" OFF)
 option(AS3D_BUILD_TESTS "Build unit and golden tests" ON)
 if(NINTENDO_3DS)
   set(AS3D_BUILD_TESTS OFF)
-  set(AS3D_WITH_OPENMPT OFF CACHE BOOL "" FORCE)
+  # Music (docs/3ds-port.md M2.4): libopenmpt is built from the source tree that
+  # tools/3ds_build.sh mounts and passes as AS3D_3DS_OPENMPT_SRC (fetched once, outside the
+  # build, by tools/fetch_third_party.sh). Without it the stub decoder: no music.
+  set(AS3D_3DS_OPENMPT_SRC "" CACHE PATH "libopenmpt source tree for the 3DS build (empty: no music)")
+  if(AS3D_3DS_OPENMPT_SRC AND EXISTS "${AS3D_3DS_OPENMPT_SRC}/libopenmpt/libopenmpt.h")
+    set(AS3D_WITH_OPENMPT ON CACHE BOOL "" FORCE)
+  else()
+    if(AS3D_3DS_OPENMPT_SRC)
+      message(WARNING "3DS: no libopenmpt source at '${AS3D_3DS_OPENMPT_SRC}': music decoder stub (no music)")
+    else()
+      message(WARNING "3DS: AS3D_3DS_OPENMPT_SRC not set: music decoder stub (no music)")
+    endif()
+    set(AS3D_WITH_OPENMPT OFF CACHE BOOL "" FORCE)
+  endif()
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
