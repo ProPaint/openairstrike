@@ -6,6 +6,8 @@
 
 #include <string>
 
+#include "as3d/console_pad.h"
+
 namespace ctrapp {
 
 constexpr const char* kDataDir = "sdmc:/3ds/openairstrike"; // no trailing slash
@@ -24,6 +26,8 @@ struct RunConfig {
     int level = 1;             // level=N: the mission to start (1..the game's mission count)
     int frames = 0;            // frames=N: simulation steps, then quit; 0 = 600 in sim, unlimited otherwise
     bool perf = false;         // perf=1: write perf.csv
+    bool logInput = false;     // log_input=1: an AS3D_INPUT line per change of held bits / touch button
+    as3d::PadBindings bindings = as3d::defaultBindings(); // bind_fire=A ... (see console_pad.h)
     int difficulty = -1;       // difficulty=N: -1 = the engine's default
 
     bool usesLoop() const { return mode == Mode::Sim || mode == Mode::Bot || mode == Mode::Play; }

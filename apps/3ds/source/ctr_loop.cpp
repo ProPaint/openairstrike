@@ -9,12 +9,14 @@
 #include <memory>
 #include <string>
 
+#include "as3d/console_pad.h"
 #include "as3d/core.h"
 #include "as3d/game_data.h"
 #include "as3d/game_profile.h"
 #include "as3d/input.h"
 #include "as3d/world.h"
 #include "ctr_context.h"
+#include "ctr_input.h"
 
 namespace ctrapp {
 namespace {
@@ -57,26 +59,6 @@ void aptCallback(APT_HookType hook, void* param) {
             break;
         default: break;
     }
-}
-
-// The pad as player input: circle pad and D-pad steer, A fire, B missile, X power-up, Y next
-// weapon, R next missile, START pause. The real mapping is M1.9 (console_pad).
-as3d::FrameInput padInput(u32 held, u32 down, const circlePosition& cp) {
-    as3d::FrameInput in;
-    u32 bits = 0;
-    const int kDead = 40; // of about +-156
-    if ((held & KEY_DUP) || cp.dy > kDead) bits |= as3d::ACT_FORWARD;
-    if ((held & KEY_DDOWN) || cp.dy < -kDead) bits |= as3d::ACT_BACKWARD;
-    if ((held & KEY_DLEFT) || cp.dx < -kDead) bits |= as3d::ACT_LEFT;
-    if ((held & KEY_DRIGHT) || cp.dx > kDead) bits |= as3d::ACT_RIGHT;
-    if (held & KEY_A) bits |= as3d::ACT_FIRE;
-    if (held & KEY_B) bits |= as3d::ACT_MISSILE;
-    if (held & KEY_X) bits |= as3d::ACT_POWERUP;
-    if (held & KEY_Y) bits |= as3d::ACT_NEXT_WEAPON;
-    if (held & KEY_R) bits |= as3d::ACT_NEXT_MISSILE;
-    in.held[0] = bits;
-    in.pausePressed = (down & KEY_START) != 0;
-    return in;
 }
 
 // Colour for the frame: a hue wheel, one turn in about 6 s.
@@ -213,21 +195,20 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     double acc = 0.0;
     uint64_t last = nowTicks(), lastFrame = 0;
 
-    auto stepOnce = [&](u32 held, u32 down, const circlePosition& cp) {
-        FrameInput in = bot ? botInput(steps) : padInput(held, down, cp);
+    CtrInput input(run, new3ds);
+
+    auto stepOnce = [&]() {
+        FrameInput in = bot ? botInput(steps) : input.frame(session->world().paused());
         session->step(in);
         ++steps;
     };
 
     while (aptMainLoop()) {
-        hidScanInput();
-        const u32 held = hidKeysHeld(), down = hidKeysDown();
-        if ((held & (KEY_START | KEY_SELECT)) == (KEY_START | KEY_SELECT)) {
+        const PadState& pad = input.readPad();
+        if ((pad.held & (pad::Start | pad::Select)) == (pad::Start | pad::Select)) {
             AS3D_INFO("quit: START+SELECT");
             break;
         }
-        circlePosition cp;
-        hidCircleRead(&cp);
 
         FrameSample sample;
         sample.frame = frame;
@@ -235,7 +216,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         if (sim) {
             // Back to back, no clock: the end state must equal the desktop's.
             const uint64_t t0 = nowTicks();
-            stepOnce(held, down, cp);
+            stepOnce();
             sample.stepMs = static_cast<float>(ticksToMs(nowTicks() - t0));
             const uint64_t now = nowTicks();
             sample.periodMs = frame ? static_cast<float>(ticksToMs(now - lastFrame)) : 0.0f;
@@ -259,7 +240,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         const uint64_t s0 = nowTicks();
         while (acc >= dt && n < kMaxCatchUp && !(maxSteps && steps >= maxSteps)) {
             acc -= dt;
-            stepOnce(held, down, cp);
+            stepOnce();
             ++n;
         }
         if (acc >= dt) { // bounded catch-up: a long stall is not replayed

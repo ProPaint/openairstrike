@@ -17,6 +17,7 @@ dkp_add_embedded_binary_library(scene_shbin_data scene_shbin)
 add_executable(openairstrike
   source/ctr_main.cpp
   source/ctr_loop.cpp
+  source/ctr_input.cpp
   source/ctr_perf.cpp
   source/run_config.cpp
   source/main.cpp

@@ -62,6 +62,10 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n) && n >= 0) c.frames = n;
         } else if (key == "perf") {
             if (toInt(val, &n)) c.perf = n != 0;
+        } else if (key == "log_input") {
+            if (toInt(val, &n)) c.logInput = n != 0;
+        } else if (key.compare(0, 5, "bind_") == 0) {
+            as3d::applyBindingOption(c.bindings, key, val);
         } else if (key == "difficulty") {
             if (toInt(val, &n) && n >= 0) c.difficulty = n;
         }
