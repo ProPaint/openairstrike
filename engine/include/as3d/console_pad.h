@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "as3d/input.h"
 #include "as3d/menu.h"
@@ -65,5 +66,21 @@ FrameInput padToFrameInput(const PadState& pad, const PadBindings& bindings, int
 // frame's state, used only for the touch edges.
 ui::UiInput padToUiInputs(const PadState& now, const PadState& before, const ui::Mapping& map,
                           int touchW, int touchH);
+
+// A scripted pad (the 3DS run.ini pad_script=, for unattended runs in the emulator): presses at
+// displayed frames.
+struct PadScriptPress {
+    unsigned frame = 0;
+    uint32_t buttons = 0;  // pad:: bits
+    bool touch = false;    // a touch at (x, y) in touch-screen pixels
+    int x = 0, y = 0;
+};
+// "F:NAME[,F:NAME...]" with NAME one or more of A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT
+// joined by '+' (case-insensitive), or T<x>/<y> for a touch; frames must not decrease. False on
+// a syntax error (`out` keeps the presses before it).
+bool parsePadScript(const std::string& text, std::vector<PadScriptPress>& out);
+// Adds what the script holds at displayed frame `frame` to `pad` (held bits; touch and its
+// point): each press lasts `holdFrames` frames from its own. Edges are the caller's.
+void applyPadScript(const std::vector<PadScriptPress>& script, unsigned frame, unsigned holdFrames, PadState& pad);
 
 } // namespace as3d

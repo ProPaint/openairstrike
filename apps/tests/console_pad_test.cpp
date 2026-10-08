@@ -161,3 +161,40 @@ TEST_CASE("pad: button names and run.ini binding overrides") {
     CHECK_FALSE(applyBindingOption(b, "level", "1"));
     CHECK(b.fire == before.fire);
 }
+
+TEST_CASE("pad: scripted presses (run.ini pad_script)") {
+    std::vector<PadScriptPress> s;
+    REQUIRE(parsePadScript("60:down, 90:A, 90:t160/120 ,120:start+select,200:Up+B", s));
+    REQUIRE(s.size() == 5);
+    CHECK(s[0].frame == 60);
+    CHECK(s[0].buttons == pad::DDown);
+    CHECK(s[1].buttons == pad::A);
+    CHECK(s[2].touch);
+    CHECK(s[2].x == 160);
+    CHECK(s[2].y == 120);
+    CHECK(s[3].buttons == (pad::Start | pad::Select));
+    CHECK(s[4].buttons == (pad::DUp | pad::B));
+
+    PadState p;
+    applyPadScript(s, 59, 6, p);
+    CHECK(p.held == 0u);
+    applyPadScript(s, 60, 6, p);
+    CHECK(p.held == pad::DDown);
+    p = PadState();
+    applyPadScript(s, 66, 6, p); // held frames 60..65
+    CHECK(p.held == 0u);
+    p = PadState();
+    applyPadScript(s, 92, 6, p);
+    CHECK(p.held == (pad::A | pad::Touch));
+    CHECK(p.touch);
+    CHECK(p.touchX == 160);
+
+    std::vector<PadScriptPress> bad;
+    CHECK_FALSE(parsePadScript("10:A,5:B", bad)); // frames decrease
+    CHECK(bad.size() == 1);
+    bad.clear();
+    CHECK_FALSE(parsePadScript("10:jump", bad));
+    CHECK_FALSE(parsePadScript("A", bad));
+    CHECK_FALSE(parsePadScript("10:t5", bad));
+    CHECK(parsePadScript("", bad));
+}

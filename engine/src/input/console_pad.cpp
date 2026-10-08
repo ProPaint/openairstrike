@@ -109,4 +109,73 @@ ui::UiInput padToUiInputs(const PadState& now, const PadState& before, const ui:
     return in;
 }
 
+bool parsePadScript(const std::string& text, std::vector<PadScriptPress>& out) {
+    static const struct { const char* n; uint32_t bit; } kDpad[] = {
+        {"up", pad::DUp}, {"down", pad::DDown}, {"left", pad::DLeft}, {"right", pad::DRight}};
+    size_t pos = 0;
+    unsigned last = 0;
+    while (pos < text.size()) {
+        size_t comma = text.find(',', pos);
+        if (comma == std::string::npos) comma = text.size();
+        std::string item = text.substr(pos, comma - pos);
+        pos = comma + 1;
+        while (!item.empty() && item.front() == ' ') item.erase(item.begin());
+        while (!item.empty() && item.back() == ' ') item.pop_back();
+        if (item.empty()) continue;
+        const size_t colon = item.find(':');
+        if (colon == std::string::npos || colon == 0) return false;
+        char* end = nullptr;
+        const unsigned long f = std::strtoul(item.c_str(), &end, 10);
+        if (end != item.c_str() + colon || f < last) return false;
+        PadScriptPress p;
+        p.frame = static_cast<unsigned>(f);
+        const std::string what = lower(item.substr(colon + 1));
+        if (!what.empty() && what[0] == 't' && what.size() > 1 && std::isdigit(static_cast<unsigned char>(what[1]))) {
+            const char* s = what.c_str() + 1;
+            char* e = nullptr;
+            const long x = std::strtol(s, &e, 10);
+            if (*e != '/') return false;
+            const long y = std::strtol(e + 1, &e, 10);
+            if (*e != '\0') return false;
+            p.touch = true;
+            p.x = static_cast<int>(x);
+            p.y = static_cast<int>(y);
+        } else {
+            size_t a = 0;
+            while (a <= what.size()) {
+                size_t plus = what.find('+', a);
+                if (plus == std::string::npos) plus = what.size();
+                const std::string name = what.substr(a, plus - a);
+                a = plus + 1;
+                uint32_t bit = 0;
+                bool found = false;
+                for (const auto& d : kDpad)
+                    if (name == d.n) {
+                        bit = d.bit;
+                        found = true;
+                    }
+                if (!found && (name.empty() || name == "none" || !padButtonFromName(name, &bit))) return false;
+                p.buttons |= bit;
+            }
+        }
+        out.push_back(p);
+        last = p.frame;
+    }
+    return true;
+}
+
+void applyPadScript(const std::vector<PadScriptPress>& script, unsigned frame, unsigned holdFrames, PadState& pad) {
+    for (const PadScriptPress& p : script) {
+        if (p.frame > frame) break;
+        if (frame >= p.frame + holdFrames) continue;
+        pad.held |= p.buttons;
+        if (p.touch) {
+            pad.held |= pad::Touch;
+            pad.touch = true;
+            pad.touchX = p.x;
+            pad.touchY = p.y;
+        }
+    }
+}
+
 } // namespace as3d
