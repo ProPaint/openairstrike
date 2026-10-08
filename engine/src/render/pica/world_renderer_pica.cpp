@@ -26,9 +26,13 @@
 // shows the late path for every shadow). Projected shadows never move: their draped geometry is
 // kept between frames (until a crater changes the terrain); planar ones are draped every frame.
 //
-// Not drawn yet (counted 0 in lastStats(), listed once in the log at beginLevel): ground marks
-// (4), skid trails, water (7), lightning bolts, environment maps (the materials draw as plain
-// textured models, mesh_renderer_pica.h).
+// Ground marks and skid trails (pass 4, ground_marks_pica.h): the marks' draped geometry is kept
+// until the set changes or a crater changes the terrain; the skid trails are rebuilt each frame;
+// both are drawn per eye between the terrain and the shadows, as the GL renderer.
+//
+// Not drawn yet (counted 0 in lastStats(), listed once in the log at beginLevel): water (7),
+// lightning bolts, environment maps (the materials draw as plain textured models,
+// mesh_renderer_pica.h).
 //
 // Textures: the 4.2 MB VRAM budget (texture_budget.h) is filled in creation order: the terrain's
 // textures at beginLevel first, then precache() puts the particle textures, then the level
@@ -54,10 +58,12 @@
 #include "as3d/render_state.h"
 #include "as3d/scene.h"
 #include "as3d/shadow_render.h"
+#include "as3d/skid_render.h"
 #include "as3d/sprite_render.h"
 #include "as3d/terrain_render.h"
 #include "as3d/vfs.h"
 #include "flat_fill.h"
+#include "ground_marks_pica.h"
 #include "fx_pica.h"
 #include "mesh_renderer_pica.h"
 #include "pica_frame.h"
@@ -95,6 +101,8 @@ struct WorldRenderer::Impl {
     // blob's rectangle), `map` once generated.
     ShadowRenderer shadows;
     pica::ShadowPass shadowPass;
+    pica::MarkPass markPass;
+    SkidTrailParams skidParams;
     Vec3 towardsSun{0.0f, 0.0f, 1.0f};
     struct ShadowEntry {
         std::unique_ptr<ShadowMap> map;
@@ -206,6 +214,8 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     im.shadowMaps.clear();
     im.skins.clear();
     im.shadowPass.invalidate();
+    im.markPass.reset();
+    im.skidParams = skidTrailParams(world.rules());
     im.lateShadowMaps = 0;
     pica::resetShadowPicaStats();
     im.scene.beginLevel(world, im.rules);
@@ -220,7 +230,7 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     im.towardsSun = length(sun) > 1e-6f ? normalize(sun) : Vec3{0.0f, 0.0f, 1.0f};
     const pica::TerrainPicaStats& ts = pica::terrainPicaStats();
     AS3D_INFO("pica world: terrain %d chunks, %d textures %.1f KB (VRAM %.1f KB, linear %.1f KB); not drawn on "
-              "the PICA yet: ground marks, skid trails, water, lightning, environment maps",
+              "the PICA yet: water, lightning, environment maps",
               ts.chunks, ts.textures, static_cast<double>(ts.textureBytes) / 1024.0,
               static_cast<double>(ts.textureVramBytes) / 1024.0, static_cast<double>(ts.textureLinearBytes) / 1024.0);
     return true;
@@ -343,9 +353,22 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
     if (!rects.empty() && im.terrain) {
         im.terrain->update(rects.data(), rects.size(), TerrainGridView::of(*im.terrainOf));
         im.shadowPass.invalidate(); // the shadows follow the new heights
+        im.markPass.invalidate();   // and so do the marks
     }
-    sc.prepare(world, viewport, options, true, false, stats_);
+    sc.prepare(world, viewport, options, true, im.haveTerrain, stats_);
     ++im.prepareSerial;
+
+    // Ground marks (cut again only when the set changes or after a crater) and the skid trails.
+    im.markPass.beginFrame();
+    if (im.haveTerrain) {
+        const TerrainGridView grid = TerrainGridView::of(*terrain);
+        im.markPass.setMarks(sc.markDescs, grid);
+        ResourceCache& rc = *im.cache;
+        const std::vector<SkidTrail>* test = pica::testSkidTrails();
+        im.markPass.setSkids(test ? test->data() : sc.skidTrails.data(), test ? test->size() : sc.skidTrailCount, grid,
+                             im.skidParams,
+                             [&rc](const std::string& path) { return rc.texture(path).texture; });
+    }
 
     // Shadows (5.3): a silhouette, or the blob while it is not ready (at most one generated per
     // frame, here, outside the frame; drawn from the next one).
@@ -466,8 +489,17 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     }
     setDepth(true, true);
     setCull(CullMode::Back);
-    // Pass 5: shadows (pass 4, ground marks, is not drawn on the PICA yet). The level's depth
-    // mapping and fog are in place (the terrain pass restored them).
+    // Pass 4: ground marks, then the sequels' skid trails (between the marks and the shadows).
+    if (im.haveTerrain && im.markPass.active()) {
+        stats_.drawCalls += im.markPass.draw(wv.view, proj, light.fogColor, fr.hasFog ? light.fogStart : 1.0e9f,
+                                             fr.hasFog ? light.fogEnd : 1.0e9f);
+        stats_.skidTrails = pica::markPicaStats().skidTrails;
+        levelDepthAndFog();
+        setDepth(true, true);
+        setCull(CullMode::Back);
+    }
+    // Pass 5: shadows. The level's depth mapping and fog are in place (the passes before
+    // restored them).
     if (im.haveTerrain && im.shadowPass.shadowCount() > 0) {
         const int drawsBefore = pica::shadowPicaStats().draws;
         im.shadowPass.draw(viewProj);
