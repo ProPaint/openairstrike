@@ -124,17 +124,7 @@ bool readWhole(const std::string& path, std::vector<std::uint8_t>* out, size_t m
 }
 
 bool writeWhole(const std::string& path, const std::string& text) {
-    const std::string tmp = path + ".tmp";
-    std::FILE* f = std::fopen(tmp.c_str(), "wb");
-    if (!f) return false;
-    bool ok = std::fwrite(text.data(), 1, text.size(), f) == text.size();
-    ok = std::fclose(f) == 0 && ok;
-    std::error_code ec;
-    if (!ok || !replaceFile(tmp, path)) {
-        fs::remove(fs::path(tmp), ec);
-        return false;
-    }
-    return true;
+    return writeFileAtomic(path, text.data(), text.size());
 }
 
 // Moves (or, across file systems, copies) a file into place, replacing what is there.
@@ -146,7 +136,10 @@ bool moveInto(const std::string& from, const std::string& to, bool keepSource) {
     ec.clear();
     const std::string tmp = to + ".tmp";
     fs::copy_file(fs::path(from), fs::path(tmp), fs::copy_options::overwrite_existing, ec);
-    if (ec) return false;
+    if (ec) {
+        fs::remove(fs::path(tmp), ec);
+        return false;
+    }
     if (!replaceFile(tmp, to)) {
         fs::remove(fs::path(tmp), ec);
         return false;

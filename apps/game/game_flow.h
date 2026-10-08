@@ -152,6 +152,7 @@ public:
     int modelViewsDrawn() const { return modelViews_; }
 
 private:
+    std::string lastSaveError_; // the last failed save, so the log has it once
     enum class PendingLoad { None, Mission, Attract };
     void doStartMission(const as3d::ui::MissionStart& start);
     void doLoadAttract();

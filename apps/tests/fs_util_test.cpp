@@ -89,3 +89,62 @@ TEST_CASE("makeDirectories: creates nested directories") {
     put(d.path + "/f", "1");
     CHECK_FALSE(makeDirectories(d.path + "/f"));
 }
+
+namespace {
+int g_hookOpen = 0, g_hookClose = 0;
+void countHook(bool writing) { (writing ? g_hookOpen : g_hookClose)++; }
+} // namespace
+
+TEST_CASE("writeFileAtomic: new file, replace, missing directory, no leftovers") {
+    TempDir d;
+    CHECK(writeFileAtomic(d.path + "/a", "one", 3));
+    CHECK(get(d.path + "/a") == "one");
+    setReplaceFileTestFailFirstRename(true); // FAT: rename over an existing file fails
+    CHECK(writeFileAtomic(d.path + "/a", "two2", 4));
+    setReplaceFileTestFailFirstRename(false);
+    CHECK(get(d.path + "/a") == "two2");
+    CHECK_FALSE(exists(d.path + "/a.tmp"));
+    CHECK(writeFileAtomic(d.path + "/sub/deeper/b", "x", 1)); // directory created on demand
+    CHECK(get(d.path + "/sub/deeper/b") == "x");
+    CHECK(writeFileAtomic(d.path + "/empty", nullptr, 0));
+    CHECK(get(d.path + "/empty").empty());
+}
+
+TEST_CASE("writeFileAtomic: a failed replace leaves the destination and no tmp") {
+    TempDir d;
+    REQUIRE(makeDirectories(d.path + "/a")); // a directory with the target's name: neither rename nor remove works
+    put(d.path + "/a/keep", "k");
+    std::string why;
+    CHECK_FALSE(writeFileAtomic(d.path + "/a", "data", 4, &why));
+    CHECK(why.find("cannot replace") == 0);
+    CHECK_FALSE(exists(d.path + "/a.tmp"));
+    CHECK(get(d.path + "/a/keep") == "k");
+    // A destination below a regular file: no directory can be made, no tmp appears.
+    put(d.path + "/f", "1");
+    CHECK_FALSE(writeFileAtomic(d.path + "/f/x", "d", 1, &why));
+    CHECK(why.find("cannot create") == 0);
+}
+
+TEST_CASE("FileWriteScope: the hook fires once for the outermost scope, writeFileAtomic is a scope") {
+    TempDir d;
+    g_hookOpen = g_hookClose = 0;
+    setFileWriteHook(countHook);
+    {
+        FileWriteScope outer;
+        FileWriteScope inner;
+        CHECK(g_hookOpen == 1);
+        CHECK(writeFileAtomic(d.path + "/a", "1", 1));
+        CHECK(g_hookClose == 0);
+    }
+    CHECK(g_hookOpen == 1);
+    CHECK(g_hookClose == 1);
+    CHECK(writeFileAtomic(d.path + "/a", "2", 1));
+    CHECK(g_hookOpen == 2);
+    CHECK(g_hookClose == 2);
+    setFileWriteHook(nullptr);
+}
+
+TEST_CASE("makeDirectories: a device prefix is never created as a directory") {
+    CHECK_FALSE(makeDirectories("nodev:/x"));
+    CHECK_FALSE(exists("nodev:"));
+}

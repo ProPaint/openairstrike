@@ -129,19 +129,7 @@ bool readLauncherChoice(const std::string& path, std::string* key) {
 bool writeLauncherChoice(const std::string& path, const std::string& key) {
     if (path.empty() || !validKey(key)) return false;
     const std::vector<u8> bytes = serializeLauncherChoice(key);
-    const std::string tmp = path + ".tmp";
-    std::FILE* f = std::fopen(tmp.c_str(), "wb");
-    if (!f) return false;
-    const bool written = std::fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
-    if (std::fclose(f) != 0 || !written) {
-        std::remove(tmp.c_str());
-        return false;
-    }
-    if (!replaceFile(tmp, path)) {
-        std::remove(tmp.c_str());
-        return false;
-    }
-    return true;
+    return writeFileAtomic(path, bytes.data(), bytes.size());
 }
 
 SaveSummary readSaveSummary(const std::string& path, const std::string& legacyPath, const GameProfile& game) {

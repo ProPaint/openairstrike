@@ -1,8 +1,10 @@
 // Profile file: our own small versioned format (see as3d/profile.h), written atomically.
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 
+#include "as3d/core.h"
 #include "as3d/fs_util.h"
 #include "as3d/platform.h"
 #include "as3d/profile.h"
@@ -375,26 +377,11 @@ bool loadProfileFile(const std::string& path, Profile& out, std::string* why, co
 
 bool saveProfileFile(const std::string& path, const Profile& p, std::string* why, const char* gameKey) {
     const std::vector<u8> bytes = serializeProfile(p, gameKey);
-    const std::string tmp = path + ".tmp";
-    std::FILE* f = std::fopen(tmp.c_str(), "wb");
-    if (!f) {
-        if (why) *why = "cannot create " + tmp;
-        return false;
-    }
-    const bool written = std::fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
-    const bool flushed = std::fflush(f) == 0;
-    const bool closed = std::fclose(f) == 0;
-    if (!written || !flushed || !closed) {
-        std::remove(tmp.c_str());
-        if (why) *why = "cannot write " + tmp;
-        return false;
-    }
-    if (!replaceFile(tmp, path)) {
-        std::remove(tmp.c_str());
-        if (why) *why = "cannot replace " + path;
-        return false;
-    }
-    return true;
+    const auto t0 = std::chrono::steady_clock::now();
+    const bool ok = writeFileAtomic(path, bytes.data(), bytes.size(), why);
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    AS3D_INFO("AS3D_SAVE profile bytes=%zu ms=%.1f ok=%d", bytes.size(), ms, ok ? 1 : 0);
+    return ok;
 }
 
 namespace {
@@ -417,6 +404,7 @@ std::string dirOf(const std::string& path) {
 ProfileLoad loadProfileForGame(const std::string& path, const std::string& legacyPath, const char* gameKey,
                                Profile& out, std::string* why) {
     if (!validKey(gameKey)) gameKey = kFirstGameKey;
+    if (!path.empty()) std::remove((path + ".tmp").c_str()); // a write cut by a power loss
     if (fileExists(path))
         return loadProfileFile(path, out, why, gameKey) ? ProfileLoad::Loaded : ProfileLoad::Unusable;
     if (legacyPath.empty() || std::strcmp(gameKey, kFirstGameKey) != 0 || !fileExists(legacyPath)) {

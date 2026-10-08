@@ -203,7 +203,8 @@ TEST_CASE("launcher.bin: round trip, atomic write, every kind of corrupt file ig
     CHECK(key == "as3d");
     CHECK_FALSE(writeLauncherChoice(path, "AS2"));      // not a key
     CHECK_FALSE(writeLauncherChoice(path, ""));
-    CHECK_FALSE(writeLauncherChoice(dir + "/no/such/dir/launcher.bin", "as2"));
+    CHECK(writeLauncherChoice(dir + "/made/on/demand/launcher.bin", "as2")); // the directory is created
+    CHECK_FALSE(writeLauncherChoice(path + "/below/a/file.bin", "as2"));      // under a regular file: fails
     REQUIRE(readLauncherChoice(path, &key));
     CHECK(key == "as3d");                              // unchanged by the failed writes
 

@@ -287,8 +287,14 @@ void GameFlow::setScreenSize(int width, int height) {
 void GameFlow::saveProfile(const Profile& p) {
     if (config_.profilePath.empty()) return;
     std::string why;
-    if (!saveProfileFile(config_.profilePath, p, &why, profileGameKey(session_.game()))) AS3D_ERROR("cannot save the profile: %s", why.c_str());
-    else if (config_.profileSaved) config_.profileSaved();
+    if (!saveProfileFile(config_.profilePath, p, &why, profileGameKey(session_.game()))) {
+        // Once per distinct failure, not on every retry (a full or missing card fails every save).
+        if (why != lastSaveError_) AS3D_ERROR("cannot save the profile: %s", why.c_str());
+        lastSaveError_ = why;
+    } else {
+        lastSaveError_.clear();
+        if (config_.profileSaved) config_.profileSaved();
+    }
 }
 
 void GameFlow::saveNow() { saveProfile(profile_); }
