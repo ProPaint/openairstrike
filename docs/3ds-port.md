@@ -34,6 +34,19 @@ the terrain and water passes when the near plane or the pacer state changes, or 
 inheriting a 2D overlay's depth state. Reproduce on Azahar in `mode=play` with real input
 (pad_script flying over water for a minute, dump_every=30) before fixing.
 
+**Drop 5 on the console, the owner's play session (out/3ds/hw21-play-final-098f524/):** at 60 Hz
+the cadence is clean (8377 frames, 13 misses = 0.16%), but the pacer fell to 30 Hz for 6466 frames:
+32 of the 40 misses are frames whose submit took 18-24 ms instead of 5, most of them with the fire
+button held. Cause: late texture loads in play (`AS3D_LAZY_LOADS mission=1 textures=7`, front end
+21: the player's weapon effects, items and menu pictures the bot never touches), and a
+`Texture2D::create` inside a frame is a synchronous upload that resets the GX queue (M1.3). Two
+fixes for the next session: precache every weapon/upgrade/item effect of the player (not only the
+current loadout) and the front end's pictures, and queue any remaining late creation to the end
+of the frame (never inside the command stream). The same mid-frame upload is a candidate trigger
+for the water wash (a corrupted command stream for the frames around it), to test together with
+the A/B list above. prepare() is 2.5-7 ms in play against 1.7 in the bot runs (more particles
+and projectiles): profile it per pass.
+
 **Open on the console:** confirm mono ≥ 99% one-step frames and stereo a clean 30 with drop 5;
 the tutorial water wash with a hint box up (hypothesis: the render-state copies, fixed
 defensively in drop 5); the menu-font legibility photo (M2.2); a Gulf stereo run for the GPU
