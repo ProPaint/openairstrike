@@ -614,3 +614,30 @@ TEST_CASE("script fault: the player's helicopter is kept and the watchdog respaw
     CHECK(r.world.player(0).lives == -1.0f);
     CHECK(r.world.gameOver());
 }
+
+TEST_CASE("world: EntityListScope lists nest without clobbering each other (M4.2)") {
+    Rig r;
+    r.obj("t_a {\n flag FL_TEMPORARY\n}\n");
+    r.start();
+    r.create("t_a", {640, 302, 0});
+    r.create("t_a", {650, 302, 0});
+    const std::vector<int> expected = r.world.listEntities();
+    REQUIRE(expected.size() >= 2);
+    World::EntityListScope outer(r.world);
+    const std::vector<int>* outerList = &outer.list();
+    CHECK(outer.list() == expected);
+    {
+        World::EntityListScope inner(r.world);
+        CHECK(inner.list() == expected);
+        CHECK(&inner.list() != outerList);
+        int more = r.create("t_a", {660, 302, 0}); // the outer list is a snapshot
+        CHECK(outer.list() == expected);
+        World::EntityListScope deeper(r.world);
+        CHECK(deeper.list().size() == expected.size() + 1);
+        CHECK(deeper.list().front() == more);
+    }
+    CHECK(&outer.list() == outerList);
+    CHECK(outer.list() == expected);
+    World::EntityListScope again(r.world); // reuses the inner buffer
+    CHECK(again.list().size() == expected.size() + 1);
+}

@@ -199,6 +199,33 @@ TEST_CASE("collision: TOUCH_ENEMIES touches every overlapping enemy unless remov
     }
 }
 
+TEST_CASE("collision: a touch handler's changes are seen by the next toucher in the same pass (M4.2)") {
+    // The touch pass keeps the possible candidates between touchers until a handler runs:
+    // here the newest bullet's handler removes the enemy, so the older bullet, scanned
+    // next in the same pass, must not touch it.
+    Asm killer;
+    killer.entry(EntryPoint::Touch);
+    killer.addSelf(21, 1.0f);
+    killer.movGlobal(0, "other");
+    killer.call("remove", 4);
+    killer.end();
+    Rig r;
+    r.script("scripts\\kill.scr", killer);
+    r.obj("t_pbullet {\n flag FL_TEMPORARY\n touch TOUCH_ENEMIES\n script \"scripts\\kill.scr\"\n}\n"
+          "t_en {\n enemy\n flag FL_TEMPORARY\n health 50\n}\n");
+    r.start();
+    int en = r.create("t_en", {640, 302, 0});
+    int other = r.create("t_en", {900, 302, 0}); // overlaps nothing
+    int b1 = r.create("t_pbullet", {640, 302, 0});
+    int b2 = r.create("t_pbullet", {645, 302, 0});
+    for (int i : {en, other, b1, b2}) giveBox(r.e(i), 20);
+    r.step();
+    CHECK(r.e(b2).f(21) == 1.0f); // newest first: b2 touches and removes the enemy
+    CHECK(r.e(b1).f(21) == 0.0f); // b1 no longer sees it
+    CHECK((r.e(en).rt & RT_REMOVED) != 0);
+    CHECK((r.e(other).rt & RT_REMOVED) == 0);
+}
+
 TEST_CASE("collision: a point projectile sweeps between frames") {
     Rig r;
     r.script("scripts\\touch.scr", toucher(false));

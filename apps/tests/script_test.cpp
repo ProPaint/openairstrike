@@ -705,6 +705,62 @@ TEST_CASE("script: unknown and unimplemented builtins bind to a counted stub") {
     }
 }
 
+TEST_CASE("script: the report's entry cache follows report changes (M4.2)") {
+    // BuiltinReport::entryFor/noteCallAt do what noteCall does.
+    BuiltinReport a;
+    u32 x = a.entryFor("x", BuiltinStatus::Implemented);
+    a.noteCallAt(x, BuiltinStatus::Implemented);
+    a.noteCall("y", BuiltinStatus::Approximate);
+    a.noteCallAt(a.entryFor("x", BuiltinStatus::Implemented), BuiltinStatus::Implemented);
+    auto rows = a.rows();
+    REQUIRE(rows.size() == 2);
+    CHECK(rows[0].name == "x"); // first-call order
+    CHECK(rows[0].calls == 2u);
+    CHECK(rows[1].name == "y");
+    CHECK(rows[1].calls == 1u);
+    CHECK(rows[1].status == BuiltinStatus::Approximate);
+    BuiltinReport b;
+    CHECK(b.id() != a.id());
+    const u64 before = a.id();
+    a = BuiltinReport(); // an assigned report is a new one for the caches
+    CHECK(a.id() != before);
+    CHECK(a.rows().empty());
+
+    // A thread counts into its report, then into another one after setBuiltinReport, and
+    // into a reset report (same object, new id) without stale entries.
+    Rig r;
+    int f1 = r.b.funcs("random");
+    int f2 = r.b.funcs("Lightning");
+    r.b.emit(OP_CALL, 0, func(f2), 3);
+    r.b.emit(OP_CALL, 0, func(f1), 4);
+    r.b.emit(OP_CALL, 0, func(f2), 5);
+    r.b.emit(OP_END);
+    r.b.setEntry(EntryPoint::Main, 0);
+    r.start();
+    r.main();
+    rows = r.report.rows();
+    REQUIRE(rows.size() == 2);
+    CHECK(rows[0].name == "Lightning");
+    CHECK(rows[0].calls == 2u);
+    CHECK(rows[1].calls == 1u);
+    BuiltinReport other;
+    r.th->setBuiltinReport(&other);
+    r.main();
+    CHECK(r.report.rows()[0].calls == 2u); // unchanged
+    rows = other.rows();
+    REQUIRE(rows.size() == 2);
+    CHECK(rows[0].calls == 2u);
+    r.th->setBuiltinReport(&r.report);
+    r.report = BuiltinReport();
+    other.noteCall("first", BuiltinStatus::Implemented);
+    r.main();
+    rows = r.report.rows();
+    REQUIRE(rows.size() == 2);
+    CHECK(rows[0].name == "Lightning");
+    CHECK(rows[0].calls == 2u);
+    CHECK(rows[1].name == "random");
+}
+
 // ---------------------------------------------------------------------------------
 // LCALL / TMO, handlers.
 // ---------------------------------------------------------------------------------
