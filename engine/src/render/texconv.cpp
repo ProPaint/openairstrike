@@ -1,6 +1,7 @@
 #include "as3d/texconv.h"
 
 #include <algorithm>
+#include <cstring>
 
 namespace as3d {
 namespace {
@@ -78,14 +79,18 @@ Image resizeNearest(const Image& src, int w, int h) {
     out.height = h;
     out.hasAlpha = src.hasAlpha;
     if (w <= 0 || h <= 0 || src.width <= 0 || src.height <= 0) return out;
+    if (w == src.width && h == src.height) { // the same size: a plain copy
+        out.rgba.assign(src.rgba.begin(), src.rgba.begin() + static_cast<std::ptrdiff_t>(static_cast<size_t>(w) * h * 4));
+        return out;
+    }
     out.rgba.resize(static_cast<size_t>(w) * h * 4);
+    std::vector<int> sxs(static_cast<size_t>(w));
+    for (int x = 0; x < w; ++x) sxs[static_cast<size_t>(x)] = static_cast<int>(static_cast<long long>(x) * src.width / w);
     for (int y = 0; y < h; ++y) {
         int sy = static_cast<int>(static_cast<long long>(y) * src.height / h);
-        for (int x = 0; x < w; ++x) {
-            int sx = static_cast<int>(static_cast<long long>(x) * src.width / w);
-            const uint8_t* p = &src.rgba[(static_cast<size_t>(sy) * src.width + sx) * 4];
-            std::copy(p, p + 4, &out.rgba[(static_cast<size_t>(y) * w + x) * 4]);
-        }
+        const uint8_t* row = &src.rgba[static_cast<size_t>(sy) * src.width * 4];
+        uint8_t* o = &out.rgba[static_cast<size_t>(y) * w * 4];
+        for (int x = 0; x < w; ++x, o += 4) std::memcpy(o, row + static_cast<size_t>(sxs[static_cast<size_t>(x)]) * 4, 4);
     }
     return out;
 }
@@ -96,6 +101,18 @@ Image downsampleBox2x2(const Image& src) {
     out.height = std::max(src.height / 2, 1);
     out.hasAlpha = src.hasAlpha;
     out.rgba.resize(static_cast<size_t>(out.width) * out.height * 4);
+    if (src.width >= 2 && src.height >= 2 && (src.width & 1) == 0 && (src.height & 1) == 0) {
+        // Even sides (every power of two >= 2): no edge clamping, row pointers.
+        const size_t sw = static_cast<size_t>(src.width) * 4;
+        for (int y = 0; y < out.height; ++y) {
+            const uint8_t* r0 = &src.rgba[static_cast<size_t>(y) * 2 * sw];
+            const uint8_t* r1 = r0 + sw;
+            uint8_t* o = &out.rgba[static_cast<size_t>(y) * out.width * 4];
+            for (int x = 0; x < out.width; ++x, r0 += 8, r1 += 8, o += 4)
+                for (int c = 0; c < 4; ++c) o[c] = static_cast<uint8_t>((r0[c] + r0[c + 4] + r1[c] + r1[c + 4] + 2) >> 2);
+        }
+        return out;
+    }
     for (int y = 0; y < out.height; ++y)
         for (int x = 0; x < out.width; ++x) {
             int x0 = std::min(x * 2, src.width - 1), x1 = std::min(x * 2 + 1, src.width - 1);
@@ -120,46 +137,144 @@ std::vector<Image> buildMipChain(const Image& img) {
     return chain;
 }
 
-std::vector<uint8_t> swizzle(const Image& img, PicaFormat fmt) {
-    int w = img.width, h = img.height;
-    if (w <= 0 || h <= 0 || (w & 7) || (h & 7) || img.rgba.size() < static_cast<size_t>(w) * h * 4) return {};
-    size_t bits = static_cast<size_t>(bitsPerTexel(fmt));
-    std::vector<uint8_t> out(static_cast<size_t>(w) * h * bits / 8, 0);
-    for (int y = 0; y < h; ++y) {
-        int my = h - 1 - y; // memory row: bottom of the picture first
-        for (int x = 0; x < w; ++x) {
-            const uint8_t* p = &img.rgba[(static_cast<size_t>(y) * w + x) * 4];
-            size_t idx = static_cast<size_t>((my >> 3) * (w >> 3) + (x >> 3)) * 64 + morton8(static_cast<uint32_t>(x), static_cast<uint32_t>(my));
-            int r = p[0], g = p[1], b = p[2], a = p[3];
-            uint8_t* d = &out[idx * bits / 8];
-            switch (fmt) {
-            case PicaFormat::RGBA8: d[0] = static_cast<uint8_t>(a); d[1] = static_cast<uint8_t>(b); d[2] = static_cast<uint8_t>(g); d[3] = static_cast<uint8_t>(r); break;
-            case PicaFormat::RGB8: d[0] = static_cast<uint8_t>(b); d[1] = static_cast<uint8_t>(g); d[2] = static_cast<uint8_t>(r); break;
-            case PicaFormat::RGBA5551:
-            case PicaFormat::RGB565:
-            case PicaFormat::RGBA4:
-            case PicaFormat::LA8: {
-                unsigned v;
-                if (fmt == PicaFormat::RGBA5551) v = static_cast<unsigned>(q(r, 31) << 11 | q(g, 31) << 6 | q(b, 31) << 1 | (a >= 128));
-                else if (fmt == PicaFormat::RGB565) v = static_cast<unsigned>(q(r, 31) << 11 | q(g, 63) << 5 | q(b, 31));
-                else if (fmt == PicaFormat::RGBA4) v = static_cast<unsigned>(q(r, 15) << 12 | q(g, 15) << 8 | q(b, 15) << 4 | q(a, 15));
-                else v = static_cast<unsigned>(lum(p) << 8 | a);
-                d[0] = static_cast<uint8_t>(v);
-                d[1] = static_cast<uint8_t>(v >> 8);
-                break;
+namespace {
+
+// The 64 texels of an 8x8 tile in memory (Morton) order: their x and y inside the tile.
+struct TileOrder {
+    uint8_t x[64], y[64];
+    TileOrder() {
+        for (uint32_t yy = 0; yy < 8; ++yy)
+            for (uint32_t xx = 0; xx < 8; ++xx) {
+                const uint32_t m = morton8(xx, yy);
+                x[m] = static_cast<uint8_t>(xx);
+                y[m] = static_cast<uint8_t>(yy);
             }
-            case PicaFormat::L8: d[0] = static_cast<uint8_t>(lum(p)); break;
-            case PicaFormat::A8: d[0] = static_cast<uint8_t>(a); break;
-            case PicaFormat::LA4: d[0] = static_cast<uint8_t>(q(lum(p), 15) << 4 | q(a, 15)); break;
-            case PicaFormat::L4:
-            case PicaFormat::A4: {
-                unsigned n = static_cast<unsigned>(q(fmt == PicaFormat::L4 ? lum(p) : a, 15));
-                *d = static_cast<uint8_t>(*d | ((idx & 1) ? n << 4 : n));
-                break;
-            }
+    }
+};
+
+// q(v, max) for every byte value.
+struct QuantTables {
+    uint8_t q31[256], q63[256], q15[256];
+    QuantTables() {
+        for (int v = 0; v < 256; ++v) {
+            q31[v] = static_cast<uint8_t>(q(v, 31));
+            q63[v] = static_cast<uint8_t>(q(v, 63));
+            q15[v] = static_cast<uint8_t>(q(v, 15));
+        }
+    }
+};
+
+const TileOrder& tileOrder() {
+    static const TileOrder t;
+    return t;
+}
+
+const QuantTables& quant() {
+    static const QuantTables t;
+    return t;
+}
+
+// Walks the texels in memory order (tiles row-major from the bottom of the picture, Morton
+// inside a tile) and calls put(index, source pixel) for each.
+template <class Put> void forEachTexel(const Image& img, Put put) {
+    const int w = img.width, h = img.height;
+    const TileOrder& to = tileOrder();
+    const uint8_t* rgba = img.rgba.data();
+    size_t idx = 0;
+    for (int ty = 0; ty < h; ty += 8) {     // memory tile rows: ty = my of the tile's first row
+        for (int tx = 0; tx < w; tx += 8) {
+            for (int i = 0; i < 64; ++i, ++idx) {
+                const int x = tx + to.x[i], my = ty + to.y[i];
+                const int y = h - 1 - my; // memory row my is picture row h - 1 - my
+                put(idx, rgba + (static_cast<size_t>(y) * static_cast<size_t>(w) + static_cast<size_t>(x)) * 4);
             }
         }
     }
+}
+
+} // namespace
+
+bool swizzleInto(const Image& img, PicaFormat fmt, uint8_t* out, size_t outBytes) {
+    const int w = img.width, h = img.height;
+    if (w <= 0 || h <= 0 || (w & 7) || (h & 7) || img.rgba.size() < static_cast<size_t>(w) * h * 4) return false;
+    const size_t bytes = static_cast<size_t>(w) * h * static_cast<size_t>(bitsPerTexel(fmt)) / 8;
+    if (!out || outBytes < bytes) return false;
+    const QuantTables& qt = quant();
+    switch (fmt) {
+    case PicaFormat::RGBA8:
+        forEachTexel(img, [out](size_t i, const uint8_t* p) {
+            uint8_t* d = out + i * 4;
+            d[0] = p[3];
+            d[1] = p[2];
+            d[2] = p[1];
+            d[3] = p[0];
+        });
+        break;
+    case PicaFormat::RGB8:
+        forEachTexel(img, [out](size_t i, const uint8_t* p) {
+            uint8_t* d = out + i * 3;
+            d[0] = p[2];
+            d[1] = p[1];
+            d[2] = p[0];
+        });
+        break;
+    case PicaFormat::RGBA5551:
+        forEachTexel(img, [out, &qt](size_t i, const uint8_t* p) {
+            const unsigned v = static_cast<unsigned>(qt.q31[p[0]] << 11 | qt.q31[p[1]] << 6 | qt.q31[p[2]] << 1 | (p[3] >= 128));
+            out[i * 2] = static_cast<uint8_t>(v);
+            out[i * 2 + 1] = static_cast<uint8_t>(v >> 8);
+        });
+        break;
+    case PicaFormat::RGB565:
+        forEachTexel(img, [out, &qt](size_t i, const uint8_t* p) {
+            const unsigned v = static_cast<unsigned>(qt.q31[p[0]] << 11 | qt.q63[p[1]] << 5 | qt.q31[p[2]]);
+            out[i * 2] = static_cast<uint8_t>(v);
+            out[i * 2 + 1] = static_cast<uint8_t>(v >> 8);
+        });
+        break;
+    case PicaFormat::RGBA4:
+        forEachTexel(img, [out, &qt](size_t i, const uint8_t* p) {
+            const unsigned v = static_cast<unsigned>(qt.q15[p[0]] << 12 | qt.q15[p[1]] << 8 | qt.q15[p[2]] << 4 | qt.q15[p[3]]);
+            out[i * 2] = static_cast<uint8_t>(v);
+            out[i * 2 + 1] = static_cast<uint8_t>(v >> 8);
+        });
+        break;
+    case PicaFormat::LA8:
+        forEachTexel(img, [out](size_t i, const uint8_t* p) {
+            out[i * 2] = p[3];
+            out[i * 2 + 1] = static_cast<uint8_t>(lum(p));
+        });
+        break;
+    case PicaFormat::L8:
+        forEachTexel(img, [out](size_t i, const uint8_t* p) { out[i] = static_cast<uint8_t>(lum(p)); });
+        break;
+    case PicaFormat::A8:
+        forEachTexel(img, [out](size_t i, const uint8_t* p) { out[i] = p[3]; });
+        break;
+    case PicaFormat::LA4:
+        forEachTexel(img, [out, &qt](size_t i, const uint8_t* p) {
+            out[i] = static_cast<uint8_t>(qt.q15[lum(p)] << 4 | qt.q15[p[3]]);
+        });
+        break;
+    case PicaFormat::L4:
+    case PicaFormat::A4: {
+        std::memset(out, 0, bytes);
+        const bool l = fmt == PicaFormat::L4;
+        forEachTexel(img, [out, &qt, l](size_t i, const uint8_t* p) {
+            const unsigned n = qt.q15[l ? lum(p) : p[3]];
+            out[i / 2] = static_cast<uint8_t>(out[i / 2] | ((i & 1) ? n << 4 : n));
+        });
+        break;
+    }
+    }
+    return true;
+}
+
+std::vector<uint8_t> swizzle(const Image& img, PicaFormat fmt) {
+    const int w = img.width, h = img.height;
+    if (w <= 0 || h <= 0 || (w & 7) || (h & 7) || img.rgba.size() < static_cast<size_t>(w) * h * 4) return {};
+    std::vector<uint8_t> out(static_cast<size_t>(w) * h * static_cast<size_t>(bitsPerTexel(fmt)) / 8, 0);
+    swizzleInto(img, fmt, out.data(), out.size());
     return out;
 }
 

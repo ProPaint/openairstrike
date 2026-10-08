@@ -56,6 +56,8 @@ bool initBackend(size_t arenaHalfBytes) {
         return false;
     }
     b.ready = true;
+    detail::c3dInvalidate();
+    detail::forgetTextureBindings();
     setDepthMapping(FogDepthMap::ZBuffer, 4.0f);
     disableFog();
     detail::applyDefaultState();
@@ -140,8 +142,8 @@ float depthMappingNear() { return backend().depthNear; }
 
 void applyDepthMap(float offset) {
     const Backend& b = backend();
-    if (b.depthMap == FogDepthMap::WBuffer) C3D_DepthMap(false, -1.0f / b.depthNear, offset);
-    else C3D_DepthMap(true, -1.0f, offset);
+    if (b.depthMap == FogDepthMap::WBuffer) detail::c3dDepthMap(false, -1.0f / b.depthNear, offset);
+    else detail::c3dDepthMap(true, -1.0f, offset);
 }
 
 } // namespace as3d::pica

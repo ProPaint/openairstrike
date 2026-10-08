@@ -54,6 +54,9 @@ std::vector<Image> buildMipChain(const Image& img);
 // Converts to `fmt` and writes the tiled, vertically flipped layout (see the header comment).
 // Width and height must be multiples of 8, otherwise the result is empty.
 std::vector<uint8_t> swizzle(const Image& img, PicaFormat fmt);
+// The same into `out` (at least w * h * bitsPerTexel / 8 bytes): no allocation. False (nothing
+// written) when the size is not a multiple of 8 or `out` is too small.
+bool swizzleInto(const Image& img, PicaFormat fmt, uint8_t* out, size_t outBytes);
 // Inverse of swizzle (rows un-flipped, texels expanded to 8 bits per channel).
 Image unswizzle(const uint8_t* data, int w, int h, PicaFormat fmt);
 

@@ -123,6 +123,22 @@ void applyFogColor(const Vec3& rgb);
 Mat4 picaEyeProjection(const WorldView& view, const EyeView& eye, float aspect);
 
 namespace detail {
+// citro3d's fragment state without the redundant calls (render_state_pica.cpp): each call
+// marks citro3d's effect block dirty, which re-emits it with the next draw; these skip a call
+// whose arguments equal the last issued ones. Every PICA renderer sets this state through them
+// (render_state, the 2D layer, fog, depth mapping); c3dInvalidate() forgets the last values
+// (initBackend: other code may have set the state).
+void c3dAlphaBlend(GPU_BLENDEQUATION colorEq, GPU_BLENDEQUATION alphaEq, GPU_BLENDFACTOR srcClr, GPU_BLENDFACTOR dstClr,
+                   GPU_BLENDFACTOR srcAlpha, GPU_BLENDFACTOR dstAlpha);
+void c3dDepthTest(bool enable, GPU_TESTFUNC function, GPU_WRITEMASK writemask);
+void c3dCullFace(GPU_CULLMODE mode);
+void c3dAlphaTest(bool enable, GPU_TESTFUNC function, int ref);
+void c3dFogColor(u32 color);
+void c3dDepthMap(bool zBuffer, float zScale, float zOffset);
+void c3dInvalidate();
+// Texture2D::bind skips C3D_TexBind of the texture already bound to the unit (gfx_pica.cpp; a
+// destroyed texture is forgotten). initBackend forgets every binding.
+void forgetTextureBindings();
 // render_state_pica.cpp: forget the viewport/scissor of the previous target (drawOn) and
 // re-issue the tracked blend/depth/cull state (initBackend).
 void resetViewState();

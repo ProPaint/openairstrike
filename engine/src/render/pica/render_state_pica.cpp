@@ -64,20 +64,20 @@ RenderState& state() {
 
 void issueBlend() {
     const BlendFactors& b = state().blend;
-    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, b.src, b.dst, b.src, b.dst);
+    detail::c3dAlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, b.src, b.dst, b.src, b.dst);
 }
 
 void issueDepth() {
     const RenderState& s = state();
-    if (s.depthTest) C3D_DepthTest(true, GPU_GEQUAL, s.depthWrite ? GPU_WRITE_ALL : GPU_WRITE_COLOR);
-    else C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    if (s.depthTest) detail::c3dDepthTest(true, GPU_GEQUAL, s.depthWrite ? GPU_WRITE_ALL : GPU_WRITE_COLOR);
+    else detail::c3dDepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
 }
 
 void issueCull() {
     switch (state().cull) {
-    case CullMode::Off: C3D_CullFace(GPU_CULL_NONE); break;
-    case CullMode::Back: C3D_CullFace(GPU_CULL_BACK_CCW); break;
-    case CullMode::Front: C3D_CullFace(GPU_CULL_FRONT_CCW); break;
+    case CullMode::Off: detail::c3dCullFace(GPU_CULL_NONE); break;
+    case CullMode::Back: detail::c3dCullFace(GPU_CULL_BACK_CCW); break;
+    case CullMode::Front: detail::c3dCullFace(GPU_CULL_FRONT_CCW); break;
     }
 }
 
@@ -159,10 +159,10 @@ void fillQuad(bool color, const Vec4& c, bool depth, float glDepth) {
     applyTev(tevConstantColor(toByte(c.x), toByte(c.y), toByte(c.z), toByte(c.w)));
     const bool fog = fogEnabled();
     if (fog) C3D_FogGasMode(GPU_NO_FOG, GPU_PLAIN_DENSITY, false);
-    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
-    C3D_DepthTest(true, GPU_ALWAYS,
+    detail::c3dAlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
+    detail::c3dDepthTest(true, GPU_ALWAYS,
                   static_cast<GPU_WRITEMASK>((color ? GPU_WRITE_COLOR : 0) | (depth ? GPU_WRITE_DEPTH : 0)));
-    C3D_CullFace(GPU_CULL_NONE);
+    detail::c3dCullFace(GPU_CULL_NONE);
     if (state().depthOffset != 0.0f) applyDepthMap(0.0f);
     const bool full = state().viewportFull;
     state().viewportFull = true;
@@ -188,6 +188,76 @@ void clearImpl(bool color, const Vec4& c, bool depth, float glDepth) {
 
 namespace detail {
 
+namespace {
+struct C3dShadow {
+    bool blendValid = false, depthValid = false, cullValid = false, alphaValid = false, fogValid = false,
+         mapValid = false;
+    int blend[6] = {};
+    bool depthOn = false;
+    int depthFunc = 0, depthMask = 0;
+    int cull = 0;
+    bool alphaOn = false;
+    int alphaFunc = 0, alphaRef = 0;
+    u32 fog = 0;
+    bool mapZ = false;
+    float mapScale = 0.0f, mapOffset = 0.0f;
+};
+C3dShadow g_c3d;
+} // namespace
+
+void c3dAlphaBlend(GPU_BLENDEQUATION colorEq, GPU_BLENDEQUATION alphaEq, GPU_BLENDFACTOR srcClr, GPU_BLENDFACTOR dstClr,
+                   GPU_BLENDFACTOR srcAlpha, GPU_BLENDFACTOR dstAlpha) {
+    const int v[6] = {colorEq, alphaEq, srcClr, dstClr, srcAlpha, dstAlpha};
+    if (g_c3d.blendValid && std::equal(v, v + 6, g_c3d.blend)) return;
+    std::copy(v, v + 6, g_c3d.blend);
+    g_c3d.blendValid = true;
+    C3D_AlphaBlend(colorEq, alphaEq, srcClr, dstClr, srcAlpha, dstAlpha);
+}
+
+void c3dDepthTest(bool enable, GPU_TESTFUNC function, GPU_WRITEMASK writemask) {
+    if (g_c3d.depthValid && g_c3d.depthOn == enable && g_c3d.depthFunc == function && g_c3d.depthMask == writemask)
+        return;
+    g_c3d.depthValid = true;
+    g_c3d.depthOn = enable;
+    g_c3d.depthFunc = function;
+    g_c3d.depthMask = writemask;
+    C3D_DepthTest(enable, function, writemask);
+}
+
+void c3dCullFace(GPU_CULLMODE mode) {
+    if (g_c3d.cullValid && g_c3d.cull == mode) return;
+    g_c3d.cullValid = true;
+    g_c3d.cull = mode;
+    C3D_CullFace(mode);
+}
+
+void c3dAlphaTest(bool enable, GPU_TESTFUNC function, int ref) {
+    if (g_c3d.alphaValid && g_c3d.alphaOn == enable && g_c3d.alphaFunc == function && g_c3d.alphaRef == ref) return;
+    g_c3d.alphaValid = true;
+    g_c3d.alphaOn = enable;
+    g_c3d.alphaFunc = function;
+    g_c3d.alphaRef = ref;
+    C3D_AlphaTest(enable, function, ref);
+}
+
+void c3dFogColor(u32 color) {
+    if (g_c3d.fogValid && g_c3d.fog == color) return;
+    g_c3d.fogValid = true;
+    g_c3d.fog = color;
+    C3D_FogColor(color);
+}
+
+void c3dDepthMap(bool zBuffer, float zScale, float zOffset) {
+    if (g_c3d.mapValid && g_c3d.mapZ == zBuffer && g_c3d.mapScale == zScale && g_c3d.mapOffset == zOffset) return;
+    g_c3d.mapValid = true;
+    g_c3d.mapZ = zBuffer;
+    g_c3d.mapScale = zScale;
+    g_c3d.mapOffset = zOffset;
+    C3D_DepthMap(zBuffer, zScale, zOffset);
+}
+
+void c3dInvalidate() { g_c3d = C3dShadow(); }
+
 void resetViewState() {
     RenderState& s = state();
     s.scissor = false;
@@ -199,7 +269,7 @@ void applyDefaultState() {
     issueBlend();
     issueDepth();
     issueCull();
-    C3D_AlphaTest(false, GPU_ALWAYS, 0);
+    detail::c3dAlphaTest(false, GPU_ALWAYS, 0);
 }
 
 } // namespace detail
@@ -269,7 +339,7 @@ void applyMaterialState(const MaterialKey& key) {
         pica::applyDepthMap(offset);
     }
     pica::applyFogColor(fogColorFor(key.fog, pica::levelFogColor()));
-    C3D_AlphaTest(key.alphaTest, GPU_GREATER, 0x7F);
+    pica::detail::c3dAlphaTest(key.alphaTest, GPU_GREATER, 0x7F);
 }
 
 } // namespace as3d

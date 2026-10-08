@@ -8,6 +8,12 @@
 // would stall the GPU queue. The scissor is the caller's (as3d::setScissor, GL rectangles); the
 // flush leaves it alone. It leaves blend off, depth test and write on, culling back, as the
 // other PICA renderers do.
+//
+// Vertex cache: each Renderer2D keeps the converted vertices of its last few lists (6) in linear
+// memory of their own; a flush of a list equal to one of them (same quads, mapping, half-pixel
+// shift, circle segments, snapping) draws from it without building the batch again (the second
+// eye, the touch band, a HUD that did not change). A changed list is converted into a slot no
+// draw of the current frame uses (else into the frame arena).
 #pragma once
 
 #include <cstddef>
@@ -22,6 +28,7 @@ struct Ui2dPicaStats {
     size_t arenaBytes = 0;   // frame arena bytes taken by the vertex arrays
     int arenaFailures = 0;   // flushes skipped because the frame arena was full
     int missingTextures = 0; // runs whose texture was not loaded (drawn white)
+    int cacheHits = 0;       // flushes that reused the vertices of an unchanged list (renderer2d_pica.cpp)
 };
 
 // Counters since the last reset (the app resets them once per frame, or reads the totals).

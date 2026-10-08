@@ -63,7 +63,7 @@ Vec3 levelFogColor() { return fog().levelColor; }
 void applyFogColor(const Vec3& rgb) {
     auto b = [](float v) { return static_cast<u32>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); };
     // GPUREG_FOG_COLOR: R in bits 0-7, G 8-15, B 16-23.
-    C3D_FogColor(b(rgb.x) | b(rgb.y) << 8 | b(rgb.z) << 16);
+    detail::c3dFogColor(b(rgb.x) | b(rgb.y) << 8 | b(rgb.z) << 16);
 }
 
 } // namespace as3d::pica

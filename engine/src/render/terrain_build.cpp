@@ -22,23 +22,46 @@ void generateBaseTextureRgb(const LevelData& level, const Image textures[4], int
         resampleHeightField(plane.data(), w, sh, static_cast<size_t>(rowStart) * static_cast<size_t>(w), hs.data(),
                             kBaseTextureSize, kBaseTextureSize);
     }
+    // Per height value (a byte): the two textures and the blend factor, as the per-texel
+    // formula t = h / band, i0 = clamp(floor t), i1 = clamp(ceil t), fr = t - floor t (tabulated:
+    // the same double operations, the same results).
+    struct Blend {
+        int i0, i1;
+        double fr, omf;
+    };
+    Blend blend[256];
+    for (int v = 0; v < 256; v++) {
+        double t = static_cast<double>(v) / static_cast<double>(kTerrainHeightBand);
+        Blend& b = blend[v];
+        b.i0 = std::min(std::max(static_cast<int>(std::floor(t)), 0), 3);
+        b.i1 = std::min(std::max(static_cast<int>(std::ceil(t)), 0), 3);
+        b.fr = t - std::floor(t);
+        b.omf = 1.0 - b.fr;
+    }
+    // The original reads TGA rows in file order, bottom row first (render-pipeline.md
+    // section 0); Image row 0 is the top, so index from the bottom.
+    std::vector<size_t> colOff[4];
+    for (int k = 0; k < 4; k++) {
+        const Image& tx = textures[k];
+        colOff[k].resize(kBaseTextureSize);
+        for (int c = 0; c < kBaseTextureSize; c++)
+            colOff[k][static_cast<size_t>(c)] = tx.width > 0 ? static_cast<size_t>(c % tx.width) * 4 : 0;
+    }
     for (int r = 0; r < kBaseTextureSize; r++) {
-        for (int c = 0; c < kBaseTextureSize; c++) {
-            double t = static_cast<double>(hs[static_cast<size_t>(r) * kBaseTextureSize + c]) / static_cast<double>(kTerrainHeightBand);
-            int i0 = static_cast<int>(std::floor(t));
-            int i1 = static_cast<int>(std::ceil(t));
-            i0 = std::min(std::max(i0, 0), 3);
-            i1 = std::min(std::max(i1, 0), 3);
-            double fr = t - std::floor(t);
-            const Image& ta = textures[i0];
-            const Image& tb = textures[i1];
-            // The original reads TGA rows in file order, bottom row first (render-pipeline.md
-            // section 0); Image row 0 is the top, so index from the bottom.
-            size_t pa = (static_cast<size_t>(ta.height - 1 - r % ta.height) * ta.width + static_cast<size_t>(c % ta.width)) * 4;
-            size_t pb = (static_cast<size_t>(tb.height - 1 - r % tb.height) * tb.width + static_cast<size_t>(c % tb.width)) * 4;
+        size_t rowOff[4];
+        for (int k = 0; k < 4; k++) {
+            const Image& tx = textures[k];
+            rowOff[k] = tx.height > 0 ? static_cast<size_t>(tx.height - 1 - r % tx.height) * static_cast<size_t>(tx.width) * 4 : 0;
+        }
+        const u8* hrow = &hs[static_cast<size_t>(r) * kBaseTextureSize];
+        u8* out = &rgb[static_cast<size_t>(r) * kBaseTextureSize * 3];
+        for (int c = 0; c < kBaseTextureSize; c++, out += 3) {
+            const Blend& b = blend[hrow[c]];
+            const u8* pa = textures[b.i0].rgba.data() + rowOff[b.i0] + colOff[b.i0][static_cast<size_t>(c)];
+            const u8* pb = textures[b.i1].rgba.data() + rowOff[b.i1] + colOff[b.i1][static_cast<size_t>(c)];
             for (int k = 0; k < 3; k++) {
-                double v = static_cast<double>(ta.rgba[pa + k]) * (1.0 - fr) + static_cast<double>(tb.rgba[pb + k]) * fr;
-                rgb[(static_cast<size_t>(r) * kBaseTextureSize + c) * 3 + k] = static_cast<u8>(static_cast<int>(v) & 0xFF);
+                double v = static_cast<double>(pa[k]) * b.omf + static_cast<double>(pb[k]) * b.fr;
+                out[k] = static_cast<u8>(static_cast<int>(v) & 0xFF);
             }
         }
     }
