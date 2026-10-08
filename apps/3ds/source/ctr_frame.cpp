@@ -25,6 +25,7 @@
 #include "pica_frame.h"
 #include "texture_budget.h"
 #include "ui_pica.h"
+#include "world_pica.h"
 
 namespace ctrapp {
 
@@ -367,6 +368,9 @@ void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
               static_cast<double>(im.stereo.eyeOffset), static_cast<double>(im.stereo.focal),
               static_cast<double>(im.playerDepth), static_cast<double>(px[0]), static_cast<double>(px[1]),
               static_cast<double>(py), static_cast<double>(far));
+    const pica::WorldPicaStats& wps = pica::worldPicaStats();
+    AS3D_INFO("AS3D_DUMP model records %d, from linear-memory textures %d:%s", wps.records, wps.linearRecords,
+              wps.linearSkins.c_str());
 }
 
 void GameFrame::end() {

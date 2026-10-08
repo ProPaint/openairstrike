@@ -29,8 +29,10 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "as3d/core.h"
+#include "as3d/defs.h"
 #include "as3d/particle_render.h"
 #include "as3d/render_state.h"
 #include "as3d/scene.h"
@@ -43,9 +45,17 @@
 #include "pica_frame.h"
 #include "terrain_pica.h"
 #include "texture_budget.h"
+#include "world_pica.h"
 #include "world_scene.h"
 
 namespace as3d {
+
+namespace pica {
+namespace {
+WorldPicaStats g_worldStats;
+} // namespace
+const WorldPicaStats& worldPicaStats() { return g_worldStats; }
+} // namespace pica
 
 struct WorldRenderer::Impl {
     Vfs* vfs = nullptr;
@@ -101,11 +111,45 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
 PrecacheReport WorldRenderer::precache(const World& world, const DefDatabase& db, const std::function<void(float)>& progress) {
     Impl& im = *impl_;
     WorldScene::PrecacheHooks hooks;
-    // No shadow pass: no silhouettes. The particle textures before the skins: they cover the
-    // most pixels (additive smoke and fire), so they get the VRAM left after the terrain.
+    // No shadow pass: no silhouettes. VRAM goes in creation order (the terrain's textures came
+    // with beginLevel): first the models alive now and the level's placements (the player's
+    // helicopter is the most drawn texture), then the particle textures (large additive smoke and
+    // fire), then the rest of the closure (mostly other helicopters' skins and script spawns).
     hooks.particleTexture = [&im](const std::string& path) { im.particles.preload(path); };
     hooks.particlesFirst = true;
-    return im.scene.precache(world, db, progress, hooks);
+    hooks.drawnFirst = true;
+    const PrecacheReport r = im.scene.precache(world, db, progress, hooks);
+    // Where the model skins went (texture_budget.h): VRAM in creation order until the budget is
+    // full, linear memory after. Logged once per level: AS3D_TEXTURES.
+    if (const PrecacheSet* set = world.precacheSet()) {
+        std::vector<const Texture2D*> seen;
+        size_t vramBytes = 0, linearBytes = 0;
+        int vram = 0, linear = 0;
+        std::string linearNames;
+        for (const ObjectDef* def : set->objects) {
+            if (def->type != ObjectType::Model || def->model.empty()) continue;
+            const Material& m = im.scene.materialFor(*def, std::string());
+            if (!m.texture || std::find(seen.begin(), seen.end(), m.texture) != seen.end()) continue;
+            seen.push_back(m.texture);
+            pica::Placement pl;
+            if (!pica::textureInfo(*m.texture, &pl, nullptr, nullptr, nullptr, nullptr)) continue;
+            if (pl == pica::Placement::Vram) {
+                ++vram;
+                vramBytes += m.texture->bytes();
+            } else {
+                ++linear;
+                linearBytes += m.texture->bytes();
+                if (linearNames.size() < 600) linearNames += " " + (def->skin.empty() ? def->name : def->skin);
+            }
+        }
+        const pica::TextureStats ts = pica::textureStats();
+        AS3D_INFO("AS3D_TEXTURES all: VRAM %d = %.1f KB, linear %d = %.1f KB; model skins: VRAM %d = %.1f KB, linear "
+                  "%d = %.1f KB; linear skins:%s",
+                  ts.vramCount, static_cast<double>(ts.vramBytes) / 1024.0, ts.linearCount,
+                  static_cast<double>(ts.linearBytes) / 1024.0, vram, static_cast<double>(vramBytes) / 1024.0, linear,
+                  static_cast<double>(linearBytes) / 1024.0, linearNames.c_str());
+    }
+    return r;
 }
 
 const RenderRules& WorldRenderer::rules() const { return impl_->rules; }
@@ -149,6 +193,23 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
     for (const MeshRecord& r : sc.trans) im.restPass.submit(*r.mesh, *r.material, r.model, r.colour);
     for (const MeshRecord& r : sc.effect) im.restPass.submit(*r.mesh, *r.material, r.model, r.colour);
     im.restPass.finish();
+    // Which of this frame's model textures live in linear memory (the VRAM split).
+    pica::WorldPicaStats& ws = pica::g_worldStats;
+    ws.records = ws.linearRecords = 0;
+    ws.linearSkins.clear();
+    for (const std::vector<MeshRecord>* list : {&sc.opaque, &sc.trans, &sc.effect}) {
+        for (const MeshRecord& r : *list) {
+            ++ws.records;
+            pica::Placement pl;
+            if (r.material->texture && pica::textureInfo(*r.material->texture, &pl, nullptr, nullptr, nullptr, nullptr) &&
+                pl == pica::Placement::Linear) {
+                ++ws.linearRecords;
+                const std::string& name = world.entity(r.entity).def->name;
+                if (ws.linearSkins.find(" " + name) == std::string::npos && ws.linearSkins.size() < 400)
+                    ws.linearSkins += " " + name;
+            }
+        }
+    }
 }
 
 void WorldRenderer::draw(const EyeView& eye) {

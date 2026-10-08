@@ -495,6 +495,37 @@ void WorldScene::precacheObject(const ObjectDef& def, const std::string& swapped
     }
 }
 
+void WorldScene::precachePlaced(const ObjectDef* def, bool night, int depth) {
+    if (!def || depth > kMaxAttachDepth) return;
+    if (def->type == ObjectType::Model) {
+        if (!def->model.empty() && cache_->mesh(def->model).valid) materialFor(*def, std::string());
+    } else if (!def->skin.empty()) {
+        cache_->texture(def->skin);
+    }
+    for (const AttachDef& at : def->attachments) {
+        if (at.nightOnly && !night) continue;
+        if (db_->findParticleSystem(at.targetName)) continue;
+        precachePlaced(db_->findObject(at.targetName), night, depth + 1);
+    }
+}
+
+void WorldScene::precacheDrawn(const World& world) {
+    worldRenderOrder(world, order_, visited_);
+    for (int i : order_) {
+        const Entity& e = world.entity(i);
+        if (!e.def) continue;
+        if (e.def->type == ObjectType::Model) {
+            if (!e.modelPath.empty() && cache_->mesh(e.modelPath).valid) materialFor(*e.def, e.skinPath);
+        } else if (!skinOf(e).empty()) {
+            cache_->texture(skinOf(e));
+        }
+    }
+    const Terrain* t = world.terrain();
+    const LevelData* level = t ? t->level() : nullptr;
+    if (!level) return;
+    for (const Placement& p : level->placements) precachePlaced(db_->findObject(level->typeName(p)), t->style().night, 0);
+}
+
 PrecacheReport WorldScene::precache(const World& world, const DefDatabase& db, const std::function<void(float)>& progress,
                                     const PrecacheHooks& hooks) {
     const auto t0 = std::chrono::steady_clock::now();
@@ -522,6 +553,7 @@ PrecacheReport WorldScene::precache(const World& world, const DefDatabase& db, c
         }
         step();
     };
+    if (hooks.drawnFirst) precacheDrawn(world);
     if (hooks.particlesFirst) particleTextures();
     for (const ObjectDef* def : set->objects) {
         precacheObject(*def, std::string(), hooks);

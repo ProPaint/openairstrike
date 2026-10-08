@@ -128,6 +128,11 @@ public:
             shadow;
         std::function<void(const std::string& path)> particleTexture;
         bool particlesFirst = false;
+        // `drawnFirst`: before everything else, the meshes and materials of the entities alive
+        // now (the player's helicopter and what hangs on it) and of the level's placements with
+        // their attachments, in placement order: what is drawn most gets created first (the
+        // PICA's VRAM budget goes in creation order).
+        bool drawnFirst = false;
     };
     PrecacheReport precache(const World& world, const DefDatabase& db, const std::function<void(float)>& progress,
                             const PrecacheHooks& hooks);
@@ -183,6 +188,8 @@ private:
         int shadowSteps = 0;
     };
     void precacheObject(const ObjectDef& def, const std::string& swapped, const PrecacheHooks& hooks);
+    void precacheDrawn(const World& world);
+    void precachePlaced(const ObjectDef* def, bool night, int depth);
     void collectSkidTrails(const World& world);
 
     ResourceCache* cache_ = nullptr;

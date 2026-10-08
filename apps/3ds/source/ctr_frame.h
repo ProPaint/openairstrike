@@ -41,8 +41,11 @@ namespace ctrapp {
 //
 // With f = 1/tan(fovY/2) and A = f/aspect (1.04 at the game's 60 degrees on 400x240), a point at
 // depth d has the on-screen disparity 400 A e (1/D - 1/d) pixels (e = eye offset, D = focal
-// distance): the far limit, d -> infinity, is 400 A e / D.
-constexpr float kMaxEyeOffset = 3.0f;
+// distance): the far limit, d -> infinity, is 400 A e / D. Mission 1's camera follows the
+// helicopter at a depth of about 180, so kMaxEyeOffset 4 gives at most 9 px of far disparity at
+// slider 1 (about 2.3 % of the width), the ground under the helicopter 0, nearer things out of
+// the screen. Tune on hardware with run.ini eye_offset= and min_focal=.
+constexpr float kMaxEyeOffset = 4.0f;
 constexpr float kMinFocalDistance = 40.0f;
 
 struct StereoParams {
