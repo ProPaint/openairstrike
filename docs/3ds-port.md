@@ -484,8 +484,8 @@ copies (their Azahar dumps are byte-identical to M1.5/M1.6's).
 `engine/src/render/pica/world_renderer_pica.cpp` is the PICA `WorldRenderer` (same public API):
 
 - `beginLevel`: the terrain (`TerrainRenderer::build`: its 12 textures, 1.7 MB, are the first VRAM
-  tenants), one log line listing what is not drawn yet: shadows, ground marks, skid trails, water,
-  lightning, environment maps (`lastStats()` reports them as 0).
+  tenants), one log line listing what is not drawn yet (M1.8 time: shadows, ground marks, skid trails, water,
+  lightning, environment maps; now only water, lightning, environment maps; `lastStats()` reports them as 0).
 - `precache`: the `WorldScene` walk with `drawnFirst` (the meshes and skins of the entities alive
   now, then of the level's placements with their attachments) and `particlesFirst`, then the rest
   of the closure. No silhouettes. `AS3D_TEXTURES` logs the split.
@@ -749,3 +749,53 @@ Deferred: the hardware run (GPU cost of the linear-memory A8 fetches, real gener
 generating projected rotations ahead of need (e.g. the closure's in the background, a few per
 frame, or a time budget inside the rasteriser) if the late hitch shows on hardware; ground marks
 and skid trails (the neutral decal code is ready); freeing the CPU skins after the level start.
+
+## M3.2 Ground marks and skid trails on the PICA (engine/src/render/pica/ground_marks_pica.cpp)
+
+`pica::MarkPass` (ground_marks_pica.h) draws pass 4 of the frame, between the terrain and the
+shadows, as the GL renderer. The geometry is the neutral one: `buildTerrainDecal` drapes each mark
+(the GL rectangle: axis aligned, spawn origin plus the definition's bbox, never rotating; v flipped
+back for the sequels' unflipped texture), `buildDecalRuns` gives the runs (`decalMaterialKey`: the
+mark's blend, depth test on and write off, polygon offset `kPolygonOffsetDepth`, cull back, fog
+colour from the blend), `buildSkidTrails` gives the trails as strips (Alpha, same state, per-section
+alpha). Both become `FlatVertex` with the entity colour and alpha (marks) or white and the section
+alpha (skids) as the vertex colour, so the draw is the existing `drawFlatRuns`: flat shader, TEV
+texture x vertex colour, `applyMaterialState(run.key)` per run, one `C3D_DrawArrays` per run.
+
+- Caching: the draped marks are kept until the set changes (entity slot and generation, colour,
+  alpha, texture, blend) or a crater changes the terrain (`invalidate()`, like the shadow drapes:
+  a re-drape follows the new heights, which the GL renderer does not do). A frame with an unchanged
+  set costs one comparison of the descriptions. Skid trails are rebuilt every frame (their alpha
+  fades with age). At most 16384 mark vertices are kept (400 KB of the 1.5 MB arena half); the
+  scene already caps marks at 128.
+- Arena: the first eye of an arena frame copies marks and skid vertices into the frame arena, the
+  second eye reuses them (the M1.6 pattern). Textures are the `ResourceCache`'s, created outside
+  frames: the mark skins by the level-start precache (`precacheObject` loads `def.skin` of every
+  closure definition, mission 1: 6 mark definitions over 2 textures, `gfx\mark.tga` (the scorch, 10.6 KB) and `gfx\effects\expl1light.tga` shared by the 5 explosion light
+  pools) and the skid textures from `def.skidMarks`; no extra hook
+  was needed, and a texture first seen in `prepare()` is also created outside a frame.
+- Neutral change: `WorldRenderOptions::marks` (default true) gates ground marks and skid trails;
+  until now `options.sprites` did both. `as3d_game --render-only` takes `marks` and `skid` (both set
+  the option); `sprites` no longer draws marks (the M1.6 sprite reference images that had a scorch
+  in them now need `marks` as well). GL behaviour with the defaults is unchanged.
+- `mode=markstest` (apps/3ds/source/mark_test.cpp, `frames=N` default 1400, `hold=`): mission 1 after
+  N bot frames, mono dumps `markstest_t.ppm` (terrain), `_m` (terrain, marks, skid), `_s` (m with
+  two synthetic skid trails: AirStrike 3D has none and the sequels' data is not on the card;
+  `pica::setTestSkidTrails`), `_f` (full frame), `markstest_log.txt` with the per-frame counters.
+
+Mission 1 at 1400 frames (Azahar): 1 mark (a scorch, 84 vertices = 28 triangles, 2.0 KB of arena,
+10.6 KB of texture), 1 draw per eye, cut once in 0.30 ms and kept afterwards (0.02 ms of prepare
+per frame); with the synthetic trails 2 trails, 44 segments, 92 vertices, 2 more draws, arena 4.1 KB.
+Arena high water of the test 60 KB.
+
+Azahar check (`tools/3ds_screen_compare.py --direct --mask --darken`, 400x240, against
+`as3d_game --headless --level 1 --bot --frames 1400 --size 400x240 --screenshot-every 1400
+--render-only terrain,marks,skid` and its `terrain` base): the scorch's darkened pixels 2103 on the
+PICA against 2117 on the desktop, IoU 0.991, mean abs error over their union 0.99; the whole frame
+differs by the water (not drawn yet: MAE 10.68, within 16 0.728, the same as the terrain-only
+frames, 10.69 and 0.728, so the mark adds no error); full frame `terrain,models,particles,sprites,
+shadows,marks,skid`: MAE 10.34, within 16 0.736 (the baseline of the water and the effects).
+`mode=bot level=1 frames=600` is unchanged: map_pos 452.0, 39 entities, created 243, freed 204.
+
+Deferred: water (7), lightning bolts and environment maps (M3.3 to M3.5); skid trails against a
+desktop reference need the sequels' data (only the synthetic trails were drawn); the hardware run.

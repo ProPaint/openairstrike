@@ -195,6 +195,7 @@ RunConfig readRunConfig(const std::string& path) {
             c.uitest = val == "uitest";
             c.audiotest = val == "audiotest";
             c.shadowtest = val == "shadowtest";
+            c.markstest = val == "markstest";
         } else if (key == "only") c.only = val;
         else if (key == "hold") c.holdFrames = std::max(0, std::atoi(val.c_str()));
         else if (key == "frames") c.botFrames = std::max(0, std::atoi(val.c_str()));

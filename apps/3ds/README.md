@@ -216,3 +216,12 @@ Compare `a` with `as3d_game --headless --level 1 --bot --frames 120 --size 400x2
 `tools/3ds_screen_compare.py shadowtest_a.ppm frame_000120.png --direct --mask --darken
 shadowtest_t.ppm,terrain/frame_000120.png`; `b` with `--render-only
 terrain,models,particles,sprites,shadows`. docs/3ds-port.md, "M3.1".
+
+`mode=markstest` (optional `frames=N` bot frames, default 1400; `hold=N`; `precache=0`) runs
+`source/mark_test.cpp`: mission 1 after N bot frames, then the world frozen and drawn mono in four
+phases: `t` terrain only, `m` terrain, ground marks and skid trails, `s` the same with two synthetic
+skid trails, `f` the full frame. It writes `markstest_log.txt` (per frame marks, skid segments,
+vertices, draws, arena, texture bytes, build time) and `markstest_<phase>.ppm`. Compare `m` with
+`as3d_game --headless --level 1 --bot --frames 1400 --size 400x240 --screenshot-every 1400
+--render-only terrain,marks,skid` (and `--render-only terrain` as the base for `--darken`); `f` with
+`--render-only terrain,models,particles,sprites,shadows,marks,skid`. docs/3ds-port.md, "M3.2".
