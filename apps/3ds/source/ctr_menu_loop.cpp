@@ -43,7 +43,6 @@ namespace {
 using as3d::ctr::CtrContext;
 
 
-constexpr double kMaxFrameSeconds = 0.25;
 
 struct MenuApt {
     as3d_game::GameFlow* flow = nullptr;
@@ -155,6 +154,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     AS3D_INFO("graphics: %s", gl->description().c_str());
     const QualityProfile quality = selectQuality(run.quality, new3ds);
     applyQuality(quality, new3ds);
+    startPacing(quality.renderHz);
 
     const GameProfile* game = findGameProfile(run.game.c_str());
     if (!game) {
@@ -228,9 +228,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     CtrInput& input = opts.input ? *opts.input : *ownInput;
     const unsigned maxFrames = static_cast<unsigned>(std::max(run.frames, 0));
     unsigned frameNo = 0, steps = 0, dropped = 0, runStep = 0, levelSteps = 0;
-    double acc = 0.0;
-    double dt = 1.0 / 60.0;
-    uint64_t last = nowTicks(), lastFrame = 0, lastUi = 0;
+    FrameClock clock;
+    uint64_t lastFrame = 0, lastUi = 0;
     float lastCpu = 0.0f, lastGpu = 0.0f;
     bool queuedEscape = false;
     int cycleState = 0; // run.ini cycle=: 0 waiting for the main menu, 1 in a mission, 2 back in the attract level
@@ -248,9 +247,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         }
         if (apt.resumed) { // back from HOME or sleep: no replay of the time away
             apt.resumed = false;
-            last = nowTicks();
             lastUi = 0;
-            acc = 0.0;
+            clock.reset();
             lastFrame = 0;
         }
 
@@ -293,12 +291,10 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
                 }
             }
             if (resetClock) {
-                last = nowTicks();
-                acc = 0.0;
+                clock.reset();
                 lastFrame = 0;
                 runStep = 0;
                 levelSteps = 0;
-                if (ses.hasLevel()) dt = ses.world().config().dt;
             }
         }
         const int loads = flow.levelLoads();
@@ -315,12 +311,10 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         }
         if (flow.levelLoads() != loads || levelLoaded) {
             // A level was loaded (seconds, behind the loading screen): not a frame time.
-            last = nowTicks();
-            acc = 0.0;
+            clock.reset();
             lastFrame = 0;
             runStep = 0;
             levelSteps = 0;
-            if (ses.hasLevel()) dt = ses.world().config().dt;
         }
         {
             const std::string s = screenOf(flow);
@@ -339,17 +333,12 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         }
 
         // The simulation, while the flow runs a world (attract level or mission).
-        const uint64_t now = nowTicks();
-        acc += std::min(kMaxFrameSeconds, ticksToMs(now - last) / 1000.0);
-        last = now;
+        // The steps of this frame: the vblanks since the last one (ctr_loop.h FrameClock).
+        const int due = clock.due(&dropped);
         int n = 0;
         const uint64_t s0 = nowTicks();
-        while (acc >= dt && n < quality.maxCatchUp()) {
-            if (!flow.worldRunning()) {
-                acc = 0.0;
-                break;
-            }
-            acc -= dt;
+        while (n < due) {
+            if (!flow.worldRunning()) break;
             FrameInput in = input.frame(ses.world().paused()); // also drains the touch buttons
             // The mission's running steps (runStep, reset at every level load): the world's clock,
             // hint boxes included (they pause the world in mode=bot too), but not while the front
@@ -408,14 +397,9 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
                 logEndState(ses, ses.mission(), runStep);
             }
             if (flow.levelLoads() != before) {
-                acc = 0.0;
-                last = nowTicks();
+                clock.reset();
                 break;
             }
-        }
-        if (acc >= dt) { // bounded catch-up: a long stall is not replayed
-            dropped += static_cast<unsigned>(acc / dt);
-            acc = 0.0;
         }
         sample.stepMs = static_cast<float>(ticksToMs(nowTicks() - s0));
         sample.simSteps = n;

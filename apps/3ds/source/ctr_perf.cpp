@@ -67,7 +67,7 @@ void Perf::open(bool csv) {
         if (csv_) std::setvbuf(csv_, nullptr, _IOFBF, 32 * 1024);
         if (csv_) {
             std::fputs("frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,"
-                       "linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms\n",
+                       "linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz\n",
                        csv_);
         } else {
             AS3D_WARN("cannot open perf.csv");
@@ -104,13 +104,17 @@ void Perf::record(const FrameSample& s) {
         if (gpus_.size() < kMaxSamples) gpus_.push_back(s.gpuMs);
     }
     afterMax_ = std::max<double>(afterMax_, s.afterMs);
+    if (s.periodMs > 0.0f) {
+        ++stepHist_[std::min(std::max(s.simSteps, 0), 3)];
+        if (s.renderHz == 30) ++framesAt30_;
+    }
     lazyMax_ = std::max(lazyMax_, s.stats.lazyLoads);
     arenaMax_ = std::max(arenaMax_, s.stats.arenaKb);
     if (csv_) {
-        std::fprintf(csv_, "%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%u,%u,%u,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f\n", s.frame, s.stepMs, s.stats.prepareMs,
+        std::fprintf(csv_, "%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%u,%u,%u,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%d\n", s.frame, s.stepMs, s.stats.prepareMs,
                      s.cpuMs, s.gpuMs, s.stats.eyes, s.stats.verts, s.stats.draws, s.stats.texVramKb,
                      s.stats.texLinearKb, static_cast<unsigned>(linearFree / 1024), s.stats.lazyLoads, s.stats.arenaKb,
-                     s.simSteps, s.submitMs, s.waitMs, s.endMs, s.afterMs, s.syncMs);
+                     s.simSteps, s.submitMs, s.waitMs, s.endMs, s.afterMs, s.syncMs, s.renderHz);
     }
     service();
 }
@@ -146,6 +150,8 @@ void Perf::writeSummary(unsigned frames, unsigned steps, unsigned dropped) {
                   splitSum_[0] / k, splitSum_[1] / k, splitSum_[2] / k, splitSum_[7] / k, splitSum_[3] / k, splitSum_[4] / k,
                   afterMax_, splitSum_[5] / k, splitSum_[6] / k, percentile(gpus_, 0.95));
     }
+    AS3D_INFO("PERF_SUMMARY steps_per_frame 0=%u 1=%u 2=%u 3plus=%u frames_at_30hz=%u", stepHist_[0], stepHist_[1],
+              stepHist_[2], stepHist_[3], framesAt30_);
     AS3D_INFO("PERF_SUMMARY over_ms=%.1f over=%u of=%u", kOverMs, over_, periodCount_);
     AS3D_INFO("PERF_SUMMARY load_ms=%.0f", loadMs_);
     AS3D_INFO("PERF_SUMMARY heap_kb high=%zu arena=%zu", heapHigh_ / 1024, heapArenaHigh_ / 1024);

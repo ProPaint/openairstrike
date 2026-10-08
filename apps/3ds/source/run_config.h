@@ -88,11 +88,10 @@ struct RunConfig {
     bool hud = true;           // hud=0: no HUD on the bottom screen
     bool touch = true;         // touch=0: no touch band on the bottom screen
     int pakCacheKb = 0;        // pak_cache_kb=N: a block cache of N KB per pak stream (rw_stream_ctr.cpp); 0 = none (default)
-    // Frame pacing (ctr_loop.cpp drawFrame): vsync=1 waits for a vblank before every frame
-    // (C3D_FRAME_SYNCDRAW, the default); vsync=lazy only when no vblank came since the frame
-    // began (at most one frame per vblank, no wait when the frame is late anyway).
-    bool lazyVsync = false;
-    bool gpuKick = false;      // gpu_kick=1: the GPU starts each eye while the CPU records the next (pica_frame.h kickGpu)
+    // Frame pacing (ctr_loop.h): pace=auto (0, the default: 60 Hz, 30 Hz while frames do not fit),
+    // pace=60, pace=30. The simulation always steps once per vblank.
+    int pace = 0;
+    bool gpuKick = true;       // gpu_kick=0: no mid-frame start of the GPU (pica_frame.h kickGpu); default on
     bool cmdlistFlush = false; // end_flush=cmdlist: C3D_FrameEnd(GX_CMDLIST_FLUSH), no whole-heap flush (forced by gpu_kick=1)
 
     // The real-time front end instead of a direct mission start.

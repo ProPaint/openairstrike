@@ -1842,7 +1842,7 @@ stereo / 36.7 mono, cpu_ms (citro3d's FrameBegin..FrameEnd) 19.4 / 18.0, GPU 13.
   texture creation, geometry), precache scripts / world (texture creation split mip / swizzle /
   upload, meshes, shadows, loading frames, pak reads, decode and parse) / UI, level start.
 - `AS3D_LATE_SHADOW` names a silhouette the precache missed.
-- run.ini switches for A/B console runs: `passes=`, `hud=`, `touch=`, `depthmap=w|z`, `vsync=`,
+- run.ini switches for A/B console runs: `passes=`, `hud=`, `touch=`, `depthmap=w|z`, `pace=`,
   `gpu_kick=`, `end_flush=`, `pak_cache_kb=`.
 
 **What the console said** (drop 6cad453, mono, `gpu_kick=1 vsync=lazy`): frame 23.9 ms (was 36.7),
@@ -1860,9 +1860,19 @@ reads + decode + parse 3.5).
    frame ends with C3D_FrameEnd(GX_CMDLIST_FLUSH): the arena is flushed by range before each split
    (LinearArena::flushPending), every other GPU buffer when written, so the whole-heap flush goes.
    gpu_ms then only times the tail after C3D_FrameEnd: the GPU gate is measured with gpu_kick=0.
-2. `vsync=lazy`: C3D_FrameBegin without SYNCDRAW; a vblank is waited for before C3D_FrameEnd only
-   when none came since the frame began (at most one swap per vblank), so a late frame is not
-   pushed to the next vblank.
+2. Frame cadence (drop 3, ctr_loop.h FrameClock): the console runs of drop 2 showed frames with 0
+   then 2 simulation steps (mono with normal vsync: 82 / 3248 / 145, 6 cadence changes a second;
+   the owner saw stutter): the tick accumulator (1/60 s) beats against the 59.83 Hz panel. Now
+   the vblank is the clock: each frame waits for the next tick of citro3d's frame counter
+   (C3D_FrameSync, then C3D_FrameBegin without SYNCDRAW) and the next frame's steps are the
+   vblanks between the last two of those waits (rounded from the system ticks; at most
+   maxCatchUp, the rest dropped). The simulation runs 0.3 % slower than 60 Hz, as the original on
+   a 59.83 Hz display. `pace=auto` (default): 60 Hz, and 30 Hz with exactly two steps per frame
+   after 3 missed vblanks in 120 frames (stereo on drop 2 missed 6.5 %), back to 60 Hz after 240
+   frames whose GPU wait + recording + end + max(GPU tail, one step + prepare) stayed under 14.5
+   ms; `PERF_SUMMARY steps_per_frame` and `frames_at_30hz`, `AS3D_PACE` at each change. The
+   `vsync=lazy` experiment is gone (it made the cadence worse). Azahar: 597 of 599 frames with one
+   step at 60 Hz, 297 of 298 with two at pace=30.
 3. 2D vertex cache (renderer2d_pica.cpp): the converted vertices of the last 6 lists of each
    Renderer2D stay in linear buffers of their own; an unchanged list (the touch band, the top list
    on the second eye, a static HUD) is drawn from them without building the batch. Azahar: touch

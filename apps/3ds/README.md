@@ -112,8 +112,8 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `water_tile` | world units, default 80 | the first game's water plane is drawn in tiles of about this size; `0` = the GL's 1280 x 320 quads, whose large triangles lose depth precision on the console (docs/3ds-port.md "Water on hardware") |
 | `water` | `1` (default) or `0` | `0` draws no water (hardware A/B) |
 | `depthmap` | `w` (default) or `z` | `z`: the world passes use the Z-buffer depth mapping instead of the W-buffer, with the fog table rebuilt for it (hardware A/B) |
-| `vsync` | `1` (default) or `lazy` | frame pacing (`ctr_loop.cpp` drawFrame): `1` waits for the next vblank before every frame (C3D_FRAME_SYNCDRAW); `lazy` waits only when no vblank came since the frame began (at most one frame per vblank, no wait for a frame that is late anyway) |
-| `gpu_kick` | `0` (default) or `1` | the GPU starts each eye's command list while the CPU records the next (`pica_frame.h` kickGpu); implies `end_flush=cmdlist`. gpu_ms then only times the tail after C3D_FrameEnd: measure the GPU gate with `gpu_kick=0` |
+| `pace` | `auto` (default), `60`, `30` | the render rate (`ctr_loop.h`): the simulation steps once per vblank (the frame clock counts the vblanks since the last frame, never 0 steps); `auto` renders at 60 Hz and drops to 30 Hz (two steps per frame) after 3 frames that missed a vblank in 120, back after 240 frames that would fit; `AS3D_PACE` lines log the changes. The Old 3DS profile stays at 30 |
+| `gpu_kick` | `1` (default) or `0` | the GPU starts each eye's command list while the CPU records the next (`pica_frame.h` kickGpu); implies `end_flush=cmdlist`. gpu_ms then only times the tail after C3D_FrameEnd: measure the GPU gate with `gpu_kick=0` |
 | `end_flush` | `all` (default) or `cmdlist` | C3D_FrameEnd(0) flushes the whole linear heap; `cmdlist` only the command list (every other GPU buffer is flushed when written) |
 | `passes` | names, default all | only these passes draw, for A/B hardware runs: `clear terrain marks shadows opaque water rest lightning particles sprites brightness top2d model hud hint touch bottom2d`, `world` (the world passes), `all`, `none`; comma separated |
 | `hud`, `touch` | `1` (default) or `0` | `0` leaves the HUD / the touch band off the bottom screen |
@@ -127,11 +127,11 @@ speed-up on.
 Outputs, all in `sdmc:/3ds/openairstrike/`: `log.txt` (every `AS3D_INFO/WARN/ERROR` of the engine and
 the app, written once a second; replaced at each start), and with `perf=1` `perf.csv`, one row per
 displayed frame: `frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,
-linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms` (prepare_ms: the
+linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz` (prepare_ms: the
 composer's CPU prepare; verts/draws: the GPU work of both screens and both eyes; lazy_loads: first-use
 loads since the precache; arena_kb: the frame arena bytes the frame used; the frame's CPU in order:
 step_ms, prepare_ms, wait_ms in C3D_FrameBegin (vblank and previous GPU frame), submit_ms recording
-the command list (drawTop per eye, drawBottom), sync_ms the `vsync=lazy` wait, end_ms in
+the command list (drawTop per eye, drawBottom), sync_ms the vblank wait before the frame, end_ms in
 C3D_FrameEnd, after_ms the hook's afterFrame: the `dump_at` read-back and PPM writes, about 100 ms
 on the emulator and the ~1 s freeze seen on the console at the dump; mode=play never dumps). The
 log gets `AS3D_PASS_MS` every 300 frames (per pass: CPU ms / draws / vertices per frame, both eyes;

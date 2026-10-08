@@ -165,9 +165,10 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.touch = n != 0;
         } else if (key == "pak_cache_kb") {
             if (toInt(val, &n) && n >= 0 && n <= 8192) c.pakCacheKb = n;
-        } else if (key == "vsync") {
-            if (val == "lazy") c.lazyVsync = true;
-            else if (val == "1") c.lazyVsync = false;
+        } else if (key == "pace") {
+            if (val == "auto") c.pace = 0;
+            else if (val == "60") c.pace = 60;
+            else if (val == "30") c.pace = 30;
         } else if (key == "gpu_kick") {
             if (toInt(val, &n)) c.gpuKick = n != 0;
         } else if (key == "end_flush") {

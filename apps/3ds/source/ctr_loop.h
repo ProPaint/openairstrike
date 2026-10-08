@@ -100,14 +100,39 @@ int runCtrLoop(const CtrLoopOptions& options);
 // `frames` (when not 0) ends the run after that many displayed frames.
 int runCtrMenuLoop(const CtrLoopOptions& options); // ctr_menu_loop.cpp
 
-// Frame pacing from run.ini (vsync=, gpu_kick=, end_flush=); both loops call it once.
+// Frame pacing from run.ini (pace=, gpu_kick=, end_flush=, pak_cache_kb=); both loops call it
+// once, then startPacing with the quality profile's render rate once the screens exist.
+//
+// The clock is the vblank (docs/3ds-port.md "Frame cadence"): drawFrame waits for the next tick of
+// citro3d's frame counter (C3D_FrameSync: every vblank at 60 Hz, every other one at 30 Hz) and
+// takes its timestamp; FrameClock::due() turns the time between the last two of them into whole
+// vblanks, the simulation steps of the next frame (60 Hz steps, one per vblank, at most
+// maxCatchUp; the rest are dropped). So a frame never carries 0 steps and a steady rate never
+// mixes 0- and 2-step frames (the tick accumulator did against the 59.83 Hz panel).
+// pace=auto (default with the New 3DS profile): 60 Hz, dropping to 30 Hz (two steps per frame)
+// after 3 misses in 120 frames and back after 240 frames that would fit (AS3D_PACE lines);
+// pace=60 / pace=30 fix the rate.
 struct FramePacing {
-    bool lazyVsync = false;
-    bool gpuKick = false;
-    bool cmdlistFlush = false;
+    bool gpuKick = true;
+    bool cmdlistFlush = true;
+    int pace = 0; // 0 auto, 60, 30
 };
 void setFramePacing(const RunConfig& run);
 const FramePacing& framePacing();
+void startPacing(int profileHz);
+int renderHz();
+int maxCatchUp();
+unsigned paceChanges();
+
+class FrameClock {
+public:
+    // The next two frames carry one tick of steps (start, a level load, resume from HOME).
+    void reset();
+    // The simulation steps due before the next frame (>= 1); steps over maxCatchUp() are added
+    // to *dropped.
+    int due(unsigned* dropped);
+    int lastInterval() const; // vblanks between the last two frames, uncapped
+};
 
 // One displayed frame through the hook: prepare, the frame (beginFrame, drawTop per eye,
 // drawBottom, endFrame), stats, afterFrame; fills the sample's cpu/gpu and split columns

@@ -27,7 +27,6 @@ namespace {
 using as3d::ctr::CtrContext;
 
 
-constexpr double kMaxFrameSeconds = 0.25;
 
 double mb(size_t b) { return static_cast<double>(b) / (1024.0 * 1024.0); }
 
@@ -89,40 +88,120 @@ void logEndState(const as3d_game::GameSession& ses, int level, unsigned steps) {
 }
 
 namespace {
+
 FramePacing g_pacing;
+
+// The vblank period of the screens in system ticks (268,111,856 Hz / 59.83 Hz); the clock rounds
+// an interval to whole periods, so the exact value only needs to be within a few percent.
+constexpr double kVblankTicks = 4481136.0;
+
+// The frame clock (ctr_loop.h FrameClock): the sync timestamps of the last two frames.
+struct ClockState {
+    uint64_t lastSync = 0;  // nowTicks() right after the vblank wait of the last frame
+    uint64_t prevSync = 0;  // the one the last due() counted from
+    int fresh = 2;          // due() calls left that return one tick (start, reset)
+    int lastInterval = 1;   // vblanks between the last two frames (uncapped)
+};
+ClockState g_clock;
+
+// pace=auto (ctr_loop.h): the miss ring at 60 Hz, the fit streak at 30 Hz.
+struct PacerState {
+    int baseHz = 60;   // the quality profile's render rate
+    int hz = 60;       // the current one
+    bool autoMode = true;
+    static constexpr int kWindow = 120;
+    uint8_t miss[kWindow] = {};
+    int missAt = 0, misses = 0;
+    int fitStreak = 0;
+    unsigned changes = 0;
+};
+PacerState g_pacer;
+
+void setRenderHz(int hz, const char* why) {
+    if (g_pacer.hz == hz) return;
+    g_pacer.hz = hz;
+    C3D_FrameRate(static_cast<float>(hz));
+    ++g_pacer.changes;
+    for (uint8_t& m : g_pacer.miss) m = 0;
+    g_pacer.misses = 0;
+    g_pacer.fitStreak = 0;
+    AS3D_INFO("AS3D_PACE hz=%d reason=%s changes=%u", hz, why, g_pacer.changes);
+}
+
 } // namespace
 
 void setFramePacing(const RunConfig& run) {
-    g_pacing.lazyVsync = run.lazyVsync;
     g_pacing.gpuKick = run.gpuKick;
     g_pacing.cmdlistFlush = run.cmdlistFlush || run.gpuKick;
+    g_pacing.pace = run.pace;
     as3d::ctr::setStreamBlockCache(static_cast<size_t>(run.pakCacheKb) * 1024);
-    AS3D_INFO("AS3D_PACING vsync=%s gpu_kick=%d end_flush=%s pak_cache_kb=%d", g_pacing.lazyVsync ? "lazy" : "1",
-              g_pacing.gpuKick ? 1 : 0, g_pacing.cmdlistFlush ? "cmdlist" : "all", run.pakCacheKb);
+    AS3D_INFO("AS3D_PACING pace=%s gpu_kick=%d end_flush=%s pak_cache_kb=%d",
+              run.pace == 0 ? "auto" : (run.pace == 30 ? "30" : "60"), g_pacing.gpuKick ? 1 : 0,
+              g_pacing.cmdlistFlush ? "cmdlist" : "all", run.pakCacheKb);
 }
 
 const FramePacing& framePacing() { return g_pacing; }
 
+void startPacing(int profileHz) {
+    g_pacer = PacerState();
+    g_pacer.baseHz = profileHz;
+    g_pacer.autoMode = g_pacing.pace == 0 && profileHz == 60;
+    const int want = g_pacing.pace == 30 ? 30 : (g_pacing.pace == 60 ? 60 : profileHz);
+    C3D_FrameRate(static_cast<float>(want));
+    g_pacer.hz = want;
+    g_clock = ClockState();
+    AS3D_INFO("AS3D_PACE hz=%d reason=start auto=%d", want, g_pacer.autoMode ? 1 : 0);
+}
+
+int renderHz() { return g_pacer.hz; }
+int maxCatchUp() { return g_pacer.hz == 30 ? 4 : 2; }
+unsigned paceChanges() { return g_pacer.changes; }
+
+void FrameClock::reset() { g_clock.fresh = 2; }
+
+int FrameClock::due(unsigned* dropped) {
+    const int perTick = 60 / g_pacer.hz;
+    // One tick of steps for the first two frames after a reset: the first sync after it is the base.
+    if (g_clock.fresh > 0 || g_clock.lastSync == 0) {
+        if (g_clock.fresh > 0) --g_clock.fresh;
+        g_clock.prevSync = g_clock.lastSync;
+        g_clock.lastInterval = perTick;
+        return perTick;
+    }
+    const double vb = static_cast<double>(g_clock.lastSync - g_clock.prevSync) / kVblankTicks;
+    g_clock.prevSync = g_clock.lastSync;
+    int n = static_cast<int>(vb + 0.5);
+    if (n < 1) n = 1; // a sync always waits for a new vblank
+    g_clock.lastInterval = n;
+    const int cap = maxCatchUp();
+    if (n > cap) {
+        if (dropped) *dropped += static_cast<unsigned>(n - cap);
+        n = cap;
+    }
+    return n;
+}
+
+int FrameClock::lastInterval() const { return g_clock.lastInterval; }
+
 void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSample& sample) {
     hook.prepare(info);
+    // The vblank (C3D_FrameSync: the next tick of citro3d's frame counter, every vblank at 60 Hz,
+    // every other one at 30), its timestamp for the frame clock, then the frame (C3D_FrameBegin
+    // waits for the GPU to finish the previous frame).
     const uint64_t w0 = nowTicks();
-    // vsync=1: C3D_FRAME_SYNCDRAW waits for the next vblank, then for the GPU. vsync=lazy: only
-    // for the GPU here; before the frame's command list goes, a vblank is waited for only if
-    // none came since the GPU finished the previous frame (its swap was requested then: two swaps
-    // in one vblank period would show a half-drawn buffer).
-    if (ctx.beginFrame(g_pacing.lazyVsync ? 0 : C3D_FRAME_SYNCDRAW)) {
+    C3D_FrameSync();
+    const uint64_t ws = nowTicks();
+    g_clock.lastSync = ws;
+    sample.syncMs = static_cast<float>(ticksToMs(ws - w0));
+    if (ctx.beginFrame(0)) {
         const uint64_t w1 = nowTicks();
-        const u32 vblank = C3D_FrameCounter(0);
         for (int eye = 0; eye < info.eyes; ++eye) hook.drawTop(ctx, eye, info);
         hook.drawBottom(ctx, info);
         const uint64_t w2 = nowTicks();
-        if (g_pacing.lazyVsync && C3D_FrameCounter(0) == vblank) C3D_FrameSync();
-        const uint64_t w3 = nowTicks();
         ctx.endFrame(g_pacing.cmdlistFlush ? GX_CMDLIST_FLUSH : 0);
-        sample.waitMs = static_cast<float>(ticksToMs(w1 - w0));
+        sample.waitMs = static_cast<float>(ticksToMs(w1 - ws));
         sample.submitMs = static_cast<float>(ticksToMs(w2 - w1));
-        sample.syncMs = static_cast<float>(ticksToMs(w3 - w2));
-        sample.endMs = static_cast<float>(ticksToMs(nowTicks() - w3));
+        sample.endMs = static_cast<float>(ticksToMs(nowTicks() - w2));
     }
     sample.cpuMs = C3D_GetProcessingTime();
     sample.gpuMs = C3D_GetDrawingTime();
@@ -131,6 +210,27 @@ void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSam
     const uint64_t a0 = nowTicks();
     hook.afterFrame(ctx, info);
     sample.afterMs = static_cast<float>(ticksToMs(nowTicks() - a0));
+    sample.renderHz = g_pacer.hz;
+    // pace=auto: 60 Hz while frames fit, 30 Hz (two steps per frame) while they do not. A miss
+    // is a frame shown for two vblanks or more at 60 Hz; 3 in the last 120 frames go to 30 Hz.
+    // At 30 Hz a frame "fits" when the GPU wait, its recording, its end and the larger of the GPU
+    // tail and one step + prepare stay under 14.5 ms; 240 such frames in a row go back to 60 Hz.
+    if (g_pacer.autoMode) {
+        PacerState& p = g_pacer;
+        if (p.hz == 60) {
+            const uint8_t m = g_clock.lastInterval >= 2 ? 1 : 0;
+            p.misses += m - p.miss[p.missAt];
+            p.miss[p.missAt] = m;
+            p.missAt = (p.missAt + 1) % PacerState::kWindow;
+            if (p.misses >= 3) setRenderHz(30, "misses");
+        } else {
+            const float steps = sample.simSteps > 0 ? static_cast<float>(sample.simSteps) : 1.0f;
+            const float onePrepare = sample.stats.prepareMs + sample.stepMs / steps;
+            const float work = sample.waitMs + sample.submitMs + sample.endMs + std::max(sample.gpuMs, onePrepare);
+            p.fitStreak = work < 14.5f ? p.fitStreak + 1 : 0;
+            if (p.fitStreak >= 240) setRenderHz(60, "fits");
+        }
+    }
 }
 
 int runCtrLoop(const CtrLoopOptions& opts) {
@@ -168,6 +268,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     const QualityProfile quality = sim ? newProfile() : selectQuality(run.quality, new3ds);
     if (!sim) {
         applyQuality(quality, new3ds);
+        startPacing(quality.renderHz);
     }
 
     // The game.
@@ -247,11 +348,10 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     aptHookCookie cookie;
     aptHook(&cookie, aptCallback, &apt);
 
-    const double dt = session->world().config().dt;
     const unsigned maxSteps = static_cast<unsigned>(run.effectiveFrames());
     unsigned frame = 0, steps = 0, dropped = 0;
-    double acc = 0.0;
-    uint64_t last = nowTicks(), lastFrame = 0;
+    FrameClock clock;
+    uint64_t lastFrame = 0;
     float lastCpu = 0.0f, lastGpu = 0.0f;
 
     CtrInput input(run, new3ds);
@@ -290,23 +390,16 @@ int runCtrLoop(const CtrLoopOptions& opts) {
 
         if (apt.resumed) { // back from HOME or sleep: no replay of the time away
             apt.resumed = false;
-            last = nowTicks();
-            acc = 0.0;
+            clock.reset();
             lastFrame = 0;
         }
-        const uint64_t now = nowTicks();
-        acc += std::min(kMaxFrameSeconds, ticksToMs(now - last) / 1000.0);
-        last = now;
+        // The steps of this frame: the vblanks since the last one (ctr_loop.h FrameClock).
+        const int due = clock.due(&dropped);
         int n = 0;
         const uint64_t s0 = nowTicks();
-        while (acc >= dt && n < quality.maxCatchUp() && !(maxSteps && steps >= maxSteps)) {
-            acc -= dt;
+        while (n < due && !(maxSteps && steps >= maxSteps)) {
             stepOnce();
             ++n;
-        }
-        if (acc >= dt) { // bounded catch-up: a long stall is not replayed
-            dropped += static_cast<unsigned>(acc / dt);
-            acc = 0.0;
         }
         sample.stepMs = static_cast<float>(ticksToMs(nowTicks() - s0));
         sample.simSteps = n;
