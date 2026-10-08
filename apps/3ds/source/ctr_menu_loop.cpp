@@ -233,6 +233,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     float lastCpu = 0.0f, lastGpu = 0.0f;
     bool queuedEscape = false;
     int cycleState = 0; // run.ini cycle=: 0 waiting for the main menu, 1 in a mission, 2 back in the attract level
+    int reportedLoads = -1; // run.ini report_at=: the level load already reported
     size_t cycleIdx = 0;
     unsigned cycleAt = 0;
     std::string screen;
@@ -397,6 +398,12 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
             ++steps;
             ++n;
             if (ses.hasLevel() && !ses.world().intermission()) ++levelSteps;
+            // run.ini report_at=N: the end-state lines of the mission once, at its step N.
+            if (run.reportAt > 0 && levelSteps == static_cast<unsigned>(run.reportAt) && reportedLoads != flow.levelLoads()) {
+                reportedLoads = flow.levelLoads();
+                AS3D_INFO("report_at: mission %d at step %u", ses.mission(), levelSteps);
+                logEndState(ses, ses.mission(), levelSteps);
+            }
             if (flow.levelLoads() != before) {
                 acc = 0.0;
                 last = nowTicks();

@@ -138,6 +138,8 @@ RunConfig parseRunConfig(const std::string& text) {
                 if (toInt(trim(val.substr(at, comma - at)), &n) && n >= 1) c.cycle.push_back(n);
                 at = comma + 1;
             }
+        } else if (key == "report_at") {
+            if (toInt(val, &n) && n >= 0) c.reportAt = n;
         } else if (key == "cycle_frames") {
             if (toInt(val, &n) && n >= 1) c.cycleFrames = n;
         } else if (key == "pad_script") {

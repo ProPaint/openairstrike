@@ -54,6 +54,7 @@ struct RunConfig {
     // displayed frames (default 240), leaves it through GameFlow::loadAttract (what "Quit" in the
     // in-game menu does), waits 60 frames, takes the next; then the app stops. Level start and
     // level end log AS3D_MEM as always.
+    int reportAt = 0;          // report_at=N: log the mission's end-state lines at its step N (front end), once
     std::vector<int> cycle;
     int cycleFrames = 240;
     QualityMode quality = QualityMode::Auto; // quality=auto/new/old: the quality profile (quality_profile.h)
