@@ -87,6 +87,7 @@ struct RunConfig {
     std::string passes;        // passes=a,b,..: only these passes draw (pass_profile.h names, world, all); empty = all
     bool hud = true;           // hud=0: no HUD on the bottom screen
     bool touch = true;         // touch=0: no touch band on the bottom screen
+    bool top565 = false;       // top_format=rgb565: RGB565 top targets and screen (ctr_context.h setTopColor565)
     bool prefetch = true;      // prefetch=0: no read plan (ctr_loop.h ReadPlan)
     bool shadowCache = true;   // shadow_cache=0: every silhouette rasterised (no sdmc:/.../cache/*.shadows)
     int pakCacheKb = 0;        // pak_cache_kb=N: a block cache of N KB per pak stream (rw_stream_ctr.cpp); 0 = none (default)

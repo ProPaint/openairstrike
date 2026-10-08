@@ -62,15 +62,29 @@ constexpr float kAspect = static_cast<float>(kTopW) / static_cast<float>(kTopH);
 } // namespace
 
 bool dumpRenderTarget(C3D_RenderTarget* t, int width, const std::string& path) {
+    const bool rgb565 = t->frameBuf.colorFmt == GPU_RB_RGB565; // run.ini top_format=rgb565
     const size_t bytes = static_cast<size_t>(240) * static_cast<size_t>(width) * 4;
     auto* lin = static_cast<u8*>(linearAlloc(bytes));
     if (!lin) return false;
+    const u32 fmt = rgb565 ? GX_TRANSFER_FMT_RGB565 : GX_TRANSFER_FMT_RGBA8;
     C3D_SyncDisplayTransfer(static_cast<u32*>(t->frameBuf.colorBuf), GX_BUFFER_DIM(240, width),
                             reinterpret_cast<u32*>(lin), GX_BUFFER_DIM(240, width),
                             GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) |
-                                GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) |
-                                GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO));
+                                GX_TRANSFER_IN_FORMAT(fmt) | GX_TRANSFER_OUT_FORMAT(fmt) |
+                                GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO));
     GSPGPU_InvalidateDataCache(lin, bytes);
+    if (rgb565) { // expanded in place to the RGBA8 layout below (A B G R), from the end
+        const size_t n = static_cast<size_t>(240) * static_cast<size_t>(width);
+        for (size_t i = n; i-- > 0;) {
+            const unsigned v = static_cast<unsigned>(lin[i * 2] | lin[i * 2 + 1] << 8);
+            const unsigned r = v >> 11, g = (v >> 5) & 63, b = v & 31;
+            u8* o = lin + i * 4;
+            o[0] = 255;
+            o[1] = static_cast<u8>(b << 3 | b >> 2);
+            o[2] = static_cast<u8>(g << 2 | g >> 4);
+            o[3] = static_cast<u8>(r << 3 | r >> 2);
+        }
+    }
     bool ok = false;
     if (std::FILE* f = std::fopen(path.c_str(), "wb")) {
         std::fprintf(f, "P6\n%d 240\n255\n", width);

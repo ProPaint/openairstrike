@@ -165,6 +165,9 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.touch = n != 0;
         } else if (key == "shadow_cache") {
             if (toInt(val, &n)) c.shadowCache = n != 0;
+        } else if (key == "top_format") {
+            if (val == "rgb565") c.top565 = true;
+            else if (val == "rgba8") c.top565 = false;
         } else if (key == "prefetch") {
             if (toInt(val, &n)) c.prefetch = n != 0;
         } else if (key == "pak_cache_kb") {

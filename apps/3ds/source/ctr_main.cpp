@@ -4,6 +4,7 @@
 // or the front end (ctr_menu_loop.cpp) for mode=menu and mode=play without level=.
 #include <string>
 
+#include "ctr_context.h"
 #include "ctr_frame.h"
 #include "ctr_loop.h"
 #include "ctr_save.h"
@@ -19,6 +20,7 @@ int main() {
     options.run = ctrapp::readRunConfig(std::string(ctrapp::kDataDir) + "/run.ini");
     // Hardware A/B switches (run.ini depthmap=, water=, water_tile=; the test modes too).
     as3d::pica::setWBufferAsZBuffer(options.run.depthMapZ);
+    as3d::ctr::setTopColor565(options.run.top565); // run.ini top_format= (before the graphics context)
     as3d::pica::setWaterOptions(options.run.water, options.run.waterTile >= 0.0f ? options.run.waterTile
                                                                                 : as3d::pica::kDefaultWaterTile);
     if (!options.run.usesLoop()) return runSpike();

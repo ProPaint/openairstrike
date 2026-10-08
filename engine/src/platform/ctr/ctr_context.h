@@ -51,6 +51,13 @@ public:
 // The live context, or null (before createGraphicsContext and after it was destroyed).
 CtrContext* ctrContext();
 
+// The top screen's colour format (run.ini top_format=rgb565, before createGraphicsContext): the
+// two eye targets RGB565 instead of RGBA8 (half the colour bytes the GPU writes and blends; M1.0
+// measured 2.65 -> 2.04 ms on the fill test), the top screen's framebuffers RGB565 too (the
+// display transfer copies 565 to 565). Nothing reads the targets' alpha (no DST_ALPHA blend).
+void setTopColor565(bool on);
+bool topColor565();
+
 // The reads of the platform streams (the game's paks, openPlatformStream: FSFILE_Read at an
 // offset), since start: the load profile's read time (AS3D_LOAD).
 struct StreamReadStats {

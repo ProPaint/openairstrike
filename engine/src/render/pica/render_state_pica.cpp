@@ -128,7 +128,12 @@ void fillTarget(bool color, const Vec4& c, bool depth, float glDepth) {
     if (!t.target || (!color && !depth)) return;
     C3D_ClearBits bits = static_cast<C3D_ClearBits>((color ? C3D_CLEAR_COLOR : 0) | (depth ? C3D_CLEAR_DEPTH : 0));
     splitCommandList(); // flushed: with gpu_kick the queue may run it at once (pica_frame.h)
-    C3D_FrameBufClear(&t.target->frameBuf, bits, packRgba(c), packDepth(glDepth));
+    u32 colour = packRgba(c);
+    if (t.target->frameBuf.colorFmt == GPU_RB_RGB565) { // a 16-bit fill
+        colour = static_cast<u32>(toByte(c.x) >> 3) << 11 | static_cast<u32>(toByte(c.y) >> 2) << 5 |
+                 static_cast<u32>(toByte(c.z) >> 3);
+    }
+    C3D_FrameBufClear(&t.target->frameBuf, bits, colour, packDepth(glDepth));
 }
 
 // A quad over the scissor rectangle writing colour and/or depth.
