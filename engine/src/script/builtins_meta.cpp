@@ -4,6 +4,7 @@
 // return kind and done-flag kind. See as3d::script::BuiltinMeta in script.h.
 #include "as3d/script.h"
 
+#include <atomic>
 #include <cstring>
 
 namespace as3d::script {
@@ -254,20 +255,24 @@ void BuiltinArgs::setReturnFloat(float v) {
 
 // -- BuiltinReport --
 
-void BuiltinReport::noteCall(const char* name, BuiltinStatus status) {
-    for (auto& kv : entries_) {
-        if (kv.first == name) {
-            kv.second.calls++;
-            kv.second.status = status;
-            return;
-        }
+u64 BuiltinReport::nextId() {
+    static std::atomic<u64> counter{0};
+    return ++counter;
+}
+
+u32 BuiltinReport::entryFor(const char* name, BuiltinStatus status) {
+    for (size_t k = 0; k < entries_.size(); ++k) {
+        if (entries_[k].first == name) return static_cast<u32>(k);
     }
     // First time this name is ever recorded by this report.
-    entries_.push_back({std::string(name), Entry{1, status}});
+    entries_.push_back({std::string(name), Entry{0, status}});
     if (status == BuiltinStatus::Stub) {
         AS3D_WARN("script: builtin '%s' is not implemented by the host; using a stub", name);
     }
+    return static_cast<u32>(entries_.size() - 1);
 }
+
+void BuiltinReport::noteCall(const char* name, BuiltinStatus status) { noteCallAt(entryFor(name, status), status); }
 
 std::vector<BuiltinReport::Row> BuiltinReport::rows() const {
     std::vector<Row> out;

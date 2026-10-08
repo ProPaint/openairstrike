@@ -332,15 +332,38 @@ public:
         BuiltinStatus status = BuiltinStatus::Implemented;
     };
 
+    BuiltinReport() : id_(nextId()) {}
+    BuiltinReport(const BuiltinReport& o) = default;
+    // An assigned report is a different report for the entry caches (entryFor).
+    BuiltinReport& operator=(const BuiltinReport& o) {
+        entries_ = o.entries_;
+        id_ = nextId();
+        return *this;
+    }
+
     void noteCall(const char* name, BuiltinStatus status);
     std::vector<Row> rows() const;
 
+    // The fast path of noteCall for a caller that calls the same names again and again
+    // (ScriptThread): entryFor finds or creates `name`'s entry (0 calls; a new stub entry
+    // warns, as noteCall does) and returns its index, valid for as long as id() does not
+    // change; noteCallAt(entryFor(n, s), s) does what noteCall(n, s) does.
+    u32 entryFor(const char* name, BuiltinStatus status);
+    void noteCallAt(u32 entry, BuiltinStatus status) {
+        Entry& e = entries_[entry].second;
+        e.calls++;
+        e.status = status;
+    }
+    u64 id() const { return id_; }
+
 private:
+    static u64 nextId();
     struct Entry {
         u64 calls = 0;
         BuiltinStatus status = BuiltinStatus::Implemented;
     };
-    std::vector<std::pair<std::string, Entry>> entries_; // small N (<=85); linear scan is fine
+    std::vector<std::pair<std::string, Entry>> entries_; // small N (<=85), in first-call order
+    u64 id_;
 };
 
 // ---------------------------------------------------------------------------------------
@@ -501,7 +524,15 @@ private:
     std::string bindError_;
 
     std::vector<Addr> defsAddr_;               // resolved once, indexed like program_.defs()
-    std::vector<const BuiltinDesc*> funcDesc_;  // resolved once, indexed like program_.funcs()
+    // Resolved once, indexed like program_.funcs(); reportEntry caches the builtin's entry
+    // in report_ (BuiltinReport::entryFor) for report_->id() == reportId_.
+    struct FuncBinding {
+        const BuiltinDesc* desc;
+        u32 reportEntry;
+    };
+    static constexpr u32 kNoReportEntry = 0xFFFFFFFFu;
+    std::vector<FuncBinding> funcDesc_;
+    u64 reportId_ = 0;
     std::vector<BuiltinDesc> autoStubs_;        // storage for generated stubs
     Addr frametimeAddr_ = 0;
 

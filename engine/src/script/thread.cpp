@@ -142,7 +142,7 @@ bool ScriptThread::bind() {
     for (const std::string& name : program_.funcs()) {
         const BuiltinDesc* desc = host_.resolveBuiltin(name.c_str());
         if (desc != nullptr) {
-            funcDesc_.push_back(desc);
+            funcDesc_.push_back({desc, kNoReportEntry});
             continue;
         }
         const BuiltinMeta* meta = findBuiltinMeta(name.c_str());
@@ -163,7 +163,7 @@ bool ScriptThread::bind() {
             // motion builtin.
         };
         autoStubs_.push_back(stub);
-        funcDesc_.push_back(&autoStubs_.back());
+        funcDesc_.push_back({&autoStubs_.back(), kNoReportEntry});
     }
     // autoStubs_ addresses must stay valid: reserved above to its final size, so no
     // reallocation happens as we push_back.
@@ -316,7 +316,8 @@ bool ScriptThread::execBuiltin(i32 a, bool latent, u32& doneOrRet) {
         fail(static_cast<u32>(pc_), "FUNC index out of range");
         return false;
     }
-    const BuiltinDesc* desc = funcDesc_[idx];
+    FuncBinding& binding = funcDesc_[idx];
+    const BuiltinDesc* desc = binding.desc;
     const std::string& name = program_.funcs()[idx];
 
     u32 argWords[64];
@@ -326,7 +327,15 @@ bool ScriptThread::execBuiltin(i32 a, bool latent, u32& doneOrRet) {
     for (int i = 0; i < n; ++i) argWords[i] = frame_[static_cast<u32>(i)];
 
     ThreadBuiltinArgs args(*this, host_, desc->argCount, latent);
-    if (report_) report_->noteCall(name.c_str(), desc->status);
+    if (report_) {
+        // noteCall(name, status) without the name search on every call.
+        if (report_->id() != reportId_) {
+            for (FuncBinding& f : funcDesc_) f.reportEntry = kNoReportEntry;
+            reportId_ = report_->id();
+        }
+        if (binding.reportEntry == kNoReportEntry) binding.reportEntry = report_->entryFor(name.c_str(), desc->status);
+        report_->noteCallAt(binding.reportEntry, desc->status);
+    }
     if (desc->fn) desc->fn(args, desc->userData);
     if (args.failed()) {
         fail(static_cast<u32>(pc_), args.failMessage());
