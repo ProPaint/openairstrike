@@ -333,6 +333,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
                     // As the desktop flow tests: EndLevel, or every life lost (the next step reports it).
                     AS3D_INFO("AS3D_FORCE_END %s mission=%d steps=%u", run.endGameOver ? "gameover" : "complete",
                               ses.mission(), runStep);
+                    if (run.endScore >= 0) ses.world().player(0).scores = static_cast<float>(run.endScore);
                     if (run.endGameOver) {
                         ses.world().player(0).lives = -1.0f;
                         ses.world().player(1).lives = -1.0f;

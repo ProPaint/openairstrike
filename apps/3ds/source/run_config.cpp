@@ -117,6 +117,8 @@ RunConfig parseRunConfig(const std::string& text) {
         } else if (key == "end_kind") {
             if (val == "complete") c.endGameOver = false;
             else if (val == "gameover") c.endGameOver = true;
+        } else if (key == "end_score") {
+            if (toInt(val, &n) && n >= 0) c.endScore = n;
         } else if (key == "unlock_heli") {
             if (toInt(val, &n) && n >= 0) c.unlockHeli = n;
         } else if (key == "ui_fixed_dt") {

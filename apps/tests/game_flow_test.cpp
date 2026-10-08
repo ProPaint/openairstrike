@@ -808,6 +808,7 @@ TEST_CASE("game flow: the sequels' end screens by pad, back to the main menu (3D
     REQUIRE(h.menu(Screen::MainMenu));
     // Game over: Quit banks and checks the high scores (the name entry when it qualifies).
     start();
+    h.world().player(0).scores = 60000.0f; // enough for the fresh table (its last entry: 30000)
     h.world().player(0).lives = -1.0f;
     h.world().player(1).lives = -1.0f;
     h.step();
@@ -815,7 +816,8 @@ TEST_CASE("game flow: the sequels' end screens by pad, back to the main menu (3D
     REQUIRE(h.focus(2)); // Quit
     h.key(keys::Enter);
     h.wait(5);
-    if (h.menu(Screen::NameEntry)) {
+    REQUIRE(h.menu(Screen::NameEntry));
+    {
         // Pad mode over the touch keyboard: Down to its first key, A types it, Right the next.
         h.key(keys::Down);
         h.key(keys::Enter);

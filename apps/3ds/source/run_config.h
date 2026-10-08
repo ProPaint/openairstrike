@@ -55,6 +55,7 @@ struct RunConfig {
     // end_at=N, end_kind=complete|gameover: at the N-th running step the mission ends as EndLevel
     // or the last life would (for scripted runs through Mission Complete and Game Over); 0 = never.
     int endAt = 0;
+    int endScore = -1;         // end_score=N: player 1's score set at end_at (the name entry needs 30000)
     bool endGameOver = false;
     // unlock_heli=N: the profile has helicopter N unlocked at start (a fresh sequel save has entry
     // 0 only; as3d_sim's default is 1). For comparisons with mode=bot; the unlock is saved.

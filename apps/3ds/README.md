@@ -289,6 +289,7 @@ no Configure controls, Mouse Control, Screen, video or touch rows); Start Game o
 
 | `menu_bot_steps` | N, default 0 | after the N-th running step of a mission (the world's steps but those the front end holds: the bot's steps with `menu_bot=1`), `AS3D_BOT_END` and the end state in the lines of `as3d_sim` (the run goes on) |
 | `end_at`, `end_kind` | N; `complete` (default) or `gameover` | at the N-th running step the mission ends as EndLevel or the last life would (scripted runs through Mission Complete, Game Over, the name entry) |
+| `end_score` | N | player 1's score set at `end_at` (the fresh high-score table's last entry is 30000: the name entry) |
 | `unlock_heli` | N | helicopter N unlocked in the profile at start (a fresh sequel save has entry 0 only, `as3d_sim`'s default is 1; the unlock is saved) |
 | `ui_fixed_dt` | `0` (default) or `1` | the menus' clock advances 1/60 s per displayed frame, as `as3d_game --ui-script` (comparisons of animated screens) |
 | `pad_script` | `F:NAME,...` | presses injected into the pad at displayed frame F, held 6 frames: `A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT` (several joined by `+`), or `T<x>/<y>` for a touch at bottom-screen pixel (x, y); for unattended emulator runs |
