@@ -1579,3 +1579,92 @@ Hardware checklist for the Old 3DS (the owner has none yet; a New 3DS runs the s
 Deferred: M4.3 (ETC1 texture cache, which cuts the 3.5 to 5 s precache and its VRAM/linear split),
 M4.4 (heap and linear budgets per profile: the Old 3DS has 64 MB APPLICATION memory in the
 default mode against 124 MB on the New one; `RenderQuality` has no memory fields yet).
+
+## M5.2 The sequels' front ends on the 3DS (ctr_frame.cpp drawModel, the pad gaps, the hint panel)
+
+The sequels' front end already ran through the M2.1 seam (`mode=menu game=as2|gulf`: Settings.xml and
+`texts_as2.txt` / `texts_gulf.txt` from the game's directory, the sequels' screens of engine/src/ui). What was
+missing or broken, and what changed:
+
+- **The model view** (helicopter selection, `FlowView::drawModel`) was a no-op. The composer now calls
+  `Frontend::drawModelViews` between `drawUnder` and `drawOver`, as GameView does, and `CtrFlowView::drawModel`
+  prepares it for the **top screen** (prepare, outside the frame): the parts (`apps/game/model_view.h`, now shared
+  with GameView: `modelViewParts` walks the object tree as before, `entityMatrix` the view's angles and origin) in a
+  `ResourceCache` of its own (released with the renderer at every level start, so mission VRAM is unchanged), one
+  `pica::MeshPass` with the GL camera (origin, identity view, the view's 60 degrees and planes 1..1000), the default
+  `SceneLighting` (ambient cube, the GL MeshRenderer's W-buffer mapping and linear fog 650..900, none at the
+  model's distance) and the environment inputs of a fresh GL MeshRenderer (identity view, time 0, sphere map).
+  Per eye: viewport and scissor over the rectangle, depth cleared inside it, `picaEyeProjection` of that view
+  (stereo: zero parallax at the model's distance 100, eye offset as the world's). The desktop draws the view on its
+  bottom screen inside the virtual rectangle (170, 160, 460 x 270) at 0.4 px per virtual pixel; the top screen
+  shows it at 0.8 (368 x 216 px, centred), the world is not drawn while it is up, and the 2D layer around it is
+  what the desktop has there: the selection's dot grid (`drawModelViewBackdrop`, Gulf Thunder's scan lines under
+  it) and, over the model, the panel's static fill (`drawModelViewStatic`, the noise `panel()` multiplies the scene
+  with; `as2::staticFill` is now shared). The bottom screen keeps the whole selection panel (name, arrows, bars;
+  the grid without the model).
+- **Pad mode gaps**: on the helicopter selection Left / Right are the arrows whatever has the focus (the
+  arrows are pictures, Up / Down only reached them one by one); the name entry's touch keyboard is a grid for the
+  D-pad (Left / Right along a row, Up / Down between rows, the name above, Ok below, Del right of the name) and a
+  pressed key keeps the focus in pad mode. Everything else (main menu, Start Game with the mission list on
+  Left / Right, Options without Configure controls, Information pages, dialogues, in-game menu, Mission Complete,
+  Game Over, Top Scores) worked by pad as it was.
+- **The hint panel** (`HintStyle::SequelPanel`) ignored `hintScale`: the bottom tables of both sequels now have
+  1.5, `layoutHint` scales text, line pitch and box, and with a scale above 1 puts the Ok button above the touch
+  band (y 472, 30 high, `kHudBottomBandTop` 510) and the panel above the button (its bottom frame 18 below the box)
+  with its title tab inside the screen; the interactive screen (`SequelScreens::hint`) uses that layout, its Ok
+  button finger-sized in touch mode. The desktop's layout is unchanged (scale 1, button at y 520); test "hud
+  layout: the sequels' hint panel on the bottom screen keeps its Ok button above the touch band".
+- **menu_bot's clock**: the bot stepped on every world step of a mission, also under the sequels' start dialogue
+  (which pauses the world), so its N-th step was not `mode=bot`'s. The loop now counts the running steps (the
+  world's steps but those the front end holds: start dialogue, in-game menu, end screens; hint boxes count, they
+  pause the world in `mode=bot` too) and the bot flies only those. New run.ini keys for scripted runs:
+  `menu_bot_steps` (end state after N running steps), `end_at` / `end_kind` / `end_score` (the mission ends as
+  EndLevel or the last life would, player 1's score set: the name entry), `unlock_heli` (a fresh sequel save has
+  helicopter 0 only, `as3d_sim`'s default is 1), `ui_fixed_dt` (the menus' clock at 1/60 s per frame, as
+  `--ui-script`); the log gets `AS3D_FOCUS` on every focus change and the intro pages by number (`intro1` ...).
+- Desktop tests (game_flow_test.cpp, for the game under test when it is a sequel): "the sequels' front end by pad,
+  model view and mission 1 as --level 1" (pad from the main menu through Options, Start Game, the selection with
+  Left / Right, Start, the dialogue by Enter; then the 3DS loop's clock: 600 running steps equal a direct start's
+  600 bot frames with the same helicopter: map_pos, time, entities, created / freed, score, player) and "the
+  sequels' end screens by pad" (in-game menu, Mission Complete -> Quit, Game Over -> Quit -> the name entry typed
+  by the D-pad -> Top Scores -> main menu).
+
+Model view numbers (Azahar, `ui_fixed_dt=1`, the selection open 40 frames: angles (104.86, -80.00, 0)):
+AirStrike 2 `player_1` 4 parts, 2209 vertices, 938 triangles, 4 draws of which 2 environment-mapped, parts loaded
+in 282 ms on first use (8 to 11 ms again, from the cache); Gulf Thunder `player_1` 2 parts, 880 vertices, 627
+triangles, 2 draws (1 env), 261 ms. Against the desktop's `as3d_game --game G --dual-screen --size 800x960
+--headless --touch --attract 1 --no-logo --ui-script` (bottom screen at 0.8 px per virtual pixel, the same
+taps and frame; the desktop's view crop (216, 608, 368 x 216), the 3DS top (16, 12, 368 x 216), the desktop's panel
+text, arrows and bars left out), `3ds_screen_compare.py --direct --mask`: AirStrike 2 0.95 (99.0 % within 16),
+over the model's pixels only 5.1 (92.8 % within 16); Gulf Thunder 2.53 (96.4 %), model 6.0 (86.8 %); the rest is
+the noise's random offsets, the scan lines' phase and RGBA4 skins. Before the static fill the model was 1.41
+times as bright as the desktop's (the panel's multiply), model MAE 20.5. With `slider=1` the view is drawn per eye
+(`eyes=2 eye_offset=4.00 focal=100.0`).
+
+Main menus (bottom screen against the desktop's dual-screen bottom half, crop 40, 240, 360, 480, frame 40):
+AirStrike 2 0.84 (98.2 % within 16), Gulf Thunder 2.64 (95.4 %; its scan lines); the first game's 4.13 had the
+3D banner on the desktop's bottom screen, the sequels have none.
+
+State sequences (Azahar, pad_script only but the touch Skip of the comic and the logo pages' A):
+
+    as2 (logo=1, unlock_heli=1, menu_bot=1, menu_bot_steps=600, end_at=1100 complete): intro1 (logo) -> intro2..5
+    (comic pages 1 to 4, A x4 speed, Skip tapped on page 4) -> main (230) -> options (330) -> main (400) -> start
+    (460; focus list, difficulty, mode, Back, Next) -> heli (600; Right, Left, Right: player_1, player_2 models) ->
+    Start -> "Mission 1: Tutorial" -> dialogue (800) -> playing (976) -> hint (1125, closed by the bot) -> playing ->
+    AS3D_BOT_END 600 steps -> ingame (1500) -> Resume -> playing -> end_at -> dialogue (end) -> complete (1783)
+    as2 (logo=0, end_at=700 gameover): main -> start -> heli -> dialogue -> playing -> ingame -> playing -> gameover
+    -> Quit -> main (score 0: no name entry); with menu_bot=0 the hint stays: hint (670) -> A -> playing
+    gulf (logo=0, end_at=300 gameover, end_score=60000): main -> start -> heli -> "Operation 1: Recon" -> playing
+    (no start dialogue in mission 1) -> gameover (452) -> Quit -> name (560; D-pad: A, B, Up, A) -> scores (690)
+    -> B -> main (780); and main -> options -> main -> start -> heli -> playing -> ingame -> Resume -> playing -> gameover
+
+Mission 1 started from the menus with `menu_bot=1 menu_bot_steps=600` and the helicopter of M5.1 (`unlock_heli=1`,
+Right on the selection): AirStrike 2 map_pos 452.0, 103 entities (138 slots, max 142), created 402 / freed 299,
+player (708.1, 584.5), 400; Gulf Thunder 614.3, 119 (248, max 257), 733 / 614, score 1200, kills 3 of 5, player
+(705.4, 748.2), 400: M5.1's end states exactly. With a fresh save's helicopter 0 (the desktop test's numbers):
+AirStrike 2 452.0, 101 entities, 396 / 295; Gulf Thunder 585.9, 79, 944 / 865, score 400.
+
+Found, not fixed (M5.1's): Gulf Thunder mission 1 with `slider=1` stops under Azahar after a few hundred frames, in
+`mode=bot level=1` as in the menus (the log ends, the emulator keeps running); mono runs and AirStrike 2 missions 1
+and 2 in stereo are fine. Deferred: the first game's name entry keyboard by D-pad (its keys are linear for Up /
+Down), the name entry and comics on hardware, the stereo model view checked by eye on the console.
