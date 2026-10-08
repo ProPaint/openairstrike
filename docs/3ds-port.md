@@ -657,3 +657,95 @@ On hardware (owner):
 
 Deferred: music (M2.4: libopenmpt measured on the 3DS, else pre-rendered Ogg and a tremor
 decoder); per-entity 3D sound stays off as in the shipped config (`Sound3D=0`).
+
+## M3.1 Shadows on the PICA (engine/src/render/pica/shadow_renderer_pica.cpp)
+
+`ShadowRenderer` (as3d/shadow_render.h, unchanged public API) gets a PICA pimpl; the design notes
+are in `shadow_pica.h`.
+
+- Silhouettes: `generate()` runs the CPU rasteriser of M0.4d (`rasterizeShadowSilhouette`, within
+  IoU 0.97 of the GL FBO path) and uploads the alpha as an A8 texture (`TextureClass::Shadow`),
+  forced into linear memory (VRAM is full with the terrain, UI and skins; a shadow covers a small
+  part of the screen), clamped, with the GL side's mipmaps, no CPU copy kept. A side above
+  `kMaxShadowSide` = 128 is rasterised at 128 over the same bounds: at 400x240 the camera of
+  mission 1 shows 1.16 px per world unit at the player's depth, so a 128-texel shadow already
+  spans about 150 px and only the 256-unit projected shadows (5 of the 126 generated at level
+  start) get coarser, about 2.3 px per texel under the bilinear filter. The PICA cannot read a
+  skin texture back: the world renderer reloads the image of an alpha skin from the new
+  `Material::texturePath` (12 skins, about 219 KB of CPU alpha in mission 1) and hands it over
+  through `pica::setShadowSkinSource`; opaque skins cast like no skin, as on GL.
+- Rasteriser speed-up (neutral, `shadow_raster.cpp`): the covered run of each row is solved from
+  the edge functions, z/u/v are float planes per triangle, and the per-sample `fmod`, `lround` and
+  64-bit-to-double conversions (library calls on the ARM11) are gone. The M0.4d test gives the
+  same worst figures (mean |da| 0.486/255, IoU 0.9711 over the 111 silhouettes), 1.9x faster on
+  the desktop and 2.4x under Azahar (60.4 to 24.8 ms per silhouette). `rasterizeShadowSilhouette`
+  takes an optional side cap. Decal clipping (`decal_build.cpp`) no longer allocates per terrain
+  triangle.
+- Draw (`pica::ShadowPass`): `prepare()` places each `ShadowRequest` (silhouette or blob, the
+  ground rectangle of `shadowRect`, now in the neutral `shadow_drape.cpp`) and drapes it over the
+  terrain on the CPU (`buildTerrainDecal`, the GL code); projected shadows never move, so their
+  draped geometry is cached until a crater changes the terrain; planar ones are draped every frame.
+  Per eye, in the GL pass position (pass 5: after the terrain, before the opaque models): the first
+  eye copies the vertices into the frame arena as `FlatVertex`, the second reuses them; flat shader
+  with the eye's `picaEyeProjection` x central view, `decalMaterialKey` (alpha blend, depth test
+  on, write off, `kPolygonOffsetDepth`, back faces culled, level fog), `tevShadow(255)` (constant
+  black, the texture's alpha: the silhouette already holds 0..102), one draw per shadow. The
+  sequels' multiplied look (`shadowMultiply`) uses the Filter blend with grey 1 - alpha.
+- Residency and the late path: the cache is keyed by (mesh, skin texture if it has alpha, kind,
+  quality, steps), the GL key without strings. `precache()` generates the placements' silhouettes
+  (in their own rotation, the set the GL `beginLevel` makes) and the closure's planar ones. The 12
+  rotations of every projected one of the closure (what the GL precache does) are too slow on the
+  3DS CPU and come only with `pica::setShadowPrecacheRotations(true)` (shadowtest
+  `shadow_rotations=1`). A silhouette first seen later (a script spawn in another rotation, or
+  everything with `precache=0`) is generated in `prepare()`, outside the frame, at most one per
+  frame, and drawn from the next frame; until then the shadow is the blob, a 32x32 radial A8
+  texture (1.3 KB, 0.4 at the centre) over the same rectangle. Late silhouettes count as
+  `LoadKind::Shadow` lazy loads and in `lateShadowMaps()`.
+- Stats: `pica::shadowPicaStats()` (generated, failed, capped, bytes, generation time and its
+  size histogram; per frame: silhouettes drawn, blobs, late, draped vertices, draws, arena bytes,
+  placement and draping time); `WorldRenderStats::shadows`, `drawCalls`, `vertices` include them.
+- `WorldScene::prepare` now lists the shadow requests of the model records also with
+  `options.models` off, and `as3d_game --render-only` accepts `shadows` (reference images of the
+  shadows without the models).
+
+Mission 1 numbers (Azahar, `mode=shadowtest`; Azahar's CPU ticks are not the console's, so the
+times are relative):
+
+| | silhouettes | A8 bytes (linear) | generation | per silhouette (max) | capped to 128 |
+|---|---|---|---|---|---|
+| level start, default | 126 | 818.4 KB | 2.70 s | 21.4 ms (143.9) | 5 |
+| level start, `shadow_rotations=1` | 726 | 5611.1 KB | 17.83 s | 24.6 ms (143.9) | 45 |
+
+Sizes (larger side, all rotations): 16: 9, 32: 190, 64: 284, 128: 198, 256: 45. The GL desktop
+holds 112 silhouettes after its `beginLevel` (591 more with its closure precache, M1.10a). In the
+composer (`mode=bot level=1 frames=600`) the level start grows from 9.4 to 12.4 s (precache 5.2
+to 8.1 s), `AS3D_LAZY_LOADS ... shadows=0` (no projected shadow appeared in another rotation in
+600 steps), linear memory 24.0 MB free (0.8 MB less), VRAM unchanged (4193.6 KB; the 82 VRAM
+fallbacks of that line were there before, 86 in M1.8).
+
+Per frame after 120 bot frames: 18 shadows (16 projected, 2 planar) with 11 distinct silhouettes,
+576 draped vertices, 18 draws per eye, 13.5 KB of arena. CPU in `prepare()`: 0.25 ms for the
+shadows with the drape cache (1.9 ms the first frame, all 18 draped); the draw adds about 0.5 ms
+of C3D CPU time (0.73 against 0.24 ms for the terrain alone). Late path (`precache=0`): frame 0
+draws 18 blobs and generates one silhouette (64x128, 31.8 ms), frame 1 draws it with 17 blobs,
+... frame 11 has all 18 silhouettes; the final image equals the precached one pixel for pixel. A
+late frame costs the generation (3.5 to 47 ms here) plus, for a skin with alpha, its TGA reload
+(about 20 ms): a visible hitch, hence the placements' precache.
+
+Azahar check (2026-10-08, PPM dumps against `as3d_game --headless --level 1 --bot --frames 120
+--size 400x240 --screenshot-every 120`):
+
+- (a) terrain + shadows against `--render-only terrain,shadows`, `tools/3ds_screen_compare.py
+  --direct --mask --darken shadowtest_t.ppm,terrain.png` (the new `--darken`: pixels more than 6
+  below the terrain-only frame of the same side): 1337 darkened pixels against 1338, 1318 in
+  both, IoU 0.971; mean abs error over their union 1.43/255; whole image 1.56/255 (the terrain
+  alone: 1.56), 99.8 % within 8. The shapes, the palm fronds' partial alpha and the helicopter's
+  planar shadow match; the residue is the terrain's.
+- (b) the full frame against `--render-only terrain,models,particles,sprites,shadows`: 2.37/255,
+  98.0 % within 8 (the env-mapped surfaces of M1.5). The composer at step 600 (`top_left.ppm`)
+  against the same passes at 600: 1.77/255, 98.4 % within 8, as in M1.8 without shadows.
+
+Deferred: the hardware run (GPU cost of the linear-memory A8 fetches, real generation times);
+generating projected rotations ahead of need (e.g. the closure's in the background, a few per
+frame, or a time budget inside the rasteriser) if the late hitch shows on hardware; ground marks
+and skid trails (the neutral decal code is ready); freeing the CPU skins after the level start.

@@ -200,3 +200,19 @@ tone for 1 s, then three sounds of mission 1's precache set (the machine gun eve
 a missile, an explosion panned right). Every second it logs fills (+32 per second expected), underruns, the peak
 sample of that second's buffers (about 11000 for the tone), the longest fill and the feeder's CPU
 share; it writes `audiotest_log.txt`. docs/3ds-port.md, "M2.3".
+
+`mode=shadowtest` (optional `hold=N` frames per phase, default 60; `precache=0`;
+`shadow_rotations=1`) runs `source/shadow_test.cpp`: the PICA `WorldRenderer` started as the
+composer does (beginLevel, then the precache with the shadow silhouettes unless `precache=0`),
+mission 1 after 120 bot frames, then the world frozen and drawn mono in three phases: `t` terrain
+only, `a` terrain and shadows, `b` the full frame. Each phase prepares and draws until no shadow
+is a blob any more (with `precache=0` one silhouette is generated per frame, drawn from the next:
+the late path, dumped as `shadowtest_a_late0.ppm` and `_late1.ppm`). `shadow_rotations=1` also
+precaches the 12 rotations of every projected silhouette. It writes `shadowtest_log.txt`
+(silhouette count, bytes, generation time and sizes; per-frame shadows, blobs, late, draped
+vertices, draws, arena, prepare cost with and without shadows) and `shadowtest_<phase>.ppm`.
+Compare `a` with `as3d_game --headless --level 1 --bot --frames 120 --size 400x240
+--screenshot-every 120 --render-only terrain,shadows` (and `--render-only terrain` as the base):
+`tools/3ds_screen_compare.py shadowtest_a.ppm frame_000120.png --direct --mask --darken
+shadowtest_t.ppm,terrain/frame_000120.png`; `b` with `--render-only
+terrain,models,particles,sprites,shadows`. docs/3ds-port.md, "M3.1".
