@@ -1043,7 +1043,7 @@ the flat shader and `drawFlatRuns` (M1.6); nothing is created inside a frame.
   as an opaque RGB565 texture with mip chain (the plane's alpha is the style's: the GL ignores the
   texture alpha), after the terrain's, so it goes to VRAM while the budget has room: 42.6 KB, VRAM in
   mission 1 (`waterPicaStats().textureVram`). Sequel water (`WaterStyle::WaveGrid`: wave grid, two
-  textures) is M5.1: `build()` logs a TODO and leaves the pass inactive.
+  textures) is M5.1 (done: see "M5.1").
 - Lightning (`pica::LightningPass`, after the effect list, before the particles, as the GL).
   `prepare()` (outside frames) runs `buildLightningBolts` on the scene's bolts (at most 64 kept) into
   FlatVertex plus the run (additive, no depth test or write, no culling, fog towards black); the
@@ -1084,7 +1084,7 @@ has no real bolt with the bot; the geometry is the shared `buildLightningBolts`)
 lightning 1 per eye. Arena high water of the test 65 KB, 0 failures. `mode=bot level=1 frames=600`
 unchanged: map_pos 452.0, 39 entities, created 243, freed 204.
 
-Deferred: sequel water (M5.1: wave grid, two layers, animated per frame), environment maps (M3.4, done), a
+Deferred: sequel water (M5.1, done), environment maps (M3.4, done), a
 real in-game bolt against the desktop (Lightning Bomb; needs a script that picks it up), hardware timing.
 
 ## M3.4 Environment maps on the PICA (shaders/env.v.pica, mesh_renderer_pica.cpp)
@@ -1256,3 +1256,120 @@ regular file, the scope hook counted, no device-root directory) and `launcher_te
 Deferred: recovery of a complete `profile.bin.tmp` after a cut in the remove-rename window (see above;
 decide with the hardware save times); co-op/shared config (todo list); the HOME-menu "Close" is assumed to end
 `aptMainLoop` (M1.2) and is part of checklist step 4.
+
+## M5.1 The sequels' render rules on the PICA (water_renderer_pica.cpp, shaders/water.v.pica)
+
+The audit of the GL WorldRenderer and its renderers against the PICA ones (every `rules.` field of
+as3d/render_rules.h and every `GameId` use under engine/src/render) found one sequel rule the PICA skipped:
+the wave-grid water (`WaterStyle::WaveGrid`). It is drawn now; the rest was already on the PICA path:
+
+| rule (render_rules.h) | where the PICA has it |
+|---|---|
+| `water` WaveGrid | new: `pica::WaterPass` grid path (below) |
+| `terrainCentralNormals`, `tileHalfTexelInset` | neutral `terrain_build.cpp` (TerrainRenderer::build takes the rules) |
+| `shadowEraseBelowGround`, `shadowHeightExpCap`, `shadowMaxSide` | neutral `shadow_raster.cpp` (ShadowRenderer::setRules) |
+| `shadowMipmaps`, `shadowMultiply` (DecalLook::ShadowMultiply) | shadow_renderer_pica.cpp, `ShadowPass::setMultiply` (M3.1) |
+| `spriteCulling` | `SpriteViewParams::cullBackFaces` in the PICA world renderer |
+| `envViewNormal` | `MeshPass::setEnvironment`, `envsel` of env.v.pica (M3.4) |
+| `missingTextureWhite` | `ResourceCache::setMissingTextureWhite` (shared) |
+| `markEntityAlpha`, `markTextureUnflipped` | neutral WorldScene mark descriptions, MarkPass (M3.2) |
+| `skidMarkPass` and the skid parameters | WorldScene collects the trails, `MarkPass::setSkids` with `skidTrailParams` (M3.2) |
+| `ui2dHalfPixelShift` | the PICA Renderer2D honours `setHalfPixelShift` (batch2d.h); no front end turns it on, the desktop's neither: intentionally the same |
+| `billboardTrueAxes` | both games true; the shared particle and sprite builders |
+
+There is no other `GameId` switch in the renderers (the HUD tables are M5.3); particles, sprites, health bars,
+lightning and the brightness pass are the same code for the three games.
+
+Wave grid (`pica::WaterPass`, the GL grid path of gles/water_renderer.cpp and kWaterGridVertexSrc):
+
+- Build (beginLevel, as the GL): `buildWaterSurface(terrain, true, the level's waterShine)`,
+  `buildWaterGridGeometry` (8-row chunks over the whole map, two triangles per wet cell). The GL keeps
+  the whole grid in one VBO (16-byte `WaterGridVertex`: column, row, terrain height, weight) and animates
+  it in the vertex shader. The PICA has no sine in its shader, so the wave is computed on the CPU and only
+  the height goes to the GPU: per chunk the vertices a wet cell uses are compacted (each chunk's range
+  starts on a multiple of 4 vertices) into a static stream `WaterGridStaticPica` (x, y as floats, colour
+  255, 255, 255, alpha = weight x opacity: 12 bytes) with u16 indices local to the chunk, both in linear
+  memory for the level.
+- Per frame (`prepare`, outside frames): `computeWaterGridFrame` and the two sines of the wave tabulated per
+  row (`sin(0.75 r + T)`) and per column (`sin(c + T)`). Per eye: `visibleWaterChunks` with the eye's
+  matrix; a visible chunk not yet animated in this arena frame gets its heights written into the frame
+  arena (one float per vertex, animateWaterGrid's operations with the tables; the other eye reuses them),
+  then one `C3D_DrawElements`. Craters: `WaterPass::update` refreshes the dry vertices' heights
+  (`updateWaterGridHeights`, which the PICA world renderer now calls with the terrain's update).
+  Self-check: the first 16 heights of every animated chunk are compared with `animateWaterGrid`
+  (`maxHeightError`): 0 in every run.
+- `shaders/water.v.pica` (`Shader::Water`, two streams: v0 xy and v1 colour static, v2 the height):
+  position (x, y, z, 1) x mvp; texcoord0 = (pos.xy + worig) x wbase.xy + wbase.zw, texcoord1 the same with
+  wshine. The GL computes 1.5 (c, r)/4 + offset and 2 (c, r)/4 + offset, i.e. 1.5/160 and 2/160 per world
+  unit; per chunk `worig` = (0, -y0) and the y offset carries `offset + y0 s` without its whole repeats, so the
+  coordinates stay below about 16 (float24 interpolation).
+- TEV `tevWaterGrid` (tev.h, checked in pica_core_test): TEXTURE0 the base, TEXTURE1 the shine, rgb =
+  INTERPOLATE(base, shine, base.a) = mix(shine, base, base.a), alpha = the vertex alpha. State as the GL:
+  alpha blend, depth test and write on, no culling, the level fog (W-buffer mapping, the fog table of the
+  frame). The base layer is RGBA8 when its alpha varies (water_ocean_1: RGBA4 would band the colour and the
+  mix), RGB565 when opaque; the shine layer RGB565 (its alpha is not used). An absent shine texture is an
+  8x8 black one (the GL's 1x1).
+- Stats: `waterPicaStats()` grid fields (cells, chunks, wet cells, grid and used vertices, static and index
+  bytes, both textures and their placement; per frame chunks animated, vertices, arena bytes, time, chunks
+  visible, triangles, draws).
+
+Numbers (Azahar, `mode=sequeltest`, 600 bot frames; the grid is 32 x 256 cells in all three missions, the GL
+VBO 9504 vertices = 148.5 KB):
+
+| mission | water | wet cells | used vertices (static) | indices | per frame (one eye sees) | arena per frame | CPU animate | textures |
+|---|---|---|---|---|---|---|---|---|
+| AirStrike 2 mission 1 | none (no `water` in levels.txt) | | | | | | | |
+| AirStrike 2 mission 2 | water_ocean_1 + shine, level -68, 0.5 | 415 | 584 (6.8 KB) | 2490 (4.9 KB) | 4 chunks, 470 vertices, 696 triangles, 4 draws | 1.84 KB | 0.11 ms | base 256x256 RGBA8 341.2 KB + shine 256x256 RGB565 170.6 KB, VRAM |
+| Gulf Thunder mission 1 | water_ocean_1 + shine, level -150, 0.5 | 1010 | 1416 (16.6 KB) | 6060 (11.8 KB) | 7 chunks, 770 vertices, 1154 triangles, 7 draws | 3.01 KB | 0.19 ms | the same |
+
+So no cap or decimation is needed (far below the 20 KB per frame budget; the whole grid as 32-byte Flat2Vertex
+would have been 24 to 47 KB per frame). The water costs 0.4 to 0.5 ms of C3D CPU time per eye under Azahar
+(terrain + water 0.64 to 0.71 ms against 0.22 to 0.31 ms for the terrain alone).
+
+`mode=sequeltest` (apps/3ds/source/sequel_test.cpp, `game=`, `level=`, `frames=` default 600): the end states
+equal the desktop's `as3d_sim --game G --level N --frames 600 --bot`:
+
+| mission | map_pos | list entities (max) | slots (max) | created / freed | kills | player origin, health, score |
+|---|---|---|---|---|---|---|
+| as2 1 | 452.0 | 103 (105) | 138 (142) | 402 / 299 | 0 of 2 | (708.1, 584.5), 400, 0 |
+| as2 2 | 452.0 | 81 (96) | 177 (199) | 573 / 492 | 1 of 3 | (699.2, 563.7), 397, 120 |
+| gulf 1 | 614.3 | 119 (123) | 248 (257) | 733 / 614 | 3 of 5 | (705.4, 748.2), 400, 1200 |
+
+Azahar check (2026-10-08, `tools/3ds_screen_compare.py --direct --mask`, 400x240, against `as3d_game --game G
+--headless --level N --bot --frames 600 --size 400x240 --screenshot-every 600 --render-only LIST`; whole image):
+
+| mission | t (terrain) | w (terrain,water) | w2 (630 frames) | f (terrain,models,particles,sprites,shadows,marks,skid,water,lightning) |
+|---|---|---|---|---|
+| as2 1 | 1.44, 1.000 | 1.44, 1.000 (no water) | 1.43, 1.000 | 1.65, 0.995 |
+| as2 2 | 0.99, 1.000 | 1.01, 1.000 | 0.99, 1.000 | 1.31, 0.994 (4 skid trails) |
+| gulf 1 | 1.27, 1.000 | 1.27, 1.000 | 1.23, 1.000 | 1.72, 0.987 |
+| as3d 1 (regression) | | 1.51, 1.000 | | 1.72, 0.994 |
+
+(MAE /255, fraction within 16.) On the pixels the water changes on the desktop (terrain against terrain,water
+differing by more than 8): as2 2, 41596 pixels, MAE 0.96, 99.9 % within 5 (the PICA terrain alone there:
+16.3); gulf 1, 24231 pixels, MAE 1.01, 99.8 % within 5 (alone: 15.1). The 630-frame images match the desktop's
+630 frame as well, so the waves and both scrolls move as on the GL. The as2 mission 2 full frame is the first
+comparison with real skid trails (M3.2 had only synthetic ones). AirStrike 3D mission 1 through the same test
+is unchanged (flat plane, 5 quads, end state map_pos 452.0, 39 entities, created 243, freed 204).
+
+Memory after the level-start precache (the sequels' paks are 47 and 43 MB; M5.4 re-measures):
+
+| mission | textures VRAM | textures linear | meshes (env normals) | terrain (linear vertices + indices; textures) | linear free |
+|---|---|---|---|---|---|
+| as2 1 | 72 = 4300.8 KB | 287 = 5175.1 KB | 227 = 1090.9 KB (116.8) | 248.9 + 4.2 KB; 11 = 1695.6 KB VRAM | 21303 KB |
+| as2 2 | 66 = 4300.8 KB | 373 = 6565.1 KB | 265 = 1229.1 KB (127.2) | 296.9 + 4.6 KB; 13 = 1823.6 KB VRAM | 19708 KB |
+| gulf 1 | 43 = 4300.8 KB | 260 = 6740.4 KB | 215 = 1216.8 KB (86.9) | 291.1 + 4.3 KB; 12 = 1791.6 KB VRAM | 19544 KB |
+| as3d 1 | 104 = 4300.5 KB | 188 = 2296.9 KB | 176 = 460.9 KB (50.7) | 257.3 + 4.2 KB; 12 = 1727.6 KB VRAM | 24806 KB |
+
+VRAM is full in all three (the 4.2 MB budget); the sequels put 5.2 to 6.7 MB of textures in linear memory
+(the first game: 2.3 MB; their meshes are 2.4 to 2.7 times the first game's). The two water textures take 512 KB of VRAM because they are created at
+beginLevel, right after the terrain's. Precache 12.6 / 15.8 / 11.8 s under Azahar (as3d 7.9 s), frame arena
+high water 133 to 170 KB.
+
+The sequels' paks are on the emulator's card under `sdmc:/3ds/openairstrike/as2/` and `gulf/` (pak0, pak1,
+pak2 and for Gulf Thunder pak4, Settings.xml and the texts file), copied from the install.
+
+Deferred: the sequels' front ends (M5.2), their HUD tables on the 3DS (M5.3), the game selector and the
+memory re-measure (M5.4); the third missions of each game and the hardware run; whether the water textures
+should yield VRAM to the models (RGBA4 base, or created after the precache) if hardware shows the
+linear-memory skins.
