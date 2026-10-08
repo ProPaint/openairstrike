@@ -124,6 +124,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     const RunConfig& run = opts.run;
     Perf perf;
     perf.open(run.perf);
+    setFramePacing(run);
     GameFrame* frame = opts.frame;
 
     bool new3ds = false;

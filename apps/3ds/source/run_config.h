@@ -87,6 +87,12 @@ struct RunConfig {
     std::string passes;        // passes=a,b,..: only these passes draw (pass_profile.h names, world, all); empty = all
     bool hud = true;           // hud=0: no HUD on the bottom screen
     bool touch = true;         // touch=0: no touch band on the bottom screen
+    // Frame pacing (ctr_loop.cpp drawFrame): vsync=1 waits for a vblank before every frame
+    // (C3D_FRAME_SYNCDRAW, the default); vsync=lazy only when no vblank came since the frame
+    // began (at most one frame per vblank, no wait when the frame is late anyway).
+    bool lazyVsync = false;
+    bool gpuKick = false;      // gpu_kick=1: the GPU starts each eye while the CPU records the next (pica_frame.h kickGpu)
+    bool cmdlistFlush = false; // end_flush=cmdlist: C3D_FrameEnd(GX_CMDLIST_FLUSH), no whole-heap flush (forced by gpu_kick=1)
 
     // The real-time front end instead of a direct mission start.
     bool menu() const { return mode == Mode::Menu || (mode == Mode::Play && !levelGiven); }

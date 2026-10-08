@@ -3,12 +3,13 @@
 // second) and, with perf=1, perf.csv with one row per displayed frame:
 //
 //   frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,
-//   linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms
+//   linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms
 //
 // The frame's CPU, in order (ctr_loop.cpp): step_ms (the simulation steps), prepare_ms (the
 // composer's prepare: scene lists, mesh passes, outside the frame), wait_ms (C3D_FrameBegin:
 // the vblank sync and the wait for the GPU to finish the previous frame), submit_ms (drawTop per
-// eye and drawBottom: the command list, 2D lists built inside the frame), end_ms (C3D_FrameEnd:
+// eye and drawBottom: the command list, 2D lists built inside the frame), sync_ms (vsync=lazy:
+// the vblank wait before the frame is submitted), end_ms (C3D_FrameEnd:
 // the cache flush and the queue start), after_ms (afterFrame: screen dumps). cpu_ms is citro3d's
 // processing time (FrameBegin to FrameEnd, about submit_ms); gpu_ms the GPU time from
 // FrameEnd to the end of the queue.
@@ -45,6 +46,7 @@ struct FrameSample {
     float periodMs = 0.0f; // time since the previous frame (0 for the first)
     float waitMs = 0.0f;   // in C3D_FrameBegin
     float submitMs = 0.0f; // between C3D_FrameBegin and C3D_FrameEnd
+    float syncMs = 0.0f;   // vsync=lazy: the vblank wait before C3D_FrameEnd
     float endMs = 0.0f;    // in C3D_FrameEnd
     float afterMs = 0.0f;  // the hook's afterFrame (dumps)
     FrameStats stats;
@@ -73,7 +75,7 @@ private:
     std::FILE* csv_ = nullptr;
     std::vector<float> steps_, periods_;
     // Frame CPU split (frames with a period only): prepare, wait, submit, end, after; cpu, gpu.
-    double splitSum_[7] = {0, 0, 0, 0, 0, 0, 0};
+    double splitSum_[8] = {0, 0, 0, 0, 0, 0, 0, 0};
     double afterMax_ = 0;
     unsigned splitCount_ = 0;
     std::vector<float> gpus_;

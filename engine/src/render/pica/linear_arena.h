@@ -50,6 +50,11 @@ public:
     }
     // One cache flush of [start of the current half, start + used()).
     void flush();
+    // A cache flush of what was allocated since the last flushPending() (or beginFrame()): the
+    // vertices of the draws recorded so far, before their command list goes to the GPU in the
+    // middle of a frame (pica_frame.h kickGpu, the clears' command list splits).
+    void flushPending();
+    size_t flushed() const { return flushed_; } // bytes of the current half flushed by flushPending
 
     size_t capacity() const { return half_; }       // bytes per half
     size_t used() const { return offset_; }         // bytes used in the current half
@@ -69,6 +74,7 @@ private:
     uint8_t* base_ = nullptr;
     size_t half_ = 0;
     size_t offset_ = 0;
+    size_t flushed_ = 0;
     size_t highWater_ = 0;
     unsigned failures_ = 0;
     unsigned frames_ = 0;

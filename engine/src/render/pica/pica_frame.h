@@ -55,6 +55,21 @@ const FrameTarget& currentTarget();
 // linear heap unless GX_CMDLIST_FLUSH is passed; this flush is what makes the latter safe.)
 void frameEnd();
 
+// Mid-frame submission (run.ini gpu_kick=1, docs/3ds-port.md "Hardware tuning"): citro3d
+// queues the frame's command lists and starts the GPU at C3D_FrameEnd, so the GPU idles while
+// the CPU records. kickGpu() (the composer calls it after each eye) flushes the arena's new
+// vertices, splits the command list (flushed) and starts citro3d's queue: the GPU draws that eye
+// while the CPU records the next. Every later split must then be flushed by itself
+// (splitCommandList, the clears) and the frame ends with C3D_FrameEnd(GX_CMDLIST_FLUSH): the
+// command list is flushed with its last split, the arena by frameEnd(), every other GPU buffer
+// when it was written. A no-op while off (the default).
+void setGpuKick(bool on);
+bool gpuKick();
+void kickGpu();
+unsigned gpuKicks(); // kicks since start
+// The arena's new vertices flushed, then C3D_FrameSplit(GX_CMDLIST_FLUSH) (render_state's clears).
+void splitCommandList();
+
 LinearArena& frameArena();
 ShaderSet& shaders();
 

@@ -100,6 +100,15 @@ int runCtrLoop(const CtrLoopOptions& options);
 // `frames` (when not 0) ends the run after that many displayed frames.
 int runCtrMenuLoop(const CtrLoopOptions& options); // ctr_menu_loop.cpp
 
+// Frame pacing from run.ini (vsync=, gpu_kick=, end_flush=); both loops call it once.
+struct FramePacing {
+    bool lazyVsync = false;
+    bool gpuKick = false;
+    bool cmdlistFlush = false;
+};
+void setFramePacing(const RunConfig& run);
+const FramePacing& framePacing();
+
 // One displayed frame through the hook: prepare, the frame (beginFrame, drawTop per eye,
 // drawBottom, endFrame), stats, afterFrame; fills the sample's cpu/gpu and split columns
 // (wait, submit, end, after) and its stats. Shared by both loops.

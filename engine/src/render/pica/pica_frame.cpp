@@ -4,7 +4,14 @@
 
 #include <3ds.h>
 
+#include <citro3d.h>
+
 #include <vector>
+
+// citro3d's context (internal.h: C3D_Context __C3D_Context). Its first member is the GX command
+// queue the frames go through (gxCmdQueue_s gxQueue); only that member is used here (kickGpu),
+// so the declaration names the queue's type. citro3d version of the pinned devkitARM image.
+extern "C" gxCmdQueue_s __C3D_Context;
 
 namespace as3d::pica {
 namespace {
@@ -89,7 +96,32 @@ void drawOn(const FrameTarget& t) {
 
 const FrameTarget& currentTarget() { return backend().target; }
 
-void frameEnd() { backend().arena.flush(); }
+void frameEnd() { backend().arena.flushPending(); }
+
+namespace {
+bool g_kick = false;
+unsigned g_kicks = 0;
+} // namespace
+
+void setGpuKick(bool on) { g_kick = on; }
+bool gpuKick() { return g_kick; }
+unsigned gpuKicks() { return g_kicks; }
+
+void splitCommandList() {
+    backend().arena.flushPending();
+    C3D_FrameSplit(GX_CMDLIST_FLUSH);
+}
+
+void kickGpu() {
+    if (!g_kick) return;
+    splitCommandList();
+    // citro3d's GX queue is the first member of its context (citro3d internal.h, C3D_Context:
+    // gxQueue). C3D_FrameBegin stopped it; running it now starts the command lists queued so
+    // far, and the queue then starts every later one as it is added (libctru gxqueue.c). The
+    // queue's completion callback does nothing until C3D_FrameEnd sets the swap flags.
+    gxCmdQueueRun(&__C3D_Context);
+    ++g_kicks;
+}
 
 LinearArena& frameArena() { return backend().arena; }
 ShaderSet& shaders() { return backend().shaders; }

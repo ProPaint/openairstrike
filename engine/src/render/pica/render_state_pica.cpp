@@ -127,7 +127,7 @@ void fillTarget(bool color, const Vec4& c, bool depth, float glDepth) {
     const FrameTarget& t = currentTarget();
     if (!t.target || (!color && !depth)) return;
     C3D_ClearBits bits = static_cast<C3D_ClearBits>((color ? C3D_CLEAR_COLOR : 0) | (depth ? C3D_CLEAR_DEPTH : 0));
-    C3D_FrameSplit(0);
+    splitCommandList(); // flushed: with gpu_kick the queue may run it at once (pica_frame.h)
     C3D_FrameBufClear(&t.target->frameBuf, bits, packRgba(c), packDepth(glDepth));
 }
 

@@ -12,7 +12,7 @@ bool LinearArena::init(size_t halfBytes, const ArenaMemory& memory) {
     mem_ = memory;
     base_ = static_cast<uint8_t*>(p);
     half_ = half;
-    offset_ = highWater_ = 0;
+    offset_ = highWater_ = flushed_ = 0;
     failures_ = frames_ = 0;
     current_ = 0;
     return true;
@@ -21,12 +21,13 @@ bool LinearArena::init(size_t halfBytes, const ArenaMemory& memory) {
 void LinearArena::shutdown() {
     if (base_) mem_.release(base_);
     base_ = nullptr;
-    half_ = offset_ = 0;
+    half_ = offset_ = flushed_ = 0;
 }
 
 void LinearArena::beginFrame() {
     current_ ^= 1;
     offset_ = 0;
+    flushed_ = 0;
     ++frames_;
 }
 
@@ -48,6 +49,12 @@ void* LinearArena::alloc(size_t bytes, size_t align) {
 
 void LinearArena::flush() {
     if (base_ && offset_ > 0 && mem_.flush) mem_.flush(halfBase(), offset_);
+    flushed_ = offset_;
+}
+
+void LinearArena::flushPending() {
+    if (base_ && offset_ > flushed_ && mem_.flush) mem_.flush(halfBase() + flushed_, offset_ - flushed_);
+    flushed_ = offset_;
 }
 
 } // namespace as3d::pica

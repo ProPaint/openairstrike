@@ -163,6 +163,14 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.hud = n != 0;
         } else if (key == "touch") {
             if (toInt(val, &n)) c.touch = n != 0;
+        } else if (key == "vsync") {
+            if (val == "lazy") c.lazyVsync = true;
+            else if (val == "1") c.lazyVsync = false;
+        } else if (key == "gpu_kick") {
+            if (toInt(val, &n)) c.gpuKick = n != 0;
+        } else if (key == "end_flush") {
+            if (val == "cmdlist") c.cmdlistFlush = true;
+            else if (val == "all") c.cmdlistFlush = false;
         }
     }
     return c;

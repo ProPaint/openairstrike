@@ -33,9 +33,11 @@ public:
 
     // Opens the frame (C3D_FrameBegin; SYNCDRAW waits for the vblank before the CPU records) /
     // ends it (C3D_FrameEnd: submits the command buffer and the display transfers of the targets
-    // drawn on). beginFrame returns false while a frame is open.
+    // drawn on). beginFrame returns false while a frame is open. endFrame's flags go to
+    // C3D_FrameEnd: 0 flushes the whole linear heap before the queue starts, GX_CMDLIST_FLUSH
+    // only the command list (every other buffer flushed when written: pica_frame.h kickGpu).
     virtual bool beginFrame(u8 flags = C3D_FRAME_SYNCDRAW) = 0;
-    virtual void endFrame() = 0;
+    virtual void endFrame(u8 flags = 0) = 0;
     virtual bool inFrame() const = 0;
 
     // The 3D slider, 0..1 (osGet3DSliderState).

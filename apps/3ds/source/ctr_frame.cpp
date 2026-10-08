@@ -266,6 +266,7 @@ struct GameFrame::Impl {
         if (!run.hud) mask &= ~(1u << static_cast<int>(pica::Pass::Hud));
         if (!run.touch) mask &= ~(1u << static_cast<int>(pica::Pass::Touch));
         pica::setPassMask(mask);
+        pica::setGpuKick(run.gpuKick);
         std::string off;
         for (int i = 0; i < pica::kPassCount; ++i)
             if (!pica::passBit(mask, static_cast<pica::Pass>(i))) off += std::string(off.empty() ? "" : ",") + pica::passName(static_cast<pica::Pass>(i));
@@ -751,6 +752,8 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
         m.extraDraws = 1;
         m.extraVerts = 4;
     }
+    // gpu_kick=1: the GPU draws this eye while the CPU records the next (pica_frame.h).
+    pica::kickGpu();
 }
 
 void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {

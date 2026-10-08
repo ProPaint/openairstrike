@@ -73,7 +73,7 @@ public:
     }
 
     bool makeCurrent() override { return true; }
-    void swapBuffers() override { endFrame(); }
+    void swapBuffers() override { endFrame(0); }
     int width() const override { return kTopWidth; }
     int height() const override { return kTopHeight; }
     std::string description() const override { return description_; }
@@ -86,7 +86,7 @@ public:
         inFrame_ = C3D_FrameBegin(flags);
         return inFrame_;
     }
-    void endFrame() override {
+    void endFrame(u8 flags) override {
         if (!inFrame_) return;
         // A full command buffer drops the frame's last commands and the GPU never signals the
         // end of the frame (the app hangs in the next C3D_FrameBegin): warn at each new 10 %
@@ -97,7 +97,7 @@ public:
             AS3D_WARN("ctr: GPU command buffer %.1f %% of %u KB used in one frame", use * 100.0,
                       static_cast<unsigned>(kCmdBufBytes / 1024));
         }
-        C3D_FrameEnd(0);
+        C3D_FrameEnd(flags);
         inFrame_ = false;
     }
     bool inFrame() const override { return inFrame_; }

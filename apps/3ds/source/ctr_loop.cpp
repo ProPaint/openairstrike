@@ -88,18 +88,40 @@ void logEndState(const as3d_game::GameSession& ses, int level, unsigned steps) {
               pe >= 0 ? static_cast<double>(w.entity(pe).f(F_HEALTH)) : 0.0);
 }
 
+namespace {
+FramePacing g_pacing;
+} // namespace
+
+void setFramePacing(const RunConfig& run) {
+    g_pacing.lazyVsync = run.lazyVsync;
+    g_pacing.gpuKick = run.gpuKick;
+    g_pacing.cmdlistFlush = run.cmdlistFlush || run.gpuKick;
+    AS3D_INFO("AS3D_PACING vsync=%s gpu_kick=%d end_flush=%s", g_pacing.lazyVsync ? "lazy" : "1", g_pacing.gpuKick ? 1 : 0,
+              g_pacing.cmdlistFlush ? "cmdlist" : "all");
+}
+
+const FramePacing& framePacing() { return g_pacing; }
+
 void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSample& sample) {
     hook.prepare(info);
     const uint64_t w0 = nowTicks();
-    if (ctx.beginFrame()) {
+    // vsync=1: C3D_FRAME_SYNCDRAW waits for the next vblank, then for the GPU. vsync=lazy: only
+    // for the GPU here; before the frame's command list goes, a vblank is waited for only if
+    // none came since the GPU finished the previous frame (its swap was requested then: two swaps
+    // in one vblank period would show a half-drawn buffer).
+    if (ctx.beginFrame(g_pacing.lazyVsync ? 0 : C3D_FRAME_SYNCDRAW)) {
         const uint64_t w1 = nowTicks();
+        const u32 vblank = C3D_FrameCounter(0);
         for (int eye = 0; eye < info.eyes; ++eye) hook.drawTop(ctx, eye, info);
         hook.drawBottom(ctx, info);
         const uint64_t w2 = nowTicks();
-        ctx.endFrame();
+        if (g_pacing.lazyVsync && C3D_FrameCounter(0) == vblank) C3D_FrameSync();
+        const uint64_t w3 = nowTicks();
+        ctx.endFrame(g_pacing.cmdlistFlush ? GX_CMDLIST_FLUSH : 0);
         sample.waitMs = static_cast<float>(ticksToMs(w1 - w0));
         sample.submitMs = static_cast<float>(ticksToMs(w2 - w1));
-        sample.endMs = static_cast<float>(ticksToMs(nowTicks() - w2));
+        sample.syncMs = static_cast<float>(ticksToMs(w3 - w2));
+        sample.endMs = static_cast<float>(ticksToMs(nowTicks() - w3));
     }
     sample.cpuMs = C3D_GetProcessingTime();
     sample.gpuMs = C3D_GetDrawingTime();
@@ -118,6 +140,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     const bool bot = run.mode != Mode::Play;
     Perf perf;
     perf.open(run.perf);
+    setFramePacing(run);
 
     bool new3ds = false;
     APT_CheckNew3DS(&new3ds);
