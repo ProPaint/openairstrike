@@ -104,6 +104,7 @@ struct GameFrame::Impl {
     bool backend = false;
     std::unique_ptr<WorldRenderer> renderer;
     std::unique_ptr<ui::Renderer2D> r2d;       // the top screen's 2D list (built once, flushed per eye)
+    std::unique_ptr<ui::Renderer2D> r2dTopOver; // the top screen's list over the model view (its static fill)
     std::unique_ptr<ui::Renderer2D> r2dBottom; // the front end: the bottom screen's list, built in prepare
     std::unique_ptr<ui::UiAssets> assets;
     bool hudReady = false;
@@ -238,11 +239,12 @@ struct GameFrame::Impl {
     void loadUi(as3d_game::GameSession& ses) {
         r2d.reset(new ui::Renderer2D());
         r2dBottom.reset(new ui::Renderer2D());
+        r2dTopOver.reset(new ui::Renderer2D());
         assets.reset(new ui::UiAssets());
         std::string hudError;
         const GameId game = ses.game() ? ses.game()->id : GameId::AirStrike3D;
         assets->hudTarget = ui::HudTarget::Bottom320x240;
-        hudReady = r2d->init(&hudError) && r2dBottom->init(&hudError) && assets->load(ses.vfs(), &hudError, game);
+        hudReady = r2d->init(&hudError) && r2dBottom->init(&hudError) && r2dTopOver->init(&hudError) && assets->load(ses.vfs(), &hudError, game);
         if (!hudReady) AS3D_WARN("HUD unavailable: %s", hudError.c_str());
     }
 
@@ -428,7 +430,10 @@ struct GameFrame::Impl {
             const float s = kModelPxPerVirtual / m.scaleX;
             const float ox = (static_cast<float>(modelX) - kModelPxPerVirtual * modelView.viewport.x - m.offsetX) / m.scaleX;
             const float oy = (static_cast<float>(modelY) - kModelPxPerVirtual * modelView.viewport.y - m.offsetY) / m.scaleY;
-            ui::drawModelViewBackdrop(*r2d, *assets, ox, oy, s);
+            ui::drawModelViewBackdrop(*r2d, *assets, ox, oy, s, true);
+            // Over the model, as the desktop's panel: its static fill (the same noise, a fresh offset).
+            r2dTopOver->begin(kTopW, kTopH);
+            ui::drawModelViewStatic(*r2dTopOver, *assets, ox, oy, s);
         }
         ui::TextStyle st;
         if (title && session && session->game()) {
@@ -635,7 +640,10 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
         clear(Vec4{0, 0, 0, 1}, true, 1.0f);
     }
     if (im.topQuads) im.r2d->flush();
-    if (im.modelActive) im.drawModelEye(eye);
+    if (im.modelActive) {
+        im.drawModelEye(eye);
+        im.r2dTopOver->flush();
+    }
     // Pass 14 (0.5 is neutral: dst * 0.5 + 0.5 * dst).
     if (im.worldDrawn && im.topBrightness != 0.5f) im.renderer->drawBrightness(kTopW, kTopH, im.topBrightness);
 }
@@ -772,6 +780,7 @@ void GameFrame::end() {
     im.assets.reset();
     im.r2d.reset();
     im.r2dBottom.reset();
+    im.r2dTopOver.reset();
     if (im.backend) pica::shutdownBackend();
     im.backend = false;
 }

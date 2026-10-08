@@ -79,7 +79,23 @@ Menu SequelScreens::startGame(Frontend& f) {
 // ---------------------------------------------------------------------------
 // Helicopter selection
 // ---------------------------------------------------------------------------
-void drawModelViewBackdrop(Renderer2D& r, const UiAssets& a, float ox, float oy, float s) {
+void drawModelViewStatic(Renderer2D& r, const UiAssets& a, float ox, float oy, float s) {
+    // The selection panel's static fill (one player: 160, 160, 480 x 290), which the desktop
+    // draws over the model view; the noise keeps its texel size.
+    const float x = 160, y = 160, w = 480, h = 290;
+    staticFill(r, a, ox + s * x, oy + s * y, s * w, s * h, w, h);
+}
+
+void drawModelViewBackdrop(Renderer2D& r, const UiAssets& a, float ox, float oy, float s, bool screen) {
+    if (screen && gulfLook()) {
+        // The scan lines of Gulf Thunder's screens (gulfTitleBar: y 100..540, 4 x 4 virtual pixels
+        // per texel) under the panel (160, 160, 480 x 290), at their size.
+        if (const Texture2D* lines = a.textureRepeat("gfx\\logo\\lines_gulf.tga")) {
+            const float x = 160, y = 160, w = 480, h = 290;
+            r.quadSpec(ox + s * x, oy + s * y, s * w, s * h, x / 4.0f, (y - 100.0f) / 4.0f, (x + w) / 4.0f,
+                       (y + h - 100.0f) / 4.0f, lines, Color{}, Blend::Alpha);
+        }
+    }
     // The dot grid behind the preview, 120-px tiles of texels 0..120 (issue 240 item 6).
     const Texture2D* t = a.texture("gfx\\ui\\grid.tga");
     if (!t) return;

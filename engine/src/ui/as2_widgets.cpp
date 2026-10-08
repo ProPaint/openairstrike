@@ -136,15 +136,21 @@ void gulfPanelPieces(Renderer2D& r, const UiAssets& a, const Texture2D& t, float
 
 } // namespace
 
+void staticFill(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h, float texelW, float texelH) {
+    if (const Texture2D* n = snow(a)) {
+        const float r1 = noiseRandom(), r2 = noiseRandom();
+        if (h > 0) r.quadSpec(x, y, w, h, r1, r2, r1 + texelW / 256.0f, r2 + texelH / 256.0f, n, Color{}, Blend::Filter);
+    }
+}
+
 void panel(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h, float f, std::string_view title) {
     f = std::clamp(f, 0.0f, 1.0f);
     const float yt = (y - 15.0f) - (1.0f - f) * y;
     const float yb = (y + h - 13.0f) + (1.0f - f) * (kVirtualHeight - y - h);
     // 1. The static fill: the scene multiplied by fresh noise every frame.
-    if (const Texture2D* n = snow(a)) {
+    {
         const float H = f * f * h + kVirtualHeight * f * (1.0f - f);
-        const float r1 = noiseRandom(), r2 = noiseRandom();
-        if (H > 0) r.quadSpec(x, y + h * 0.5f - H * 0.5f, w, H, r1, r2, r1 + w / 256.0f, r2 + H / 256.0f, n, Color{}, Blend::Filter);
+        staticFill(r, a, x, y + h * 0.5f - H * 0.5f, w, H, w, H);
     }
     const Texture2D* t = interfaceAtlas(a);
     if (!t) return;

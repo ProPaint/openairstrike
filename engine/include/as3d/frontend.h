@@ -183,8 +183,14 @@ struct ModelView {
 
 // The dot grid the sequels' helicopter selection draws behind its model view (virtual
 // rectangle (210, 190, 381, 231), green, additive), for a host that shows the model elsewhere
-// (the 3DS: on the top screen). Each virtual coordinate v is drawn at (ox + s x, oy + s y).
-void drawModelViewBackdrop(Renderer2D& r, const UiAssets& a, float ox = 0, float oy = 0, float s = 1);
+// (the 3DS: on the top screen). Each virtual coordinate v is drawn at (ox + s x, oy + s y). With
+// `screen`, first what the menu screen has under the panel (Gulf Thunder: its scan lines; the
+// selection's own drawing leaves it to the screen).
+void drawModelViewBackdrop(Renderer2D& r, const UiAssets& a, float ox = 0, float oy = 0, float s = 1,
+                           bool screen = false);
+// The static fill of the selection's panel, drawn over the model (the scene multiplied by noise),
+// mapped as drawModelViewBackdrop.
+void drawModelViewStatic(Renderer2D& r, const UiAssets& a, float ox = 0, float oy = 0, float s = 1);
 
 class GameHost {
 public:

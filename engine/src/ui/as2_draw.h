@@ -108,6 +108,10 @@ void textButton(Renderer2D& r, const UiAssets& a, float left, float yDrawn, floa
 void text(Renderer2D& r, const UiAssets& a, float x, float y, std::string_view s, Color c, Align al = Align::Left,
           bool markup = false, float scale = 1.0f);
 
+// The panels' static fill: the scene under (x, y, w, h) multiplied by the noise texture at a
+// fresh random offset, texelW x texelH texels of it (panel() passes w x h).
+void staticFill(Renderer2D& r, const UiAssets& a, float x, float y, float w, float h, float texelW, float texelH);
+
 // The front end's own random source for the panel noise (issue 240 item 2), 0..1.
 float noiseRandom();
 
