@@ -168,6 +168,16 @@ private:
     std::unordered_map<CacheKey, Cached, CacheHash> cache_;
     unsigned builds_ = 0;
     std::vector<DecalVertex> verts_;
+    // The draws (build): one per texture, in the order each texture first appears; the shadows
+    // of one texture (every blob, the copies of one model's silhouette) are contiguous in verts_.
+    // Shadows write no depth and darken by a factor (alpha blend of black, or multiply), so their
+    // order does not change the picture beyond the 8-bit rounding of each blend.
+    struct Group {
+        const Texture2D* texture = nullptr;
+        size_t first = 0, count = 0;
+    };
+    std::vector<Group> groups_;
+    std::vector<DecalVertex> scratch_;
     const void* arenaVerts_ = nullptr;
     unsigned arenaFrame_ = ~0u;
 };

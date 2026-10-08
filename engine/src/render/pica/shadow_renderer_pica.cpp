@@ -112,6 +112,7 @@ bool ShadowPass::init() {
 void ShadowPass::begin() {
     items_.clear();
     verts_.clear();
+    groups_.clear();
     arenaVerts_ = nullptr;
     arenaFrame_ = ~0u;
     g_stats.drawn = g_stats.blobs = g_stats.vertices = g_stats.draws = 0;
@@ -161,6 +162,42 @@ void ShadowPass::build(const TerrainGridView& grid) {
             else ++i;
         }
     }
+    // Grouped by texture (first-appearance order, stable inside a group): one draw per group.
+    groups_.clear();
+    {
+        std::vector<int> groupOf(items_.size(), -1);
+        for (size_t i = 0; i < items_.size(); ++i) {
+            const Item& it = items_[i];
+            if (it.count == 0) continue;
+            int g = -1;
+            for (size_t k = 0; k < groups_.size(); ++k)
+                if (groups_[k].texture == it.texture) g = static_cast<int>(k);
+            if (g < 0) {
+                g = static_cast<int>(groups_.size());
+                groups_.push_back(Group{it.texture, 0, 0});
+            }
+            groupOf[i] = g;
+            groups_[static_cast<size_t>(g)].count += it.count;
+        }
+        size_t at = 0;
+        for (Group& g : groups_) {
+            g.first = at;
+            at += g.count;
+            g.count = 0;
+        }
+        scratch_.resize(verts_.size());
+        for (size_t i = 0; i < items_.size(); ++i) {
+            if (groupOf[i] < 0) continue;
+            Item& it = items_[i];
+            Group& g = groups_[static_cast<size_t>(groupOf[i])];
+            std::copy(verts_.begin() + static_cast<std::ptrdiff_t>(it.first),
+                      verts_.begin() + static_cast<std::ptrdiff_t>(it.first + it.count),
+                      scratch_.begin() + static_cast<std::ptrdiff_t>(g.first + g.count));
+            it.first = g.first + g.count;
+            g.count += it.count;
+        }
+        verts_.swap(scratch_);
+    }
     g_stats.vertices = static_cast<int>(verts_.size());
     g_stats.drapedNow = draped;
     g_stats.buildMs = msSince(t0);
@@ -192,14 +229,10 @@ void ShadowPass::draw(const Mat4& viewProj) {
     sh.setVertices(arenaVerts_);
     applyMaterialState(decalMaterialKey(multiply_ ? DecalBlend::Filter : DecalBlend::Alpha));
     applyTev(multiply_ ? tevShadowMultiply() : tevShadow(255));
-    const Texture2D* bound = nullptr;
-    for (const Item& it : items_) {
-        if (it.count == 0) continue;
-        if (it.texture != bound) {
-            it.texture->bind(0);
-            bound = it.texture;
-        }
-        C3D_DrawArrays(GPU_TRIANGLES, static_cast<int>(it.first), static_cast<int>(it.count));
+    for (const Group& g : groups_) {
+        if (g.count == 0) continue;
+        g.texture->bind(0);
+        C3D_DrawArrays(GPU_TRIANGLES, static_cast<int>(g.first), static_cast<int>(g.count));
         ++g_stats.draws;
     }
     MaterialKey plain; // blend off, depth test + write, cull back, no offset, level fog colour
