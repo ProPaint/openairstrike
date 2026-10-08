@@ -114,3 +114,10 @@ heap high-water, linear free). Fetch with ftpd and report:
 Code: `ctr_main.cpp` (entry), `run_config.*`, `ctr_loop.*` (the loop, `FrameHook`), `ctr_perf.*`;
 the graphics context is the engine's ctr platform backend (`engine/src/platform/ctr/`, its
 private header `ctr_context.h`).
+
+## PICA core test (M1.3)
+
+`mode=picatest` in `run.ini` runs `source/pica_test.cpp` before any game data is read: test
+patterns through `engine/src/render/pica` on the top screen, `picatest_log.txt` and
+`picatest_checks.txt` next to `run.ini`. Check a screenshot with
+`tools/3ds_picatest_check.py shot.png picatest_checks.txt` (docs/3ds-port.md, "M1.3").
