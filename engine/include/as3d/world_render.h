@@ -150,7 +150,8 @@ struct WorldRenderOptions {
     bool shadows = true;
     bool lights = true;    // dynamic lights (PlaceLight and definition lights)
     bool particles = true;
-    bool sprites = true;   // sprites and ground marks
+    bool sprites = true;   // sprites (and the enemy health bars)
+    bool marks = true;     // ground marks and the sequels' skid trails
 };
 
 // The rectangle of the bound framebuffer the world is drawn into (GL convention, y from the

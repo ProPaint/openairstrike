@@ -365,7 +365,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
                 break;
             }
             case ObjectType::Mark: {
-                if (!options.sprites || !def.hasBbox) break;
+                if (!options.marks || !def.hasBbox) break;
                 if (markDescs.size() >= GroundMarkRenderer::kMaxMarks) {
                     ++dropped;
                     break;
@@ -431,7 +431,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
     }
 
     // The sequels' skid marks (as2 delta 1.1 pass 5).
-    if (terrain && withSkids && rules_.skidMarkPass && options.sprites) collectSkidTrails(world);
+    if (terrain && withSkids && rules_.skidMarkPass && options.marks) collectSkidTrails(world);
     else skidTrailCount = 0;
     // Lightning bolts: effect-list records (sort 3) submitted by the Lightning builtin during
     // the entity pass (7.1).
