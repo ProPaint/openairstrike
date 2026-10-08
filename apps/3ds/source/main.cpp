@@ -35,6 +35,7 @@
 #include "spike.h"
 #include "fx_test.h"
 #include "terrain_test.h"
+#include "ui_test.h"
 
 extern "C" {
 extern u32 __ctru_heap_size;
@@ -253,6 +254,17 @@ int runSpike() {
         if (g_log) std::fclose(g_log);
         g_log = nullptr;
         fxtest::run(vfs, db, *game, kDir, runCfg.level, runCfg.botFrames, runCfg.holdFrames);
+        std::fflush(stderr);
+        C3D_Fini();
+        gfxExit();
+        return 0;
+    }
+
+    // mode=uitest: the M1.7 2D layer test (ui_test.cpp); it takes over the bottom screen.
+    if (runCfg.uitest) {
+        if (g_log) std::fclose(g_log);
+        g_log = nullptr;
+        uitest::run(vfs, db, *game, kDir, runCfg.level, runCfg.botFrames, runCfg.holdFrames);
         std::fflush(stderr);
         C3D_Fini();
         gfxExit();

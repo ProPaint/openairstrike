@@ -9,7 +9,10 @@ namespace as3d::ui {
 namespace {
 
 // One texture load (as3d/load_stats.h); texture() caches failures, so each path counts once.
-bool loadOne(Vfs& vfs, const std::string& path, Texture2D& out, std::string* error, Wrap wrap = Wrap::ClampToEdge) {
+// `cls` is the PICA backend's format hint (the GL backend ignores it): the font atlases are
+// LA8, the HUD pictures RGBA4, anything loaded by path keeps the automatic choice.
+bool loadOne(Vfs& vfs, const std::string& path, Texture2D& out, std::string* error, Wrap wrap = Wrap::ClampToEdge,
+             TextureClass cls = TextureClass::Auto) {
     LoadStats::Site site;
     LoadStats::count(LoadKind::Texture);
     Blob blob;
@@ -21,6 +24,7 @@ bool loadOne(Vfs& vfs, const std::string& path, Texture2D& out, std::string* err
     TextureOptions o;
     o.minFilter = o.magFilter = Filter::Linear;
     o.wrapS = o.wrapT = wrap;
+    o.cls = cls;
     out.create(image, o);
     return true;
 }
@@ -31,27 +35,27 @@ bool UiAssets::load(Vfs& vfs, std::string* error, GameId g) {
     vfs_ = &vfs;
     game = g;
     missing = 0;
-    fontLoaded = loadOne(vfs, "gfx\\ui\\font.tga", font, error);
+    fontLoaded = loadOne(vfs, "gfx\\ui\\font.tga", font, error, Wrap::ClampToEdge, TextureClass::Font);
     if (!fontLoaded) return false;
     // The HUD's atlases as the game's layout names them (a layout without one: not loaded).
     const HudLayout& L = hudLayout();
-    struct Item { const char* path; Texture2D* tex; Wrap wrap; };
+    struct Item { const char* path; Texture2D* tex; Wrap wrap; TextureClass cls; };
     const Item items_[] = {
-        {"gfx\\ui\\font_alpha.tga", &fontAlpha, Wrap::ClampToEdge},
-        {L.barAtlas, &mainbar, Wrap::ClampToEdge},
-        {L.lifeTexture, &life, Wrap::ClampToEdge},
-        {L.weaponsAtlas, &weapons, Wrap::ClampToEdge},
-        {L.missilesAtlas, &missiles, Wrap::ClampToEdge},
-        {L.itemsAtlas, &items, Wrap::ClampToEdge},
-        {"menu\\cursor_1.tga", &cursor1, Wrap::ClampToEdge},
-        {"menu\\cursor_2.tga", &cursor2, Wrap::ClampToEdge},
-        {L.mouseCursor, &mcCursor, Wrap::ClampToEdge},
-        {L.hint == HintStyle::SequelPanel ? L.panelAtlas : nullptr, &panel, Wrap::ClampToEdge},
+        {"gfx\\ui\\font_alpha.tga", &fontAlpha, Wrap::ClampToEdge, TextureClass::Font},
+        {L.barAtlas, &mainbar, Wrap::ClampToEdge, TextureClass::Alpha},
+        {L.lifeTexture, &life, Wrap::ClampToEdge, TextureClass::Alpha},
+        {L.weaponsAtlas, &weapons, Wrap::ClampToEdge, TextureClass::Alpha},
+        {L.missilesAtlas, &missiles, Wrap::ClampToEdge, TextureClass::Alpha},
+        {L.itemsAtlas, &items, Wrap::ClampToEdge, TextureClass::Alpha},
+        {"menu\\cursor_1.tga", &cursor1, Wrap::ClampToEdge, TextureClass::Alpha},
+        {"menu\\cursor_2.tga", &cursor2, Wrap::ClampToEdge, TextureClass::Alpha},
+        {L.mouseCursor, &mcCursor, Wrap::ClampToEdge, TextureClass::Alpha},
+        {L.hint == HintStyle::SequelPanel ? L.panelAtlas : nullptr, &panel, Wrap::ClampToEdge, TextureClass::Alpha},
         // The panel's static fill samples it at random offsets over more than one width.
-        {L.hint == HintStyle::SequelPanel ? L.panelNoise : nullptr, &panelNoise, Wrap::Repeat},
+        {L.hint == HintStyle::SequelPanel ? L.panelNoise : nullptr, &panelNoise, Wrap::Repeat, TextureClass::Alpha},
     };
     for (const Item& it : items_)
-        if (it.path && !loadOne(vfs, it.path, *it.tex, error, it.wrap)) missing++;
+        if (it.path && !loadOne(vfs, it.path, *it.tex, error, it.wrap, it.cls)) missing++;
     return true;
 }
 

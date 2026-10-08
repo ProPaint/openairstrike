@@ -1,0 +1,37 @@
+; flat2.v.pica: flat.v.pica with a second texture coordinate, for the 2D layer's runs that
+; combine two textures (as3d/batch2d.h CombineMode). See engine/src/render/pica/shader_set.h
+; (Flat2Vertex).
+;   v0 position  float x3
+;   v1 texcoord  float x2   -> texcoord0
+;   v2 colour    u8 x4      (0..255, scaled to 0..1 here)
+;   v3 texcoord2 float x2   -> texcoord1
+; Uniform: mvp (4 rows).
+
+.fvec mvp[4]
+
+.constf consts(0.0, 1.0, 0.00392156862, 0.0)
+.alias ones consts.yyyy
+.alias inv255 consts.zzzz
+
+.out outpos position
+.out outtc0 texcoord0
+.out outtc1 texcoord1
+.out outclr color
+
+.alias inpos v0
+.alias intex v1
+.alias inclr v2
+.alias intex2 v3
+
+.proc main
+	mov r0.xyz, inpos
+	mov r0.w, ones
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+	mov outtc0, intex
+	mov outtc1, intex2
+	mul outclr, inv255, inclr
+	end
+.end

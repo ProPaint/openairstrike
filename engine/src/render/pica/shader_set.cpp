@@ -1,6 +1,7 @@
 // ShaderSet (shader_set.h): the embedded shbins, attribute layouts and uniform locations.
 #include "shader_set.h"
 
+#include "flat2_shbin.h"
 #include "flat_shbin.h"
 #include "mesh_shbin.h"
 #include "terrain_shbin.h"
@@ -47,6 +48,13 @@ bool ShaderSet::loadOne(Shader s, const void* shbin, uint32_t size) {
         AttrInfo_AddLoader(&p.attr, 2, GPU_UNSIGNED_BYTE, 4); // v2 colour
         p.stride = sizeof(FlatVertex);
         break;
+    case Shader::Flat2:
+        AttrInfo_AddLoader(&p.attr, 0, GPU_FLOAT, 3);         // v0 position
+        AttrInfo_AddLoader(&p.attr, 1, GPU_FLOAT, 2);         // v1 texcoord
+        AttrInfo_AddLoader(&p.attr, 2, GPU_UNSIGNED_BYTE, 4); // v2 colour
+        AttrInfo_AddLoader(&p.attr, 3, GPU_FLOAT, 2);         // v3 texcoord2
+        p.stride = sizeof(Flat2Vertex);
+        break;
     case Shader::Mesh:
         AttrInfo_AddLoader(&p.attr, 0, GPU_FLOAT, 3);         // v0 position
         AttrInfo_AddLoader(&p.attr, 1, GPU_UNSIGNED_BYTE, 4); // v1 +X +Y +Z weights
@@ -69,6 +77,7 @@ bool ShaderSet::loadOne(Shader s, const void* shbin, uint32_t size) {
 bool ShaderSet::load() {
     unload();
     bool ok = loadOne(Shader::Flat, flat_shbin, flat_shbin_size);
+    ok = loadOne(Shader::Flat2, flat2_shbin, flat2_shbin_size) && ok;
     ok = loadOne(Shader::Mesh, mesh_shbin, mesh_shbin_size) && ok;
     ok = loadOne(Shader::Terrain, terrain_shbin, terrain_shbin_size) && ok;
     loaded_ = ok;
@@ -127,6 +136,7 @@ void ShaderSet::setVertices(const void* vertices) {
     C3D_BufInfo* buf = C3D_GetBufInfo();
     BufInfo_Init(buf);
     if (bound_ == Shader::Mesh) BufInfo_Add(buf, vertices, p.stride, 4, 0x3210);
+    else if (bound_ == Shader::Flat2) BufInfo_Add(buf, vertices, p.stride, 4, 0x3210);
     else BufInfo_Add(buf, vertices, p.stride, 3, 0x210);
 }
 

@@ -18,8 +18,8 @@
 
 namespace as3d::pica {
 
-enum class Shader { Flat = 0, Mesh = 1, Terrain = 2 };
-constexpr int kShaderCount = 3;
+enum class Shader { Flat = 0, Mesh = 1, Terrain = 2, Flat2 = 3 };
+constexpr int kShaderCount = 4;
 
 // flat.v.pica: particles, sprites, decals, 2D quads, fills.
 struct FlatVertex {
@@ -28,6 +28,15 @@ struct FlatVertex {
     uint8_t rgba[4];
 };
 static_assert(sizeof(FlatVertex) == 24, "FlatVertex layout");
+
+// flat2.v.pica: FlatVertex plus a second texture coordinate (the 2D layer's two-texture runs).
+struct Flat2Vertex {
+    float pos[3];
+    float uv[2];
+    uint8_t rgba[4];
+    float uv2[2];
+};
+static_assert(sizeof(Flat2Vertex) == 32, "Flat2Vertex layout");
 
 // mesh.v.pica: models with baked ambient-cube weights (as3d/ambient_cube.h AmbientCubeWeightsU8).
 struct MeshVertex {
@@ -73,7 +82,7 @@ public:
     void setMeshTint(const Vec4& rgba);      // mesh
     void setTerrainDetail(float sx, float sy, float ox, float oy); // terrain: uv1 = pos.xy * s + o
 
-    // Vertex buffers (linear memory) of the bound shader: one interleaved stream for Flat and
+    // Vertex buffers (linear memory) of the bound shader: one interleaved stream for Flat, Flat2 and
     // Mesh; the static stream plus the dynamic-light stream (u8 x4 per vertex) for Terrain.
     void setVertices(const void* vertices);
     void setTerrainVertices(const TerrainVertexPica* vertices, const uint8_t (*dynamic)[4]);

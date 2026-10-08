@@ -5,25 +5,14 @@
 
 #include "as3d/game_profile.h"
 #include "as3d/input.h"
+#include "as3d/touch_controls.h"
 #include "as3d/ui.h"
 #include "fps_counter.h"
 
 namespace as3d_game {
 
-// What the touch buttons show besides their shape (docs/spec/issues/140).
-struct TouchOverlayState {
-    // The HUD atlases and font: the missile and power-up buttons show the selected type's
-    // icon and count, next weapon the current weapon. Null: plain drawn symbols.
-    const as3d::ui::UiAssets* assets = nullptr;
-    const as3d::ui::HudPlayer* player = nullptr; // player 1's HUD state; null: no icons, no counts
-    float alpha = 1.0f;                          // overall opacity (as3d::TouchFade)
-    // The rules the next-item previews cycle by (as3d/player_select.h): the game's, so that the
-    // sequels' 9 weapon slots and power-up skip mask preview what a press selects. Null: the
-    // first game's.
-    const as3d::GameRules* rules = nullptr;
-};
-
-void drawTouchControls(as3d::ui::Renderer2D& r, const as3d::TouchMapper& touch, const TouchOverlayState& state = {});
+using TouchOverlayState = as3d::ui::TouchControlsState; // as3d/touch_controls.h
+using as3d::ui::drawTouchControls;
 // The touch buttons in a sub-rectangle of the framebuffer (GL convention, origin lower left), laid
 // out in its own pixels: the 3DS bottom-screen preview (as3d_game --dual-screen), whose touch
 // layout is the rectangle's (TouchLayoutOptions::forBottomScreen320x240).

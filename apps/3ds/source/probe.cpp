@@ -192,6 +192,7 @@ RunConfig readRunConfig(const std::string& path) {
             c.terraintest = val == "terraintest";
             c.fxtest = val == "fxtest";
             c.meshtest = val == "meshtest";
+            c.uitest = val == "uitest";
         } else if (key == "only") c.only = val;
         else if (key == "hold") c.holdFrames = std::max(0, std::atoi(val.c_str()));
         else if (key == "frames") c.botFrames = std::max(0, std::atoi(val.c_str()));

@@ -1,7 +1,7 @@
 # input: keyboard/mouse action mapping, input scripts and the test pilot (as3d/input.h).
 # Uses the simulation's PlayerInput (as3d_game) and SDL2's scancode constants (headers only;
 # no SDL function is called here).
-target_link_libraries(as3d_input PUBLIC as3d_game as3d_core)
+target_link_libraries(as3d_input PUBLIC as3d_game as3d_ui as3d_core)
 if(NINTENDO_3DS)
   # input_mapper.cpp (keyboard/mouse) is the one file that needs SDL's scancode headers.
   get_target_property(_as3d_input_srcs as3d_input SOURCES)
