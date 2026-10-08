@@ -170,6 +170,8 @@ public:
     int dropped = 0;
 
     bool hbarReady() const { return hbarReady_; }
+    const HealthBarSpriteDef& hbarEmpty() const { return hbarEmpty_; }
+    const HealthBarSpriteDef& hbarFull() const { return hbarFull_; }
 
 private:
     // Per entity slot: what the renderer remembers about the entity since it first saw it (the
