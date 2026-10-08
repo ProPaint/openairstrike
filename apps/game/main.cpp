@@ -163,7 +163,14 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--fps") a.fps = true;
         else if (s == "--dual-screen") a.dual = true;
         else if (s == "--render-only" && next()) {
-            if (std::strcmp(v, "terrain") != 0) return false;
+            // A comma separated list of terrain, particles, sprites, healthbars.
+            std::string list = std::string(",") + v + ",";
+            for (size_t i = 1; i + 1 < list.size();) {
+                size_t e = list.find(',', i);
+                std::string name = list.substr(i, e - i);
+                if (name != "terrain" && name != "particles" && name != "sprites" && name != "healthbars") return false;
+                i = e + 1;
+            }
             a.renderOnly = v;
         }
         else if (s == "--precache") a.game.precache = true;

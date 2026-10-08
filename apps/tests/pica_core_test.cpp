@@ -11,6 +11,7 @@
 
 #include "as3d/math.h"
 #include "as3d/world_render.h"
+#include "fx_pica.h"
 #include "linear_arena.h"
 #include "pica_space.h"
 #include "tev.h"
@@ -358,4 +359,24 @@ TEST_CASE("pica space: the eye projection equals citro3d's Mtx_PerspStereoTilt w
     const EyeView eye{1.0f, 200.0f};
     const Mat4 naive = citroPerspStereoTilt(degToRad(60.0f), aspect, 4.0f, 2000.0f, 2.0f, 200.0f);
     CHECK(maxAbsDiff(naive, picaEyeProjectionReference(view, eye, aspect)) > 0.03f);
+}
+
+TEST_CASE("fx_pica: capRuns cuts the built lists at the cap") {
+    auto run = [](int first, int count) {
+        DrawRun r;
+        r.first = first;
+        r.count = count;
+        return r;
+    };
+    std::vector<DrawRun> runs = {run(0, 12), run(12, 18), run(30, 6)};
+    CHECK(capRuns(runs, 36, 40) == 36); // under the cap: untouched
+    CHECK(runs.size() == 3);
+    CHECK(capRuns(runs, 36, 24) == 24); // cuts the second run
+    REQUIRE(runs.size() == 2);
+    CHECK(runs[1].first == 12);
+    CHECK(runs[1].count == 12);
+    CHECK(capRuns(runs, 24, 12) == 12); // drops the second run
+    REQUIRE(runs.size() == 1);
+    CHECK(runs[0].count == 12);
+    CHECK(kMaxParticleQuadsPica * 6 == 9216);
 }
