@@ -130,7 +130,7 @@ int usage() {
                  "                 [--dual-screen]  (3DS preview: 400x240 world above a 320x240 touch screen, 400x480 window)\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
                  "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n"
-                 "                 [--render-only LIST]  (terrain,particles,sprites,healthbars: only these passes, no 2D layer)\n"
+                 "                 [--render-only LIST]  (terrain,models,particles,sprites,healthbars: only these passes, no 2D layer)\n"
                  "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n"
                  "       as3d_game --headless --selector-shot FILE.png [--selector-games K1,K2] [--size WxH] [--touch]\n"
                  "                      [--screen wide|4x3] [--insets L,T,R,B] [--selector-focus N] [--selector-time SECONDS]\n");
@@ -163,12 +163,12 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--fps") a.fps = true;
         else if (s == "--dual-screen") a.dual = true;
         else if (s == "--render-only" && next()) {
-            // A comma separated list of terrain, particles, sprites, healthbars.
+            // A comma separated list of terrain, models, particles, sprites, healthbars.
             std::string list = std::string(",") + v + ",";
             for (size_t i = 1; i + 1 < list.size();) {
                 size_t e = list.find(',', i);
                 std::string name = list.substr(i, e - i);
-                if (name != "terrain" && name != "particles" && name != "sprites" && name != "healthbars") return false;
+                if (name != "terrain" && name != "models" && name != "particles" && name != "sprites" && name != "healthbars") return false;
                 i = e + 1;
             }
             a.renderOnly = v;
@@ -272,14 +272,16 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
         view->dualScreen = a.dual;
         if (!a.renderOnly.empty()) {
             // --render-only LIST: only the named world passes (comma separated: terrain,
-            // particles, sprites, healthbars), no models, shadows, lights, 2D layer or
-            // brightness (reference images for the 3DS port's per-renderer tests, docs/3ds-port.md
-            // M1.4 and M1.6). Health bars are sprites of the sprite pass: "healthbars" is "sprites".
+            // models, particles, sprites, healthbars), no shadows, 2D layer or brightness
+            // (reference images for the 3DS port's per-renderer tests, docs/3ds-port.md M1.4 to
+            // M1.6). Health bars are sprites of the sprite pass: "healthbars" is "sprites".
+            // "models" keeps the dynamic lights on: they light the models as in the game.
             const std::string list = "," + a.renderOnly + ",";
             auto has = [&](const char* name) { return list.find(std::string(",") + name + ",") != std::string::npos; };
             view->worldOptions = WorldRenderOptions{};
             view->worldOptions.terrain = has("terrain");
-            view->worldOptions.models = view->worldOptions.shadows = view->worldOptions.lights = false;
+            view->worldOptions.models = view->worldOptions.lights = has("models");
+            view->worldOptions.shadows = false;
             view->worldOptions.particles = has("particles");
             view->worldOptions.sprites = has("sprites") || has("healthbars");
             view->worldOnly = true;
