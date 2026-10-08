@@ -20,6 +20,7 @@ int main() {
     options.run = ctrapp::readRunConfig(std::string(ctrapp::kDataDir) + "/run.ini");
     // Hardware A/B switches (run.ini depthmap=, water=, water_tile=; the test modes too).
     as3d::pica::setWBufferAsZBuffer(options.run.depthMapZ);
+    as3d::pica::setFogForcedOff(!options.run.fog);
     as3d::ctr::setTopColor565(options.run.top565); // run.ini top_format= (before the graphics context)
     as3d::pica::setWaterOptions(options.run.water, options.run.waterTile >= 0.0f ? options.run.waterTile
                                                                                 : as3d::pica::kDefaultWaterTile);

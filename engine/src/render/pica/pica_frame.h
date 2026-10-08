@@ -109,6 +109,8 @@ void applyDepthMap(float offset);
 // GPU_PLAIN_DENSITY, false); the gas mode is irrelevant in fog mode). disableFog turns it off.
 void setFog(float nearPlane, float farPlane, float fogStart, float fogEnd);
 void disableFog();
+// run.ini fog=0: setFog leaves the fog unit off (hardware A/B of the fog table).
+void setFogForcedOff(bool off);
 bool fogEnabled();
 // The level's fog colour; applyMaterialState sets C3D_FogColor(fogColorFor(key.fog, this)).
 void setLevelFogColor(const Vec3& rgb);

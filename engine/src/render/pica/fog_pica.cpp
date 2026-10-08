@@ -29,7 +29,15 @@ FogState& fog() {
 
 } // namespace
 
+bool g_fogForcedOff = false; // run.ini fog=0 (hardware A/B)
+
+void setFogForcedOff(bool off) { g_fogForcedOff = off; }
+
 void setFog(float nearPlane, float farPlane, float fogStart, float fogEnd) {
+    if (g_fogForcedOff) {
+        disableFog();
+        return;
+    }
     FogState& s = fog();
     const FogDepthMap map = depthMapping();
     if (!s.lutValid || s.nearPlane != nearPlane || s.farPlane != farPlane || s.start != fogStart ||

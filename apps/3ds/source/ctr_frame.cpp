@@ -175,6 +175,7 @@ struct GameFrame::Impl {
     pica::MeshPass modelPass;
     int modelX = 0, modelY = 0, modelW = 0, modelH = 0; // the viewport, top screen pixels from the top left
     float topBrightness = 0.6f;
+    float cmdUsageMax = 0.0f; // the largest C3D_GetCmdBufUsage seen after a top eye's last draw (256 KB list; full drops draws)
     // The frame.
     StereoParams stereo;
     float playerDepth = 0.0f;
@@ -795,6 +796,7 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
         m.extraDraws = 1;
         m.extraVerts = 4;
     }
+    im.cmdUsageMax = std::max(im.cmdUsageMax, C3D_GetCmdBufUsage());
     // gpu_kick=1: the GPU draws this eye while the CPU records the next (pica_frame.h).
     pica::kickGpu();
 }
@@ -918,6 +920,8 @@ void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
               static_cast<double>(im.stereo.eyeOffset), static_cast<double>(im.stereo.focal),
               static_cast<double>(im.playerDepth), static_cast<double>(px[0]), static_cast<double>(px[1]),
               static_cast<double>(py), static_cast<double>(far));
+    AS3D_INFO("AS3D_DUMP cmdbuf usage %.3f (max so far %.3f), brightness %.2f", static_cast<double>(C3D_GetCmdBufUsage()),
+              static_cast<double>(im.cmdUsageMax), static_cast<double>(im.topBrightness));
     const pica::WorldPicaStats& wps = pica::worldPicaStats();
     AS3D_INFO("AS3D_DUMP model records %d, from linear-memory textures %d:%s", wps.records, wps.linearRecords,
               wps.linearSkins.c_str());
@@ -925,6 +929,7 @@ void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
 
 void GameFrame::end() {
     Impl& im = *impl_;
+    AS3D_INFO("AS3D_CMDBUF max usage %.3f of the command list (top eyes, before the kick)", static_cast<double>(im.cmdUsageMax));
     im.logLazyLoads();
     if (im.backend && im.ctx) {
         // Two empty frames: C3D_FrameBegin waits until the GPU is done with every texture and
