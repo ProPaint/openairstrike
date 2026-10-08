@@ -432,13 +432,25 @@ HeliView heliView(const Scene& s, const World& world) {
     for (const auto* l : lists)
         for (const Record& r : *l)
             if (r.root == s.player || r.entity == s.player) h.recs.push_back(&r);
-    h.cam.eye = target + Vec3{-22.0f, -30.0f, 18.0f};
-    h.cam.target = target;
-    h.cam.worldUp = Vec3{0.0f, 0.0f, 1.0f};
-    h.cam.fovYDegrees = 40.0f;
-    h.cam.aspect = kAspect;
-    h.cam.nearPlane = 1.0f;
-    h.cam.farPlane = 400.0f;
+    // Framed on the helicopter body's world box (Camera::framing, as the model viewer), from
+    // behind-left and above.
+    Vec3 lo{1e30f, 1e30f, 1e30f}, hi{-1e30f, -1e30f, -1e30f};
+    for (const Record* r : h.recs) {
+        if (r->entity != s.player) continue;
+        const ModelData& md = r->mesh->model;
+        for (int k = 0; k < 8; ++k) {
+            const Vec3 c{(k & 1) ? md.boundsMax.x : md.boundsMin.x, (k & 2) ? md.boundsMax.y : md.boundsMin.y,
+                         (k & 4) ? md.boundsMax.z : md.boundsMin.z};
+            const Vec4 w = r->model * Vec4{c.x, c.y, c.z, 1.0f};
+            lo = Vec3{std::min(lo.x, w.x), std::min(lo.y, w.y), std::min(lo.z, w.z)};
+            hi = Vec3{std::max(hi.x, w.x), std::max(hi.y, w.y), std::max(hi.z, w.z)};
+        }
+    }
+    if (lo.x > hi.x) {
+        lo = target - Vec3{5.0f, 5.0f, 5.0f};
+        hi = target + Vec3{5.0f, 5.0f, 5.0f};
+    }
+    h.cam = Camera::framing(lo, hi, 215.0f, 35.0f, 1.0f, kAspect);
     return h;
 }
 
