@@ -1087,6 +1087,38 @@ unchanged: map_pos 452.0, 39 entities, created 243, freed 204.
 Deferred: sequel water (M5.1, done), environment maps (M3.4, done), a
 real in-game bolt against the desktop (Lightning Bomb; needs a script that picks it up), hardware timing.
 
+**Water on hardware (2026-10-08): large triangles lose depth precision on the PICA.** On the New 3DS,
+mission 1 from about step 2000 (dump at step 2700) showed the plane over the terrain: the pale water
+covered ground, roads and the compound, while the models stood out of it. Azahar and the desktop were
+clean at the same step, and the console was clean at step 1400. The wash had straight screen-space edges
+(a quad's diagonal across a cliff: washed on one side, clean on the other), so it was per triangle and
+not per distance. The plane's triangles are half of a 1280 x 320 unit quad, with their vertices far
+outside the screen. The console's triangle setup interpolates depth across them too coarsely, Azahar
+computes in float. No corner was behind the camera (corner w 83 to 1348). The fix: each 320-unit quad is
+cut into tiles of about 80 units (16 x 4), each culled against the eye with the same test, the texture
+mapping unchanged (`pica::setWaterOptions`, `kDefaultWaterTile`). Mission 1: 5 of 32 quads, 220 to 234
+tiles, about 1400 vertices and 33 KB of arena per eye, still 1 draw. Azahar `watertest_w` at 1400 is the
+same picture as with the quads (MAE 0.00), 1.41 against the desktop as before. On the console at step
+2700 (drop 1262d25), the MAE against the desktop frame went from 21.1 to 5.9, the rest being the HUD the
+desktop draws on the same screen. The rule applies to every pass: a depth-tested triangle must stay small
+in world units. The terrain (40-unit cells), the wave grid (per cell), marks, shadows and models are small.
+The full-screen quads (scissored clears through `fillQuad`, the brightness pass, the 2D layer) are at a
+constant depth or have no depth test, so they are not affected. Run.ini switches for hardware A/B
+(README): `water_tile=N` (0 = the GL's quads), `water=0`, and `depthmap=z` (the world passes use the
+Z-buffer mapping, with the fog table rebuilt for it). A `pica water: draw N` line every 600 draws logs
+planeZ, quads, tiles and the corner w.
+
+**GPU command buffer (2026-10-08).** Gulf Thunder mission 1 in stereo stopped under Azahar at bot frame
+345 (step about 690): the log ended and the emulator kept running. citro3d's default buffer
+(`C3D_DEFAULT_CMDBUF_SIZE`, 256 KB) was 93 % full on the frame before: 435 draws for the two eyes and both
+screens. The next frame overflowed. libctru drops the commands that do not fit, the frame's end is never
+signalled, and the next `C3D_FrameBegin` waits forever. The as3d stereo hardware run with up to 424 draws
+was close to the same limit. The context now creates a 1 MB buffer (`graphics_context_ctr.cpp`,
+`kCmdBufBytes`; 768 KB more linear memory), and `endFrame` warns (`ctr: GPU command buffer N % of 1024 KB
+used in one frame`) at each new 10 % step of the high-water mark above 50 %. Gulf mission 1 in stereo now
+runs 600 steps (map_pos 614.3, 119 entities, created 733, freed 614) and 3000 steps (map_pos 3240.8,
+479 draws at the end, no warning).
+
 ## M3.4 Environment maps on the PICA (shaders/env.v.pica, mesh_renderer_pica.cpp)
 
 The GL draws an environment-mapped model in ONE pass (gles/shaders.cpp kMeshVertexSrc /

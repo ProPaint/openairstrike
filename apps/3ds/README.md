@@ -109,6 +109,9 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `hold`, `only` | | probe only (see above) |
 | `attract`, `logo`, `menu_bot`, `pad_script`, `dump_every`, `dump_screens`, `dump_prefix` | | the front end, see "Front end (M2.1)" |
 | `quality` | `auto` (default), `new`, `old` | the quality profile (M4.1): `auto` picks by APT_CheckNew3DS; `old` = 30 Hz render, particle/sprite caps, blob shadows, no terrain detail |
+| `water_tile` | world units, default 80 | the first game's water plane is drawn in tiles of about this size; `0` = the GL's 1280 x 320 quads, whose large triangles lose depth precision on the console (docs/3ds-port.md "Water on hardware") |
+| `water` | `1` (default) or `0` | `0` draws no water (hardware A/B) |
+| `depthmap` | `w` (default) or `z` | `z`: the world passes use the Z-buffer depth mapping instead of the W-buffer, with the fog table rebuilt for it (hardware A/B) |
 
 `mode=bot level=1 frames=3600 perf=1` is the M1 acceptance run. START+SELECT held together quits
 cleanly in every loop mode. HOME and sleep pause the world, call the save hook (none yet) and flush

@@ -12,7 +12,10 @@
 // the colour and alpha in the vertex colour (TEV: texture x vertex colour; the texture is opaque
 // RGB565, so the alpha is the style's, as the GL's which ignores the texture alpha). Each eye
 // culls the quads against its own matrix as the GL does (conservative clip-space test of the 4
-// corners) and draws the visible ones, adjacent quads as one draw call.
+// corners) and draws the visible ones, adjacent quads as one draw call. On the console the quads'
+// large triangles lose depth precision (the plane showed through the terrain), so by default each
+// visible quad is cut into tiles of about kDefaultWaterTile units, each culled the same way and
+// written to the arena per eye (docs/3ds-port.md "Water on hardware").
 //
 // The texture is created at beginLevel (after the terrain's, so it goes to VRAM while the 4.2 MB
 // budget has room, else linear memory: waterPicaStats().textureVram).
