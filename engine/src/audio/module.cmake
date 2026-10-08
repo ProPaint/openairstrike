@@ -24,9 +24,28 @@
 #    music_*.cpp the same way.
 option(AS3D_WITH_OPENMPT "Build libopenmpt and tracker music support" ON)
 
+# Pre-rendered music (docs/3ds-port.md M2.4): music_tremor.cpp, an Ogg Vorbis MusicSource over
+# tremor (libvorbisidec + libogg from devkitPro's 3DS portlibs). ON on the 3DS only.
+if(NINTENDO_3DS)
+  option(AS3D_WITH_TREMOR "Pre-rendered Ogg music through tremor" ON)
+else()
+  set(AS3D_WITH_TREMOR OFF)
+endif()
+
 get_target_property(_as3d_audio_srcs as3d_audio SOURCES)
-list(FILTER _as3d_audio_srcs EXCLUDE REGEX "/music_(openmpt|stub)\\.cpp$")
+list(FILTER _as3d_audio_srcs EXCLUDE REGEX "/music_(openmpt|stub|tremor)\\.cpp$")
 set_property(TARGET as3d_audio PROPERTY SOURCES ${_as3d_audio_srcs})
+if(AS3D_WITH_TREMOR)
+  target_compile_definitions(as3d_audio PUBLIC AS3D_WITH_TREMOR=1)
+  target_sources(as3d_audio PRIVATE ${CMAKE_CURRENT_LIST_DIR}/music_tremor.cpp)
+  find_path(AS3D_TREMOR_INCLUDE tremor/ivorbisfile.h REQUIRED)
+  find_library(AS3D_TREMOR_LIB vorbisidec REQUIRED)
+  find_library(AS3D_OGG_LIB ogg REQUIRED)
+  target_include_directories(as3d_audio PRIVATE "${AS3D_TREMOR_INCLUDE}")
+  target_link_libraries(as3d_audio PUBLIC "${AS3D_TREMOR_LIB}" "${AS3D_OGG_LIB}")
+else()
+  target_compile_definitions(as3d_audio PUBLIC AS3D_WITH_TREMOR=0)
+endif()
 if(AS3D_WITH_OPENMPT)
   target_compile_definitions(as3d_audio PUBLIC AS3D_WITH_OPENMPT=1)
   target_sources(as3d_audio PRIVATE ${CMAKE_CURRENT_LIST_DIR}/music_openmpt.cpp)

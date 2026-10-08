@@ -9,6 +9,9 @@
 #include "audio_device.h"
 #include "mixer.h"
 #include "music_decoder.h"
+#if AS3D_WITH_TREMOR
+#include "music_ogg.h"
+#endif
 #include "wav.h"
 
 namespace as3d {
@@ -33,7 +36,33 @@ struct Audio::Impl {
     std::string musicTitle;
     bool musicLoop = true;
     int musicTaps = 0;
+    std::string prerenderedDir;  // setPrerenderedMusicDir
+    const char* musicDecoder = "none";
 };
+
+namespace {
+
+#if AS3D_WITH_TREMOR
+// A whole OS file, or an empty blob.
+Blob readOsFile(const std::string& path) {
+    Blob b;
+    std::unique_ptr<IStream> s = openFileStream(path);
+    if (!s) return b;
+    b.resize(s->size());
+    if (!b.empty() && !s->readAt(0, b.data(), b.size())) b.clear();
+    return b;
+}
+
+// "music\\track05.mo3" -> "track05"
+std::string musicBaseName(const std::string& norm) {
+    size_t a = norm.find_last_of("\\/");
+    std::string n = a == std::string::npos ? norm : norm.substr(a + 1);
+    size_t dot = n.find_last_of('.');
+    return dot == std::string::npos ? n : n.substr(0, dot);
+}
+#endif
+
+}  // namespace
 
 Audio::Audio() : impl_(new Impl()) {}
 Audio::~Audio() { shutdown(); }
@@ -117,6 +146,25 @@ void Audio::stopAll() { impl_->mixer.stopAll(); }
 bool Audio::playMusic(const char* gamePath, bool loop) {
     if (!gamePath || !*gamePath || !impl_->vfs) return false;
     std::string norm = normalizePath(gamePath);
+    impl_->musicDecoder = "none";
+#if AS3D_WITH_TREMOR
+    // The pre-rendered file first (docs/3ds-port.md M2.4): <dir>/<module name>.ogg and its
+    // game-over part <dir>/<module name>_gameover.ogg, written by audio_tool render-music.
+    if (!impl_->prerenderedDir.empty()) {
+        const std::string base = impl_->prerenderedDir + "/" + musicBaseName(norm);
+        Blob ogg = readOsFile(base + ".ogg");
+        if (!ogg.empty()) {
+            auto source = std::make_unique<audio::OggMusic>();
+            if (source->load(std::move(ogg), readOsFile(base + "_gameover.ogg"))) {
+                impl_->musicTitle = musicBaseName(norm) + " (pre-rendered)";
+                impl_->musicLoop = true;  // a pre-rendered file always loops
+                impl_->musicDecoder = "ogg";
+                impl_->mixer.setMusic(source.release());
+                return true;
+            }
+        }
+    }
+#endif
     Blob data;
     if (!impl_->vfs->read(norm, data)) {
         AS3D_WARN("audio: music not found: %s", norm.c_str());
@@ -131,6 +179,7 @@ bool Audio::playMusic(const char* gamePath, bool loop) {
     if (impl_->musicTaps > 0) decoder->setInterpolation(impl_->musicTaps);
     impl_->musicTitle = decoder->title();
     impl_->musicLoop = loop;
+    impl_->musicDecoder = "openmpt";
     impl_->mixer.setMusic(decoder.release());  // Mixer now owns it
     return true;
 }
@@ -144,6 +193,8 @@ bool Audio::isMusicPlaying() const { return impl_->mixer.hasMusic(); }
 bool Audio::jumpMusicToOrder(int order) { return impl_->mixer.jumpMusicToOrder(order); }
 int Audio::musicOrder() const { return impl_->mixer.musicOrder(); }
 void Audio::setMusicInterpolation(int taps) { impl_->musicTaps = taps; }
+void Audio::setPrerenderedMusicDir(const std::string& dir) { impl_->prerenderedDir = dir; }
+const char* Audio::musicDecoderName() const { return impl_->musicDecoder; }
 MusicDecodeStats Audio::musicDecodeStats(bool resetMax) { return impl_->mixer.musicCost(resetMax); }
 std::string Audio::musicTitle() const { return impl_->musicTitle; }
 

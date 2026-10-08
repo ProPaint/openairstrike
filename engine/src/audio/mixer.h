@@ -14,7 +14,7 @@
 #include <mutex>
 
 #include "as3d/audio.h"
-#include "music_decoder.h"
+#include "music_source.h"
 #include "wav.h"
 
 namespace as3d::audio {
@@ -58,9 +58,9 @@ public:
     void setVoiceParams(VoiceId id, const PlayParams& params);
     void stopAll();
 
-    // Takes ownership of `decoder` (may be null to stop music). `decoder`
+    // Takes ownership of `source` (may be null to stop music). A module
     // must already have had setLoop() applied.
-    void setMusic(MusicDecoder* decoder);
+    void setMusic(MusicSource* source);
     void clearMusic();
     bool hasMusic() const;
     // Under the lock: jumps the music to `order`, or to order 0 when the module is shorter.
@@ -84,7 +84,7 @@ public:
     u64 voicesStolenCount() const;
     u64 totalVoicesStartedCount() const;
 
-    // The music decoder's cost, measured around MusicDecoder::read in render() (lock free:
+    // The music decoder's cost, measured around MusicSource::read in render() (lock free:
     // atomics written by the audio thread). `resetMax` restarts the longest-call figure.
     MusicDecodeStats musicCost(bool resetMax = false);
 
@@ -106,7 +106,7 @@ private:
     u64 started_ = 0;
     float musicGain_ = 1.0f;  // musicVolume_ and deviceRate_ as of the current render() call
     int musicRate_ = 44100;
-    MusicDecoder* music_ = nullptr;  // owned, under musicMutex_
+    MusicSource* music_ = nullptr;  // owned, under musicMutex_
     std::atomic<bool> hasMusic_{false};
     std::atomic<u64> musicDecodeUs_{0};
     std::atomic<u64> musicFrames_{0};

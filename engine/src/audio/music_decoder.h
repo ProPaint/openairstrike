@@ -8,13 +8,14 @@
 #include <string>
 
 #include "as3d/core.h"
+#include "music_source.h"
 
 namespace as3d::audio {
 
-class MusicDecoder {
+class MusicDecoder final : public MusicSource {
 public:
     MusicDecoder();
-    ~MusicDecoder();
+    ~MusicDecoder() override;
     MusicDecoder(const MusicDecoder&) = delete;
     MusicDecoder& operator=(const MusicDecoder&) = delete;
 
@@ -29,16 +30,16 @@ public:
     // (2*frames floats). Pads with silence and returns false once the
     // (non-looping) module has ended; used on the audio thread, does not
     // allocate.
-    bool read(int sampleRate, float* out, int frames);
+    bool read(int sampleRate, float* out, int frames) override;
 
     double durationSeconds() const;
     std::string title() const;
     int numChannels() const;
-    int numOrders() const;
+    int numOrders() const override;
     int numPatterns() const;
     // Jumps to the start (row 0) of pattern order `order`; false if out of range.
-    bool setOrder(int order);
-    int currentOrder() const;
+    bool setOrder(int order) override;
+    int currentOrder() const override;
 
 private:
     struct Impl;

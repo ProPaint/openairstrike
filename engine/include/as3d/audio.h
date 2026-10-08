@@ -121,6 +121,12 @@ public:
     void setMusicInterpolation(int taps);
     // The decoder's cost; `resetMax` restarts maxCallUs.
     MusicDecodeStats musicDecodeStats(bool resetMax = false);
+    // A build with tremor (AS3D_WITH_TREMOR, the 3DS): playMusic first looks for the module
+    // pre-rendered as <dir>/<module file name without extension>.ogg (and its game-over part,
+    // <name>_gameover.ogg) and falls back to the module. Empty (the default): modules only.
+    void setPrerenderedMusicDir(const std::string& osDir);
+    // The decoder of the last music started: "ogg", "openmpt" or "none".
+    const char* musicDecoderName() const;
 
     void setSfxVolume(float linear);
     void setMusicVolume(float linear);

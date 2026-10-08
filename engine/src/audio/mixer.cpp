@@ -97,8 +97,8 @@ void Mixer::stopAll() {
     for (auto& v : voices_) v.active = false;
 }
 
-void Mixer::setMusic(MusicDecoder* decoder) {
-    MusicDecoder* old = nullptr;
+void Mixer::setMusic(MusicSource* decoder) {
+    MusicSource* old = nullptr;
     {
         std::lock_guard<std::mutex> lock(musicMutex_);
         old = music_;
