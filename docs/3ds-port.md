@@ -14,7 +14,8 @@ toolchain. `AS3D_BUILD_JOBS=N` limits the parallelism. The root `CMakeLists.txt`
 SDL, GL or Python). `engine/CMakeLists.txt` builds core, vfs, formats, script, game, audio, input,
 ui, render and platform with the pica/ndsp/ctr backend defaults; a module with no files in its
 backend directory yet builds its neutral part only. `input_mapper.cpp` (SDL scancodes) is
-removed from `as3d_input` on the 3DS; audio uses `AS3D_WITH_OPENMPT=OFF` and the null device.
+removed from `as3d_input` on the 3DS; audio: the ndsp device (M2.3), music through libopenmpt
+when its source tree is there and tremor (M2.4).
 The 3DS build uses gnu++17 (newlib needs `_GNU_SOURCE` for `fseeko`). `run.ini` `mode=spike|probe`
 works as before.
 
@@ -770,6 +771,116 @@ Stubbed / deferred: music (M2.4); the save details on hardware, `aptSetSleepAllo
 no `*.tmp` (M2.5); the sequels' helicopter preview on the PICA (`drawModel` is a no-op) and their
 front end on the 3DS untested; the main menu's 3D banner on the PICA (the title text stands in);
 legibility (M2.2).
+
+## M2.4 Music: libopenmpt measured, pre-rendered Ogg through tremor
+
+Both paths are built and run end to end; which one the console uses is the hardware's verdict
+(the checklist below). The game looks for the pre-rendered file first and falls back to the module.
+
+What the games need. AirStrike 3D's levels name five modules, `music\track01.mo3` ..
+`track05.mo3` (230 to 664 KB; the sequels ship the same five names). MO3 needs only libopenmpt's
+own MO3 loader and, for its Vorbis-compressed samples, the bundled `stb_vorbis` the desktop
+already compiles: no mpg123, libvorbis or zlib. The menu (attract level `intro1`) and mission 1
+both play `track05.mo3`; the largest, `track04.mo3`, is the heaviest case measured.
+
+libopenmpt on the 3DS (`AS3D_WITH_OPENMPT`, built from source). There is no devkitPro package;
+the image's portlibs have libogg, tremor (libvorbisidec), libmpg123, libxmp, libmodplug and
+libmikmod but not libopenmpt. `tools/3ds_build.sh` mounts the source tree that
+`tools/fetch_third_party.sh openmpt` downloads once into `third_party_local/` (the desktop's
+`libopenmpt-0.8.9+release.makefile.tar.gz`, SHA-256 `9273b88b...074f`, under
+`${AS3D_DATA_ROOT:-repo}`), read-only at `/openmpt`, and passes `-DAS3D_3DS_OPENMPT_SRC=/openmpt`;
+the root CMakeLists turns `AS3D_WITH_OPENMPT` on only then (else the stub, with a CMake warning).
+`tools/3ds_ci.sh` sets `AS3D_3DS_FETCH=0`: no network, the stub when the tree is absent. The
+library compiles unchanged with devkitARM (gcc 16), exceptions and RTTI on for that target only
+(the C API catches everything; the engine stays `-fno-exceptions`), no pthread library (newlib's
+locks are libctru's). Size: every format loader is reachable from the table in `Sndfile.cpp`, so
+`--gc-sections` keeps all of them: +2.4 MB of 3dsx at -O2. The 3DS build compiles the loaders of
+MO3, IT, XM, S3M and MOD only (`module.cmake` generates a stub probe and loader for the 54 others
+of the table, and the two sample unpackers only they use), at -Os with the per-sample mixing files
+(`Fastmix`, `MixFuncTable`, `MixerLoops`, `Sndmix`, `Snd_flt`, `Snd_fx`, `WindowedFIR`, `DSP`) at
+-O2: the 3dsx goes from 1.35 MB (stub) to 2.55 MB, +1.2 MB (bss +0.37 MB); tremor adds 0.11 MB
+(2.66 MB). The first full build takes about 6 minutes at -j2.
+
+Tremor (`AS3D_WITH_TREMOR`, on for the 3DS): `music_tremor.cpp`, `OggMusic`, a `MusicSource`
+like `MusicDecoder` (`music_source.h`, the mixer's interface): the whole file in memory, ov_read
+into a 1024-frame buffer, linear resampling when the file's rate is not the device's (the tool
+renders at 32728 Hz, so none), looping. `Audio::setPrerenderedMusicDir` (the 3DS loop gives
+`sdmc:/3ds/openairstrike/<game>/music`): `playMusic("music\track05.mo3")` plays `track05.ogg`
+from there when it exists, with `track05_gameover.ogg` as pattern order 35 (the game-over jump,
+`AudioBridge::gameOverMusic`; after that part ends the music follows from its start, as the module
+does when it loops), else the module, else nothing (`audio: cannot play music ...`).
+
+Pre-rendering (owner, desktop, own data; the output is derived from the game: never committed,
+`*.ogg` is in .gitignore): `audio_tool render-music --all <dir>` renders every module once (no
+loop) at 32728 Hz plus its part from order 35, and encodes with oggenc, else ffmpeg's libvorbis
+(quality 4, about 100 kbps): for AirStrike 3D 10 files, 10.5 MB, 98 to 196 s per module; peaks
+0.39 to 0.93 (no clipping). `--paks <dir>` reads a sequel's paks.
+
+The mixer change (desktop too, same output): the music is decoded outside the voice mutex, under a
+music mutex of its own, so the game thread's play/stop never waits for a decode (up to 10 ms per
+512 frames on Azahar); `hasMusic` is an atomic; `Audio::musicDecodeStats` (time in the decoder,
+frames, longest call) and `Audio::setMusicInterpolation` (libopenmpt's filter length; the desktop
+keeps the default, 8 taps).
+
+The game (`ctr_audio.cpp`, `ctr_menu_loop.cpp`): run.ini `music=0|1` (default 1),
+`music_taps=0|1|2|4|8` (default 0 = libopenmpt's 8 taps); the level and menu music go through
+`AudioBridge::startLevel` as on the desktop (the front end's attract levels and missions), the
+music pauses with the mixer (START in `bot` / `play` with `level=`, HOME, sleep; not under the
+menus: the desktop rule), the volume follows the Options. `log.txt`: `audio: level start, N sounds
+precached, music music\track05.mo3 (ogg|openmpt), in N ms` and
+`PERF_SUMMARY music decoder=ogg|openmpt|off|none decoded_s=S cpu_share=X% max_decode_ms=X
+underruns=N`.
+
+The measurement: `mode=musictest` (apps/3ds/README.md): each module pre-rendered (when the file
+is on the card) and as a module, 10 s each, then all again at 268 MHz on a New 3DS (the speedup
+off: about an Old 3DS), per second the decoder share (time in `MusicSource::read` per second of
+audio decoded), its longest call (512 frames = 15.6 ms of audio), the feeder's fills, underruns,
+longest fill and CPU, then one `MUSICTEST ... -> USABLE|TOO SLOW` line per pass.
+
+Azahar (2026-10-08, dummy `dspfirm.cdc`, New 3DS mode). Emulator numbers, not hardware ones: the
+JIT's cost per instruction is not the ARM11's, Azahar does not enforce the 30 % core-1 limit, and
+the two clocks give the same numbers.
+
+| pass | load | decoder share (avg / worst s) | longest call | feeder CPU | heap |
+|---|---|---|---|---|---|
+| track05 module, 8 taps | 2.4 s | 28.3 / 48.8 % | 9.7 ms | 45 % | +3.4 MB |
+| track04 module, 8 taps | 4.1 s | 37.7 / 45.1 % | 9.5 ms | 54 % | +6.7 MB |
+| track04 module, 2 taps (5 s) | 5.1 s | 23.5 / 28.6 % | 5.9 ms | 40 % | +6.7 MB |
+| track05 Ogg (5 s) | 0.3 s | 32.1 / 32.8 % | 13.8 ms | 47 % | +1.5 MB |
+| track04 Ogg (5 s) | 0.5 s | 31.2 / 32.5 % | 14.0 ms | 48 % | +2.5 MB |
+
+No underrun in any pass; the per-second peaks of the Ogg passes match the module's within 3 %
+(7630 / 7717 / 6107 against 7413 / 7695 / 6155): the same music. The heap figure is the module
+with its decoded samples (libopenmpt) or the Ogg file (tremor). `mode=bot level=1 frames=600`:
+the end state as before (map_pos 452.0, 39 entities, created 243, freed 204); level start of the
+sound 2.6 s with the module, 0.5 s with the Ogg, 0.2 s without music; heap high 14.8 MB (module),
+12.9 MB (Ogg), 11.4 MB (none); frame times identical with and without music (46.7 to 47.2 ms
+under Azahar either way). On Azahar the feeder without music is at 14 % (M2.3: 15 to 16 %).
+
+Hardware checklist (owner): put the paks as before and, for the Ogg path, the output of
+`audio_tool render-music --all` in `sdmc:/3ds/openairstrike/as3d/music/`.
+
+1. `mode=musictest`: read the `MUSICTEST` lines of `musictest_log.txt`. The verdict per pass is
+   `decoder_share` against 25 % (`worst_second` decides: the rule is per second, at 32728 Hz
+   stereo); also `underruns=0`, `max_fill_ms` well under 31 ms per buffer, `feeder_cpu` under the
+   30 % the app has on core 1 (`APT_SetAppCpuTimeLimit(30)`; the feeder's share includes the
+   sound effects' mixing). Read the `clock=268MHz` lines for the Old 3DS. Then once with
+   `music_taps=2` (linear) for the module path.
+2. Decide: libopenmpt usable where its worst second is at most 25 %; else the Ogg files (M4.5
+   makes them mandatory on the Old 3DS anyway, and they need less memory and load about 8 times
+   faster). If both are above 25 %, the next levers are `APT_SetAppCpuTimeLimit` up to 80 and
+   larger buffers.
+3. `mode=bot level=1 frames=3600 perf=1`, with and without `music/` on the card and with
+   `music=0`: `PERF_SUMMARY music decoder=...` names the path, `underruns=0`, step and frame
+   times as with `music=0`. Listen: the music loops without a gap or a click at the loop point,
+   no crackle.
+4. `mode=play`: the menu music behind the main menu, the mission's music, game over jumps to the
+   game-over part (Ogg: `_gameover.ogg`), HOME and the lid pause and resume it.
+
+Deferred: the loop point of a pre-rendered file is its start (a module may loop to a restart
+position, not order 0: none of the five was checked by ear); the Ogg file is held in memory (1 to
+2.6 MB), streaming from the SD card if memory is short (M4.5); the sequels' music untested on the
+3DS; `music_taps` stays a run.ini key (no Options row); the Old 3DS numbers themselves.
 
 ## M3.1 Shadows on the PICA (engine/src/render/pica/shadow_renderer_pica.cpp)
 

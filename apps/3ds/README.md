@@ -24,8 +24,12 @@ Needs Docker and the pinned devkitARM image (no native devkitPro). From the repo
 It is a CMake build (3ds-cmake's `3DS.cmake` toolchain, `NINTENDO_3DS`): the root
 `CMakeLists.txt` adds only `apps/3ds` on that platform, and `engine/CMakeLists.txt` builds the
 engine modules with the pica/ndsp/ctr backend defaults (the backend directories are still
-empty, so render, ui, audio and platform contribute their neutral files only; music is the
-stub, `AS3D_WITH_OPENMPT=OFF`). `source/scene.v.pica` goes through `ctr_add_shader_library`
+empty, so render, ui, audio and platform contribute their neutral files only). Music (M2.4):
+the script mounts the libopenmpt source tree that `tools/fetch_third_party.sh openmpt` downloads
+once into `${AS3D_DATA_ROOT:-repo}/third_party_local/` (version 0.8.9, pinned SHA-256; the build
+fetches it when it is missing, `AS3D_3DS_FETCH=0` never does, `AS3D_3DS_MUSIC=0` builds without
+it); without the tree the decoder is the stub and CMake warns. Tremor (pre-rendered Ogg music)
+comes from the image's portlibs. `source/scene.v.pica` goes through `ctr_add_shader_library`
 and is embedded as `scene_shbin`; `icon.png` is the project's own icon scaled to 48x48.
 
 ## Game data
@@ -189,11 +193,35 @@ The engine's ndsp device (`engine/src/audio/ndsp/`) plays the mixer on one stere
 In `bot` and `play` (`audio=1`, the default) `source/ctr_audio.cpp` drives an `AudioBridge` as the
 desktop game does: the level's sounds are precached at level start, the world's sound requests
 are played after every step, the sound pauses with the world (START) and on HOME / sleep, and
-stops at exit. Music is not played yet (`AS3D_WITH_OPENMPT=OFF`, M2.4). `log.txt` gets
-`audio: ndsp: channel 0 stereo pcm16 32728 Hz, 4 x 1024 frames ...` at start and two summary lines:
+stops at exit. `log.txt` gets
+`audio: ndsp: channel 0 stereo pcm16 32728 Hz, 4 x 1024 frames ...` at start and three summary lines:
 
     PERF_SUMMARY audio device=ndsp played=N loops=N missing=N precached=N
+    PERF_SUMMARY music decoder=ogg|openmpt|off|none decoded_s=S cpu_share=X% max_decode_ms=X underruns=N
     PERF_SUMMARY audio_feed fills=N (32.0/s) underruns=N max_fill_ms=X feeder_cpu=X% dropped=N core1=1
+
+Music (M2.4; bot, play and the front end): `music=0|1` (default 1) and `music_taps=0|1|2|4|8`
+(libopenmpt's interpolation filter, 0 = its default, 8 taps; 2 = linear, about a third cheaper).
+At every level start the level's module plays pre-rendered when
+`sdmc:/3ds/openairstrike/<game>/music/<module name>.ogg` exists (tremor), else as a module
+(libopenmpt), else there is none (one warning). Pre-render on the desktop from your own data and
+copy the files over (they are derived from the game data: never commit them):
+
+    cmake -S apps/audio_tool -B build-audio-tool && cmake --build build-audio-tool --target audio_tool
+    build-audio-tool/audio_tool render-music --all out/music     # track01.ogg, track01_gameover.ogg, ...
+
+(`--paks <dir>` before `render-music` for a sequel's paks; oggenc or ffmpeg with libvorbis.)
+`<name>_gameover.ogg` is the module from pattern order 35, where the game jumps on game over.
+
+`mode=musictest` (optional `frames=N` per pass, default 600 = 10 s; `music_taps=N`;
+`music_files=music\a.mo3,music\b.mo3`) runs `source/music_test.cpp`: the menu's and mission 1's
+modules (both `track05.mo3` in AirStrike 3D, so the largest module, `track04.mo3`, is the second),
+each pre-rendered (when the `.ogg` is on the SD card) and as a module, through `Audio::playMusic`
+and the ndsp feeder; on a New 3DS everything again at 268 MHz. Per second: the decoder's share
+(its time per second of audio decoded), its longest decode of one 512-frame mixer call, the
+feeder's fills, underruns, longest fill and CPU; at the end one `MUSICTEST` line per pass with
+`USABLE` or `TOO SLOW` (the plan's rule: at most 25 % of core 1). It writes `musictest_log.txt`.
+docs/3ds-port.md, "M2.4".
 
 `mode=audiotest` (optional `frames=N`, default 360 = 6 s) runs `source/audio_test.cpp`: a check of
 `std::thread` + `std::mutex`, then `as3d::Audio` on the platform device plays a generated 440 Hz
