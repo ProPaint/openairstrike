@@ -29,6 +29,8 @@ struct RunConfig {
     bool savetest = false;   // mode=savetest: the save path test (ctr_save.h), no game data needed
     bool envtest = false;    // mode=envtest: the PICA environment map test (env_test.h), mission 1 from the SD paks
     bool watertest = false;  // mode=watertest: the PICA water and lightning test (water_test.h), mission 1 from the SD paks
+    bool sequeltest = false; // mode=sequeltest: the sequels' render rules (sequel_test.h), game= mission level=
+    std::string game = "as3d"; // game=KEY: the sequel test's game (as3d, as2, gulf)
     bool shadowtest = false; // mode=shadowtest: the PICA shadow test (shadow_test.h), mission 1 from the SD paks
     bool precache = true;    // precache=0: the shadow test without the level-start precache (the late path)
     bool shadowRotations = false; // shadow_rotations=1: the shadow test precaches every projected rotation

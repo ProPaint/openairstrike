@@ -200,7 +200,11 @@ RunConfig readRunConfig(const std::string& path) {
             c.watertest = val == "watertest";
             c.envtest = val == "envtest";
             c.savetest = val == "savetest";
+            c.sequeltest = val == "sequeltest";
         } else if (key == "only") c.only = val;
+        else if (key == "game") {
+            if (!val.empty()) c.game = val;
+        }
         else if (key == "hold") c.holdFrames = std::max(0, std::atoi(val.c_str()));
         else if (key == "frames") c.botFrames = std::max(0, std::atoi(val.c_str()));
         else if (key == "level") c.level = std::max(1, std::atoi(val.c_str()));

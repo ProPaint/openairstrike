@@ -308,6 +308,18 @@ terrain,water`, `w2` with the same at `--frames 1430`, `t` with `--render-only t
 `--render-only terrain,models,particles,sprites,shadows,marks,water,lightning`. docs/3ds-port.md,
 "M3.5 Water and M3.3 Lightning".
 
+`mode=sequeltest` (`game=as2|gulf|as3d`, `level=N` default 1, optional `frames=N` bot frames, default 600;
+`hold=N`; `precache=0`) runs `source/sequel_test.cpp`: the game's mission from `<dir>/<game>/` (its paks; the
+sequels' are not part of the first game's card: copy `pak0.apk`, `pak1.apk`, `pak2.apk` and for Gulf Thunder
+`pak4.apk` from the install's `data/`), N bot frames, the end state in the lines of `as3d_sim`, then the world
+frozen and drawn mono: `t` terrain only, `w` terrain and water (the sequels' wave grid), `f` the full frame,
+then 30 more bot frames and `w2` (water again, the waves moved). It writes `sequeltest_log.txt` (the render
+rules, memory: VRAM and linear textures, meshes, terrain, the water grid; per frame the water chunks, animated
+vertices, arena bytes and time) and `sequeltest_<game>_<phase>.ppm`. Compare the end state with `as3d_sim --game
+G --level N --frames F --bot`, `f` with `as3d_game --game G --headless --level N --bot --frames F --size 400x240
+--screenshot-every F --render-only terrain,models,particles,sprites,shadows,marks,skid,water,lightning`, `w`
+with `--render-only terrain,water` (tools/3ds_screen_compare.py --direct --mask). docs/3ds-port.md, "M5.1".
+
 `mode=envtest` (optional `frames=N` bot frames, default 120; `hold=N`) runs `source/env_test.cpp`: mission
 1 after N bot frames, the frame's model records drawn mono with the world camera through MeshPass: `a` the
 player and its attachments (the shield), `b` the environment-mapped records not on the player (the help
