@@ -192,6 +192,7 @@ struct GameFrame::Impl {
     std::string screen;
     int screenSeq = 0;
     unsigned screenDumpFrame = 0;
+    unsigned nextDumpStep = 0; // dump_from: the next simulation step a dump_every dump is due
     std::string screenDumpName;
 
     float maxEyeOffset() const { return run.eyeOffset > 0.0f ? run.eyeOffset : kMaxEyeOffset; }
@@ -602,9 +603,11 @@ struct GameFrame::Impl {
     void dumpPair(const std::string& base, const FrameInfo& fi) {
         const std::string dir = std::string(kDataDir) + "/";
         const bool t = dumpTarget(ctx->topTarget(0), kTopW, dir + base + "_top.ppm");
+        // The right eye too when the world was drawn in stereo this frame.
+        const bool r = worldDrawn && stereo.eyes == 2 && dumpTarget(ctx->topTarget(1), kTopW, dir + base + "_right.ppm");
         const bool b = dumpTarget(ctx->bottomTarget(), kBottomW, dir + base + "_bottom.ppm");
-        AS3D_INFO("AS3D_DUMP %s frame=%u step=%u screen=%s top=%d bottom=%d", base.c_str(), fi.frame, fi.step,
-                  fi.screen, t ? 1 : 0, b ? 1 : 0);
+        AS3D_INFO("AS3D_DUMP %s frame=%u step=%u screen=%s top=%d right=%d bottom=%d", base.c_str(), fi.frame, fi.step,
+                  fi.screen, t ? 1 : 0, r ? 1 : 0, b ? 1 : 0);
         if (modelActive) {
             const pica::MeshDrawStats& ms = modelPass.lastStats();
             AS3D_INFO("AS3D_MODELVIEW_DUMP %s object=%s angles=(%.2f, %.2f, %.2f) viewport=(%d, %d, %d, %d) eyes=%d "
@@ -864,7 +867,19 @@ void GameFrame::stats(FrameStats& out) {
 void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
     Impl& im = *impl_;
     // The front end's dumps: every N frames, and once a screen has settled.
-    if (im.run.dumpEvery > 0 && info.frame > 0 && info.frame % static_cast<unsigned>(im.run.dumpEvery) == 0) {
+    // With dump_from=S: every N simulation steps from step S (the first frame at or after each), named
+    // by the step.
+    const unsigned every = static_cast<unsigned>(std::max(im.run.dumpEvery, 0));
+    if (every > 0 && im.run.dumpFrom > 0) {
+        const unsigned from = static_cast<unsigned>(im.run.dumpFrom);
+        if (im.nextDumpStep == 0) im.nextDumpStep = from;
+        if (info.step >= im.nextDumpStep) {
+            char base[64];
+            std::snprintf(base, sizeof base, "%ss%05u", im.run.dumpPrefix.c_str(), info.step);
+            im.dumpPair(base, info);
+            im.nextDumpStep = info.step - (info.step - from) % every + every;
+        }
+    } else if (every > 0 && info.frame > 0 && info.frame % every == 0) {
         char base[64];
         std::snprintf(base, sizeof base, "%sf%05u", im.run.dumpPrefix.c_str(), info.frame);
         im.dumpPair(base, info);

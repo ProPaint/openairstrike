@@ -148,6 +148,8 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n) && n >= 0) c.dumpEvery = n;
         } else if (key == "dump_screens") {
             if (toInt(val, &n)) c.dumpScreens = n != 0;
+        } else if (key == "dump_from") {
+            if (toInt(val, &n) && n >= 0) c.dumpFrom = n;
         } else if (key == "dump_prefix") {
             c.dumpPrefix = val;
         } else if (key == "depthmap") {

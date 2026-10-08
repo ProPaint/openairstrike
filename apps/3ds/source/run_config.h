@@ -76,6 +76,7 @@ struct RunConfig {
     // bottom-screen pixel (x, y). Frames must not decrease. For scripted runs (the emulator).
     std::string padScript;
     int dumpEvery = 0;         // dump_every=N: every N displayed frames, <prefix>f<frame>_{top,bottom}.ppm
+    int dumpFrom = 0;          // dump_from=S: dump_every counts simulation steps from step S (<prefix>s<step>_*.ppm)
     bool dumpScreens = false;  // dump_screens=1: 40 frames after each front-end screen change,
                                // <prefix><nn>_<screen>_{top,bottom}.ppm
     std::string dumpPrefix = "fe_"; // dump_prefix=: the file name prefix of dump_every / dump_screens

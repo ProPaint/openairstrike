@@ -317,7 +317,8 @@ no Configure controls, Mouse Control, Screen, video or touch rows); Start Game o
 | `ui_fixed_dt` | `0` (default) or `1` | the menus' clock advances 1/60 s per displayed frame, as `as3d_game --ui-script` (comparisons of animated screens) |
 | `pad_script` | `F:NAME,...` | presses injected into the pad at displayed frame F, held 6 frames: `A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT` (several joined by `+`), or `T<x>/<y>` for a touch at bottom-screen pixel (x, y); for unattended emulator runs |
 | `dump_screens` | `0` (default) or `1` | 40 frames after each change of screen, `<prefix><nn>_<screen>_top.ppm` and `_bottom.ppm` |
-| `dump_every` | N | every N displayed frames, `<prefix>f<frame>_top.ppm` and `_bottom.ppm` |
+| `dump_every` | N | every N displayed frames, `<prefix>f<frame>_top.ppm` and `_bottom.ppm`; `_right.ppm` too when the world was drawn in stereo |
+| `dump_from` | S | with `dump_every=N`: every N simulation steps from step S instead, named `<prefix>s<step>_*.ppm` (mission runs) |
 | `dump_prefix` | default `fe_` | the file name prefix of those dumps |
 | `report_at` | N | with `menu_bot=1`: the end-state lines (`level N: ... map_pos`, `created ... freed`) once after N bot steps of the mission (the bot's clock stops during the sequels' opening dialogue) |
 | `cycle` | `1,6,1,6` | memory growth check (M5.4): from the main menu start each listed mission (`GameFlow::startMission`), leave it after `cycle_frames` displayed frames (`GameFlow::loadAttract`, what the in-game menu's Quit does), then stop the app |

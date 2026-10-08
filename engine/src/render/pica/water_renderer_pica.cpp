@@ -201,14 +201,25 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
     // The GL's conservative clip-space test of a rectangle's 4 corners against this eye's matrix.
     const Mat4 m = projection * view;
     float minW = 1.0e30f, maxW = -1.0e30f;
+    // Diagnostics of the kept tiles: the largest span in NDC (2 = the whole screen) of a tile whose
+    // corners are all in front of the eye, and the tiles with a corner at w <= 1.
+    float maxSpan = 0.0f;
+    int nearTiles = 0;
     auto visible = [&](float xa, float xb, float ya, float yb, bool track) {
         const float xs[2] = {xa, xb}, ys[2] = {ya, yb};
         int outs[6] = {0, 0, 0, 0, 0, 0};
         float lo = 1.0e30f, hi = -1.0e30f;
+        float nx0 = 1.0e30f, nx1 = -1.0e30f, ny0 = 1.0e30f, ny1 = -1.0e30f;
         for (int i = 0; i < 4; ++i) {
             const Vec4 c = m * Vec4{xs[i & 1], ys[i >> 1], params_.planeZ, 1.0f};
             lo = std::min(lo, c.w);
             hi = std::max(hi, c.w);
+            if (c.w > 1.0f) {
+                nx0 = std::min(nx0, c.x / c.w);
+                nx1 = std::max(nx1, c.x / c.w);
+                ny0 = std::min(ny0, c.y / c.w);
+                ny1 = std::max(ny1, c.y / c.w);
+            }
             if (c.x < -c.w) outs[0]++;
             if (c.x > c.w) outs[1]++;
             if (c.y < -c.w) outs[2]++;
@@ -221,6 +232,10 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
         if (track) {
             minW = std::min(minW, lo);
             maxW = std::max(maxW, hi);
+        } else if (lo <= 1.0f) {
+            ++nearTiles;
+        } else {
+            maxSpan = std::max(maxSpan, std::max(nx1 - nx0, ny1 - ny0));
         }
         return true;
     };
@@ -284,11 +299,12 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
     g_stats.tilesDrawn = tiles;
     g_stats.minW = drawn ? minW : 0.0f;
     g_stats.maxW = drawn ? maxW : 0.0f;
-    if (++g_drawCount % 600 == 1)
-        AS3D_INFO("pica water: draw %u planeZ %.2f quads %d of %d, tiles %d (tile %.0f), corner w %.1f..%.1f",
+    if (++g_drawCount % 300 == 1)
+        AS3D_INFO("pica water: draw %u planeZ %.2f quads %d of %d, tiles %d (tile %.0f), corner w %.1f..%.1f, "
+                  "largest tile span %.2f NDC, near tiles %d",
                   g_drawCount, static_cast<double>(params_.planeZ), drawn, quads_, tiles,
                   static_cast<double>(g_waterTile), static_cast<double>(g_stats.minW),
-                  static_cast<double>(g_stats.maxW));
+                  static_cast<double>(g_stats.maxW), static_cast<double>(maxSpan), nearTiles);
     if (runs.empty()) return 0;
     FxEyeParams eye;
     eye.view = view;
