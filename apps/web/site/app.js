@@ -29,8 +29,66 @@
   window.addEventListener('error', (e) => log('PAGE_ERROR: ' + e.message));
   window.addEventListener('unhandledrejection', (e) => log('PAGE_ERROR: ' + ((e.reason && e.reason.message) || e.reason)));
 
+  // Launcher mode: the desktop icon opens /airstrike/?game=..&autostart=1. The page then shows
+  // no UI of its own, only a Win95 "Loading" dialog (98.css from the launcher) over black.
+  const LAUNCH = location.pathname.indexOf('/airstrike/') === 0 && /^[a-z0-9]+$/.test(q.get('game') || '') &&
+                 q.get('autostart') === '1' && BUILD.mode !== 'byo' && !!window.launcherSaves &&
+                 typeof window.launcherSaves.quitToDesktop === 'function';
+  if (!LAUNCH) { const early = document.getElementById('lw-early'); if (early) early.remove(); }
+  const lw = { el: null, bar: null, msg: null, last: 0 };
+  const TITLES = { as3d: 'AirStrike 3D', as2: 'AirStrike 2', gulf: 'Gulf Thunder' };
+  function lwTitle() { return TITLES[q.get('game')] || q.get('game'); }
+  function lwBuild() {
+    if (!LAUNCH || lw.el) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/css/98/98.css';
+    document.head.appendChild(link);
+    const st = document.createElement('style');
+    st.textContent = '#start, #ended, #failed { display: none !important; } ' +
+      'html, body { background: #000 !important; } ' +
+      '#lw { position: fixed; inset: 0; z-index: 50; background: #000; display: flex; align-items: center; justify-content: center; } ' +
+      '#lw .window { width: 340px; max-width: 92vw; } ' +
+      '#lw .window-body p { margin: 8px 0; } ' +
+      '#lw .progress-indicator { width: 100%; } ' +
+      '#lw .row { display: flex; justify-content: center; margin-top: 12px; } ' +
+      '#lw button { min-width: 75px; }';
+    document.head.appendChild(st);
+    const el = document.createElement('div');
+    el.id = 'lw';
+    el.innerHTML = '<div class="window"><div class="title-bar"><div class="title-bar-text"></div></div>' +
+      '<div class="window-body"><p class="lw-msg"></p>' +
+      '<div class="progress-indicator segmented"><span class="progress-indicator-bar" style="width:0%"></span></div>' +
+      '<div class="row lw-ok" hidden><button type="button">OK</button></div></div></div>';
+    el.querySelector('.title-bar-text').textContent = lwTitle();
+    lw.msg = el.querySelector('.lw-msg');
+    lw.msg.textContent = 'Loading ' + lwTitle() + '\u2026';
+    lw.bar = el.querySelector('.progress-indicator-bar');
+    el.querySelector('.lw-ok button').addEventListener('click', () => {
+      try { window.launcherSaves.quitToDesktop(); } catch (e) { location.replace('/'); }
+    });
+    document.body.appendChild(el);
+    lw.el = el;
+  }
+  // f in 0..1; never goes backwards.
+  function lwProgress(f) {
+    if (!lw.el) return;
+    lw.last = Math.max(lw.last, clamp(f, 0, 1));
+    lw.bar.style.width = Math.round(lw.last * 100) + '%';
+  }
+  function lwHide() { if (lw.el) { lw.el.remove(); lw.el = null; } }
+  function lwError(text) {
+    lwBuild();
+    lw.msg.textContent = text;
+    lw.el.querySelector('.progress-indicator').hidden = true;
+    lw.el.querySelector('.lw-ok').hidden = false;
+  }
+  lwBuild();
+  lwProgress(0.02);
+
   function fail(text) {
     state.failed = text;
+    if (LAUNCH) { lwError(text); return; }
     $('failed-text').textContent = text;
     $('failed').hidden = false;
   }
@@ -125,6 +183,31 @@
     o.lock('landscape').then(() => log('AS3D_WEB orientation=locked'),
                              (e) => log('AS3D_WEB orientation lock refused: ' + (e && e.name)));
   }
+  // Launcher: the desktop icon opens /airstrike/?game=..&autostart=1, a navigation that carries
+  // no user gesture, so full screen (and the landscape lock on touch) waits for the first input.
+  const underLauncher = () => location.pathname.indexOf('/airstrike/') === 0 && !!window.launcherSaves &&
+                              typeof window.launcherSaves.quitToDesktop === 'function';
+  const autoFsEvents = ['keydown', 'pointerdown', 'pointerup', 'touchend', 'mousedown'];
+  let autoFsOn = null;
+  function autoFsDisarm() {
+    if (!autoFsOn) return;
+    autoFsEvents.forEach((n) => window.removeEventListener(n, autoFsOn, true));
+    autoFsOn = null;
+  }
+  // Passive listeners that never stop the event: the first input still reaches the game.
+  function autoFsArm(full) {
+    if (autoFsOn || !full || !fsApi || installed) return;
+    autoFsOn = (e) => {
+      if (e.type === 'keydown' && modifierOnly(e)) return;
+      if (e.type === 'pointerdown' && e.pointerType === 'touch') return; // touch activates on release
+      if (e.type === 'mousedown' && autoFsOn && window.PointerEvent) return; // pointerdown covers it
+      autoFsDisarm();
+      if (!fsElement()) enterFullscreen();
+    };
+    autoFsEvents.forEach((n) => window.addEventListener(n, autoFsOn, { capture: true, passive: true }));
+    log('AS3D_WEB autostart_fullscreen_armed');
+  }
+  function modifierOnly(e) { return ['Control', 'Alt', 'Meta', 'Shift', 'AltGraph'].indexOf(e.key) >= 0; }
   // Must run inside a user gesture (a click, a tap, a key).
   function enterFullscreen() {
     if (!fsApi) return;
@@ -144,6 +227,7 @@
     Promise.resolve(p).catch(() => {});
   }
   function toggleFullscreen() {
+    autoFsDisarm();   // the player chose by hand
     if (fsElement()) leaveFullscreen();
     else enterFullscreen();
   }
@@ -268,6 +352,9 @@
       syncing = false;
       state.profileSyncs++;
       log(err ? 'AS3D_WEB profile_sync_failed ' + err : 'AS3D_WEB profile_synced');
+      if (!err && window.launcherSaves && GAME) {
+        try { window.launcherSaves.uploadFile(Module.FS, '/persist/' + GAME + '/profile.bin'); } catch (e) { /* never block the game */ }
+      }
       if (syncAgain) {
         syncAgain = false;
         syncProfile();
@@ -278,10 +365,25 @@
     Module.FS.mkdir('/persist');
     Module.FS.mount(Module.FS.filesystems.IDBFS, {}, '/persist');
     Module.addRunDependency('as3d-profile');
-    Module.FS.syncfs(true, (err) => {
-      if (err) log('AS3D_WEB profile storage unavailable: ' + err);
-      Module.removeRunDependency('as3d-profile');
+    profileLoaded = new Promise((ok) => {
+      Module.FS.syncfs(true, (err) => {
+        if (err) log('AS3D_WEB profile storage unavailable: ' + err);
+        Module.removeRunDependency('as3d-profile');
+        ok();
+      });
     });
+  }
+  // The launcher's save-sync.js (when present: served under /airstrike/) swaps the profile to
+  // the signed-in user and restores the cloud copy. Runs once the game is chosen and /persist
+  // is populated, before the engine starts (a run dependency holds main back).
+  let profileLoaded = Promise.resolve();
+  function restoreProfile() {
+    if (!window.launcherSaves) return;
+    Module.addRunDependency('as3d-restore');
+    Promise.all([profileLoaded, filesReady]).then(() =>
+      window.launcherSaves.restoreFile(Module.FS, '/persist/' + GAME + '/profile.bin'))
+      .catch((e) => log('AS3D_WEB restore skipped: ' + e))
+      .then(() => Module.removeRunDependency('as3d-restore'));
   }
 
   // ---------------------------------------------------------------------------------------
@@ -306,6 +408,7 @@
 
   const bar = $('bar');
   function progress(f) {
+    lwProgress(0.05 + 0.75 * f);   // game data download: 5..80%
     $('progress').hidden = false;
     bar.style.width = Math.round(100 * f) + '%';
   }
@@ -677,6 +780,7 @@
       if (def && !def.playable && q.get('unfinished') !== '1') {
         state.notPlayable = GAME;
         setStatus(def.title + ' is not playable yet. Its files are kept in this browser for when it is.');
+        if (LAUNCH) lwError(def.title + ' is not playable yet.');
         return;
       }
       play.disabled = false;
@@ -690,8 +794,10 @@
   function start(full) {
     if (state.started || !state.ready) return;
     state.started = true;
+    const autoLauncher = !full && q.get('autostart') === '1' && underLauncher();
     if (full && fsApi && !installed) enterFullscreen();
     else if (installed) lockLandscape();
+    else if (autoLauncher) autoFsArm(true);
     if (navigator.storage && navigator.storage.persist) {
       navigator.storage.persist().then((granted) => {
         state.persisted = granted;
@@ -705,6 +811,7 @@
     canvas.focus();
     fit();
     state.running = true;
+    lwProgress(0.97);
     const a = args.concat(['--game', GAME, '--dpi', String(Math.round(scale * cssPerInch()))]);
     // More than one game offered: the main menu's "Change game" comes back here.
     if (!FORCED && offered.length > 1) a.push('--change-game');
@@ -725,6 +832,7 @@
   window.as3dPage = {
     onScreen(name) {
       state.screen = name;
+      lwHide();
     },
     onLayout(x, y, r, hitR, w, h) {
       pauseButton = [x, y, r, hitR, w, h];
@@ -740,13 +848,25 @@
       state.firstFrame = true;
       state.firstFrameMs = performance.now();
       $('start').hidden = true;
+      lwHide();
     },
     onFinished() {
       state.running = false;
       state.finished = true;
       fsBtn.hidden = true;
+      autoFsDisarm();
       leaveFullscreen();
       rotate.hidden = true;
+      // Launcher: quitting goes straight back to the desktop, once the profile is flushed.
+      if (underLauncher() && !state.failed) {
+        const t0 = performance.now();
+        const go = () => {
+          if (syncing && performance.now() - t0 < 2500) { setTimeout(go, 50); return; }
+          try { window.launcherSaves.quitToDesktop(); } catch (e) { location.replace('/'); }
+        };
+        go();
+        return;
+      }
       $('ended').hidden = false;
     },
     onProfileSaved: syncProfile,
@@ -782,13 +902,15 @@
     print: log,
     printErr: log,
     locateFile: (p) => p + '?v=' + BUILD.stamp,
-    preRun: [mountProfile, writeGameFiles],
+    preRun: [mountProfile, writeGameFiles, restoreProfile],
     setStatus: () => {},
     onRuntimeInitialized: () => {
       state.runtimeMs = performance.now();
+      lwProgress(0.9);   // engine and data ready
       ready();
     },
     onAbort: (what) => fail('The engine stopped: ' + what),
+    onExit: () => { if (LAUNCH && !state.failed) window.launcherSaves.quitToDesktop(); },
   };
   if (BUILD.mode === 'byo') ownFiles().catch((e) => fail('Cannot read the stored files: ' + e.message));
   else bundledFiles().catch((e) => fail(e.message));

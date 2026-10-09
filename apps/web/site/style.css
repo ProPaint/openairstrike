@@ -248,3 +248,9 @@ body.fullscreen #fs-toggle .leave { display: inline; }
 #start.choosing #stored-text { display: none; }
 #start.choosing #stored::before { content: "Game files kept in this browser."; }
 #start.choosing #games.chosen ~ #stored { visibility: hidden; }
+
+/* "Back to the desktop" link, only shown when served under /airstrike/ by the launcher. */
+.desk-link { position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); left: calc(10px + env(safe-area-inset-left, 0px));
+  z-index: 5; color: var(--muted); font-size: 13px; text-decoration: none; opacity: .75; }
+.desk-link:hover, .desk-link:focus-visible { opacity: 1; text-decoration: underline; }
+.desk-link[hidden] { display: none; }

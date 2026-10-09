@@ -31,6 +31,10 @@
 <link rel="stylesheet" href="style.css?v=__BUILD__">
 </head>
 <body>
+<script>/* Launcher mode: hide the page UI before it paints (app.js shows a Win95 dialog, or undoes this). */
+if (location.pathname.indexOf('/airstrike/') === 0 && /[?&]autostart=1(&|$)/.test(location.search) && /[?&]game=/.test(location.search) && window.launcherSaves) {
+  document.write('<style id="lw-early">#start,#ended,#failed{display:none!important}html,body{background:#000!important}</style>');
+}</script>
 <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
 <div id="insets-probe" aria-hidden="true"></div>
 <button id="fs-toggle" type="button" aria-label="Full screen" title="Full screen (F)" hidden>
@@ -38,6 +42,7 @@
 </button>
 
 <div id="start" class="overlay">
+  <a class="desk-link" id="desk-link" href="/" hidden>◄ Desktop</a>
   <div class="panel">
     <img class="logo" src="icons/icon.svg" alt="" width="72" height="72">
     <h1>AirStrike</h1>
@@ -96,6 +101,7 @@
 </div>
 
 <div id="ended" class="overlay" hidden>
+  <a class="desk-link" id="desk-link-end" href="/" hidden>◄ Desktop</a>
   <div class="panel"><h1>AirStrike</h1><p>Thanks for playing.</p>
     <div class="row"><button id="again" type="button" class="play">Play again</button></div></div>
 </div>
@@ -108,6 +114,7 @@
 <script src="build.js?v=__BUILD__"></script>
 <script src="files.js?v=__BUILD__"></script>
 <script src="marquee.js?v=__BUILD__"></script>
+<script>if (location.pathname.indexOf('/airstrike/') === 0) document.querySelectorAll('.desk-link').forEach(function (a) { a.hidden = false; });</script>
 <script src="app.js?v=__BUILD__"></script>
 </body>
 </html>
