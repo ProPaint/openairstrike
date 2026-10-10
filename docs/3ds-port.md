@@ -47,6 +47,16 @@ for the water wash (a corrupted command stream for the frames around it), to tes
 the A/B list above. prepare() is 2.5-7 ms in play against 1.7 in the bot runs (more particles
 and projectiles): profile it per pass.
 
+**Round 2, synchronisation (2026-10-10, see "Frame synchronisation" at the end):** the arena halves
+and deferLinearFree were safe under gpu_kick (C3D_FrameBegin waits for the whole GX queue, the
+kicked lists included); two things were not and are fixed: `Texture2D::destroy` freed memory a frame
+in flight could still sample, and a texture created inside a frame went through citro3d's
+unflushed command-list split and an asynchronous copy from a freed staging buffer (now linear
+memory, no GX copy). The water has its own fenced vertex buffer and, with the terrain, issues its
+whole state before its draws. For the wash, the next console session runs `mode=play
+state_check=1` and the owner presses L while the wash is on screen (the decision table is in that
+section).
+
 **Open on the console:** confirm mono ≥ 99% one-step frames and stereo a clean 30 with drop 5;
 the tutorial water wash with a hint box up (hypothesis: the render-state copies, fixed
 defensively in drop 5); the menu-font legibility photo (M2.2); a Gulf stereo run for the GPU
@@ -2080,3 +2090,173 @@ first). Not done:
   texture at upload.
 - Load: the first start of a level (see "Load: left for later"); the silhouette cache write
   (2.1 s with the fsync) could go to the writer thread.
+
+## Frame synchronisation (engineering round 2, P2)
+
+An audit of when the CPU may write or free memory the GPU reads, under the default `gpu_kick=1`,
+against the sources of the pinned image (citro3d 1.7.1 `source/renderqueue.c`, `base.c`,
+`texture.c`; libctru 2.7.0 `source/gpu/gxqueue.c`, `gx.c`, `gpu.c`). Then what changed, and the two
+diagnostics for the console (`arena_poison=1`, `state_check=1|2`).
+
+### What citro3d and libctru actually do
+
+- **The GX queue** (gxqueue.c) holds the frame's GX commands (command lists, memory fills, texture
+  copies, display transfers), at most 32 per frame (C3D_Init; one more is an `svcBreak`). Once
+  running it submits up to 3 at a time to GSP and counts completion interrupts (`lastEntry`; VBlank
+  and PSC1 ignored); `isRunning` drops when every entry added so far has completed, and the queue's
+  callback runs (citro3d's `onQueueFinish`: the buffer swaps once C3D_FrameEnd set them up). A
+  queue that is running or merely *active* starts each new entry as it is added.
+- **C3D_FrameBegin(0)** (renderqueue.c) skips C3D_FrameSync and calls `C3Di_WaitAndClearQueue(-1)`:
+  `gxCmdQueueWait` until `isRunning` is false, then Stop and Clear. So it waits for the completion
+  interrupt of **every** entry of the previous frame, the lists kicked in the middle of the frame
+  included: a command list's interrupt (P3D) comes at its `GPUREG_FINALIZE`, after its draws and
+  the frame-buffer flush citro3d writes before it (`C3Di_SplitFrame`). Nothing the previous frame
+  submitted is still executing when C3D_FrameBegin returns; our frame loop's own
+  `C3D_FrameSync` before it is only the vblank clock.
+- **gpu_kick** (pica_frame.cpp kickGpu): `gxCmdQueueRun` after each eye makes the queue active;
+  the later splits (the clears' splits, the next eye's kick, C3D_FrameEnd's last list and the three
+  display transfers) start as they are added. When the GPU drains the queue between two kicks the
+  callback runs with no swap pending (harmless) and the next add restarts it. C3D_FrameEnd's
+  `gxCmdQueueRun` is then a no-op: the queue runs already.
+- **C3D_FrameSplit(flags)** submits the list with `GX_ProcessCommandList(.., flags)`: only bit 1
+  (`GX_CMDLIST_FLUSH`) makes GSP flush the list from the data cache. citro3d itself splits with
+  flags 0 inside a frame in `C3D_SyncTextureCopy`, `C3D_SyncDisplayTransfer` and
+  `C3D_SyncMemoryFill`; with `end_flush=cmdlist` (forced by gpu_kick) C3D_FrameEnd no longer
+  flushes the linear heap either.
+- **C3D_TexLoadImage** to VRAM is `C3D_SyncTextureCopy`: outside a frame synchronous (wait for the
+  queue, copy, `gspWaitForPPF`); **inside a frame asynchronous**: an unflushed split plus a
+  `GX_TextureCopy` queued behind it, one per mip level.
+
+### Life cycle of the per-frame linear memory
+
+| buffer | written | read by the GPU | fence before the CPU writes or frees it again |
+|---|---|---|---|
+| arena half H (frame N, H = N mod 2) | from `pica::frameBegin` of N (C3D_FrameBegin of N has returned) to `frameEnd`; nothing allocates from the arena in `prepare()` (checked: every `alloc` site is in a draw) | the lists of N, kicked or ended, until the last completes | C3D_FrameBegin(N+1) waited for all of them; H is written again at N+2: one frame of margin. Under gpu_kick the second eye's kicked list of N cannot still run when prepare(N+1) or frame N+1 writes the other half (H xor 1, last read in N-1) nor when N+2 writes H |
+| mid-frame flushes | `LinearArena::flushPending` before every split | the split just submitted | cache lines shared with the next allocations are written back with unchanged bytes: harmless |
+| deferLinearFree (meshes, the 2D vertex caches, the water grid) | freed at a later frameBegin | up to the frame the block was deferred in | that frame's lists completed before the next C3D_FrameBegin returned: **safe**, gpu_kick or not (the block can only be referenced by frames up to the one open when it was deferred) |
+| terrain retired chunks | freed 2 arena frames later | the frame they were retired in | same fence: safe |
+| `Texture2D::destroy` (before: `C3D_TexDelete` at once) | the memory freed immediately | a frame in flight (prepare runs before C3D_FrameBegin's wait) or the current frame | **unsafe**: a texture or mesh allocated next at the same address (linear textures are written in place by the CPU) is read by the GPU instead of the old one: one pass garbled |
+| a texture created inside a frame (the late loads of play: weapon effects, items) | staging buffer, `linearFree` right after `C3D_TexLoadImage` | the queued texture copy, later | **unsafe** three ways: the copy reads a freed (reusable) staging buffer; the command list split before it is **not flushed** (the GPU may execute stale command words left in RAM from an earlier frame at that offset of the 1 MB command buffer: random state and draws for the rest of that list); one queue entry per mip level towards the 32-entry limit (an `svcBreak`) |
+| C3D_FrameEnd under gpu_kick | | | a narrow race, not fixed: the queue is running while C3D_FrameEnd adds the three transfers and sets the swap flags, so a callback between two adds could swap the top screen before the left eye's transfer (one stale left-eye frame; never a wash). It needs the thread preempted for a whole transfer between two adds |
+
+### What changed
+
+1. **An explicit fence** (pica_frame.h): every `frameBegin` opens a frame serial; it checks that
+   the GX queue is idle (`gxCmdQueueWait(.., 0)`; `AS3D_FENCE` and a blocking wait if it ever is
+   not) and marks every earlier serial complete; each arena half records the serial that took it
+   (`halfHazards` counts a half taken before its last frame was done: never expected). Outside a
+   citro3d frame `gpuDone(serial)` polls the queue, `waitGpuIdle()` waits.
+2. **Deferred frees on the fence**: `deferLinearFree` tags the block with the current serial and
+   frees it once that serial is complete (at a frameBegin or `collectDeferred`), the same as before
+   in practice; **`Texture2D::destroy` now defers** its memory the same way (`deferTextureDelete`);
+   `Texture2D::create` outside a frame first collects what is done (waiting for the GPU only when a
+   texture is pending, so a level's new textures find the old ones' VRAM).
+3. **No GX copy inside a frame**: a texture created between frameBegin and frameEnd goes to linear
+   memory (written by the CPU, flushed), never through citro3d's unflushed split and asynchronous
+   copy; `AS3D_TEX_IN_FRAME` logs the first 20 (P1's precache and frame-end deferral should make
+   them rare; this is the safety net).
+4. **The water's own vertex buffer** (water_renderer_pica.h `WaterPass::buf_`): the plane's tiles
+   and the grid's heights go to a double-buffered linear buffer of their own (2 x 192 KB for the
+   plane; the grid's used vertices x 4 bytes), each half taken at the first water draw of a frame
+   once `gpuDone` its last frame, each eye's vertices flushed when written; the memory is released
+   through deferLinearFree. A full half falls back to the frame arena (counted).
+5. **Explicit state for the water and the terrain**: right before the water's draw (plane and
+   grid), before the terrain's base draws and again before its tile overlays, the shadow copies and
+   texture bindings are forgotten, so the depth map, depth test and mask, blend, cull, alpha test,
+   fog and textures are all issued to citro3d and emitted with the pass's first draw, whatever the
+   pass before left. This adds a few command words per pass and changes no pixel.
+
+### arena_poison=1
+
+At frameBegin the arena half just taken is filled with pseudo-random finite floats (+-3000, whose
+bytes are random colours) and flushed; the same for each water buffer half and for every deferred
+block when its fence lets it go. A GPU still reading any of them (a fence failure) or a draw still
+using a freed block (a CPU-side use after free) shows garbage triangles at once, on Azahar and on
+the console. On Azahar (2026-10-10, the `runs` below) no dump of any poisoned run shows garbage.
+
+### state_check=1|2: the self-check for the wash
+
+The wash: the water covers terrain and roads but never the models. The opaque models are drawn
+*before* the water, so the water is not drawn without its depth test (it would cover the models
+too); what fits is the terrain's depth missing or wrong where the water is drawn: the terrain drawn
+without depth writes or with another depth map than the water's, its depth cleared after it was
+drawn, or the GPU running other commands than the ones recorded (an unflushed command list). The
+check looks at each of these.
+
+- `state_check=1`, before the terrain's base draws (`pass=terrain`), its overlays
+  (`pass=terrain_tiles`) and the water's draw (`pass=water` / `water_grid`): the expected state
+  against the shadow copies (`layer=shadow`) and citro3d's context (`layer=c3d`: depth test,
+  function, write mask, depth map mode/scale/offset, blend, cull, alpha and stencil test, early
+  depth, the bound textures, the target's colour and depth buffers and masks), and the water's depth
+  map against the terrain's of the same target (`field=depthmap_vs_terrain`):
+
+      AS3D_STATE_MISMATCH pass=water layer=c3d field=depth_func expected=GEQUAL actual=ALWAYS frame=N target=0x...
+
+  (the first 64 lines, then at most one a second; all counted). At every frameBegin the memory fill
+  and display transfer engines must be idle (`AS3D_GPU_BUSY` otherwise). Every 60 frames:
+
+      AS3D_STATE frame=N t=S water=plane planeZ=-67.99 quads=5 tiles=232 near_tiles=0 split=0 max_span=0.52
+        min_w=272.4 buf=H/offset/bytes fallbacks=0 near_terrain=4.0 near_water=4.0 arena=H/KB fence=done/serial
+        busy=0 hazards=0 deferred=n/max tex_in_frame=created/destroyed cmdbuf=0.17 queue_max=5 checks=..
+        probes=.. mismatches=0 gpu_mismatches=0 gpu_busy=0 psc=../.. ppf=.. fields=none
+
+- `state_check=2` adds, right after the terrain's base draws and the water's draw, a submit and
+  wait of the command list so far and a read-back of the GPU's registers (GSPGPU_ReadHWRegs:
+  depth map enable/scale/offset, cull, depth test and masks, blend, alpha and stencil test, the
+  depth and colour buffer addresses and write enables, texture unit 0's address), compared with
+  citro3d's context: `AS3D_GPU_MISMATCH pass= field= expected= actual= frame=`; the first read-back
+  of each pass prints every register (`AS3D_GPU_REGS`) so the console's read-back can be judged
+  (a register that never matches from the first frame does not read back; what matters is a change
+  that coincides with the wash). It stalls the CPU twice per eye (the pacer goes to 30 Hz).
+- With either level, **L** (unbound in play) marks the moment: `AS3D_WASH_MARK n= frame= step=`,
+  the top, right and bottom targets dumped to `mark<NN>_*.ppm` (is the wash in the frame buffer?),
+  the left eye's depth buffer to `mark<NN>_depth.ppm` (bytes 3, 2, 1 of each D24S8 word as R, G, B;
+  the cleared far depth is black, any colour is a written depth: is the terrain's depth there
+  under the wash?), and the next 3
+  frames log every check in full (`AS3D_STATE_FULL`) with the register read-back.
+
+Reading the `AS3D_STATE` line: `buf=` is the water buffer's half, the offset of the last eye's
+vertices and the frame's bytes (60 is even, so the half printed is always the same one);
+`queue_max` is the most GX queue entries a frame had at frameEnd, before C3D_FrameEnd adds its last
+list and three transfers (the queue holds 32); `fence=` the completed and the current serial;
+`deferred=` the blocks waiting for their fence now and at most; `psc=`/`ppf=` the fill and
+transfer engines' control registers at the last frame start (`202` = finished, idle).
+
+### Azahar runs (2026-10-10, main 45b1125 + this round)
+
+| run | frames | result |
+|---|---|---|
+| mission 1 `mode=bot` mono, defaults | 1959 (2750 steps) | dumps at steps 600 / 1400 / 2700 equal to main's but for the perf text line (MAE 0.007 / 0.198 / 0.016, every difference in rows 230-235); main against a second run of main: MAE 0 |
+| Gulf mission 1 `mode=bot slider=1`, defaults | 286 | step 602 left and right eyes: the perf text line only (MAE 0.24) |
+| `mode=sim` as3d mission 1 (3600 steps), Gulf mission 1 (1200) | | end states (`level 1: ... map_pos`, `created ... freed`) equal to main's |
+| mission 1 bot, `state_check=2 arena_poison=1` | 840 | 0 mismatches over 2484 checks, 0 GPU mismatches over 1656 read-backs, 0 fence waits, 0 hazards, engines idle at every frame start; dumps clean (a step or two off main's: the stalls) |
+| Gulf mission 1 bot stereo, `state_check=2 arena_poison=1` | 164 | the same over 984 checks and 656 read-backs (the wave grid: `water_grid`, its heights in the water buffer); step 603 both eyes clean |
+| mission 1 `mode=play` mono, `state_check=1 arena_poison=1`, pad_script: forward, fire, missiles, weaving, the hint boxes dismissed, L at frames 300 and 700 | 1203 (4200 steps) | over the river and the bridge while firing: 0 mismatches over 3564 checks, `AS3D_WASH_MARK` and the `mark01/02` top, bottom and depth dumps, `AS3D_STATE_FULL` for 3 frames |
+| the same in stereo with `precache=0 state_check=2` (everything loads on first use) | 1052 | one texture created inside a frame (`AS3D_TEX_IN_FRAME frame=477 256x64`, in linear memory), clean; 0 mismatches over 6096 checks and 4064 read-backs |
+
+The register read-back works on Azahar (`AS3D_GPU_REGS pass=terrain ... map_scale=0xbd0000
+depth_mask=0x1f71 depth_write=0x3 blend=0x1010000`, the water's `blend=0x76760000`); on the console
+it is the first thing to look at in the log. Azahar never showed the wash, so these runs say the
+diagnostics are quiet when the state is right, not what the console will show.
+
+### For the console (the next session)
+
+One play session settles it. `run.ini`: `mode=play` (the front end, or `level=1` for the
+tutorial), **`state_check=1`**, everything else at its default. Play until the wash shows; press
+**L** as soon as it appears and once more while it lasts (each press freezes the game about a
+second for the dumps). If time allows, a second session with `state_check=2 arena_poison=1`
+(slower: the pacer drops to 30 Hz). Then `tools/3ds_fetch_logs.sh` plus the `mark*_*.ppm` files.
+Reading the log around each `AS3D_WASH_MARK`:
+
+| the log at the mark | means | next |
+|---|---|---|
+| `AS3D_STATE_MISMATCH layer=shadow` | the renderer's own bookkeeping issued another state | the setter named by `field=` |
+| `AS3D_STATE_MISMATCH layer=c3d` | citro3d's context differs from what we issued: a C3D call outside render_state_pica.cpp, or the mirror | `AS3D_STATE_FULL` has the context |
+| `field=depthmap_vs_terrain` | the water's depth map is not the terrain's | the near planes in `AS3D_STATE` |
+| `AS3D_GPU_MISMATCH` (level 2) with no CPU mismatch | the GPU ran other commands than the ones recorded: a corrupted or unflushed command list | `tex_in_frame`, P1's `AS3D_LATE_TEX`, `cmdbuf`, `queue_max` |
+| `AS3D_FENCE`, `AS3D_GPU_BUSY`, `hazards>0`, or garbage with `arena_poison=1` | a buffer was rewritten while the GPU read it | the fence |
+| none of these, the wash in `markNN_top.ppm` | it is in the frame buffer: look at `markNN_depth.ppm` | black (far) depth under the washed terrain = the terrain's depth is missing (a lost depth write or a late clear) |
+| none of these, no wash in the dump | the screen showed another buffer than the one drawn | the display swap (the C3D_FrameEnd race above), `gpu_kick=0` |
+
+The A/B list of the resume section (`water=0`, `water_tile=0`, `gpu_kick=0`, `pace=`) stays the
+fallback when the log stays silent.

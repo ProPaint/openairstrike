@@ -3,8 +3,10 @@
 //
 // Two halves of linear (GPU-visible) memory, 1.5 MB each by default. Frame N writes into one
 // half while the GPU may still read the other half from frame N-1; beginFrame() switches to
-// the other half and empties it. That is safe because C3D_FrameBegin(C3D_FRAME_SYNCDRAW)
-// waits for the GPU to finish frame N-1 before frame N+1 starts writing over its half.
+// the other half and empties it. That is safe because C3D_FrameBegin waits for citro3d's GX
+// queue to drain (every command list of the frames before, the ones kicked mid-frame included)
+// before frame N+1 starts writing over frame N-1's half (pica_frame.h: the fence that checks it;
+// docs/3ds-port.md "Frame synchronisation").
 // flush() writes the CPU data cache back for the used range of the current half, once per
 // frame, before C3D_FrameEnd hands the command list to the GPU.
 //
