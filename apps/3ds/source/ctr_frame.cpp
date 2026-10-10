@@ -24,6 +24,7 @@
 #include "as3d/world.h"
 #include "as3d/world_render.h"
 #include "ctr_context.h"
+#include "ctr_input.h"
 #include "ctr_mem.h"
 #include "ctr_perf.h"
 #include "flat_fill.h"
@@ -34,6 +35,7 @@
 #include "model_view.h"
 #include "pass_profile.h"
 #include "shadow_pica.h"
+#include "stereo_comfort.h"
 #include "pica_frame.h"
 #include "quality_pica.h"
 #include "state_check_pica.h"
@@ -165,6 +167,7 @@ constexpr float kModelPxPerVirtual = 0.8f;
 // kBannerFocal (the mesh is about 30 to 45 units away).
 constexpr int kBannerW = 400, kBannerH = 100;
 constexpr float kBannerFocal = 40.0f;
+constexpr float kBannerDepthPx = 4.0f; // the banner's depth behind the screen at slider 1 (stereo_comfort)
 constexpr float kBannerBand = 99.0f * kTopH / 600.0f; // the letterbox's black band (virtual 0..99)
 
 // BannerMesh::draw's model matrix (apps/game/game_view.cpp): the entity at (-34, 7, -30), angles
@@ -207,6 +210,7 @@ constexpr int kSlowSubmitLogs = 60;
 
 struct GameFrame::Impl {
     size_t lodCoarseSeen = 0, lodVisibleSeen = 0; // terrain LOD totals at the last pass report
+    size_t lodSwitchSeen = 0, lodSwitchFramesSeen = 0;
     RunConfig run;
     CtrContext* ctx = nullptr;
     as3d_game::GameSession* session = nullptr;
@@ -221,6 +225,7 @@ struct GameFrame::Impl {
     std::unique_ptr<ui::Renderer2D> r2dTouch;
     std::unique_ptr<ui::Renderer2D> r2dMenu;
     bool touchQuads = false, menuQuads = false; // the front end's frame filled them
+    bool touchPrebuild = false; // r2dTouch holds the band's first list, for the next forced loading frame
     uint64_t kickTick = 0; // the first gpu_kick of the frame (the pacer's GPU time)
     // The slow-submit log: the pass totals and the late-texture count when the frame began.
     uint64_t submitTick = 0;
@@ -233,6 +238,12 @@ struct GameFrame::Impl {
     pica::MeshDrawStats meshSum; // the mesh passes since the last AS3D_MESH line
     int listHit[3] = {-1, -1, -1};
     int listVerts[3] = {0, 0, 0};
+    struct ListSums { // AS3D_UI_LISTS: the three lists over the frames since the last line
+        unsigned frames = 0;
+        unsigned flushes[3] = {0, 0, 0};
+        double ms[3] = {0, 0, 0};
+        long units[3] = {0, 0, 0}, built[3] = {0, 0, 0}, draws[3] = {0, 0, 0};
+    } listSum;
     std::unique_ptr<ui::UiAssets> assets;
     bool hudReady = false;
     bool precached = false;
@@ -274,11 +285,29 @@ struct GameFrame::Impl {
     bool bannerLogged = false;
     bool bannerTried = false; // loadBanner ran since the last level start
     int modelX = 0, modelY = 0, modelW = 0, modelH = 0; // the viewport, top screen pixels from the top left
+    float modelFocal = 0.0f; // the model view's screen plane: its nearest vertex (0: unknown)
+    float modelFar = 0.0f;   // and its farthest vertex
     float topBrightness = 0.6f;
     float cmdUsageMax = 0.0f; // the largest C3D_GetCmdBufUsage seen after a top eye's last draw (256 KB list; full drops draws)
     // The frame.
     StereoParams stereo;
     float playerDepth = 0.0f;
+    // Stereo comfort (docs/3ds-port.md "Stereo comfort and frame polish (round 2, P5)"): the slider's
+    // eye offset, the comfort clamp's target and smoothed ratio, the depths it read this frame.
+    pica::ComfortFilter comfort;
+    pica::FocalFilter focalFilter;
+    unsigned lastStep = 0;
+    bool haveLastStep = false;
+    float fullEyeOffset = 0.0f, comfortTarget = 1.0f;
+    float nearDepth = 0.0f, farDepth = 0.0f, nearPx = 0.0f, farPx = 0.0f;
+    struct StereoSums { // the AS3D_STEREO line, over the frames since the last one
+        unsigned frames = 0, clamped = 0, nearLimited = 0, farLimited = 0;
+        double offsetSum = 0.0, nearPxSum = 0.0, farPxSum = 0.0, ratioSum = 0.0;
+        float offsetMin = 0.0f, offsetMax = 0.0f, nearPxMax = 0.0f, farPxMax = 0.0f, nearDepthMin = 0.0f;
+        unsigned probes0 = 0, scans0 = 0;
+        long long steps0 = 0;
+        unsigned long long probeTicks0 = 0, modelTicks0 = 0;
+    } stereoSums;
     float prepareMs = 0.0f;
     ui::HudState hud;
     bool showHud = false;
@@ -297,6 +326,121 @@ struct GameFrame::Impl {
 
     float maxEyeOffset() const { return run.eyeOffset > 0.0f ? run.eyeOffset : kMaxEyeOffset; }
     float minFocal() const { return run.minFocal > 0.0f ? run.minFocal : kMinFocalDistance; }
+    pica::ComfortLimits comfortLimits() const {
+        pica::ComfortLimits l;
+        l.maxNearPx = run.maxParallaxPx;
+        l.maxFarPx = run.maxFarParallaxPx;
+        return l;
+    }
+    void logStereoConfig() const {
+        AS3D_INFO("AS3D_STEREO_CONFIG eye_offset=%.2f (at slider 1) min_focal=%.1f max_parallax_px=%.1f "
+                  "max_far_parallax_px=%.1f stereo_comfort=%d (the near / far parallax limits at slider 1)",
+                  static_cast<double>(maxEyeOffset()), static_cast<double>(minFocal()), static_cast<double>(run.maxParallaxPx),
+                  static_cast<double>(run.maxFarParallaxPx), run.stereoComfort ? 1 : 0);
+    }
+
+    // The comfort clamp (stereo_comfort.h), after the world's prepare measured the scene's depths:
+    // the eye offset becomes the largest fraction of the slider's that keeps the nearest content
+    // within max_parallax_px in front of the screen and the farthest terrain within
+    // max_far_parallax_px behind it (both x slider), approached a little per frame.
+    void clampStereo(const WorldView& wv, float dt) {
+        fullEyeOffset = stereo.eyeOffset;
+        const pica::SceneDepth& sd = pica::sceneDepth();
+        nearDepth = farDepth = 0.0f;
+        if (sd.valid) {
+            if (sd.terrainHit) nearDepth = sd.terrainNear;
+            if (sd.modelNear > 0.0f && (nearDepth == 0.0f || sd.modelNear < nearDepth)) nearDepth = sd.modelNear;
+            if (sd.terrainHit) farDepth = sd.terrainFar;
+        }
+        const float a = pica::stereoA(wv.fovY, kAspect), w = static_cast<float>(kTopW);
+        comfortTarget = run.stereoComfort
+                            ? pica::comfortRatio(comfortLimits(), nearDepth, farDepth, stereo.focal, a, w, fullEyeOffset)
+                            : 1.0f;
+        const float ratio = comfort.update(comfortTarget, dt);
+        stereo.eyeOffset = fullEyeOffset * ratio;
+        nearPx = std::max(0.0f, -pica::parallaxPxPerUnit(nearDepth, stereo.focal, a, w) * stereo.eyeOffset);
+        farPx = std::max(0.0f, pica::parallaxPxPerUnit(farDepth, stereo.focal, a, w) * stereo.eyeOffset);
+        // The AS3D_STEREO sums.
+        StereoSums& s = stereoSums;
+        const float e = stereo.eyeOffset;
+        if (s.frames == 0) {
+            s.offsetMin = s.offsetMax = e;
+            s.nearDepthMin = nearDepth;
+        }
+        ++s.frames;
+        s.offsetSum += e;
+        s.ratioSum += ratio;
+        s.offsetMin = std::min(s.offsetMin, e);
+        s.offsetMax = std::max(s.offsetMax, e);
+        if (ratio < 0.999f) ++s.clamped;
+        const float kn = -pica::parallaxPxPerUnit(nearDepth, stereo.focal, a, w) * fullEyeOffset;
+        const float kf = pica::parallaxPxPerUnit(farDepth, stereo.focal, a, w) * fullEyeOffset;
+        const float slider = fullEyeOffset / maxEyeOffset();
+        if (kn > run.maxParallaxPx * slider) ++s.nearLimited;
+        if (kf > run.maxFarParallaxPx * slider) ++s.farLimited;
+        s.nearPxSum += nearPx;
+        s.farPxSum += farPx;
+        s.nearPxMax = std::max(s.nearPxMax, nearPx);
+        s.farPxMax = std::max(s.farPxMax, farPx);
+        if (nearDepth > 0.0f && (s.nearDepthMin == 0.0f || nearDepth < s.nearDepthMin)) s.nearDepthMin = nearDepth;
+    }
+
+    // The touch band of the level's first frame, built at the end of the level start (the last
+    // loading frame converts it into the list's cache units): a mapper set up as the input's
+    // (nothing held yet) and the HUD state of the loaded session. A unit that differs on the first
+    // frame (a count) is rebuilt alone; the tessellated discs are the cost and they match.
+    void prebuildTouch(const as3d_game::GameSession& ses) {
+        touchPrebuild = false;
+        if (!hudReady || !run.touch || !ses.hasLevel() || ses.world().intermission() ||
+            !pica::passEnabled(pica::Pass::Touch))
+            return;
+        as3d::TouchMapper t;
+        CtrInput::setUpTouch(t);
+        const ui::HudState h = as3d_game::hudStateOf(ses);
+        ui::TouchControlsState ts;
+        ts.assets = assets.get();
+        ts.player = &h.players[0];
+        ts.rules = &ses.rules();
+        r2dTouch->begin(kBottomW, kBottomH);
+        ui::drawTouchControls(*r2dTouch, t, ts);
+        touchPrebuild = true;
+    }
+
+    // A level start: the filters take the first frame's values at once, the sums start again.
+    void resetStereo() {
+        comfort.reset();
+        focalFilter.reset();
+        haveLastStep = false;
+        stereoSums = StereoSums();
+        nearDepth = farDepth = 0.0f;
+    }
+
+    void logStereoSums() {
+        StereoSums& s = stereoSums;
+        const pica::SceneDepth& sd = pica::sceneDepth();
+        if (sd.probes < s.probes0 || sd.modelScans < s.scans0) s = StereoSums(); // a level start reset the counters
+        if (s.frames > 0) {
+            const double n = static_cast<double>(s.frames);
+            const double k = static_cast<double>(SYSCLOCK_ARM11) / 1000.0;
+            const unsigned probes = sd.probes - s.probes0, scans = sd.modelScans - s.scans0;
+            AS3D_INFO("AS3D_STEREO frames=%u eye_offset min=%.2f avg=%.2f max=%.2f (slider x eye_offset=%.2f) comfort_avg=%.3f "
+                      "clamped=%.1f%% near_limited=%.1f%% far_limited=%.1f%% near_px avg=%.1f max=%.1f far_px avg=%.1f "
+                      "max=%.1f near_depth_min=%.1f focal=%.1f probe_ms=%.3f (%u probes, %.0f steps each) model_scan_ms=%.3f",
+                      s.frames, static_cast<double>(s.offsetMin), s.offsetSum / n, static_cast<double>(s.offsetMax),
+                      static_cast<double>(fullEyeOffset), s.ratioSum / n, 100.0 * s.clamped / n, 100.0 * s.nearLimited / n,
+                      100.0 * s.farLimited / n, s.nearPxSum / n, static_cast<double>(s.nearPxMax), s.farPxSum / n,
+                      static_cast<double>(s.farPxMax), static_cast<double>(s.nearDepthMin), static_cast<double>(stereo.focal),
+                      probes ? static_cast<double>(sd.probeTicks - s.probeTicks0) / k / probes : 0.0, probes,
+                      probes ? static_cast<double>(sd.probeSteps - s.steps0) / probes : 0.0,
+                      scans ? static_cast<double>(sd.modelTicks - s.modelTicks0) / k / scans : 0.0);
+        }
+        s = StereoSums();
+        s.probes0 = sd.probes;
+        s.scans0 = sd.modelScans;
+        s.steps0 = sd.probeSteps;
+        s.probeTicks0 = sd.probeTicks;
+        s.modelTicks0 = sd.modelTicks;
+    }
 
     // A standalone frame of the loading screen on both screens (and both eyes). The direct
     // modes: a progress bar, "LOADING" once the font is there. The front end: the original's
@@ -353,6 +497,19 @@ struct GameFrame::Impl {
             }
         };
         for (int eye = 0; eye < 2; ++eye) screen(ctx->topTarget(eye), kTopW, kTopH, true, r2d.get());
+        if (touchPrebuild && force) {
+            // The touch band's first list (prebuildTouch): converted into its cache units here,
+            // drawn on the bottom target and cleared over by the loading screen below, so the
+            // mission's first frame finds it cached (P1/P4: 15-26 ms inside that frame before).
+            touchPrebuild = false;
+            pica::drawOn(pica::FrameTarget{ctx->bottomTarget(), kBottomW, kBottomH, false});
+            const u64 t0 = svcGetSystemTick();
+            const int v0 = ui::ui2dPicaStats().vertices;
+            r2dTouch->flush();
+            AS3D_INFO("AS3D_TOUCH_PREBUILD ms=%.1f vertices=%d (in the loading screen)",
+                      static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11,
+                      ui::ui2dPicaStats().vertices - v0);
+        }
         screen(ctx->bottomTarget(), kBottomW, kBottomH, false, r2dBottom.get());
         pica::frameEnd();
         ctx->endFrame();
@@ -583,6 +740,8 @@ struct GameFrame::Impl {
         plan.end();
         const uint64_t t3 = svcGetSystemTick();
         logLevelStart(t0, t1, t1, t3);
+        resetStereo();
+        prebuildTouch(ses);
         loadingFrame(1.0f, true, intermission);
         return true;
     }
@@ -614,6 +773,10 @@ struct GameFrame::Impl {
             ui::Renderer2D& m = *r2dMenu;
             m.begin(kBottomW, kBottomH);
             fe->drawUnder(m, *assets);
+            // Cache units (Renderer2D::cacheBreak, docs/3ds-port.md "Stereo comfort and frame
+            // polish"): the screen's background apart from its items (MenuSystem::drawItems breaks
+            // after each item), so a pulsing focus or a ticking counter rebuilds its own unit only.
+            m.cacheBreak();
             if (fe->modelViewVisible()) fe->drawModelViews();
             fe->drawOver(m, *assets);
             menuQuads = true;
@@ -656,9 +819,26 @@ struct GameFrame::Impl {
         bannerTime = fe->menus().menuTime();
         bannerPass.begin(SceneLighting(), nullptr, 0);
         bannerPass.setEnvironment(Mat4::identity(), 0.0f, false);
-        bannerPass.submit(*banner->gpu, banner->material, bannerMatrix(bannerTime, banner->scale), Vec4{1, 1, 1, 1});
+        const Mat4 model = bannerMatrix(bannerTime, banner->scale);
+        bannerPass.submit(*banner->gpu, banner->material, model, Vec4{1, 1, 1, 1});
         bannerPass.finish();
-        bannerStereo = stereoFor(fi.eyes == 2 ? fi.slider : 0.0f, kBannerFocal, maxEyeOffset(), minFocal());
+        // Stereo (docs/3ds-port.md "Stereo comfort and frame polish"): the screen plane at the nearest
+        // vertex of the swaying mesh (the camera is the origin, identity view), so the title sits on
+        // the screen with its depth behind it, never in front of the letterbox band (2D, at the
+        // screen plane) it overlaps. kBannerFocal when no vertex is in the view.
+        // Its depth (the mesh is 20 to 45 units away, the world's eye offset made it span 15 px
+        // and more) is kept to kBannerDepthPx behind the screen at slider 1.
+        const float aspect = static_cast<float>(kBannerW) / static_cast<float>(kBannerH);
+        float nearD = 0.0f, farD = 0.0f;
+        if (run.stereoComfort &&
+            pica::meshDepthRange(model, banner->gpu->model.positions, 60.0f, aspect, 1.0f, 1000.0f, nearD, farD)) {
+            bannerStereo = stereoFor(fi.eyes == 2 ? fi.slider : 0.0f, nearD, maxEyeOffset(), 1.0f);
+            const float s = std::min(std::max(fi.slider, 0.0f), 1.0f);
+            bannerStereo.eyeOffset = pica::limitEyeOffsetForDepth(bannerStereo.eyeOffset, nearD, farD, pica::stereoA(60.0f, aspect),
+                                                                  static_cast<float>(kBannerW), kBannerDepthPx * s);
+        } else {
+            bannerStereo = stereoFor(fi.eyes == 2 ? fi.slider : 0.0f, kBannerFocal, maxEyeOffset(), minFocal());
+        }
         bannerActive = true;
     }
 
@@ -718,6 +898,20 @@ struct GameFrame::Impl {
         modelPass.setEnvironment(Mat4::identity(), 0.0f, false);
         for (const as3d_game::ModelViewPart& part : p.parts) modelPass.submit(*part.gpu, part.material, model * part.local, part.colour);
         modelPass.finish();
+        // Stereo (docs/3ds-port.md "Stereo comfort and frame polish"): the screen plane at the nearest
+        // vertex of its parts, so the model sits behind the panel's static fill (2D, at the screen
+        // plane) drawn over it; 0 = the view's own distance (prepare).
+        modelFocal = modelFar = 0.0f;
+        const float aspect = modelH > 0 ? static_cast<float>(modelW) / static_cast<float>(modelH) : 1.0f;
+        for (const as3d_game::ModelViewPart& part : p.parts) {
+            if (!part.gpu || !part.gpu->valid) continue;
+            float n = 0.0f, f = 0.0f;
+            if (!pica::meshDepthRange(model * part.local, part.gpu->model.positions, v.fovY, aspect, v.nearPlane, v.farPlane,
+                                      n, f))
+                continue;
+            if (modelFocal == 0.0f || n < modelFocal) modelFocal = n;
+            modelFar = std::max(modelFar, f);
+        }
     }
 
     // One eye of the model view: the viewport and its depth, the GL MeshRenderer's depth mapping
@@ -803,15 +997,22 @@ struct GameFrame::Impl {
     void dumpPair(const std::string& base, const FrameInfo& fi) {
         const std::string dir = std::string(kDataDir) + "/";
         const bool t = dumpTarget(ctx->topTarget(0), kTopW, dir + base + "_top.ppm");
-        // The right eye too when the world was drawn in stereo this frame.
-        const bool r = worldDrawn && stereo.eyes == 2 && dumpTarget(ctx->topTarget(1), kTopW, dir + base + "_right.ppm");
+        // The right eye too when two eyes were drawn this frame (the world, the model view, the
+        // banner, or the 2D layer alone: the 2D-at-the-screen-plane check compares them).
+        const bool r = fi.eyes == 2 && dumpTarget(ctx->topTarget(1), kTopW, dir + base + "_right.ppm");
         const bool b = dumpTarget(ctx->bottomTarget(), kBottomW, dir + base + "_bottom.ppm");
         AS3D_INFO("AS3D_DUMP %s frame=%u step=%u screen=%s top=%d right=%d bottom=%d", base.c_str(), fi.frame, fi.step,
                   fi.screen, t ? 1 : 0, r ? 1 : 0, b ? 1 : 0);
+        if (worldDrawn && stereo.eyes == 2)
+            AS3D_INFO("AS3D_DUMP %s stereo eye_offset_slider=%.3f eye_offset=%.3f comfort=%.3f focal=%.1f near_depth=%.1f "
+                      "far_depth=%.1f near_px=%.1f far_px=%.1f",
+                      base.c_str(), static_cast<double>(fullEyeOffset), static_cast<double>(stereo.eyeOffset),
+                      static_cast<double>(comfort.ratio), static_cast<double>(stereo.focal), static_cast<double>(nearDepth),
+                      static_cast<double>(farDepth), static_cast<double>(nearPx), static_cast<double>(farPx));
         if (bannerActive) {
             const pica::MeshDrawStats& bs = bannerPass.lastStats();
-            AS3D_INFO("AS3D_BANNER_DUMP %s mt=%.2f eyes=%d eye_offset=%.2f draws=%d vertices=%d triangles=%d", base.c_str(),
-                      static_cast<double>(bannerTime), bannerStereo.eyes, static_cast<double>(bannerStereo.eyeOffset), bs.draws,
+            AS3D_INFO("AS3D_BANNER_DUMP %s mt=%.2f eyes=%d eye_offset=%.2f focal=%.1f draws=%d vertices=%d triangles=%d", base.c_str(),
+                      static_cast<double>(bannerTime), bannerStereo.eyes, static_cast<double>(bannerStereo.eyeOffset), static_cast<double>(bannerStereo.focal), bs.draws,
                       bs.vertices, bs.triangles);
         }
         if (modelActive) {
@@ -848,6 +1049,7 @@ public:
         }
         AS3D_INFO("front end view: 2D layer %s, renderer ready; stereo eye offset %.2f at slider 1",
                   im_.hudReady ? "loaded" : "unavailable", static_cast<double>(im_.maxEyeOffset()));
+        im_.logStereoConfig();
         return level ? beginLevel(ses, error) : true;
     }
     bool beginLevel(as3d_game::GameSession& ses, std::string* error) override { return im_.flowBeginLevel(ses, error); }
@@ -908,6 +1110,9 @@ bool GameFrame::begin(CtrContext& ctx, as3d_game::GameSession& session) {
     im.logLevelStart(t0, t1, t2, t3);
     AS3D_INFO("stereo: eye offset %.2f at slider 1, focal distance >= %.1f (the camera-to-player depth)",
               static_cast<double>(im.maxEyeOffset()), static_cast<double>(im.minFocal()));
+    im.logStereoConfig();
+    im.resetStereo();
+    im.prebuildTouch(session);
     im.loadingFrame(1.0f, true);
     return true;
 }
@@ -940,18 +1145,51 @@ void GameFrame::prepare(const FrameInfo& info) {
     pica::passProfile().add(pica::Pass::PrepFlow, svcGetSystemTick() - t0, 0, 0);
 
     im.stereo = StereoParams();
+    // The seconds since the last frame (the simulation steps), for the stereo filters.
+    const float dt = im.haveLastStep && info.step >= im.lastStep ? static_cast<float>(info.step - im.lastStep) / 60.0f : 0.0f;
+    im.lastStep = info.step;
+    im.haveLastStep = true;
     if (im.worldDrawn) {
         const World& world = ses.world();
         // Stereo: zero parallax at the player's depth.
         const WorldView wv = worldViewOf(world, kAspect);
         im.playerDepth = im.minFocal();
+        bool anchored = false;
         const int pi = world.playerEntityIndex(0);
         if (pi >= 0) {
             const Vec3 p = world.entity(pi).v3(F_BASE_ORIGIN);
             const Vec4 v = wv.view * Vec4{p.x, p.y, p.z, 1.0f};
-            if (-v.z > 0.0f) im.playerDepth = -v.z;
+            if (-v.z > 0.0f) {
+                im.playerDepth = -v.z;
+                anchored = true;
+            }
         }
-        im.stereo = stereoFor(info.eyes == 2 ? info.slider : 0.0f, im.playerDepth, im.maxEyeOffset(), im.minFocal());
+        float minFocal = im.minFocal();
+        // No player (the attract levels behind the menus): the screen plane where the last frame's
+        // depths let the most depth through within the comfort limits (stereo_comfort.h
+        // balancedFocal), instead of min_focal, which put the whole scene far behind the screen
+        // (41 px of far parallax at slider 1 before the clamp).
+        if (!anchored && im.run.stereoComfort && info.eyes == 2 && im.nearDepth > 0.0f) {
+            const float s = std::min(std::max(info.slider, 0.0f), 1.0f);
+            pica::ComfortLimits lim = im.comfortLimits();
+            lim.maxNearPx *= s;
+            lim.maxFarPx *= s;
+            const float d = pica::balancedFocal(lim, im.nearDepth, im.farDepth, pica::stereoA(wv.fovY, kAspect),
+                                                static_cast<float>(kTopW), s * im.maxEyeOffset());
+            if (d > 0.0f) {
+                im.playerDepth = std::max(d, wv.nearPlane);
+                minFocal = wv.nearPlane;
+            }
+        }
+        im.stereo = stereoFor(info.eyes == 2 ? info.slider : 0.0f, im.playerDepth, im.maxEyeOffset(), minFocal);
+        // The screen plane eases after the player's depth (a respawn, a camera jump), the depth of
+        // the whole scene with it.
+        if (im.stereo.eyes == 2) {
+            if (im.run.stereoComfort) im.stereo.focal = std::max(im.focalFilter.update(im.stereo.focal, dt), minFocal);
+        } else {
+            im.focalFilter.reset();
+            im.comfort.reset();
+        }
 
         Viewport vp;
         vp.width = kTopW;
@@ -962,11 +1200,27 @@ void GameFrame::prepare(const FrameInfo& info) {
         }
         pica::setFrameEyes(im.stereo.eyes); // the stereo-only quality knobs (quality_pica.h)
         im.renderer->prepare(world, vp);
+        // The comfort clamp only lowers the eye offset: the cull volume prepared for the slider's
+        // offset holds both eyes.
+        if (im.stereo.eyes == 2) im.clampStereo(wv, dt);
+    } else {
+        im.focalFilter.reset();
+        im.comfort.reset();
     }
 
     // The model view: zero parallax at the model's distance.
-    if (im.modelActive)
-        im.stereo = stereoFor(info.eyes == 2 ? info.slider : 0.0f, -im.modelView.origin[2], im.maxEyeOffset(), im.minFocal());
+    if (im.modelActive) {
+        if (im.run.stereoComfort && im.modelFocal > 0.0f) {
+            // The model's front on the screen plane, its back within max_far_parallax_px.
+            im.stereo = stereoFor(info.eyes == 2 ? info.slider : 0.0f, im.modelFocal, im.maxEyeOffset(), 1.0f);
+            const float s = std::min(std::max(info.slider, 0.0f), 1.0f);
+            const float aspect = im.modelH > 0 ? static_cast<float>(im.modelW) / static_cast<float>(im.modelH) : 1.0f;
+            im.stereo.eyeOffset =
+                pica::limitEyeOffsetForDepth(im.stereo.eyeOffset, im.modelFocal, im.modelFar, pica::stereoA(im.modelView.fovY, aspect),
+                                             static_cast<float>(im.modelW), im.run.maxFarParallaxPx * s);
+        } else
+            im.stereo = stereoFor(info.eyes == 2 ? info.slider : 0.0f, -im.modelView.origin[2], im.maxEyeOffset(), im.minFocal());
+    }
 
     // The first game's banner over the attract level (the main menu).
     im.bannerActive = false;
@@ -1050,13 +1304,21 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
                                         im.menuQuads ? im.r2dMenu.get() : nullptr};
             for (int k = 0; k < 3; ++k) {
                 if (!lists[k]) continue;
-                const int hits0 = ui::ui2dPicaStats().cacheHits, v0 = ui::ui2dPicaStats().vertices;
+                const ui::Ui2dPicaStats s0 = ui::ui2dPicaStats();
                 const u64 t0 = svcGetSystemTick();
                 lists[k]->flush();
                 im.listMs[k] = static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11;
-                im.listHit[k] = ui::ui2dPicaStats().cacheHits > hits0 ? 1 : 0;
-                im.listVerts[k] = ui::ui2dPicaStats().vertices - v0;
+                const ui::Ui2dPicaStats& s1 = ui::ui2dPicaStats();
+                im.listHit[k] = s1.cacheHits > s0.cacheHits ? 1 : 0;
+                im.listVerts[k] = s1.vertices - s0.vertices;
+                // The AS3D_UI_LISTS sums.
+                im.listSum.ms[k] += im.listMs[k];
+                im.listSum.units[k] += s1.units - s0.units;
+                im.listSum.built[k] += s1.unitsBuilt - s0.unitsBuilt;
+                im.listSum.draws[k] += s1.runs - s0.runs;
+                ++im.listSum.flushes[k];
             }
+            ++im.listSum.frames;
         }
     } else if (im.hudReady) {
         const World& world = info.session->world();
@@ -1173,11 +1435,36 @@ void GameFrame::stats(FrameStats& out) {
         const size_t coarse = ts.coarseTotal - im.lodCoarseSeen, visible = ts.visibleTotal - im.lodVisibleSeen;
         im.lodCoarseSeen = ts.coarseTotal;
         im.lodVisibleSeen = ts.visibleTotal;
-        AS3D_INFO("AS3D_STEREO60 eyes=%d terrain_lod=%d coarse_chunks=%zu/%zu (per terrain render) shadow_atlas=%d "
+        const size_t switches = ts.lodSwitches >= im.lodSwitchSeen ? ts.lodSwitches - im.lodSwitchSeen : ts.lodSwitches;
+        const size_t switchFrames =
+            ts.lodSwitchFrames >= im.lodSwitchFramesSeen ? ts.lodSwitchFrames - im.lodSwitchFramesSeen : ts.lodSwitchFrames;
+        im.lodSwitchSeen = ts.lodSwitches;
+        im.lodSwitchFramesSeen = ts.lodSwitchFrames;
+        AS3D_INFO("AS3D_STEREO60 eyes=%d terrain_lod=%d coarse_chunks=%zu/%zu (per terrain render) lod_switches=%zu "
+                  "(in %zu frames) shadow_atlas=%d "
                   "pages=%d cells=%d full=%d atlas_kb=%.1f mesh_vertices=%zu->%zu mesh_indices=%zu->%zu",
-                  out.eyes, pica::terrainLodActive() ? 1 : 0, coarse, visible, pica::renderQuality().shadowAtlas ? 1 : 0,
+                  out.eyes, pica::terrainLodActive() ? 1 : 0, coarse, visible, switches, switchFrames,
+                  pica::renderQuality().shadowAtlas ? 1 : 0,
                   ss.atlasPages, ss.atlasCells, ss.atlasFull, static_cast<double>(ss.atlasBytes) / 1024.0,
                   ms.sourceVertices, ms.mergedVertices, ms.sourceIndices, ms.keptIndices);
+        // Stereo comfort over the same frames (docs/3ds-port.md "Stereo comfort and frame polish").
+        im.logStereoSums();
+        // The front end's bottom lists: ms, cache units and units rebuilt, draws per flush.
+        Impl::ListSums& ls = im.listSum;
+        if (ls.frames > 0) {
+            std::string parts;
+            const char* names[3] = {"hud", "touch", "menu"};
+            for (int k = 0; k < 3; ++k) {
+                if (!ls.flushes[k]) continue;
+                const double f = static_cast<double>(ls.flushes[k]);
+                char item[96];
+                std::snprintf(item, sizeof item, " %s=%.2fms/%.1f units/%.1f built/%.1f draws (%u flushes)", names[k],
+                              ls.ms[k] / f, ls.units[k] / f, ls.built[k] / f, ls.draws[k] / f, ls.flushes[k]);
+                parts += item;
+            }
+            AS3D_INFO("AS3D_UI_LISTS frames=%u%s", ls.frames, parts.c_str());
+        }
+        ls = Impl::ListSums();
     }
 }
 
@@ -1261,6 +1548,19 @@ void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
               static_cast<double>(im.stereo.eyeOffset), static_cast<double>(im.stereo.focal),
               static_cast<double>(im.playerDepth), static_cast<double>(px[0]), static_cast<double>(px[1]),
               static_cast<double>(py), static_cast<double>(far));
+    // The comfort clamp of this frame (eye_offset above is the effective one): the slider's offset,
+    // the target and smoothed ratios, the depths read and the parallax they get (px, effective).
+    if (im.stereo.eyes == 2) {
+        const pica::SceneDepth& sd = pica::sceneDepth();
+        AS3D_INFO("AS3D_DUMP stereo eye_offset_slider=%.3f eye_offset=%.3f comfort_target=%.3f comfort=%.3f "
+                  "near_depth=%.1f (terrain %.1f, model %.1f) far_depth=%.1f near_px=%.1f far_px=%.1f limits=%.1f/%.1f",
+                  static_cast<double>(im.fullEyeOffset), static_cast<double>(im.stereo.eyeOffset),
+                  static_cast<double>(im.comfortTarget), static_cast<double>(im.comfort.ratio),
+                  static_cast<double>(im.nearDepth), static_cast<double>(sd.terrainHit ? sd.terrainNear : 0.0f),
+                  static_cast<double>(sd.modelNear), static_cast<double>(im.farDepth), static_cast<double>(im.nearPx),
+                  static_cast<double>(im.farPx), static_cast<double>(im.run.maxParallaxPx * info.slider),
+                  static_cast<double>(im.run.maxFarParallaxPx * info.slider));
+    }
     AS3D_INFO("AS3D_DUMP cmdbuf usage %.3f (max so far %.3f), brightness %.2f", static_cast<double>(C3D_GetCmdBufUsage()),
               static_cast<double>(im.cmdUsageMax), static_cast<double>(im.topBrightness));
     const pica::WorldPicaStats& wps = pica::worldPicaStats();
