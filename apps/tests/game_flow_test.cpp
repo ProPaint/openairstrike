@@ -18,6 +18,7 @@
 
 #include "../game/game_flow.cpp"
 #include "../game/game_view.h"
+#include "../game/name_entry.h"
 #include "../game/ui_script.cpp"
 #include "as3d/defs.h"
 #include "test_data.h"
@@ -567,6 +568,53 @@ TEST_CASE("game flow: console options and pad navigation (the 3DS front end, M2.
     CHECK(h.world().numPlayers() == 1);
 }
 
+namespace {
+// The score of the high-score table's entry with this name (-1: none).
+long long enteredScore(ui::Frontend& fe, const std::string& name) {
+    for (const HighScore& e : fe.profile().progress.scores)
+        if (e.name == name) return static_cast<long long>(e.score);
+    return -1;
+}
+} // namespace
+
+TEST_CASE("game flow: the name entry from a system keyboard (the 3DS software keyboard, P6)") {
+    if (!haveData()) return;
+    Harness h;
+    REQUIRE(h.init("", true, true)); // the 3DS: touch mode, console options, nothing saved
+    REQUIRE(h.menu(Screen::MainMenu));
+    CHECK(nameEntryField(h.fe()) == nullptr);
+    CHECK_FALSE(submitName(h.fe(), "nobody"));
+    // Start Game, Start by pad (as the console test above), then a game over worth a high score.
+    h.key(keys::Down);
+    h.key(keys::Enter);
+    REQUIRE(h.menu(Screen::StartGame));
+    for (int k = 0; k < 5; ++k) h.key(keys::Down);
+    h.key(keys::Enter);
+    REQUIRE(h.fe().state() == ui::FrontendState::Playing);
+    h.world().player(0).scores = 60000.0f;
+    h.loseAllLives();
+    REQUIRE(h.tapItem(2)); // Quit: bank, the high-score check
+    REQUIRE(h.menu(Screen::NameEntry));
+    ui::MenuItem* field = nameEntryField(h.fe());
+    REQUIRE(field);
+    CHECK(field->id == 2);
+    // The field's own width rule: a long name keeps what typing it would keep.
+    const std::string longName(40, 'W');
+    const std::string kept = acceptedName(longName, field->w);
+    CHECK(kept.size() < longName.size());
+    CHECK_FALSE(kept.empty());
+    CHECK(ui::measureText(ui::FontMetrics::original(), kept.substr(0, kept.size() - 1)) < field->w - 20);
+    CHECK(acceptedName("Pil\xc3\xb6t Ace", field->w) == "Pilt Ace"); // UTF-8 dropped
+    // The keyboard's result, then Enter: the screen's own commit (insert, save, Top Scores).
+    h.key(keys::Down); // the pad moved the focus off the field: submitName gives it back
+    std::string got;
+    REQUIRE(submitName(h.fe(), "Pilot Ace", &got));
+    CHECK(got == "Pilot Ace");
+    h.key(keys::Enter);
+    REQUIRE(h.menu(Screen::TopScores));
+    CHECK(enteredScore(h.fe(), "Pilot Ace") == 60000);
+}
+
 // ---------------------------------------------------------------------------------------
 // The sequels' front end on a console (the 3DS, docs/3ds-port.md M5.2): touch mode, console
 // options and pad navigation, through the real GameFlow over the game's session.
@@ -834,4 +882,40 @@ TEST_CASE("game flow: the sequels' end screens by pad, back to the main menu (3D
     if (h.menu(Screen::TopScores)) h.key(keys::Escape);
     h.wait(5);
     CHECK(h.menu(Screen::MainMenu));
+}
+
+TEST_CASE("game flow: the sequels' name entry from a system keyboard (the 3DS software keyboard, P6)") {
+    if (!haveSequelData()) return;
+    SequelHarness h;
+    REQUIRE(h.init());
+    h.wait(30);
+    REQUIRE(h.menu(Screen::MainMenu));
+    REQUIRE(h.focus(1));
+    h.key(keys::Enter);
+    REQUIRE(h.focus(2));
+    h.key(keys::Enter);
+    REQUIRE(h.menu(Screen::HeliSelect));
+    REQUIRE(h.focus(1));
+    h.key(keys::Enter);
+    for (int k = 0; k < 60 && h.fe().menuOpen(); ++k) h.key(keys::Enter);
+    REQUIRE(h.fe().state() == ui::FrontendState::Playing);
+    h.world().player(0).scores = 60000.0f;
+    h.world().player(0).lives = -1.0f;
+    h.world().player(1).lives = -1.0f;
+    h.step();
+    REQUIRE(h.menu(Screen::GameOver));
+    REQUIRE(h.focus(2)); // Quit
+    h.key(keys::Enter);
+    h.wait(5);
+    REQUIRE(h.menu(Screen::NameEntry));
+    ui::MenuItem* field = nameEntryField(h.fe());
+    REQUIRE(field);
+    CHECK(field->id == 2);
+    h.key(keys::Down); // onto the touch keyboard's keys
+    CHECK(h.focusedId() != 2);
+    REQUIRE(submitName(h.fe(), "Pilot Ace"));
+    CHECK(h.focusedId() == 2);
+    h.key(keys::Enter);
+    REQUIRE(h.menu(Screen::TopScores));
+    CHECK(enteredScore(h.fe(), "Pilot Ace") == 60000);
 }
