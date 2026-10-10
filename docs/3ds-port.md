@@ -3,10 +3,34 @@
 Working notes of the port (plan: M1.0 onwards). The feasibility spike is in
 [3ds-spike.md](3ds-spike.md); its app is [apps/3ds](../apps/3ds/README.md).
 
-## State on 2026-10-08 and how to resume
+## State on 2026-10-11 and how to resume
 
-Paused after "drop 5" (main `098f524`): every package of the plan is merged (M0 to M5.4, the
-hardware tuning round 1 and the water fixes). Last console-verified state (New 3DS, drop 4):
+Round 2 (2026-10-10/11, main `e712df7`) is merged and built but NOT console-verified: the drop is
+`out/3ds/drop-round2-e712df7/` (the package's `openairstrike.3dsx`, `openairstrike.cia`, and three
+run.ini files: `run.ini` = play with `state_check=1 log_lazy=1 perf=1`, `run-diag.ini` = the same
+with `state_check=2 arena_poison=1`, `run-bot-stereo.ini` = the stereo acceptance run). Every
+package of the plan (M0 to M5.4) plus round 1 and round 2 are on main; the merged binary ran on
+Azahar (mission 1 bot in stereo: end state equal to the simulation, 0 lazy loads, 0 state
+mismatches; `mode=play` boots to the selector). **The console session that is due** (one
+session, in this order; fetch the logs with `tools/3ds_fetch_logs.sh` after it):
+
+1. `run.ini` (play): play the tutorial and mission 2 in mono, then with the slider up. Expect
+   no hitch when firing (the touch band fix of P1/P5) and 60 Hz in mono; note whether stereo
+   stays at 60 or falls to 30 (P3's cuts; the pacer line in the log says which).
+2. Press **L** whenever the water wash is on screen (P2's `AS3D_WASH_MARK` + `markNN_*.ppm`
+   dumps); the decision table is in "Frame synchronisation". If it never shows, say so: that
+   also decides.
+3. Stereo feel (P5): if the depth tires, lower `max_far_parallax_px` to 8 or 6, then
+   `max_parallax_px` to 6. Hover near a ridge for LOD flicker.
+4. The high-score name entry through the system keyboard (P6, unverified on Azahar).
+5. `run-bot-stereo.ini`: the 3600-step acceptance run in stereo for the GPU numbers
+   (`tools/3ds_perf_report.py`).
+6. Optional: `run-diag.ini` for one tutorial if the wash was seen (slower: register read-backs).
+7. Optional: install `openairstrike.cia` with FBI and start it from the HOME menu (icon, banner,
+   804 MHz line in the log).
+
+Last console-verified state before round 2 (New 3DS, drop 4, main `098f524` = drop 5 was played
+but not measured):
 
 | | mono | stereo |
 |---|---|---|
