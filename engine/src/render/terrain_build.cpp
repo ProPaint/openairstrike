@@ -357,7 +357,11 @@ void terrainDynamicLightColors(const TerrainChunkGeometry& chunk, const DynamicL
             const DynamicLight& l = lights[i];
             Vec3 v = l.position - aPos;
             const float radius = l.radius;
-            const float dist = length(v);
+            // Conservative early out before the square root (as evaluateLight): beyond the
+            // radius for certain; the exact test below decides every other vertex.
+            const float d2 = dot(v, v);
+            if (d2 > radius * radius * 1.01f) continue;
+            const float dist = std::sqrt(d2);
             if (radius <= 0.0f || dist > radius) continue;
             if (dist > 0.0f) v = Vec3{v.x / dist, v.y / dist, v.z / dist};
             float spot = 1.0f;
