@@ -19,10 +19,14 @@ CtrInput::CtrInput(const RunConfig& run, bool new3ds)
         else
             AS3D_WARN("pad_script: syntax error after %d presses (used as far as it goes)", static_cast<int>(script_.size()));
     }
-    touch_.setScreen(kTouchW, kTouchH, TouchLayoutOptions::forBottomScreen320x240());
-    touch_.settings().autoFire = false; // A fires; the bottom screen is HUD and buttons only
-    touch_.setPlayerScreen(false, 0, 0);
+    setUpTouch(touch_);
     if (new3ds_) irrst_ = R_SUCCEEDED(irrstInit());
+}
+
+void CtrInput::setUpTouch(TouchMapper& t) {
+    t.setScreen(kTouchW, kTouchH, TouchLayoutOptions::forBottomScreen320x240());
+    t.settings().autoFire = false; // A fires; the bottom screen is HUD and buttons only
+    t.setPlayerScreen(false, 0, 0);
 }
 
 CtrInput::~CtrInput() {

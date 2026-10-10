@@ -47,6 +47,9 @@ public:
     const as3d::TouchMapper& touch() const { return touch_; }
 
     static constexpr int kTouchW = 320, kTouchH = 240;
+    // The touch band's mapper as the input sets it up (the 320x240 preset, no auto-fire, no drag
+    // area): the frame composer builds the band's first list with one during the loading screen.
+    static void setUpTouch(as3d::TouchMapper& t);
     // A pad_script press is held this many displayed frames.
     static constexpr unsigned kScriptHoldFrames = 6;
 

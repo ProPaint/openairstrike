@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 #include "as3d/batch2d.h"
@@ -136,6 +137,7 @@ struct CacheSlot {
 };
 
 constexpr int kCacheSlots = 24; // per list: the touch band alone has 13 units (Renderer2D::cacheBreak)
+constexpr int kConsolidateFlushes = 30; // a split list unchanged this long is drawn as one unit
 
 template <class T> T* growLinear(T* p, size_t& cap, size_t need) {
     if (need <= cap && p) return p;
@@ -159,6 +161,7 @@ struct Renderer2D::Impl {
     CacheSlot slots[kCacheSlots];
     std::vector<Quad> unitQuads; // a cache unit's quads (flush)
     unsigned useStamp = 0;
+    int allHitFlushes = 0; // flushes in a row whose units all hit (consolidation)
     ~Impl() {
         for (CacheSlot& c : slots) {
             pica::deferLinearFree(c.flat);
@@ -202,6 +205,7 @@ int Renderer2D::flush() {
         const pica::FlatVertex* flat = nullptr;
         const pica::Flat2Vertex* flat2 = nullptr;
         bool hit = false;
+        const CacheSlot* slot = nullptr; // the slot it was drawn from (hits)
     };
     std::vector<Unit> units;
     {
@@ -222,6 +226,23 @@ int Renderer2D::flush() {
             if (!sameQuad(c.quads[i], quads_[u.first + i])) return false;
         return true;
     };
+    // Consolidation: a list split into units that stayed wholly cached for kConsolidateFlushes
+    // flushes gets a slot holding the whole list, its units' vertices copied end to end and their
+    // runs joined where texture and blend agree (fewer draws: the static menus of the front end);
+    // it is drawn from that slot while the list does not change. A change anywhere misses the whole
+    // and falls back to the units, most of which are still cached.
+    bool consolidated = false;
+    if (units.size() > 1) {
+        const Unit whole{0, quads_.size()};
+        for (const CacheSlot& c : im.slots) {
+            if (sameAs(c, whole)) {
+                units.assign(1, whole);
+                consolidated = true;
+                im.allHitFlushes = 0;
+                break;
+            }
+        }
+    }
     // First the units whose cached conversion is still there (a cached conversion of the same
     // quads: the vertices depend on the quads, the mapping, the half-pixel shift, the circle
     // segments and the snapping only), so that rebuilding a changed unit never takes a slot an
@@ -234,15 +255,84 @@ int Renderer2D::flush() {
             u.runs = &c.runs;
             u.flat = c.flat;
             u.flat2 = c.flat2;
+            u.slot = &c;
             c.usedFrame = frame;
             c.lastUse = ++im.useStamp;
             break;
         }
     }
+    if (!consolidated && units.size() > 1) {
+        bool allHit = true;
+        for (const Unit& u : units) allHit = allHit && u.hit;
+        im.allHitFlushes = allHit ? im.allHitFlushes + 1 : 0;
+        CacheSlot* dst = nullptr;
+        if (allHit && im.allHitFlushes >= kConsolidateFlushes) {
+            for (CacheSlot& c : im.slots)
+                if (c.usedFrame != frame && (!dst || !c.valid || (dst->valid && c.lastUse < dst->lastUse))) dst = &c;
+        }
+        if (dst) {
+            im.allHitFlushes = 0;
+            size_t n = 0, n2 = 0;
+            for (const Unit& u : units) {
+                n += u.slot->count;
+                n2 += u.slot->flat2Count;
+            }
+            dst->valid = false;
+            dst->flat = growLinear(dst->flat, dst->flatCap, n);
+            if (n2) dst->flat2 = growLinear(dst->flat2, dst->flat2Cap, n2);
+            if (dst->flat && (!n2 || dst->flat2)) {
+                std::vector<Run2D> runs;
+                size_t off = 0, off2 = 0;
+                auto twoTex = [](const Run2D& r) { return r.tex2 && r.combine2 != CombineMode::None; };
+                for (const Unit& u : units) {
+                    const CacheSlot& s = *u.slot;
+                    std::memcpy(dst->flat + off, s.flat, s.count * sizeof(pica::FlatVertex));
+                    if (s.flat2Count) std::memcpy(dst->flat2 + off2, s.flat2, s.flat2Count * sizeof(pica::Flat2Vertex));
+                    for (Run2D r : s.runs) {
+                        r.first += static_cast<int>(off);
+                        if (!runs.empty() && !twoTex(r)) {
+                            Run2D& p = runs.back();
+                            if (!twoTex(p) && p.blend == r.blend && p.tex == r.tex && p.shape == r.shape &&
+                                p.first + p.count == r.first) {
+                                p.count += r.count;
+                                continue;
+                            }
+                        }
+                        runs.push_back(r);
+                    }
+                    off += s.count;
+                    off2 += s.flat2Count;
+                }
+                GSPGPU_FlushDataCache(dst->flat, static_cast<u32>(n * sizeof(pica::FlatVertex)));
+                if (n2) GSPGPU_FlushDataCache(dst->flat2, static_cast<u32>(n2 * sizeof(pica::Flat2Vertex)));
+                dst->valid = true;
+                dst->quads = quads_;
+                dst->mapping = mapping_;
+                dst->halfPixel = halfPixelShift_;
+                dst->snap = g_snap;
+                dst->segments = segments_;
+                dst->runs = std::move(runs);
+                dst->count = n;
+                dst->flat2Count = n2;
+                dst->usedFrame = frame;
+                dst->lastUse = ++im.useStamp;
+                Unit w{0, quads_.size()};
+                w.runs = &dst->runs;
+                w.flat = dst->flat;
+                w.flat2 = dst->flat2;
+                w.hit = true;
+                w.slot = dst;
+                units.assign(1, w);
+                ++g_stats.consolidations;
+            }
+        }
+    }
     std::vector<std::vector<Run2D>> arenaRuns; // the runs of units drawn from the frame arena
     arenaRuns.reserve(units.size());
+    g_stats.units += static_cast<int>(units.size());
     for (Unit& u : units) {
         if (u.hit) continue;
+        ++g_stats.unitsBuilt;
         const u64 tBatch = svcGetSystemTick();
         Batch2DOptions opts;
         opts.halfPixelShift = halfPixelShift_;

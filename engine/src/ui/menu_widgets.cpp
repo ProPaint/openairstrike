@@ -471,6 +471,9 @@ void MenuSystem::drawItems(Renderer2D& r, const UiAssets& a) {
     for (size_t i = 0; i < m->items.size(); i++) {
         MenuItem& it = m->items[i];
         const bool focused = static_cast<int>(i) == m->focused;
+        // Each item a cache unit of the 3DS 2D backend (Renderer2D::cacheBreak; ignored by GL): the
+        // focused item's pulse rebuilds that item only.
+        r.cacheBreak();
         if (sequel) {
             // The sequels' widgets (as2_widgets.cpp); a text button still slides out once hidden.
             drawSequelItem(c, it, focused);
@@ -501,7 +504,9 @@ void MenuSystem::drawItems(Renderer2D& r, const UiAssets& a) {
             default: break; // the sequels' types are drawn by their style only
         }
     }
+    r.cacheBreak();
     if (m->drawFront) m->drawFront(c);
+    r.cacheBreak();
 
     // Tooltip (frontend.md 2.6).
     if (showHints && !touchMode && m->hovered >= 0 && m->hoverTime > 1.0f) {

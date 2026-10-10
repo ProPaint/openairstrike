@@ -28,7 +28,10 @@ struct Ui2dPicaStats {
     size_t arenaBytes = 0;   // frame arena bytes taken by the vertex arrays
     int arenaFailures = 0;   // flushes skipped because the frame arena was full
     int missingTextures = 0; // runs whose texture was not loaded (drawn white)
-    int cacheHits = 0;       // flushes that reused the vertices of an unchanged list (renderer2d_pica.cpp)
+    int cacheHits = 0;       // cache units (Renderer2D::cacheBreak) that reused their vertices (renderer2d_pica.cpp)
+    int units = 0;           // cache units flushed (a list without breaks is one)
+    int unitsBuilt = 0;      // of them, converted again (buildBatch2D) because their quads changed
+    int consolidations = 0;  // split lists joined into one cached unit after staying unchanged
 };
 
 // Counters since the last reset (the app resets them once per frame, or reads the totals).
