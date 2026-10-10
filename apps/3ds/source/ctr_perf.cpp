@@ -7,6 +7,7 @@
 #include <mutex>
 
 #include "as3d/core.h"
+#include "as3d/fs_util.h"
 #include "ctr_mem.h"
 #include "run_config.h"
 
@@ -25,6 +26,13 @@ std::FILE* g_csvFile = nullptr;
 std::string g_logBuf, g_csvBuf;
 bool g_ioFlag = false; // a write on the main thread happened (Perf::flush)
 
+// queueFileWrite: the files to write, under g_logMutex (taken by drainToFiles).
+struct FileJob {
+    std::string path;
+    std::vector<uint8_t> bytes;
+};
+std::vector<FileJob> g_fileJobs;
+
 struct Writer {
     Thread thread = nullptr;
     LightEvent wake;
@@ -35,10 +43,21 @@ Writer g_writer;
 // Takes the pending text and writes it (fwrite + fflush, no fsync).
 void drainToFiles() {
     std::string log, csv;
+    std::vector<FileJob> jobs;
     {
         std::lock_guard<std::mutex> lock(g_logMutex);
         log.swap(g_logBuf);
         csv.swap(g_csvBuf);
+        jobs.swap(g_fileJobs);
+    }
+    // The queued files first (their AS3D_FILE_WRITE line goes out with the next drain).
+    for (const FileJob& j : jobs) {
+        const uint64_t t0 = svcGetSystemTick();
+        std::string why;
+        const bool ok = as3d::writeFileAtomic(j.path, j.bytes.data(), j.bytes.size(), &why);
+        const double ms = static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11;
+        if (ok) AS3D_INFO("AS3D_FILE_WRITE path=%s bytes=%zu ms=%.0f (writer thread)", j.path.c_str(), j.bytes.size(), ms);
+        else AS3D_WARN("AS3D_FILE_WRITE path=%s failed: %s", j.path.c_str(), why.c_str());
     }
     if (log.empty() && csv.empty()) return;
     std::lock_guard<std::mutex> files(g_fileMutex);
@@ -101,6 +120,21 @@ double percentile(std::vector<float>& v, double p) {
 constexpr size_t kMaxSamples = 36000; // ten minutes at 60 Hz; the statistics beyond keep avg and max only
 
 } // namespace
+
+bool queueFileWrite(const std::string& path, std::vector<uint8_t>&& bytes) {
+    if (!g_writer.thread) return false;
+    {
+        std::lock_guard<std::mutex> lock(g_logMutex);
+        g_fileJobs.push_back(FileJob{path, std::move(bytes)});
+    }
+    LightEvent_Signal(&g_writer.wake);
+    return true;
+}
+
+size_t pendingFileWrites() {
+    std::lock_guard<std::mutex> lock(g_logMutex);
+    return g_fileJobs.size();
+}
 
 bool takePerfIoFlag() {
     const bool f = g_ioFlag;

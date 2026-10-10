@@ -55,12 +55,22 @@ struct FrameSample {
     uint64_t endTick = 0;  // when C3D_FrameEnd was called
     float endMs = 0.0f;    // in C3D_FrameEnd
     float afterMs = 0.0f;  // the hook's afterFrame (dumps)
+    int lateTextures = 0;  // late textures built after C3D_FrameEnd (pica drainLateTextures)
+    float lateMs = 0.0f;   // their time
     FrameStats stats;
 };
 
 // True once after Perf wrote log.txt / perf.csv to the SD card (the pacer excuses the frame
 // that waited for it); reading clears it.
 bool takePerfIoFlag();
+
+// A file the writer thread writes (as3d::writeFileAtomic: temporary file, fsync, rename) instead
+// of the caller: the level start's caches (the shadow silhouettes, the read plan), whose first
+// write cost 2.1 s on the console. Taken in order; false when there is no writer thread (Perf is
+// not open: the caller writes the file itself). Perf::close (and flush) write what is queued.
+bool queueFileWrite(const std::string& path, std::vector<uint8_t>&& bytes);
+// Files queued and not written yet (tests, logs).
+size_t pendingFileWrites();
 
 // Wall clock of the app: the ARM11 system tick (268.111856 MHz).
 uint64_t nowTicks();

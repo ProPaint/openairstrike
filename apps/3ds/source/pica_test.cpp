@@ -25,6 +25,7 @@
 #include "as3d/texconv.h"
 #include "as3d/texture.h"
 #include "as3d/world_render.h"
+#include "ctr_frame.h"
 #include "pica_frame.h"
 #include "pica_space.h"
 #include "shader_set.h"
@@ -176,7 +177,57 @@ struct Scene {
     Image formatSampled[kFormatCount]; // texconv round trip of each image in its format
     Texture2D ramp, white, terrainBase, terrainDetail;
     Image rampSampled, baseSampled, detailSampled;
+    Texture2D late; // created inside frame kLateFrame (gfx_pica.cpp's late queue)
 };
+
+// The late texture check (3DS round 2, P1): a texture created inside a frame is an 8x8 placeholder
+// of its average colour for that frame, built after C3D_FrameEnd (pica::drainLateTextures) and
+// drawn for real from the next frame. 32x32, left half red, right half blue: the placeholder is
+// (127, 0, 127). picatest_late_f<N>.ppm are the top screen after frames kLateFrame and
+// kLateFrame + 2; the quad is at kLateRect.
+constexpr int kLateFrame = 2;
+constexpr float kLateRect[4] = {300.0f, 196.0f, 364.0f, 228.0f};
+
+Image lateImage() {
+    Image img;
+    img.width = img.height = 32;
+    img.rgba.assign(32 * 32 * 4, 0);
+    for (int y = 0; y < 32; ++y)
+        for (int x = 0; x < 32; ++x) {
+            u8* p = &img.rgba[(static_cast<size_t>(y) * 32 + static_cast<size_t>(x)) * 4];
+            p[0] = x < 16 ? 255 : 0;
+            p[2] = x < 16 ? 0 : 255;
+            p[3] = 255;
+        }
+    return img;
+}
+
+void lateTextureInfo(const Scene& s, const char* when) {
+    pica::Placement pl = pica::Placement::Linear;
+    int tw = 0, th = 0, levels = 0;
+    PicaFormat pf = PicaFormat::RGBA8;
+    const bool ok = pica::textureInfo(s.late, &pl, &tw, &th, &pf, &levels);
+    say("late texture %s: valid %d, %dx%d fmt %d %s, queued %d built %d pending %u\n", when, ok ? 1 : 0, tw, th,
+        static_cast<int>(pf), pl == pica::Placement::Vram ? "VRAM" : "linear", pica::lateTextureStats().queued,
+        pica::lateTextureStats().built, static_cast<unsigned>(pica::lateTexturesPending()));
+}
+
+void drawLate(Scene& s, int frame) {
+    if (frame == kLateFrame) {
+        TextureOptions nearest;
+        nearest.minFilter = nearest.magFilter = Filter::Nearest;
+        nearest.wrapS = nearest.wrapT = Wrap::ClampToEdge;
+        s.late.create(lateImage(), nearest); // inside the frame: queued
+        lateTextureInfo(s, "created inside the frame");
+    }
+    if (frame < kLateFrame) return;
+    setBlend(GlBlend::Off);
+    setDepth(false, false);
+    setCull(CullMode::Off);
+    pica::applyTev(pica::tevReplaceTex());
+    s.late.bind(0);
+    drawRect(Rect{kLateRect[0], kLateRect[1], kLateRect[2], kLateRect[3]}, 0.0f, 255, 255, 255, 255);
+}
 
 Image roundTrip(const Image& img, TextureClass cls) {
     PicaFormat f = chooseFormat(img, cls);
@@ -617,8 +668,21 @@ void run(const std::string& dir, int holdFrames) {
         pica::frameBegin();
         pica::drawOn(pica::FrameTarget{top, 400, 240, true});
         drawFrame(*scene);
+        drawLate(*scene, frame);
         pica::frameEnd();
         C3D_FrameEnd(0);
+        if (frame == kLateFrame || frame == kLateFrame + 2) {
+            char name[64];
+            std::snprintf(name, sizeof name, "/picatest_late_f%d.ppm", frame);
+            const bool dumped = ctrapp::dumpRenderTarget(top, 400, dir + name);
+            say("late texture: frame %d dumped %d (quad %.0f,%.0f..%.0f,%.0f)\n", frame, dumped ? 1 : 0, kLateRect[0],
+                kLateRect[1], kLateRect[2], kLateRect[3]);
+        }
+        if (frame == kLateFrame) {
+            const int built = pica::drainLateTextures();
+            say("late texture: drained %d after C3D_FrameEnd\n", built);
+            lateTextureInfo(*scene, "after the drain");
+        }
         maxArena = std::max<unsigned>(maxArena, static_cast<unsigned>(pica::frameArena().used()));
         if (frame == 0) {
             g_writeChecks = false;

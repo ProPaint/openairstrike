@@ -25,6 +25,7 @@
 #include "as3d/world_render.h"
 #include "ctr_context.h"
 #include "ctr_mem.h"
+#include "ctr_perf.h"
 #include "flat_fill.h"
 #include "game_flow.h"
 #include "game_session.h"
@@ -173,6 +174,12 @@ private:
 
 constexpr unsigned kPassReportFrames = 300;
 
+// A frame whose submit (drawTop + drawBottom) takes longer than this logs AS3D_SLOW_SUBMIT with
+// its own per-pass split (the owner's drop 5 play session: 18-24 ms submits every 9-11 frames
+// with fire held, no load at those frames). At most kSlowSubmitLogs lines per level.
+constexpr double kSlowSubmitMs = 15.0;
+constexpr int kSlowSubmitLogs = 60;
+
 } // namespace
 
 struct GameFrame::Impl {
@@ -191,6 +198,16 @@ struct GameFrame::Impl {
     std::unique_ptr<ui::Renderer2D> r2dMenu;
     bool touchQuads = false, menuQuads = false; // the front end's frame filled them
     uint64_t kickTick = 0; // the first gpu_kick of the frame (the pacer's GPU time)
+    // The slow-submit log: the pass totals and the late-texture count when the frame began.
+    uint64_t submitTick = 0;
+    uint64_t passTicks0[pica::kPassCount] = {};
+    int lateQueued0 = 0;
+    int slowLogged = 0;
+    // The front end's three bottom lists this frame (HUD, touch band, menus): flush ms, and
+    // whether the flush reused its cached vertices (1) or rebuilt them (0); -1 = not flushed.
+    double listMs[3] = {0, 0, 0};
+    int listHit[3] = {-1, -1, -1};
+    int listVerts[3] = {0, 0, 0};
     std::unique_ptr<ui::UiAssets> assets;
     bool hudReady = false;
     bool precached = false;
@@ -384,7 +401,11 @@ struct GameFrame::Impl {
         }
         const u64 t2 = svcGetSystemTick();
         r += renderer->precache(world, ses.db(), [this, from, to](float q) { loadingFrame(from + (to - from) * q); });
-        const int saved = pica::saveShadowCache();
+        // The file goes to the writer thread (ctr_perf.h): the first start's write and fsync
+        // took 2.1 s of the loading screen on the console.
+        const int saved = pica::saveShadowCache([](const std::string& path, std::vector<u8>&& bytes) {
+            return queueFileWrite(path, std::move(bytes));
+        });
         const u64 t3 = svcGetSystemTick();
         if (run.shadowCache) {
             const pica::ShadowCacheStats& cs = pica::shadowCacheStats();
@@ -393,10 +414,17 @@ struct GameFrame::Impl {
         }
         const as3d::ctr::StreamReadStats rd2 = as3d::ctr::streamReadStats();
         const LoadCounts before = LoadStats::lazyLoads();
-        if (hudReady) assets->precachePlay();
+        if (hudReady) {
+            assets->precachePlay();
+            if (flow) assets->precacheMenus(); // the front end's and the in-game menus' pictures
+        }
         const u64 t4 = svcGetSystemTick();
-        // The front end: the level's sounds (GameStack wires the view to its AudioBridge).
-        if (precacheSounds && *precacheSounds && world.precacheSet()) (*precacheSounds)(*world.precacheSet());
+        // The front end: the level's sounds and the menus' (GameStack wires the view to its AudioBridge).
+        if (precacheSounds && *precacheSounds && world.precacheSet()) {
+            PrecacheSet set = *world.precacheSet();
+            for (const std::string& s : ui::UiAssets::menuSounds()) set.sounds.push_back(s);
+            (*precacheSounds)(set);
+        }
         const u64 t5 = svcGetSystemTick();
         {
             const pica::LoadProfile& lp = pica::loadProfile();
@@ -466,6 +494,8 @@ struct GameFrame::Impl {
         const bool intermission = ses.hasLevel() && ses.world().intermission();
         loadingFrame(0.2f, true, intermission); // also: the GPU is done with the last level's frames
         logLazyLoads();
+        slowLogged = 0;
+        LoadStats::PrecacheScope scope; // the level start's loads are not lazy ones (log_lazy)
         mission = ses.mission();
         const uint64_t t0 = svcGetSystemTick();
         // A fresh renderer and 2D layer per level: the renderer's caches (meshes, skins, particle
@@ -730,6 +760,7 @@ bool GameFrame::begin(CtrContext& ctx, as3d_game::GameSession& session) {
     im.ctx = &ctx;
     im.session = &session;
     im.mission = session.mission();
+    LoadStats::PrecacheScope scope; // the level start's loads are not lazy ones (log_lazy)
     if (!im.initBackend()) return false;
     im.loadingFrame(0.0f, true);
     const uint64_t t0 = svcGetSystemTick();
@@ -823,6 +854,9 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
     if (eye == 0) {
         ui::ui2dPicaResetStats();
         pica::frameBegin();
+        im.submitTick = svcGetSystemTick();
+        for (int p = 0; p < pica::kPassCount; ++p) im.passTicks0[p] = pica::passProfile().totals(static_cast<pica::Pass>(p)).ticks;
+        im.lateQueued0 = pica::lateTextureStats().queued;
     }
     pica::drawOn(pica::FrameTarget{ctx.topTarget(eye), kTopW, kTopH, true});
     if (im.worldDrawn) {
@@ -865,10 +899,23 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
     clear(Vec4{0, 0, 0, 1}, false, 1.0f);
     if (im.hudReady && im.flow) {
         UiMeter m(pica::Pass::Bottom2d);
+        for (int k = 0; k < 3; ++k) {
+            im.listMs[k] = 0.0;
+            im.listHit[k] = -1;
+            im.listVerts[k] = 0;
+        }
         if (im.haveLayers) {
-            im.r2dBottom->flush();
-            if (im.touchQuads) im.r2dTouch->flush();
-            if (im.menuQuads) im.r2dMenu->flush();
+            ui::Renderer2D* lists[3] = {im.r2dBottom.get(), im.touchQuads ? im.r2dTouch.get() : nullptr,
+                                        im.menuQuads ? im.r2dMenu.get() : nullptr};
+            for (int k = 0; k < 3; ++k) {
+                if (!lists[k]) continue;
+                const int hits0 = ui::ui2dPicaStats().cacheHits, v0 = ui::ui2dPicaStats().vertices;
+                const u64 t0 = svcGetSystemTick();
+                lists[k]->flush();
+                im.listMs[k] = static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11;
+                im.listHit[k] = ui::ui2dPicaStats().cacheHits > hits0 ? 1 : 0;
+                im.listVerts[k] = ui::ui2dPicaStats().vertices - v0;
+            }
         }
     } else if (im.hudReady) {
         const World& world = info.session->world();
@@ -902,6 +949,35 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
     }
     im.arenaUsed = pica::frameArena().used();
     pica::frameEnd();
+    const double k = static_cast<double>(SYSCLOCK_ARM11) / 1000.0;
+    const double submitMs = static_cast<double>(svcGetSystemTick() - im.submitTick) / k;
+    if (submitMs > kSlowSubmitMs && im.slowLogged < kSlowSubmitLogs) {
+        ++im.slowLogged;
+        // The passes over 0.3 ms this frame; "other" = the submit outside every pass.
+        std::string split;
+        double inPasses = 0.0;
+        for (int p = 0; p < pica::kPassCount; ++p) {
+            const pica::Pass pass = static_cast<pica::Pass>(p);
+            if (pass == pica::Pass::Ui2dBatch || pass == pica::Pass::Ui2dCopy) continue; // inside the 2D passes
+            const double ms = static_cast<double>(pica::passProfile().totals(pass).ticks - im.passTicks0[p]) / k;
+            inPasses += ms;
+            if (ms < 0.3) continue;
+            char item[48];
+            std::snprintf(item, sizeof item, " %s=%.1f", pica::passName(pass), ms);
+            split += item;
+        }
+        const WorldRenderStats& ws = im.renderer->lastStats();
+        // The front end's bottom lists: ms/cached/vertices of the HUD, the touch band, the menus.
+        char lists[128] = "";
+        if (im.flow)
+            std::snprintf(lists, sizeof lists, " lists hud=%.1f/%d/%d touch=%.1f/%d/%d menu=%.1f/%d/%d", im.listMs[0],
+                          im.listHit[0], im.listVerts[0], im.listMs[1], im.listHit[1], im.listVerts[1], im.listMs[2],
+                          im.listHit[2], im.listVerts[2]);
+        AS3D_INFO("AS3D_SLOW_SUBMIT frame=%u step=%u ms=%.1f eyes=%d draws=%d verts=%d late_tex=%d lazy=%lld%s other=%.1f%s",
+                  info.frame, info.step, submitMs, im.stereo.eyes, ws.drawCalls, ws.vertices,
+                  pica::lateTextureStats().queued - im.lateQueued0, static_cast<long long>(LoadStats::lazyLoads().total()),
+                  split.c_str(), submitMs - inPasses, lists);
+    }
 }
 
 void GameFrame::stats(FrameStats& out) {

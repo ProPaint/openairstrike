@@ -22,6 +22,7 @@
 #include "ctr_context.h"
 #include "ctr_input.h"
 #include "quality_profile.h"
+#include "texture_budget.h"
 
 namespace ctrapp {
 namespace {
@@ -120,6 +121,7 @@ struct PacerState {
     uint64_t lastSync = 0;    // the sync of the last frame the pacer saw
     FrameSample prev;         // that frame's columns (the miss logs)
     long long lazyLoads = 0;  // LoadStats total at the last frame (a late load excuses a miss)
+    bool loadBefore = false;  // the last frame had a late load (excuses this one's miss as well)
     int eyes = 1;             // of the last frame (pace=auto: stereo starts at 30 Hz)
     int fitNeeded = 120;      // fitting frames in a row to go to 60 Hz (doubled after a quick fall back)
     unsigned promotedAt = 0, frameNo = 0;
@@ -143,7 +145,11 @@ void updatePacer(const FrameSample& sample) {
     PacerState& p = g_pacer;
     const bool io = takePerfIoFlag();
     const long long lazy = as3d::LoadStats::lazyLoads().total();
-    const bool lateLoad = lazy != p.lazyLoads;
+    // A load inside the frame's submit (or a late texture built after it) delays the next sync:
+    // the frame after a late load is excused too.
+    const bool loadNow = lazy != p.lazyLoads || sample.lateTextures > 0;
+    const bool lateLoad = loadNow || p.loadBefore;
+    p.loadBefore = loadNow;
     p.lazyLoads = lazy;
     int interval = 1;
     if (p.lastSync != 0)
@@ -294,6 +300,7 @@ int FrameClock::due(unsigned* dropped) {
 int FrameClock::lastInterval() const { return g_clock.lastInterval; }
 
 void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSample& sample) {
+    as3d::LoadStats::setFrame(static_cast<long>(info.frame)); // the AS3D_LAZY lines (log_lazy=1)
     hook.prepare(info);
     // The vblank (C3D_FrameSync: the next tick of citro3d's frame counter, every vblank at 60 Hz,
     // every other one at 30), its timestamp for the frame clock, then the frame (C3D_FrameBegin
@@ -310,9 +317,16 @@ void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSam
         const uint64_t w2 = nowTicks();
         sample.endTick = w2;
         ctx.endFrame(g_pacing.cmdlistFlush ? GX_CMDLIST_FLUSH : 0);
+        const uint64_t w3 = nowTicks();
         sample.waitMs = static_cast<float>(ticksToMs(w1 - ws));
         sample.submitMs = static_cast<float>(ticksToMs(w2 - w1));
-        sample.endMs = static_cast<float>(ticksToMs(nowTicks() - w2));
+        sample.endMs = static_cast<float>(ticksToMs(w3 - w2));
+        // Textures created inside this frame (loads the precache missed) were placeholders:
+        // built now, outside the command stream, at most one (or 2 ms) per frame (texture_budget.h).
+        if (as3d::pica::lateTexturesPending() > 0) {
+            sample.lateTextures = as3d::pica::drainLateTextures();
+            sample.lateMs = static_cast<float>(ticksToMs(nowTicks() - w3));
+        }
     }
     sample.cpuMs = C3D_GetProcessingTime();
     sample.gpuMs = C3D_GetDrawingTime();
@@ -384,7 +398,9 @@ void ReadPlan::end() {
         std::string text = std::string(kPlanHeader) + "\n";
         for (const std::string& p : recorded_) text += p + "\n";
         as3d::makeDirectories(std::string(kDataDir) + "/cache");
-        stored = as3d::writeFileAtomic(planPath(key_), text.data(), text.size());
+        // The writer thread writes it (ctr_perf.h queueFileWrite), not the level start.
+        stored = queueFileWrite(planPath(key_), std::vector<uint8_t>(text.begin(), text.end())) ||
+                 as3d::writeFileAtomic(planPath(key_), text.data(), text.size());
     }
     AS3D_INFO("AS3D_READPLAN plan=%s read=%d planned=%d hits=%d %s in %.0f ms", key_.c_str(),
               static_cast<int>(recorded_.size()), static_cast<int>(loaded_.size()), hits,
@@ -399,6 +415,7 @@ void ReadPlan::end() {
 int runCtrLoop(const CtrLoopOptions& opts) {
     using namespace as3d;
     const RunConfig& run = opts.run;
+    as3d::LoadStats::setLogLazy(run.logLazy);
     if (run.menu()) return runCtrMenuLoop(opts);
     const bool sim = run.mode == Mode::Sim;
     const bool bot = run.mode != Mode::Play;
@@ -409,9 +426,11 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     bool new3ds = false;
     APT_CheckNew3DS(&new3ds);
     if (new3ds) osSetSpeedupEnable(true);
-    AS3D_INFO("openairstrike 3ds: mode=%s game=%s level=%d frames=%d perf=%d, %s 3DS%s state_check=%d arena_poison=%d",
+    AS3D_INFO("openairstrike 3ds: mode=%s game=%s level=%d frames=%d perf=%d bot_weapons=%d log_lazy=%d, %s 3DS%s "
+              "state_check=%d arena_poison=%d",
               modeName(run.mode), run.game.c_str(), run.level, run.effectiveFrames(), run.perf ? 1 : 0,
-              new3ds ? "New" : "Old", new3ds ? ", speed-up on" : "", run.stateCheck, run.arenaPoison ? 1 : 0);
+              run.botWeapons ? 1 : 0, run.logLazy ? 1 : 0, new3ds ? "New" : "Old", new3ds ? ", speed-up on" : "",
+              run.stateCheck, run.arenaPoison ? 1 : 0);
     AS3D_INFO("memory: APPLICATION %.1f MB free, linear free %.1f MB", mb(osGetMemRegionFree(MEMREGION_APPLICATION)),
               mb(linearSpaceFree()));
 
@@ -530,6 +549,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
 
     auto stepOnce = [&]() {
         FrameInput in = bot ? botInput(steps) : input.frame(session->world().paused());
+        if (run.botWeapons) applyWeaponTour(session->world(), steps, in);
         const int ev = session->step(in);
         if (ev & as3d_game::GameSession::kLevelStarted) audio.levelStarted(*session);
         audio.afterStep(session->world());

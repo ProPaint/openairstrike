@@ -97,6 +97,8 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `frames` | N, default 0 | simulation steps, then the app quits cleanly; 0 means 600 in `sim` and unlimited otherwise |
 | `perf` | `0` (default) or `1` | write `perf.csv` |
 | `log_input` | `0` (default) or `1` | log `AS3D_INPUT held=0x... touch=<button\|none>` on every change of the held bits and on every touch-button hit |
+| `log_lazy` | `0` (default) or `1` | log `AS3D_LAZY path=... kind=... site=... frame=...` for every load after a level-start precache (a first-use load: what the precache missed; `as3d/load_stats.h`) |
+| `bot_weapons` | `0` (default) or `1` | the weapon tour (`as3d/input.h` applyWeaponTour) over the input of `bot`, `play` (pad) and `menu_bot`: every weapon at every upgrade level, every missile type and power-up kind, fire held; a cheat, for the precache checks |
 | `bind_fire`, `bind_missile`, `bind_powerup`, `bind_nextweapon`, `bind_nextmissile`, `bind_nextpowerup`, `bind_pause` | `A B X Y L R ZL ZR START SELECT NONE` | remap a pad button (defaults: A, B, X, Y, R, ZR, START); an unknown value is ignored |
 | `difficulty` | N | the engine default when absent |
 | `dump_at` | N, default 0 (never) | bot/play: the first frame after N simulation steps writes `top_left.ppm`, `top_right.ppm` (only when two eyes were drawn) and `bottom.ppm` (upright 400x240 / 320x240 PPMs read back from the targets) and an `AS3D_DUMP` line (stereo parameters, the player's pixel in each eye, the predicted far disparity, the model records drawn from linear-memory textures) |
