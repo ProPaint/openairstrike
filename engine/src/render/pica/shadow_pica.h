@@ -75,7 +75,11 @@ struct ShadowCacheStats {
 };
 const ShadowCacheStats& shadowCacheStats();
 // Writes the file when entries were added since it was loaded; returns the entries written.
-int saveShadowCache();
+// With `write` (the 3DS app's writer thread, ctr_perf.h queueFileWrite) the bytes are handed to
+// it instead of being written here (the first start's write and fsync took 2.1 s on the
+// console); `write` returns false when it cannot take them (then they are written here).
+using ShadowCacheWriter = std::function<bool(const std::string& path, std::vector<u8>&& bytes)>;
+int saveShadowCache(const ShadowCacheWriter& write = ShadowCacheWriter());
 
 struct ShadowPicaStats {
     // Since resetShadowPicaStats() (WorldRenderer::beginLevel): silhouettes generated, failed,

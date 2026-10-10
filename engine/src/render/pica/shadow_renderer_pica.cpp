@@ -392,7 +392,7 @@ void setShadowCacheFile(const std::string& path) {
 
 const ShadowCacheStats& shadowCacheStats() { return cache().stats; }
 
-int saveShadowCache() {
+int saveShadowCache(const ShadowCacheWriter& write) {
     ShadowCache& c = cache();
     if (c.path.empty() || !c.dirty) return 0;
     const u64 t0 = svcGetSystemTick();
@@ -415,6 +415,12 @@ int saveShadowCache() {
     }
     const size_t slash = c.path.find_last_of('/');
     if (slash != std::string::npos) makeDirectories(c.path.substr(0, slash));
+    const int entries = static_cast<int>(c.entries.size());
+    if (write && write(c.path, std::move(out))) {
+        c.dirty = false;
+        c.stats.saveMs = msSince(t0); // the serialisation only: the writer thread writes the file
+        return entries;
+    }
     const bool ok = writeFileAtomic(c.path, out.data(), out.size());
     c.dirty = !ok;
     c.stats.saveMs = msSince(t0);
