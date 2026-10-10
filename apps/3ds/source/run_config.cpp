@@ -64,7 +64,7 @@ RunConfig parseRunConfig(const std::string& text) {
             else if (val == "bot") c.mode = Mode::Bot;
             else if (val == "sim") c.mode = Mode::Sim;
             else if (val == "probe") c.mode = Mode::Probe;
-            else if (val == "spike") c.mode = Mode::Spike;
+            else c.mode = Mode::Spike; // spike, and the test modes (picatest, meshtest, ...): main.cpp
         } else if (key == "game") {
             if (val == "select") {
                 c.gameGiven = false; // the selector (ctr_selector.h)
@@ -146,6 +146,11 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n) && n >= 0) c.reportAt = n;
         } else if (key == "cycle_frames") {
             if (toInt(val, &n) && n >= 1) c.cycleFrames = n;
+        } else if (key == "name_entry") {
+            if (val == "applet") c.nameApplet = true;
+            else if (val == "touch") c.nameApplet = false;
+        } else if (key == "name_script") {
+            c.nameScript = val;
         } else if (key == "pad_script") {
             c.padScript = val;
         } else if (key == "dump_every") {

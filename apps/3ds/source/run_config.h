@@ -1,7 +1,8 @@
 // sdmc:/3ds/openairstrike/run.ini of the 3DS app: what to run. One "key=value" per line, '#'
 // or ';' start a comment line, unknown keys are ignored (probe.cpp reads its own keys, hold= and
-// only=, from the same file). A missing file gives the defaults: mode=spike, the feasibility
-// spike. Documented in apps/3ds/README.md.
+// only=, from the same file). A missing file, or a file without mode=, gives the defaults: mode=play
+// (the front end: the game selector, the menus, audio and music on), what an installed copy runs.
+// Documented in apps/3ds/README.md.
 #pragma once
 
 #include <string>
@@ -16,16 +17,17 @@ constexpr const char* kDataDir = "sdmc:/3ds/openairstrike"; // no trailing slash
 enum class QualityMode { Auto, New, Old }; // run.ini quality=
 
 enum class Mode {
-    Spike, // the feasibility spike (main.cpp), the default
+    Spike, // the feasibility spike (main.cpp); also every other mode= value (the test modes main.cpp reads)
     Probe, // the M1.0 GPU probe (probe.cpp)
     Sim,   // the mission headless at full speed with the bot, no screens (as3d_sim --bot)
     Bot,   // real-time 60 Hz loop, bot input, screens through the frame hook
-    Play,  // real-time loop with the pad; without level= the front end (as Menu)
+    Play,  // real-time loop with the pad; without level= the front end (as Menu); the default
     Menu,  // the front end (M2.1): menus on the bottom screen, missions started from them
 };
 
 struct RunConfig {
-    Mode mode = Mode::Spike;
+    Mode mode = Mode::Play;
+    std::string launchedFrom;  // not a key: argv[0] of the launch (HBL: the .3dsx path; 3dslink: 3dslink:/...; a CIA: none)
     std::string game = "as3d"; // game=KEY: a profile key of as3d/game_data.h; its paks live in <dir>/<key>/
     bool gameGiven = false;    // game=KEY is in the file (not absent, not game=select): no game selector
     int level = 1;             // level=N: the mission to start (1..the game's mission count)
@@ -77,6 +79,12 @@ struct RunConfig {
     // frames): A B X Y L R ZL ZR START SELECT UP DOWN LEFT RIGHT, or T<x>/<y> for a touch at
     // bottom-screen pixel (x, y). Frames must not decrease. For scripted runs (the emulator).
     std::string padScript;
+    // The name entry (ctr_name_entry.h): name_entry=applet (default) shows the software keyboard
+    // when the screen opens (Y again after Cancel); name_entry=touch leaves only the screen's own
+    // touch keyboard. name_script=TEXT: the keyboard's result without the applet (scripted runs:
+    // the emulator's keyboard dialog needs a hand); the field's rules apply as to a typed name.
+    bool nameApplet = true;
+    std::string nameScript;
     int dumpEvery = 0;         // dump_every=N: every N displayed frames, <prefix>f<frame>_{top,bottom}.ppm
     int dumpFrom = 0;          // dump_from=S: dump_every counts simulation steps from step S (<prefix>s<step>_*.ppm)
     bool dumpScreens = false;  // dump_screens=1: 40 frames after each front-end screen change,

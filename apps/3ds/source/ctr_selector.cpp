@@ -20,6 +20,7 @@
 #include "as3d/ui.h"
 #include "as3d/vfs.h"
 #include "ctr_context.h"
+#include "ctr_fatal.h"
 #include "ctr_frame.h"
 #include "ctr_input.h"
 #include "ctr_install.h"
@@ -308,7 +309,7 @@ int runCtrFrontEnd(const RunConfig& base) {
     std::unique_ptr<GraphicsContext> gl = createGraphicsContext(GraphicsConfig());
     CtrContext* ctx = as3d::ctr::ctrContext();
     if (!gl || !ctx) {
-        AS3D_ERROR("cannot create the graphics context");
+        setFatal("cannot create the graphics context");
         return 1;
     }
     CtrInput input(run, new3ds);
@@ -337,6 +338,19 @@ int runCtrFrontEnd(const RunConfig& base) {
             offerChange = complete > 1;
             std::string last;
             readLauncherChoice(choicePath(), &last);
+            // Nothing to start and no font to draw the selector with (no game has all its paks): the
+            // hard exit, with what is missing (ctr_fatal.h).
+            bool anyPaks = false;
+            for (const GameInstall* g : offered) anyPaks = anyPaks || g->paksPresent;
+            if (complete == 0 && !anyPaks) {
+                std::string detail;
+                for (const GameInstall* g : offered)
+                    detail += std::string(detail.empty() ? "" : "\n") + g->game->key + "/ is missing " + missingList(*g);
+                setFatal(offered.empty() ? std::string("no game found under ") + kDataDir + "/" : "no game is complete",
+                         detail);
+                code = 1;
+                break;
+            }
             // One game and nothing else part-installed: it starts, unless START is held at boot
             // (the first time only; "Change game" is not offered with one game).
             if (phase == 0 && offered.size() == 1 && offered[0]->complete() && !startHeld) {

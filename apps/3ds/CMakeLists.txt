@@ -22,6 +22,8 @@ add_executable(openairstrike
   source/ctr_menu_loop.cpp
   source/ctr_selector.cpp
   source/ctr_install.cpp
+  source/ctr_fatal.cpp
+  source/ctr_name_entry.cpp
   source/ctr_mem.cpp
   source/ctr_frame.cpp
   source/ctr_input.cpp
@@ -63,10 +65,12 @@ target_link_libraries(openairstrike PRIVATE scene_shbin_data ${AS3D_MODULES} ${A
 target_compile_options(openairstrike PRIVATE -fno-exceptions)
 set_target_properties(openairstrike PROPERTIES SUFFIX ".elf")
 
+# The Homebrew Launcher's and the HOME menu's titles (the CIA takes the same SMDH,
+# tools/3ds_package.sh): short title, long title, publisher; the project's own icon.
 ctr_generate_smdh(openairstrike.smdh
   NAME "OpenAirStrike"
-  DESCRIPTION "Open source engine for AirStrike 3D"
-  AUTHOR "ProPaint"
+  DESCRIPTION "OpenAirStrike: open source engine for AirStrike 3D and its sequels"
+  AUTHOR "ProPaint / openairstrike"
   ICON ${CMAKE_CURRENT_SOURCE_DIR}/icon.png)
 ctr_create_3dsx(openairstrike
   SMDH ${CMAKE_CURRENT_BINARY_DIR}/openairstrike.smdh)

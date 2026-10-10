@@ -29,13 +29,16 @@
 #include "as3d/input.h"
 #include "as3d/world.h"
 #include "ctr_audio.h"
+#include "ctr_fatal.h"
 #include "ctr_context.h"
 #include "ctr_frame.h"
 #include "ctr_input.h"
 #include "ctr_mem.h"
+#include "ctr_name_entry.h"
 #include "quality_profile.h"
 #include "ctr_loop.h"
 #include "game_stack.h"
+#include "name_entry.h"
 
 namespace ctrapp {
 namespace {
@@ -130,10 +133,10 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     APT_CheckNew3DS(&new3ds);
     if (new3ds) osSetSpeedupEnable(true);
     AS3D_INFO("openairstrike 3ds: mode=%s (front end) game=%s frames=%d perf=%d menu_bot=%d bot_weapons=%d log_lazy=%d, "
-              "%s 3DS%s state_check=%d arena_poison=%d",
+              "%s 3DS%s state_check=%d arena_poison=%d from=%s",
               modeName(run.mode), run.game.c_str(), run.frames, run.perf ? 1 : 0, run.menuBot ? 1 : 0,
               run.botWeapons ? 1 : 0, run.logLazy ? 1 : 0, new3ds ? "New" : "Old", new3ds ? ", speed-up on" : "",
-              run.stateCheck, run.arenaPoison ? 1 : 0);
+              run.stateCheck, run.arenaPoison ? 1 : 0, run.launchedFrom.c_str());
     AS3D_INFO("memory: APPLICATION %.1f MB free, linear free %.1f MB",
               static_cast<double>(osGetMemRegionFree(MEMREGION_APPLICATION)) / 1048576.0,
               static_cast<double>(linearSpaceFree()) / 1048576.0);
@@ -149,7 +152,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     GraphicsContext* gl = opts.context ? opts.context : ownGl.get();
     CtrContext* ctx = as3d::ctr::ctrContext();
     if (!gl || !ctx) {
-        AS3D_ERROR("cannot create the graphics context");
+        setFatal("cannot create the graphics context");
         perf.close();
         return 1;
     }
@@ -161,7 +164,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
 
     const GameProfile* game = findGameProfile(run.game.c_str());
     if (!game) {
-        AS3D_ERROR("unknown game '%s'", run.game.c_str());
+        setFatal("unknown game '" + run.game + "' in run.ini", "game= takes as3d, as2, gulf or select");
         perf.close();
         return 1;
     }
@@ -183,7 +186,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     const uint64_t loadStart = nowTicks();
     std::string err;
     if (!stack.build(sc, &err)) {
-        AS3D_ERROR("cannot start the game: %s", err.c_str());
+        setFatal(std::string("cannot start ") + game->title + " (" + dir + "/)", err);
         frame->end();
         stack.teardown();
         ownGl.reset();
@@ -235,6 +238,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     uint64_t lastFrame = 0, lastUi = 0;
     float lastCpu = 0.0f, lastGpu = 0.0f;
     bool queuedEscape = false;
+    bool queuedEnter = false; // the name entry: the keyboard's name is in the field, Enter commits it
+    bool nameAsked = false;   // the keyboard was shown for this name entry
     int cycleState = 0; // run.ini cycle=: 0 waiting for the main menu, 1 in a mission, 2 back in the attract level
     int reportedLoads = -1; // run.ini report_at=: the level load already reported
     size_t cycleIdx = 0;
@@ -267,6 +272,10 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         if (queuedEscape) {
             queuedEscape = false;
             if (flow.playing()) uin.key(ui::keys::Escape);
+        }
+        if (queuedEnter) {
+            queuedEnter = false;
+            if (as3d_game::nameEntryField(flow.frontend())) uin.key(ui::keys::Enter);
         }
         // run.ini cycle=: the memory growth check starts and leaves the missions itself.
         if (!run.cycle.empty()) {
@@ -333,6 +342,30 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
                 focusedItem = f;
                 if (top) AS3D_INFO("AS3D_FOCUS screen=%s item=%d frame=%u", s.c_str(), f, frameNo);
             }
+        }
+
+        // The name entry (all three games, ctr_name_entry.h): the software keyboard when the screen
+        // opens, and on Y after a Cancel; between frames (no C3D frame is open here). The applet
+        // suspends the app (APT hooks: the profile saved, the sound paused, the clock reset).
+        if (ui::MenuItem* field = as3d_game::nameEntryField(flow.frontend())) {
+            const bool ask = !nameAsked || (pad.down & pad::Y);
+            if (ask && (run.nameApplet || !run.nameScript.empty())) {
+                nameAsked = true;
+                std::string name, kept;
+                int detail = 0;
+                NameKeyboard r = NameKeyboard::Ok;
+                const uint64_t t0 = nowTicks();
+                if (!run.nameScript.empty()) name = run.nameScript;
+                else r = askName(field->text, field->w, &name, &detail);
+                if (r == NameKeyboard::Ok && as3d_game::submitName(flow.frontend(), name, &kept)) queuedEnter = true;
+                AS3D_INFO("AS3D_NAME keyboard=%s result=%s code=%d name=\"%s\" kept=\"%s\" ms=%.0f frame=%u",
+                          run.nameScript.empty() ? "applet" : "script",
+                          r == NameKeyboard::Ok ? "ok" : (r == NameKeyboard::Cancel ? "cancel" : "failed"), detail,
+                          name.c_str(), kept.c_str(), ticksToMs(nowTicks() - t0), frameNo);
+                if (r != NameKeyboard::Ok) AS3D_INFO("name entry: the touch keyboard stays (Y: the keyboard again)");
+            }
+        } else {
+            nameAsked = false;
         }
 
         // The simulation, while the flow runs a world (attract level or mission).

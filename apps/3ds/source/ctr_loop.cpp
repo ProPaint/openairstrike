@@ -20,6 +20,7 @@
 #include "as3d/world.h"
 #include "ctr_audio.h"
 #include "ctr_context.h"
+#include "ctr_fatal.h"
 #include "ctr_input.h"
 #include "quality_profile.h"
 #include "texture_budget.h"
@@ -427,10 +428,10 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     APT_CheckNew3DS(&new3ds);
     if (new3ds) osSetSpeedupEnable(true);
     AS3D_INFO("openairstrike 3ds: mode=%s game=%s level=%d frames=%d perf=%d bot_weapons=%d log_lazy=%d, %s 3DS%s "
-              "state_check=%d arena_poison=%d",
+              "state_check=%d arena_poison=%d from=%s",
               modeName(run.mode), run.game.c_str(), run.level, run.effectiveFrames(), run.perf ? 1 : 0,
               run.botWeapons ? 1 : 0, run.logLazy ? 1 : 0, new3ds ? "New" : "Old", new3ds ? ", speed-up on" : "",
-              run.stateCheck, run.arenaPoison ? 1 : 0);
+              run.stateCheck, run.arenaPoison ? 1 : 0, run.launchedFrom.c_str());
     AS3D_INFO("memory: APPLICATION %.1f MB free, linear free %.1f MB", mb(osGetMemRegionFree(MEMREGION_APPLICATION)),
               mb(linearSpaceFree()));
 
@@ -441,7 +442,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         gl = createGraphicsContext(GraphicsConfig());
         ctx = as3d::ctr::ctrContext();
         if (!gl || !ctx) {
-            AS3D_ERROR("cannot create the graphics context");
+            setFatal("cannot create the graphics context");
             perf.close();
             return 1;
         }
@@ -457,7 +458,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     // The game.
     const GameProfile* game = findGameProfile(run.game.c_str());
     if (!game) {
-        AS3D_ERROR("unknown game '%s'", run.game.c_str());
+        setFatal("unknown game '" + run.game + "' in run.ini", "game= takes as3d, as2, gulf or select");
         perf.close();
         return 1;
     }
@@ -481,7 +482,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     const uint64_t loadStart = nowTicks();
     std::string err;
     if (!session->init(go, &err)) {
-        AS3D_ERROR("cannot start the game: %s", err.c_str());
+        setFatal(std::string("cannot start ") + game->title + " (" + go.extractedDir + "/)", err);
         session.reset();
         perf.close();
         return 1;
@@ -507,7 +508,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         return 1;
     }
     if (hook && !sim && !hook->begin(*ctx, *session)) {
-        AS3D_ERROR("the level start failed");
+        setFatal("the level start failed (mission " + std::to_string(run.level) + ")", "see log.txt");
         hook->end();
         session.reset();
         gl.reset();
