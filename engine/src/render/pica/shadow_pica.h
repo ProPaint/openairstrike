@@ -168,7 +168,11 @@ public:
              const ShadowAtlasRef* atlas = nullptr);
     void build(const TerrainGridView& grid);
     // The terrain heights changed (craters): drape every shadow again.
-    void invalidate() { cache_.clear(); }
+    void invalidate() {
+        cache_.clear();
+        moving_[0].clear();
+        moving_[1].clear();
+    }
     // One eye: `viewProj` = the eye's PICA projection * the central view. The caller has set the
     // depth mapping, the fog table and the level fog colour (the world renderer's level state).
     // Leaves blend off, depth test + write on, no polygon offset, cull back.
@@ -182,6 +186,7 @@ private:
         GroundRect rect;
         bool blob = false;
         bool isStatic = false;
+        const DecalVertex* src = nullptr; // build(): the draped vertices (the cache or the moving store)
         size_t first = 0, count = 0;
     };
     struct CacheKey {
@@ -202,10 +207,19 @@ private:
     bool multiply_ = false;
     std::vector<Item> items_;
     std::unordered_map<CacheKey, Cached, CacheHash> cache_;
+    // The moving (planar) shadows' draped geometry of the last build, by rectangle: one that has
+    // not moved since (a parked vehicle, a hovering helicopter) is copied instead of draped.
+    struct Moving {
+        GroundRect rect;
+        size_t first = 0, count = 0;
+    };
+    std::vector<Moving> moving_[2];
+    std::vector<DecalVertex> movingVerts_[2];
+    int movingCur_ = 0;
     unsigned builds_ = 0;
-    std::vector<DecalVertex> verts_;
+    size_t total_ = 0;            // draped vertices of every item (build)
     // The draws (build): one per texture, in the order each texture first appears; the shadows
-    // of one texture (every blob, the copies of one model's silhouette) are contiguous in verts_.
+    // of one texture (every blob, the copies of one model's silhouette) are contiguous in the arena.
     // Shadows write no depth and darken by a factor (alpha blend of black, or multiply), so their
     // order does not change the picture beyond the 8-bit rounding of each blend.
     struct Group {
@@ -213,7 +227,7 @@ private:
         size_t first = 0, count = 0;
     };
     std::vector<Group> groups_;
-    std::vector<DecalVertex> scratch_;
+    std::vector<int> groupOf_, drawOrder_; // the items in group order (build)
     const void* arenaVerts_ = nullptr;
     unsigned arenaFrame_ = ~0u;
 };

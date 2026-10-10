@@ -282,8 +282,9 @@ bool ShadowPass::init() {
 
 void ShadowPass::begin() {
     items_.clear();
-    verts_.clear();
     groups_.clear();
+    drawOrder_.clear();
+    total_ = 0;
     arenaVerts_ = nullptr;
     arenaFrame_ = ~0u;
     g_stats.drawn = g_stats.blobs = g_stats.vertices = g_stats.draws = 0;
@@ -313,13 +314,42 @@ void ShadowPass::add(const Texture2D* texture, const GroundRect& rect, bool isBl
 void ShadowPass::build(const TerrainGridView& grid) {
     const u64 t0 = svcGetSystemTick();
     ++builds_;
-    verts_.clear();
     int draped = 0;
+    // Each item's draped vertices stay where they are (the static cache, or this build's moving
+    // store); draw() copies them into the arena in group order, once per frame.
+    const int cur = movingCur_, prev = movingCur_ ^ 1;
+    moving_[cur].clear();
+    std::vector<DecalVertex>& store = movingVerts_[cur];
+    store.clear();
+    auto sameRect = [](const GroundRect& a, const GroundRect& b) {
+        return a.origin.x == b.origin.x && a.origin.y == b.origin.y && a.axisX.x == b.axisX.x && a.axisX.y == b.axisX.y &&
+               a.axisY.x == b.axisY.x && a.axisY.y == b.axisY.y && a.sizeX == b.sizeX && a.sizeY == b.sizeY;
+    };
     for (Item& it : items_) {
-        it.first = verts_.size();
+        it.src = nullptr;
+        it.first = it.count = 0;
         if (!it.isStatic) {
-            buildTerrainDecal(grid, it.rect, verts_);
-            ++draped;
+            const Moving* old = nullptr;
+            for (const Moving& m : moving_[prev])
+                if (sameRect(m.rect, it.rect)) {
+                    old = &m;
+                    break;
+                }
+            const size_t first = store.size();
+            if (old) {
+                const auto b = movingVerts_[prev].begin() + static_cast<std::ptrdiff_t>(old->first);
+                store.insert(store.end(), b, b + static_cast<std::ptrdiff_t>(old->count));
+            } else {
+                buildTerrainDecal(grid, it.rect, store);
+                ++draped;
+            }
+            Moving m;
+            m.rect = it.rect;
+            m.first = first;
+            m.count = store.size() - first;
+            moving_[cur].push_back(m);
+            it.first = first; // in `store` (resolved below: the store may still grow)
+            it.count = m.count;
         } else {
             const CacheKey key{it.texture, it.rect.origin.x, it.rect.origin.y, it.rect.sizeX, it.rect.sizeY};
             auto found = cache_.find(key);
@@ -330,10 +360,13 @@ void ShadowPass::build(const TerrainGridView& grid) {
                 ++draped;
             }
             found->second.lastBuild = builds_;
-            verts_.insert(verts_.end(), found->second.verts.begin(), found->second.verts.end());
+            it.src = found->second.verts.data(); // unordered_map nodes do not move
+            it.count = found->second.verts.size();
         }
-        it.count = verts_.size() - it.first;
     }
+    for (Item& it : items_)
+        if (!it.isStatic) it.src = store.data() + it.first;
+    movingCur_ = prev;
     // Forget the rectangles not seen for 120 builds (destroyed objects, out of view).
     if (builds_ % 60 == 0) {
         for (auto i = cache_.begin(); i != cache_.end();) {
@@ -343,71 +376,59 @@ void ShadowPass::build(const TerrainGridView& grid) {
     }
     // Grouped by texture (first-appearance order, stable inside a group): one draw per group.
     groups_.clear();
-    {
-        std::vector<int> groupOf(items_.size(), -1);
-        for (size_t i = 0; i < items_.size(); ++i) {
-            const Item& it = items_[i];
-            if (it.count == 0) continue;
-            int g = -1;
-            for (size_t k = 0; k < groups_.size(); ++k)
-                if (groups_[k].texture == it.texture) g = static_cast<int>(k);
-            if (g < 0) {
-                g = static_cast<int>(groups_.size());
-                groups_.push_back(Group{it.texture, 0, 0});
-            }
-            groupOf[i] = g;
-            groups_[static_cast<size_t>(g)].count += it.count;
+    drawOrder_.clear();
+    groupOf_.assign(items_.size(), -1);
+    for (size_t i = 0; i < items_.size(); ++i) {
+        const Item& it = items_[i];
+        if (it.count == 0) continue;
+        int g = -1;
+        for (size_t k = 0; k < groups_.size(); ++k)
+            if (groups_[k].texture == it.texture) g = static_cast<int>(k);
+        if (g < 0) {
+            g = static_cast<int>(groups_.size());
+            groups_.push_back(Group{it.texture, 0, 0});
         }
-        size_t at = 0;
-        for (Group& g : groups_) {
-            g.first = at;
-            at += g.count;
-            g.count = 0;
-        }
-        scratch_.resize(verts_.size());
-        for (size_t i = 0; i < items_.size(); ++i) {
-            if (groupOf[i] < 0) continue;
-            Item& it = items_[i];
-            Group& g = groups_[static_cast<size_t>(groupOf[i])];
-            std::copy(verts_.begin() + static_cast<std::ptrdiff_t>(it.first),
-                      verts_.begin() + static_cast<std::ptrdiff_t>(it.first + it.count),
-                      scratch_.begin() + static_cast<std::ptrdiff_t>(g.first + g.count));
-            if (it.su != 1.0f || it.sv != 1.0f || it.u0 != 0.0f || it.v0 != 0.0f) {
-                // An atlas cell: the draped [0, 1] coordinates into the page.
-                for (size_t v = g.first + g.count; v < g.first + g.count + it.count; ++v) {
-                    scratch_[v].u = it.u0 + scratch_[v].u * it.su;
-                    scratch_[v].v = it.v0 + scratch_[v].v * it.sv;
-                }
-            }
-            it.first = g.first + g.count;
-            g.count += it.count;
-        }
-        verts_.swap(scratch_);
+        groupOf_[i] = g;
+        groups_[static_cast<size_t>(g)].count += it.count;
     }
-    g_stats.vertices = static_cast<int>(verts_.size());
+    size_t at = 0;
+    for (size_t g = 0; g < groups_.size(); ++g) {
+        groups_[g].first = at;
+        at += groups_[g].count;
+        for (size_t i = 0; i < items_.size(); ++i)
+            if (groupOf_[i] == static_cast<int>(g)) drawOrder_.push_back(static_cast<int>(i));
+    }
+    total_ = at;
+    g_stats.vertices = static_cast<int>(total_);
     g_stats.drapedNow = draped;
     g_stats.buildMs = msSince(t0);
 }
 
 void ShadowPass::draw(const Mat4& viewProj) {
-    if (verts_.empty() || !backendReady()) return;
+    if (total_ == 0 || !backendReady()) return;
     LinearArena& arena = frameArena();
     if (!arenaVerts_ || arenaFrame_ != arena.frames()) {
-        // First eye of this arena frame: the draped vertices into the arena, white.
-        auto* v = arena.allocArray<FlatVertex>(verts_.size());
+        // First eye of this arena frame: the draped vertices into the arena in group order, white.
+        auto* v = arena.allocArray<FlatVertex>(total_);
         arenaVerts_ = v;
         arenaFrame_ = arena.frames();
         if (!v) return;
-        for (size_t i = 0; i < verts_.size(); ++i) {
-            const DecalVertex& d = verts_[i];
-            v[i].pos[0] = d.x;
-            v[i].pos[1] = d.y;
-            v[i].pos[2] = d.z;
-            v[i].uv[0] = d.u;
-            v[i].uv[1] = d.v;
-            v[i].rgba[0] = v[i].rgba[1] = v[i].rgba[2] = v[i].rgba[3] = 255;
+        FlatVertex* o = v;
+        for (int index : drawOrder_) {
+            const Item& it = items_[static_cast<size_t>(index)];
+            // An atlas cell: the draped [0, 1] coordinates into the page.
+            const bool cell = it.su != 1.0f || it.sv != 1.0f || it.u0 != 0.0f || it.v0 != 0.0f;
+            for (size_t k = 0; k < it.count; ++k, ++o) {
+                const DecalVertex& d = it.src[k];
+                o->pos[0] = d.x;
+                o->pos[1] = d.y;
+                o->pos[2] = d.z;
+                o->uv[0] = cell ? it.u0 + d.u * it.su : d.u;
+                o->uv[1] = cell ? it.v0 + d.v * it.sv : d.v;
+                o->rgba[0] = o->rgba[1] = o->rgba[2] = o->rgba[3] = 255;
+            }
         }
-        g_stats.arenaBytes += verts_.size() * sizeof(FlatVertex);
+        g_stats.arenaBytes += total_ * sizeof(FlatVertex);
     }
     ShaderSet& sh = shaders();
     sh.bind(Shader::Flat);
