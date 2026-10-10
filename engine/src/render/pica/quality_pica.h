@@ -14,9 +14,25 @@ struct RenderQuality {
     int spriteCap = kMaxSpriteQuadsPica;     // sprite quads per frame
     bool blobShadowsOnly = false;            // no silhouettes generated: every shadow is the blob
     bool terrainDetail = true;               // the terrain's second TEV stage and detail texture
+    // Stereo at 60 (docs/3ds-port.md "Stereo at 60 (round 2, P3)"). The terrain's far chunks drawn
+    // from a coarse grid (every second vertex, terrain_renderer_pica.cpp): Off, only while two eyes
+    // are drawn (frameEyes() == 2), or always; beyond terrainLodDistance world units from the
+    // central camera.
+    enum class TerrainLod { Off, Stereo, Always };
+    TerrainLod terrainLod = TerrainLod::Stereo;
+    float terrainLodDistance = 520.0f;
+    // The silhouettes packed into A8 atlas pages, one draw per page (shadow_renderer_pica.cpp).
+    bool shadowAtlas = true;
 };
 
 void setRenderQuality(const RenderQuality& q);
 const RenderQuality& renderQuality();
+
+// The number of eyes the frame being prepared draws (the frame composer sets it before the
+// world's prepare; 1 by default). Read by the stereo-only quality knobs.
+void setFrameEyes(int eyes);
+int frameEyes();
+// True when the terrain's far chunks are coarse this frame (terrainLod and frameEyes()).
+bool terrainLodActive();
 
 } // namespace as3d::pica

@@ -49,6 +49,20 @@ void setRenderQuality(const RenderQuality& q) { g_quality = q; }
 const RenderQuality& renderQuality() { return g_quality; }
 
 namespace {
+int g_frameEyes = 1;
+}
+void setFrameEyes(int eyes) { g_frameEyes = eyes; }
+int frameEyes() { return g_frameEyes; }
+bool terrainLodActive() {
+    switch (g_quality.terrainLod) {
+    case RenderQuality::TerrainLod::Off: return false;
+    case RenderQuality::TerrainLod::Stereo: return g_frameEyes == 2;
+    case RenderQuality::TerrainLod::Always: return true;
+    }
+    return false;
+}
+
+namespace {
 uint8_t toByte(float v) { return static_cast<uint8_t>(std::min(std::max(v, 0.0f), 1.0f) * 255.0f + 0.5f); }
 
 // Vertex colour alone, RGB and alpha (a run without texture).

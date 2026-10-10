@@ -21,6 +21,19 @@
 //   2. overlays: alpha blend, depth test without write, the depth bias of terrain_pica.h,
 //      TEV texture * colour (tevModulateTexColor, alpha = the atlas alpha).
 // Both passes are fogged with the level's fog colour.
+//
+// Far-chunk level of detail (pica::RenderQuality::terrainLod, docs/3ds-port.md "Stereo at 60"): a
+// chunk whose box is farther than terrainLodDistance from the central camera draws a coarse grid,
+// every second vertex in both directions, from a "flattened" copy of its vertex buffer in which
+// every odd vertex lies on the coarse triangles (its height and colour interpolated along the
+// coarse edge or diagonal it sits on). The coarse cells keep the fine diagonal (v00-v11), so each
+// fine overlay quad drawn on the flattened vertices lies inside one coarse triangle and the tile
+// overlays keep their depth test. Seams: two coarse chunks share their flattened edge row (the
+// same float operations, so the same vertices); a coarse chunk next to a fine one closes the gap
+// between the fine edge polyline and its straight coarse edge with vertical fill triangles (the
+// fine edge's odd vertices are appended to the flattened buffer), and the coarse triangles along
+// both edge rows are split at the edge midpoints so no T-junction remains. The light streams cover
+// the appended vertices (copied from their grid vertex).
 #include <3ds.h>
 #include <citro3d.h>
 
@@ -142,6 +155,10 @@ struct ChunkGpu {
     size_t vertCount = 0;
     std::vector<TerrainVertexPica*> tiles;   // per atlas, null when the chunk has no quad of it
     std::vector<size_t> tileCounts;
+    // The coarse level (null when the chunk has none): the flattened grid plus the fine edge
+    // rows' odd vertices (top row first), and the overlay quads on the flattened grid.
+    TerrainVertexPica* coarse = nullptr;
+    std::vector<TerrainVertexPica*> coarseTiles;
     // The light streams of this frame (the second eye reuses them).
     unsigned lightFrame = ~0u;
     const DynamicLight* lightSource = nullptr;
@@ -154,6 +171,89 @@ struct Retired {
     void* ptr;
     unsigned frame;
 };
+
+// The coarse index lists of a chunk of `rows` rows (even), W columns (even), in linear memory:
+// variant (top fill ? 1 : 0) | (bottom fill ? 2 : 0) is lists[variant].
+struct CoarseLists {
+    uint16_t* idx[4] = {nullptr, nullptr, nullptr, nullptr};
+    int count[4] = {0, 0, 0, 0};
+};
+
+bool coarseEligible(int rows, int W) { return rows >= 2 && (rows & 1) == 0 && W >= 2 && (W & 1) == 0; }
+
+// The flattened copy of a chunk's vertices (see the header) plus the appended fine edge vertices.
+void flattenChunk(const TerrainChunkGeometry& c, int W, std::vector<TerrainVertex>& out) {
+    const int vw = W + 1, R = c.rows;
+    out.assign(c.verts.begin(), c.verts.end());
+    auto at = [&](int lr, int col) -> const TerrainVertex& { return c.verts[static_cast<size_t>(lr * vw + col)]; };
+    auto lerp = [&](TerrainVertex& o, const TerrainVertex& a, const TerrainVertex& b) {
+        o.pos[2] = a.pos[2] + 0.5f * (b.pos[2] - a.pos[2]);
+        for (int k = 0; k < 3; ++k) o.col[k] = a.col[k] + 0.5f * (b.col[k] - a.col[k]);
+    };
+    for (int lr = 0; lr <= R; ++lr) {
+        for (int col = 0; col <= W; ++col) {
+            const bool oddR = (lr & 1) != 0, oddC = (col & 1) != 0;
+            if (!oddR && !oddC) continue;
+            TerrainVertex& o = out[static_cast<size_t>(lr * vw + col)];
+            if (!oddR) lerp(o, at(lr, col - 1), at(lr, col + 1));          // a coarse row edge
+            else if (!oddC) lerp(o, at(lr - 1, col), at(lr + 1, col));     // a coarse column edge
+            else lerp(o, at(lr - 1, col - 1), at(lr + 1, col + 1));        // the coarse diagonal
+        }
+    }
+    for (int col = 1; col < W; col += 2) out.push_back(at(0, col));
+    for (int col = 1; col < W; col += 2) out.push_back(at(R, col));
+}
+
+// The fine grid vertex an appended edge vertex copies (light streams).
+size_t coarseExtraSource(int i, int W, int rows) {
+    const int half = W / 2;
+    return i < half ? static_cast<size_t>(2 * i + 1) : static_cast<size_t>(rows * (W + 1) + 2 * (i - half) + 1);
+}
+
+std::vector<uint16_t> buildCoarseIndices(int R, int W, bool topFill, bool bottomFill) {
+    std::vector<uint16_t> out;
+    const int vw = W + 1;
+    const int n = (R + 1) * vw;
+    auto v = [&](int lr, int col) { return static_cast<uint16_t>(lr * vw + col); };
+    auto tri = [&](uint16_t a, uint16_t b, uint16_t c) {
+        out.push_back(a);
+        out.push_back(b);
+        out.push_back(c);
+    };
+    for (int r = 0; r < R; r += 2) {
+        for (int c = 0; c < W; c += 2) {
+            const uint16_t v00 = v(r, c), v10 = v(r, c + 2), v01 = v(r + 2, c), v11 = v(r + 2, c + 2);
+            if (r == 0) { // (v00 v10 v11) split at the top edge's midpoint
+                const uint16_t m = v(0, c + 1);
+                tri(v00, m, v11);
+                tri(m, v10, v11);
+            } else {
+                tri(v00, v10, v11);
+            }
+            if (r + 2 == R) { // (v00 v11 v01) split at the bottom edge's midpoint
+                const uint16_t m = v(R, c + 1);
+                tri(v00, v11, m);
+                tri(v00, m, v01);
+            } else {
+                tri(v00, v11, v01);
+            }
+        }
+    }
+    const int half = W / 2;
+    for (int j = 0; j < half; ++j) {
+        if (topFill) {
+            const uint16_t t = static_cast<uint16_t>(n + j), m = v(0, 2 * j + 1);
+            tri(v(0, 2 * j), m, t);
+            tri(m, v(0, 2 * j + 2), t);
+        }
+        if (bottomFill) {
+            const uint16_t t = static_cast<uint16_t>(n + half + j), m = v(R, 2 * j + 1);
+            tri(v(R, 2 * j), t, m);
+            tri(m, t, v(R, 2 * j + 2));
+        }
+    }
+    return out;
+}
 
 } // namespace
 
@@ -173,21 +273,105 @@ struct TerrainRenderer::Impl {
     std::vector<Retired> retired;
     std::vector<uint8_t> lightScratch;
     std::vector<const DynamicLight*> lightPick;
+    std::map<int, CoarseLists> coarseLists; // by chunk row count
+    std::vector<TerrainVertex> flatScratch, flatTileScratch;
+    std::vector<uint8_t> coarseOf;          // this render's level per chunk (1 = coarse)
 
     ~Impl() { release(); }
     void release();
     void retire(void* p);
     void collectRetired(bool all);
     void computeLights(size_t k, const DynamicLight* lights, size_t count);
+    size_t extraOf(size_t k) const {
+        return chunks[k].coarse ? static_cast<size_t>(geo.width) : 0u; // appended edge vertices
+    }
+    bool buildCoarse(size_t k, bool replace);
+    const CoarseLists* coarseListsFor(int rows);
 };
+
+// The coarse buffers of chunk k from its current vertices (build and crater updates); with
+// `replace` the old ones are retired. False without linear memory (the chunk stays fine).
+bool TerrainRenderer::Impl::buildCoarse(size_t k, bool replace) {
+    const TerrainChunkGeometry& c = geo.chunks[k];
+    ChunkGpu& g = chunks[k];
+    const int W = geo.width;
+    if (!coarseEligible(c.rows, W)) return false;
+    flattenChunk(c, W, flatScratch);
+    TerrainVertexPica* nv = uploadVertices(flatScratch.data(), flatScratch.size());
+    if (!nv) return false;
+    std::vector<TerrainVertexPica*> nt(geo.tiles.size(), nullptr);
+    for (size_t b = 0; b < geo.tiles.size(); ++b) {
+        const TerrainTileGeometry& tg = geo.tiles[b];
+        const auto range = tg.ranges[k];
+        if (range.second <= 0) continue;
+        flatTileScratch.assign(tg.verts.begin() + range.first, tg.verts.begin() + range.first + range.second);
+        const int q0 = range.first / 6, quads = range.second / 6;
+        for (int q = 0; q < quads; ++q) {
+            const auto cell = tg.cells[static_cast<size_t>(q0 + q)];
+            int corner[6];
+            quadCorners(W, cell.first, cell.second - c.firstRow, corner);
+            for (int i = 0; i < 6; ++i) {
+                const TerrainVertex& f = flatScratch[static_cast<size_t>(corner[i])];
+                TerrainVertex& o = flatTileScratch[static_cast<size_t>(q * 6 + i)];
+                o.pos[2] = f.pos[2];
+                for (int ch = 0; ch < 3; ++ch) o.col[ch] = f.col[ch];
+            }
+        }
+        nt[b] = uploadVertices(flatTileScratch.data(), flatTileScratch.size());
+        if (!nt[b]) {
+            for (TerrainVertexPica* t : nt)
+                if (t) linearFree(t);
+            linearFree(nv);
+            return false;
+        }
+    }
+    if (replace) {
+        retire(g.coarse);
+        for (TerrainVertexPica* t : g.coarseTiles) retire(t);
+    }
+    g.coarse = nv;
+    g.coarseTiles = std::move(nt);
+    return true;
+}
+
+const CoarseLists* TerrainRenderer::Impl::coarseListsFor(int rows) {
+    auto found = coarseLists.find(rows);
+    if (found != coarseLists.end()) return found->second.idx[0] ? &found->second : nullptr;
+    CoarseLists& l = coarseLists[rows];
+    if (!coarseEligible(rows, geo.width)) return nullptr;
+    for (int var = 0; var < 4; ++var) {
+        const std::vector<uint16_t> list = buildCoarseIndices(rows, geo.width, (var & 1) != 0, (var & 2) != 0);
+        auto* buf = static_cast<uint16_t*>(linearAlloc(list.size() * sizeof(uint16_t)));
+        if (!buf) {
+            for (uint16_t*& p : l.idx) {
+                if (p) linearFree(p);
+                p = nullptr;
+            }
+            return nullptr;
+        }
+        std::memcpy(buf, list.data(), list.size() * sizeof(uint16_t));
+        GSPGPU_FlushDataCache(buf, static_cast<u32>(list.size() * sizeof(uint16_t)));
+        l.idx[var] = buf;
+        l.count[var] = static_cast<int>(list.size());
+    }
+    return &l;
+}
 
 void TerrainRenderer::Impl::release() {
     for (ChunkGpu& c : chunks) {
         if (c.verts) linearFree(c.verts);
         for (TerrainVertexPica* t : c.tiles)
             if (t) linearFree(t);
+        if (c.coarse) linearFree(c.coarse);
+        for (TerrainVertexPica* t : c.coarseTiles)
+            if (t) linearFree(t);
     }
     chunks.clear();
+    for (auto& kv : coarseLists)
+        for (uint16_t* p : kv.second.idx)
+            if (p) linearFree(p);
+    coarseLists.clear();
+    coarseOf.clear();
     collectRetired(true);
     if (indices) linearFree(indices);
     if (zeros) linearFree(zeros);
@@ -253,6 +437,7 @@ void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, 
 
     // Lit colour minus the baked byte, per vertex.
     const size_t n = ch.verts.size();
+    const size_t extra = extraOf(k);
     bool any = false;
     for (size_t i = 0; i < n; ++i) {
         for (int c = 0; c < 3; ++c) {
@@ -265,11 +450,13 @@ void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, 
         lightScratch[i * 4 + 3] = 0;
     }
     if (!any) return;
-    auto* dyn = pica::frameArena().allocArray<LightBytes>(n);
+    auto* dyn = pica::frameArena().allocArray<LightBytes>(n + extra);
     if (!dyn) return; // arena full: drawn unlit
     std::memcpy(dyn, lightScratch.data(), n * 4);
+    for (size_t i = 0; i < extra; ++i) // the coarse level's appended edge vertices
+        std::memcpy(dyn[n + i], &lightScratch[coarseExtraSource(static_cast<int>(i), geo.width, ch.rows) * 4], 4);
     cg.dyn = dyn;
-    pica::stats().arenaBytes += n * 4;
+    pica::stats().arenaBytes += (n + extra) * 4;
 
     // The overlay quads share the chunk's grid vertices (same position, colour and normal).
     const int W = geo.width;
@@ -418,6 +605,7 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
     }
     for (const TerrainTileGeometry& tg : im.geo.tiles)
         for (const auto& r : tg.ranges) longest = std::max(longest, static_cast<size_t>(std::max(r.second, 0)));
+    longest += static_cast<size_t>(W); // a coarse level's appended edge vertices
     for (const TerrainChunkGeometry& c : im.geo.chunks) {
         if (c.tris.size() == im.indexCount) {
             im.indices = static_cast<uint16_t*>(linearAlloc(im.indexCount * sizeof(uint16_t)));
@@ -463,6 +651,15 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
         im.release();
         return false;
     }
+    // The coarse level of every eligible chunk (far-chunk LOD; a chunk without one stays fine).
+    for (size_t k = 0; k < im.geo.chunks.size(); ++k) {
+        if (!im.buildCoarse(k, false)) continue;
+        ++st.coarseBuilt;
+        st.vertexBytes += (im.chunks[k].vertCount + static_cast<size_t>(W)) * sizeof(TerrainVertexPica);
+        for (size_t b = 0; b < im.geo.tiles.size(); ++b)
+            if (im.chunks[k].coarseTiles[b]) st.vertexBytes += im.chunks[k].tileCounts[b] * sizeof(TerrainVertexPica);
+    }
+    im.coarseListsFor(kTerrainChunkRows);
     im.terrain = &terrain;
 
     st.chunks = static_cast<int>(im.geo.chunks.size());
@@ -521,6 +718,7 @@ void TerrainRenderer::update(const VertexRect* rects, size_t count, const Terrai
                 g.tiles[b] = nt;
             }
         }
+        if (g.coarse) im.buildCoarse(k, true); // the flattened copy follows (kept as it was without memory)
         g.lightFrame = ~0u; // the lit colours follow the moved vertices
         ++lastUpdated_;
     }
@@ -531,7 +729,7 @@ void TerrainRenderer::update(const VertexRect* rects, size_t count, const Terrai
 void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRenderOptions& options) {
     Impl& im = *impl_;
     pica::TerrainPicaStats& st = pica::stats();
-    st.visibleChunks = st.litChunks = st.drawCalls = 0;
+    st.visibleChunks = st.litChunks = st.drawCalls = st.coarseChunks = 0;
     st.indicesDrawn = 0;
     st.arenaBytes = 0;
     if (!im.terrain || !pica::backendReady()) return;
@@ -595,6 +793,25 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
 
     const size_t lightCount = std::min(params.lightCount, static_cast<size_t>(kMaxDynamicLights));
     const int W = im.geo.width;
+
+    // Far-chunk LOD: the level of every chunk (visible or not: a neighbour's level decides the
+    // seam fill) from its box's distance to the central camera, the same for both eyes.
+    const size_t chunkCount = im.geo.chunks.size();
+    im.coarseOf.assign(chunkCount, 0);
+    if (pica::terrainLodActive()) {
+        const Mat4& v = params.view; // rigid: the camera is -R^T t
+        Vec3 cam;
+        cam.x = -(v.at(0, 0) * v.at(3, 0) + v.at(0, 1) * v.at(3, 1) + v.at(0, 2) * v.at(3, 2));
+        cam.y = -(v.at(1, 0) * v.at(3, 0) + v.at(1, 1) * v.at(3, 1) + v.at(1, 2) * v.at(3, 2));
+        cam.z = -(v.at(2, 0) * v.at(3, 0) + v.at(2, 1) * v.at(3, 1) + v.at(2, 2) * v.at(3, 2));
+        const float d = pica::renderQuality().terrainLodDistance;
+        const float d2 = d * d;
+        for (size_t k = 0; k < chunkCount; ++k)
+            if (im.chunks[k].coarse && im.coarseListsFor(im.geo.chunks[k].rows) &&
+                boxDistanceSq(im.geo.chunks[k].bounds, cam) > d2)
+                im.coarseOf[k] = 1;
+    }
+
     int boundBlock = -1;
     for (int ki : visible) {
         const size_t k = static_cast<size_t>(ki);
@@ -611,12 +828,26 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
         const float rowUv = std::floor(static_cast<float>(c.firstRow) * 0.25f);
         sh.setTerrainDetail(im.detailScale[0], im.detailScale[1], -im.detailOrigin[0] * im.detailScale[0],
                             -im.detailOrigin[1] * im.detailScale[1] - rowUv);
-        sh.setTerrainVertices(g.verts, g.dyn ? g.dyn : im.zeros);
-        const int n = c.rows * W * 6;
-        C3D_DrawElements(GPU_TRIANGLES, n, C3D_UNSIGNED_SHORT, im.indices);
+        int n = c.rows * W * 6;
+        if (im.coarseOf[k]) {
+            // The seam fill towards a fine neighbour (above: chunk k - 1, below: k + 1).
+            const bool top = k > 0 && !im.coarseOf[k - 1];
+            const bool bottom = k + 1 < chunkCount && !im.coarseOf[k + 1];
+            const CoarseLists* l = im.coarseListsFor(c.rows);
+            const int var = (top ? 1 : 0) | (bottom ? 2 : 0);
+            n = l->count[var];
+            sh.setTerrainVertices(g.coarse, g.dyn ? g.dyn : im.zeros);
+            C3D_DrawElements(GPU_TRIANGLES, n, C3D_UNSIGNED_SHORT, l->idx[var]);
+            ++st.coarseChunks;
+        } else {
+            sh.setTerrainVertices(g.verts, g.dyn ? g.dyn : im.zeros);
+            C3D_DrawElements(GPU_TRIANGLES, n, C3D_UNSIGNED_SHORT, im.indices);
+        }
         ++st.drawCalls;
         st.indicesDrawn += static_cast<size_t>(n);
     }
+    st.coarseTotal += static_cast<size_t>(st.coarseChunks);
+    st.visibleTotal += visible.size();
     pica::probeGpuState("terrain");
 
     if (options.tiles && !im.atlases.empty()) {
@@ -645,7 +876,9 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
             for (int ki : visible) {
                 const ChunkGpu& g = im.chunks[static_cast<size_t>(ki)];
                 if (!g.tiles[bi]) continue;
-                sh.setTerrainVertices(g.tiles[bi], g.tileDyn[bi] ? g.tileDyn[bi] : im.zeros);
+                // On a coarse chunk the quads lie on its flattened grid.
+                const TerrainVertexPica* tv = im.coarseOf[static_cast<size_t>(ki)] ? g.coarseTiles[bi] : g.tiles[bi];
+                sh.setTerrainVertices(tv, g.tileDyn[bi] ? g.tileDyn[bi] : im.zeros);
                 C3D_DrawArrays(GPU_TRIANGLES, 0, static_cast<int>(g.tileCounts[bi]));
                 ++st.drawCalls;
                 st.indicesDrawn += g.tileCounts[bi];

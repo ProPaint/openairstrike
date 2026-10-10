@@ -40,6 +40,10 @@ struct TerrainPicaStats {
     int drawCalls = 0;
     size_t indicesDrawn = 0;    // chunk indices + overlay vertices submitted
     size_t arenaBytes = 0;      // light streams written to the frame arena
+    int coarseChunks = 0;       // of visibleChunks: drawn from the coarse level (far-chunk LOD)
+    // build(): chunks with a coarse level; since build(): coarse and visible chunks over all renders
+    int coarseBuilt = 0;
+    size_t coarseTotal = 0, visibleTotal = 0;
     // the last update()
     int updatedChunks = 0;
     int deferredFrees = 0;      // linear buffers waiting for the GPU to finish with them
