@@ -77,6 +77,32 @@ void emitClipped(const GroundRect& rect, P3 a, P3 b, P3 c, std::vector<DecalVert
     poly.n = 3;
     auto sCoord = [&](const P3& p) { return (p.x - rect.origin.x) * rect.axisX.x + (p.y - rect.origin.y) * rect.axisX.y; };
     auto tCoord = [&](const P3& p) { return (p.x - rect.origin.x) * rect.axisY.x + (p.y - rect.origin.y) * rect.axisY.y; };
+    // Shortcuts with the same output as the four clips: a triangle inside every edge passes each
+    // clip unchanged (the same corners in the same order); one with every corner outside the
+    // first edge clips to nothing; one with every corner clearly outside another edge too (the
+    // margin covers the rounding of the corners the earlier clips create, which lie on the
+    // triangle: their distance to the edge is a convex mix of the corners').
+    {
+        const float sa = sCoord(a), sb = sCoord(b), sc = sCoord(c);
+        const float ta = tCoord(a), tb = tCoord(b), tc = tCoord(c);
+        if (sa < 0.0f && sb < 0.0f && sc < 0.0f) return;
+        constexpr float kOut = -0.05f; // world units, far above the rounding of map coordinates
+        if (rect.sizeX - sa < kOut && rect.sizeX - sb < kOut && rect.sizeX - sc < kOut) return;
+        if (ta < kOut && tb < kOut && tc < kOut) return;
+        if (rect.sizeY - ta < kOut && rect.sizeY - tb < kOut && rect.sizeY - tc < kOut) return;
+        if (sa >= 0.0f && sb >= 0.0f && sc >= 0.0f && rect.sizeX - sa >= 0.0f && rect.sizeX - sb >= 0.0f &&
+            rect.sizeX - sc >= 0.0f && ta >= 0.0f && tb >= 0.0f && tc >= 0.0f && rect.sizeY - ta >= 0.0f &&
+            rect.sizeY - tb >= 0.0f && rect.sizeY - tc >= 0.0f) {
+            auto vert = [&](const P3& p) {
+                Vec2 st = rect.coords(p.x, p.y);
+                return DecalVertex{p.x, p.y, p.z, st.x, 1.0f - st.y};
+            };
+            out.push_back(vert(a));
+            out.push_back(vert(b));
+            out.push_back(vert(c));
+            return;
+        }
+    }
     clipPolygon(poly, [&](const P3& p) { return sCoord(p); });
     if (poly.n < 3) return;
     clipPolygon(poly, [&](const P3& p) { return rect.sizeX - sCoord(p); });
