@@ -186,6 +186,7 @@ struct WorldRenderer::Impl {
     std::unordered_map<ShadowKey, ShadowEntry, ShadowKeyHash> shadowMaps;
     int lateShadowMaps = 0;
     u32 prepareSerial = 0;
+    std::vector<const ObjectDef*> linearDefs, linearDefsJoined; // the linear-skin statistics
     // The CPU alpha of the skins that have one (Material::texturePath, reloaded), by texture.
     std::unordered_map<const Texture2D*, std::unique_ptr<ShadowSkin>> skins;
 
@@ -543,8 +544,9 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
     meter.lap(Pass::PrepMeshes, static_cast<int>(im.opaquePass.size() + im.restPass.size()));
     // Which of this frame's model textures live in linear memory (the VRAM split).
     pica::WorldPicaStats& ws = pica::g_worldStats;
+    // The definitions in first-record order, the names joined only when that list changes.
     ws.records = ws.linearRecords = 0;
-    ws.linearSkins.clear();
+    im.linearDefs.clear();
     for (const std::vector<MeshRecord>* list : {&sc.opaque, &sc.trans, &sc.effect}) {
         for (const MeshRecord& r : *list) {
             ++ws.records;
@@ -552,10 +554,19 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
             if (r.material->texture && pica::textureInfo(*r.material->texture, &pl, nullptr, nullptr, nullptr, nullptr) &&
                 pl == pica::Placement::Linear) {
                 ++ws.linearRecords;
-                const std::string& name = world.entity(r.entity).def->name;
-                if (ws.linearSkins.find(" " + name) == std::string::npos && ws.linearSkins.size() < 400)
-                    ws.linearSkins += " " + name;
+                const ObjectDef* d = world.entity(r.entity).def;
+                if (std::find(im.linearDefs.begin(), im.linearDefs.end(), d) == im.linearDefs.end())
+                    im.linearDefs.push_back(d);
             }
+        }
+    }
+    if (im.linearDefs != im.linearDefsJoined) {
+        im.linearDefsJoined = im.linearDefs;
+        ws.linearSkins.clear();
+        for (const ObjectDef* d : im.linearDefs) {
+            const std::string& name = d->name;
+            if (ws.linearSkins.find(" " + name) == std::string::npos && ws.linearSkins.size() < 400)
+                ws.linearSkins += " " + name;
         }
     }
     meter.lap(Pass::PrepStats, ws.linearRecords);
