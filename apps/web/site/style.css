@@ -193,6 +193,8 @@ body.touchdev #hint-keys, body:not(.touchdev) #hint-touch { display: none; }
   z-index: 5;
   width: 44px;
   height: 44px;
+  min-width: 0; /* 98.css (loaded under the launcher) gives buttons 75px */
+  min-height: 0;
   padding: 0;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.55);

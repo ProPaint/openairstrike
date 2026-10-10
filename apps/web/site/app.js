@@ -243,6 +243,18 @@
   document.addEventListener('fullscreenchange', onFullscreenChange);
   document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
+  // Launcher mode without touch: #fs-toggle stays hidden (it is placed by the touch pause button), so the
+  // launcher's shared Win95 button (js/loading95.js) is used instead.
+  function addLauncherFsButton() {
+    if (!LAUNCH || state.touch || !fsApi || installed) return;
+    const add = () => { try { window.Launch95.addFullscreenButton(root, { refocus: canvas }); } catch (e) { /* optional */ } };
+    if (window.Launch95 && window.Launch95.addFullscreenButton) { add(); return; }
+    const sc = document.createElement('script');
+    sc.src = '/js/loading95.js';
+    sc.onload = add;
+    document.head.appendChild(sc);
+  }
+
   // The toggle in touch mode, beside the game's pause button.
   const fsBtn = $('fs-toggle');
   let pauseButton = null; // framebuffer pixels: x, y, r, hit r, width, height
@@ -841,12 +853,15 @@
     onTouchMode(on) {
       state.touch = on;
       document.body.classList.toggle('touchdev', on);
+      const lb = document.getElementById('l95-fs');   // touch has its own #fs-toggle beside the pause button
+      if (lb) lb.style.display = on ? 'none' : '';
       updateFsButton();
       fit();
     },
     onFirstFrame() {
       state.firstFrame = true;
       state.firstFrameMs = performance.now();
+      addLauncherFsButton();
       $('start').hidden = true;
       lwHide();
     },
