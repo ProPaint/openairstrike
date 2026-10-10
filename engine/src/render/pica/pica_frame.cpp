@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "as3d/core.h"
+#include "state_check_pica.h"
 
 // citro3d's context (internal.h: C3D_Context __C3D_Context). Its first member is the GX command
 // queue the frames go through (gxCmdQueue_s gxQueue); only that member is used here (kickGpu),
@@ -162,6 +163,7 @@ void frameBegin() {
         GSPGPU_FlushDataCache(b.arena.halfBase(), static_cast<u32>(b.arena.capacity()));
         ++b.fence.poisonedHalves;
     }
+    stateCheckFrameBegin();
     // Each frame issues its fragment state and texture bindings at least once (the shadow copies
     // of render_state_pica.cpp only skip repeats inside a frame and a target).
     detail::c3dInvalidate();
@@ -257,6 +259,7 @@ const FrameTarget& currentTarget() { return backend().target; }
 void frameEnd() {
     Backend& b = backend();
     b.arena.flushPending();
+    stateCheckFrameEnd();
     b.inFrame = false;
 }
 

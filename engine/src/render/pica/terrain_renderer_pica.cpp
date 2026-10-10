@@ -34,6 +34,7 @@
 #include "as3d/render_state.h"
 #include "as3d/terrain_render.h"
 #include "pica_frame.h"
+#include "state_check_pica.h"
 #include "quality_pica.h"
 #include "shader_set.h"
 #include "terrain_pica.h"
@@ -560,6 +561,10 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
         nearPlane = 4.0f;
         farPlane = 2000.0f;
     }
+    // The terrain's state is issued in full, whatever the previous passes left (docs/3ds-port.md
+    // "Frame synchronisation"): the shadow copies and texture bindings are forgotten first.
+    pica::detail::c3dInvalidate();
+    pica::detail::forgetTextureBindings();
     pica::setDepthMapping(FogDepthMap::WBuffer, nearPlane);
     const bool fog = params.fogStart < 1.0e7f && params.fogEnd > params.fogStart;
     if (fog) pica::setFog(nearPlane, farPlane, params.fogStart, params.fogEnd);
@@ -580,6 +585,13 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
     const bool useDetail = options.detail && pica::renderQuality().terrainDetail && im.detail.valid();
     pica::applyTev(useDetail ? pica::tevTerrain2Stage() : pica::tevModulateTexColor());
     if (useDetail) im.detail.bind(1);
+    if (pica::stateCheck()) {
+        pica::PassExpect e;
+        e.pass = "terrain";
+        pica::expectDepthMap(e, nearPlane, 0.0f);
+        e.cull = GPU_CULL_NONE;
+        pica::checkPassState(e);
+    }
 
     const size_t lightCount = std::min(params.lightCount, static_cast<size_t>(kMaxDynamicLights));
     const int W = im.geo.width;
@@ -605,13 +617,28 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
         ++st.drawCalls;
         st.indicesDrawn += static_cast<size_t>(n);
     }
+    pica::probeGpuState("terrain");
 
     if (options.tiles && !im.atlases.empty()) {
+        // The overlays' state in full as well (blend, no depth write, the bias).
+        pica::detail::c3dInvalidate();
+        pica::detail::forgetTextureBindings();
+        pica::setDepthMapping(FogDepthMap::WBuffer, nearPlane);
         key.blend = RenderBlend::Alpha;
         key.depthWrite = false;
         applyMaterialState(key);
         pica::applyDepthMap(pica::terrainOverlayDepthOffset());
         pica::applyTev(pica::tevModulateTexColor());
+        if (pica::stateCheck()) {
+            pica::PassExpect e;
+            e.pass = "terrain_tiles";
+            e.writeMask = GPU_WRITE_COLOR;
+            pica::expectDepthMap(e, nearPlane, pica::terrainOverlayDepthOffset());
+            e.src = GPU_SRC_ALPHA;
+            e.dst = GPU_ONE_MINUS_SRC_ALPHA;
+            e.cull = GPU_CULL_NONE;
+            pica::checkPassState(e);
+        }
         for (size_t bi = 0; bi < im.atlases.size(); ++bi) {
             if (!im.atlases[bi].valid()) continue;
             im.atlases[bi].bind(0);

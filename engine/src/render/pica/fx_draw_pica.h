@@ -22,6 +22,10 @@ struct FxEyeParams {
     Vec3 fogColour;
     float fogStart = 1.0e9f;
     float fogEnd = 1.0e9f;
+    // The render-state self-check (state_check_pica.h): checked right before the first run's
+    // draw, and the GPU read back right after the last one (the water pass).
+    const struct PassExpect* check = nullptr;
+    const char* probe = nullptr;
 };
 
 // Draws `runs` of `verts` for one eye: W-buffer depth mapping and fog of the projection's

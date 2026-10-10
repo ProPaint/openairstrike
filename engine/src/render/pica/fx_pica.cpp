@@ -10,6 +10,7 @@
 #include "as3d/render_state.h"
 #include "fx_draw_pica.h"
 #include "pica_frame.h"
+#include "state_check_pica.h"
 #include "tev.h"
 
 namespace as3d::pica {
@@ -109,9 +110,11 @@ int drawFlatRuns(const FlatVertex* verts, const std::vector<DrawRun>& runs, cons
         } else {
             applyTev(tevPrimaryOnly());
         }
+        if (eye.check && draws == 0) checkPassState(*eye.check);
         C3D_DrawArrays(r.strip ? GPU_TRIANGLE_STRIP : GPU_TRIANGLES, r.first, r.count);
         ++draws;
     }
+    if (eye.probe && draws > 0) probeGpuState(eye.probe);
     last.blend = RenderBlend::None;
     last.fog = FogColorMode::Level;
     last.depthTest = true;

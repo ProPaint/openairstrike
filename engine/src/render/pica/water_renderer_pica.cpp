@@ -18,6 +18,7 @@
 #include "fx_draw_pica.h"
 #include "fx_pica.h"
 #include "pica_frame.h"
+#include "state_check_pica.h"
 #include "tev.h"
 #include "texture_budget.h"
 
@@ -72,6 +73,26 @@ constexpr float kMaxTileSpan = 0.6f;
 constexpr int kMaxTileSplits = 3;
 constexpr float kMinTileSize = 10.0f;
 
+// The water's own vertex buffer (WaterPass::buf_), per half: the plane's tiles of both eyes
+// (mission 1: about 100 to 600 tiles of at most 9 vertices per eye), or the grid's heights.
+constexpr size_t kPlaneBufHalfBytes = 192 * 1024;
+
+void* waterBufAlloc(size_t bytes, size_t align) { return linearMemAlign(bytes, align); }
+void waterBufRelease(void* p) { deferLinearFree(p); } // a frame in flight may still read it
+void waterBufFlush(const void* p, size_t bytes) { GSPGPU_FlushDataCache(p, static_cast<u32>(bytes)); }
+
+bool initWaterBuf(LinearArena& buf, size_t halfBytes) {
+    ArenaMemory mem;
+    mem.alloc = waterBufAlloc;
+    mem.release = waterBufRelease;
+    mem.flush = waterBufFlush;
+    const bool ok = buf.init(halfBytes, mem);
+    if (!ok)
+        AS3D_WARN("pica water: no linear memory for its vertex buffer (2 x %u KB): the frame arena instead",
+                  static_cast<unsigned>(halfBytes / 1024));
+    return ok;
+}
+
 } // namespace
 
 const WaterPicaStats& waterPicaStats() { return g_stats; }
@@ -81,7 +102,35 @@ void setWaterOptions(bool enabled, float tileSize) {
     g_waterTile = tileSize > 0.0f ? tileSize : 0.0f;
 }
 
-WaterPass::~WaterPass() { freeGrid(); }
+WaterPass::~WaterPass() {
+    freeGrid();
+    buf_.shutdown();
+}
+
+void* WaterPass::allocVertices(size_t bytes, size_t align) {
+    if (buf_.valid()) {
+        const uint32_t serial = frameSerial();
+        if (bufFrame_ != serial) {
+            // The first water draw of this frame takes the other half: its last frame must be done.
+            buf_.beginFrame();
+            const int h = buf_.currentHalf();
+            if (!gpuDone(bufSerial_[h])) ++g_stats.bufHazards;
+            bufSerial_[h] = serial;
+            bufFrame_ = serial;
+            g_stats.bufBytes = 0;
+            if (arenaPoison()) poisonLinear(const_cast<uint8_t*>(buf_.halfBase()), buf_.capacity());
+        }
+        if (void* p = buf_.alloc(bytes, align)) {
+            g_stats.bufHalf = buf_.currentHalf();
+            g_stats.bufOffset = static_cast<size_t>(static_cast<const uint8_t*>(p) - buf_.halfBase());
+            g_stats.bufBytes += bytes;
+            return p;
+        }
+    }
+    ++g_stats.bufFallbacks;
+    g_stats.bufHalf = -1;
+    return frameArena().alloc(bytes, align);
+}
 
 void WaterPass::freeGrid() {
     if (static_) deferLinearFree(static_);
@@ -101,6 +150,9 @@ void WaterPass::reset() {
     shine_ = Texture2D();
     freeGrid();
     quads_ = 0;
+    buf_.shutdown();
+    bufFrame_ = 0;
+    bufSerial_[0] = bufSerial_[1] = 0;
     g_stats = WaterPicaStats();
     g_arena = nullptr;
     g_arenaFrame = ~0u;
@@ -124,6 +176,7 @@ bool WaterPass::build(const Terrain& terrain, Vfs& vfs, const WaterSurface* grid
     const float length = static_cast<float>(terrain.height()) * kHmapCellSize;
     quads_ = static_cast<int>(std::ceil(length / kQuadHeight));
     active_ = texture_.valid() && quads_ > 0;
+    if (active_ && initWaterBuf(buf_, kPlaneBufHalfBytes)) g_stats.bufCapacity = buf_.capacity();
     g_stats.active = active_;
     g_stats.quads = quads_;
     g_stats.textureWidth = texture_.width();
@@ -193,7 +246,8 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
     const bool tiled = g_waterTile > 0.0f && g_waterTile < kQuadHeight;
     if (!tiled && (!g_arena || g_arenaFrame != arena.frames())) {
         g_arenaFrame = arena.frames();
-        auto* v = arena.allocArray<FlatVertex>(static_cast<size_t>(quads_) * 6);
+        const size_t n = static_cast<size_t>(quads_) * 6;
+        auto* v = static_cast<FlatVertex*>(allocVertices(n * sizeof(FlatVertex), 4));
         g_arena = v;
         if (!v) return 0;
         for (int k = 0; k < quads_; ++k) {
@@ -202,7 +256,8 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
             const int order[6] = {0, 1, 2, 0, 2, 3}; // a b c, a c d
             for (int i = 0; i < 6; ++i) put(v[k * 6 + i], xs[order[i]], ys[order[i]], y0);
         }
-        g_stats.arenaBytes = static_cast<size_t>(quads_) * 6 * sizeof(FlatVertex);
+        GSPGPU_FlushDataCache(v, static_cast<u32>(n * sizeof(FlatVertex)));
+        g_stats.arenaBytes = n * sizeof(FlatVertex);
     }
     if (!tiled && !g_arena) return 0;
 
@@ -349,9 +404,10 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
                 }
         }
         if (!out.empty()) {
-            auto* v = arena.allocArray<FlatVertex>(out.size());
+            auto* v = static_cast<FlatVertex*>(allocVertices(out.size() * sizeof(FlatVertex), 4));
             if (!v) return 0;
             std::copy(out.begin(), out.end(), v);
+            GSPGPU_FlushDataCache(v, static_cast<u32>(out.size() * sizeof(FlatVertex)));
             g_stats.arenaBytes += out.size() * sizeof(FlatVertex);
             DrawRun r;
             r.key = key;
@@ -366,6 +422,10 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
     g_stats.tilesDrawn = tiles;
     g_stats.minW = drawn ? minW : 0.0f;
     g_stats.maxW = drawn ? maxW : 0.0f;
+    g_stats.nearTiles = nearTiles;
+    g_stats.splitTiles = splitTiles;
+    g_stats.maxSpan = maxSpan;
+    g_stats.minCutW = tiles ? minCutW : 0.0f;
     if (++g_drawCount % 300 == 1)
         AS3D_INFO("pica water: draw %u planeZ %.2f quads %d of %d, tiles %d (tile %.0f, %d split), quad corner w "
                   "%.1f..%.1f, tiles cut at the near plane %d, smallest w drawn %.1f, largest tile span %.2f NDC",
@@ -374,12 +434,31 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
                   static_cast<double>(g_stats.maxW), nearTiles, static_cast<double>(tiles ? minCutW : 0.0f),
                   static_cast<double>(maxSpan));
     if (runs.empty()) return 0;
+    // The water's state is issued in full right before its draw, whatever the previous passes
+    // left (docs/3ds-port.md "Frame synchronisation"): the shadow copies and the texture bindings
+    // are forgotten, so drawFlatRuns' depth map, depth test, blend, cull, fog and texture calls all
+    // reach citro3d and its draw emits them.
+    detail::c3dInvalidate();
+    detail::forgetTextureBindings();
     FxEyeParams eye;
     eye.view = view;
     eye.projection = projection;
     eye.fogColour = fogColour;
     eye.fogStart = fogStart;
     eye.fogEnd = fogEnd;
+    PassExpect expect;
+    if (stateCheck()) {
+        float nearPlane = 4.0f, farPlane = 2000.0f;
+        detail::planesOfProjection(projection.m, &nearPlane, &farPlane);
+        expect.pass = "water";
+        expectDepthMap(expect, nearPlane, 0.0f);
+        expect.src = GPU_SRC_ALPHA;
+        expect.dst = GPU_ONE_MINUS_SRC_ALPHA;
+        expect.cull = GPU_CULL_NONE;
+        expect.tex0 = c3dTexOf(texture_);
+        eye.check = &expect;
+        eye.probe = "water";
+    }
     g_stats.draws = drawFlatRuns(verts, runs, eye);
     MaterialKey plain;
     applyMaterialState(plain);
@@ -470,6 +549,11 @@ bool WaterPass::buildGrid(const WaterSurface& surface, const TerrainGridView& he
         GSPGPU_FlushDataCache(static_, static_cast<u32>(src_.size() * sizeof(WaterGridStaticPica)));
         GSPGPU_FlushDataCache(indices_, static_cast<u32>(std::max<size_t>(idx.size(), 1) * sizeof(uint16_t)));
     }
+    // The grid's heights of one frame: every used vertex once (each chunk 4-byte aligned).
+    if (!src_.empty()) {
+        initWaterBuf(buf_, src_.size() * sizeof(float) + chunks_.size() * 16 + 256);
+        g_stats.bufCapacity = buf_.capacity();
+    }
     rowSin_.assign(static_cast<size_t>(surface_.height) + 1, 0.0f);
     colSin_.assign(static_cast<size_t>(surface_.width) + 1, 0.0f);
 
@@ -522,7 +606,7 @@ const float* WaterPass::animate(GridChunk& ch) {
     LinearArena& arena = frameArena();
     if (ch.heights && ch.frame == arena.frames()) return ch.heights;
     const u64 t0 = svcGetSystemTick();
-    float* z = arena.allocArray<float>(std::max<size_t>(ch.usedCount, 1));
+    float* z = static_cast<float*>(allocVertices(std::max<size_t>(ch.usedCount, 1) * sizeof(float), 4));
     ch.frame = arena.frames();
     ch.heights = z;
     if (!z) {
@@ -546,6 +630,7 @@ const float* WaterPass::animate(GridChunk& ch) {
         const WaterGridAnimated a = animateWaterGrid(surface_, geo_.verts[src[i]], frame_);
         err = std::max(err, std::fabs(a.pos.z - z[i]));
     }
+    GSPGPU_FlushDataCache(z, static_cast<u32>(std::max<size_t>(ch.usedCount, 1) * sizeof(float)));
     g_stats.maxHeightError = std::max(g_stats.maxHeightError, err);
     g_stats.arenaBytes += ch.usedCount * sizeof(float);
     ++g_stats.chunksAnimated;
@@ -563,7 +648,10 @@ int WaterPass::drawGrid(const Mat4& view, const Mat4& projection, const Vec3& fo
     g_stats.quadsDrawn = 0;
     if (visible.empty()) return 0;
 
-    // The GL grid state: alpha blend, depth test and write on, no culling, the level fog.
+    // The GL grid state: alpha blend, depth test and write on, no culling, the level fog; issued
+    // in full whatever the previous passes left (as the plane above).
+    detail::c3dInvalidate();
+    detail::forgetTextureBindings();
     float nearPlane, farPlane;
     detail::planesOfProjection(projection.m, &nearPlane, &farPlane);
     setDepthMapping(FogDepthMap::WBuffer, nearPlane);
@@ -577,6 +665,17 @@ int WaterPass::drawGrid(const Mat4& view, const Mat4& projection, const Vec3& fo
     applyTev(tevWaterGrid());
     texture_.bind(0);
     shine_.bind(1);
+    if (stateCheck()) {
+        PassExpect expect;
+        expect.pass = "water_grid";
+        expectDepthMap(expect, nearPlane, 0.0f);
+        expect.src = GPU_SRC_ALPHA;
+        expect.dst = GPU_ONE_MINUS_SRC_ALPHA;
+        expect.cull = GPU_CULL_NONE;
+        expect.tex0 = c3dTexOf(texture_);
+        expect.tex1 = c3dTexOf(shine_);
+        checkPassState(expect);
+    }
 
     // Texture coordinates per world unit: the GL's 1.5 * (c / 4) and 2 * (c / 4) with c = x / 40.
     const float sBase = 1.5f * 0.25f / kHmapCellSize, sShine = 2.0f * 0.25f / kHmapCellSize;
@@ -598,6 +697,7 @@ int WaterPass::drawGrid(const Mat4& view, const Mat4& projection, const Vec3& fo
         ++g_stats.chunksVisible;
         g_stats.trianglesDrawn += static_cast<int>(ch.indexCount / 3);
     }
+    if (draws > 0) probeGpuState("water_grid");
     g_stats.draws = draws;
     g_stats.quadsDrawn = g_stats.chunksVisible;
     MaterialKey plain;

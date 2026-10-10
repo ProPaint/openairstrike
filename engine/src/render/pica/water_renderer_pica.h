@@ -45,6 +45,7 @@
 #include "as3d/texture.h"
 #include "as3d/vfs.h"
 #include "as3d/water_build.h"
+#include "linear_arena.h"
 #include "shader_set.h"
 
 namespace as3d::pica {
@@ -91,6 +92,16 @@ struct WaterPicaStats {
     // animated chunk (self-check), and arena failures.
     float maxHeightError = 0.0f;
     int arenaFailures = 0;
+    // The plane's last draw (one eye): tiles cut at the near plane, tiles split, the largest tile
+    // span in NDC, the smallest w emitted (the periodic AS3D_STATE line of state_check_pica.h).
+    int nearTiles = 0, splitTiles = 0;
+    float maxSpan = 0.0f, minCutW = 0.0f;
+    // The water's own vertex buffer (WaterPass::Vertices): the half and the offset of the last
+    // draw's vertices, the bytes of this frame, allocations that fell back to the frame arena,
+    // halves taken before the GPU was done with them (never expected).
+    int bufHalf = -1;
+    size_t bufOffset = 0, bufBytes = 0, bufCapacity = 0;
+    unsigned bufFallbacks = 0, bufHazards = 0;
 };
 const WaterPicaStats& waterPicaStats();
 
@@ -136,6 +147,15 @@ private:
     int drawGrid(const Mat4& view, const Mat4& projection, const Vec3& fogColour, float fogStart, float fogEnd);
     const float* animate(GridChunk& ch);
     void freeGrid();
+
+    // The water's vertices (the plane's tiles, the grid's heights): a double-buffered linear
+    // buffer of its own (not the shared frame arena) with its own fence: a half is taken at the
+    // first draw of a frame once the GPU is done with the frame that last used it
+    // (pica::gpuDone), and each eye's vertices are flushed as soon as they are written.
+    void* allocVertices(size_t bytes, size_t align);
+    LinearArena buf_;
+    uint32_t bufSerial_[2] = {0, 0}; // the frame each half was last taken for
+    uint32_t bufFrame_ = 0;          // the frame the current half belongs to
 
     bool active_ = false;
     bool grid_ = false;
