@@ -36,7 +36,7 @@ std::string stampName(const char* name) {
 // does not flip rows. False for anything else.
 bool loadStamp(Vfs& vfs, const std::string& path, int& w, int& h, std::vector<u8>& pixels) {
     LoadStats::Site site; // a load (as3d/load_stats.h, Stamp: not precachable)
-    LoadStats::count(LoadKind::Stamp);
+    LoadStats::count(LoadKind::Stamp, path, "terramorph");
     Blob blob;
     if (!vfs.read(path, blob) || blob.size() < 18) return false;
     const u8* b = blob.data();

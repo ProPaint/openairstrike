@@ -9,6 +9,7 @@
 
 #include "as3d/defs.h"
 #include "as3d/game_camera.h"
+#include "as3d/load_stats.h"
 #include "as3d/player_select.h"
 #include "as3d/world.h"
 #include "world_internal.h"
@@ -78,6 +79,7 @@ bool World::loadLevel(const std::string& ref, std::string* error) {
         if (error) *error = "world not initialised";
         return false;
     }
+    LoadStats::LevelLoadScope loading; // not lazy loads (as3d/load_stats.h)
     std::unique_ptr<LoadedLevel> lvl(new LoadedLevel());
     if (!loadLevelByRef(*vfs_, ref, *lvl, error)) return false;
     return startLevel(std::move(lvl), missionOfRef(ref));

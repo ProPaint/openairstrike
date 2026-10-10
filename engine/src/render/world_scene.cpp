@@ -538,6 +538,7 @@ void WorldScene::precacheDrawn(const World& world) {
 PrecacheReport WorldScene::precache(const World& world, const DefDatabase& db, const std::function<void(float)>& progress,
                                     const PrecacheHooks& hooks) {
     const auto t0 = std::chrono::steady_clock::now();
+    LoadStats::PrecacheScope scope;
     const LoadCounts before = LoadStats::lazyLoads();
     PrecacheSet local;
     const PrecacheSet* set = world.precacheSet();

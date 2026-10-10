@@ -45,7 +45,7 @@ struct ParticleRenderer::Impl {
         auto it = textures.find(key);
         if (it != textures.end()) return it->second.get();
         LoadStats::Site site;
-        LoadStats::count(LoadKind::Texture);
+        LoadStats::count(LoadKind::Texture, key, "particles");
         Blob blob;
         Image image;
         const bool ok = vfs && !path.empty() && vfs->read(path, blob) && decodeTga(blob.data(), blob.size(), image);

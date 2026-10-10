@@ -19,6 +19,12 @@
 //            front end's files)
 // `bytes` sums every Vfs::read, counted site or not.
 //
+// The lazy-load log (3DS run.ini log_lazy=1, as3d_game --log-lazy): with setLogLazy(true), every
+// load counted after a reset() and outside a PrecacheScope logs one line
+//   AS3D_LAZY path=<game path> kind=<kind> site=<counting site> frame=<setFrame value>
+// (the Other bucket names the Vfs path), so a counter that is not zero after a precache says what
+// the closure missed. Logging changes no behaviour and no counter.
+//
 // The counters are process-wide (one game runs per process) and atomic: read them with
 // LoadStats::lazyLoads(), clear them with LoadStats::reset(). The pattern: load the level,
 // precache, LoadStats::reset(), play; lazyLoads() then holds the lazy loads of play. Counting
@@ -49,14 +55,51 @@ struct LoadCounts {
 
 class LoadStats {
 public:
-    // One load of `kind` (a cache miss at a counting site).
-    static void count(LoadKind kind);
+    // One load of `kind` (a cache miss at a counting site); `path` and `site` (a short name of
+    // the counting site, e.g. "resource_cache") are only used by the lazy-load log.
+    static void count(LoadKind kind, const char* path = nullptr, const char* site = nullptr);
+    static void count(LoadKind kind, const std::string& path, const char* site) { count(kind, path.c_str(), site); }
     // Called by Vfs::read for every successful read: adds the bytes, and counts one Other load
     // when the read is not inside a Site.
-    static void fileRead(size_t bytes);
+    static void fileRead(size_t bytes, const char* path = nullptr);
     // The counts since the last reset (or the start of the process).
     static LoadCounts lazyLoads();
     static void reset();
+
+    // The lazy-load log (see above). setFrame: the frame number the log lines carry.
+    static void setLogLazy(bool on);
+    static bool logLazy();
+    static void setFrame(long frame);
+    static long frame();
+    // The path of the last load counted on this thread (count()'s `path`; "" before any): the
+    // PICA's late texture queue names it in AS3D_LATE_TEX.
+    static const char* lastPath();
+
+    // Marks a level-start precache (process-wide, nestable): its loads are expected, they are
+    // counted as usual but never logged as lazy.
+    class PrecacheScope {
+    public:
+        PrecacheScope();
+        ~PrecacheScope();
+        PrecacheScope(const PrecacheScope&) = delete;
+        PrecacheScope& operator=(const PrecacheScope&) = delete;
+    };
+
+    // A level load (World::loadLevel: the map, the placements' scripts and models), behind the
+    // loading screen and never inside play: its loads are neither logged nor kept in the
+    // counters (they are put back as they were when the scope ends), so that the window of the
+    // level before (the front end's attract level) holds only that window's own loads.
+    class LevelLoadScope {
+    public:
+        LevelLoadScope();
+        ~LevelLoadScope();
+        LevelLoadScope(const LevelLoadScope&) = delete;
+        LevelLoadScope& operator=(const LevelLoadScope&) = delete;
+
+    private:
+        LoadCounts saved_;
+        PrecacheScope quiet_;
+    };
 
     // Marks a counting site for its lifetime (per thread, nestable): the Vfs reads inside it are
     // the site's own load and are not counted again as Other.

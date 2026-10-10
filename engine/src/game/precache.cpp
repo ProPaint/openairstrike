@@ -218,6 +218,7 @@ PrecacheSet collectPrecacheSet(const World& world, const DefDatabase& db, const 
 
 PrecacheReport World::precacheScripts() {
     const auto t0 = std::chrono::steady_clock::now();
+    LoadStats::PrecacheScope scope;
     const LoadCounts before = LoadStats::lazyLoads();
     PrecacheReport r;
     if (!db_ || !host_) return r;

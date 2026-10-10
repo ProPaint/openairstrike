@@ -49,6 +49,7 @@ void AudioBridge::startLevel(const std::string& musicPath) {
 
 int AudioBridge::precacheSounds(const PrecacheSet& set) {
     if (!ok_) return 0;
+    LoadStats::PrecacheScope scope;
     for (const std::string& s : set.sounds) audio_.loadSound(s.c_str());
     return static_cast<int>(set.sounds.size());
 }

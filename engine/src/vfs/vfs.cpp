@@ -22,7 +22,7 @@ bool Vfs::read(const std::string& path, Blob& out) {
     const std::string p = normalizePath(path);
     for (auto it = sources_.rbegin(); it != sources_.rend(); ++it) {
         if ((*it)->read(p, out)) {
-            LoadStats::fileRead(out.size());
+            LoadStats::fileRead(out.size(), p.c_str());
             if (observer_) observer_(p);
             return true;
         }

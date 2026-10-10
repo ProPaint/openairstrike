@@ -95,7 +95,7 @@ ResourceCache::LoadedTexture ResourceCache::texture(const std::string& gamePath,
     // A load (as3d/load_stats.h). A path that failed is not cached and is read again at every
     // call, as before; it counts once.
     LoadStats::Site site;
-    if (!warnedKeys_.count(key)) LoadStats::count(LoadKind::Texture);
+    if (!warnedKeys_.count(key)) LoadStats::count(LoadKind::Texture, key, "resource_cache");
     Blob blob;
     Image image;
     bool ok = vfs_.read(gamePath, blob) && decodeTga(blob.data(), blob.size(), image);
@@ -126,7 +126,7 @@ const GpuMesh& ResourceCache::mesh(const std::string& gamePath) {
     if (it != meshes_.end()) return *it->second;
 
     LoadStats::Site site; // a load (as3d/load_stats.h); a failure is cached too
-    LoadStats::count(LoadKind::Model);
+    LoadStats::count(LoadKind::Model, key, "resource_cache");
     auto gpu = std::make_unique<GpuMesh>();
 
     Blob blob;

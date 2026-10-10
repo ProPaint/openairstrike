@@ -470,7 +470,7 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
                 --lateBudget;
                 ++late;
                 ++im.lateShadowMaps;
-                LoadStats::count(LoadKind::Shadow); // a first-use load (as3d/load_stats.h)
+                LoadStats::count(LoadKind::Shadow, r.modelPath ? r.modelPath->c_str() : nullptr, "shadow"); // a first-use load (as3d/load_stats.h)
             }
             if (e.tried && !e.map) continue; // no silhouette (no faces): no shadow, as GL
             const bool isStatic = r.spec.kind == ShadowKind::Projected; // at the spawn origin

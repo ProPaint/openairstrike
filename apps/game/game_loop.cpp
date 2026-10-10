@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "as3d/console_pad.h"
+#include "as3d/load_stats.h"
 #include "as3d/frontend.h"
 #include "as3d/gfx.h"
 #include "as3d/launcher.h"
@@ -866,6 +867,7 @@ void GameWindow::simulate(int steps) {
         const FrameInput fromPad = pad_.takeFrame(padBindings_);
         if (!stack_.flow || stack_.flow->playing()) local = mergeFrameInput(local, fromPad);
         FrameInput fromTouch = touch_.takeFrame();
+        LoadStats::setFrame(frame_);
         FrameInput in = source_.next(static_cast<u32>(frame_), local);
         in = mergeFrameInput(in, fromTouch);
         if (relativeMouse_) {

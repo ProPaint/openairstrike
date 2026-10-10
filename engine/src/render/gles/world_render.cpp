@@ -163,7 +163,7 @@ struct WorldRenderer::Impl {
         if (!shadows.generate(mesh.model, mat.texture, ss.kind, towardsSun, steps, ss.quality, *map)) map.reset();
         if (late) {
             ++lateShadowMaps;
-            LoadStats::count(LoadKind::Shadow); // a first-use load (as3d/load_stats.h)
+            LoadStats::count(LoadKind::Shadow, key, "shadow"); // a first-use load (as3d/load_stats.h)
         }
         const ShadowMap* p = map.get();
         shadowMaps.emplace(key, std::move(map));

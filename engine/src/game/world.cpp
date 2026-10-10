@@ -264,7 +264,7 @@ const ModelData* World::loadModel(const std::string& rawPath) {
     if (it != models_.end()) return it->second.get();
     if (modelMissing_.count(path)) return nullptr;
     LoadStats::Site site; // a load (as3d/load_stats.h); a failure is cached too
-    LoadStats::count(LoadKind::Model);
+    LoadStats::count(LoadKind::Model, path, "world_model");
     Blob blob;
     std::unique_ptr<ModelData> m(new ModelData());
     std::string err;

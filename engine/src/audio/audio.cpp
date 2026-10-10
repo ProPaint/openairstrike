@@ -109,7 +109,7 @@ SoundId Audio::loadSound(const char* gamePath) {
     if (it != impl_->pathToId.end()) return it->second;
 
     LoadStats::Site site; // a load (as3d/load_stats.h)
-    if (!impl_->failedPaths.count(norm)) LoadStats::count(LoadKind::Sound);
+    if (!impl_->failedPaths.count(norm)) LoadStats::count(LoadKind::Sound, norm, "audio");
     Blob data;
     if (!impl_->vfs->read(norm, data)) {
         AS3D_WARN("audio: sound not found: %s", norm.c_str());

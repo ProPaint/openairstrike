@@ -309,7 +309,7 @@ const script::ScriptProgram* GameScriptHost::program(const std::string& rawPath)
     if (it != programs_.end()) return it->second.get();
     // A load (as3d/load_stats.h): the script is read and compiled; a failure is cached too.
     LoadStats::Site site;
-    LoadStats::count(LoadKind::Script);
+    LoadStats::count(LoadKind::Script, path, "script_host");
     std::unique_ptr<script::ScriptProgram> prog;
     Blob blob;
     if (!world_.vfs().read(path, blob)) {
