@@ -79,6 +79,7 @@ bool GameView::init(GameSession& session, std::string* error, bool level) {
 
 bool GameView::beginLevel(GameSession& session, std::string* error) {
     logLazyLoads(); // the level that ended
+    LoadStats::PrecacheScope scope; // the level start's loads are not lazy ones
     if (!renderer_.beginLevel(session.world(), error)) return false;
     if (session.options().precache && session.hasLevel()) precacheLevel(session);
     return true;
@@ -89,8 +90,15 @@ void GameView::precacheLevel(GameSession& session) {
     PrecacheReport r = world.precacheScripts();
     r += renderer_.precache(world, session.db());
     const LoadCounts before = LoadStats::lazyLoads();
-    if (hudReady_) assets_.precachePlay();
-    if (precacheSounds && world.precacheSet()) precacheSounds(*world.precacheSet());
+    if (hudReady_) {
+        assets_.precachePlay();
+        assets_.precacheMenus(); // the menus the level can show (the front end, the in-game menu)
+    }
+    if (precacheSounds && world.precacheSet()) {
+        PrecacheSet set = *world.precacheSet();
+        for (const std::string& s : ui::UiAssets::menuSounds()) set.sounds.push_back(s);
+        precacheSounds(set);
+    }
     const LoadCounts d = LoadStats::lazyLoads() - before;
     r.textures += static_cast<int>(d.of(LoadKind::Texture));
     r.sounds += static_cast<int>(d.of(LoadKind::Sound));

@@ -288,6 +288,15 @@ struct UiAssets {
     // the first game's hint OK button and its mission complete / game over pictures (the
     // sequels' hint panel is one of load()'s atlases). Returns how many it looked up.
     int precachePlay() const;
+    // The pictures of the front end's menus (3DS round 2, P1: 21 menu pictures loaded on first
+    // use on the console): every screen the main menu reaches and the in-play ones (in-game menu,
+    // its Options, the exit dialog, mission complete, game over, the name entry), normal and
+    // focused states. The first game's menu\*.tga; the sequels' atlas, title logo and widget
+    // pictures (their comic pages are per mission and stay on first use). Missing files are
+    // skipped quietly. Returns how many it looked up.
+    int precacheMenus() const;
+    // The sounds the menus play (MenuSystem::playSound), for the level-start sound precache.
+    static const std::vector<std::string>& menuSounds();
 
 private:
     Vfs* vfs_ = nullptr;

@@ -14,7 +14,7 @@ namespace {
 bool loadOne(Vfs& vfs, const std::string& path, Texture2D& out, std::string* error, Wrap wrap = Wrap::ClampToEdge,
              TextureClass cls = TextureClass::Auto) {
     LoadStats::Site site;
-    LoadStats::count(LoadKind::Texture);
+    LoadStats::count(LoadKind::Texture, path, "ui_assets");
     Blob blob;
     Image image;
     if (!vfs.read(path, blob) || !decodeTga(blob.data(), blob.size(), image)) {
@@ -86,12 +86,55 @@ const Texture2D* UiAssets::texture(std::string_view path) const {
 }
 
 int UiAssets::precachePlay() const {
+    LoadStats::PrecacheScope scope;
     if (hudLayout().hint == HintStyle::SequelPanel) return 0;
     // hud.cpp drawHintOk, screens_game.cpp (mission complete, game over).
     static const char* const kPlay[] = {"menu\\apply_ok_1.tga", "menu\\apply_ok_2.tga", "menu\\miscompl_1.tga",
                                         "menu\\miscompl_2.tga", "menu\\gameover_0.tga", "menu\\gameover_3.tga"};
     for (const char* p : kPlay) texture(p);
     return static_cast<int>(sizeof kPlay / sizeof kPlay[0]);
+}
+
+int UiAssets::precacheMenus() const {
+    if (!vfs_) return 0;
+    LoadStats::PrecacheScope scope;
+    // engine/src/ui/screens_*.cpp, menu_widgets.cpp, as2_widgets.cpp, screens_as2_*.cpp.
+    static const char* const kFirst[] = {
+        "menu\\corner.tga", "menu\\mmenu_1.tga", "menu\\mmenu_2.tga", "menu\\yesno_1.tga", "menu\\yesno_2.tga",
+        "menu\\back_1.tga", "menu\\back_2.tga", "menu\\start_1.tga", "menu\\start_2.tga", "menu\\starth_0.tga",
+        "menu\\starth_1.tga", "menu\\starth_2.tga", "menu\\topscores_0.tga", "menu\\topscores_1.tga",
+        "menu\\topscores_2.tga", "menu\\optionsh_0.tga", "menu\\optionsh_1.tga", "menu\\optionsh_2.tga",
+        "menu\\controlsh_0.tga", "menu\\controlsh_1.tga", "menu\\controlsh_2.tga", "menu\\scroller_1.tga",
+        "menu\\scroller_2.tga", "menu\\slider.tga", "menu\\slidebutt_1.tga", "menu\\slidebutt_2.tga",
+        "menu\\icon_border_2.tga", "menu\\icons_1.tga", "menu\\icons_2.tga", "menu\\icons_3.tga",
+        "menu\\confkeys_1.tga", "menu\\confkeys_2.tga", "menu\\apply_ok_1.tga", "menu\\apply_ok_2.tga",
+        "menu\\restart_1.tga", "menu\\restart_2.tga", "menu\\quit_1.tga", "menu\\quit_2.tga",
+        "menu\\continue_1.tga", "menu\\continue_2.tga", "menu\\miscompl_1.tga", "menu\\miscompl_2.tga",
+        "menu\\gameover_0.tga", "menu\\gameover_3.tga", "menu\\loading.tga"};
+    static const char* const kSequel[] = {
+        "gfx\\ui\\interface.tga", "gfx\\ui\\interface_gulf.tga", "gfx\\ui\\grid.tga", "gfx\\ui\\helicna.tga",
+        "gfx\\ui\\portraits2.tga", "gfx\\logo\\logo_gulf.tga", "gfx\\logo\\glow.tga", "gfx\\logo\\two3.tga",
+        "gfx\\logo\\logo.tga"};
+    static const char* const kSequelRepeat[] = {"gfx\\ui\\snow.tga", "gfx\\logo\\clouds.tga", "gfx\\logo\\lines_gulf.tga"};
+    int n = 0;
+    auto one = [&](const char* p, bool repeat) {
+        ++n;
+        if (cache_.count(repeat ? "\x01repeat:" + normalizePath(p) : normalizePath(p)) || !vfs_->exists(p)) return;
+        if (repeat) textureRepeat(p);
+        else texture(p);
+    };
+    if (game == GameId::AirStrike3D) {
+        for (const char* p : kFirst) one(p, false);
+    } else {
+        for (const char* p : kSequel) one(p, false);
+        for (const char* p : kSequelRepeat) one(p, true);
+    }
+    return n;
+}
+
+const std::vector<std::string>& UiAssets::menuSounds() {
+    static const std::vector<std::string> kSounds = {"sounds\\menu1.wav", "sounds\\menu2.wav", "sounds\\type.wav"};
+    return kSounds;
 }
 
 const Texture2D* UiAssets::textureRepeat(std::string_view path) const {
