@@ -129,10 +129,11 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     bool new3ds = false;
     APT_CheckNew3DS(&new3ds);
     if (new3ds) osSetSpeedupEnable(true);
-    AS3D_INFO("openairstrike 3ds: mode=%s (front end) game=%s frames=%d perf=%d menu_bot=%d, %s 3DS%s state_check=%d "
-              "arena_poison=%d",
+    AS3D_INFO("openairstrike 3ds: mode=%s (front end) game=%s frames=%d perf=%d menu_bot=%d bot_weapons=%d log_lazy=%d, "
+              "%s 3DS%s state_check=%d arena_poison=%d",
               modeName(run.mode), run.game.c_str(), run.frames, run.perf ? 1 : 0, run.menuBot ? 1 : 0,
-              new3ds ? "New" : "Old", new3ds ? ", speed-up on" : "", run.stateCheck, run.arenaPoison ? 1 : 0);
+              run.botWeapons ? 1 : 0, run.logLazy ? 1 : 0, new3ds ? "New" : "Old", new3ds ? ", speed-up on" : "",
+              run.stateCheck, run.arenaPoison ? 1 : 0);
     AS3D_INFO("memory: APPLICATION %.1f MB free, linear free %.1f MB",
               static_cast<double>(osGetMemRegionFree(MEMREGION_APPLICATION)) / 1048576.0,
               static_cast<double>(linearSpaceFree()) / 1048576.0);
@@ -359,6 +360,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
                     in = running ? botInput(runStep) : FrameInput();
                     in.pausePressed = pause;
                 }
+                if (run.botWeapons && running) applyWeaponTour(ses.world(), runStep, in);
             }
             const int before = flow.levelLoads();
             flow.step(in);

@@ -230,4 +230,25 @@ FrameInput botInput(u32 frame) {
     return in;
 }
 
+void applyWeaponTour(World& world, u32 frame, FrameInput& in) {
+    const GameRules& rules = world.rules();
+    const int slots = std::clamp(rules.weaponSlots, 1, 20);
+    const u32 step = frame / kWeaponTourPeriod;
+    for (int p = 0; p < std::clamp(world.config().players, 1, kMaxPlayers); ++p) {
+        in.held[p] |= ACT_FIRE;
+        if (frame % 180 == 90) in.held[p] |= ACT_POWERUP;
+        if (frame % kWeaponTourPeriod != 0) continue;
+        PlayerRecord& pr = world.player(p);
+        const int level = 1 + static_cast<int>((step / static_cast<u32>(slots)) % kWeaponTourLevels);
+        for (int k = 0; k < slots; ++k) pr.upgrades[k] = level;
+        pr.weapon = static_cast<float>(step % static_cast<u32>(slots));
+        for (int& n : pr.missiles) n = 9;
+        for (int& n : pr.powerups) n = 9;
+        pr.currentMissile = static_cast<int>(step % 5u);
+        int kind = static_cast<int>(step % 16u);
+        for (int t = 0; t < 16 && (rules.powerUpCycleSkip >> kind) & 1u; ++t) kind = (kind + 1) % 16;
+        pr.currentPowerup = kind;
+    }
+}
+
 } // namespace as3d

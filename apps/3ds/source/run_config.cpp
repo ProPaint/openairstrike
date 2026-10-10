@@ -83,6 +83,10 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.perf = n != 0;
         } else if (key == "log_input") {
             if (toInt(val, &n)) c.logInput = n != 0;
+        } else if (key == "log_lazy") {
+            if (toInt(val, &n)) c.logLazy = n != 0;
+        } else if (key == "bot_weapons") {
+            if (toInt(val, &n)) c.botWeapons = n != 0;
         } else if (key.compare(0, 5, "bind_") == 0) {
             as3d::applyBindingOption(c.bindings, key, val);
         } else if (key == "difficulty") {

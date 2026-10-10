@@ -33,6 +33,8 @@ struct RunConfig {
     int frames = 0;            // frames=N: simulation steps, then quit; 0 = 600 in sim, unlimited otherwise
     bool perf = false;         // perf=1: write perf.csv
     bool logInput = false;     // log_input=1: an AS3D_INPUT line per change of held bits / touch button
+    bool logLazy = false;      // log_lazy=1: an AS3D_LAZY line per first-use load after a precache (as3d/load_stats.h)
+    bool botWeapons = false;   // bot_weapons=1: the weapon tour (as3d/input.h applyWeaponTour) over the input
     as3d::PadBindings bindings = as3d::defaultBindings(); // bind_fire=A ... (see console_pad.h)
     int difficulty = -1;       // difficulty=N: -1 = the engine's default
     // The frame composer (ctr_frame.h):

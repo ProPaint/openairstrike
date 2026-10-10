@@ -81,6 +81,17 @@ FrameInput botInput(u32 frame);
 // pure function of the world state and the frame); it reads the world, never writes it.
 FrameInput botInput(const World& world, u32 frame);
 
+// The weapon tour of the precache checks (precache_test, as3d_game --bot-weapons, the 3DS run.ini
+// bot_weapons=1): on top of a pilot's input, makes the players use everything the game lets a
+// player use, whatever the mission's loadout. Every kWeaponTourPeriod frames the next weapon slot
+// is selected with every slot at the next upgrade level (1..kWeaponTourLevels, then again), 9 of
+// every missile type and power-up kind are given, the current missile and power-up step to the
+// next kind; fire is held, missiles are pulsed, a power-up is used every 180 frames. A cheat: it
+// writes the players' records, so the run is not the bot's simulation.
+constexpr u32 kWeaponTourPeriod = 90;
+constexpr int kWeaponTourLevels = 8;
+void applyWeaponTour(World& world, u32 frame, FrameInput& in);
+
 // ---------------------------------------------------------------------------------------
 // Keyboard and mouse.
 // ---------------------------------------------------------------------------------------

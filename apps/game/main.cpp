@@ -43,7 +43,11 @@
 // --precache loads everything a level can need at its start (the 3DS port's level-start
 // precache, as3d/precache.h) instead of on first use, logs the report (AS3D_PRECACHE) and, when
 // the level ends, the loads that still happened on first use (AS3D_LAZY_LOADS, per kind of
-// as3d/load_stats.h; all zero when the precache is complete).
+// as3d/load_stats.h; all zero when the precache is complete). --log-lazy adds one line per lazy
+// load (AS3D_LAZY path=... kind=... site=... frame=...): what the precache missed.
+// --bot-weapons (headless) adds the weapon tour of as3d/input.h applyWeaponTour to the input:
+// every weapon at every upgrade level, every missile and power-up (a cheat, for the precache
+// checks).
 // The simulation runs at a fixed 60 Hz step. Headless mode has no window and no audio
 // device (the mixer runs on the null device) and renders through EGL into an offscreen
 // target only on screenshot frames; `--dump-state` writes the same JSON as as3d_sim.
@@ -92,6 +96,7 @@ struct Args {
     long frames = -1; // -1: until quit (windowed); required headless
     std::string inputScript, recordPath, outDir = ".", dumpPath;
     bool bot = false;
+    bool botWeapons = false;
     long screenshotEvery = 0;
     bool quiet = false;
     bool noAudio = false;
@@ -125,11 +130,11 @@ int usage() {
                  "                 [--input-script FILE] [--record FILE] [--bot] [--god] [--frames N] [--no-audio]\n"
                  "                 [--touch] [--perf] [--fullscreen] [--paks DIR] [--game as3d|as2|gulf] [--list-games]\n"
                  "                 [--profile FILE] [--attract 1..4] [--no-logo]\n"
-                 "                 [--screen wide|4x3] [--left-handed] [--dpi N] [--fps] [--precache]\n"
+                 "                 [--screen wide|4x3] [--left-handed] [--dpi N] [--fps] [--precache] [--log-lazy]\n"
                  "                 [--stereo-debug EYE_OFFSET[,FOCAL_DISTANCE]]  (both eyes side by side)\n"
                  "                 [--dual-screen]  (3DS preview: 400x240 world above a 320x240 touch screen, 400x480 window)\n"
                  "       as3d_game --headless --frames N [--input-script FILE] [--bot] [--screenshot-every K]\n"
-                 "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet]\n"
+                 "                 [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet] [--bot-weapons]\n"
                  "                 [--render-only LIST]  (terrain,models,particles,sprites,healthbars,shadows,marks,skid,water,lightning: only these passes, no 2D layer)\n"
                  "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n"
                  "       as3d_game --headless --selector-shot FILE.png [--selector-games K1,K2] [--size WxH] [--touch]\n"
@@ -176,6 +181,7 @@ bool parseArgs(int argc, char** argv, Args& a) {
             a.renderOnly = v;
         }
         else if (s == "--precache") a.game.precache = true;
+        else if (s == "--log-lazy") LoadStats::setLogLazy(true);
         else if (s == "--stereo-debug" && next()) {
             if (std::sscanf(v, "%f,%f", &a.stereoEyeOffset, &a.stereoFocal) < 1) return false;
         }
@@ -196,6 +202,7 @@ bool parseArgs(int argc, char** argv, Args& a) {
             a.sizeGiven = true;
         } else if (s == "--headless") a.headless = true;
         else if (s == "--bot") a.bot = true;
+        else if (s == "--bot-weapons") a.botWeapons = true;
         else if (s == "--god") a.game.world.godMode = true;
         else if (s == "--quiet") a.quiet = true;
         else if (s == "--no-audio") a.noAudio = true;
@@ -325,7 +332,9 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
     if (a.dual) dualTouch.setScreen(dualRects.bottom.width, dualRects.bottom.height,
                                     TouchLayoutOptions::forBottomScreen320x240(132.0f * dualRects.scale));
     for (long f = 0; f < a.frames; ++f) {
+        LoadStats::setFrame(f);
         FrameInput in = source.next(static_cast<u32>(f), FrameInput());
+        if (a.botWeapons && session.hasLevel()) applyWeaponTour(session.world(), static_cast<u32>(f), in);
         recorder.record(static_cast<u32>(f), in);
         int ev = session.step(in);
         if (ev & GameSession::kLevelStarted) {
@@ -738,7 +747,10 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
             }
             touch.touchEvent(c.id, c.phase == 0 ? TouchPhase::Down : c.phase == 1 ? TouchPhase::Move : TouchPhase::Up, nx, ny);
         }
+        LoadStats::setFrame(f);
         FrameInput g = source.next(static_cast<u32>(f), FrameInput());
+        if (a.botWeapons && flow.playing() && session.hasLevel() && !session.world().intermission())
+            applyWeaponTour(session.world(), static_cast<u32>(f), g);
         if (flow.playing()) {
             float hx = 0, hy = 0;
             const bool valid = session.hasLevel() && playerScreenCentre(session.world(), 0, hx, hy);
