@@ -312,9 +312,15 @@ PrecacheReport WorldRenderer::precache(const World& world, const DefDatabase& db
     };
     if (const Terrain* t = world.terrain()) {
         if (const LevelData* level = t->level()) {
-            for (const Placement& p : level->placements)
-                im.scene.placedShadows(im.db->findObject(level->typeName(p)), p.rotationSteps, t->style().night, 0,
-                                       shadowHook);
+            for (const Placement& p : level->placements) {
+                const ObjectDef* def = im.db->findObject(level->typeName(p));
+                im.scene.placedShadows(def, p.rotationSteps, t->style().night, 0, shadowHook);
+                // What its script creates takes its yaw, and `create` keys the projected shadow by
+                // int(yaw in degrees) mod 12 (builtins_entity.cpp, render-pipeline.md 5.3): an odd
+                // rotation gives step 6 (mission 1's ruins_big, late in drop 5).
+                const int createKey = ((static_cast<int>(p.yawDegrees()) % 12) + 12) % 12;
+                if (createKey != 0) im.scene.spawnedShadows(world, def, createKey, 0, shadowHook);
+            }
         }
     }
     const size_t shadowsBefore = im.shadowMaps.size();

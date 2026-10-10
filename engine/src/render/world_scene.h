@@ -141,6 +141,13 @@ public:
     void placedShadows(const ObjectDef* def, int steps, bool night, int depth,
                        const std::function<void(const GpuMesh&, const std::string&, const Material&,
                                                 const ShadowSpec&, int)>& shadow);
+    // The projected shadows of what a placed object's script spawns (the objects its compiled
+    // script names: the ruins of a destroyed building) at rotation key `steps` (the caller's:
+    // `create` keys a spawn by its creator's int(yaw in degrees) mod 12). Two levels deep (a
+    // spawn's own script). Calls `shadow` for each.
+    void spawnedShadows(const World& world, const ObjectDef* def, int steps, int depth,
+                        const std::function<void(const GpuMesh&, const std::string&, const Material&,
+                                                 const ShadowSpec&, int)>& shadow);
 
     // The frame read by the last prepare().
     struct Frame {

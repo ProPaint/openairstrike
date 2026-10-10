@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include "as3d/load_stats.h"
+#include "as3d/script.h"
 #include "as3d/particles.h"
 #include "as3d/terrain.h"
 #include "as3d/vfs.h"
@@ -475,6 +476,34 @@ void WorldScene::placedShadows(const ObjectDef* def, int steps, bool night, int 
         if (at.nightOnly && !night) continue;
         if (db_->findParticleSystem(at.targetName)) continue;
         placedShadows(db_->findObject(at.targetName), steps, night, depth + 1, shadow);
+    }
+}
+
+void WorldScene::spawnedShadows(const World& world, const ObjectDef* def, int steps, int depth,
+                                const std::function<void(const GpuMesh&, const std::string&, const Material&,
+                                                         const ShadowSpec&, int)>& shadow) {
+    if (!def || depth > 1 || !shadow || def->script.empty()) return;
+    const script::ScriptProgram* prog = world.compiledProgram(normalizePath(def->script));
+    if (!prog) return;
+    auto named = [&](const std::string& s) {
+        const ObjectDef* o = s.empty() || s.size() > 260 ? nullptr : db_->findObject(s);
+        if (!o || o == def) return;
+        const ShadowSpec ss = shadowSpecOf(o->shadow);
+        if (ss.any && ss.kind == ShadowKind::Projected && o->type == ObjectType::Model && !o->model.empty() &&
+            o->sort != SortMode::Effect) {
+            const GpuMesh& mesh = cache_->mesh(o->model);
+            if (mesh.valid) shadow(mesh, normalizePath(o->model), materialFor(*o, std::string()), ss, steps);
+        }
+        spawnedShadows(world, o, steps, depth + 1, shadow);
+    };
+    for (const script::CashEntry& e : prog->cash())
+        if (e.kind != static_cast<u8>(script::CashKind::Sound)) named(e.name);
+    const std::vector<u8>& strg = prog->strg();
+    size_t start = 0;
+    for (size_t i = 0; i < strg.size(); ++i) {
+        if (strg[i] != 0) continue;
+        if (i > start) named(std::string(reinterpret_cast<const char*>(strg.data()) + start, i - start));
+        start = i + 1;
     }
 }
 
