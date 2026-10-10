@@ -129,6 +129,9 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `terrain_lod_dist` | world units, default 520 | a chunk whose box is farther than this from the camera is coarse |
 | `shadow_atlas` | `1` (default) or `0` | the silhouettes packed into 512x512 A8 atlas pages, one draw per page; `0` = one texture per silhouette as before |
 | `touch_segments` | 8..96, default 24 | segments of the touch band's circles (48 before: 16k vertices a frame on the bottom screen, 8k now) |
+| `fixed_steps` | N (1..8), default 0 (the clock) | N simulation steps per displayed frame whatever the clock: two builds profile and dump (`dump_at`) at the same steps (docs/3ds-port.md "Sequels' CPU (round 2, P4)") |
+| `mesh_sort` | `1` (default) or `0` | the opaque mesh records without blending (depth test and write on) in shader / skin / TEV / state order, ties in submission order; `0` = submission order |
+| `mesh_merge` | `0` (default) or `1` | runs of tiny mesh records (32 vertices, 48 corners at most) with the same skin and state baked into the frame arena in world space and drawn as one flat draw; off: under Azahar the bake costs as much as the draws saved (a console A/B) |
 | `pak_cache_kb` | N, default 0 | a block cache of N KB (64 KB blocks) per pak stream; the paks are read with FSFILE_Read at an offset either way (`AS3D_LOAD ... read_ms`) |
 
 `mode=bot level=1 frames=3600 perf=1` is the M1 acceptance run. START+SELECT held together quits
@@ -148,6 +151,10 @@ C3D_FrameEnd, after_ms the hook's afterFrame: the `dump_at` read-back and PPM wr
 on the emulator and the ~1 s freeze seen on the console at the dump; mode=play never dumps). The
 log gets `AS3D_PASS_MS` every 300 frames (per pass: CPU ms / draws / vertices per frame, both eyes;
 `ui_batch` and `ui_copy` are the 2D batch build and arena conversion inside the 2D passes),
+`AS3D_PREP_MS` with it (the prepare split: `prep` = prepare_ms, `prep_flow`, `prep_world` and its
+parts `prep_terrain`, `prep_scene` (`prep_order`, `prep_entities`), `prep_marks`, `prep_water`,
+`prep_shadows` (`prep_drape`), `prep_meshes`, `prep_stats`; ms / items per frame), `AS3D_MESH`
+(mesh draws, environment draws, texture binds, state changes, merged draws and records per frame),
 `AS3D_LOAD phase=...` lines (session: mount, defs, world, level; terrain; precache scripts, world
 with the texture create split mip / swizzle / upload, meshes, shadows, loading frames; level start),
 `AS3D_LATE_SHADOW` for a silhouette the precache missed, and `PERF_SUMMARY split_ms` (the averages

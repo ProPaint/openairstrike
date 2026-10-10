@@ -64,7 +64,9 @@ defensively in drop 5); the menu-font legibility photo (M2.2); a Gulf stereo run
 command-buffer headroom; the uniform darker dump at step 3500 (a dump read-back artefact, most
 likely). **Next engineering:** stereo at 60: P3 did the three cuts and the touch band (see "Stereo at
 60 (round 2, P3)": -33 % of the vertices per stereo frame in mission 1, shadows one draw per atlas
-page); the console must measure the GPU, then the sequels' CPU (prepare profile, opaque sort by texture, small-mesh merging), the
+page); the console must measure the GPU. The sequels' CPU: P4 (see "Sequels' CPU (round 2,
+P4)") cut prepare by two thirds and recording by 7-16 % under Azahar; what is left there is the
+per-draw cost of citro3d (a shared mesh vertex pool, a lighter draw path). Then the
 first-start load (prefetch of the precache closure), the Old 3DS run (profile exists, no console).
 
 **How to resume a console session:** `tools/3ds_build.sh all` builds `build-3ds/apps/3ds/openairstrike.3dsx`;
@@ -2505,3 +2507,122 @@ If stereo still falls to 30:
 - The coarse chunks with the one-stage TEV (no detail texture: half their texture reads), if the
   console says texturing is the cost; a second, coarser level (every fourth vertex) beyond twice
   the distance.
+
+## Sequels' CPU (round 2, P4)
+
+The sequels' frame CPU on the main core: prepare (`GameFrame::prepare`, outside the frame) and the
+command recording (`submit_ms`: drawTop per eye + drawBottom). Measured on Azahar with
+`mode=bot level=N frames=1800 perf=1 fixed_steps=2` (`fixed_steps=1` for AirStrike 3D), so that
+two builds profile and dump at the same simulation steps; Azahar's CPU ticks are not the
+console's (they behave like an instruction count at the 268 MHz tick rate), their ratios are what
+these tables show. Before = main `485ee49` plus the profile commit only; after = this round.
+
+**The prepare split** (`AS3D_PREP_MS`, every 300 frames: `<entry>=<ms>/<items>` per frame;
+`prep` = perf.csv prepare_ms; `prep_world` its WorldRenderer::prepare, which is `prep_terrain`
+(craters), `prep_scene` (WorldScene::prepare; items = dynamic lights; of it `prep_order` the think
+order and `prep_entities` the entity pass, items = entities), `prep_marks`, `prep_water` (water and
+lightning), `prep_shadows` (placement, items = requests; of it `prep_drape` the ShadowPass build,
+items = shadows draped this frame), `prep_meshes` (the mesh passes' submits, items = records) and
+`prep_stats` (the linear-skin statistics); `prep_flow` the HUD state or GameFlow::draw):
+
+| ms per frame | prep | scene (entities) | marks | shadows (drape) | meshes | stats |
+|---|---|---|---|---|---|---|
+| Gulf 1 before | 10.38 | 2.15 (1.96) | 0.80 | 4.41 (4.17) | 1.88 | 0.91 |
+| Gulf 1 after | 3.19 | 1.03 (0.84) | 0.20 | 0.86 (0.60) | 0.68 | 0.18 |
+| Gulf 3 before | 16.05 | 3.14 (2.85) | 2.20 | 6.02 (5.79) | 2.99 | 1.46 |
+| Gulf 3 after | 5.34 | 1.50 (1.21) | 0.64 | 1.16 (0.88) | 1.30 | 0.51 |
+| AirStrike 2 3 before | 12.19 | 3.38 (3.14) | 1.52 | 2.64 (2.32) | 3.06 | 1.35 |
+| AirStrike 2 3 after | 4.30 | 1.47 (1.23) | 0.45 | 0.96 (0.55) | 0.98 | 0.19 |
+
+Particles and sprites are built in the recording (the first eye), not in prepare; the water's
+prepare is the two sine tables (0.13 ms); the grid is animated per visible chunk in the draw
+(M5.1: proportional to the visible grid; the attract level's whole-ocean view is the worst case,
+32 chunks, water 4.5 ms under Azahar).
+
+**What changed in prepare** (all with identical output: the dumps below):
+
+- WorldScene keeps each entity slot's last mesh, material and texture lookup with the path or
+  skin it came from (the cache's path normalisation, hashing and the material map's string copy
+  ran for every entity every frame); a failed texture is not kept (the cache retries it).
+- ShadowPass::build no longer copies every cached projected shadow into one list and again into
+  texture order: each item points at its vertices and draw() writes the arena once, in group
+  order; a planar shadow whose rectangle has not moved since the last build reuses its draped
+  geometry. buildTerrainDecal skips the four clips for triangles inside the rectangle or outside
+  an edge (the same output).
+- MarkPass keeps each mark's cut geometry (entity slot, generation, rectangle) until a crater:
+  the sequels fade their marks every frame, which re-cut every mark.
+- MeshPass::finish orders indices instead of stable-sorting the 300-byte records (that sort was
+  most of `prep_meshes`); records are filled in place.
+- The linear-skin statistics (AS3D_DUMP's list) collect definition pointers and join the names
+  only when the set changes; the dynamic-light evaluation (models and terrain) has a conservative
+  squared-distance early out before the square root.
+
+**Recording** (`AS3D_PASS_MS` sum and PERF_SUMMARY split_ms submit; world draws per frame):
+
+| | prepare before / after | submit before / after | draws | particles | terrain | rest (draws) |
+|---|---|---|---|---|---|---|
+| Gulf 1 | 10.38 / 3.18 | 10.80 / 9.63 | 176 | 1.11 / 0.68 | 1.70 / 1.28 | 2.10 / 2.00 (66) |
+| Gulf 3 | 16.02 / 5.31 | 18.44 / 15.42 | 256 | 4.22 / 2.12 | 3.25 / 2.94 | 1.66 / 1.54 (54) |
+| AirStrike 2 1 | 6.40 / 2.29 | 8.13 / 6.93 | 149 | 0.28 / 0.17 | 1.15 / 0.49 | 2.53 / 2.38 (85) |
+| AirStrike 2 3 | 12.19 / 4.29 | 12.88 / 11.50 | 248 | 0.95 / 0.54 | 2.00 / 1.63 | 3.81 / 3.45 (129) |
+| AirStrike 3D 1 | 2.68 / 1.20 | 7.89 / 6.83 | 90 | 0.42 / 0.26 | 1.68 / 1.01 | 0.76 / 0.73 (23) |
+
+Arena bytes are unchanged (Gulf 3 397 KB per frame, max 621). The recording gains:
+
+- Particles: `visitParticleQuads` (render/particle_quads.h) is buildParticleQuads' walk as a
+  template over the vertex sink; the neutral builder writes the same ParticleVertex list, the PICA
+  writes FlatVertex straight into the arena (sized by the live particles and the quality cap, the
+  colour converted once per quad): half the particle pass.
+- Terrain lights: computeLights evaluates only the vertices inside a conservative rectangle around
+  the chunk's picked lights (terrainDynamicLightColors' rectangle variant, the same per-vertex
+  code; outside it every light is beyond its radius and the stream adds 0).
+- MeshPass::draw skips repeated material states and vertex buffers.
+
+**The opaque sort by texture and material** (run.ini `mesh_sort=`, default 1): each run of
+opaque-bucket records without blending and with depth test and write (blended or depth-write-off
+records keep their place) is ordered by shader, skin, TEV and material state, ties in submission
+order. The dumps at step 1500 of all five cases are pixel-identical to before's (outside the perf
+text rows 228-239): no equal-depth overlap changed. It saves little: Gulf 1 texture binds 73.8 ->
+72.1 per frame (the sequels' opaque models rarely share a skin in a row).
+
+**Merging small meshes** (run.ini `mesh_merge=`, default 0): a run of small records with the same
+skin and state in a row is baked into the frame arena in world space (each corner's lit colour as
+the mesh shader computes it, or the unlit constant) and drawn with the flat shader in one draw;
+the triangles keep their order, so blended effects compose as before. Measured and left off: with
+records up to 128 vertices Gulf 1 went from 118 to 86 mesh draws but the `rest` pass from 2.00 to
+3.01 ms (the CPU bake costs more than the draws), 90 KB more arena per frame and 135 pixels moved
+at triangle edges (max 64); restricted to records of at most 32 vertices / 48 corners, Gulf 3
+saves 14 to 28 draws for no time (opaque + rest 4.25 against 4.32 ms; 185 pixels differ by 1).
+The per-draw profile says why (a temporary tick split, Azahar, AirStrike 2 mission 3): a mesh draw
+is about 35 us, of which C3D_DrawElements 18.5 us with the same vertex buffer and 27 us with a new
+one (citro3d's update context, the uniform upload loops over 96 registers for both shader stages,
+about twenty command writes); the matrix product, our uniforms, state and TEV together 11 us.
+**Merging a mesh's surfaces at upload** needs nothing: a .mdl has one texture and GpuMesh::upload
+makes one surface, so every record is one draw already.
+
+**The bottom screen in the sequels**: the direct modes draw the HUD (0.3-0.6 ms) and the touch band
+(0.9-1.0 ms, 16-18 draws, cached per unit) as AirStrike 3D does. The front end (`mode=menu
+game=gulf menu_bot=1`, Start, the helicopter, Operation 1): `bottom2d` in play 0.88-0.90 ms (23
+draws, 8.3k vertices, ui_batch 0.2 ms: the cache units hit); the only `AS3D_SLOW_SUBMIT` with a
+large bottom2d is the band's first build at the mission's first frame (15 ms, P1's known one);
+the main menu itself rebuilds its list every frame (bottom2d 2.2-3.0 ms, ui_batch 1.3-2.0).
+
+Checks: `tools/ci.sh` OK with the goldens unchanged (the neutral changes: WorldScene, decal
+clipping, light early outs, the particle visitor, the terrain light rectangle with a new test);
+`mode=sim` end states equal to before's (AirStrike 3D mission 1 3600 steps: map_pos 2551.9,
+created 1725, freed 1642; Gulf mission 1 1200 steps: map_pos 1227.2, created 1486, freed 1332);
+the bot runs' end states equal too.
+
+New run.ini keys: `fixed_steps=N`, `mesh_sort=0|1`, `mesh_merge=0|1`; new log lines
+`AS3D_PREP_MS` and `AS3D_MESH` (draws, environment draws, texture binds, state changes, merged
+draws and records, merge arena KB, per frame, every 300 frames).
+
+**Left (targets):** prepare is at or below 4 ms in Gulf 1 and AirStrike 2 1 and 4.3-5.3 ms in the
+third missions (the sequels cut by 64 to 69 %, AirStrike 3D by 55 %); recording is cut 7 to 16 %, not by half: below 8 ms only
+in AirStrike 2 mission 1. What remains is draw count times citro3d's per-draw cost: a vertex pool
+shared by the meshes (indices rebased at upload, one attribute buffer setup, saving the 8.5 us of a
+new buffer on 30-60 % of the mesh draws), an atlas for the touch band's icons (17 draws), a lighter
+draw path than C3D_DrawElements (our own command words for runs that change only uniforms and the
+index buffer; it bypasses citro3d's shadow state and needs the state_check of P2), and the terrain
+lights of Gulf mission 3 (2.9 ms: large lights cover whole chunks). The console's own numbers come
+with the next play session (prepare and submit columns of perf.csv, `AS3D_PREP_MS`).
