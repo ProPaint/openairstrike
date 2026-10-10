@@ -15,11 +15,14 @@
 #include "as3d/fs_util.h"
 #include "as3d/material_key.h"
 #include "as3d/render_state.h"
+#include "as3d/texconv.h"
 #include "fx_pica.h"
 #include "pica_frame.h"
+#include "quality_pica.h"
 #include "shader_set.h"
 #include "shadow_pica.h"
 #include "tev.h"
+#include "texture_budget.h"
 
 namespace as3d {
 
@@ -48,13 +51,181 @@ TevConfig tevShadowMultiply() {
     return c;
 }
 
+// ---------------------------------------------------------------------------------------
+// The atlas (shadow_pica.h)
+// ---------------------------------------------------------------------------------------
+
+inline uint32_t morton8(uint32_t x, uint32_t y) {
+    return (x & 1) | ((y & 1) << 1) | ((x & 2) << 1) | ((y & 2) << 2) | ((x & 4) << 2) | ((y & 4) << 3);
+}
+
+// The byte of texel (x, y) (engine image coordinates: row 0 at the top) in an A8 level of side
+// `side`: texconv's layout (8x8 tiles row-major from the bottom row, Morton inside a tile).
+inline size_t a8Offset(int x, int y, int side) {
+    const int my = side - 1 - y;
+    return static_cast<size_t>((my >> 3) * (side >> 3) + (x >> 3)) * 64 + morton8(static_cast<uint32_t>(x), static_cast<uint32_t>(my));
+}
+
+struct AtlasShelf {
+    int y = 0, height = 0, x = 0; // height includes the gap
+};
+
+struct AtlasPage {
+    Texture2D tex;
+    int levels = 1;
+    std::vector<AtlasShelf> shelves;
+    int top = 0; // the first row no shelf uses
+};
+
+struct ShadowAtlas {
+    std::vector<std::unique_ptr<AtlasPage>> pages;
+    bool mipmaps = true;
+    bool broken = false; // a page could not be made as A8: no atlas until the next reset
+};
+
+ShadowAtlasRef g_lastAtlasRef;
+
+// Finds room for a w x h cell (multiples of 8): (page, x, y). False when every page is full and
+// no more page may be made.
+bool atlasFind(ShadowAtlas& a, int w, int h, bool mipmaps, AtlasPage** outPage, int* outX, int* outY) {
+    if (a.broken) return false;
+    if (!a.pages.empty() && a.mipmaps != mipmaps) return false; // one rule set per level
+    const int need = h + kShadowAtlasGap;
+    const int needW = w + kShadowAtlasGap;
+    for (auto& pg : a.pages) {
+        for (AtlasShelf& sh : pg->shelves) {
+            if (sh.height != need || sh.x + w > kShadowAtlasSide) continue;
+            *outPage = pg.get();
+            *outX = sh.x;
+            *outY = sh.y;
+            sh.x += needW;
+            return true;
+        }
+        if (pg->top + h <= kShadowAtlasSide) {
+            AtlasShelf sh;
+            sh.y = pg->top;
+            sh.height = need;
+            sh.x = needW;
+            pg->top += need;
+            pg->shelves.push_back(sh);
+            *outPage = pg.get();
+            *outX = 0;
+            *outY = sh.y;
+            return true;
+        }
+    }
+    if (static_cast<int>(a.pages.size()) >= kShadowAtlasMaxPages) return false;
+    // A new page: zero alpha, A8 in linear memory, the level chain of Texture2D::create.
+    auto pg = std::make_unique<AtlasPage>();
+    Image img;
+    img.width = img.height = kShadowAtlasSide;
+    img.hasAlpha = true;
+    img.rgba.assign(static_cast<size_t>(kShadowAtlasSide) * kShadowAtlasSide * 4, 0);
+    for (size_t i = 0; i < img.rgba.size(); i += 4) img.rgba[i] = img.rgba[i + 1] = img.rgba[i + 2] = 114;
+    TextureOptions opts;
+    opts.mipmaps = mipmaps;
+    opts.wrapS = opts.wrapT = Wrap::ClampToEdge;
+    opts.cls = TextureClass::Shadow;
+    opts.res = TextureOptions::Residency::Linear;
+    pg->tex.create(img, opts);
+    PicaFormat fmt = PicaFormat::RGBA8;
+    Placement place = Placement::Vram;
+    int texW = 0, levels = 0;
+    if (!pg->tex.valid() || !textureInfo(pg->tex, &place, &texW, nullptr, &fmt, &levels) || fmt != PicaFormat::A8 ||
+        place != Placement::Linear || texW != kShadowAtlasSide) {
+        a.broken = true;
+        AS3D_WARN("shadow atlas: no A8 page in linear memory, silhouettes keep their own textures");
+        return false;
+    }
+    pg->levels = levels;
+    a.mipmaps = mipmaps;
+    g_stats.atlasBytes += pg->tex.bytes();
+    ++g_stats.atlasPages;
+    a.pages.push_back(std::move(pg));
+    return atlasFind(a, w, h, mipmaps, outPage, outX, outY);
+}
+
+// Writes the A8 alpha of `img` (already the cell's power-of-two size) and its box chain into the
+// page at (x, y); levels past 3 are rebuilt for the whole page from level 3.
+void atlasWrite(AtlasPage& pg, const Image& img, int x, int y) {
+    C3D_Tex* tex = const_cast<C3D_Tex*>(c3dTexOf(pg.tex));
+    Image cur = img;
+    const int cellLevels = std::min(pg.levels, 4);
+    for (int level = 0; level < cellLevels; ++level) {
+        u32 size = 0;
+        auto* dst = static_cast<uint8_t*>(C3D_Tex2DGetImagePtr(tex, level, &size));
+        const int side = kShadowAtlasSide >> level;
+        const int lx = x >> level, ly = y >> level;
+        for (int yy = 0; yy < cur.height; ++yy)
+            for (int xx = 0; xx < cur.width; ++xx)
+                dst[a8Offset(lx + xx, ly + yy, side)] =
+                    cur.rgba[(static_cast<size_t>(yy) * static_cast<size_t>(cur.width) + static_cast<size_t>(xx)) * 4 + 3];
+        GSPGPU_FlushDataCache(dst, size);
+        if (level + 1 < cellLevels) cur = downsampleBox2x2(cur);
+    }
+    for (int level = 4; level < pg.levels; ++level) {
+        u32 size = 0, prevSize = 0;
+        auto* dst = static_cast<uint8_t*>(C3D_Tex2DGetImagePtr(tex, level, &size));
+        const auto* src = static_cast<const uint8_t*>(C3D_Tex2DGetImagePtr(tex, level - 1, &prevSize));
+        const int side = kShadowAtlasSide >> level;
+        for (int yy = 0; yy < side; ++yy)
+            for (int xx = 0; xx < side; ++xx) {
+                const int s2 = side * 2;
+                const int sum = src[a8Offset(2 * xx, 2 * yy, s2)] + src[a8Offset(2 * xx + 1, 2 * yy, s2)] +
+                                src[a8Offset(2 * xx, 2 * yy + 1, s2)] + src[a8Offset(2 * xx + 1, 2 * yy + 1, s2)];
+                dst[a8Offset(xx, yy, side)] = static_cast<uint8_t>((sum + 2) >> 2);
+            }
+        GSPGPU_FlushDataCache(dst, size);
+    }
+}
+
+// Places a silhouette image (any size: resized as Texture2D::create would) in the atlas.
+bool atlasPlace(ShadowAtlas& a, const Image& sil, bool mipmaps, ShadowAtlasRef& ref, size_t* cellBytes) {
+    const int w = std::min(roundUpPow2(std::max(sil.width, 8)), 512);
+    const int h = std::min(roundUpPow2(std::max(sil.height, 8)), 512);
+    if (w > kShadowAtlasSide / 2 || h > kShadowAtlasSide / 2) return false;
+    AtlasPage* pg = nullptr;
+    int x = 0, y = 0;
+    if (!atlasFind(a, w, h, mipmaps, &pg, &x, &y)) {
+        ++g_stats.atlasFull;
+        return false;
+    }
+    if (w != sil.width || h != sil.height) atlasWrite(*pg, resizeNearest(sil, w, h), x, y);
+    else atlasWrite(*pg, sil, x, y);
+    const float P = static_cast<float>(kShadowAtlasSide);
+    ref.page = &pg->tex;
+    ref.u0 = static_cast<float>(x) / P;
+    ref.v0 = static_cast<float>(y) / P;
+    ref.su = static_cast<float>(w) / P;
+    ref.sv = static_cast<float>(h) / P;
+    ++g_stats.atlasCells;
+    *cellBytes = byteSize(w, h, PicaFormat::A8, mipmaps ? std::min(pg->levels, 4) : 1);
+    return true;
+}
+
 } // namespace
+
+ShadowAtlasRef lastShadowAtlasRef() { return g_lastAtlasRef; }
+
+void resetAtlas(ShadowAtlas& a) {
+    a.pages.clear(); // Texture2D::destroy defers the memory to the GPU fence
+    a.broken = false;
+    g_lastAtlasRef = ShadowAtlasRef();
+    g_stats.atlasPages = g_stats.atlasCells = g_stats.atlasFull = 0;
+    g_stats.atlasBytes = 0;
+}
 
 const ShadowPicaStats& shadowPicaStats() { return g_stats; }
 void resetShadowPicaStats() {
     const size_t blob = g_stats.blobBytes;
+    const int pages = g_stats.atlasPages, cells = g_stats.atlasCells, full = g_stats.atlasFull;
+    const size_t atlasBytes = g_stats.atlasBytes;
     g_stats = ShadowPicaStats();
     g_stats.blobBytes = blob;
+    g_stats.atlasPages = pages;
+    g_stats.atlasCells = cells;
+    g_stats.atlasFull = full;
+    g_stats.atlasBytes = atlasBytes;
 }
 ShadowGenInfo lastShadowGenInfo() { return g_lastGen; }
 void noteShadowFrame(int late, double placeMs) {
@@ -119,9 +290,17 @@ void ShadowPass::begin() {
     g_stats.arenaBytes = 0;
 }
 
-void ShadowPass::add(const Texture2D* texture, const GroundRect& rect, bool isBlob, bool isStatic) {
-    if (!texture || !texture->valid()) return;
+void ShadowPass::add(const Texture2D* texture, const GroundRect& rect, bool isBlob, bool isStatic,
+                     const ShadowAtlasRef* atlas) {
     Item it;
+    if (atlas && atlas->page) {
+        texture = atlas->page;
+        it.u0 = atlas->u0;
+        it.v0 = atlas->v0;
+        it.su = atlas->su;
+        it.sv = atlas->sv;
+    }
+    if (!texture || !texture->valid()) return;
     it.texture = texture;
     it.rect = rect;
     it.blob = isBlob;
@@ -193,6 +372,13 @@ void ShadowPass::build(const TerrainGridView& grid) {
             std::copy(verts_.begin() + static_cast<std::ptrdiff_t>(it.first),
                       verts_.begin() + static_cast<std::ptrdiff_t>(it.first + it.count),
                       scratch_.begin() + static_cast<std::ptrdiff_t>(g.first + g.count));
+            if (it.su != 1.0f || it.sv != 1.0f || it.u0 != 0.0f || it.v0 != 0.0f) {
+                // An atlas cell: the draped [0, 1] coordinates into the page.
+                for (size_t v = g.first + g.count; v < g.first + g.count + it.count; ++v) {
+                    scratch_[v].u = it.u0 + scratch_[v].u * it.su;
+                    scratch_[v].v = it.v0 + scratch_[v].v * it.sv;
+                }
+            }
             it.first = g.first + g.count;
             g.count += it.count;
         }
@@ -248,12 +434,17 @@ void ShadowPass::draw(const Mat4& viewProj) {
 struct ShadowRenderer::Impl {
     RenderRules rules = renderRules(GameId::AirStrike3D);
     pica::ShadowPass pass;
+    pica::ShadowAtlas atlas; // the pages of this renderer's silhouettes (shadow_pica.h)
 };
+
 
 ShadowRenderer::ShadowRenderer() : impl_(new Impl) {}
 ShadowRenderer::~ShadowRenderer() = default;
 
+// The world renderer's beginLevel: a new level's rules, so the atlas pages of the last level go
+// (the world renderer drops every silhouette of that level right after).
 void ShadowRenderer::setRules(const RenderRules& rules) {
+    pica::resetAtlas(impl_->atlas);
     impl_->rules = rules;
     impl_->pass.setMultiply(rules.shadowMultiply);
 }
@@ -499,12 +690,19 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
         }
     }
     Image img = std::move(sil.image);
-    TextureOptions opts;
-    opts.mipmaps = impl_->rules.shadowMipmaps;
-    opts.wrapS = opts.wrapT = Wrap::ClampToEdge;
-    opts.cls = TextureClass::Shadow;
-    opts.res = TextureOptions::Residency::Linear;
-    out.texture.create(img, opts);
+    pica::g_lastAtlasRef = pica::ShadowAtlasRef();
+    size_t cellBytes = 0;
+    out.texture = Texture2D();
+    if (!(pica::renderQuality().shadowAtlas &&
+          pica::atlasPlace(impl_->atlas, img, impl_->rules.shadowMipmaps, pica::g_lastAtlasRef, &cellBytes))) {
+        TextureOptions opts;
+        opts.mipmaps = impl_->rules.shadowMipmaps;
+        opts.wrapS = opts.wrapT = Wrap::ClampToEdge;
+        opts.cls = TextureClass::Shadow;
+        opts.res = TextureOptions::Residency::Linear;
+        out.texture.create(img, opts);
+    }
+    const bool inAtlas = pica::g_lastAtlasRef.page != nullptr;
     out.image = Image();
     out.bounds = sil.bounds;
     out.kind = kind;
@@ -515,10 +713,10 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
     gi.height = glH;
     gi.texWidth = img.width;
     gi.texHeight = img.height;
-    gi.bytes = out.texture.bytes();
+    gi.bytes = inAtlas ? cellBytes : out.texture.bytes();
     gi.ms = pica::msSince(t0);
     gi.skinAlpha = cpuSkin != nullptr;
-    if (!out.texture.valid()) {
+    if (!inAtlas && !out.texture.valid()) {
         ++st.failed;
         return false;
     }

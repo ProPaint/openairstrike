@@ -47,6 +47,29 @@ namespace as3d::pica {
 
 // Largest silhouette texture side on the PICA (see above).
 constexpr int kMaxShadowSide = 128;
+
+// The shadow atlas (docs/3ds-port.md "Stereo at 60 (round 2, P3)"; RenderQuality::shadowAtlas).
+// generate() packs each silhouette into an A8 page of kShadowAtlasSide texels in linear memory
+// instead of a texture of its own, so the shadows of one page draw in one call. A silhouette
+// keeps its power-of-two texture size (at least 8, as Texture2D::create makes it) and texels; its
+// cell sits at a multiple of 8 texels with 8 empty (zero) texels to the next cell, so the cell's
+// mip levels 1..3 (its own 2x2 box chain, the same as the texture's) stay inside the cell and the
+// bilinear filter at its edge reads zeros instead of the clamped edge texel. Levels 4.. of a page
+// are box-filtered from level 3 of the whole page. The sequels (RenderRules::shadowMipmaps off)
+// get pages without mips. The pages belong to the ShadowRenderer and live until its next setRules (the world renderer's
+// beginLevel); at most kShadowAtlasMaxPages, then a silhouette
+// gets its own texture again (the path before the atlas). An atlas silhouette's ShadowMap has no
+// texture (ShadowMap::valid() is false): its placement is lastShadowAtlasRef() right after
+// generate(), which the world renderer keeps with the map and gives to ShadowPass::add.
+constexpr int kShadowAtlasSide = 512;
+constexpr int kShadowAtlasMaxPages = 8;
+constexpr int kShadowAtlasGap = 8;
+struct ShadowAtlasRef {
+    const Texture2D* page = nullptr; // null: not in the atlas
+    float u0 = 0.0f, v0 = 0.0f;      // the cell's corner in page coordinates
+    float su = 1.0f, sv = 1.0f;      // the cell's size in page coordinates
+};
+ShadowAtlasRef lastShadowAtlasRef();
 // The blob texture's side.
 constexpr int kShadowBlobSide = 32;
 
@@ -92,6 +115,12 @@ struct ShadowPicaStats {
     int capped = 0;               // rasterised smaller than the GL side (kMaxShadowSide)
     int bySide[8] = {};           // by the silhouette's larger side: <= 8, 16, 32, ..., 1024
     size_t blobBytes = 0;
+    // The atlas since resetShadowAtlas(): pages, silhouettes placed in them, silhouettes that
+    // found no room (own texture), page bytes (mip chains included).
+    int atlasPages = 0;
+    int atlasCells = 0;
+    int atlasFull = 0;
+    size_t atlasBytes = 0;
     // The last prepared frame (ShadowPass::begin .. draw).
     int drawn = 0;                // shadows with their silhouette
     int blobs = 0;                // shadows drawn as the blob
@@ -134,7 +163,9 @@ public:
     void begin();
     // `isStatic`: the rectangle never moves (projected shadows sit at the spawn origin), so its
     // draped geometry is kept between frames (until invalidate() or 120 builds without it).
-    void add(const Texture2D* texture, const GroundRect& rect, bool isBlob, bool isStatic);
+    // `atlas`: the silhouette's place in an atlas page (texture is then ignored; may be null).
+    void add(const Texture2D* texture, const GroundRect& rect, bool isBlob, bool isStatic,
+             const ShadowAtlasRef* atlas = nullptr);
     void build(const TerrainGridView& grid);
     // The terrain heights changed (craters): drape every shadow again.
     void invalidate() { cache_.clear(); }
@@ -146,7 +177,8 @@ public:
 
 private:
     struct Item {
-        const Texture2D* texture = nullptr;
+        const Texture2D* texture = nullptr; // what is bound: the silhouette's texture or its atlas page
+        float u0 = 0.0f, v0 = 0.0f, su = 1.0f, sv = 1.0f; // the draped uv into the bound texture
         GroundRect rect;
         bool blob = false;
         bool isStatic = false;

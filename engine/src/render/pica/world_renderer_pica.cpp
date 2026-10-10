@@ -152,6 +152,7 @@ struct WorldRenderer::Impl {
         bool hasBounds = false;
         bool tried = false; // generate() was called (map null: it failed)
         u32 readyAt = 0;    // the prepare() serial from which the map is drawn
+        pica::ShadowAtlasRef atlas; // the map's cell in an atlas page (page null: its own texture)
     };
     struct ShadowKey {
         const GpuMesh* mesh;
@@ -201,7 +202,10 @@ struct WorldRenderer::Impl {
             e.tried = true;
             noteSkin(mat);
             std::unique_ptr<ShadowMap> map(new ShadowMap());
-            if (shadows.generate(mesh.model, mat.texture, ss.kind, towardsSun, steps, ss.quality, *map)) e.map = std::move(map);
+            if (shadows.generate(mesh.model, mat.texture, ss.kind, towardsSun, steps, ss.quality, *map)) {
+                e.map = std::move(map);
+                e.atlas = pica::lastShadowAtlasRef();
+            }
             e.readyAt = prepareSerial + 1;
         }
         return e;
@@ -481,7 +485,8 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
             if (e.tried && !e.map) continue; // no silhouette (no faces): no shadow, as GL
             const bool isStatic = r.spec.kind == ShadowKind::Projected; // at the spawn origin
             if (e.map && e.readyAt <= im.prepareSerial)
-                im.shadowPass.add(&e.map->texture, shadowRect(*e.map, r.origin, r.yawDegrees), false, isStatic);
+                im.shadowPass.add(&e.map->texture, shadowRect(*e.map, r.origin, r.yawDegrees), false, isStatic,
+                                  &e.atlas);
             else if (e.bounds.xmax > e.bounds.xmin && e.bounds.ymax > e.bounds.ymin)
                 im.shadowPass.add(&im.shadowPass.blob(), shadowRect(e.bounds, e.kind, r.origin, r.yawDegrees), true,
                                   isStatic);
