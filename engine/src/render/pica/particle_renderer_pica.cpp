@@ -5,7 +5,9 @@
 #include <3ds.h>
 #include <citro3d.h>
 
+#include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -20,12 +22,12 @@
 #include "fx_pica.h"
 #include "quality_pica.h"
 #include "pica_frame.h"
+#include "particle_quads.h"
 
 namespace as3d {
 
 struct ParticleRenderer::Impl {
     Vfs* vfs = nullptr;
-    std::vector<ParticleVertex> verts;
     std::vector<DrawRun> runs;
     std::unordered_map<std::string, std::unique_ptr<Texture2D>> textures;
     std::unordered_map<std::string, bool> warned;
@@ -125,9 +127,17 @@ void ParticleRenderer::draw(const ParticleEmitter* const* emitters, size_t count
         st.particleQuads = st.particleQuadsDropped = 0;
         st.particleArenaBytes = 0;
 
-        im.verts.clear();
         im.runs.clear();
-        int built = buildParticleQuads(
+        // The quads straight into the frame arena as FlatVertex (the neutral visitor of
+        // buildParticleQuads, the colour converted once per quad), at most the quality cap: the
+        // live particles first give the size.
+        const int cap = pica::renderQuality().particleCap;
+        const size_t live = liveParticleCount(emitters, count);
+        const size_t room = std::min(live, static_cast<size_t>(cap > 0 ? cap : 0)) * 6;
+        pica::FlatVertex* out = room ? pica::frameArena().allocArray<pica::FlatVertex>(room) : nullptr;
+        if (room && !out) ++pica::detail::fxStats().arenaFailures;
+        size_t vertices = 0; // counted for every quad, written while there is room
+        int built = visitParticleQuads(
             emitters, count, params.view,
             [&](const std::string& path) -> const Texture2D* {
                 auto it = im.textures.find(normalizePath(path));
@@ -136,22 +146,39 @@ void ParticleRenderer::draw(const ParticleEmitter* const* emitters, size_t count
                 ++missing_;
                 return im.fallbackTexture();
             },
-            im.verts, im.runs);
-        if (built > pica::renderQuality().particleCap) {
-            st.particleQuadsDropped = built - pica::renderQuality().particleCap;
-            const int kept = pica::capRuns(im.runs, static_cast<int>(im.verts.size()), pica::renderQuality().particleCap * 6);
-            im.verts.resize(static_cast<size_t>(kept));
-            built = pica::renderQuality().particleCap;
+            [&](const ParticleQuad& q) {
+                if (out && vertices + 6 <= room) {
+                    const uint8_t rgba[4] = {pica::fxColourByte(q.rgba[0]), pica::fxColourByte(q.rgba[1]),
+                                             pica::fxColourByte(q.rgba[2]), pica::fxColourByte(q.rgba[3])};
+                    auto V = [&](pica::FlatVertex& o, const Vec3& c, float u, float t) {
+                        o.pos[0] = c.x;
+                        o.pos[1] = c.y;
+                        o.pos[2] = c.z;
+                        o.uv[0] = u;
+                        o.uv[1] = 1.0f - t;
+                        std::memcpy(o.rgba, rgba, 4);
+                    };
+                    pica::FlatVertex* o = out + vertices;
+                    V(o[0], q.c0, q.u0, q.v0);
+                    V(o[1], q.c1, q.u0 + q.du, q.v0);
+                    V(o[2], q.c2, q.u0 + q.du, q.v0 + q.dv);
+                    o[3] = o[0];
+                    o[4] = o[2];
+                    V(o[5], q.c3, q.u0, q.v0 + q.dv);
+                }
+                vertices += 6;
+            },
+            [&]() { return vertices; }, im.runs);
+        if (built > cap) {
+            st.particleQuadsDropped = built - cap;
+            pica::capRuns(im.runs, static_cast<int>(vertices), cap * 6);
+            built = cap;
         }
-        if (!im.runs.empty()) {
-            im.flat = pica::uploadBuilderVertices(reinterpret_cast<const float*>(im.verts.data()), im.verts.size());
-            if (im.flat) {
-                st.particleArenaBytes = im.verts.size() * sizeof(pica::FlatVertex);
-            } else {
-                im.runs.clear();
-                built = 0;
-            }
+        if (!im.runs.empty() && out) {
+            im.flat = out;
+            st.particleArenaBytes = room * sizeof(pica::FlatVertex);
         } else {
+            im.runs.clear();
             built = 0;
         }
         im.builtParticles = built;

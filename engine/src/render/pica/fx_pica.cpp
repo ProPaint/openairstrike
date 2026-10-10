@@ -77,6 +77,8 @@ TevConfig tevPrimaryOnly() {
 }
 } // namespace
 
+uint8_t fxColourByte(float v) { return toByte(v); }
+
 FlatVertex* uploadBuilderVertices(const float* v, size_t count) {
     LinearArena& arena = frameArena();
     auto* out = arena.allocArray<FlatVertex>(count);

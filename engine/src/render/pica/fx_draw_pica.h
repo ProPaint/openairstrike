@@ -15,6 +15,8 @@ namespace as3d::pica {
 // frame arena as FlatVertex (colour bytes rounded and clamped). Null when the arena is full
 // (counted in FxPicaStats::arenaFailures).
 FlatVertex* uploadBuilderVertices(const float* vertices9, size_t count);
+// The 0..1 colour channel as the byte uploadBuilderVertices writes.
+uint8_t fxColourByte(float v);
 
 struct FxEyeParams {
     Mat4 view;       // the CENTRAL view (the eye translation is in the projection)
