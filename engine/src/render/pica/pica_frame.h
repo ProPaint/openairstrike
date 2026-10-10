@@ -89,6 +89,10 @@ bool gpuDone(uint32_t serial);
 void waitGpuIdle();
 // Between frameBegin() and frameEnd().
 bool inFrame();
+// A cache flush of a buffer the GPU will read: now outside a frame, else with frameEnd()'s (or the
+// next gpu_kick split's), before the GPU can read it: a mesh uploaded inside a frame makes no GSP
+// call inside the command stream (GpuMesh::upload).
+void deferFlush(const void* p, size_t bytes);
 
 // Frees a linearAlloc block the GPU may still read (a destroyed mesh): tagged with the current
 // frame serial and freed once gpuDone(tag), at a later frameBegin() or collectDeferred().

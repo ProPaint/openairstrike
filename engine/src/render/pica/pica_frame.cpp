@@ -51,6 +51,7 @@ struct Backend {
     bool inFrame = false;
     bool poison = false;
     FenceStats fence;
+    std::vector<std::pair<const void*, size_t>> pendingFlush; // deferFlush ranges of this frame
 };
 
 Backend& backend() {
@@ -256,8 +257,24 @@ void drawOn(const FrameTarget& t) {
 
 const FrameTarget& currentTarget() { return backend().target; }
 
+namespace {
+// The late mesh uploads of this frame: their cache flushes, before the GPU can read them.
+void flushDeferred(Backend& b) {
+    for (const auto& r : b.pendingFlush) GSPGPU_FlushDataCache(r.first, static_cast<u32>(r.second));
+    b.pendingFlush.clear();
+}
+} // namespace
+
+void deferFlush(const void* p, size_t bytes) {
+    if (!p || !bytes) return;
+    Backend& b = backend();
+    if (!b.inFrame) GSPGPU_FlushDataCache(p, static_cast<u32>(bytes));
+    else b.pendingFlush.emplace_back(p, bytes);
+}
+
 void frameEnd() {
     Backend& b = backend();
+    flushDeferred(b);
     b.arena.flushPending();
     stateCheckFrameEnd();
     b.inFrame = false;
@@ -273,6 +290,7 @@ bool gpuKick() { return g_kick; }
 unsigned gpuKicks() { return g_kicks; }
 
 void splitCommandList() {
+    flushDeferred(backend());
     backend().arena.flushPending();
     C3D_FrameSplit(GX_CMDLIST_FLUSH);
 }

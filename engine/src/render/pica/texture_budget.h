@@ -72,7 +72,32 @@ private:
     TextureStats stats_;
 };
 
+// The late texture queue (gfx_pica.cpp: a Texture2D created inside a frame is a placeholder
+// until drainLateTextures builds it after the frame): how much one drain may do. At least one
+// texture, then more while fewer than maxTextures are done and less than maxMs went by, so a
+// burst of late loads spreads over frames instead of stalling one.
+struct LateBudget {
+    int maxTextures = 1;
+    double maxMs = 2.0;
+};
+inline bool lateDrainContinue(int done, double elapsedMs, const LateBudget& b) {
+    if (done == 0) return b.maxTextures > 0;
+    return done < b.maxTextures && elapsedMs < b.maxMs;
+}
+
+struct LateTextureStats {
+    int queued = 0;       // textures created inside a frame (placeholders made)
+    int built = 0;        // of which built by a drain
+    double buildMs = 0.0; // the drains' build time
+};
+
 #if defined(__3DS__)
+// The late texture queue: builds queued textures outside a frame (a no-op inside one), within
+// `budget`; returns how many. Call after C3D_FrameEnd (the composer). The VRAM copy waits for
+// the GPU to finish the frame just submitted.
+int drainLateTextures(const LateBudget& budget = LateBudget());
+size_t lateTexturesPending();
+const LateTextureStats& lateTextureStats();
 // The budget of every PICA Texture2D (gfx_pica.cpp).
 TextureBudget& textureBudget();
 // A copy of its counters (perf.csv: vram/linear texture bytes).

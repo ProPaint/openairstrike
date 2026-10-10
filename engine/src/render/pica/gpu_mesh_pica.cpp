@@ -9,7 +9,9 @@
 #include <memory>
 
 #include "as3d/ambient_cube.h"
+#include "as3d/core.h"
 #include "as3d/envmap.h"
+#include "as3d/load_stats.h"
 #include "pass_profile.h"
 #include "pica_frame.h"
 
@@ -103,10 +105,11 @@ bool GpuMesh::upload(const RenderVertex* vertices, size_t vertexCount, const u16
             nbuf[i].n[2] = static_cast<u8>(std::min(n.z, 1.0f) * 255.0f + 0.5f);
             nbuf[i].n[3] = 0;
         }
-        GSPGPU_FlushDataCache(nbuf, static_cast<u32>(nbytes));
+        pica::deferFlush(nbuf, nbytes);
     }
-    GSPGPU_FlushDataCache(vbuf, static_cast<u32>(vbytes));
-    GSPGPU_FlushDataCache(ibuf, static_cast<u32>(ibytes));
+    pica::deferFlush(vbuf, vbytes); // inside a frame: flushed by frameEnd (pica_frame.h)
+    pica::deferFlush(ibuf, ibytes);
+    if (pica::inFrame()) AS3D_INFO("AS3D_LATE_MESH path=%s frame=%ld vertices=%zu", LoadStats::lastPath(), LoadStats::frame(), vertexCount);
     b->vertices = vbuf;
     b->indices = ibuf;
     b->envNormals = nbuf;

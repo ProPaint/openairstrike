@@ -16,14 +16,24 @@
 // staging buffer freed at once, one queue entry per mip level (32 per frame): so a texture
 // created inside a frame goes to linear memory instead (no GX command at all). destroy() hands
 // the memory to the GPU fence (pica::deferTextureDelete): a frame in flight may still sample it.
+//
+// The late queue on top of that (3DS round 2, P1): a texture created inside a frame (a load the
+// precache missed) is first an 8x8 linear-memory placeholder of the image's average colour (CPU
+// written, one cache flush), its image queued; drainLateTextures() (the composer, after
+// C3D_FrameEnd) builds the real texture outside the frame, VRAM included, and swaps it into the
+// same handle, the placeholder going through the fence. AS3D_LATE_TEX logs each (the path of the
+// load that asked, the frame). If the placeholder cannot be made, the in-frame linear path above
+// stays the fallback.
 #include <3ds.h>
 #include <citro3d.h>
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include "as3d/core.h"
+#include "as3d/load_stats.h"
 #include "as3d/texconv.h"
 #include "as3d/texture.h"
 #include "pass_profile.h"
@@ -48,7 +58,19 @@ struct PicaTexture {
     Placement placement = Placement::Linear;
     size_t bytes = 0;
     PicaFormat format = PicaFormat::RGBA8;
+    bool late = false; // a placeholder whose real texture is queued (drainLateTextures)
 };
+
+// A texture created inside a frame: its image, built by drainLateTextures.
+struct LateTexture {
+    PicaTexture* tex = nullptr;
+    Image image;
+    TextureOptions options;
+    std::string path;
+    long frame = 0;
+};
+std::vector<LateTexture> g_late;
+LateTextureStats g_lateStats;
 
 GPU_TEXCOLOR toGpu(PicaFormat f) {
     switch (f) {
@@ -153,6 +175,13 @@ void Texture2D::destroy() {
         PicaTexture* p = pica::picaTex(handle_);
         for (const C3D_Tex*& b : pica::g_bound)
             if (b == &p->tex) b = nullptr; // a new texture may reuse the address
+        if (p->late) {
+            for (auto it = pica::g_late.begin(); it != pica::g_late.end(); ++it)
+                if (it->tex == p) {
+                    pica::g_late.erase(it);
+                    break;
+                }
+        }
         if (pica::backendReady()) {
             pica::deferTextureDelete(p->tex); // vramFree or linearFree once the GPU is done with it
             if (pica::inFrame()) ++pica::g_texInFrame.destroys;
@@ -167,14 +196,13 @@ void Texture2D::destroy() {
     bytes_ = 0;
 }
 
-void Texture2D::create(const Image& image, const TextureOptions& options) {
-    destroy();
+namespace pica {
+namespace {
+
+// The texture of `image` into `p` (fresh: no C3D texture yet). False on failure (the budget
+// noted it). Inside a frame: linear memory, no GX copy (the header).
+bool buildTexture(PicaTexture* p, const Image& image, const TextureOptions& options) {
     pica::TextureBudget& budget = pica::textureBudget();
-    if (image.width <= 0 || image.height <= 0 ||
-        image.rgba.size() < static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * 4) {
-        budget.noteFailure();
-        return;
-    }
     pica::LoadProfile& lp = pica::loadProfile();
     const u64 t0 = svcGetSystemTick();
     const PicaFormat fmt = chooseFormat(image, options.cls);
@@ -188,7 +216,6 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
 
     // The VRAM a destroyed texture held is free once the GPU is done with it.
     if (!pica::inFrame()) pica::collectDeferred(true);
-    auto* p = new PicaTexture;
     p->format = fmt;
     p->placement = budget.choose(bytes, options.res);
     if (pica::inFrame()) { // no GX copy inside a frame (the header)
@@ -208,9 +235,8 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
         ok = C3D_TexInitWithParams(&p->tex, nullptr, params);
     }
     if (!ok) {
-        delete p;
         budget.noteFailure();
-        return;
+        return false;
     }
     // VRAM: the chain goes through one linear staging buffer (levels at their offsets in the
     // texture), one cache flush, then a GX copy per level. Linear memory: written in place.
@@ -219,9 +245,8 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
         staging = static_cast<uint8_t*>(linearAlloc(bytes));
         if (!staging) {
             C3D_TexDelete(&p->tex);
-            delete p;
             budget.noteFailure();
-            return;
+            return false;
         }
     }
 
@@ -289,11 +314,118 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
 
     p->bytes = bytes;
     budget.add(p->placement, bytes);
+    return true;
+}
+
+// The placeholder of a texture created inside a frame: 8x8 RGBA8 in linear memory, every texel
+// the image's average colour (a sampled average: at most 32 x 32 texels read).
+bool buildPlaceholder(PicaTexture* p, const Image& image, const TextureOptions& options) {
+    unsigned sum[4] = {0, 0, 0, 0}, n = 0;
+    const int sx = std::max(1, image.width / 32), sy = std::max(1, image.height / 32);
+    for (int y = 0; y < image.height; y += sy)
+        for (int x = 0; x < image.width; x += sx) {
+            const uint8_t* px =
+                &image.rgba[(static_cast<size_t>(y) * static_cast<size_t>(image.width) + static_cast<size_t>(x)) * 4];
+            for (int c = 0; c < 4; ++c) sum[c] += px[c];
+            ++n;
+        }
+    Image avg;
+    avg.width = avg.height = 8;
+    avg.hasAlpha = image.hasAlpha;
+    avg.rgba.resize(8 * 8 * 4);
+    for (size_t i = 0; i < avg.rgba.size(); ++i) avg.rgba[i] = static_cast<uint8_t>(n ? sum[i % 4] / n : 255);
+    C3D_TexInitParams params{8, 8, 0, GPU_RGBA8, GPU_TEX_2D, false};
+    if (!C3D_TexInitWithParams(&p->tex, nullptr, params)) return false;
+    u32 size = 0;
+    auto* dst = static_cast<uint8_t*>(C3D_Tex2DGetImagePtr(&p->tex, 0, &size));
+    swizzleInto(avg, PicaFormat::RGBA8, dst, size);
+    C3D_TexFlush(&p->tex); // a data cache flush: no GX command, safe inside the frame
+    C3D_TexSetFilter(&p->tex, pica::toGpu(options.magFilter), pica::toGpu(options.minFilter));
+    C3D_TexSetWrap(&p->tex, pica::toGpu(options.wrapS), pica::toGpu(options.wrapT));
+    p->placement = Placement::Linear;
+    p->format = PicaFormat::RGBA8;
+    p->bytes = byteSize(8, 8, PicaFormat::RGBA8, 1);
+    pica::textureBudget().add(Placement::Linear, p->bytes);
+    return true;
+}
+
+} // namespace
+
+const LateTextureStats& lateTextureStats() { return g_lateStats; }
+size_t lateTexturesPending() { return g_late.size(); }
+
+int drainLateTextures(const LateBudget& budget) {
+    if (g_late.empty() || inFrame()) return 0;
+    const u64 t0 = svcGetSystemTick();
+    int done = 0;
+    while (!g_late.empty()) {
+        const double ms = static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11;
+        if (!lateDrainContinue(done, ms, budget)) break;
+        LateTexture lt = std::move(g_late.front());
+        g_late.erase(g_late.begin());
+        PicaTexture* p = lt.tex;
+        const u64 b0 = svcGetSystemTick();
+        collectDeferred(true); // the VRAM of destroyed textures, as create() outside a frame
+        auto* real = new PicaTexture;
+        const bool ok = buildTexture(real, lt.image, lt.options);
+        if (ok) {
+            // The placeholder: through the fence (the frame just submitted may still sample it).
+            deferTextureDelete(p->tex);
+            textureBudget().remove(p->placement, p->bytes);
+            for (const C3D_Tex*& b : g_bound)
+                if (b == &p->tex) b = nullptr; // bound again with the new contents
+            p->tex = real->tex;
+            p->placement = real->placement;
+            p->bytes = real->bytes;
+            p->format = real->format;
+        }
+        p->late = false;
+        delete real;
+        ++done;
+        ++g_lateStats.built;
+        const double buildMs = static_cast<double>(svcGetSystemTick() - b0) * 1000.0 / SYSCLOCK_ARM11;
+        g_lateStats.buildMs += buildMs;
+        AS3D_INFO("AS3D_LATE_TEX built path=%s frame=%ld now=%ld %dx%d %s ms=%.1f queued=%zu", lt.path.c_str(), lt.frame,
+                  LoadStats::frame(), lt.image.width, lt.image.height,
+                  ok ? (p->placement == Placement::Vram ? "vram" : "linear") : "failed", buildMs, g_late.size());
+    }
+    return done;
+}
+
+} // namespace pica
+
+void Texture2D::create(const Image& image, const TextureOptions& options) {
+    destroy();
+    pica::TextureBudget& budget = pica::textureBudget();
+    if (image.width <= 0 || image.height <= 0 ||
+        image.rgba.size() < static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * 4) {
+        budget.noteFailure();
+        return;
+    }
+    auto* p = new PicaTexture;
+    if (pica::inFrame() && pica::buildPlaceholder(p, image, options)) {
+        // Inside a frame: the placeholder now, the real texture after the frame (the header).
+        p->late = true;
+        ++pica::g_texInFrame.creates;
+        pica::LateTexture lt;
+        lt.tex = p;
+        lt.image = image;
+        lt.options = options;
+        lt.path = LoadStats::lastPath();
+        lt.frame = LoadStats::frame();
+        ++pica::g_lateStats.queued;
+        AS3D_INFO("AS3D_LATE_TEX queued path=%s frame=%ld %dx%d", lt.path.c_str(), lt.frame, image.width, image.height);
+        pica::g_late.push_back(std::move(lt));
+    } else if (!pica::buildTexture(p, image, options)) {
+        delete p;
+        return;
+    }
     handle_ = reinterpret_cast<std::uintptr_t>(p);
     width_ = image.width;
     height_ = image.height;
-    bytes_ = bytes;
+    bytes_ = p->bytes;
 }
+
 
 void Texture2D::bind(unsigned unit) const {
     if (!handle_ || unit > 2) return;

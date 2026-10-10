@@ -261,6 +261,23 @@ TEST_CASE("pica texture budget: VRAM first, linear beyond the limit, forced resi
     CHECK(TextureBudget().vramLimit() == TextureBudget::kDefaultVramLimit);
 }
 
+TEST_CASE("pica late texture queue: one texture per drain at least, then within the budget") {
+    const pica::LateBudget def; // one texture or 2 ms
+    CHECK(pica::lateDrainContinue(0, 0.0, def));
+    CHECK(pica::lateDrainContinue(0, 50.0, def)); // the first always: the queue moves every frame
+    CHECK_FALSE(pica::lateDrainContinue(1, 0.1, def));
+    pica::LateBudget three;
+    three.maxTextures = 3;
+    three.maxMs = 2.0;
+    CHECK(pica::lateDrainContinue(1, 1.0, three));
+    CHECK(pica::lateDrainContinue(2, 1.9, three));
+    CHECK_FALSE(pica::lateDrainContinue(2, 2.0, three)); // the time is up
+    CHECK_FALSE(pica::lateDrainContinue(3, 0.5, three)); // the count is
+    pica::LateBudget none;
+    none.maxTextures = 0;
+    CHECK_FALSE(pica::lateDrainContinue(0, 0.0, none));
+}
+
 TEST_CASE("pica tev presets: the combiner computes the GL shaders' formulas") {
     TevInputs in;
     in.primary = {0.5f, 1.0f, 1.0f, 0.8f};
