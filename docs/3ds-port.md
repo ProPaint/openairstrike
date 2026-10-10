@@ -62,8 +62,9 @@ section).
 the tutorial water wash with a hint box up (hypothesis: the render-state copies, fixed
 defensively in drop 5); the menu-font legibility photo (M2.2); a Gulf stereo run for the GPU
 command-buffer headroom; the uniform darker dump at step 3500 (a dump read-back artefact, most
-likely). **Next engineering:** stereo at 60 (terrain LOD for far rows, shadow atlas, fewer mesh
-vertices), the sequels' CPU (prepare profile, opaque sort by texture, small-mesh merging), the
+likely). **Next engineering:** stereo at 60: P3 did the three cuts and the touch band (see "Stereo at
+60 (round 2, P3)": -33 % of the vertices per stereo frame in mission 1, shadows one draw per atlas
+page); the console must measure the GPU, then the sequels' CPU (prepare profile, opaque sort by texture, small-mesh merging), the
 first-start load (prefetch of the precache closure), the Old 3DS run (profile exists, no console).
 
 **How to resume a console session:** `tools/3ds_build.sh all` builds `build-3ds/apps/3ds/openairstrike.3dsx`;
@@ -2345,3 +2346,162 @@ Reading the log around each `AS3D_WASH_MARK`:
 
 The A/B list of the resume section (`water=0`, `water_tile=0`, `gpu_kick=0`, `pace=`) stays the
 fallback when the log stays silent.
+
+## Stereo at 60 (round 2, P3)
+
+Goal: two eyes at 60 Hz on the New 3DS. The console (drop 4/5) measured mono GPU 7.3 ms avg / 9.1 ms
+p95 and stereo 13.5 / 16.5, so the pacer locks stereo to 30 Hz; RGB565 targets gained nothing (the
+cost is vertices and texturing, not fill). Stereo at 60 needs the two eyes under about 14 ms with
+margin (target 12 ms avg): a third of the stereo GPU work. Azahar cannot measure GPU time, so this
+round cuts what the GPU is given (draws, submitted vertices, texture binds) and shows it with the
+pass counters (`AS3D_PASS_MS`, `<pass>=<ms>/<draws>/<verts>` per displayed frame, both eyes) and the
+new `AS3D_STEREO60` line, plus dumps against main for the look. Only `engine/src/render/pica/` and
+`apps/3ds/` changed: the desktop goldens are untouched (tools/ci.sh OK).
+
+### What changed
+
+1. **Terrain far-chunk LOD** (terrain_renderer_pica.cpp, `RenderQuality::terrainLod`). A chunk (8 rows
+   x the level's width) whose box is farther than `terrainLodDistance` (520 world units) from the
+   *central* camera (the same choice for both eyes) draws every second vertex in both directions.
+   Each chunk keeps a second, "flattened" vertex buffer built once at level start (and again for a
+   crater): its odd vertices are moved onto the coarse triangles (height and colour interpolated
+   along the coarse row edge, column edge or diagonal they lie on), so
+   - the coarse grid keeps the fine diagonal (v00-v11): every fine overlay quad drawn on the
+     flattened vertices lies inside one coarse triangle, and the tile overlays (second pass, depth
+     bias) keep passing their depth test on coarse chunks (they draw from flattened overlay buffers);
+   - two coarse neighbours share their edge row bit for bit (the same float operations);
+   - next to a fine chunk, the gap between the fine edge polyline and the straight coarse edge is
+     closed with vertical fill triangles (the fine edge's odd vertices are appended to the
+     flattened buffer: W more vertices), and the coarse triangles along both edge rows are split
+     at the edge midpoints so no T-junction is left. Four index lists per row count (fill above,
+     below, both, none), in linear memory;
+   - the dynamic-light stream covers the appended vertices (copied from their grid vertex); the
+     lights, detail texture, base blocks and fog are unchanged.
+
+   A full coarse chunk is 480 indices (+96 per fill side) against 1536. Memory: a second buffer per
+   chunk and its overlays (mission 1: about 250 KB of linear memory). Default: on while two eyes
+   are drawn (`pica::frameEyes() == 2`, set by the frame composer before the world's prepare),
+   off in mono, so the mono picture does not change.
+2. **Shadow atlas** (shadow_renderer_pica.cpp, shadow_pica.h, `RenderQuality::shadowAtlas`). Each
+   silhouette goes into a 512x512 A8 page in linear memory instead of a texture of its own; the
+   shadows of one page are one draw (the draped uvs are mapped into the cell when the vertices are
+   grouped). A cell keeps the texture's power-of-two size and texels and sits at a multiple of 8
+   with 8 zero texels to the next cell: its mip levels 1..3 (its own box chain) stay inside it and
+   the bilinear edge reads zeros (a silhouette's edge texels are near 0 anyway). Levels 4.. are
+   filtered from level 3 of the whole page. The sequels' pages have no mips (their rule). At most
+   8 pages; a silhouette that finds no room gets its own texture as before (`full=` counts them).
+   The pages belong to the ShadowRenderer and go at the next level's `setRules`; an atlas map has
+   no texture of its own (`ShadowMap::valid()` is false), the world renderer keeps its cell
+   (`lastShadowAtlasRef()`) with the map. Pages are written outside frames, into cells no draw of
+   the frame in flight reads. The silhouette cache file (`cache/*.shadows`) is unchanged (it stores
+   the raster's alpha). Memory: mission 1 5 pages = 1707 KB (the separate textures were 982 KB),
+   Gulf mission 1 6 pages = 1536 KB. Default: on, mono too (the mono dumps equal main's).
+3. **Mesh vertices** (gpu_mesh_pica.cpp). `GpuMesh::upload` merges corners whose PICA vertex
+   (position, u8 cube weights, uv, and the env normal of smooth meshes) is byte-identical and drops
+   triangles with two corners at one position; the GPU reads the same values, so the picture is
+   the same. Mission 1: 13006 -> 12609 vertices (3 %: faceted meshes keep a normal per face); Gulf
+   mission 1: 36710 -> 32032 (13 %); indices barely change (27954 -> 27870). Evaluated, not done:
+   16-bit uv/position attributes (28 -> 20 bytes a vertex, but a per-mesh scale uniform and
+   rounding in the picture, for a fetch cost that is not the bottleneck); reordering the indices
+   for the vertex cache (changes the blend order inside transparent meshes); surfaces submitted
+   twice for both sides (none: culling is per material). The brief's "12k mesh vertices per eye"
+   is not what the counters show: opaque + transparent are about 1.9k unique vertices per eye in
+   mission 1 (Gulf about 9k).
+4. **The touch band** (ctr_frame.cpp; found by the counters): its circles were tessellated with
+   48 segments per ring, **16032 vertices every frame** on the bottom screen, more than the terrain
+   of both eyes. 24 segments (`touch_segments=`) keep the edge within a quarter pixel at the band's
+   radii: 8256 vertices; bottom dump MAE 0.09 against main (99.4 % of pixels within 8).
+
+Reviewed and left: the fog table is bound once per pass and frame (both eyes share the planes); the
+brightness pass is one quad per eye (fill only); the particle (1536) and sprite (768) caps do not
+bite in mission 1 or Gulf mission 1 (at most 1.5k particle vertices a frame in Gulf stereo); there
+is no second full-screen pass. The water counter under-counts the tiled plane (it counts the
+quads, 30 vertices, while about 230 tiles, 1.4k vertices, are drawn per eye): small either way.
+
+### Counters (Azahar)
+
+`mode=bot level=1 frames=1800 perf=1 brightness=0.5 audio=0`; draws / vertices per displayed frame,
+the first two 300-frame reports. "off" is this build with `terrain_lod=0 shadow_atlas=0
+touch_segments=48` (main 8f15107 plus the mesh merge); "main 34511c4" the binary before P1 and P3.
+
+| run | terrain | shadows | opaque | rest | touch | all passes |
+|---|---|---|---|---|---|---|
+| as3d m1 stereo, main 34511c4 | 16 / 15342 | 28 / 2394 | 33 / 3048 | 42 / 930 | 9 / 16032 | 154 / 38689 |
+| as3d m1 stereo, off | 16 / 15342 | 28 / 2394 | 33 / 2940 | 42 / 902 | 16 / 16032 | 161 / 38553 |
+| **as3d m1 stereo, P3** | 16 / **10370** | **4** / 2394 | 33 / 2940 | 42 / 902 | 16 / **8256** | **138 / 25804** |
+| as3d m1 mono, main 34511c4 | 7 / 7620 | 12 / 958 | 16 / 1416 | 20 / 374 | 9 / 16032 | 78 / 26830 |
+| as3d m1 mono, off | 7 / 7620 | 12 / 958 | 16 / 1343 | 20 / 364 | 16 / 16032 | 86 / 26746 |
+| **as3d m1 mono, P3** | 7 / 7620 | **2** / 958 | 16 / 1343 | 20 / 364 | 16 / **8256** | **76 / 18970** |
+| Gulf m1 stereo, off | 11 / 16379 | 43 / 9012 | 73 / 10046 | 124 / 8456 | 17 / 16039 | 332 / 68611 |
+| **Gulf m1 stereo, P3** | 11 / **10854** | **10** / 8903 | 73 / 10068 | 121 / 8336 | 17 / **8263** | **295 / 55002** |
+| Gulf m1 mono (`pace=30`), main 34511c4 | 5 / 8248 | 22 / 4546 | 37 / 6000 | 62 / 4406 | 11 / 16039 | 173 / 43686 |
+| **Gulf m1 mono (`pace=30`), P3** | 5 / 8258 | **5** / 4585 | 37 / **5043** | 62 / 4295 | 17 / **8263** | **163 / 34928** |
+
+The touch draws went from 9 to 16 with P1's cache breaks, in both columns. In stereo about half of
+the visible chunks are coarse (`coarse_chunks=1400/2938` in mission 1, 1612/3200 in Gulf). Per
+stereo frame, mission 1: 161 -> 138 draws, 38.6k -> 25.8k vertices (-33 %); Gulf: 332 -> 295
+draws, 68.6k -> 55.0k (-20 %). Of that, the top screen (both eyes, where the 13.5 ms go) loses
+5.0k terrain vertices and 24 shadow draws in mission 1 (5.5k and 33 in Gulf), the bottom screen
+7.8k vertices once per frame. On the console the gain is to be measured: a third of the vertices
+is not a third of the milliseconds if the texture reads dominate.
+
+The log line, every 300 frames after `AS3D_PASS_MS`:
+
+    AS3D_STEREO60 eyes=2 terrain_lod=1 coarse_chunks=1400/2938 (per terrain render) shadow_atlas=1 pages=5 cells=145 full=0 atlas_kb=1706.6 mesh_vertices=13006->12609 mesh_indices=27954->27870
+
+### The look (Azahar dumps)
+
+Matched dumps at step 600 (`pace=60` in stereo so both runs dump the same step), this build
+against the same build with the three knobs off, or against main:
+
+| pair | top (each eye) | bottom |
+|---|---|---|
+| as3d m1 stereo, P3 against off | MAE 1.61, 91.9 % of pixels within 8 | 0.09, 99.4 % |
+| Gulf m1 stereo, P3 against off | MAE 0.22, 99.2 % | 0.09, 99.4 % |
+| as3d m1 mono, P3 against main 34511c4 | MAE 0.15, 99.8 % (atlas, mesh merge) | 0.09, 99.4 % (touch band) |
+| as3d m1 mono, off against main 34511c4 | MAE 0.07, 99.9 % (the perf text line) | 0.00 |
+| Gulf m1 mono `pace=30`, P3 against main 34511c4 | MAE 0.16 (an earlier P3 build, same step 602) | 0.09 |
+
+The mission 1 stereo difference is the coarse far third of the screen: hills slightly smoother, the
+texture following the moved heights by a pixel or so, the ridge line almost the same; of the 101
+pixels that differ by more than 64, 82 are the perf text line and the rest isolated (no crack or
+pinhole line at the chunk seams). Gulf mission 1's far rows are mostly flat or water, hence the
+small figure. The shadows and the models are the same.
+
+### Run.ini keys and defaults (also in apps/3ds/README.md)
+
+| key | values | New 3DS profile | Old 3DS profile |
+|---|---|---|---|
+| `terrain_lod` | `auto` (the profile), `0` never, `1` stereo only, `2` always | stereo only | stereo only |
+| `terrain_lod_dist` | world units | 520 | 520 |
+| `shadow_atlas` | `0`, `1` | on | on (it has no silhouettes: blob shadows) |
+| `touch_segments` | 8..96 | 24 | 24 |
+
+`AS3D_QUALITY` logs `terrainLod=stereo terrainLodDist=520 shadowAtlas=1`. The mesh merge has no key
+(the GPU reads the same values).
+
+### For the console
+
+1. The GPU gate: `mode=bot level=1 frames=3600 perf=1 pace=60 gpu_kick=0` with the slider up:
+   PERF_SUMMARY gpu avg / p95 against drop 4's 13.5 / 16.5 ms. Then the same with `terrain_lod=0`,
+   `shadow_atlas=0`, `touch_segments=48` one at a time, to give each cut its milliseconds.
+2. The default (`pace=auto`) in stereo: stereo still starts at 30 Hz and goes to 60 after 120
+   frames whose GPU time stays under 14 ms (`AS3D_PACE hz=60`); `PERF_SUMMARY pace` and
+   `frames_at_30hz` say whether it holds.
+3. Look, slider up: the far third of the screen (coarse hills are a little smoother; a chunk
+   changes level when it comes within 520 units, about 3 times the player's depth: watch for a pop
+   or a crack at that distance, and for tile roads on far hills); the shadows as before; the touch
+   band's circles round.
+
+If stereo still falls to 30:
+- `terrain_lod_dist=400` (or 320): more coarse chunks, the pop closer.
+- Measure per pass with `passes=` (all minus `terrain`, `shadows`, `opaque`, `water`, `rest`,
+  `particles` in turn) under `pace=60 gpu_kick=0`: the GPU time each removal saves is that pass's
+  cost, so the next cut goes where the milliseconds are.
+- The bottom screen only needs 30 Hz: in stereo, drawing it every other frame (no `drawOn` of the
+  bottom target, so citro3d neither transfers nor swaps it) saves its GPU share (HUD and touch band,
+  about 8.5k vertices) on alternate frames. Not done here: it meets the C3D_FrameEnd swap race of
+  "Frame synchronisation".
+- The coarse chunks with the one-stage TEV (no detail texture: half their texture reads), if the
+  console says texturing is the cost; a second, coarser level (every fourth vertex) beyond twice
+  the distance.

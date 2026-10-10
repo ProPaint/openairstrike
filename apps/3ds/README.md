@@ -125,6 +125,10 @@ start a comment line, unknown keys are ignored, no file means `mode=spike`:
 | `top_format` | `rgba8` (default) or `rgb565` | the top screen's eye targets and framebuffers in RGB565: half the colour bytes the GPU writes and blends (stereo GPU A/B); dumps are read back from 565 (Azahar: MAE 4.6 against RGBA8, the 565 steps under the brightness pass) |
 | `prefetch` | `1` (default) or `0` | the read plan (`ctr_loop.h` ReadPlan): each level start records the files it read in `sdmc:/3ds/openairstrike/cache/<game>_m<N>.plan` (file names only) and the next start of that level reads them ahead in a few large reads per pak (`AS3D_LOAD phase=prefetch`, `AS3D_READPLAN`) |
 | `shadow_cache` | `1` (default) or `0` | the silhouette cache (`shadow_pica.h`): `cache/<game>_m<N>.shadows` keeps the rasterised silhouettes of the level, keyed by a hash of their inputs, and the next start reuses them (`AS3D_SHADOW_CACHE`) |
+| `terrain_lod` | `auto` (default), `0`, `1`, `2` | the terrain's far chunks drawn from a coarse grid (every second vertex, docs/3ds-port.md "Stereo at 60 (round 2, P3)"): `0` never, `1` (= `auto`, the quality profile's default) only while two eyes are drawn, `2` also in mono |
+| `terrain_lod_dist` | world units, default 520 | a chunk whose box is farther than this from the camera is coarse |
+| `shadow_atlas` | `1` (default) or `0` | the silhouettes packed into 512x512 A8 atlas pages, one draw per page; `0` = one texture per silhouette as before |
+| `touch_segments` | 8..96, default 24 | segments of the touch band's circles (48 before: 16k vertices a frame on the bottom screen, 8k now) |
 | `pak_cache_kb` | N, default 0 | a block cache of N KB (64 KB blocks) per pak stream; the paks are read with FSFILE_Read at an offset either way (`AS3D_LOAD ... read_ms`) |
 
 `mode=bot level=1 frames=3600 perf=1` is the M1 acceptance run. START+SELECT held together quits
