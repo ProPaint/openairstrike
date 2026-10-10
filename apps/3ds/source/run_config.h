@@ -98,6 +98,9 @@ struct RunConfig {
     int pace = 0;
     bool gpuKick = true;       // gpu_kick=0: no mid-frame start of the GPU (pica_frame.h kickGpu); default on
     bool cmdlistFlush = false; // end_flush=cmdlist: C3D_FrameEnd(GX_CMDLIST_FLUSH), no whole-heap flush (forced by gpu_kick=1)
+    // Synchronisation diagnostics (docs/3ds-port.md "Frame synchronisation"):
+    bool arenaPoison = false;  // arena_poison=1: garbage in every arena half / water half / freed block the CPU takes back
+    int stateCheck = 0;        // state_check=1|2: the render-state self-check (state_check_pica.h); L marks the wash
 
     // The real-time front end instead of a direct mission start.
     bool menu() const { return mode == Mode::Menu || (mode == Mode::Play && !levelGiven); }

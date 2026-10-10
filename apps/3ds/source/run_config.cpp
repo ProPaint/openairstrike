@@ -182,6 +182,10 @@ RunConfig parseRunConfig(const std::string& text) {
             else if (val == "30") c.pace = 30;
         } else if (key == "gpu_kick") {
             if (toInt(val, &n)) c.gpuKick = n != 0;
+        } else if (key == "arena_poison") {
+            if (toInt(val, &n)) c.arenaPoison = n != 0;
+        } else if (key == "state_check") {
+            if (toInt(val, &n) && n >= 0 && n <= 2) c.stateCheck = n;
         } else if (key == "end_flush") {
             if (val == "cmdlist") c.cmdlistFlush = true;
             else if (val == "all") c.cmdlistFlush = false;

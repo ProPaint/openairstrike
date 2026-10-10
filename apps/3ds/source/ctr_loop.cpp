@@ -409,9 +409,9 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     bool new3ds = false;
     APT_CheckNew3DS(&new3ds);
     if (new3ds) osSetSpeedupEnable(true);
-    AS3D_INFO("openairstrike 3ds: mode=%s game=%s level=%d frames=%d perf=%d, %s 3DS%s", modeName(run.mode),
-              run.game.c_str(), run.level, run.effectiveFrames(), run.perf ? 1 : 0, new3ds ? "New" : "Old",
-              new3ds ? ", speed-up on" : "");
+    AS3D_INFO("openairstrike 3ds: mode=%s game=%s level=%d frames=%d perf=%d, %s 3DS%s state_check=%d arena_poison=%d",
+              modeName(run.mode), run.game.c_str(), run.level, run.effectiveFrames(), run.perf ? 1 : 0,
+              new3ds ? "New" : "Old", new3ds ? ", speed-up on" : "", run.stateCheck, run.arenaPoison ? 1 : 0);
     AS3D_INFO("memory: APPLICATION %.1f MB free, linear free %.1f MB", mb(osGetMemRegionFree(MEMREGION_APPLICATION)),
               mb(linearSpaceFree()));
 
@@ -591,6 +591,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         info.touch = &input.touch();
         info.lastCpuMs = lastCpu;
         info.lastGpuMs = lastGpu;
+        info.padDown = pad.down;
 
         drawFrame(*ctx, *hook, info, sample);
         lastCpu = sample.cpuMs;

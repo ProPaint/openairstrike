@@ -129,9 +129,10 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     bool new3ds = false;
     APT_CheckNew3DS(&new3ds);
     if (new3ds) osSetSpeedupEnable(true);
-    AS3D_INFO("openairstrike 3ds: mode=%s (front end) game=%s frames=%d perf=%d menu_bot=%d, %s 3DS%s", modeName(run.mode),
-              run.game.c_str(), run.frames, run.perf ? 1 : 0, run.menuBot ? 1 : 0, new3ds ? "New" : "Old",
-              new3ds ? ", speed-up on" : "");
+    AS3D_INFO("openairstrike 3ds: mode=%s (front end) game=%s frames=%d perf=%d menu_bot=%d, %s 3DS%s state_check=%d "
+              "arena_poison=%d",
+              modeName(run.mode), run.game.c_str(), run.frames, run.perf ? 1 : 0, run.menuBot ? 1 : 0,
+              new3ds ? "New" : "Old", new3ds ? ", speed-up on" : "", run.stateCheck, run.arenaPoison ? 1 : 0);
     AS3D_INFO("memory: APPLICATION %.1f MB free, linear free %.1f MB",
               static_cast<double>(osGetMemRegionFree(MEMREGION_APPLICATION)) / 1048576.0,
               static_cast<double>(linearSpaceFree()) / 1048576.0);
@@ -418,6 +419,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         info.touch = &input.touch();
         info.lastCpuMs = lastCpu;
         info.lastGpuMs = lastGpu;
+        info.padDown = pad.down;
         info.screen = screen.c_str();
         info.playing = flow.playing();
 

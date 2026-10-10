@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "as3d/console_pad.h"
 #include "as3d/core.h"
 #include "as3d/frontend.h"
 #include "as3d/load_stats.h"
@@ -32,6 +33,7 @@
 #include "pass_profile.h"
 #include "shadow_pica.h"
 #include "pica_frame.h"
+#include "state_check_pica.h"
 #include "texture_budget.h"
 #include "ui_pica.h"
 #include "world_pica.h"
@@ -290,6 +292,8 @@ struct GameFrame::Impl {
         if (!run.touch) mask &= ~(1u << static_cast<int>(pica::Pass::Touch));
         pica::setPassMask(mask);
         pica::setGpuKick(run.gpuKick);
+        pica::setArenaPoison(run.arenaPoison); // docs/3ds-port.md "Frame synchronisation"
+        pica::setStateCheck(run.stateCheck);
         std::string off;
         for (int i = 0; i < pica::kPassCount; ++i)
             if (!pica::passBit(mask, static_cast<pica::Pass>(i))) off += std::string(off.empty() ? "" : ",") + pica::passName(static_cast<pica::Pass>(i));
@@ -891,6 +895,12 @@ void GameFrame::stats(FrameStats& out) {
 
 void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
     Impl& im = *impl_;
+    // state_check: L marks the water wash on screen (the log's AS3D_WASH_MARK and the screens).
+    if (pica::stateCheck() && (info.padDown & as3d::pad::L)) {
+        char base[32];
+        std::snprintf(base, sizeof base, "mark%02d", pica::stateCheckMark(info.frame, info.step));
+        im.dumpPair(base, info);
+    }
     // The front end's dumps: every N frames, and once a screen has settled.
     // With dump_from=S: every N simulation steps from step S (the first frame at or after each), named
     // by the step.

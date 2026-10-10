@@ -50,6 +50,7 @@ struct FrameInfo {
     // (GameFlow::playing: the touch buttons are drawn).
     const char* screen = "";
     bool playing = true;
+    uint32_t padDown = 0; // pad:: bits pressed this frame (run.ini state_check: L marks the water wash)
 };
 
 // The frame composer's slot (ctr_frame.h). The loop brackets the frame (beginFrame / endFrame)
