@@ -106,6 +106,39 @@ bool dumpRenderTarget(C3D_RenderTarget* t, int width, const std::string& path) {
     return ok;
 }
 
+// The depth buffer of a render target as an upright PPM (run.ini state_check's L mark): D24S8 read
+// as 32-bit words by the display transfer; grey = the depth's top byte (the PICA stores 1 at the
+// near plane: near is bright, the cleared far depth black), red = its second byte.
+bool dumpRenderTargetDepth(C3D_RenderTarget* t, int width, const std::string& path) {
+    if (!t->frameBuf.depthBuf || t->frameBuf.depthFmt != GPU_RB_DEPTH24_STENCIL8) return false;
+    const size_t bytes = static_cast<size_t>(240) * static_cast<size_t>(width) * 4;
+    auto* lin = static_cast<u8*>(linearAlloc(bytes));
+    if (!lin) return false;
+    C3D_SyncDisplayTransfer(static_cast<u32*>(t->frameBuf.depthBuf), GX_BUFFER_DIM(240, width),
+                            reinterpret_cast<u32*>(lin), GX_BUFFER_DIM(240, width),
+                            GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) |
+                                GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) |
+                                GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO));
+    GSPGPU_InvalidateDataCache(lin, bytes);
+    bool ok = false;
+    if (std::FILE* f = std::fopen(path.c_str(), "wb")) {
+        std::fprintf(f, "P6\n%d 240\n255\n", width);
+        std::vector<u8> row(static_cast<size_t>(width) * 3);
+        for (int y = 0; y < 240; ++y) {
+            for (int x = 0; x < width; ++x) {
+                const u8* px = lin + (static_cast<size_t>(x) * 240 + static_cast<size_t>(239 - y)) * 4;
+                row[static_cast<size_t>(x) * 3 + 0] = px[1];
+                row[static_cast<size_t>(x) * 3 + 1] = px[2];
+                row[static_cast<size_t>(x) * 3 + 2] = px[2];
+            }
+            std::fwrite(row.data(), 1, row.size(), f);
+        }
+        ok = std::fclose(f) == 0;
+    }
+    linearFree(lin);
+    return ok;
+}
+
 namespace {
 
 bool dumpTarget(C3D_RenderTarget* t, int width, const std::string& path) { return dumpRenderTarget(t, width, path); }
@@ -900,6 +933,9 @@ void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
         char base[32];
         std::snprintf(base, sizeof base, "mark%02d", pica::stateCheckMark(info.frame, info.step));
         im.dumpPair(base, info);
+        // Is the terrain's depth there where the wash is? (the left eye's depth buffer)
+        const bool d = dumpRenderTargetDepth(ctx.topTarget(0), kTopW, std::string(kDataDir) + "/" + base + "_depth.ppm");
+        AS3D_INFO("AS3D_DUMP %s_depth depth=%d", base, d ? 1 : 0);
     }
     // The front end's dumps: every N frames, and once a screen has settled.
     // With dump_from=S: every N simulation steps from step S (the first frame at or after each), named
