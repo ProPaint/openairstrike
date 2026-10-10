@@ -181,6 +181,18 @@ public:
     DynamicLightList lights;
     int dropped = 0;
 
+    // Optional profile of prepare() (the PICA pass profile): with `clock` set, each prepare adds
+    // the clock's ticks of its parts. No effect on what prepare() produces.
+    struct PrepareProfile {
+        std::uint64_t (*clock)() = nullptr;
+        std::uint64_t setup = 0;    // camera, lighting, the queued lights
+        std::uint64_t order = 0;    // worldRenderOrder
+        std::uint64_t entities = 0; // the entity pass
+        std::uint64_t tail = 0;     // skid trails, bolts, particle emitters
+        std::uint64_t entityCount = 0;
+    };
+    PrepareProfile profile;
+
     bool hbarReady() const { return hbarReady_; }
     const HealthBarSpriteDef& hbarEmpty() const { return hbarEmpty_; }
     const HealthBarSpriteDef& hbarFull() const { return hbarFull_; }

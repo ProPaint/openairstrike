@@ -161,6 +161,8 @@ RunConfig parseRunConfig(const std::string& text) {
             else if (val == "w") c.depthMapZ = false;
         } else if (key == "fog") {
             if (toInt(val, &n)) c.fog = n != 0;
+        } else if (key == "fixed_steps") {
+            if (toInt(val, &n) && n >= 0 && n <= 8) c.fixedSteps = n;
         } else if (key == "water") {
             if (toInt(val, &n)) c.water = n != 0;
         } else if (key == "water_tile") {

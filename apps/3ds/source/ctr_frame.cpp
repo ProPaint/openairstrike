@@ -823,6 +823,7 @@ void GameFrame::prepare(const FrameInfo& info) {
         if (im.hudReady) im.hud = as3d_game::hudStateOf(ses);
     }
     im.info = nullptr;
+    pica::passProfile().add(pica::Pass::PrepFlow, svcGetSystemTick() - t0, 0, 0);
 
     im.stereo = StereoParams();
     if (im.worldDrawn) {
@@ -855,7 +856,9 @@ void GameFrame::prepare(const FrameInfo& info) {
 
     // The top screen's 2D layer, built once and flushed on each eye at screen depth.
     im.buildTopQuads(info);
-    im.prepareMs = static_cast<float>(static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11);
+    const uint64_t prepTicks = svcGetSystemTick() - t0;
+    pica::passProfile().add(pica::Pass::PrepFrame, prepTicks, 0, 0);
+    im.prepareMs = static_cast<float>(static_cast<double>(prepTicks) * 1000.0 / SYSCLOCK_ARM11);
 }
 
 void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
@@ -967,7 +970,7 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
         double inPasses = 0.0;
         for (int p = 0; p < pica::kPassCount; ++p) {
             const pica::Pass pass = static_cast<pica::Pass>(p);
-            if (pass == pica::Pass::Ui2dBatch || pass == pica::Pass::Ui2dCopy) continue; // inside the 2D passes
+            if (pica::isProfileEntry(pass)) continue; // inside the 2D passes, or the prepare
             const double ms = static_cast<double>(pica::passProfile().totals(pass).ticks - im.passTicks0[p]) / k;
             inPasses += ms;
             if (ms < 0.3) continue;
@@ -1006,6 +1009,8 @@ void GameFrame::stats(FrameStats& out) {
     // The per-pass CPU table (pass_profile.h), every kPassReportFrames displayed frames.
     pica::PassProfile& pp = pica::passProfile();
     pp.endFrame();
+    if (pp.frames() >= kPassReportFrames)
+        AS3D_INFO("AS3D_PREP_MS (ms/items per frame) %s", pp.reportPrepare(static_cast<double>(SYSCLOCK_ARM11) / 1000.0).c_str());
     if (pp.frames() >= kPassReportFrames) {
         AS3D_INFO("AS3D_PASS_MS eyes=%d (ms/draws/verts per frame) %s", out.eyes,
                   pp.report(static_cast<double>(SYSCLOCK_ARM11) / 1000.0).c_str());

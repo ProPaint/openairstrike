@@ -587,7 +587,10 @@ int runCtrLoop(const CtrLoopOptions& opts) {
             lastFrame = 0;
         }
         // The steps of this frame: the vblanks since the last one (ctr_loop.h FrameClock).
-        const int due = clock.due(&dropped);
+        int due = clock.due(&dropped);
+        // run.ini fixed_steps=N: N steps per frame whatever the clock (A/B dumps and profiles at
+        // the same simulation steps in two builds).
+        if (run.fixedSteps > 0) due = run.fixedSteps;
         int n = 0;
         const uint64_t s0 = nowTicks();
         while (n < due && !(maxSteps && steps >= maxSteps)) {

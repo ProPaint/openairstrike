@@ -38,6 +38,20 @@ enum class Pass : int {
     Bottom2d,   // the front end's bottom screen list
     Ui2dBatch,  // of the 2D passes: buildBatch2D + pixel snapping (CPU)
     Ui2dCopy,   // of the 2D passes: Vertex2D -> FlatVertex conversion into the arena
+    // The CPU prepare (outside frames, not part of the submit; draws = the items handled):
+    PrepFrame,    // the composer's whole prepare (perf.csv prepare_ms)
+    PrepFlow,     // of it: the front end's GameFlow::draw or the HUD state
+    PrepWorld,    // of it: WorldRenderer::prepare, which is:
+    PrepTerrain,  //   craters: terrain, water and the invalidations
+    PrepScene,    //   WorldScene::prepare, which is:
+    PrepOrder,    //     the think order (worldRenderOrder)
+    PrepEntities, //     the entity pass (records, sprites, marks, lights; draws = entities)
+    PrepMarks,    //   ground marks and skid trails (cut, draped)
+    PrepWater,    //   water and lightning
+    PrepShadows,  //   shadow placement and draping (draws = requests), of which:
+    PrepDrape,    //     ShadowPass::build: the terrain decals (draws = shadows draped this frame)
+    PrepMeshes,   //   the mesh passes' submits: light accumulation, cube colours (draws = records)
+    PrepStats,    //   the linear-skin statistics of the records
     Count
 };
 
@@ -55,6 +69,9 @@ void setPassMask(uint32_t mask);
 uint32_t passMask();
 inline bool passBit(uint32_t mask, Pass p) { return (mask >> static_cast<int>(p)) & 1u; }
 bool passEnabled(Pass p);
+// The profile's own entries (the 2D internals, the prepare split): not passes, always "on", left
+// out of the submit's sum.
+inline bool isProfileEntry(Pass p) { return p == Pass::Ui2dBatch || p == Pass::Ui2dCopy || p >= Pass::PrepFrame; }
 
 struct PassTotals {
     uint64_t ticks = 0;
@@ -76,6 +93,9 @@ public:
     // The per-frame averages since the last reset (passes never used are left out), then reset.
     // `ticksPerMs`: the clock's rate.
     std::string report(double ticksPerMs, bool reset = true);
+    // The prepare split (the prep_* entries, "<name>=<ms>/<items>"), without reset: call before
+    // report(), which leaves them out.
+    std::string reportPrepare(double ticksPerMs) const;
     void reset();
 
 private:

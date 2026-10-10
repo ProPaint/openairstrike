@@ -117,6 +117,22 @@ private:
     u64 t0_ = 0;
     int d0_ = 0, v0_ = 0;
 };
+u64 systemTick() { return svcGetSystemTick(); }
+
+// The parts of prepare() in the pass profile (the prep_* entries): lap(p, n) adds the ticks since
+// the last lap to p, with n items.
+class PrepMeter {
+public:
+    PrepMeter() : t_(svcGetSystemTick()) {}
+    void lap(Pass p, int items = 0) {
+        const u64 now = svcGetSystemTick();
+        passProfile().add(p, now - t_, items, 0);
+        t_ = now;
+    }
+
+private:
+    u64 t_;
+};
 } // namespace
 const WorldPicaStats& worldPicaStats() { return g_worldStats; }
 } // namespace pica
@@ -232,6 +248,7 @@ bool WorldRenderer::init(Vfs& vfs, const DefDatabase& db, std::string* error) {
     im.db = &db;
     im.cache.reset(new ResourceCache(vfs));
     im.scene.init(*im.cache, vfs, db);
+    im.scene.profile.clock = &pica::systemTick;
     if (!im.particles.init(vfs, error)) return false;
     if (!im.sprites.init(error)) return false;
     if (!im.shadows.init(error)) return false;
@@ -416,6 +433,9 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
     stats_ = WorldRenderStats();
     sc.invalidate();
     if (viewport.width <= 0 || viewport.height <= 0) return;
+    using pica::Pass;
+    pica::PrepMeter meter;
+    const u64 tWorld = svcGetSystemTick();
     const Terrain* terrain = world.terrain();
     im.haveTerrain = terrain && im.terrain && im.terrainOf == terrain;
     // Craters since the last frame (copy-on-write chunks, terrain_pica.h).
@@ -427,7 +447,16 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
         im.shadowPass.invalidate(); // the shadows follow the new heights
         im.markPass.invalidate();   // and so do the marks
     }
-    sc.prepare(world, viewport, options, true, im.haveTerrain, stats_);
+    meter.lap(Pass::PrepTerrain, static_cast<int>(rects.size()));
+    {
+        WorldScene::PrepareProfile& sp = sc.profile;
+        const WorldScene::PrepareProfile before = sp;
+        sc.prepare(world, viewport, options, true, im.haveTerrain, stats_);
+        pica::PassProfile& pp = pica::passProfile();
+        pp.add(Pass::PrepOrder, sp.order - before.order, 0, 0);
+        pp.add(Pass::PrepEntities, sp.entities - before.entities, static_cast<int>(sp.entityCount - before.entityCount), 0);
+    }
+    meter.lap(Pass::PrepScene, static_cast<int>(sc.lights.size()));
     ++im.prepareSerial;
 
     // Ground marks (cut again only when the set changes or after a crater) and the skid trails.
@@ -441,6 +470,7 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
                              im.skidParams,
                              [&rc](const std::string& path) { return rc.texture(path).texture; });
     }
+    meter.lap(Pass::PrepMarks, static_cast<int>(sc.markDescs.size() + sc.skidTrailCount));
 
     // Water (pass 7) at the world's time, lightning bolts at the camera-independent scroll.
     im.waterPass.prepare(sc.frame().time);
@@ -451,6 +481,7 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
         im.lightningPass.prepare(sc.boltStarts.data(), sc.boltEnds.data(), sc.boltStarts.size(), sc.frame().time,
                                  sc.frame().boltTexture);
     }
+    meter.lap(Pass::PrepWater);
 
     // Shadows (5.3): a silhouette, or the blob while it is not ready (at most one generated per
     // frame, here, outside the frame; drawn from the next one).
@@ -491,10 +522,13 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
                 im.shadowPass.add(&im.shadowPass.blob(), shadowRect(e.bounds, e.kind, r.origin, r.yawDegrees), true,
                                   isStatic);
         }
+        const u64 tDrape = svcGetSystemTick();
         im.shadowPass.build(TerrainGridView::of(*terrain));
+        pica::passProfile().add(Pass::PrepDrape, svcGetSystemTick() - tDrape, pica::shadowPicaStats().drapedNow, 0);
     }
     pica::noteShadowFrame(late, static_cast<double>(svcGetSystemTick() - tPlace) / (SYSCLOCK_ARM11 / 1000.0) - lateMs);
     stats_.shadows = static_cast<int>(im.shadowPass.shadowCount());
+    meter.lap(Pass::PrepShadows, static_cast<int>(sc.shadowRequests.size()));
     // The mesh passes: all per-model CPU work (cube colours, material keys) once per frame.
     const SceneLighting& light = sc.frame().light;
     im.opaquePass.begin(light, sc.lights.data(), sc.lights.size());
@@ -506,6 +540,7 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
     for (const MeshRecord& r : sc.trans) im.restPass.submit(*r.mesh, *r.material, r.model, r.colour);
     for (const MeshRecord& r : sc.effect) im.restPass.submit(*r.mesh, *r.material, r.model, r.colour);
     im.restPass.finish();
+    meter.lap(Pass::PrepMeshes, static_cast<int>(im.opaquePass.size() + im.restPass.size()));
     // Which of this frame's model textures live in linear memory (the VRAM split).
     pica::WorldPicaStats& ws = pica::g_worldStats;
     ws.records = ws.linearRecords = 0;
@@ -523,6 +558,8 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
             }
         }
     }
+    meter.lap(Pass::PrepStats, ws.linearRecords);
+    pica::passProfile().add(Pass::PrepWorld, svcGetSystemTick() - tWorld, 0, 0);
 }
 
 void WorldRenderer::draw(const EyeView& eye) {

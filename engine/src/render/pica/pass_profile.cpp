@@ -9,7 +9,10 @@ namespace {
 constexpr const char* kNames[kPassCount] = {
     "clear", "terrain", "marks",  "shadows", "opaque", "water", "rest",     "lightning", "particles", "sprites",
     "brightness", "top2d", "model", "hud", "hint", "touch", "bottom2d", "ui_batch", "ui_copy",
+    "prep", "prep_flow", "prep_world", "prep_terrain", "prep_scene", "prep_order", "prep_entities",
+    "prep_marks", "prep_water", "prep_shadows", "prep_drape", "prep_meshes", "prep_stats",
 };
+static_assert(kPassCount <= 32, "the pass mask is 32 bits");
 
 uint32_t g_mask = kAllPasses;
 
@@ -57,7 +60,9 @@ uint32_t parsePassList(const std::string& list, std::string* unknown) {
         }
     }
     // The profile's own entries are not passes: always "on".
-    return mask | bit(Pass::Ui2dBatch) | bit(Pass::Ui2dCopy);
+    for (int i = 0; i < kPassCount; ++i)
+        if (isProfileEntry(static_cast<Pass>(i))) mask |= 1u << i;
+    return mask;
 }
 
 void setPassMask(uint32_t mask) { g_mask = mask; }
@@ -74,8 +79,9 @@ std::string PassProfile::report(double ticksPerMs, bool doReset) {
     for (int i = 0; i < kPassCount; ++i) {
         const PassTotals& t = totals_[i];
         if (t.ticks == 0 && t.draws == 0) continue;
+        if (static_cast<Pass>(i) >= Pass::PrepFrame) continue; // reportPrepare()
         const double ms = static_cast<double>(t.ticks) / ticksPerMs / n;
-        if (i != static_cast<int>(Pass::Ui2dBatch) && i != static_cast<int>(Pass::Ui2dCopy)) sum += ms;
+        if (!isProfileEntry(static_cast<Pass>(i))) sum += ms;
         std::snprintf(buf, sizeof buf, " %s=%.2f/%.0f/%.0f", kNames[i], ms, static_cast<double>(t.draws) / n,
                       static_cast<double>(t.verts) / n);
         out += buf;
@@ -83,6 +89,22 @@ std::string PassProfile::report(double ticksPerMs, bool doReset) {
     std::snprintf(buf, sizeof buf, " sum=%.2f", sum);
     out += buf;
     if (doReset) reset();
+    return out;
+}
+
+std::string PassProfile::reportPrepare(double ticksPerMs) const {
+    std::string out;
+    char buf[96];
+    const double n = frames_ ? static_cast<double>(frames_) : 1.0;
+    std::snprintf(buf, sizeof buf, "frames=%u", frames_);
+    out = buf;
+    for (int i = static_cast<int>(Pass::PrepFrame); i < kPassCount; ++i) {
+        const PassTotals& t = totals_[i];
+        if (t.ticks == 0 && t.draws == 0) continue;
+        std::snprintf(buf, sizeof buf, " %s=%.2f/%.0f", kNames[i], static_cast<double>(t.ticks) / ticksPerMs / n,
+                      static_cast<double>(t.draws) / n);
+        out += buf;
+    }
     return out;
 }
 

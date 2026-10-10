@@ -213,6 +213,15 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
     Frame& fr = frame_;
     fr.ready = false;
     if (viewport.width <= 0 || viewport.height <= 0) return;
+    std::uint64_t (*const clock)() = profile.clock;
+    std::uint64_t tick = clock ? clock() : 0;
+    // Adds the ticks since the last mark to `slot` (profile only).
+    auto mark = [&](std::uint64_t& slot) {
+        if (!clock) return;
+        const std::uint64_t now = clock();
+        slot += now - tick;
+        tick = now;
+    };
     fr.viewport = viewport;
     fr.options = options;
     fr.aspect = static_cast<float>(viewport.width) / static_cast<float>(viewport.height);
@@ -258,7 +267,10 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
     sprites.clear();
     markDescs.clear();
     dropped = 0;
+    mark(profile.setup);
     worldRenderOrder(world, order_, visited_);
+    mark(profile.order);
+    profile.entityCount += order_.size();
     // The health bar follows the entity's own records (engine-behaviour.md 2, 6.5); the
     // think draws it whether or not the entity itself is drawn.
     auto addHealthBar = [&](const Entity& e) {
@@ -430,6 +442,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
         }
         addHealthBar(e);
     }
+    mark(profile.entities);
 
     // The sequels' skid marks (as2 delta 1.1 pass 5).
     if (terrain && withSkids && rules_.skidMarkPass && options.marks) collectSkidTrails(world);
@@ -448,6 +461,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
     if (options.particles) world.particles().collect(emitters);
     else emitters.clear();
 
+    mark(profile.tail);
     stats.models = static_cast<int>(opaque.size() + trans.size() + effect.size());
     stats.sprites = static_cast<int>(sprites.size());
     stats.marks = static_cast<int>(markDescs.size());

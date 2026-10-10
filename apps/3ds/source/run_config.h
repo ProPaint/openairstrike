@@ -86,6 +86,7 @@ struct RunConfig {
     bool fog = true;           // fog=0: the level fog stays off (hardware A/B of the fog table)
     bool depthMapZ = false;    // depthmap=z|w: the world passes with the Z-buffer mapping instead of the W-buffer
     bool water = true;         // water=0: no water pass
+    int fixedSteps = 0;        // fixed_steps=N (1..8): N simulation steps per displayed frame, the clock ignored
     float waterTile = -1.0f;   // water_tile=N: the plane's tile size in world units (0 = the GL's 320-unit quads); -1 = the default
     // Hardware tuning (A/B runs, docs/3ds-port.md "Hardware tuning"):
     std::string passes;        // passes=a,b,..: only these passes draw (pass_profile.h names, world, all); empty = all
