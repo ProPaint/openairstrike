@@ -3,8 +3,9 @@
 # into third_party_local/ (gitignored), rather than committing SDL's source
 # tree to this repository. See docs/android.md.
 #
-# Usage: tools/fetch_third_party.sh [openmpt]
-#        (openmpt: libopenmpt only, for tools/3ds_build.sh)
+# Usage: tools/fetch_third_party.sh [openmpt|ctrtools]
+#        (openmpt: libopenmpt only, for tools/3ds_build.sh;
+#         ctrtools: makerom and bannertool only, for tools/3ds_package.sh)
 # Env:   AS3D_DATA_ROOT   repo checkout to put third_party_local/ under
 #                          (default: this repo's root; use the main checkout
 #                          from a worktree so the download is shared).
@@ -25,6 +26,82 @@ DL_DIR="${TPL_DIR}/_dl"
 SDL_DIR="${TPL_DIR}/SDL2-${SDL_VERSION}"
 
 mkdir -p "${DL_DIR}"
+
+# --- makerom and bannertool (the 3DS CIA, tools/3ds_package.sh; docs/3ds-port.md "Packaging") ---
+# Neither is in the pinned devkitPro image. Every download is untrusted: each goes into an empty
+# directory of its own under third_party_local/_dl/, is checked against the pinned SHA-256 before
+# anything reads it, and the tools only ever run inside the pinned devkitPro container without
+# network (tools/3ds_package.sh). makerom: the Linux release binary of 3DSGuy/Project_CTR.
+# bannertool: Steveice10/bannertool is gone from GitHub (404) and the maintained fork
+# carstene1ns/3ds-bannertool ships a Linux binary that needs glibc 2.38 (the image has 2.36), so
+# its release source tarball is compiled here, in the image, with the image's g++.
+MAKEROM_VERSION="0.18.4"
+MAKEROM_URL="https://github.com/3DSGuy/Project_CTR/releases/download/makerom-v${MAKEROM_VERSION}/makerom-v${MAKEROM_VERSION}-ubuntu_x86_64.zip"
+# Verified by this script against the file downloaded from the URL above on 2026-10-10.
+MAKEROM_SHA256="dd596854718c195c6e3229286be485b122921715555af8ae5cf8e9a465d9f970"
+BANNERTOOL_VERSION="1.2.3"
+BANNERTOOL_URL="https://github.com/carstene1ns/3ds-bannertool/releases/download/${BANNERTOOL_VERSION}/bannertool-${BANNERTOOL_VERSION}.tar.gz"
+# Verified by this script against the file downloaded from the URL above on 2026-10-10.
+BANNERTOOL_SHA256="3ae61ff21c7762e75ba37a57f248cc0d6a9d4bff92207c57f7420a86dfbd08e6"
+CTR_IMAGE="$(sed -n 's/^IMAGE=\(.*\)$/\1/p' "${SCRIPT_DIR}/3ds_build.sh" | head -1 | tr -d '"')"
+
+# fetch_verified <url> <sha256> <empty dir> <file name>: downloads into the directory (made
+# empty first when the file is not there yet) and checks the hash.
+fetch_verified() {
+    local url="$1" sha="$2" dir="$3" name="$4"
+    if [ ! -f "${dir}/${name}" ]; then
+        rm -rf "${dir}"
+        mkdir -p "${dir}"
+        echo "fetch_third_party: downloading ${url}"
+        curl -fL --retry 3 -o "${dir}/${name}.part" "${url}"
+        mv "${dir}/${name}.part" "${dir}/${name}"
+    fi
+    local actual
+    actual="$(sha256sum "${dir}/${name}" | awk '{print $1}')"
+    if [ "${actual}" != "${sha}" ]; then
+        echo "fetch_third_party: SHA-256 mismatch for ${dir}/${name}" >&2
+        echo "  expected: ${sha}" >&2
+        echo "  actual:   ${actual}" >&2
+        rm -f "${dir}/${name}"
+        exit 1
+    fi
+}
+
+fetch_ctrtools() {
+    local mk_dir="${TPL_DIR}/makerom-${MAKEROM_VERSION}"
+    if [ -x "${mk_dir}/makerom" ]; then
+        echo "fetch_third_party: makerom ${MAKEROM_VERSION} already present at ${mk_dir}"
+    else
+        fetch_verified "${MAKEROM_URL}" "${MAKEROM_SHA256}" "${DL_DIR}/makerom-${MAKEROM_VERSION}" makerom.zip
+        rm -rf "${mk_dir}"
+        mkdir -p "${mk_dir}"
+        unzip -q -o "${DL_DIR}/makerom-${MAKEROM_VERSION}/makerom.zip" makerom -d "${mk_dir}"
+        chmod 755 "${mk_dir}/makerom"
+    fi
+    local bt_dir="${TPL_DIR}/bannertool-${BANNERTOOL_VERSION}"
+    if [ -x "${bt_dir}/bannertool" ]; then
+        echo "fetch_third_party: bannertool ${BANNERTOOL_VERSION} already present at ${bt_dir}"
+    else
+        fetch_verified "${BANNERTOOL_URL}" "${BANNERTOOL_SHA256}" "${DL_DIR}/bannertool-${BANNERTOOL_VERSION}" source.tar.gz
+        local src="${TPL_DIR}/bannertool-${BANNERTOOL_VERSION}-src"
+        rm -rf "${src}" "${bt_dir}"
+        mkdir -p "${src}" "${bt_dir}"
+        tar xzf "${DL_DIR}/bannertool-${BANNERTOOL_VERSION}/source.tar.gz" -C "${src}" --strip-components=1 --no-same-owner
+        echo "fetch_third_party: compiling bannertool ${BANNERTOOL_VERSION} in ${CTR_IMAGE%%@*} (no network)"
+        docker run --rm --network none --user "$(id -u):$(id -g)" -v "${src}:/src:ro" -v "${bt_dir}:/out" -w /src \
+            "${CTR_IMAGE}" g++ -std=c++17 -O2 -DVERSION=\"${BANNERTOOL_VERSION}\" \
+            -DSTBI_ONLY_PNG -DSTBI_NO_LINEAR -DSTBI_NO_STDIO -DSTB_VORBIS_NO_PUSHDATA_API -DSTB_VORBIS_NO_STDIO \
+            -DDR_WAV_NO_STDIO -Isource -Isource/pc source/main.cpp source/log.cpp source/types.cpp source/utils.cpp \
+            source/3ds/cbmd.cpp source/3ds/cwav.cpp source/3ds/lz11.cpp source/pc/stb_image.cpp \
+            source/pc/stb_vorbis.cpp source/pc/dr_wav.cpp -o /out/bannertool
+    fi
+    echo "fetch_third_party: AS3D_MAKEROM=${mk_dir}/makerom AS3D_BANNERTOOL=${bt_dir}/bannertool"
+}
+
+if [ "${1:-}" = "ctrtools" ]; then
+    fetch_ctrtools
+    exit 0
+fi
 
 if [ "${1:-}" = "openmpt" ]; then
     echo "fetch_third_party: libopenmpt only"
