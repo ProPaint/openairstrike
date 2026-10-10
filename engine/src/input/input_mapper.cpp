@@ -91,7 +91,8 @@ InputMapper::InputMapper() {
     clearBindings();
     // Player 1: config.ini [Controls] as shipped (VK codes 38/40/37/39 arrows, 17 Ctrl,
     // 16 Shift, 32 Space, 49/50/51/52 the digits 1-4, 200-202 the mouse buttons). The
-    // stick codes 241-244 and joystick buttons are not mapped (no joystick support yet).
+    // stick codes 241-244 and joystick buttons are not mapped: game controllers have their own
+    // fixed layout (as3d/console_pad.h gamepadBindings, read by the windowed loop).
     bind(0, InputAction::Forward, 0, SDL_SCANCODE_UP);
     bind(0, InputAction::Backward, 0, SDL_SCANCODE_DOWN);
     bind(0, InputAction::Left, 0, SDL_SCANCODE_LEFT);

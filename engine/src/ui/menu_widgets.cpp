@@ -521,7 +521,7 @@ void MenuSystem::drawItems(Renderer2D& r, const UiAssets& a) {
         }
     }
     // Menu cursor (frontend.md 2.7), drawn last.
-    if (drawCursor && !touchMode) {
+    if (drawCursor && !touchMode && !hideCursor) {
         if (a.cursor1.valid()) r.quad(px_ - 4, py_ - 2, 32, 32, 0, 0, 1, 1, &a.cursor1, Color{}, Blend::Alpha);
         if (a.cursor2.valid()) r.quad(px_ - 4, py_ - 2, 32, 32, 0, 0, 1, 1, &a.cursor2, Color{}, Blend::Add);
     }

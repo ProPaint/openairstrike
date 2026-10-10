@@ -1,6 +1,6 @@
 // The windowed game loop shared by the desktop executable (main.cpp) and the Android app
 // (android_main.cpp): window and GL context, loading screen, session, renderer, audio,
-// keyboard and touch input, the fixed 60 Hz step with bounded catch-up, the app lifecycle
+// keyboard, game controller and touch input, the fixed 60 Hz step with bounded catch-up, the app lifecycle
 // (background, foreground, GL context loss), pause overlay and frame statistics.
 //
 // With `frontend` the game runs behind the menus (game_flow.h): intro pages, attract level,
@@ -25,6 +25,9 @@
 //   AS3D_SELECTOR cards=KEY@x,y,w,h;... play=... exit=... current=KEY   its layout (virtual
 //                                      800x600), for scripted taps
 //   AS3D_GAME_CHOSEN game=KEY / AS3D_GAME_CHANGE game=KEY   a game was chosen / left
+//   AS3D_PAD added id=N name="..." count=C / removed id=N count=C / held=0xBITS (pad:: bits
+//                                      of as3d/console_pad.h) / navigation=0|1 (the menus'
+//                                      pad mode): game controllers (docs/web.md "Controllers")
 #pragma once
 
 #include <functional>

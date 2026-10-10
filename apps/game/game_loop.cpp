@@ -12,6 +12,7 @@
 #include <map>
 #include <vector>
 
+#include "as3d/console_pad.h"
 #include "as3d/frontend.h"
 #include "as3d/gfx.h"
 #include "as3d/launcher.h"
@@ -26,6 +27,23 @@
 namespace as3d_game {
 
 using namespace as3d;
+
+// as3d/console_pad.h mirrors SDL's game controller layout.
+namespace {
+constexpr bool same(int a, int b) { return a == b; }
+} // namespace
+static_assert(same(gamepad::A, SDL_CONTROLLER_BUTTON_A) && same(gamepad::B, SDL_CONTROLLER_BUTTON_B) &&
+                  same(gamepad::X, SDL_CONTROLLER_BUTTON_X) && same(gamepad::Y, SDL_CONTROLLER_BUTTON_Y) &&
+                  same(gamepad::Back, SDL_CONTROLLER_BUTTON_BACK) && same(gamepad::Start, SDL_CONTROLLER_BUTTON_START) &&
+                  same(gamepad::LeftShoulder, SDL_CONTROLLER_BUTTON_LEFTSHOULDER) &&
+                  same(gamepad::RightShoulder, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) &&
+                  same(gamepad::DUp, SDL_CONTROLLER_BUTTON_DPAD_UP) && same(gamepad::DRight, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) &&
+                  same(gamepad::ButtonCount, SDL_CONTROLLER_BUTTON_DPAD_RIGHT + 1),
+              "console_pad.h gamepad::Button");
+static_assert(same(gamepad::LeftX, SDL_CONTROLLER_AXIS_LEFTX) && same(gamepad::LeftY, SDL_CONTROLLER_AXIS_LEFTY) &&
+                  same(gamepad::TriggerLeft, SDL_CONTROLLER_AXIS_TRIGGERLEFT) &&
+                  same(gamepad::TriggerRight, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) && same(gamepad::AxisCount, SDL_CONTROLLER_AXIS_MAX),
+              "console_pad.h gamepad::Axis");
 
 // ---------------------------------------------------------------------------------------
 // Helpers shared with the headless path.
@@ -197,6 +215,17 @@ private:
     bool relativeMouse_ = false;
     float mouseRelX_ = 0.0f, mouseRelY_ = 0.0f;
     void updateRelativeMouse();
+    // Game controllers (as3d/console_pad.h GamepadInput, docs/web.md "Controllers"): opened on
+    // SDL_CONTROLLERDEVICEADDED, read once per frame. The menus are in pad mode
+    // (MenuSystem::padMode) from the pad's last press until a key or the mouse is used.
+    void controllerEvent(const SDL_Event& e);
+    void readControllers(float dt);
+    void setPadNavigation(bool on);
+    std::vector<SDL_GameController*> controllers_;
+    GamepadInput pad_;
+    PadBindings padBindings_ = gamepadBindings();
+    bool padNavigation_ = false;
+    double lastPadRead_ = -1;
     bool lastPaused_ = false;
     long frame_ = 0;
     long rendered_ = 0;
@@ -435,6 +464,7 @@ void GameWindow::setBackground(bool bg) {
         }
         uiFingers_.clear();
         keys_.releaseAll();
+        pad_.releaseAll();
         touch_.releaseAll();
         mouseFinger_ = false;
         stack_.audio.setPaused(true);
@@ -690,9 +720,15 @@ void GameWindow::uiFrame() {
     const double now = nowSeconds();
     const float dt = lastUi_ < 0 ? 0.0f : static_cast<float>(std::min(0.1, now - lastUi_));
     lastUi_ = now;
+    // The pad: during play only its pause button and Back (Escape, the in-game menu); in the
+    // menus the D-pad / stick, A, B, Start and Back.
+    const bool playingBefore = stack_.flow->playing();
+    const ui::UiInput padUi = playingBefore ? pad_.playingInputs(padBindings_) : pad_.menuInputs();
+    uiIn_.events.insert(uiIn_.events.end(), padUi.events.begin(), padUi.events.end());
     const bool took = stack_.flow->uiFrame(dt, uiIn_);
     uiIn_.events.clear();
     const bool live = stack_.flow->playing() && !took;
+    if (!live) pad_.dropPending(); // a menu had them
     for (const PendingInput& p : pending_) {
         if (p.down && !live) continue;
         if (p.mouse) keys_.mouseButtonEvent(p.code, p.down);
@@ -714,6 +750,16 @@ void GameWindow::uiFrame() {
 
 void GameWindow::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_FINGERDOWN && !touchMode_ && o_.autoTouch) setTouchMode(true);
+    if (e.type == SDL_CONTROLLERDEVICEADDED || e.type == SDL_CONTROLLERDEVICEREMOVED) {
+        controllerEvent(e);
+        return;
+    }
+    // A key or the mouse: the menus leave pad mode (keyboard Up / Down are the widgets'). Not
+    // the captured mouse of mouse control (it does not point at the menus).
+    if (padNavigation_ && ((e.type == SDL_KEYDOWN && !e.key.repeat) ||
+                           (e.type == SDL_MOUSEBUTTONDOWN && e.button.which != SDL_TOUCH_MOUSEID) ||
+                           (e.type == SDL_MOUSEMOTION && e.motion.which != SDL_TOUCH_MOUSEID && !relativeMouse_)))
+        setPadNavigation(false);
     if (selector_ && handleSelectorEvent(e)) return;
     if (stack_.flow && handleFlowEvent(e)) return;
     switch (e.type) {
@@ -788,6 +834,7 @@ void GameWindow::handleEvent(const SDL_Event& e) {
         case SDL_WINDOWEVENT:
             if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
                 keys_.releaseAll();
+                pad_.releaseAll();
                 touch_.releaseAll();
                 mouseFinger_ = false;
             }
@@ -815,6 +862,9 @@ void GameWindow::simulate(int steps) {
         touch_.setPlayerScreen(valid, px, py);
         touch_.setPaused(stack_.flow ? false : pausedByPlayer(cw));
         FrameInput local = keys_.takeFrame();
+        // The pad plays only while the game does (with the front end: no menu up).
+        const FrameInput fromPad = pad_.takeFrame(padBindings_);
+        if (!stack_.flow || stack_.flow->playing()) local = mergeFrameInput(local, fromPad);
         FrameInput fromTouch = touch_.takeFrame();
         FrameInput in = source_.next(static_cast<u32>(frame_), local);
         in = mergeFrameInput(in, fromTouch);
@@ -965,6 +1015,9 @@ int GameWindow::start() {
         return 3;
     }
     gl_->makeCurrent();
+    // Game controllers: SDL then queues SDL_CONTROLLERDEVICEADDED for those already plugged in.
+    if (!SDL_WasInit(SDL_INIT_GAMECONTROLLER) && SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) != 0)
+        AS3D_WARN("no game controllers: %s", SDL_GetError());
     std::string err;
     if (!initGl(&err)) {
         std::fprintf(stderr, "as3d_game: renderer: %s\n", err.c_str());
@@ -1016,6 +1069,7 @@ bool GameWindow::startGame(std::string* err) {
         // The front end draws its own cursor (frontend.md 2.7) unless UseSystemMouse.
         SDL_ShowCursor(touchMode_ || stack_.flow->profile().settings.useSystemMouse ? SDL_ENABLE : SDL_DISABLE);
         stack_.flow->setTouchMode(touchMode_);
+        stack_.flow->frontend().setPadNavigation(padNavigation_);
         SDL_StopTextInput();
         textInput_ = false;
         stack_.flow->boot();
@@ -1179,6 +1233,12 @@ void GameWindow::selectorFrame() {
     const SafeInsets in = o_.safeInsets ? o_.safeInsets() : SafeInsets();
     selector_->setTouchMode(touchMode_);
     selector_->setScreen(fbWidth(), fbHeight(), in, screenMode());
+    {
+        // The pad: Left / Right and A; no Escape (it would quit).
+        const ui::UiInput padUi = pad_.menuInputs(false);
+        uiIn_.events.insert(uiIn_.events.end(), padUi.events.begin(), padUi.events.end());
+        pad_.dropPending();
+    }
     selector_->update(dt, uiIn_);
     uiIn_.events.clear();
     if (selector_->exitRequested()) {
@@ -1208,6 +1268,11 @@ void GameWindow::frame() {
     SDL_Event e;
     while (SDL_PollEvent(&e)) handleEvent(e);
     if (!running_) return;
+    {
+        const double now = nowSeconds();
+        readControllers(lastPadRead_ < 0 ? 0.0f : static_cast<float>(std::min(0.25, now - lastPadRead_)));
+        lastPadRead_ = now;
+    }
     if (background_) {
         // SDL blocks inside SDL_PollEvent while the activity is paused; this only runs
         // between the background event and that point.
@@ -1304,6 +1369,60 @@ void GameWindow::frame() {
     }
 }
 
+void GameWindow::controllerEvent(const SDL_Event& e) {
+    if (e.type == SDL_CONTROLLERDEVICEADDED) {
+        // `which` is the device index here; a device already open (the startup events) is kept.
+        const SDL_JoystickID id = SDL_JoystickGetDeviceInstanceID(e.cdevice.which);
+        for (SDL_GameController* c : controllers_)
+            if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(c)) == id) return;
+        SDL_GameController* c = SDL_GameControllerOpen(e.cdevice.which);
+        if (!c) {
+            AS3D_WARN("cannot open game controller %d: %s", e.cdevice.which, SDL_GetError());
+            return;
+        }
+        controllers_.push_back(c);
+        const char* name = SDL_GameControllerName(c);
+        if (o_.markers) AS3D_INFO("AS3D_PAD added id=%d name=\"%s\" count=%d", static_cast<int>(id), name ? name : "",
+                                  static_cast<int>(controllers_.size()));
+        return;
+    }
+    // Removed: `which` is the instance id.
+    for (size_t i = 0; i < controllers_.size(); ++i) {
+        if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controllers_[i])) != e.cdevice.which) continue;
+        SDL_GameControllerClose(controllers_[i]);
+        controllers_.erase(controllers_.begin() + static_cast<long>(i));
+        if (o_.markers) AS3D_INFO("AS3D_PAD removed id=%d count=%d", static_cast<int>(e.cdevice.which),
+                                  static_cast<int>(controllers_.size()));
+        break;
+    }
+    if (controllers_.empty()) pad_.releaseAll(); // nothing stays held
+}
+
+void GameWindow::readControllers(float dt) {
+    if (controllers_.empty()) return;
+    uint32_t held = 0;
+    for (SDL_GameController* c : controllers_) {
+        GamepadSnapshot s;
+        for (int b = 0; b < gamepad::ButtonCount; ++b)
+            s.buttons[b] = SDL_GameControllerGetButton(c, static_cast<SDL_GameControllerButton>(b)) != 0;
+        for (int a = 0; a < gamepad::AxisCount; ++a) s.axes[a] = SDL_GameControllerGetAxis(c, static_cast<SDL_GameControllerAxis>(a));
+        held |= gamepadHeldBits(s, pad_.pad().held);
+    }
+    const uint32_t before = pad_.pad().held;
+    if (pad_.update(held, dt)) {
+        setPadNavigation(true);
+        redraw_ = true;
+    }
+    if (o_.markers && held != before) AS3D_INFO("AS3D_PAD held=0x%08x frame=%ld", static_cast<unsigned>(held), frame_);
+}
+
+void GameWindow::setPadNavigation(bool on) {
+    if (on == padNavigation_) return;
+    padNavigation_ = on;
+    if (stack_.flow) stack_.flow->frontend().setPadNavigation(on);
+    if (o_.markers) AS3D_INFO("AS3D_PAD navigation=%d", on ? 1 : 0);
+}
+
 void GameWindow::requestPause(const char* reason) {
     if (!stack_.active()) return; // the selector: nothing to pause
     if (!stack_.flow) {
@@ -1366,6 +1485,8 @@ int GameWindow::finish() {
     stack_.teardown(); // saves the profile first
     selector_.reset();
     overlay_.reset();
+    for (SDL_GameController* c : controllers_) SDL_GameControllerClose(c);
+    controllers_.clear();
     return 0;
 }
 

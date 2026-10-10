@@ -1,6 +1,7 @@
 // Console pad to FrameInput and UiInput (as3d/console_pad.h).
 #include "as3d/console_pad.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdlib>
 
@@ -106,6 +107,101 @@ ui::UiInput padToUiInputs(const PadState& now, const PadState& before, const ui:
             in.release(ui::keys::Mouse1);
         }
     }
+    return in;
+}
+
+uint32_t gamepadHeldBits(const GamepadSnapshot& s, uint32_t before, const GamepadOptions& o) {
+    using namespace gamepad;
+    static const struct { int button; uint32_t bit; } kButtons[] = {
+        {A, pad::A}, {B, pad::B}, {X, pad::X}, {Y, pad::Y}, {Back, pad::Select}, {Start, pad::Start},
+        {LeftShoulder, pad::L}, {RightShoulder, pad::R}, {DUp, pad::DUp}, {DDown, pad::DDown},
+        {DLeft, pad::DLeft}, {DRight, pad::DRight}};
+    uint32_t held = 0;
+    for (const auto& b : kButtons)
+        if (s.buttons[b.button]) held |= b.bit;
+    if (s.axes[TriggerLeft] > o.triggerPress) held |= pad::ZL;
+    if (s.axes[TriggerRight] > o.triggerPress) held |= pad::ZR;
+    // The left stick as the D-pad: beyond stickPress, or beyond stickRelease while held before.
+    // The stick's own bit is not kept apart from the D-pad's: with the D-pad held the stick
+    // direction keeps the lower threshold, which only makes it stickier.
+    auto dir = [&](int value, uint32_t bit) {
+        const int threshold = (before & bit) ? o.stickRelease : o.stickPress;
+        if (value > threshold) held |= bit;
+    };
+    const int x = s.axes[LeftX], y = s.axes[LeftY];
+    dir(x, pad::DRight);
+    dir(-x, pad::DLeft);
+    dir(y, pad::DDown); // y down
+    dir(-y, pad::DUp);
+    return held;
+}
+
+PadBindings gamepadBindings() {
+    PadBindings b = defaultBindings();
+    b.nextMissile |= pad::L;
+    b.nextPowerUp |= pad::ZL;
+    return b;
+}
+
+namespace {
+constexpr uint32_t kDirBits[4] = {pad::DUp, pad::DDown, pad::DLeft, pad::DRight};
+constexpr int kDirKeys[4] = {ui::keys::Up, ui::keys::Down, ui::keys::Left, ui::keys::Right};
+} // namespace
+
+bool GamepadInput::update(uint32_t held, float dt) {
+    before_ = now_;
+    PadState p;
+    p.held = held;
+    p.down = held & ~before_.held;
+    p.up = before_.held & ~held;
+    now_ = p;
+    pendingDown_ |= p.down;
+    for (int i = 0; i < 4; ++i) {
+        repeats_[i] = 0;
+        if (!(held & kDirBits[i])) {
+            heldFor_[i] = 0;
+            continue;
+        }
+        if (p.down & kDirBits[i]) continue; // the press itself is the first key
+        const float t0 = heldFor_[i], t1 = heldFor_[i] + dt;
+        heldFor_[i] = t1;
+        // Repeats at kRepeatDelay, then every kRepeatEvery: those that fall in (t0, t1].
+        auto count = [](float t) { return t < kRepeatDelay ? 0 : 1 + static_cast<int>((t - kRepeatDelay) / kRepeatEvery); };
+        repeats_[i] = std::min(count(t1) - count(t0), 3);
+    }
+    return p.down != 0;
+}
+
+void GamepadInput::releaseAll() {
+    before_ = now_ = PadState();
+    pendingDown_ = 0;
+    for (int i = 0; i < 4; ++i) {
+        heldFor_[i] = 0;
+        repeats_[i] = 0;
+    }
+}
+
+FrameInput GamepadInput::takeFrame(const PadBindings& bindings) {
+    PadState p = now_;
+    p.down = pendingDown_;
+    p.held |= pendingDown_; // a tap shorter than a step still holds for one
+    pendingDown_ = 0;
+    return padToFrameInput(p, bindings);
+}
+
+ui::UiInput GamepadInput::menuInputs(bool back) const {
+    PadState p = now_;
+    if (!back) p.down &= ~(pad::B | pad::Start);
+    ui::UiInput in = padToUiInputs(p, before_, ui::Mapping(), 0, 0); // no touch screen here
+    if (back && (p.down & pad::Select)) in.key(ui::keys::Escape);
+    for (int i = 0; i < 4; ++i)
+        for (int k = 0; k < repeats_[i]; ++k) in.key(kDirKeys[i]);
+    return in;
+}
+
+ui::UiInput GamepadInput::playingInputs(const PadBindings& bindings) const {
+    ui::UiInput in;
+    if ((bindings.pause && (now_.down & bindings.pause)) || (now_.down & pad::Select)) in.key(ui::keys::Escape);
     return in;
 }
 

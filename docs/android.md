@@ -381,8 +381,9 @@ with the key `as3d`, the app logged no profile problem and comes up with Screen 
 - Model textures load on first draw; a new enemy type can cause a short hitch on a slow
   device (`AS3D_HITCH`). Terrain, water and the map objects' shadow silhouettes are built at
   level load.
-- Two players, gamepads and the hardware keyboard's rebinding are not supported on Android
-  (a Bluetooth keyboard works with the desktop keys).
+- Two players and the hardware keyboard's rebinding are not supported on Android (a
+  Bluetooth keyboard works with the desktop keys). Gamepads go through the desktop's SDL game
+  controller code (docs/web.md "Controllers"), not tried on a device yet.
 - The emulator renders with SwiftShader (a CPU GLES implementation): its frame times say
   nothing about a phone's. Measured on the `atticpad-test` AVD (Pixel 6 profile, 2400x1080,
   x86_64, KVM, SwiftShader), emulator numbers only: 6 to 9 displayed frames per second

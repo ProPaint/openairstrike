@@ -234,6 +234,9 @@ public:
     // change the focused widget's value: spinner and slider as before, the list's selection, the
     // grid's helicopter (the next unlocked one).
     bool padMode = false;
+    // Ours (docs/web.md "Controllers"): a game controller drives the menus for now (desktop, web):
+    // the drawn cursor is hidden, the focus shows where the pad is.
+    bool hideCursor = false;
 
     // Pushes a menu (built right before, frontend.md 2.1). Resets the menu time, clears the new
     // menu's focus and re-runs the hover test. Beyond 16 menus the push is refused.

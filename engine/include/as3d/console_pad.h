@@ -67,6 +67,78 @@ FrameInput padToFrameInput(const PadState& pad, const PadBindings& bindings, int
 ui::UiInput padToUiInputs(const PadState& now, const PadState& before, const ui::Mapping& map,
                           int touchW, int touchH);
 
+// ---------------------------------------------------------------------------------------
+// Game controllers (docs/web.md "Controllers"): SDL_GameController on the desktop, Android and the
+// web (where Emscripten's SDL reports the browser's "standard" gamepads as game controllers),
+// folded into the same PadState and bindings as the 3DS. The snapshot is SDL's layout without
+// SDL's headers (game_loop.cpp checks the indices against SDL_CONTROLLER_*).
+// ---------------------------------------------------------------------------------------
+
+namespace gamepad {
+// SDL_GameControllerButton order (Xbox names: A bottom, B right, X left, Y top).
+enum Button : int {
+    A = 0, B, X, Y, Back, Guide, Start, LeftStick, RightStick, LeftShoulder, RightShoulder,
+    DUp, DDown, DLeft, DRight, ButtonCount
+};
+// SDL_GameControllerAxis order: sticks -32768..32767 (y down), triggers 0..32767.
+enum Axis : int { LeftX = 0, LeftY, RightX, RightY, TriggerLeft, TriggerRight, AxisCount };
+} // namespace gamepad
+
+struct GamepadSnapshot {
+    bool buttons[gamepad::ButtonCount] = {};
+    int16_t axes[gamepad::AxisCount] = {};
+};
+
+struct GamepadOptions {
+    int stickPress = 13000;   // a stick direction counts beyond 40% of its travel...
+    int stickRelease = 9800;  // ...and stays until it is back under 30% (no chatter at the edge)
+    int triggerPress = 16000; // a trigger is a button beyond half its travel
+};
+
+// One controller's buttons as pad:: bits: A B X Y as the pad's, the shoulders L / R, the
+// triggers ZL / ZR, Start, Back as Select, and the D-pad and the left stick both as the D-pad.
+// `heldBefore` (the bits of the previous read) gives the stick its hysteresis.
+uint32_t gamepadHeldBits(const GamepadSnapshot& s, uint32_t heldBefore, const GamepadOptions& o = {});
+
+// A controller's bindings: defaultBindings() (A fire, B missile, X power-up, Y next weapon,
+// R next missile, ZR next power-up, Start pause) with L and ZL as second next missile / next
+// power-up buttons, so either hand cycles them.
+PadBindings gamepadBindings();
+
+// The controllers of a windowed loop (game_loop.cpp): read once per displayed frame, taken by
+// the fixed simulation steps (0 to a few per frame) and by the menus.
+class GamepadInput {
+public:
+    // Once per displayed frame: the held pad:: bits of every controller ORed, and the frame's
+    // duration (for the menus' key repeat). True when a button or direction went down: the
+    // player is using the pad (the window puts the menus in pad mode).
+    bool update(uint32_t held, float dt);
+    // Controllers gone, focus lost: nothing held, no pending edge.
+    void releaseAll();
+    const PadState& pad() const { return now_; }
+
+    // The input of one simulation step. Presses since the last step are kept until a step
+    // takes them (a frame may run no step), and a press released before it still reaches it.
+    FrameInput takeFrame(const PadBindings& bindings);
+    // Forgets the presses no step has taken (they went to a menu, not to the game).
+    void dropPending() { pendingDown_ = 0; }
+
+    // The menus' input for this frame (padToUiInputs): D-pad and stick as the arrows, held ones
+    // repeating after kRepeatDelay seconds every kRepeatEvery, A as Enter; with `back`, B,
+    // Start and Back as Escape (the game selector has no back: Escape would quit).
+    ui::UiInput menuInputs(bool back = true) const;
+    // During play: Escape (the in-game menu) on the pause button or Back.
+    ui::UiInput playingInputs(const PadBindings& bindings) const;
+
+    static constexpr float kRepeatDelay = 0.4f, kRepeatEvery = 0.1f;
+
+private:
+    PadState now_, before_;
+    uint32_t pendingDown_ = 0; // down edges no step has taken yet
+    float heldFor_[4] = {0, 0, 0, 0};
+    int repeats_[4] = {0, 0, 0, 0}; // repeat keys due this frame per direction (up, down, left, right)
+};
+
 // A scripted pad (the 3DS run.ini pad_script=, for unattended runs in the emulator): presses at
 // displayed frames.
 struct PadScriptPress {

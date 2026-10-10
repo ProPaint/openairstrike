@@ -272,6 +272,13 @@ public:
     // docs/spec/issues/090-touch-mode-additions.md.
     void setTouchMode(bool on);
     bool touchMode() const { return touch_; }
+    // A game controller drives the menus for now (docs/web.md "Controllers"): MenuSystem::padMode
+    // as with FrontendContent::padNavigation (which keeps it on whatever this says), and no
+    // drawn cursor.
+    void setPadNavigation(bool on) {
+        menus_.padMode = on || content_.padNavigation;
+        menus_.hideCursor = on;
+    }
     // Whether Options offers the Screen row (the host: always on Android, on desktop while
     // the window is wider than 4:3). Takes effect when Options is next opened.
     void setScreenOptionShown(bool on) { content_.screenOption = on; }

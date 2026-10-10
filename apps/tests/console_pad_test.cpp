@@ -198,3 +198,139 @@ TEST_CASE("pad: scripted presses (run.ini pad_script)") {
     CHECK_FALSE(parsePadScript("10:t5", bad));
     CHECK(parsePadScript("", bad));
 }
+
+// ---------------------------------------------------------------------------------------
+// Game controllers (SDL_GameController / the browser's standard gamepad, docs/web.md "Controllers").
+// ---------------------------------------------------------------------------------------
+
+namespace {
+bool hasKey(const ui::UiInput& in, int code) {
+    for (const ui::UiEvent& e : in.events)
+        if (e.type == ui::UiEvent::Type::Press && e.code == code) return true;
+    return false;
+}
+int countKey(const ui::UiInput& in, int code) {
+    int n = 0;
+    for (const ui::UiEvent& e : in.events)
+        if (e.type == ui::UiEvent::Type::Press && e.code == code) ++n;
+    return n;
+}
+} // namespace
+
+TEST_CASE("gamepad: buttons, shoulders and triggers become pad bits") {
+    GamepadSnapshot s;
+    s.buttons[gamepad::A] = s.buttons[gamepad::Y] = s.buttons[gamepad::Back] = s.buttons[gamepad::LeftShoulder] = true;
+    s.buttons[gamepad::DLeft] = true;
+    CHECK(gamepadHeldBits(s, 0) == (pad::A | pad::Y | pad::Select | pad::L | pad::DLeft));
+    GamepadSnapshot t;
+    t.buttons[gamepad::B] = t.buttons[gamepad::X] = t.buttons[gamepad::Start] = t.buttons[gamepad::RightShoulder] = true;
+    t.axes[gamepad::TriggerLeft] = 32767;
+    t.axes[gamepad::TriggerRight] = 10000; // under half: not pressed
+    CHECK(gamepadHeldBits(t, 0) == (pad::B | pad::X | pad::Start | pad::R | pad::ZL));
+    CHECK(gamepadHeldBits(GamepadSnapshot(), 0) == 0u);
+}
+
+TEST_CASE("gamepad: the left stick is the D-pad, with a dead zone and hysteresis") {
+    GamepadSnapshot s;
+    s.axes[gamepad::LeftX] = 12000; // inside the dead zone (40%)
+    s.axes[gamepad::LeftY] = -5000;
+    CHECK(gamepadHeldBits(s, 0) == 0u);
+    s.axes[gamepad::LeftX] = 20000;
+    s.axes[gamepad::LeftY] = -20000; // y down: up
+    const uint32_t held = gamepadHeldBits(s, 0);
+    CHECK(held == (pad::DRight | pad::DUp));
+    // Back to 35%: still held (release under 30%), but not pressed from rest.
+    s.axes[gamepad::LeftX] = 11500;
+    s.axes[gamepad::LeftY] = -11500;
+    CHECK(gamepadHeldBits(s, held) == (pad::DRight | pad::DUp));
+    CHECK(gamepadHeldBits(s, 0) == 0u);
+    s.axes[gamepad::LeftX] = 9000;
+    s.axes[gamepad::LeftY] = 0;
+    CHECK(gamepadHeldBits(s, held) == 0u);
+    s.axes[gamepad::LeftX] = -32768;
+    s.axes[gamepad::LeftY] = 32767;
+    CHECK(gamepadHeldBits(s, 0) == (pad::DLeft | pad::DDown));
+}
+
+TEST_CASE("gamepad: bindings are the console's, shoulders and triggers on both sides") {
+    const PadBindings b = gamepadBindings();
+    PadState p;
+    auto heldBits = [&](uint32_t buttons) {
+        p.held = buttons;
+        return padToFrameInput(p, b).held[0];
+    };
+    CHECK(heldBits(pad::A) == bit(InputAction::Fire));
+    CHECK(heldBits(pad::B) == bit(InputAction::Missile));
+    CHECK(heldBits(pad::X) == bit(InputAction::PowerUp));
+    CHECK(heldBits(pad::Y) == bit(InputAction::NextWeapon));
+    CHECK(heldBits(pad::L) == bit(InputAction::NextMissile));
+    CHECK(heldBits(pad::R) == bit(InputAction::NextMissile));
+    CHECK(heldBits(pad::ZL) == bit(InputAction::NextPowerUp));
+    CHECK(heldBits(pad::ZR) == bit(InputAction::NextPowerUp));
+    CHECK(heldBits(pad::DUp | pad::DLeft) == (bit(InputAction::Forward) | bit(InputAction::Left)));
+    CHECK(heldBits(pad::Start) == 0u);
+    CHECK(b.pause == pad::Start);
+}
+
+TEST_CASE("gamepad: presses wait for a simulation step, a short tap still reaches one") {
+    GamepadInput g;
+    const PadBindings b = gamepadBindings();
+    CHECK(g.update(pad::A | pad::Start, 0.016f));
+    CHECK_FALSE(g.update(0, 0.016f)); // released before any step ran
+    FrameInput in = g.takeFrame(b);
+    CHECK(in.held[0] == bit(InputAction::Fire));
+    CHECK(in.confirm);
+    CHECK(in.pausePressed);
+    in = g.takeFrame(b); // the next step: the edges are gone
+    CHECK(in.held[0] == 0u);
+    CHECK_FALSE(in.confirm);
+    CHECK_FALSE(in.pausePressed);
+    // Held across steps: the bit stays, the edge is given once.
+    g.update(pad::B, 0.016f);
+    CHECK(g.takeFrame(b).held[0] == bit(InputAction::Missile));
+    in = g.takeFrame(b);
+    CHECK(in.held[0] == bit(InputAction::Missile));
+    // Presses a menu took are dropped.
+    g.update(pad::B | pad::A, 0.016f);
+    g.dropPending();
+    CHECK_FALSE(g.takeFrame(b).confirm);
+    g.releaseAll();
+    CHECK(g.takeFrame(b).held[0] == 0u);
+}
+
+TEST_CASE("gamepad: menu keys, repeat while held, and back") {
+    GamepadInput g;
+    g.update(pad::DDown, 0.016f);
+    ui::UiInput in = g.menuInputs();
+    CHECK(countKey(in, ui::keys::Down) == 1);
+    // Held: nothing until the repeat delay, then one key per repeat period.
+    g.update(pad::DDown, 0.3f);
+    CHECK(countKey(g.menuInputs(), ui::keys::Down) == 0);
+    g.update(pad::DDown, 0.15f); // 0.45 s: the first repeat
+    CHECK(countKey(g.menuInputs(), ui::keys::Down) == 1);
+    g.update(pad::DDown, 0.03f);
+    CHECK(countKey(g.menuInputs(), ui::keys::Down) == 0);
+    g.update(pad::DDown, 0.1f);
+    CHECK(countKey(g.menuInputs(), ui::keys::Down) == 1);
+    g.update(0, 0.016f);
+    CHECK(g.menuInputs().events.empty());
+
+    g.update(pad::A, 0.016f);
+    CHECK(hasKey(g.menuInputs(), ui::keys::Enter));
+    g.update(pad::B, 0.016f);
+    CHECK(hasKey(g.menuInputs(), ui::keys::Escape));
+    CHECK_FALSE(hasKey(g.menuInputs(false), ui::keys::Escape)); // the game selector: B is not back
+    g.update(pad::Select, 0.016f);
+    CHECK(hasKey(g.menuInputs(), ui::keys::Escape));
+    CHECK_FALSE(hasKey(g.menuInputs(false), ui::keys::Escape));
+
+    // During play only the pause button and Back reach the front end, as Escape.
+    const PadBindings b = gamepadBindings();
+    g.update(0, 0.016f);
+    g.update(pad::A | pad::DLeft, 0.016f);
+    CHECK(g.playingInputs(b).events.empty());
+    g.update(pad::Start, 0.016f);
+    CHECK(hasKey(g.playingInputs(b), ui::keys::Escape));
+    g.update(pad::Start, 0.016f); // still held: no new key
+    CHECK(g.playingInputs(b).events.empty());
+}
