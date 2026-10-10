@@ -168,6 +168,36 @@ const Material& WorldScene::materialFor(const ObjectDef& def, const std::string&
     return ref;
 }
 
+const GpuMesh& WorldScene::meshOf(SlotMemory& mem, const std::string& path) {
+    if (mem.mesh && mem.meshPath == path) return *mem.mesh;
+    const GpuMesh& m = cache_->mesh(path); // cached by the cache too, a failure included
+    mem.meshPath = path;
+    mem.mesh = &m;
+    return m;
+}
+
+const Material& WorldScene::materialOf(SlotMemory& mem, const ObjectDef& def, const std::string& skinOverride) {
+    if (mem.material && mem.materialDef == &def && mem.materialSkin == skinOverride) return *mem.material;
+    const Material& m = materialFor(def, skinOverride);
+    mem.materialDef = &def;
+    mem.materialSkin = skinOverride;
+    mem.material = &m;
+    return m;
+}
+
+const Texture2D* WorldScene::textureOf(SlotMemory& mem, const std::string& path) {
+    if (mem.texture && mem.texturePath == path) return mem.texture;
+    const Texture2D* t = cache_->texture(path).texture;
+    // A path that failed is not cached by the cache (read again at every call): neither here.
+    if (cache_->isPlaceholder(t)) {
+        mem.texture = nullptr;
+        return t;
+    }
+    mem.texturePath = path;
+    mem.texture = t;
+    return t;
+}
+
 const std::vector<VertexRect>& WorldScene::terrainChanges(const World& world, const Terrain* built) {
     rects_.clear();
     if (!built || world.terrain() != built) return rects_;
@@ -295,6 +325,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
         const ObjectDef& def = *e.def;
         SlotMemory& mem = memory_[static_cast<size_t>(i)];
         if (!mem.seen || mem.generation != e.generation) {
+            mem = SlotMemory(); // a new entity in the slot: no lookups kept
             mem.seen = true;
             mem.generation = e.generation;
             mem.spawnOrigin = e.v3(F_BASE_ORIGIN);
@@ -330,7 +361,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
                 const ShadowSpec ss = shadowSpecOf(def.shadow);
                 const bool castsShadow = withShadows && options.shadows && ss.any && def.sort != SortMode::Effect;
                 if ((!options.models && !castsShadow) || !e.model || e.modelPath.empty()) break;
-                const GpuMesh& mesh = cache_->mesh(e.modelPath);
+                const GpuMesh& mesh = meshOf(mem, e.modelPath);
                 if (!mesh.valid) break;
                 std::vector<MeshRecord>* list = nullptr;
                 if (options.models) {
@@ -348,7 +379,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
                         break;
                     }
                 }
-                const Material& mat = materialFor(def, e.skinPath);
+                const Material& mat = materialOf(mem, def, e.skinPath);
                 if (list) {
                     MeshRecord rec;
                     rec.mesh = &mesh;
@@ -391,7 +422,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
                 d.minY = def.bboxMin[1];
                 d.maxX = def.bboxMax[0];
                 d.maxY = def.bboxMax[1];
-                d.texture = cache_->texture(skin).texture;
+                d.texture = textureOf(mem, skin);
                 d.blend = decalBlendOf(def.blend);
                 d.colour = Vec3{colour.x, colour.y, colour.z};
                 d.alpha = rules_.markEntityAlpha ? colour.w : 1.0f;
@@ -431,7 +462,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
                     float f = e.f(F_FRAME);
                     sp.frame = (f > -1.0e7f && f < 1.0e7f) ? static_cast<int>(f) : 0;
                 }
-                sp.texture = cache_->texture(skin).texture;
+                sp.texture = textureOf(mem, skin);
                 sp.blend = decalBlendOf(def.blend);
                 sp.noDepthTest = (def.rflag & RF_NODEPTHTEST) != 0;
                 sp.noDepthWrite = (def.rflag & RF_NODEPTHWRITE) != 0;

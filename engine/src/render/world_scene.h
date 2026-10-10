@@ -205,7 +205,20 @@ private:
         bool seen = false;
         Vec3 spawnOrigin;
         int shadowSteps = 0;
+        // The last lookups of the slot's entity (the same pointers the cache returns, without the
+        // path normalisation and hashing of every frame): its mesh by model path, its material by
+        // (definition, skin override), a sprite's or mark's texture by skin path.
+        std::string meshPath;
+        const GpuMesh* mesh = nullptr;
+        const ObjectDef* materialDef = nullptr;
+        std::string materialSkin;
+        const Material* material = nullptr;
+        std::string texturePath;
+        const Texture2D* texture = nullptr;
     };
+    const GpuMesh& meshOf(SlotMemory& mem, const std::string& path);
+    const Material& materialOf(SlotMemory& mem, const ObjectDef& def, const std::string& skinOverride);
+    const Texture2D* textureOf(SlotMemory& mem, const std::string& path);
     void precacheObject(const ObjectDef& def, const std::string& swapped, const PrecacheHooks& hooks);
     void precacheDrawn(const World& world);
     void precachePlaced(const ObjectDef* def, bool night, int depth);
