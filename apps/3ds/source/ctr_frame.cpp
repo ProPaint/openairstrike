@@ -29,12 +29,15 @@
 #include "flat_fill.h"
 #include "game_flow.h"
 #include "game_session.h"
+#include "gpu_mesh_pica.h"
 #include "mesh_renderer_pica.h"
 #include "model_view.h"
 #include "pass_profile.h"
 #include "shadow_pica.h"
 #include "pica_frame.h"
+#include "quality_pica.h"
 #include "state_check_pica.h"
+#include "terrain_pica.h"
 #include "texture_budget.h"
 #include "ui_pica.h"
 #include "world_pica.h"
@@ -183,6 +186,7 @@ constexpr int kSlowSubmitLogs = 60;
 } // namespace
 
 struct GameFrame::Impl {
+    size_t lodCoarseSeen = 0, lodVisibleSeen = 0; // terrain LOD totals at the last pass report
     RunConfig run;
     CtrContext* ctx = nullptr;
     as3d_game::GameSession* session = nullptr;
@@ -369,6 +373,10 @@ struct GameFrame::Impl {
         r2dBottom.reset(new ui::Renderer2D());
         r2dTopOver.reset(new ui::Renderer2D());
         r2dTouch.reset(new ui::Renderer2D());
+        // The touch band's circles (docs/3ds-port.md "Stereo at 60"): 48 segments made it 16k
+        // vertices a frame, more than the terrain; at the band's radii 24 keep the edge within
+        // a quarter pixel of the circle (run.ini touch_segments=).
+        r2dTouch->setTessellateShapes(true, run.touchSegments);
         r2dMenu.reset(new ui::Renderer2D());
         assets.reset(new ui::UiAssets());
         std::string hudError;
@@ -837,6 +845,7 @@ void GameFrame::prepare(const FrameInfo& info) {
             vp.maxEyeOffset = im.stereo.eyeOffset;
             vp.minFocalDistance = im.stereo.focal;
         }
+        pica::setFrameEyes(im.stereo.eyes); // the stereo-only quality knobs (quality_pica.h)
         im.renderer->prepare(world, vp);
     }
 
@@ -997,9 +1006,22 @@ void GameFrame::stats(FrameStats& out) {
     // The per-pass CPU table (pass_profile.h), every kPassReportFrames displayed frames.
     pica::PassProfile& pp = pica::passProfile();
     pp.endFrame();
-    if (pp.frames() >= kPassReportFrames)
+    if (pp.frames() >= kPassReportFrames) {
         AS3D_INFO("AS3D_PASS_MS eyes=%d (ms/draws/verts per frame) %s", out.eyes,
                   pp.report(static_cast<double>(SYSCLOCK_ARM11) / 1000.0).c_str());
+        // The stereo-at-60 knobs over the same frames (docs/3ds-port.md "Stereo at 60").
+        const pica::TerrainPicaStats& ts = pica::terrainPicaStats();
+        const pica::ShadowPicaStats& ss = pica::shadowPicaStats();
+        const pica::MeshMemoryStats ms = pica::meshMemoryStats();
+        const size_t coarse = ts.coarseTotal - im.lodCoarseSeen, visible = ts.visibleTotal - im.lodVisibleSeen;
+        im.lodCoarseSeen = ts.coarseTotal;
+        im.lodVisibleSeen = ts.visibleTotal;
+        AS3D_INFO("AS3D_STEREO60 eyes=%d terrain_lod=%d coarse_chunks=%zu/%zu (per terrain render) shadow_atlas=%d "
+                  "pages=%d cells=%d full=%d atlas_kb=%.1f mesh_vertices=%zu->%zu mesh_indices=%zu->%zu",
+                  out.eyes, pica::terrainLodActive() ? 1 : 0, coarse, visible, pica::renderQuality().shadowAtlas ? 1 : 0,
+                  ss.atlasPages, ss.atlasCells, ss.atlasFull, static_cast<double>(ss.atlasBytes) / 1024.0,
+                  ms.sourceVertices, ms.mergedVertices, ms.sourceIndices, ms.keptIndices);
+    }
 }
 
 void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {

@@ -94,6 +94,11 @@ struct RunConfig {
     bool top565 = false;       // top_format=rgb565: RGB565 top targets and screen (ctr_context.h setTopColor565)
     bool prefetch = true;      // prefetch=0: no read plan (ctr_loop.h ReadPlan)
     bool shadowCache = true;   // shadow_cache=0: every silhouette rasterised (no sdmc:/.../cache/*.shadows)
+    // Stereo at 60 (docs/3ds-port.md "Stereo at 60 (round 2, P3)"); -1 = the quality profile's default.
+    int terrainLod = -1;              // terrain_lod=auto|0|1|2: far chunks coarse: 0 never, 1 in stereo, 2 always
+    float terrainLodDistance = -1.0f; // terrain_lod_dist=N: world units from the camera to a coarse chunk
+    int shadowAtlas = -1;             // shadow_atlas=0|1: silhouettes in A8 atlas pages, one draw per page
+    int touchSegments = 24;           // touch_segments=N: segments of the touch band's circles (48 before)
     int pakCacheKb = 0;        // pak_cache_kb=N: a block cache of N KB per pak stream (rw_stream_ctr.cpp); 0 = none (default)
     // Frame pacing (ctr_loop.h): pace=auto (0, the default: 60 Hz, 30 Hz while frames do not fit),
     // pace=60, pace=30. The simulation always steps once per vblank.

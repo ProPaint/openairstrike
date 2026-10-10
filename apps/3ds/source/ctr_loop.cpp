@@ -447,7 +447,8 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         }
         AS3D_INFO("graphics: %s", gl->description().c_str());
     }
-    const QualityProfile quality = sim ? newProfile() : selectQuality(run.quality, new3ds);
+    QualityProfile quality = sim ? newProfile() : selectQuality(run.quality, new3ds);
+    applyRunOverrides(quality, run);
     if (!sim) {
         applyQuality(quality, new3ds);
         startPacing(quality.renderHz);

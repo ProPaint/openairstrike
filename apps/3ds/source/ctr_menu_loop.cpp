@@ -154,7 +154,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         return 1;
     }
     AS3D_INFO("graphics: %s", gl->description().c_str());
-    const QualityProfile quality = selectQuality(run.quality, new3ds);
+    QualityProfile quality = selectQuality(run.quality, new3ds);
+    applyRunOverrides(quality, run);
     applyQuality(quality, new3ds);
     startPacing(quality.renderHz);
 

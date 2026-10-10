@@ -173,6 +173,15 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.touch = n != 0;
         } else if (key == "shadow_cache") {
             if (toInt(val, &n)) c.shadowCache = n != 0;
+        } else if (key == "terrain_lod") {
+            if (val == "auto") c.terrainLod = -1;
+            else if (toInt(val, &n) && n >= 0 && n <= 2) c.terrainLod = n;
+        } else if (key == "terrain_lod_dist") {
+            if (toFloat(val, &f) && f >= 0.0f) c.terrainLodDistance = f;
+        } else if (key == "touch_segments") {
+            if (toInt(val, &n) && n >= 8 && n <= 96) c.touchSegments = n;
+        } else if (key == "shadow_atlas") {
+            if (toInt(val, &n)) c.shadowAtlas = n != 0 ? 1 : 0;
         } else if (key == "top_format") {
             if (val == "rgb565") c.top565 = true;
             else if (val == "rgba8") c.top565 = false;

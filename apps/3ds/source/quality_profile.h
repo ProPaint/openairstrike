@@ -17,6 +17,12 @@ struct QualityProfile {
     bool terrainDetail = true;       // the terrain's detail texture (2-stage TEV)
     bool stereoAllowed = true;       // the 3D slider may draw two eyes
     bool preferPrerenderedMusic = false; // Ogg before the module (M2.4 already prefers it when present)
+    // Stereo at 60 (docs/3ds-port.md "Stereo at 60 (round 2, P3)"): the terrain's far chunks coarse
+    // (0 never, 1 while two eyes are drawn, 2 always) beyond terrainLodDistance world units, and
+    // the silhouettes in atlas pages.
+    int terrainLod = 1;
+    float terrainLodDistance = 520.0f;
+    bool shadowAtlas = true;
 
     // Simulation steps one drawn frame may catch up (the loops' bounded catch-up).
     int maxCatchUp() const { return renderHz == 30 ? 4 : 2; }
@@ -26,6 +32,8 @@ QualityProfile newProfile();
 QualityProfile oldProfile();
 // `mode` is run.ini quality=: Auto picks by `isNew3ds`.
 QualityProfile selectQuality(QualityMode mode, bool isNew3ds);
+// run.ini terrain_lod=, terrain_lod_dist=, shadow_atlas= over the profile's values.
+void applyRunOverrides(QualityProfile& q, const RunConfig& run);
 // Sets pica::RenderQuality and the target frame rate (C3D_FrameRate); call after the graphics
 // context exists and before the level starts. Logs the AS3D_QUALITY line.
 void applyQuality(const QualityProfile& q, bool isNew3ds);
