@@ -61,6 +61,10 @@ struct MeshMemoryStats {
     size_t envBytes = 0;  // of `bytes`: the env normal streams (smooth-normal meshes)
     int envMeshes = 0;    // live meshes with an env normal stream
     int failures = 0;     // uploads refused: no linear memory, or more than 65535 vertices
+    // Since start: buildRenderMesh's vertices and indices against what upload() kept (corners
+    // with byte-identical PICA vertices merged, triangles without area dropped).
+    size_t sourceVertices = 0, mergedVertices = 0;
+    size_t sourceIndices = 0, keptIndices = 0;
 };
 MeshMemoryStats meshMemoryStats();
 
