@@ -122,6 +122,33 @@ Space, X and C. A profile carried over keeps its keys. The keys reach the game w
 has the focus (click it once if you clicked elsewhere); F5, F11, F12 and every Ctrl, Alt or
 Cmd combination stay with the browser. The mouse works in the menus as on the desktop.
 
+**Controllers** (ours; the desktop build has the same): an Xbox or PlayStation style pad, any
+pad the browser reports with the "standard" mapping, through SDL's game controllers (Emscripten
+turns the Gamepad API into them; plugging in and out is followed). The layout is the 3DS's
+(`as3d/console_pad.h`, `gamepadBindings`):
+
+| | in flight | in the menus |
+|---|---|---|
+| left stick, D-pad | fly | move the selection (held: repeats); Left / Right change a value |
+| A | fire (and close a hint) | Enter |
+| B | missile | back (Esc) |
+| X | use item (power-up) | |
+| Y | switch weapon and item | |
+| LB, RB | switch missiles | |
+| LT, RT | switch item | |
+| Start | in-game menu (again: resume) | back (Esc) |
+| Back / Select | in-game menu | back (Esc) |
+
+The stick counts beyond 40% of its travel and lets go under 30%. The first pad press puts the
+menus in pad mode (the drawn cursor hides; Up and Down always move between items, Left and
+Right change spinners, sliders, the mission list and the helicopter), the next key or mouse
+use takes them back. The page's start screen also follows the pad until the game starts
+(Left / Right between the cards, A or Start plays). The browser shows a pad to the page only
+after one of its buttons was pressed, and a pad press is no user gesture: full screen (and,
+where the browser holds it back, sound) still needs a click, a tap or a key once. Touch mode
+is not changed by the pad, as it is not by keys. The `AS3D_PAD` console lines (added, removed,
+held bits, navigation) are for the tests.
+
 **Touch**: phones and tablets start in touch mode with the Android app's controls (drag
 anywhere to fly, the round buttons for missile, power-up and switching, the pause button for
 the in-game menu). A computer with a touch screen switches to touch mode at the first touch;
@@ -223,6 +250,9 @@ backup and the missing old file are in storage, and after a second reload as wel
   offered, old-style stored files; the migration of a version 1 profile). The scenarios of the
   first game force `?game=as3d`. It taps the real menu items from the engine's
   `AS3D_MENU` lines.
+* `gamepad.js` (node): a fake standard gamepad plays AirStrike 3D with no key or click (start
+  screen, intro, menus, Start Game, flight with stick and D-pad, the in-game menu, unplug and
+  replug); `PLAYWRIGHT` and `CHROMIUM` point at a Playwright module and a Chromium.
 * `measure.py`: the spike's measurement run (frame times, memory, audio level, screenshots).
 * `files_check.js` (node): the page's SHA-256, the sizes and hashes of every game's files, the
   assignment of dropped files to their game, and the texts read from the executable against

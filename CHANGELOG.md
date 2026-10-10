@@ -5,6 +5,9 @@ they list the commits since the previous tag.
 
 ## 0.3.2
 
+- Game controllers on the web and the desktop (Xbox / PlayStation style pads): fly, fire and
+  go through the menus and the web start screen without the keyboard (docs/web.md
+  "Controllers").
 - Web: "Add another game's files" on the start page; before, a second game could only be
   added through `?game=`.
 

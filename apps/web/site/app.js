@@ -435,6 +435,10 @@
   const lastGame = () => { try { return localStorage.getItem(LAST_GAME); } catch (e) { return null; } };
   let offered = [];       // the games offered on the start screen (more than one: the chooser)
   let wantStart = null;   // a card was clicked: start once the engine is ready ({ full })
+  // A game controller on the start screen (docs/web.md "Controllers"): the engine reads the
+  // controllers once it runs (SDL); before that the page does. Left / Right (D-pad or left
+  // stick) move between the cards, A or Start plays. `nav` is the chooser's, while it is up.
+  const padStart = { nav: null, prev: null, raf: 0 };
   const unfinished = q.get('unfinished') === '1';
   // ?games=as3d,as2 narrows the selector to those games (tests, screenshots).
   const only = /^[a-z0-9,]+$/.test(q.get('games') || '') ? q.get('games').split(',') : null;
@@ -514,6 +518,7 @@
         b.classList.add('chosen');
         $('games').classList.add('chosen');
         document.removeEventListener('keydown', onKey);
+        padStart.nav = null;
         log('AS3D_WEB game_chosen=' + g);
         ok(g);
       };
@@ -544,6 +549,7 @@
       $('choose-play').disabled = false;
       $('choose-play').onclick = () => play(current);
       document.addEventListener('keydown', onKey);
+      padStart.nav = { move: (d) => setCurrent(current + d), play: () => play(current) };
       setCurrent(current);
       $('choose-full-label').hidden = touchAtStart || !fsApi || installed;
       $('games').hidden = false;
@@ -839,6 +845,44 @@
   play.addEventListener('click', () => start(touchAtStart));
   playFull.addEventListener('click', () => start(true));
   $('again').addEventListener('click', () => location.reload());
+
+  // The start screen's controller poll (padStart above), only while a pad is connected and the
+  // game has not started. A press counts on its down edge: the press that made the browser
+  // reveal the pad is not taken. (A pad press is no user gesture for the browser: full screen
+  // still needs a click or a key.)
+  function padPoll() {
+    padStart.raf = 0;
+    if (state.started) return;
+    const pads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter((p) => p && p.connected) : [];
+    if (!pads.length) { padStart.prev = null; return; }
+    const now = { left: false, right: false, go: false };
+    for (const p of pads) {
+      const b = (i) => !!(p.buttons[i] && p.buttons[i].pressed);
+      const x = p.axes[0] || 0;
+      now.left = now.left || b(14) || x < -0.5;
+      now.right = now.right || b(15) || x > 0.5;
+      now.go = now.go || b(0) || b(9);
+    }
+    const prev = padStart.prev;
+    padStart.prev = now;
+    if (prev) {
+      if (padStart.nav) {
+        if (now.left && !prev.left) padStart.nav.move(-1);
+        if (now.right && !prev.right) padStart.nav.move(1);
+        if (now.go && !prev.go) padStart.nav.play();
+      } else if (now.go && !prev.go && !play.disabled && !$('start').hidden) {
+        log('AS3D_WEB pad_play');
+        start(touchAtStart);
+      }
+    }
+    if (!state.started) padStart.raf = requestAnimationFrame(padPoll);
+  }
+  window.addEventListener('gamepadconnected', (e) => {
+    log('AS3D_WEB gamepad connected index=' + e.gamepad.index + ' mapping=' + (e.gamepad.mapping || 'none') +
+        ' id=' + e.gamepad.id);
+    if (!state.started && !padStart.raf) padStart.raf = requestAnimationFrame(padPoll);
+  });
+  window.addEventListener('gamepaddisconnected', (e) => log('AS3D_WEB gamepad disconnected index=' + e.gamepad.index));
 
   // Calls from the engine.
   window.as3dPage = {
