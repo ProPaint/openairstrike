@@ -47,6 +47,7 @@ void Renderer2D::begin(int fbWidth, int fbHeight, int originX, int originY) {
     originX_ = originX;
     originY_ = originY;
     quads_.clear();
+    breaks_.clear();
     dropped_ = 0;
 }
 

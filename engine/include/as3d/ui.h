@@ -148,6 +148,15 @@ public:
 
     const std::vector<Quad>& quads() const { return quads_; }
     int dropped() const { return dropped_; }
+    // A cache boundary for the PICA backend (renderer2d_pica.cpp): the quads added since the last
+    // boundary are converted and cached as a unit of their own, so that a change elsewhere in the
+    // list does not rebuild them (the 3DS touch band: its tessellated discs stay cached while a
+    // count on a button face changes). Drawing order and pixels are unchanged; the GL backend
+    // ignores it. begin() clears the boundaries.
+    void cacheBreak() {
+        if (!quads_.empty() && (breaks_.empty() || breaks_.back() != quads_.size())) breaks_.push_back(quads_.size());
+    }
+    const std::vector<size_t>& cacheBreaks() const { return breaks_; }
 
     // The sequels shift every quad by -0.5 virtual pixel in x and y before drawing (Direct3D
     // pixel centres, as2/render-pipeline.delta.md 8.2; invisible at 800x600). Off by default:
@@ -173,6 +182,7 @@ private:
     Mapping mapping_;
     int originX_ = 0, originY_ = 0;
     std::vector<Quad> quads_;
+    std::vector<size_t> breaks_; // cacheBreak()
     int dropped_ = 0;
     bool halfPixelShift_ = false;
     bool tessellate_ = false;

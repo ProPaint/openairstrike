@@ -208,6 +208,9 @@ void drawTouchControls(Renderer2D& r, const TouchMapper& touch, const TouchContr
         r.ring(x, y, rad, std::max(rad * 0.075f, 1.5f * px), withAlpha(rim, a), Blend::Alpha, px * 0.5f);
         r.ring(x, y, rad * 0.9f, std::max(rad * 0.025f, px), Color{1, 1, 1, 0.10f * a});
         if (held) r.ring(x, y, rad * 1.12f, rad * 0.14f, Color{1.0f, 0.55f, 0.1f, 0.55f}, Blend::Add, rad * 0.10f);
+        // The disc (thousands of tessellated vertices on the 3DS) and the face (icon, count) are
+        // cached apart: a count or an icon that changes rebuilds the face only (Renderer2D::cacheBreak).
+        r.cacheBreak();
 
         const Box box{x - rad, y - rad, 2 * rad, 2 * rad};
         const Color light = withAlpha(Color{0.92f, 0.93f, 0.97f, 1}, a);
@@ -262,6 +265,7 @@ void drawTouchControls(Renderer2D& r, const TouchMapper& touch, const TouchContr
                 break;
             default: break;
         }
+        r.cacheBreak();
     }
     // Where the drag is steering the helicopter.
     if (touch.dragging() && touch.targetValid()) {

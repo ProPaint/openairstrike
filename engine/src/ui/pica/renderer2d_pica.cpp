@@ -135,7 +135,7 @@ struct CacheSlot {
     unsigned lastUse = 0;     // LRU stamp
 };
 
-constexpr int kCacheSlots = 6;
+constexpr int kCacheSlots = 24; // per list: the touch band alone has 13 units (Renderer2D::cacheBreak)
 
 template <class T> T* growLinear(T* p, size_t& cap, size_t need) {
     if (need <= cap && p) return p;
@@ -157,6 +157,7 @@ struct Renderer2D::Impl {
     std::vector<Vertex2D> verts;
     std::vector<Run2D> runs;
     CacheSlot slots[kCacheSlots];
+    std::vector<Quad> unitQuads; // a cache unit's quads (flush)
     unsigned useStamp = 0;
     ~Impl() {
         for (CacheSlot& c : slots) {
@@ -193,38 +194,72 @@ int Renderer2D::flush() {
     if (!target.target) return 0;
 
     const unsigned frame = pica::frameArena().frames();
-    // A cached conversion of the same list (the vertices depend on the quads, the mapping, the
-    // half-pixel shift, the circle segments and the snapping only).
-    CacheSlot* hit = nullptr;
-    for (CacheSlot& c : im.slots) {
-        if (!c.valid || c.quads.size() != quads_.size() || c.halfPixel != halfPixelShift_ || c.snap != g_snap ||
+    // The cache units: the whole list, or the ranges between cacheBreak() boundaries (as3d/ui.h),
+    // each converted and cached on its own.
+    struct Unit {
+        size_t first = 0, count = 0;
+        const std::vector<Run2D>* runs = nullptr;
+        const pica::FlatVertex* flat = nullptr;
+        const pica::Flat2Vertex* flat2 = nullptr;
+        bool hit = false;
+    };
+    std::vector<Unit> units;
+    {
+        size_t from = 0;
+        for (size_t b : breaks_) {
+            if (b > from && b <= quads_.size()) {
+                units.push_back(Unit{from, b - from});
+                from = b;
+            }
+        }
+        if (from < quads_.size()) units.push_back(Unit{from, quads_.size() - from});
+    }
+    auto sameAs = [&](const CacheSlot& c, const Unit& u) {
+        if (!c.valid || c.quads.size() != u.count || c.halfPixel != halfPixelShift_ || c.snap != g_snap ||
             c.segments != segments_ || !sameMapping(c.mapping, mapping_))
-            continue;
-        bool same = true;
-        for (size_t i = 0; same && i < quads_.size(); ++i) same = sameQuad(c.quads[i], quads_[i]);
-        if (same) {
-            hit = &c;
+            return false;
+        for (size_t i = 0; i < u.count; ++i)
+            if (!sameQuad(c.quads[i], quads_[u.first + i])) return false;
+        return true;
+    };
+    // First the units whose cached conversion is still there (a cached conversion of the same
+    // quads: the vertices depend on the quads, the mapping, the half-pixel shift, the circle
+    // segments and the snapping only), so that rebuilding a changed unit never takes a slot an
+    // unchanged one of this flush is about to reuse.
+    for (Unit& u : units) {
+        for (CacheSlot& c : im.slots) {
+            if (!sameAs(c, u)) continue;
+            ++g_stats.cacheHits;
+            u.hit = true;
+            u.runs = &c.runs;
+            u.flat = c.flat;
+            u.flat2 = c.flat2;
+            c.usedFrame = frame;
+            c.lastUse = ++im.useStamp;
             break;
         }
     }
-    const std::vector<Run2D>* runs = nullptr;
-    const pica::FlatVertex* flat = nullptr;
-    const pica::Flat2Vertex* flat2 = nullptr;
-    if (hit) {
-        ++g_stats.cacheHits;
-        runs = &hit->runs;
-        flat = hit->flat;
-        flat2 = hit->flat2;
-        hit->usedFrame = frame;
-        hit->lastUse = ++im.useStamp;
-    } else {
+    std::vector<std::vector<Run2D>> arenaRuns; // the runs of units drawn from the frame arena
+    arenaRuns.reserve(units.size());
+    for (Unit& u : units) {
+        if (u.hit) continue;
         const u64 tBatch = svcGetSystemTick();
         Batch2DOptions opts;
         opts.halfPixelShift = halfPixelShift_;
         opts.tessellateShapes = true;
         opts.circleSegments = segments_;
-        buildBatch2D(quads_, mapping_, im.verts, im.runs, opts);
-        if (im.verts.empty()) return 0;
+        const bool whole = u.first == 0 && u.count == quads_.size();
+        if (whole) {
+            buildBatch2D(quads_, mapping_, im.verts, im.runs, opts);
+        } else {
+            im.unitQuads.assign(quads_.begin() + static_cast<long>(u.first),
+                                quads_.begin() + static_cast<long>(u.first + u.count));
+            buildBatch2D(im.unitQuads, mapping_, im.verts, im.runs, opts);
+        }
+        if (im.verts.empty()) {
+            u.runs = nullptr;
+            continue;
+        }
         if (g_snap)
             for (const Run2D& run : im.runs)
                 if (run.tex && !run.shape) snapQuads(im.verts, run.first, run.count);
@@ -260,7 +295,8 @@ int Renderer2D::flush() {
             outFlat2 = flat2Count ? arena.allocArray<pica::Flat2Vertex>(flat2Count) : nullptr;
             if (!outFlat || (flat2Count && !outFlat2)) {
                 ++g_stats.arenaFailures;
-                return 0;
+                u.runs = nullptr;
+                continue;
             }
             g_stats.arenaBytes += count * sizeof(pica::FlatVertex) + flat2Count * sizeof(pica::Flat2Vertex);
         }
@@ -294,7 +330,8 @@ int Renderer2D::flush() {
             GSPGPU_FlushDataCache(outFlat, static_cast<u32>(count * sizeof(pica::FlatVertex)));
             if (flat2Count) GSPGPU_FlushDataCache(outFlat2, static_cast<u32>(flat2Count * sizeof(pica::Flat2Vertex)));
             slot->valid = true;
-            slot->quads = quads_;
+            slot->quads.assign(quads_.begin() + static_cast<long>(u.first),
+                               quads_.begin() + static_cast<long>(u.first + u.count));
             slot->mapping = mapping_;
             slot->halfPixel = halfPixelShift_;
             slot->snap = g_snap;
@@ -304,12 +341,13 @@ int Renderer2D::flush() {
             slot->flat2Count = flat2Count;
             slot->usedFrame = frame;
             slot->lastUse = ++im.useStamp;
-            runs = &slot->runs;
+            u.runs = &slot->runs;
         } else {
-            runs = &im.runs;
+            arenaRuns.push_back(im.runs);
+            u.runs = &arenaRuns.back();
         }
-        flat = outFlat;
-        flat2 = outFlat2;
+        u.flat = outFlat;
+        u.flat2 = outFlat2;
         pica::passProfile().add(pica::Pass::Ui2dCopy, svcGetSystemTick() - tCopy, 0, static_cast<int>(count));
     }
 
@@ -326,48 +364,51 @@ int Renderer2D::flush() {
     pica::detail::c3dAlphaTest(false, GPU_ALWAYS, 0);
 
     int calls = 0;
-    size_t flat2Used = 0;
-    for (const Run2D& run : *runs) {
-        if (run.count <= 0) continue;
-        const bool two = run.tex2 && run.combine2 != CombineMode::None;
-        const Texture2D* tex = run.tex;
-        if (tex && !tex->valid()) {
-            // A texture that is not loaded: callers create them outside frames (UiAssets).
-            ++g_stats.missingTextures;
-            AS3D_WARN("ui2d pica: draw with an unloaded texture, drawn white");
-            tex = &im.white;
-        }
-        if (two && !tex) tex = &im.white;
-        setBlendFor(run.blend);
-        const void* vertices = flat;
-        if (two) {
-            sh.bind(pica::Shader::Flat2);
-            vertices = flat2 + flat2Used;
-        } else {
-            sh.bind(pica::Shader::Flat);
-        }
-        sh.setMvp(mvp);
-        sh.setVertices(vertices);
-        if (two) {
-            pica::applyTev(pica::tevCombine2(static_cast<int>(run.combine2)));
-            const Texture2D* t2 = run.tex2->valid() ? run.tex2 : &im.white;
-            if (!run.tex2->valid()) ++g_stats.missingTextures;
-            t2->bind(1);
-            tex->bind(0);
-            C3D_DrawArrays(GPU_TRIANGLES, 0, run.count);
-            flat2Used += static_cast<size_t>(run.count);
-            ++g_stats.flat2Runs;
-        } else {
-            if (tex) {
-                pica::applyTev(pica::tevModulateTexColor());
-                tex->bind(0);
-            } else {
-                pica::applyTev(tevPrimaryOnly());
+    for (const Unit& u : units) {
+        if (!u.runs) continue;
+        size_t flat2Used = 0;
+        for (const Run2D& run : *u.runs) {
+            if (run.count <= 0) continue;
+            const bool two = run.tex2 && run.combine2 != CombineMode::None;
+            const Texture2D* tex = run.tex;
+            if (tex && !tex->valid()) {
+                // A texture that is not loaded: callers create them outside frames (UiAssets).
+                ++g_stats.missingTextures;
+                AS3D_WARN("ui2d pica: draw with an unloaded texture, drawn white");
+                tex = &im.white;
             }
-            C3D_DrawArrays(GPU_TRIANGLES, run.first, run.count);
+            if (two && !tex) tex = &im.white;
+            setBlendFor(run.blend);
+            const void* vertices = u.flat;
+            if (two) {
+                sh.bind(pica::Shader::Flat2);
+                vertices = u.flat2 + flat2Used;
+            } else {
+                sh.bind(pica::Shader::Flat);
+            }
+            sh.setMvp(mvp);
+            sh.setVertices(vertices);
+            if (two) {
+                pica::applyTev(pica::tevCombine2(static_cast<int>(run.combine2)));
+                const Texture2D* t2 = run.tex2->valid() ? run.tex2 : &im.white;
+                if (!run.tex2->valid()) ++g_stats.missingTextures;
+                t2->bind(1);
+                tex->bind(0);
+                C3D_DrawArrays(GPU_TRIANGLES, 0, run.count);
+                flat2Used += static_cast<size_t>(run.count);
+                ++g_stats.flat2Runs;
+            } else {
+                if (tex) {
+                    pica::applyTev(pica::tevModulateTexColor());
+                    tex->bind(0);
+                } else {
+                    pica::applyTev(tevPrimaryOnly());
+                }
+                C3D_DrawArrays(GPU_TRIANGLES, run.first, run.count);
+            }
+            ++calls;
+            g_stats.vertices += run.count;
         }
-        ++calls;
-        g_stats.vertices += run.count;
     }
     ++g_stats.flushes;
     g_stats.runs += calls;
