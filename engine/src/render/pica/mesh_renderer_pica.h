@@ -32,7 +32,8 @@
 //     to setEnvironment() (the central camera view, as GL's uView; the same for both eyes).
 //     A glitter or chrome material without a skin texture draws as a plain model.
 // Order: GL's (mesh_renderer.cpp): the records sorted by SortBucket (opaque, trans, effect),
-// submission order inside a bucket (render-pipeline.md 1.2: the original never depth-sorts).
+// submission order inside a bucket (render-pipeline.md 1.2: the original never depth-sorts);
+// then, with setMeshStateSort (default), the opaque runs without blending in state order (below).
 #pragma once
 
 #include <cstddef>
@@ -42,6 +43,7 @@
 #include "as3d/material_key.h"
 #include "as3d/math.h"
 #include "as3d/scene.h"
+#include "shader_set.h"
 
 namespace as3d::pica {
 
@@ -51,7 +53,34 @@ struct MeshDrawStats {
     int triangles = 0;
     size_t bytes = 0;  // vertex + index (+ env normal) bytes the draws read
     int envDraws = 0;  // of `draws`: environment-mapped (Shader::Env)
+    int textureBinds = 0; // skin binds that changed texture unit 0
+    int stateChanges = 0; // material states issued (applyMaterialState)
+    int mergedDraws = 0;   // of `draws`: merged runs of small records (setMeshMerge)
+    int mergedRecords = 0; // the records those draws cover
+    size_t mergeArenaBytes = 0; // their world-space vertices in the frame arena (first eye)
 };
+
+// run.ini mesh_merge= (default off): a run of small records (at most kMergeMaxVertices vertices,
+// no environment map) in a row in drawing order with the same skin and material state is one
+// draw: the first eye of a frame writes their triangles into the frame arena in world space,
+// with each corner's colour as the mesh shader computes it (the lit cube colours, or the unlit
+// constant) as 8-bit vertex colours, and draws them with the flat shader. The triangles keep
+// their order, so blended effects compose as before; the pixels differ only by the rounding of
+// the CPU's vertex transform and colour against the GPU's. Off by default: under Azahar the
+// CPU baking costs as much as the draws it saves (docs/3ds-port.md "Sequels' CPU"); a console
+// A/B switch.
+void setMeshMerge(bool on);
+bool meshMerge();
+constexpr u32 kMergeMaxVertices = 32;
+constexpr u32 kMergeMaxIndices = 48;
+constexpr size_t kMergeMaxRunVertices = 6144; // triangle corners of one merged draw
+
+// run.ini mesh_sort= (default on): finish() orders each run of opaque records without blending
+// and with depth test and write (whose order only matters for equal depths) by shader, skin, TEV
+// and material state, ties in submission order; blended or depth-write-off records keep their
+// place. Off: the GL's submission order everywhere (A/B dumps).
+void setMeshStateSort(bool on);
+bool meshStateSort();
 
 class MeshPass {
 public:
@@ -75,7 +104,6 @@ public:
     size_t size() const { return records_.size(); }
     const MeshDrawStats& lastStats() const { return stats_; } // of the last draw()
 
-private:
     struct Record {
         const GpuMeshBuffers* gpu = nullptr;
         const Texture2D* texture = nullptr;
@@ -95,12 +123,27 @@ private:
         float normalRows[3][3] = {};
         float rot[2][2] = {{1.0f, 0.0f}, {0.0f, 1.0f}};
     };
+
+private:
     Mat4 envView_;
     float envTime_ = 0.0f;
     bool envViewNormal_ = false;
     SceneLighting lighting_;
     std::vector<DynamicLight> lights_;
-    std::vector<Record> records_;
+    std::vector<Record> records_; // in submission order
+    std::vector<u16> order_;      // the drawing order (finish())
+    // The draws (finish()): `count` records from order_[first]; a merged run has count > 1 and
+    // its `vertices` triangle corners in the arena (`verts`, built in `arenaFrame`).
+    struct DrawItem {
+        u16 first = 0, count = 1;
+        size_t vertices = 0;
+        FlatVertex* verts = nullptr;
+        unsigned arenaFrame = ~0u;
+    };
+    std::vector<DrawItem> items_;
+    std::vector<FlatVertex> scratch_;
+    void buildItems();
+    void bakeRecord(const Record& r, FlatVertex* out);
     MeshDrawStats stats_;
 };
 

@@ -87,6 +87,8 @@ struct RunConfig {
     bool depthMapZ = false;    // depthmap=z|w: the world passes with the Z-buffer mapping instead of the W-buffer
     bool water = true;         // water=0: no water pass
     int fixedSteps = 0;        // fixed_steps=N (1..8): N simulation steps per displayed frame, the clock ignored
+    bool meshMerge = false;    // mesh_merge=1: runs of tiny mesh records as one draw (mesh_renderer_pica.h)
+    bool meshSort = true;      // mesh_sort=0: the opaque meshes in submission order (mesh_renderer_pica.h)
     float waterTile = -1.0f;   // water_tile=N: the plane's tile size in world units (0 = the GL's 320-unit quads); -1 = the default
     // Hardware tuning (A/B runs, docs/3ds-port.md "Hardware tuning"):
     std::string passes;        // passes=a,b,..: only these passes draw (pass_profile.h names, world, all); empty = all

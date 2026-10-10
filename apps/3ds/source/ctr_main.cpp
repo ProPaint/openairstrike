@@ -9,6 +9,7 @@
 #include "ctr_loop.h"
 #include "ctr_save.h"
 #include "ctr_selector.h"
+#include "mesh_renderer_pica.h"
 #include "pica_frame.h"
 #include "run_config.h"
 #include "spike.h"
@@ -22,6 +23,8 @@ int main() {
     as3d::pica::setWBufferAsZBuffer(options.run.depthMapZ);
     as3d::pica::setFogForcedOff(!options.run.fog);
     as3d::ctr::setTopColor565(options.run.top565); // run.ini top_format= (before the graphics context)
+    as3d::pica::setMeshStateSort(options.run.meshSort);
+    as3d::pica::setMeshMerge(options.run.meshMerge);
     as3d::pica::setWaterOptions(options.run.water, options.run.waterTile >= 0.0f ? options.run.waterTile
                                                                                 : as3d::pica::kDefaultWaterTile);
     if (!options.run.usesLoop()) return runSpike();
