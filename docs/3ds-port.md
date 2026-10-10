@@ -45,7 +45,8 @@ current loadout) and the front end's pictures, and queue any remaining late crea
 of the frame (never inside the command stream). The same mid-frame upload is a candidate trigger
 for the water wash (a corrupted command stream for the frames around it), to test together with
 the A/B list above. prepare() is 2.5-7 ms in play against 1.7 in the bot runs (more particles
-and projectiles): profile it per pass.
+and projectiles): profile it per pass. **Round 2, P1 (below, "Late loads and mid-frame uploads")
+found the long submits to be the touch band's rebuild, not the loads**, and made both safe.
 
 **Round 2, synchronisation (2026-10-10, see "Frame synchronisation" at the end):** the arena halves
 and deferLinearFree were safe under gpu_kick (C3D_FrameBegin waits for the whole GX queue, the
@@ -75,6 +76,90 @@ binary: it rebuilds and sends the main checkout's); afterwards ftpd again and
 [apps/3ds/README.md](../apps/3ds/README.md); `mode=play` is the game, `mode=bot level=1
 frames=3600 perf=1` the acceptance run. Azahar (emulator) is for correctness only; it never
 showed the two water bugs (large triangles, state copies) that the console did.
+
+## Late loads and mid-frame uploads (engineering round 2, P1, 2026-10-10)
+
+The drop 5 play session (out/3ds/hw21-play-final-098f524/) had 32 of 40 misses on frames whose
+submit took 18-24 ms, and `AS3D_LAZY_LOADS mission=1 textures=7 sounds=1 shadows=1`, front end
+`textures=21 scripts=4 sounds=2 other=43`. Its perf.csv shows that the long submits are **not** the
+loads: lazy_loads does not change on any of them, they come every 9-11 frames during play, and the
+log has a missile or fire press just before each. Both problems are dealt with here.
+
+**Finding what is missing.** `LoadStats::setLogLazy` (run.ini `log_lazy=1`, `as3d_game
+--log-lazy`): every load counted after a precache's reset logs `AS3D_LAZY path=... kind=...
+site=... frame=...`. The precache entry points are `LoadStats::PrecacheScope`s (not logged);
+`World::loadLevel` is a `LevelLoadScope` (neither logged nor counted: the level's own load is behind
+the loading screen; the front end's `scripts=4 other=43` were the next mission's map and placement
+scripts, counted in the attract level's window). Azahar with the main checkout's binary,
+`mode=play` from the menus (menu_bot): front end `textures=22 scripts=4 sounds=2 other=43`, mission 1
+`textures=7 sounds=1`, as on the console. What they were:
+
+- the menus' pictures: corner, mmenu_1/2, yesno_1, back_1, start_1, starth_0/1/2, topscores_0/1/2,
+  optionsh_0/1/2, scroller_1/2, slider, slidebutt_1, icon_border_2, icons_1/2/3; in play the
+  in-game menu and the mission complete screen (restart_1, quit_1, continue_1, their _2 focus
+  states); the menu sounds menu1, menu2 and the stat counter's type.wav;
+- one silhouette: `ruins_big` at rotation 6. A building's script (static_obj_expl_big.scr) creates
+  its ruins, and `create` keys the projected shadow by the creator's int(yaw in degrees) mod 12: an
+  odd placement rotation gives step 6, which the PICA closure (projected step 0 only) missed.
+- the player's weapons, missiles, power-ups and items were already in the closure: with the weapon
+  tour below nothing of them loads on first use (desktop, three games, missions 1, 6, 14).
+
+**Precache additions.** `UiAssets::precacheMenus` (the first game's menu pictures for every screen
+the main menu reaches and the in-play ones, normal and focused; the sequels' atlas, title logo and
+widget pictures; their per-mission comic pages stay on first use) and `UiAssets::menuSounds`, at
+every level start of the front end (ctr_frame.cpp) and in `GameView::precacheLevel` (`as3d_game
+--precache`: mission 1 textures 113 -> 152, sounds 22 -> 25). `WorldScene::spawnedShadows`: the
+projected shadows of the objects a rotated placement's script names, at its create key.
+
+**The weapon tour** (`as3d/input.h applyWeaponTour`, run.ini `bot_weapons=1`, `as3d_game
+--headless --bot-weapons`): every 90 frames the next weapon slot with every slot at the next
+upgrade level (1..8), 9 of every missile and power-up with the current ones stepping, fire held, a
+power-up every 3 s. A cheat for the checks. precache_test runs it on missions 1, 6, 14 of every
+game (pause, hint box, mission end, every frame drawn in the 3DS layout with the touch band) and the
+first game's front end (every screen, the Information pages, mission 1 from the menus, the in-game
+menu, a hint, mission complete): all kinds 0 but the sequels' TerraMorph stamps.
+
+**No GX copy inside a frame, and no stall.** On top of P2's in-frame linear path ("Frame
+synchronisation"): `Texture2D::create` inside a frame makes an 8x8 linear placeholder of the
+image's average colour and queues the image; `pica::drainLateTextures` (drawFrame, right after
+C3D_FrameEnd; at most one texture or 2 ms per frame, texture_budget.h LateBudget) builds the real
+texture, VRAM included, into the same handle; the placeholder goes through the fence.
+`AS3D_LATE_TEX queued|built path=... frame=...`. P2's in-frame linear creation stays the fallback.
+`GpuMesh::upload` inside a frame defers its cache flushes to frameEnd or the next gpu_kick split
+(`pica::deferFlush`, `AS3D_LATE_MESH`). The pacer also excuses the frame after a late load (a load
+in the submit delays the next sync). `mode=picatest` checks the queue: frame 2 draws the placeholder
+(127, 0, 127), frame 4 the real red / blue halves (picatest_late_f2/f4.ppm, Azahar: exact).
+
+**The long submits: the touch band.** `AS3D_SLOW_SUBMIT` (a submit over 15 ms logs its own pass
+split, late textures, lazy loads and the front end's three bottom lists: ms / cached / vertices).
+Azahar, mode=play with the weapon tour: bottom2d 27 ms every few frames, the touch band rebuilt
+whole (16k tessellated vertices) whenever a count or a held highlight on it changes, inside the
+frame. `Renderer2D::cacheBreak` makes cache units (PICA only: hits first, then the changed units,
+24 slots per list; GL ignores it); `drawTouchControls` breaks after each button's disc and face.
+Same Azahar run: submits over 20 ms 117 -> 3 of 4280 frames, p99 37.6 -> 16.7 ms; the band 0.8 ms;
+the bottom screen of the bot run at step 600 pixel-identical. This is the most likely cause of the
+console's 18-24 ms submits: the console check is the next drop's play session (expect submit p99
+near 7 ms and no `AS3D_SLOW_SUBMIT` with a large bottom2d).
+
+**Writes off the level start.** `queueFileWrite` (ctr_perf.h): the writer thread writes the shadow
+cache (`saveShadowCache(writer)`) and the read plan (`AS3D_FILE_WRITE ... (writer thread)`), not
+the loading screen (the first start's 2.1 s with fsync on the console).
+
+Azahar numbers (frames are not console timings):
+
+| | before (main of 2026-10-10, before P2) | after |
+|---|---|---|
+| attract level precache | textures 91 sounds 16, 1072 ms | textures 129 sounds 19, 1320 ms |
+| mission 1 from the menus, precache | textures 113 sounds 6, 1802 ms | textures 151 sounds 6, 2037 ms |
+| front end lazy loads | textures 22 scripts 4 sounds 2 other 43 | 0 |
+| mission 1 lazy loads (with the weapon tour, in-game menu, hint, mission complete) | textures 7 sounds 1 (shadows 1 with the tour) | 0 |
+| `mode=bot level=1 frames=600` | map_pos 452.0, 39 entities, created 243, freed 204 | the same; top MAE 0.20 (the perf line), bottom identical |
+
+Pace on Azahar: the front end's start screen drops the pacer to 30 Hz under the emulator in both
+binaries (gpu_tail about 30 ms, the emulator's GPU) and it never fits again (gpu under 14 ms), so
+`pace changes=0 misses60=0` cannot be shown there; `mode=bot level=1` holds 60 Hz with 0 misses.
+Left: the console play session; the sequels' comic pages and model views (per mission, first use);
+the band's first build (26 ms at the first frame of a level, inside the grace).
 
 ## Build (M1.1)
 
