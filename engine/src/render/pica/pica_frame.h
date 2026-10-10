@@ -19,6 +19,7 @@
 #include <citro3d.h>
 
 #include <cstddef>
+#include <cstdint>
 
 #include "as3d/fog_lut.h"
 #include "as3d/math.h"
@@ -73,13 +74,52 @@ void splitCommandList();
 LinearArena& frameArena();
 ShaderSet& shaders();
 
-// Frees a linearAlloc block the GPU may still read (a destroyed mesh): at the next frameBegin(),
-// C3D_FrameBegin having waited for the GPU to finish every command list submitted so far.
+// The GPU fence (docs/3ds-port.md "Frame synchronisation"). Each frameBegin() opens a new frame
+// serial (1, 2, ...). C3D_FrameBegin has just waited for citro3d's GX queue to drain: the
+// completion interrupt of every command list, fill and transfer submitted so far, the lists
+// kicked in the middle of a frame (kickGpu) included. frameBegin() checks that the queue is idle
+// (AS3D_FENCE and a blocking wait when it is not) and marks every earlier serial complete; the
+// arena half it takes was last read in serial - 2. Outside a frame, gpuDone() polls the queue.
+uint32_t frameSerial();         // the frame open, or the last one recorded (0 before the first)
+uint32_t gpuCompletedSerial();  // every frame up to this one is finished on the GPU
+// True when the GPU finished every frame up to `serial` (non-blocking; inside a citro3d frame
+// only what frameBegin() established counts).
+bool gpuDone(uint32_t serial);
+// Outside a citro3d frame: waits until the GX queue is idle (every frame recorded so far done).
+void waitGpuIdle();
+// Between frameBegin() and frameEnd().
+bool inFrame();
+
+// Frees a linearAlloc block the GPU may still read (a destroyed mesh): tagged with the current
+// frame serial and freed once gpuDone(tag), at a later frameBegin() or collectDeferred().
 // Freed at once when the backend is not initialised (no frame can reference it);
 // shutdownBackend() frees what is still pending (call it after the last C3D_FrameEnd).
 void deferLinearFree(void* p);
-// The number of blocks waiting for the next frameBegin() (tests).
+// The same for a texture's memory (Texture2D::destroy): C3D_TexDelete on a copy of `tex`.
+void deferTextureDelete(const C3D_Tex& tex);
+// Frees the deferred blocks the GPU is done with (frameBegin() does it; also outside frames).
+// waitIfTextures: first wait for the GPU when textures are pending (their VRAM is wanted).
+void collectDeferred(bool waitIfTextures = false);
+// The number of blocks (and textures) waiting for their fence (tests).
 size_t deferredFreeCount();
+
+// run.ini arena_poison=1 (docs/3ds-port.md "Frame synchronisation"): the arena half frameBegin()
+// takes, and every deferred block when it is freed, are filled with finite garbage (random
+// floats of +-3000 whose bytes are random colours) and flushed to memory, so a GPU still reading
+// them draws visible garbage at once.
+void setArenaPoison(bool on);
+bool arenaPoison();
+void poisonLinear(void* p, size_t bytes);
+
+struct FenceStats {
+    unsigned queueBusyAtBegin = 0; // frameBegin() found the GX queue still running (and waited)
+    unsigned halfHazards = 0;      // an arena half taken before its last frame was done (never expected)
+    unsigned deferredMax = 0;      // most blocks waiting at once
+    unsigned texturesDeferred = 0; // deferTextureDelete calls
+    unsigned freedDeferred = 0;    // blocks freed after their fence
+    unsigned poisonedHalves = 0;
+};
+const FenceStats& fenceStats();
 
 // Depth mapping (C3D_DepthMap). ZBuffer is citro3d's default C3D_DepthMap(true, -1, 0); WBuffer
 // is C3D_DepthMap(false, -1/near, 0), a depth linear in the eye distance (as3d/fog_lut.h has
@@ -141,6 +181,24 @@ void c3dAlphaTest(bool enable, GPU_TESTFUNC function, int ref);
 void c3dFogColor(u32 color);
 void c3dDepthMap(bool zBuffer, float zScale, float zOffset);
 void c3dInvalidate();
+// The last values issued through the setters above (valid = issued since the last c3dInvalidate):
+// the render-state self-check (state_check_pica.h) compares them with citro3d's context.
+struct C3dShadow {
+    bool blendValid = false, depthValid = false, cullValid = false, alphaValid = false, fogValid = false,
+         mapValid = false;
+    int blend[6] = {};
+    bool depthOn = false;
+    int depthFunc = 0, depthMask = 0;
+    int cull = 0;
+    bool alphaOn = false;
+    int alphaFunc = 0, alphaRef = 0;
+    u32 fog = 0;
+    bool mapZ = false;
+    float mapScale = 0.0f, mapOffset = 0.0f;
+};
+const C3dShadow& c3dShadow();
+// citro3d's context (__C3D_Context; its first member is the GX queue): the self-check reads it.
+void* c3dContextAddress();
 // Texture2D::bind skips C3D_TexBind of the texture already bound to the unit (gfx_pica.cpp; a
 // destroyed texture is forgotten). initBackend forgets every binding.
 void forgetTextureBindings();

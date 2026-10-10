@@ -6,7 +6,11 @@
 
 #include <citro3d.h>
 
+#include <algorithm>
+#include <cstring>
 #include <vector>
+
+#include "as3d/core.h"
 
 // citro3d's context (internal.h: C3D_Context __C3D_Context). Its first member is the GX command
 // queue the frames go through (gxCmdQueue_s gxQueue); only that member is used here (kickGpu),
@@ -19,6 +23,10 @@ namespace {
 void* linearAllocAligned(size_t bytes, size_t align) { return linearMemAlign(bytes, align); }
 void linearRelease(void* p) { linearFree(p); }
 void linearFlush(const void* p, size_t bytes) { GSPGPU_FlushDataCache(p, static_cast<u32>(bytes)); }
+bool addrIsVram(const void* p) {
+    const u32 a = reinterpret_cast<u32>(p);
+    return a >= OS_VRAM_VADDR && a < OS_VRAM_VADDR + OS_VRAM_SIZE;
+}
 
 struct Backend {
     LinearArena arena;
@@ -29,7 +37,19 @@ struct Backend {
     float depthOffset = 0.0f; // the offset of the last applyDepthMap
     bool wAsZ = false; // setWBufferAsZBuffer: W-buffer requests get the Z-buffer mapping
     bool ready = false;
-    std::vector<void*> pendingFree; // deferLinearFree blocks, freed at the next frameBegin
+    struct Pending {
+        void* p = nullptr;      // a linearAlloc block, or
+        C3D_Tex* tex = nullptr; // a texture copy (C3D_TexDelete, then delete)
+        uint32_t serial = 0;    // the last frame that may read it
+    };
+    std::vector<Pending> pending; // deferLinearFree / deferTextureDelete, freed after their fence
+    // The fence (pica_frame.h): frame serials and the arena halves' last frames.
+    uint32_t serial = 0;
+    uint32_t completed = 0;
+    uint32_t halfSerial[2] = {0, 0};
+    bool inFrame = false;
+    bool poison = false;
+    FenceStats fence;
 };
 
 Backend& backend() {
@@ -37,9 +57,49 @@ Backend& backend() {
     return b;
 }
 
-void releasePending(Backend& b) {
-    for (void* p : b.pendingFree) linearFree(p);
-    b.pendingFree.clear();
+// Inside a citro3d frame (C3D_FrameBegin .. C3D_FrameEnd) libctru's command buffer is set.
+bool inC3dFrame() {
+    u32* buf = nullptr;
+    GPUCMD_GetBuffer(&buf, nullptr, nullptr);
+    return buf != nullptr;
+}
+
+// Outside a citro3d frame an idle GX queue means every list submitted so far completed.
+void pollCompletion(Backend& b) {
+    if (b.completed < b.serial && !inC3dFrame() && gxCmdQueueWait(&__C3D_Context, 0)) b.completed = b.serial;
+}
+
+void releaseOne(Backend& b, Backend::Pending& e) {
+    if (e.tex) {
+        if (b.poison && e.tex->data && !addrIsVram(e.tex->data)) poisonLinear(e.tex->data, e.tex->size);
+        C3D_TexDelete(e.tex);
+        delete e.tex;
+    } else if (e.p) {
+        if (b.poison) poisonLinear(e.p, linearGetSize(e.p));
+        linearFree(e.p);
+    }
+    ++b.fence.freedDeferred;
+}
+
+void releaseDone(Backend& b, bool all) {
+    size_t keep = 0;
+    for (Backend::Pending& e : b.pending) {
+        if (all || e.serial <= b.completed) releaseOne(b, e);
+        else b.pending[keep++] = e;
+    }
+    b.pending.resize(keep);
+}
+
+// A pseudo-random float in +-3000 per word (finite: no NaN or infinity reaches the GPU).
+void fillPoison(uint32_t* w, size_t words, uint32_t seed) {
+    uint32_t x = seed | 1u;
+    for (size_t i = 0; i < words; ++i) {
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        const float f = static_cast<float>(static_cast<int32_t>(x % 6001u) - 3000) + 0.5f;
+        std::memcpy(&w[i], &f, 4);
+    }
 }
 
 } // namespace
@@ -67,7 +127,7 @@ bool initBackend(size_t arenaHalfBytes) {
 
 void shutdownBackend() {
     Backend& b = backend();
-    releasePending(b);
+    releaseDone(b, true);
     b.arena.shutdown();
     b.shaders.unload();
     b.ready = false;
@@ -77,8 +137,31 @@ bool backendReady() { return backend().ready; }
 
 void frameBegin() {
     Backend& b = backend();
-    releasePending(b); // C3D_FrameBegin waited for the GPU
+    // The fence: C3D_FrameBegin waited for the GX queue to drain (docs/3ds-port.md "Frame
+    // synchronisation"); check it, and wait here should it ever not have.
+    if (!gxCmdQueueWait(&__C3D_Context, 0)) {
+        ++b.fence.queueBusyAtBegin;
+        if (b.fence.queueBusyAtBegin <= 20)
+            AS3D_WARN("AS3D_FENCE frame=%u the GX queue was still running at frameBegin (entries %u, done %u): waiting",
+                      static_cast<unsigned>(b.serial + 1), static_cast<unsigned>(__C3D_Context.numEntries),
+                      static_cast<unsigned>(__C3D_Context.lastEntry));
+        gxCmdQueueWait(&__C3D_Context, -1);
+    }
+    b.completed = b.serial;
+    ++b.serial;
+    b.inFrame = true;
+    releaseDone(b, false);
     b.arena.beginFrame();
+    const int h = b.arena.currentHalf();
+    if (b.halfSerial[h] > b.completed) ++b.fence.halfHazards; // cannot happen: the half's frame is serial - 2
+    b.halfSerial[h] = b.serial;
+    if (b.poison && b.arena.valid()) {
+        // The whole half, flushed: a GPU still reading it from an earlier frame draws garbage.
+        fillPoison(reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(b.arena.halfBase())), b.arena.capacity() / 4,
+                   0x9E3779B9u * b.serial);
+        GSPGPU_FlushDataCache(b.arena.halfBase(), static_cast<u32>(b.arena.capacity()));
+        ++b.fence.poisonedHalves;
+    }
     // Each frame issues its fragment state and texture bindings at least once (the shadow copies
     // of render_state_pica.cpp only skip repeats inside a frame and a target).
     detail::c3dInvalidate();
@@ -88,11 +171,77 @@ void frameBegin() {
 void deferLinearFree(void* p) {
     if (!p) return;
     Backend& b = backend();
-    if (!b.ready) linearFree(p);
-    else b.pendingFree.push_back(p);
+    if (!b.ready) {
+        linearFree(p);
+        return;
+    }
+    Backend::Pending e;
+    e.p = p;
+    e.serial = b.serial;
+    b.pending.push_back(e);
+    b.fence.deferredMax = std::max(b.fence.deferredMax, static_cast<unsigned>(b.pending.size()));
 }
 
-size_t deferredFreeCount() { return backend().pendingFree.size(); }
+void deferTextureDelete(const C3D_Tex& tex) {
+    Backend& b = backend();
+    if (!b.ready) {
+        C3D_Tex t = tex;
+        C3D_TexDelete(&t);
+        return;
+    }
+    Backend::Pending e;
+    e.tex = new C3D_Tex(tex);
+    e.serial = b.serial;
+    b.pending.push_back(e);
+    ++b.fence.texturesDeferred;
+    b.fence.deferredMax = std::max(b.fence.deferredMax, static_cast<unsigned>(b.pending.size()));
+}
+
+void collectDeferred(bool waitIfTextures) {
+    Backend& b = backend();
+    if (b.pending.empty() || inC3dFrame()) return;
+    if (waitIfTextures) {
+        for (const Backend::Pending& e : b.pending)
+            if (e.tex) {
+                waitGpuIdle();
+                break;
+            }
+    }
+    pollCompletion(b);
+    releaseDone(b, false);
+}
+
+size_t deferredFreeCount() { return backend().pending.size(); }
+
+uint32_t frameSerial() { return backend().serial; }
+uint32_t gpuCompletedSerial() { return backend().completed; }
+
+bool gpuDone(uint32_t serial) {
+    Backend& b = backend();
+    if (serial <= b.completed) return true;
+    pollCompletion(b);
+    return serial <= b.completed;
+}
+
+void waitGpuIdle() {
+    Backend& b = backend();
+    if (inC3dFrame()) return; // only C3D_FrameBegin may wait inside the frame protocol
+    gxCmdQueueWait(&__C3D_Context, -1);
+    b.completed = b.serial;
+}
+
+bool inFrame() { return backend().inFrame; }
+
+void setArenaPoison(bool on) { backend().poison = on; }
+bool arenaPoison() { return backend().poison; }
+
+void poisonLinear(void* p, size_t bytes) {
+    if (!p || bytes < 4) return;
+    fillPoison(static_cast<uint32_t*>(p), bytes / 4, reinterpret_cast<uint32_t>(p));
+    GSPGPU_FlushDataCache(p, static_cast<u32>(bytes));
+}
+
+const FenceStats& fenceStats() { return backend().fence; }
 
 void drawOn(const FrameTarget& t) {
     Backend& b = backend();
@@ -105,7 +254,11 @@ void drawOn(const FrameTarget& t) {
 
 const FrameTarget& currentTarget() { return backend().target; }
 
-void frameEnd() { backend().arena.flushPending(); }
+void frameEnd() {
+    Backend& b = backend();
+    b.arena.flushPending();
+    b.inFrame = false;
+}
 
 namespace {
 bool g_kick = false;
@@ -133,6 +286,10 @@ void kickGpu() {
 }
 
 LinearArena& frameArena() { return backend().arena; }
+
+namespace detail {
+void* c3dContextAddress() { return &__C3D_Context; }
+} // namespace detail
 ShaderSet& shaders() { return backend().shaders; }
 
 void setDepthMapping(FogDepthMap map, float nearPlane) {

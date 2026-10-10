@@ -13,6 +13,10 @@
 
 #include "as3d/texture.h"
 
+#if defined(__3DS__)
+#include <citro3d.h>
+#endif
+
 namespace as3d::pica {
 
 enum class Placement { Vram, Linear };
@@ -76,6 +80,18 @@ TextureStats textureStats();
 // What a PICA Texture2D became (tests): placement, GPU size, format, mip levels. False when invalid.
 bool textureInfo(const Texture2D& t, Placement* placement, int* texWidth, int* texHeight, PicaFormat* format,
                  int* levels);
+// Textures created / destroyed between pica::frameBegin and frameEnd (gfx_pica.cpp: created in
+// linear memory, never with a GX copy; destroyed through the GPU fence).
+struct TextureInFrameStats {
+    unsigned creates = 0;
+    unsigned destroys = 0;
+};
+extern TextureInFrameStats g_texInFrame;
+const TextureInFrameStats& textureInFrameStats();
+// The citro3d texture of a PICA Texture2D (null when invalid), and the one Texture2D::bind last
+// bound to `unit` (null after a reset of the bindings): the render-state self-check.
+const C3D_Tex* c3dTexOf(const Texture2D& t);
+const C3D_Tex* boundTexture(unsigned unit);
 #endif
 
 } // namespace as3d::pica

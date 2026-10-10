@@ -9,8 +9,13 @@
 // hardware, it data-aborts); linear textures are written in place and flushed.
 // width()/height() report the source image size, as the GL backend; bytes() the GPU bytes.
 //
-// create() and the destructor must run outside C3D_FrameBegin/C3D_FrameEnd: the VRAM copy is
-// synchronous and resets citro3d's GX queue (load time / precache only).
+// Outside a frame the VRAM copy is synchronous (citro3d waits for the GX queue, copies, waits for
+// the copy). Inside a frame (a late load; docs/3ds-port.md "Frame synchronisation") citro3d would
+// split the command list WITHOUT a cache flush (C3D_FrameSplit(0): with gpu_kick's
+// end_flush=cmdlist the GPU may run stale command words) and queue an asynchronous copy from a
+// staging buffer freed at once, one queue entry per mip level (32 per frame): so a texture
+// created inside a frame goes to linear memory instead (no GX command at all). destroy() hands
+// the memory to the GPU fence (pica::deferTextureDelete): a frame in flight may still sample it.
 #include <3ds.h>
 #include <citro3d.h>
 
@@ -18,6 +23,7 @@
 #include <cstring>
 #include <vector>
 
+#include "as3d/core.h"
 #include "as3d/texconv.h"
 #include "as3d/texture.h"
 #include "pass_profile.h"
@@ -25,6 +31,13 @@
 
 namespace as3d {
 namespace pica {
+
+// pica_frame.h (not included here: its world headers bring as3d::Placement of terrain.h).
+bool backendReady();
+bool inFrame();
+uint32_t frameSerial();
+void deferTextureDelete(const C3D_Tex& tex);
+void collectDeferred(bool waitIfTextures);
 
 namespace {
 
@@ -74,6 +87,14 @@ PicaTexture* picaTex(std::uintptr_t handle) { return reinterpret_cast<PicaTextur
 const C3D_Tex* g_bound[3] = {nullptr, nullptr, nullptr};
 
 } // namespace
+
+TextureInFrameStats g_texInFrame;
+const TextureInFrameStats& textureInFrameStats() { return g_texInFrame; }
+
+const C3D_Tex* boundTexture(unsigned unit) { return unit < 3 ? g_bound[unit] : nullptr; }
+const C3D_Tex* c3dTexOf(const Texture2D& t) {
+    return t.valid() ? &picaTex(static_cast<std::uintptr_t>(t.id()))->tex : nullptr;
+}
 
 namespace detail {
 void forgetTextureBindings() { g_bound[0] = g_bound[1] = g_bound[2] = nullptr; }
@@ -132,7 +153,12 @@ void Texture2D::destroy() {
         PicaTexture* p = pica::picaTex(handle_);
         for (const C3D_Tex*& b : pica::g_bound)
             if (b == &p->tex) b = nullptr; // a new texture may reuse the address
-        C3D_TexDelete(&p->tex); // vramFree or linearFree, by address
+        if (pica::backendReady()) {
+            pica::deferTextureDelete(p->tex); // vramFree or linearFree once the GPU is done with it
+            if (pica::inFrame()) ++pica::g_texInFrame.destroys;
+        } else {
+            C3D_TexDelete(&p->tex);
+        }
         pica::textureBudget().remove(p->placement, p->bytes);
         delete p;
         handle_ = 0;
@@ -160,9 +186,18 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
     u64 mipTicks = 0, swizzleTicks = 0;
     const size_t bytes = byteSize(w, h, fmt, levelCount);
 
+    // The VRAM a destroyed texture held is free once the GPU is done with it.
+    if (!pica::inFrame()) pica::collectDeferred(true);
     auto* p = new PicaTexture;
     p->format = fmt;
     p->placement = budget.choose(bytes, options.res);
+    if (pica::inFrame()) { // no GX copy inside a frame (the header)
+        p->placement = Placement::Linear;
+        pica::TextureInFrameStats& tf = pica::g_texInFrame;
+        if (++tf.creates <= 20)
+            AS3D_INFO("AS3D_TEX_IN_FRAME frame=%u %dx%d %.1f KB: linear memory (no GX copy inside a frame)",
+                      static_cast<unsigned>(pica::frameSerial()), w, h, static_cast<double>(bytes) / 1024.0);
+    }
     C3D_TexInitParams params{static_cast<u16>(w), static_cast<u16>(h), static_cast<u8>(levelCount - 1), pica::toGpu(fmt),
                              GPU_TEX_2D, p->placement == Placement::Vram};
     bool ok = C3D_TexInitWithParams(&p->tex, nullptr, params);

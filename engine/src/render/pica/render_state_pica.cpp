@@ -195,21 +195,10 @@ void clearImpl(bool color, const Vec4& c, bool depth, float glDepth) {
 namespace detail {
 
 namespace {
-struct C3dShadow {
-    bool blendValid = false, depthValid = false, cullValid = false, alphaValid = false, fogValid = false,
-         mapValid = false;
-    int blend[6] = {};
-    bool depthOn = false;
-    int depthFunc = 0, depthMask = 0;
-    int cull = 0;
-    bool alphaOn = false;
-    int alphaFunc = 0, alphaRef = 0;
-    u32 fog = 0;
-    bool mapZ = false;
-    float mapScale = 0.0f, mapOffset = 0.0f;
-};
 C3dShadow g_c3d;
 } // namespace
+
+const C3dShadow& c3dShadow() { return g_c3d; }
 
 void c3dAlphaBlend(GPU_BLENDEQUATION colorEq, GPU_BLENDEQUATION alphaEq, GPU_BLENDFACTOR srcClr, GPU_BLENDFACTOR dstClr,
                    GPU_BLENDFACTOR srcAlpha, GPU_BLENDFACTOR dstAlpha) {
