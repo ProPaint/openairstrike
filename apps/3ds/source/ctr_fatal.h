@@ -15,6 +15,7 @@ bool hasFatal();
 std::string fatalText();
 // gfxInitDefault + the libctru console on the bottom screen, the text, then A / B / START or the
 // HOME menu's Close; gfxExit. No graphics context may be alive.
-void showFatal();
+// fatal_top.ppm and fatal_bottom.ppm next to run.ini when `dump` (run.ini dump_screens=1).
+void showFatal(bool dump = false);
 
 } // namespace ctrapp

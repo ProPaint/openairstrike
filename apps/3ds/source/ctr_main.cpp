@@ -57,6 +57,6 @@ int main(int argc, char** argv) {
     if (!options.run.usesLoop()) return runSpike();
     const int code = run(options);
     // Every graphics resource is released by now: the reason on the screens, then back to the launcher.
-    if (ctrapp::hasFatal()) ctrapp::showFatal();
+    if (ctrapp::hasFatal()) ctrapp::showFatal(options.run.dumpScreens);
     return code;
 }

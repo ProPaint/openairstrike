@@ -49,7 +49,29 @@ std::string fatalText() {
     return s;
 }
 
-void showFatal() {
+namespace {
+// The console's framebuffer as an upright PPM (run.ini dump_screens=1: the emulator check of the
+// screen). The console draws RGB565, single-buffered, into a column-major buffer fbW pixels high.
+void dumpConsole(gfxScreen_t screen, const std::string& path) {
+    u16 fbW = 0, fbH = 0;
+    const u16* fb = reinterpret_cast<const u16*>(gfxGetFramebuffer(screen, GFX_LEFT, &fbW, &fbH));
+    if (!fb || gfxGetScreenFormat(screen) != GSP_RGB565_OES) return;
+    std::FILE* f = std::fopen(path.c_str(), "wb");
+    if (!f) return;
+    std::fprintf(f, "P6\n%d %d\n255\n", static_cast<int>(fbH), static_cast<int>(fbW));
+    for (int y = 0; y < fbW; ++y)
+        for (int x = 0; x < fbH; ++x) {
+            const u16 c = fb[x * fbW + (fbW - 1 - y)];
+            const unsigned char rgb[3] = {static_cast<unsigned char>(((c >> 11) & 31) * 255 / 31),
+                                          static_cast<unsigned char>(((c >> 5) & 63) * 255 / 63),
+                                          static_cast<unsigned char>((c & 31) * 255 / 31)};
+            std::fwrite(rgb, 1, 3, f);
+        }
+    std::fclose(f);
+}
+} // namespace
+
+void showFatal(bool dump) {
     if (!g_fatal) return;
     gfxInitDefault();
     PrintConsole top, bottom;
@@ -62,6 +84,11 @@ void showFatal() {
     std::printf("\nlog: %s/log.txt\n\nPress A, B or START to quit.\n", kDataDir);
     consoleSelect(&bottom);
     std::printf("Expected on the SD card:\n\n%s", layoutText().c_str());
+    gfxFlushBuffers();
+    if (dump) {
+        dumpConsole(GFX_TOP, std::string(kDataDir) + "/fatal_top.ppm");
+        dumpConsole(GFX_BOTTOM, std::string(kDataDir) + "/fatal_bottom.ppm");
+    }
     while (aptMainLoop()) {
         hidScanInput();
         if (hidKeysDown() & (KEY_A | KEY_B | KEY_START)) break;
