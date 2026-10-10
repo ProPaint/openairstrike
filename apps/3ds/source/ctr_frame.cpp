@@ -107,8 +107,8 @@ bool dumpRenderTarget(C3D_RenderTarget* t, int width, const std::string& path) {
 }
 
 // The depth buffer of a render target as an upright PPM (run.ini state_check's L mark): D24S8 read
-// as 32-bit words by the display transfer; grey = the depth's top byte (the PICA stores 1 at the
-// near plane: near is bright, the cleared far depth black), red = its second byte.
+// as 32-bit words by the display transfer, the bytes 3, 2, 1 of each word (as the colour dumps read
+// them) as R, G, B: the cleared far depth is black, the depth grows towards the near plane.
 bool dumpRenderTargetDepth(C3D_RenderTarget* t, int width, const std::string& path) {
     if (!t->frameBuf.depthBuf || t->frameBuf.depthFmt != GPU_RB_DEPTH24_STENCIL8) return false;
     const size_t bytes = static_cast<size_t>(240) * static_cast<size_t>(width) * 4;
@@ -127,9 +127,9 @@ bool dumpRenderTargetDepth(C3D_RenderTarget* t, int width, const std::string& pa
         for (int y = 0; y < 240; ++y) {
             for (int x = 0; x < width; ++x) {
                 const u8* px = lin + (static_cast<size_t>(x) * 240 + static_cast<size_t>(239 - y)) * 4;
-                row[static_cast<size_t>(x) * 3 + 0] = px[1];
+                row[static_cast<size_t>(x) * 3 + 0] = px[3];
                 row[static_cast<size_t>(x) * 3 + 1] = px[2];
-                row[static_cast<size_t>(x) * 3 + 2] = px[2];
+                row[static_cast<size_t>(x) * 3 + 2] = px[1];
             }
             std::fwrite(row.data(), 1, row.size(), f);
         }
