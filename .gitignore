@@ -44,3 +44,5 @@ build-3ds/
 *.elf
 *.smdh
 out/3ds/
+*.cia
+*.bnr
