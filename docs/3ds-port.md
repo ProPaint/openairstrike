@@ -69,7 +69,10 @@ P4)") cut prepare by two thirds and recording by 7-16 % under Azahar; what is le
 per-draw cost of citro3d (a shared mesh vertex pool, a lighter draw path). Then the
 first-start load (prefetch of the precache closure), the Old 3DS run (profile exists, no console).
 
-**How to resume a console session:** `tools/3ds_build.sh all` builds `build-3ds/apps/3ds/openairstrike.3dsx`;
+**How to resume a console session:** to play or check an installed copy, use the package
+(`tools/3ds_package.sh` -> `out/3ds/package/<version>/`: copy its `3ds/` to the card, start
+OpenAirStrike from the Homebrew Launcher, or install `openairstrike.cia` with FBI; no `run.ini`
+needed: see "Packaging and launch (round 2, P6)"). For a development build: `tools/3ds_build.sh all` builds `build-3ds/apps/3ds/openairstrike.3dsx`;
 upload it with `run.ini` over ftpd (port 5000) to `sdmc:/3ds/openairstrike/` (the paks,
 `Settings.xml`, `texts_v170.txt`, `music/*.ogg` from `audio_tool render-music --all` and
 `sdmc:/3ds/dspfirm.cdc` are already on the owner's card); quit ftpd, Homebrew Launcher, Y, then
@@ -2626,3 +2629,210 @@ draw path than C3D_DrawElements (our own command words for runs that change only
 index buffer; it bypasses citro3d's shadow state and needs the state_check of P2), and the terrain
 lights of Gulf mission 3 (2.9 ms: large lights cover whole chunks). The console's own numbers come
 with the next play session (prepare and submit columns of perf.csv, `AS3D_PREP_MS`).
+
+## Packaging and launch (round 2, P6)
+
+The port as a thing one installs: a `.3dsx` the Homebrew Launcher lists with its icon, a CIA for
+the HOME menu, an SD package with its instructions, the high-score name through the system
+keyboard, the first game's 3D banner on the top screen, and the life cycle reviewed.
+
+### The package and the SD layout
+
+    tools/3ds_package.sh [--no-build] [--no-cia]    # AS3D_BUILD_JOBS (default 2), AS3D_VERSION (default 0.3.0-dev)
+
+builds (tools/3ds_build.sh) and writes `out/3ds/package/<version>-<commit>/` and its zip
+`out/3ds/package/openairstrike-3ds-<version>-<commit>.zip`:
+
+| file | what |
+|---|---|
+| `3ds/openairstrike/openairstrike.3dsx` | the app; its SMDH (CMake `ctr_generate_smdh`) has the short title "OpenAirStrike", the long title "OpenAirStrike: open source engine for AirStrike 3D and its sequels", the publisher "ProPaint / openairstrike" and `apps/3ds/icon.png` (the project's own icon) |
+| `3ds/openairstrike/run.ini` | every line a comment: the defaults, and the keys an owner may want (game, audio, music, quality, logo, name_entry, perf) |
+| `openairstrike.cia` | the HOME menu title (below) |
+| `INSTALL.txt` | the SD layout, where each game's files come from (the game's `data/` folder; the texts file from the executable with `tools/extract_exe_texts.py`; the Android import keeps the same files), the music (`audio_tool render-music --all`), `dspfirm.cdc` (DSP1), the keys |
+
+The script refuses to finish if the package holds any other file: no game data can get in. The
+SD card:
+
+    sdmc:/3ds/openairstrike/
+        openairstrike.3dsx      run.ini (optional)
+        as3d/   pak0.apk pak1.apk pak2.apk  Settings.xml  texts_v170.txt  music/*.ogg (optional)
+        as2/    pak0.apk pak1.apk pak2.apk  Settings.xml  texts_as2.txt   music/*.ogg
+        gulf/   pak0.apk pak1.apk pak2.apk pak4.apk  Settings.xml  texts_gulf.txt  music/*.ogg
+        (written by the app: log.txt, launcher.bin, <game>/profile.bin, cache/)
+    sdmc:/3ds/dspfirm.cdc
+
+**Where the data is.** Always `kDataDir` = `sdmc:/3ds/openairstrike` (run_config.h), whatever the
+launch: `ctr_main.cpp` makes the directory if it is missing (a fresh card: the log and the saves
+go there), sets the working directory to it (no relative path can land elsewhere) and only logs
+`argv[0]`, as `from=` at the end of the first log line. The Homebrew Launcher passes the `.3dsx`
+path, 3dslink `3dslink:/<file>`; Azahar passes nothing for a `.3dsx` and a CIA has no argument:
+`from=none` in every Azahar run. So the `.3dsx` may sit anywhere (`sdmc:/3ds/openairstrike.3dsx`
+works too); the data does not move. Every engine path was already absolute (`user_data_ctr.cpp`,
+the paks, the caches).
+
+**run.ini is optional.** No file, or a file without `mode=`, gives `mode=play` (the front end:
+the selector when two or more games are complete, the menus), `audio=1`, `music=1`. `mode=spike`
+and any other value (`picatest`, `meshtest`, ...) go to the old path (`main.cpp` reads its test
+modes itself), so the test modes work as before. Azahar: the package's `run.ini` (all comments)
+plus `pad_script=90:A frames=500`: `mode=play (front end)`, the selector (`as3d`, `as2`, `gulf`
+installed), as3d chosen, the main menu; no `run.ini` at all: the selector
+(`out` files: scratchpad `p6/defaults_sel/`, `p6/noini/`).
+
+**The hard exit** (`ctr_fatal.{h,cpp}`). When there is nothing to start (no game directory, or
+no game with all its paks: the selector would have no font), when `game=` names no game, when
+the session cannot start (a pak does not open: `mountGameFiles`' error), when the level start
+fails or there is no graphics context, the loops record the reason (`setFatal`, logged as
+`fatal: ...`) and return; `main()` then, after every graphics resource is gone, starts the
+libctru console: the reason in red on the top screen, the expected SD layout (from the game
+profiles) on the bottom one, and waits for A, B, START or the HOME menu's Close before it
+returns to the launcher. With `dump_screens=1` the two consoles are written to
+`fatal_top.ppm` / `fatal_bottom.ppm`. Azahar (`game=nosuch`): `p6/fatal_dump/fatal_top.png`,
+`fatal_bottom.png`. A part-installed game is not fatal: the selector shows its card with
+"Missing: ..." (M5.4).
+
+### The CIA
+
+Tools: the pinned devkitPro image has no makerom and no bannertool, so `tools/fetch_third_party.sh
+ctrtools` fetches them into `${AS3D_DATA_ROOT:-repo}/third_party_local/`, each download into an
+empty directory of its own under `_dl/`, checked against the pinned SHA-256 before anything
+reads it:
+
+- makerom 0.18.4, the Linux release binary of 3DSGuy/Project_CTR
+  (`makerom-v0.18.4-ubuntu_x86_64.zip`);
+- bannertool 1.2.3 of carstene1ns/3ds-bannertool, the maintained fork: Steveice10/bannertool
+  answers 404 now, and the fork's Linux binary needs glibc 2.38 (the image has 2.36), so its
+  release source tarball is compiled by the script inside the image with its g++ (no network,
+  the source mounted read-only).
+
+Both only ever run inside the pinned image with `--network none`, on copies in a scratch
+directory. `tools/3ds_package.sh`: `bannertool makebanner -i apps/3ds/banner.png -a silence.wav`
+(the banner: `tools/3ds_banner_image.py` draws it from `apps/web/site/icons/icon-512.png` and the
+name, committed as a 256x128 PNG; the sound is 0.5 s of silence the script writes), then
+`makerom -f cia -target t -exefslogo -rsf apps/3ds/openairstrike.rsf -elf openairstrike.elf
+-icon openairstrike.smdh -banner banner.bnr`.
+
+`apps/3ds/openairstrike.rsf` (from the devkitPro CIA template, cut to the app):
+
+| | |
+|---|---|
+| title ID | **`000400000FA35D00`**: application, unique ID `0xFA35D` from the homebrew range 0xF8000-0xFFFFF; product code `CTR-H-OAS3D` |
+| RomFS | none: the data stays on the SD card |
+| memory | `SystemMode: 64MB` (Old 3DS), `SystemModeExt: 124MB` (New 3DS); libctru keeps its 32 MB linear heap and gives the rest to the heap |
+| New 3DS | `CpuSpeed: 804MHz`, `EnableL2Cache: true` (the speed-up from the start; `osSetSpeedupEnable` still asks for it through `ptm:sysm`) |
+| stack | `StackSize: 0x40000` (256 KB for the main thread) |
+| file system | `DirectSdmc`, `DirectSdmcWrite`; no save data (`SaveDataSize: 0KB`), no ExtSaveData: the profile is `sdmc:/3ds/openairstrike/<game>/profile.bin` |
+| services | `APT:U`, `cfg:u`, `dsp::DSP` (ndsp), `fs:USER`, `gsp::Gpu`, `gsp::Lcd`, `hid:USER`, `ir:rst` (C-stick, ZL/ZR), `ndm:u`, `ptm:sysm` (the speed-up), `ptm:u`; no csnd, soc, http, cameras |
+| kernel | the template's syscall list, the DSP I/O mapping, VRAM mapped read-only |
+
+**Azahar (main 56891af + P6):** `azahar --install p6.cia`: "Installed CIA successfully", the
+title under `Nintendo 3DS/.../title/00040000/0fa35d00/content/*.app`. Booted from that `.app`:
+`mode=bot level=1 frames=300`: mission 1, `map_pos 242.0, 33 entities, created 122, freed 89` =
+`as3d_sim --level 1 --frames 300 --bot` (scratchpad `p6/cia_boot/`); `mode=menu` with
+`menu_bot=1 menu_bot_steps=300` and the pad script of the name run: the main menu with the
+banner, Start Game, mission 1 from the menus, `AS3D_BOT_END` with the same end state
+(`p6/cia_menu/`). Azahar logs `ConfigureNew3DSCPU` on `ptm:sysm` as unimplemented: the call
+reaches the service (the list is accepted; Azahar does not enforce it, the console does). Its
+`memory: APPLICATION 0.0 MB free` line is Azahar's (the 3dsx shows 4068 MB): the console line
+is the one to read. The level start's heap from the CIA was 17.4 MB.
+
+**Only the console can confirm:** the HOME menu icon and banner (Azahar does not show a HOME
+menu), FBI's install, the 124 MB mode and the 804 MHz/L2 flags taking effect (the log's memory
+line and `New 3DS, speed-up on`), the service list against the real kernel (a missing service
+shows as an `svcConnectToPort`/`srvGetServiceHandle` failure at start), and that the CIA reads
+and writes `sdmc:/3ds/openairstrike/` (DirectSdmc).
+
+### The name entry
+
+The first game asks a name only for the high-score table (Screen::NameEntry, `screens_scores.cpp`:
+it has no profile names); AirStrike 2 and Gulf Thunder the same (`SequelScreens::nameEntry`).
+All three have the edit field id 2 and commit on Enter or Ok (insert, save, Top Scores). The
+desktop feeds text with SDL text input while `Frontend::wantsTextInput()` (an Edit focused,
+not in touch mode); touch mode draws its own keyboard, so the 3DS had the touch keys only (the
+first game's by D-pad: a line, M5.2's deferral).
+
+Now (`apps/game/name_entry.h`, shared, header-only; `ctr_name_entry.cpp`): when the name entry
+opens, the front end loop (between frames) shows the libctru software keyboard applet: normal
+type, one line, OK / Cancel, 31 characters at most (the profile's `HighScore::name` limit),
+initial text the field's, empty accepted (the original accepts an empty name), and a filter
+callback that refuses non-ASCII text and a name the field cannot hold whole (the field's own
+rule: a character goes in while the text is narrower than the field less 20 virtual pixels,
+`acceptedName`), with a message, keeping the keyboard up. On OK `submitName` puts the name into
+the field, focuses it, and the next frame sends Enter: the screen's own commit. Cancel or a
+failure leaves the screen's touch keys (taps; A on the field commits); Y opens the keyboard
+again. The applet suspends the app: the APT hooks run (`apt: suspend`, the profile saved, the
+sound paused, the clock reset on return). Log: `AS3D_NAME keyboard=applet|script result=ok|cancel|failed
+code=N name="..." kept="..." ms=N`. run.ini: `name_entry=touch` (no applet), `name_script=TEXT`
+(the keyboard's result without the applet, for scripted runs). No D-pad keyboard was added: the
+applet covers the pad case.
+
+Desktop tests (game_flow_test.cpp): "the name entry from a system keyboard" for the first game
+(touch, console options; game over at 60000, Quit, the field found, the width rule, UTF-8
+dropped, the focus moved away and given back, Enter: the entry in the table) and the same for
+the sequels (`AS3D_GAME=as2|gulf`).
+
+Azahar: `name_script=P6 Script` (`mode=menu`, Start Game by pad, `menu_bot=1 end_at=200
+end_kind=gameover end_score=60000`, Quit by pad): `AS3D_SCREEN name=name`, `AS3D_NAME
+keyboard=script result=ok name="P6 Script" kept="P6 Script"`, `AS3D_SAVE ... ok=1`, the Top
+Scores screen with the entry (`p6/name_script/p6nm_05_scores_bottom.png`). With the applet:
+`apt: suspend` and the profile save are logged when the screen opens, and Azahar opens its
+keyboard window, but nothing from this machine reaches that window (XTest and XSendEvent are
+dropped under GNOME's Xwayland, and its image cannot be read), so the return through the applet
+is not verified on Azahar: it is the first console check below. The emulated SD's as3d profile
+now has the "P6 Script" entry.
+
+### The first game's front-end top screen
+
+The desktop's main menu (`GameView::drawFront`, frontend.md 3.3): the attract level, the
+letterbox (black bands, the red rule at virtual y 99), the rotating 3D banner `objects\banner.obj`
+(additive, unlit) in the virtual rectangle (0, 0, 800, 200) between the menu's two halves, the
+items; with `--dual-screen` all of it on the bottom screen. The 3DS had the attract level on top
+with the game's title in text where the banner goes ("Deferred" in M2.1 and M3.4).
+
+Now (`ctr_frame.cpp`): at an attract level's start the banner's mesh and material are loaded
+into a cache of their own (`AS3D_BANNER model=models/banner/banner.mdl ... load_ms=31` on Azahar;
+released with the renderer at every level start, as the model view's), and while the main menu
+is up (`Frontend::bannerVisible`) the top screen gets, after the world and its brightness pass,
+the letterbox's black band (0..39.6 px) and red rule, then the banner through a `pica::MeshPass`
+with `BannerMesh::draw`'s camera and model matrix (the menu clock) in the top 400 x 100 pixels
+(the desktop's 4:1 at the full width). Stereo: zero parallax at 40 units (the mesh is 30 to 45
+away). The sequels have no banner: their title stays in text. Cost on Azahar: one draw, 526
+vertices, `model=0.17 ms` in `AS3D_PASS_MS`. Side by side with `as3d_game --headless --attract 1
+--no-logo --size 800x600 --ui-script` (shot at frame 120): scratchpad
+`p6/frontend_desktop_vs_3ds.png` (desktop scaled to 400x300 left, the 3DS top and bottom right).
+
+### Life cycle
+
+Read and checked:
+
+- HOME (APT suspend) and the lid (sleep), menu loop: `GameFlow::onBackground` (the in-game menu
+  opens during play, so the world stays paused when it comes back), the profile saved, the sound
+  suspended, the log flushed; on return the clocks restart (no replay). The direct modes pause
+  the world themselves and resume it. Nothing was missing.
+- START+SELECT (every loop and the selector), the main menu's Exit and the HOME menu's Close end
+  the loop: `saveNow()`, the stack torn down, `Perf::close` joins the writer thread after its
+  queued writes (the read plan, the shadow cache: `writeFileAtomic`), so no `*.tmp` is left.
+  Azahar (`pad_script=200:START+SELECT`): `quit: START+SELECT`, `AS3D_SAVE ... ok=1`, `when=exit`;
+  `find` over the SD tree: no `*.tmp` (`p6/quit/`).
+- The hard exit above (missing data, pak, unknown game, level start, graphics).
+- `quality=old`, `mode=bot level=1 frames=300` on Azahar: `AS3D_QUALITY profile=old ...
+  renderHz=30 ... blobShadowsOnly=1`, 150 frames at 2 steps, the end state = the sim's (`p6/old/`).
+
+Sound is not checked on Azahar: the emulated SD has no `dspfirm.cdc` (`ndspInit failed`, silent).
+
+### For the console
+
+1. Package: `tools/3ds_package.sh`, copy `3ds/` of `out/3ds/package/<version>/` over the card's
+   `3ds/` (the paks, texts, music and `dspfirm.cdc` are already there), delete or comment out
+   `run.ini`. Homebrew Launcher: OpenAirStrike with its icon and titles; start it: the selector
+   or the game, music on; `log.txt` first line ends `from=sdmc:/3ds/openairstrike/openairstrike.3dsx`.
+2. CIA: `openairstrike.cia` with FBI; the HOME menu shows the icon and the banner; start it: the
+   same game; `log.txt` shows `from=none`, `New 3DS, speed-up on`, the memory line (124 MB mode
+   expected on a New 3DS).
+3. Name entry: lose with a high score (or `end_at=300 end_kind=gameover end_score=60000` with
+   `menu_bot=1`): the keyboard appears, type a name, OK: Top Scores shows it; again with Cancel:
+   the touch keys, Y brings the keyboard back; a too long name: the message.
+4. HOME and back, lid closed and opened, during play and in the menus: paused, `apt:` lines and
+   `AS3D_SAVE`; START+SELECT: back to the launcher; `ls` over ftpd: no `*.tmp`.
+5. With `game=as3d` in run.ini, rename `as3d/pak1.apk` for a moment: the screens show "cannot start AirStrike 3D" and the
+   layout; A returns to the launcher.
+6. An Old 3DS if available: `quality=auto` picks the old profile, mission 1 plays.
