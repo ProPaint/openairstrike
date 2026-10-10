@@ -15,6 +15,7 @@
 #include "fx_pica.h"
 #include "linear_arena.h"
 #include "pica_space.h"
+#include "stereo_comfort.h"
 #include "tev.h"
 #include "texture_budget.h"
 
@@ -416,6 +417,110 @@ TEST_CASE("pica space: the eye projection equals citro3d's Mtx_PerspStereoTilt w
     const EyeView eye{1.0f, 200.0f};
     const Mat4 naive = citroPerspStereoTilt(degToRad(60.0f), aspect, 4.0f, 2000.0f, 2.0f, 200.0f);
     CHECK(maxAbsDiff(naive, picaEyeProjectionReference(view, eye, aspect)) > 0.03f);
+}
+
+TEST_CASE("stereo comfort: parallax, the clamp ratio and its filters") {
+    const float a = stereoA(60.0f, 400.0f / 240.0f);
+    CHECK(a == doctest::Approx(1.0392f).epsilon(1e-3));
+    // At the focal depth 0, behind it positive, in front negative, at infinity W A / D.
+    CHECK(parallaxPxPerUnit(180.0f, 180.0f, a, 400.0f) == doctest::Approx(0.0f));
+    CHECK(parallaxPxPerUnit(360.0f, 180.0f, a, 400.0f) == doctest::Approx(400.0f * a / 360.0f));
+    CHECK(parallaxPxPerUnit(90.0f, 180.0f, a, 400.0f) == doctest::Approx(-400.0f * a / 180.0f));
+    CHECK(parallaxPxPerUnit(1e9f, 180.0f, a, 400.0f) == doctest::Approx(400.0f * a / 180.0f).epsilon(1e-4));
+
+    ComfortLimits lim; // 10 px near, 12 px far
+    // Nothing near, the far terrain within 12 px at e = 4: no clamp.
+    CHECK(comfortRatio(lim, 0.0f, 900.0f, 180.0f, a, 400.0f, 4.0f) == doctest::Approx(1.0f));
+    // A model at depth 60 with the focal plane at 180: 400 A (1/60 - 1/180) = 4.62 px per unit,
+    // 18.5 px at e = 4; the ratio brings it to 10 px.
+    const float r = comfortRatio(lim, 60.0f, 0.0f, 180.0f, a, 400.0f, 4.0f);
+    CHECK(r == doctest::Approx(10.0f / (400.0f * a * (1.0f / 60.0f - 1.0f / 180.0f) * 4.0f)));
+    CHECK(-parallaxPxPerUnit(60.0f, 180.0f, a, 400.0f) * 4.0f * r == doctest::Approx(10.0f));
+    // The far limit: a far plane at infinity and a near focal plane (D = 40): 10.4 px per unit.
+    const float rf = comfortRatio(lim, 0.0f, 1e9f, 40.0f, a, 400.0f, 4.0f);
+    CHECK(parallaxPxPerUnit(1e9f, 40.0f, a, 400.0f) * 4.0f * rf == doctest::Approx(12.0f).epsilon(1e-3));
+
+    // No player: the balanced focal. A shallow scene (100..1000) keeps e = 4 with the far terrain at
+    // its 12 px and the near content behind the screen; a deep one (12..800) shares the two limits.
+    {
+        const float d = balancedFocal(lim, 100.0f, 1000.0f, a, 400.0f, 4.0f);
+        CHECK(parallaxPxPerUnit(1000.0f, d, a, 400.0f) * 4.0f == doctest::Approx(12.0f).epsilon(1e-3));
+        CHECK(parallaxPxPerUnit(100.0f, d, a, 400.0f) * 4.0f > -10.0f);
+        CHECK(comfortRatio(lim, 100.0f, 1000.0f, d, a, 400.0f, 4.0f) == doctest::Approx(1.0f).epsilon(1e-3));
+        const float d2 = balancedFocal(lim, 12.0f, 800.0f, a, 400.0f, 4.0f);
+        const float r2 = comfortRatio(lim, 12.0f, 800.0f, d2, a, 400.0f, 4.0f);
+        CHECK(-parallaxPxPerUnit(12.0f, d2, a, 400.0f) * 4.0f * r2 == doctest::Approx(10.0f).epsilon(1e-2));
+        CHECK(parallaxPxPerUnit(800.0f, d2, a, 400.0f) * 4.0f * r2 == doctest::Approx(12.0f).epsilon(1e-2));
+        // The fixed min_focal of 40 for the same scene leaves less depth.
+        CHECK(comfortRatio(lim, 12.0f, 800.0f, 40.0f, a, 400.0f, 4.0f) < r2);
+        CHECK(balancedFocal(lim, 0.0f, 800.0f, a, 400.0f, 4.0f) == 0.0f);
+    }
+
+    // The filter: the first update takes the target, then at most down / up per second.
+    ComfortFilter f;
+    CHECK(f.update(0.8f, 1.0f / 60.0f) == doctest::Approx(0.8f));
+    CHECK(f.update(0.2f, 1.0f / 60.0f) == doctest::Approx(0.8f - 3.0f / 60.0f));
+    for (int i = 0; i < 60; ++i) f.update(0.2f, 1.0f / 60.0f);
+    CHECK(f.ratio == doctest::Approx(0.2f));
+    CHECK(f.update(1.0f, 1.0f / 60.0f) == doctest::Approx(0.2f + 0.4f / 60.0f));
+    f.reset();
+    CHECK(f.update(0.5f, 0.0f) == doctest::Approx(0.5f));
+
+    FocalFilter ff;
+    CHECK(ff.update(180.0f, 1.0f / 60.0f) == doctest::Approx(180.0f));
+    CHECK(ff.update(90.0f, 1.0f / 60.0f) == doctest::Approx(180.0f - 180.0f * 1.5f / 60.0f));
+}
+
+TEST_CASE("stereo comfort: the terrain probe and the model depth") {
+    // A camera 150 units above a flat plane z = 0, looking along +x pitched 40 degrees down (world z
+    // up). The bottom edge's rays hit at depth H / (sin p + tan(fovY/2) cos p), the top edge's at
+    // H / (sin p - tan(fovY/2) cos p).
+    const float h = 150.0f, pitch = degToRad(40.0f);
+    const Vec3 eye{0.0f, 0.0f, h};
+    const Vec3 fwd{std::cos(pitch), 0.0f, -std::sin(pitch)};
+    const Mat4 view = lookAt(eye, Vec3{eye.x + fwd.x, eye.y + fwd.y, eye.z + fwd.z}, Vec3{0.0f, 0.0f, 1.0f});
+    const float aspect = 400.0f / 240.0f, ty = std::tan(degToRad(30.0f));
+    auto flat = [](float, float) { return 0.0f; };
+    TerrainDepth td;
+    REQUIRE(probeTerrainDepth(view, 60.0f, aspect, 4.0f, 5000.0f, 0.0f, flat, td));
+    const float nearExpected = h / (std::sin(pitch) + ty * std::cos(pitch));
+    const float farExpected = h / (std::sin(pitch) - ty * std::cos(pitch));
+    CHECK(td.nearest == doctest::Approx(nearExpected).epsilon(0.01));
+    CHECK(td.farthest == doctest::Approx(farExpected).epsilon(0.01));
+    CHECK(td.hits == 30);
+    // Beyond the far limit: the top rows count for nothing.
+    REQUIRE(probeTerrainDepth(view, 60.0f, aspect, 4.0f, 300.0f, 0.0f, flat, td));
+    CHECK(td.farthest <= 300.0f);
+    CHECK(td.hits < 30);
+    // Off the map everywhere: no hit.
+    auto none = [](float, float) { return -1e30f; };
+    CHECK_FALSE(probeTerrainDepth(view, 60.0f, aspect, 4.0f, 5000.0f, 0.0f, none, td));
+
+    // A unit box 100 units straight ahead (camera space, no rotation): its near face at 99.5.
+    const Mat4 mv = translation(Vec3{0.0f, 0.0f, -100.0f});
+    CHECK(modelNearDepth(mv, Vec3{-0.5f, -0.5f, -0.5f}, Vec3{0.5f, 0.5f, 0.5f}, 60.0f, aspect, 4.0f, 2000.0f) ==
+          doctest::Approx(99.5f));
+    // Behind the camera, or far off to the side: not in the view.
+    CHECK(modelNearDepth(translation(Vec3{0.0f, 0.0f, 50.0f}), Vec3{-1, -1, -1}, Vec3{1, 1, 1}, 60.0f, aspect, 4.0f,
+                         2000.0f) == 0.0f);
+    CHECK(modelNearDepth(translation(Vec3{500.0f, 0.0f, -100.0f}), Vec3{-1, -1, -1}, Vec3{1, 1, 1}, 60.0f, aspect, 4.0f,
+                         2000.0f) == 0.0f);
+    // The vertices themselves: the nearest one in the view (the third is off to the side).
+    const std::vector<Vec3> pts{Vec3{0.0f, 0.0f, -100.0f}, Vec3{0.0f, 0.0f, -50.0f}, Vec3{1000.0f, 0.0f, -40.0f}};
+    CHECK(meshNearDepth(Mat4::identity(), pts, 60.0f, aspect, 4.0f, 2000.0f) == doctest::Approx(50.0f));
+    CHECK(meshNearDepth(translation(Vec3{0.0f, 0.0f, 200.0f}), pts, 60.0f, aspect, 4.0f, 2000.0f) == 0.0f);
+    float n = 0.0f, f = 0.0f;
+    REQUIRE(meshDepthRange(Mat4::identity(), pts, 60.0f, aspect, 4.0f, 2000.0f, n, f));
+    CHECK(n == doctest::Approx(50.0f));
+    CHECK(f == doctest::Approx(100.0f));
+    // An object from 50 to 100 with its front on the screen plane: e limited to 4 px of depth.
+    const float a1 = stereoA(60.0f, aspect);
+    const float e4 = limitEyeOffsetForDepth(4.0f, 50.0f, 100.0f, a1, 400.0f, 4.0f);
+    CHECK(parallaxPxPerUnit(100.0f, 50.0f, a1, 400.0f) * e4 == doctest::Approx(4.0f));
+    CHECK(limitEyeOffsetForDepth(0.01f, 50.0f, 100.0f, a1, 400.0f, 4.0f) == doctest::Approx(0.01f));
+    // Straddling the near plane: clamped to it.
+    CHECK(modelNearDepth(translation(Vec3{0.0f, 0.0f, -3.0f}), Vec3{-2, -2, -2}, Vec3{2, 2, 2}, 60.0f, aspect, 4.0f,
+                         2000.0f) == doctest::Approx(4.0f));
 }
 
 TEST_CASE("fx_pica: capRuns cuts the built lists at the cap") {

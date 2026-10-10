@@ -58,6 +58,7 @@
 #include "as3d/core.h"
 #include "as3d/defs.h"
 #include "as3d/image.h"
+#include "as3d/level.h"
 #include "as3d/load_stats.h"
 #include "as3d/particle_render.h"
 #include "as3d/render_state.h"
@@ -76,6 +77,7 @@
 #include "pass_profile.h"
 #include "pica_frame.h"
 #include "shadow_pica.h"
+#include "stereo_comfort.h"
 #include "lightning_renderer_pica.h"
 #include "terrain_pica.h"
 #include "texture_budget.h"
@@ -133,8 +135,10 @@ public:
 private:
     u64 t_;
 };
+SceneDepth g_sceneDepth;
 } // namespace
 const WorldPicaStats& worldPicaStats() { return g_worldStats; }
+const SceneDepth& sceneDepth() { return g_sceneDepth; }
 } // namespace pica
 
 struct WorldRenderer::Impl {
@@ -143,6 +147,13 @@ struct WorldRenderer::Impl {
     std::unique_ptr<ResourceCache> cache;
     WorldScene scene;
     pica::MeshPass opaquePass, restPass;
+    // The stereo comfort probe (stereo_comfort.h): each ray-grid row's last result, the next row,
+    // the highest surface of the terrain it was computed for.
+    pica::TerrainDepth probeRows[pica::kProbeRows];
+    unsigned probeRow = 0;
+    const Terrain* probeTopOf = nullptr;
+    float probeTop = 0.0f;
+    unsigned lastStereoPrepare = 0; // the prepareSerial of the last probe (a gap: probe every row)
     ParticleRenderer particles;
     SpriteRenderer sprites;
     std::unique_ptr<TerrainRenderer> terrain;
@@ -283,6 +294,10 @@ bool WorldRenderer::beginLevel(const World& world, std::string* error) {
     im.skidParams = skidTrailParams(world.rules());
     im.lateShadowMaps = 0;
     pica::resetShadowPicaStats();
+    pica::g_sceneDepth = pica::SceneDepth();
+    for (pica::TerrainDepth& r : im.probeRows) r = pica::TerrainDepth();
+    im.probeRow = 0;
+    im.probeTopOf = nullptr;
     im.scene.beginLevel(world, im.rules);
     const Terrain* t = world.terrain();
     if (!t) return true;
@@ -570,6 +585,71 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
         }
     }
     meter.lap(Pass::PrepStats, ws.linearRecords);
+
+    // Stereo comfort (stereo_comfort.h): the nearest model and, every second frame, the nearest and
+    // farthest terrain the central camera sees, while two eyes are drawn.
+    pica::SceneDepth& sd = pica::g_sceneDepth;
+    sd.valid = false;
+    if (pica::frameEyes() == 2) {
+        const WorldScene::Frame& fr = sc.frame();
+        const float aspect = fr.aspect;
+        sd.nearPlane = fr.wv.nearPlane;
+        sd.farLimit = fr.hasFog && fr.light.fogEnd > fr.wv.nearPlane ? std::min(fr.wv.farPlane, fr.light.fogEnd)
+                                                                      : fr.wv.farPlane;
+        const u64 tModel = svcGetSystemTick();
+        float modelNear = 0.0f;
+        for (const std::vector<MeshRecord>* list : {&sc.opaque, &sc.trans}) {
+            for (const MeshRecord& r : *list) {
+                if (!r.mesh || !r.mesh->valid) continue;
+                const float d = pica::modelNearDepth(fr.wv.view * r.model, r.mesh->model.boundsMin, r.mesh->model.boundsMax,
+                                                     fr.wv.fovY, aspect, fr.wv.nearPlane, sd.farLimit);
+                if (d > 0.0f && (modelNear == 0.0f || d < modelNear)) modelNear = d;
+            }
+        }
+        sd.modelNear = modelNear;
+        const u64 tProbe = svcGetSystemTick();
+        sd.modelTicks += tProbe - tModel;
+        ++sd.modelScans;
+        if (terrain) {
+            const float wMax = static_cast<float>(terrain->width()) * kHmapCellSize;
+            const float hMax = static_cast<float>(terrain->height()) * kHmapCellSize;
+            const bool water = terrain->hasWater() && fr.options.water;
+            const float waterZ = terrain->waterLevel();
+            auto height = [&](float x, float y) {
+                if (x < 0.0f || y < 0.0f || x > wMax || y > hMax) return -1e30f;
+                const float h = terrain->heightAt(x, y);
+                return water ? std::max(h, waterZ) : h;
+            };
+            // The highest surface (rays start where they come down to it), again after a crater or
+            // a TerraMorph stamp.
+            if (im.probeTopOf != terrain || !rects.empty()) {
+                float top = -1e30f;
+                for (const Vec3& p : terrain->positions()) top = std::max(top, p.z);
+                if (water) top = std::max(top, waterZ);
+                im.probeTop = top + 1.0f;
+                im.probeTopOf = terrain;
+            }
+            // One row of the ray grid per frame (all of them on the first): a full probe every
+            // kProbeRows frames, a tenth of a second.
+            const bool all = sd.probes == 0 || im.lastStereoPrepare + 1 != im.prepareSerial;
+            im.lastStereoPrepare = im.prepareSerial;
+            for (int r = 0; r < pica::kProbeRows; ++r) {
+                if (!all && r != static_cast<int>(im.probeRow)) continue;
+                im.probeRows[r] = pica::probeTerrainRow(fr.wv.view, fr.wv.fovY, aspect, fr.wv.nearPlane, sd.farLimit,
+                                                        im.probeTop, height, r);
+                sd.probeSteps += im.probeRows[r].steps;
+            }
+            im.probeRow = (im.probeRow + 1) % pica::kProbeRows;
+            pica::TerrainDepth td;
+            for (const pica::TerrainDepth& rd : im.probeRows) td.merge(rd);
+            sd.terrainHit = td.hits > 0;
+            sd.terrainNear = td.nearest;
+            sd.terrainFar = td.farthest;
+            ++sd.probes;
+            sd.probeTicks += svcGetSystemTick() - tProbe;
+        }
+        sd.valid = true;
+    }
     pica::passProfile().add(Pass::PrepWorld, svcGetSystemTick() - tWorld, 0, 0);
 }
 
