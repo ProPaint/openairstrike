@@ -433,21 +433,52 @@ void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, 
         lightPick.resize(static_cast<size_t>(pica::kTerrainPicaLightsPerChunk));
     DynamicLight picked[pica::kTerrainPicaLightsPerChunk];
     for (size_t i = 0; i < lightPick.size(); ++i) picked[i] = *lightPick[i];
-    terrainDynamicLightColors(ch, picked, static_cast<int>(lightPick.size()), lightScratch);
-
-    // Lit colour minus the baked byte, per vertex.
+    // Only the vertices the picked lights can reach: a conservative rectangle of the chunk's
+    // grid (vertex (c, r) sits at (c, r) * kHmapCellSize; outside it every light is farther than
+    // its radius, so the lit colour is the baked one and what it adds is 0).
     const size_t n = ch.verts.size();
     const size_t extra = extraOf(k);
-    bool any = false;
-    for (size_t i = 0; i < n; ++i) {
-        for (int c = 0; c < 3; ++c) {
-            const int lit = lightScratch[i * 4 + static_cast<size_t>(c)];
-            const int base = cg.verts ? cg.verts[i].col[c] : colourByte(ch.verts[i].col[c]);
-            const int d = std::max(lit - base, 0);
-            lightScratch[i * 4 + static_cast<size_t>(c)] = static_cast<uint8_t>(d);
-            any = any || d != 0;
+    const int vw = geo.width + 1;
+    int c0 = vw, c1 = -1, r0 = ch.rows + 1, r1 = -1;
+    for (size_t i = 0; i < lightPick.size(); ++i) {
+        const DynamicLight& l = picked[i];
+        const float R = l.radius * 1.01f + 1.0f;
+        const float x0 = (l.position.x - R) / kHmapCellSize, x1 = (l.position.x + R) / kHmapCellSize;
+        const float y0 = (l.position.y - R) / kHmapCellSize - static_cast<float>(ch.firstRow);
+        const float y1 = (l.position.y + R) / kHmapCellSize - static_cast<float>(ch.firstRow);
+        if (!(x0 > -1.0e6f && x1 < 1.0e6f && y0 > -1.0e6f && y1 < 1.0e6f)) { // not finite or huge: all
+            c0 = r0 = 0;
+            c1 = vw - 1;
+            r1 = ch.rows;
+            break;
         }
-        lightScratch[i * 4 + 3] = 0;
+        c0 = std::min(c0, static_cast<int>(std::floor(x0)));
+        c1 = std::max(c1, static_cast<int>(std::ceil(x1)));
+        r0 = std::min(r0, static_cast<int>(std::floor(y0)));
+        r1 = std::max(r1, static_cast<int>(std::ceil(y1)));
+    }
+    c0 = std::max(c0, 0);
+    r0 = std::max(r0, 0);
+    c1 = std::min(c1, vw - 1);
+    r1 = std::min(r1, ch.rows);
+    lightScratch.assign(n * 4, 0);
+    if (c0 > c1 || r0 > r1) return;
+    terrainDynamicLightColors(ch, vw, picked, static_cast<int>(lightPick.size()), c0, c1, r0, r1, lightScratch);
+
+    // Lit colour minus the baked byte, per vertex of the rectangle (0 elsewhere).
+    bool any = false;
+    for (int r = r0; r <= r1; ++r) {
+        for (int col = c0; col <= c1; ++col) {
+            const size_t i = static_cast<size_t>(r) * static_cast<size_t>(vw) + static_cast<size_t>(col);
+            for (int c = 0; c < 3; ++c) {
+                const int lit = lightScratch[i * 4 + static_cast<size_t>(c)];
+                const int base = cg.verts ? cg.verts[i].col[c] : colourByte(ch.verts[i].col[c]);
+                const int d = std::max(lit - base, 0);
+                lightScratch[i * 4 + static_cast<size_t>(c)] = static_cast<uint8_t>(d);
+                any = any || d != 0;
+            }
+            lightScratch[i * 4 + 3] = 0;
+        }
     }
     if (!any) return;
     auto* dyn = pica::frameArena().allocArray<LightBytes>(n + extra);

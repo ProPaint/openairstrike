@@ -224,6 +224,18 @@ TEST_CASE("terrain build: CPU dynamic lights equal the shader loop") {
                 }
                 CHECK(rgba[i * 4 + 3] == 255);
             }
+            // The rectangle variant: the same bytes inside, nothing written outside.
+            const int vw = g.width + 1;
+            const int rows = static_cast<int>(ch.verts.size()) / vw;
+            const int c0 = trial % 5, c1 = vw - 1 - trial % 3, r0 = trial % 2, r1 = rows - 1 - trial % 2;
+            std::vector<uint8_t> part(ch.verts.size() * 4, 7);
+            terrainDynamicLightColors(ch, vw, lights.data(), static_cast<int>(lights.size()), c0, c1, r0, r1, part);
+            for (int r = 0; r < rows; ++r)
+                for (int c = 0; c < vw; ++c) {
+                    const size_t i = static_cast<size_t>(r * vw + c) * 4;
+                    const bool in = c >= c0 && c <= c1 && r >= r0 && r <= r1;
+                    for (int k = 0; k < 4; ++k) CHECK(part[i + static_cast<size_t>(k)] == (in ? rgba[i + static_cast<size_t>(k)] : 7));
+                }
         }
     }
     // No lights: the baked colour.

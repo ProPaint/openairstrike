@@ -344,43 +344,65 @@ std::vector<int> visibleTerrainChunks(const TerrainGeometry& g, const Mat4& view
     return visibleTerrainChunks(g, extractTerrainFrustum(viewProjection));
 }
 
+namespace {
+
+// One vertex of terrainDynamicLightColors: its RGBA8 into out[0..3].
+inline void dynamicLightVertex(const TerrainVertex& tv, const DynamicLight* lights, int n, uint8_t* out) {
+    const Vec3 aPos{tv.pos[0], tv.pos[1], tv.pos[2]};
+    const Vec3 aNormal{tv.nrm[0], tv.nrm[1], tv.nrm[2]};
+    Vec3 col{tv.col[0], tv.col[1], tv.col[2]};
+    for (int i = 0; i < n; i++) {
+        const DynamicLight& l = lights[i];
+        Vec3 v = l.position - aPos;
+        const float radius = l.radius;
+        // Conservative early out before the square root (as evaluateLight): beyond the
+        // radius for certain; the exact test below decides every other vertex.
+        const float d2 = dot(v, v);
+        if (d2 > radius * radius * 1.01f) continue;
+        const float dist = std::sqrt(d2);
+        if (radius <= 0.0f || dist > radius) continue;
+        if (dist > 0.0f) v = Vec3{v.x / dist, v.y / dist, v.z / dist};
+        float spot = 1.0f;
+        if (l.spot) {
+            const float c = dot(Vec3{-v.x, -v.y, -v.z}, l.direction);
+            if (c < l.cosOuter) continue;
+            if (c < l.cosInner) spot = (c - l.cosOuter) / (l.cosInner - l.cosOuter);
+        }
+        const float nd = dot(aNormal, v);
+        if (nd <= 0.0f) continue;
+        col = col + l.colour * ((0.7f * nd + 0.3f) * (radius - dist) / radius * spot);
+    }
+    const float rgb[3] = {std::min(col.x, 1.0f), std::min(col.y, 1.0f), std::min(col.z, 1.0f)};
+    for (int k = 0; k < 3; ++k) {
+        const float b = std::floor(std::max(rgb[k], 0.0f) * 255.0f + 0.5f);
+        out[k] = static_cast<uint8_t>(std::min(b, 255.0f));
+    }
+    out[3] = 255;
+}
+
+} // namespace
+
 void terrainDynamicLightColors(const TerrainChunkGeometry& chunk, const DynamicLight* lights, int count,
                                std::vector<uint8_t>& out) {
     const int n = std::max(0, std::min(count, kMaxDynamicLights));
     out.resize(chunk.verts.size() * 4);
-    for (size_t vi = 0; vi < chunk.verts.size(); ++vi) {
-        const TerrainVertex& tv = chunk.verts[vi];
-        const Vec3 aPos{tv.pos[0], tv.pos[1], tv.pos[2]};
-        const Vec3 aNormal{tv.nrm[0], tv.nrm[1], tv.nrm[2]};
-        Vec3 col{tv.col[0], tv.col[1], tv.col[2]};
-        for (int i = 0; i < n; i++) {
-            const DynamicLight& l = lights[i];
-            Vec3 v = l.position - aPos;
-            const float radius = l.radius;
-            // Conservative early out before the square root (as evaluateLight): beyond the
-            // radius for certain; the exact test below decides every other vertex.
-            const float d2 = dot(v, v);
-            if (d2 > radius * radius * 1.01f) continue;
-            const float dist = std::sqrt(d2);
-            if (radius <= 0.0f || dist > radius) continue;
-            if (dist > 0.0f) v = Vec3{v.x / dist, v.y / dist, v.z / dist};
-            float spot = 1.0f;
-            if (l.spot) {
-                const float c = dot(Vec3{-v.x, -v.y, -v.z}, l.direction);
-                if (c < l.cosOuter) continue;
-                if (c < l.cosInner) spot = (c - l.cosOuter) / (l.cosInner - l.cosOuter);
-            }
-            const float nd = dot(aNormal, v);
-            if (nd <= 0.0f) continue;
-            col = col + l.colour * ((0.7f * nd + 0.3f) * (radius - dist) / radius * spot);
+    for (size_t vi = 0; vi < chunk.verts.size(); ++vi) dynamicLightVertex(chunk.verts[vi], lights, n, &out[vi * 4]);
+}
+
+void terrainDynamicLightColors(const TerrainChunkGeometry& chunk, int vertsWide, const DynamicLight* lights, int count,
+                               int c0, int c1, int r0, int r1, std::vector<uint8_t>& out) {
+    const int n = std::max(0, std::min(count, kMaxDynamicLights));
+    out.resize(chunk.verts.size() * 4);
+    const int rows = vertsWide > 0 ? static_cast<int>(chunk.verts.size()) / vertsWide : 0;
+    c0 = std::max(c0, 0);
+    r0 = std::max(r0, 0);
+    c1 = std::min(c1, vertsWide - 1);
+    r1 = std::min(r1, rows - 1);
+    for (int r = r0; r <= r1; ++r)
+        for (int c = c0; c <= c1; ++c) {
+            const size_t vi = static_cast<size_t>(r) * static_cast<size_t>(vertsWide) + static_cast<size_t>(c);
+            dynamicLightVertex(chunk.verts[vi], lights, n, &out[vi * 4]);
         }
-        const float rgb[3] = {std::min(col.x, 1.0f), std::min(col.y, 1.0f), std::min(col.z, 1.0f)};
-        for (int k = 0; k < 3; ++k) {
-            const float b = std::floor(std::max(rgb[k], 0.0f) * 255.0f + 0.5f);
-            out[vi * 4 + static_cast<size_t>(k)] = static_cast<uint8_t>(std::min(b, 255.0f));
-        }
-        out[vi * 4 + 3] = 255;
-    }
 }
 
 } // namespace as3d

@@ -133,5 +133,10 @@ std::vector<int> visibleTerrainChunks(const TerrainGeometry& geometry, const Mat
 // nearest. At most kMaxDynamicLights lights are used.
 void terrainDynamicLightColors(const TerrainChunkGeometry& chunk, const DynamicLight* lights, int count,
                                std::vector<uint8_t>& out);
+// The same for the vertices of the chunk's local columns [c0, c1] and rows [r0, r1] only (the
+// chunk's vertices are rows of `vertsWide`); `out` is sized for the whole chunk, the other
+// vertices are left as they are.
+void terrainDynamicLightColors(const TerrainChunkGeometry& chunk, int vertsWide, const DynamicLight* lights, int count,
+                               int c0, int c1, int r0, int r1, std::vector<uint8_t>& out);
 
 } // namespace as3d
