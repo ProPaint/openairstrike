@@ -165,6 +165,7 @@ constexpr float kModelPxPerVirtual = 0.8f;
 // kBannerFocal (the mesh is about 30 to 45 units away).
 constexpr int kBannerW = 400, kBannerH = 100;
 constexpr float kBannerFocal = 40.0f;
+constexpr float kBannerBand = 99.0f * kTopH / 600.0f; // the letterbox's black band (virtual 0..99)
 
 // BannerMesh::draw's model matrix (apps/game/game_view.cpp): the entity at (-34, 7, -30), angles
 // (95 + 7 sin mt, 3 sin(0.7 mt + 0.5), 0) degrees, times the object's scale.
@@ -1018,6 +1019,11 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
     }
     if (im.bannerActive) {
         UiMeter m(pica::Pass::Model);
+        // The desktop's main menu has the banner over the letterbox's black top band, whose red
+        // rule is at virtual y 99 (frontend.md 3.3): the same band at the top screen's scale, so
+        // that the additive flames are on black as there, not on the snow.
+        pica::fillRect(0.0f, 0.0f, static_cast<float>(kTopW), kBannerBand, 0, 0, 0);
+        pica::fillRect(0.0f, kBannerBand, kTopW * 0.975f, kBannerBand + 1.0f, 211, 0, 0);
         im.drawBannerEye(eye);
         m.extraDraws = im.bannerPass.lastStats().draws;
         m.extraVerts = im.bannerPass.lastStats().vertices;
