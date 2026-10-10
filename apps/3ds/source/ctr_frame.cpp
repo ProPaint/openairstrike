@@ -157,6 +157,25 @@ double kb(size_t b) { return static_cast<double>(b) / 1024.0; }
 // mapping on its bottom screen (the comparison of the report).
 constexpr float kModelPxPerVirtual = 0.8f;
 
+// The first game's main-menu banner (objects\banner.obj, the flaming title; docs/3ds-port.md
+// "Packaging and launch"): the desktop draws it in the virtual rectangle (0, 0, 800, 200) of the
+// main menu, over the attract level (GameView::drawBanner). The 3DS's menus are on the bottom
+// screen, so it goes on the top one, over the attract level as there: the whole width, a quarter
+// of the height (400 x 100 px: the desktop's 4:1), at the top. Its stereo has zero parallax at
+// kBannerFocal (the mesh is about 30 to 45 units away).
+constexpr int kBannerW = 400, kBannerH = 100;
+constexpr float kBannerFocal = 40.0f;
+
+// BannerMesh::draw's model matrix (apps/game/game_view.cpp): the entity at (-34, 7, -30), angles
+// (95 + 7 sin mt, 3 sin(0.7 mt + 0.5), 0) degrees, times the object's scale.
+Mat4 bannerMatrix(float mt, float objectScale) {
+    const float angles[3] = {95.0f + 7.0f * std::sin(mt), 3.0f * std::sin(0.7f * mt + 0.5f), 0.0f};
+    const float origin[3] = {-34.0f, 7.0f, -30.0f};
+    Mat4 model = as3d_game::entityMatrix(angles, origin);
+    if (objectScale != 1.0f) model = model * scale(Vec3{objectScale, objectScale, objectScale});
+    return model;
+}
+
 // A 2D pass (or the brightness pass) in the pass profile (pass_profile.h): its CPU ticks, the
 // 2D runs and vertices it drew.
 class UiMeter {
@@ -237,6 +256,22 @@ struct GameFrame::Impl {
     bool modelActive = false;
     ui::ModelView modelView;
     pica::MeshPass modelPass;
+    // The first game's main-menu banner on the top screen (kBannerW x kBannerH): its mesh and
+    // material from a cache of its own, loaded at the attract level's start (with the precache)
+    // and released with the renderer at every level start, as the model view's.
+    struct Banner {
+        std::unique_ptr<ResourceCache> cache;
+        const GpuMesh* gpu = nullptr;
+        Material material;
+        float scale = 1.0f;
+    };
+    std::unique_ptr<Banner> banner;
+    bool bannerActive = false; // this frame
+    float bannerTime = 0.0f;
+    StereoParams bannerStereo;
+    pica::MeshPass bannerPass;
+    bool bannerLogged = false;
+    bool bannerTried = false; // loadBanner ran since the last level start
     int modelX = 0, modelY = 0, modelW = 0, modelH = 0; // the viewport, top screen pixels from the top left
     float topBrightness = 0.6f;
     float cmdUsageMax = 0.0f; // the largest C3D_GetCmdBufUsage seen after a top eye's last draw (256 KB list; full drops draws)
@@ -515,6 +550,8 @@ struct GameFrame::Impl {
         if (levelBegun) {
             emptyFrames();
             preview.reset();
+            banner.reset();
+            bannerTried = false;
             if (!makeRenderer(ses)) {
                 if (error) *error = "renderer";
                 return false;
@@ -538,6 +575,7 @@ struct GameFrame::Impl {
             return false;
         }
         levelBegun = true;
+        if (intermission) loadBanner(ses);
         const uint64_t t1 = svcGetSystemTick();
         loadingFrame(0.3f, true, intermission);
         precacheLevel(ses, 0.35f, 0.95f);
@@ -579,6 +617,73 @@ struct GameFrame::Impl {
             fe->drawOver(m, *assets);
             menuQuads = true;
         }
+    }
+
+    // The banner object of the game (the first game has one; the sequels none: their title stays
+    // in text). Called at an attract level's start, and from prepare if a menu shows the banner
+    // without one (precache=0).
+    void loadBanner(as3d_game::GameSession& ses) {
+        banner.reset();
+        bannerTried = true;
+        const ObjectDef* def = ses.db().findObject("banner");
+        if (!def || def->model.empty()) return;
+        const uint64_t t0 = svcGetSystemTick();
+        std::unique_ptr<Banner> b(new Banner());
+        b->cache.reset(new ResourceCache(ses.vfs()));
+        const GpuMesh& gpu = b->cache->mesh(def->model);
+        if (!gpu.valid) {
+            AS3D_WARN("banner: %s has no mesh: the title in text", def->model.c_str());
+            return;
+        }
+        b->gpu = &gpu;
+        b->material = Material::fromObjectDef(*def, *b->cache);
+        b->scale = def->scale > 0.001f ? def->scale : 1.0f;
+        banner = std::move(b);
+        if (!bannerLogged)
+            AS3D_INFO("AS3D_BANNER model=%s scale=%.2f load_ms=%.1f viewport=(0, 0, %d, %d)", def->model.c_str(),
+                      static_cast<double>(banner->scale), static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11,
+                      kBannerW, kBannerH);
+        bannerLogged = true;
+    }
+
+    // prepare: the banner's pass at the menu clock, when the main menu shows it.
+    void prepareBanner(as3d_game::GameSession& ses, ui::Frontend* fe, const FrameInfo& fi) {
+        bannerActive = false;
+        if (!fe || !fe->bannerVisible() || modelActive || !pica::passEnabled(pica::Pass::Model)) return;
+        if (!banner && !bannerTried) loadBanner(ses);
+        if (!banner) return;
+        bannerTime = fe->menus().menuTime();
+        bannerPass.begin(SceneLighting(), nullptr, 0);
+        bannerPass.setEnvironment(Mat4::identity(), 0.0f, false);
+        bannerPass.submit(*banner->gpu, banner->material, bannerMatrix(bannerTime, banner->scale), Vec4{1, 1, 1, 1});
+        bannerPass.finish();
+        bannerStereo = stereoFor(fi.eyes == 2 ? fi.slider : 0.0f, kBannerFocal, maxEyeOffset(), minFocal());
+        bannerActive = true;
+    }
+
+    // One eye of the banner: BannerMesh::draw's camera (the origin, identity view, 60 degrees,
+    // planes 1..1000) in the top kBannerW x kBannerH pixels, depth cleared there first.
+    void drawBannerEye(int eye) {
+        const int glY = kTopH - kBannerH;
+        setViewport(0, glY, kBannerW, kBannerH);
+        setScissor(true, 0, glY, kBannerW, kBannerH);
+        clearDepth();
+        WorldView wv;
+        wv.view = Mat4::identity();
+        wv.fovY = 60.0f;
+        wv.nearPlane = 1.0f;
+        wv.farPlane = 1000.0f;
+        EyeView ev;
+        if (bannerStereo.eyes == 2) {
+            ev.eyeOffset = eye == 0 ? -bannerStereo.eyeOffset : bannerStereo.eyeOffset;
+            ev.focalDistance = bannerStereo.focal;
+        }
+        pica::setDepthMapping(FogDepthMap::WBuffer, wv.nearPlane);
+        pica::disableFog(); // SceneLighting's fog starts at 650
+        const float aspect = static_cast<float>(kBannerW) / static_cast<float>(kBannerH);
+        bannerPass.draw(pica::picaEyeProjection(wv, ev, aspect) * wv.view);
+        setScissor(false);
+        setViewport(0, 0, kTopW, kTopH);
     }
 
     // FlowView::drawModel (prepare, from GameFlow::draw): the parts of the view's object (loaded
@@ -652,7 +757,8 @@ struct GameFrame::Impl {
         bool title = false;
         if (flow) {
             paused = fe && fe->state() == ui::FrontendState::Playing && fe->menuOpen() && fe->topScreen() == ui::Screen::InGame;
-            title = fe && !modelActive && (fe->bannerVisible() || (!worldDrawn && fe->state() != ui::FrontendState::Intro));
+            title = fe && !modelActive && !bannerActive &&
+                    (fe->bannerVisible() || (!worldDrawn && fe->state() != ui::FrontendState::Intro));
         }
         if (!paused && !title && !modelActive && !run.perf) return;
         r2d->begin(kTopW, kTopH);
@@ -701,6 +807,12 @@ struct GameFrame::Impl {
         const bool b = dumpTarget(ctx->bottomTarget(), kBottomW, dir + base + "_bottom.ppm");
         AS3D_INFO("AS3D_DUMP %s frame=%u step=%u screen=%s top=%d right=%d bottom=%d", base.c_str(), fi.frame, fi.step,
                   fi.screen, t ? 1 : 0, r ? 1 : 0, b ? 1 : 0);
+        if (bannerActive) {
+            const pica::MeshDrawStats& bs = bannerPass.lastStats();
+            AS3D_INFO("AS3D_BANNER_DUMP %s mt=%.2f eyes=%d eye_offset=%.2f draws=%d vertices=%d triangles=%d", base.c_str(),
+                      static_cast<double>(bannerTime), bannerStereo.eyes, static_cast<double>(bannerStereo.eyeOffset), bs.draws,
+                      bs.vertices, bs.triangles);
+        }
         if (modelActive) {
             const pica::MeshDrawStats& ms = modelPass.lastStats();
             AS3D_INFO("AS3D_MODELVIEW_DUMP %s object=%s angles=(%.2f, %.2f, %.2f) viewport=(%d, %d, %d, %d) eyes=%d "
@@ -855,6 +967,10 @@ void GameFrame::prepare(const FrameInfo& info) {
     if (im.modelActive)
         im.stereo = stereoFor(info.eyes == 2 ? info.slider : 0.0f, -im.modelView.origin[2], im.maxEyeOffset(), im.minFocal());
 
+    // The first game's banner over the attract level (the main menu).
+    im.bannerActive = false;
+    if (im.flow) im.prepareBanner(ses, im.haveLayers ? im.layers.frontend : nullptr, info);
+
     // The top screen's 2D layer, built once and flushed on each eye at screen depth.
     im.buildTopQuads(info);
     const uint64_t prepTicks = svcGetSystemTick() - t0;
@@ -899,6 +1015,12 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
         im.renderer->drawBrightness(kTopW, kTopH, im.topBrightness);
         m.extraDraws = 1;
         m.extraVerts = 4;
+    }
+    if (im.bannerActive) {
+        UiMeter m(pica::Pass::Model);
+        im.drawBannerEye(eye);
+        m.extraDraws = im.bannerPass.lastStats().draws;
+        m.extraVerts = im.bannerPass.lastStats().vertices;
     }
     im.cmdUsageMax = std::max(im.cmdUsageMax, C3D_GetCmdBufUsage());
     // gpu_kick=1: the GPU draws this eye while the CPU records the next (pica_frame.h).
@@ -999,7 +1121,8 @@ void GameFrame::stats(FrameStats& out) {
     const ui::Ui2dPicaStats& us = ui::ui2dPicaStats();
     out.prepareMs = im.prepareMs;
     out.eyes = im.worldDrawn || im.modelActive ? im.stereo.eyes : 1;
-    out.draws = (im.worldDrawn ? ws.drawCalls : 0) + (im.modelActive ? im.modelPass.lastStats().draws : 0) + us.runs;
+    out.draws = (im.worldDrawn ? ws.drawCalls : 0) + (im.modelActive ? im.modelPass.lastStats().draws : 0) +
+                (im.bannerActive ? im.bannerPass.lastStats().draws : 0) + us.runs;
     out.verts = (im.worldDrawn ? ws.vertices : 0) + us.vertices;
     const pica::TextureStats ts = pica::textureStats();
     out.texVramKb = static_cast<unsigned>(ts.vramBytes / 1024);
@@ -1154,6 +1277,7 @@ void GameFrame::end() {
         }
     }
     im.preview.reset();
+    im.banner.reset();
     im.renderer.reset();
     im.assets.reset();
     im.r2d.reset();
