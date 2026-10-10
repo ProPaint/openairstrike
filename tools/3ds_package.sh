@@ -58,6 +58,8 @@ cat > "${OUT}/3ds/openairstrike/run.ini" <<'EOF'
 # quality=auto       # auto, new (New 3DS look), old (Old 3DS profile: 30 Hz, fewer effects)
 # logo=1             # 0: no intro pages
 # name_entry=applet  # touch: no system keyboard for the high-score name, the on-screen one
+# max_far_parallax_px=12  # 3D depth behind the screen at full slider (pixels); lower it (8, 6) if the 3D tires the eyes
+# max_parallax_px=10      # 3D depth in front of the screen at full slider (pixels)
 # perf=1             # write perf.csv (frame times) next to log.txt
 EOF
 

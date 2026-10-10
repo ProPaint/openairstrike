@@ -69,6 +69,14 @@ P4)") cut prepare by two thirds and recording by 7-16 % under Azahar; what is le
 per-draw cost of citro3d (a shared mesh vertex pool, a lighter draw path). Then the
 first-start load (prefetch of the precache closure), the Old 3DS run (profile exists, no console).
 
+**Round 2, P5 (stereo comfort, see "Stereo comfort and frame polish" at the end):** the eye offset is
+now clamped per frame so the nearest content never comes more than 10 px out of the screen and the
+far terrain never goes more than 12 px behind it (`max_parallax_px`, `max_far_parallax_px`, eased,
+no steps); the attract levels behind the menus were 32-39 px deep and are now within the limits;
+2D is on the screen plane (checked identical in both eyes); LOD hysteresis; the touch band is
+built during the loading screen. The owner's console check: the stereo feel, and which limit to
+lower if it still tires.
+
 **How to resume a console session:** to play or check an installed copy, use the package
 (`tools/3ds_package.sh` -> `out/3ds/package/<version>/`: copy its `3ds/` to the card, start
 OpenAirStrike from the Homebrew Launcher, or install `openairstrike.cia` with FBI; no `run.ini`
@@ -2836,3 +2844,165 @@ Sound is not checked on Azahar: the emulated SD has no `dspfirm.cdc` (`ndspInit 
 5. With `game=as3d` in run.ini, rename `as3d/pak1.apk` for a moment: the screens show "cannot start AirStrike 3D" and the
    layout; A returns to the launcher.
 6. An Old 3DS if available: `quality=auto` picks the old profile, mission 1 plays.
+
+## Stereo comfort and frame polish (round 2, P5)
+
+The owner played the tutorial in stereo and turned the slider off during the next mission. Until
+this round the eyes were simply `slider x eye_offset` (4 world units at slider 1) apart with zero
+parallax at the player's depth (at least `min_focal` 40), whatever the scene. This round makes the
+depth comfortable by construction, keeps every 2D element on the screen plane, puts hysteresis on
+P3's terrain LOD and takes the menus' and the touch band's 2D rebuilds out of the frames. Only
+3DS code changed, plus `Renderer2D::cacheBreak` calls in `MenuSystem::drawItems` (ignored by GL):
+the desktop goldens are unchanged and the simulation is untouched (bot end states equal).
+
+### The parallax model (engine/src/render/pica/stereo_comfort.h, desktop-tested)
+
+A point at depth d lands `W A e (1/D - 1/d)` pixels apart in the two eyes (W = 400, A = 1 /
+(aspect tan(fovY/2)) = 1.04, e = eye offset, D = focal depth): positive (behind the screen) beyond D,
+negative (in front) nearer than D. Per frame, after `WorldScene` prepare:
+
+- **What the camera sees** (`pica::sceneDepth()`, world_pica.h, measured by the PICA
+  `WorldRenderer::prepare` only while two eyes are drawn): the nearest point of every opaque and
+  transparent model's box inside the central view (`modelNearDepth`), and the nearest and farthest
+  terrain or water by rays through a 5 x 6 grid of screen points over the height field
+  (`probeTerrainRow`: a ray starts where it comes down to the highest surface, steps 6 % of the
+  depth, bisects four times at the first point below the surface, stops at the far plane or the
+  fog's end; sky rays count for nothing). One grid row per frame (all six after a level start or
+  a mono stretch): a full probe every tenth of a second, about 70 steps a frame.
+- **The clamp** (`comfortRatio`): the largest fraction of the slider's eye offset that keeps the
+  nearest content within `max_parallax_px x slider` in front of the screen and the farthest terrain
+  within `max_far_parallax_px x slider` behind it (defaults 10 and 12 px of the 400).
+- **No steps** (`ComfortFilter`): the applied ratio moves towards that target by at most 3.0 per
+  second downwards (a close object entering: full depth to none in a third of a second) and 0.4 per
+  second upwards (two and a half seconds back); the screen plane (`FocalFilter`) follows the
+  player's depth by at most 150 % of itself per second (a respawn or a camera jump eases instead of
+  snapping the whole scene's depth). The clamp only lowers the offset, so the cull volume prepared
+  for the slider's offset holds both eyes.
+- **No player** (the attract levels behind the menus): `min_focal` put the screen plane at 40
+  units and the whole landscape 32 to 39 px behind the screen at slider 1. The screen plane is now
+  where the last frame's depths let the most depth through within both limits (`balancedFocal`: at
+  the nearest content when the far limit allows, else the two limits shared).
+- **The banner and the model view**: the first game's main-menu banner (P6: a mesh 19 to 45 units
+  away seen with the world's eye offset, up to 15 px of depth, 6 px in front of the letterbox band
+  it overlaps) now has its screen plane at its nearest vertex in view (`meshDepthRange`) and its
+  depth limited to 4 px behind the screen at slider 1 (`kBannerDepthPx`); the sequels' model view
+  has its screen plane at the model's nearest vertex (behind the panel's static fill, 2D drawn over
+  it) and its back within `max_far_parallax_px`.
+
+`stereo_comfort=0` restores the old behaviour (no clamp, no easing, min_focal for the attract
+levels and the banner). Logs: `AS3D_STEREO_CONFIG` at each start; `AS3D_STEREO` every 300 frames
+(effective eye offset min/avg/max against the slider's, the average ratio, the share of frames
+clamped and of those limited by the near and by the far content, near and far parallax in px
+average and maximum, the nearest depth, the focal depth, the probe's and the model scan's ms); the
+`AS3D_DUMP` lines of `dump_at` and of the front end's dumps add `eye_offset_slider`, the effective
+`eye_offset`, the target and smoothed ratios, the depths and the parallax they get;
+`AS3D_BANNER_DUMP` adds the banner's focal depth.
+
+### 2D on the screen plane
+
+Every top-screen 2D element is drawn with the same orthographic matrix, no depth test and z = 0
+in both eyes: the PAUSED banner, the perf line, the title on black, the attract level's title, the
+model view's dot grid and static fill, P6's letterbox band and the brightness quad (one per eye,
+the same value). Azahar, mission 1 paused (`pad_script=300:START`, `slider=1`,
+`passes=clear,top2d,brightness,hud,hint,touch,bottom2d` so that only the 2D and the clear are
+drawn): the two eyes are **identical, 0 of 96000 pixels differ**. With the world under them the
+PAUSED and perf text match best at shift 0 (the alpha-blended glyph edges differ only by the world
+behind them). The front end's dumps now write the right eye whenever two eyes are drawn (also
+without a world), for the same check.
+
+### The brightness (M3.6)
+
+The quad is drawn once per eye with the same value after the top 2D layer: `brightness=` of
+run.ini in the direct modes, the Settings value (`Frontend::brightness()`, 0.5 during the intro
+pages) in the front end; the 2D-only check above includes it. The bottom screen gets no brightness
+pass, which is what the desktop's dual-screen layout does (`GameView::drawDual` brightens the top
+world rectangle only; the single-screen desktop brightens its whole frame, HUD included, because
+the HUD is on it). Decided: the bottom HUD and menus stay unbrightened, as on the desktop's
+dual-screen layout.
+
+### Terrain LOD hysteresis (terrain_renderer_pica.cpp)
+
+The chunk levels are decided once per frame (the first eye) and kept between frames: a fine chunk
+turns coarse beyond `terrain_lod_dist + terrain_lod_band` (520 + 40), a coarse one fine again under
+520 - 40. At most 2 visible chunks change level in a frame, those farthest from the camera's forward
+direction first; hidden chunks change freely, and so does everything on the frame the LOD comes
+on. `AS3D_STEREO60` counts `lod_switches=N (in M frames)`. The bot runs fly forward and cross each
+distance once: 4 switches in 1200 frames of mission 1, 6 in Gulf mission 1, the same with
+`terrain_lod_band=0`; the band matters when the camera hovers at the distance (play), where a chunk
+can no longer flip from frame to frame. The pictures of the bot runs are those of P3.
+
+### The 2D lists: per-unit cache, consolidation, the touch band at load
+
+- `MenuSystem::drawItems` breaks the cache after each item and around the front widgets, and the
+  composer between a screen's background and its items: a pulsing focus or a ticking counter
+  rebuilds its own unit only.
+- A list split into units that stays unchanged for 30 flushes is **consolidated**: its units'
+  cached vertices are copied end to end into one slot and their runs joined where texture and blend
+  agree (no conversion), and it is drawn from that slot until it changes. The static AirStrike 3D
+  main menu stays at 4 draws; the touch band in play goes from 16 to 9 draws.
+- The touch band's first list is built at the end of the level start (a mapper set up as the
+  input's, `CtrInput::setUpTouch`, and the loaded session's HUD state) and converted during the last
+  loading frame (`AS3D_TOUCH_PREBUILD ms=14.1 vertices=8256 (in the loading screen)`), so the
+  mission's first frame finds it cached: direct modes and missions started from the menus. (The
+  pacer's grace covered that frame already; the frame itself was the visible hitch.)
+- `AS3D_UI_LISTS` (every 300 frames, front end): per list ms, cache units, units rebuilt and draws
+  per flush.
+
+### Azahar measurements (CPU ticks are not the console's; their ratios are)
+
+Before = main 56891af (P4), after = this round; `mode=bot level=1 frames=1200 fixed_steps=1|2
+perf=1 slider=1|0 pace=60`, `mode=menu logo=0 attract=1 slider=1 ui_fixed_dt=1`.
+
+| | before | after |
+|---|---|---|
+| mission 1 stereo, first frame's submit | 23.5 ms | 9.6 ms |
+| mission 1 mono, first frame's submit | 20.0 ms | 6.2 ms |
+| Gulf mission 1 stereo, first frame's submit | 22.3 ms | 8.4 ms |
+| touch band in play (mission 1) | 0.88 ms, 16 draws | 0.75 ms, 9 draws |
+| touch band in play (Gulf from the menus) | 17 draws | 11 draws |
+| Gulf main menu `bottom2d` / `ui_batch` | 2.23 / 1.26-1.30 ms, 16 draws | 0.97-1.04 / 0.18-0.28 ms, 17 draws |
+| AirStrike 3D main menu `bottom2d` (static list) | 0.18-0.19 ms, 4 draws | 0.24-0.25 ms, 4 draws (consolidated) |
+| prepare, mission 1 stereo (avg) | 1.02 ms | 1.27 ms (probe 0.10, model scan 0.15) |
+| prepare, mission 1 mono | 1.015 ms | 1.015 ms (nothing runs in mono) |
+
+Parallax at slider 1 (the right eye's horizontal shift against the left, best match per band of
+rows; the effective values from the log):
+
+| scene | before | after |
+|---|---|---|
+| mission 1 bot, step 600 | top rows +7 px, bottom rows +3 px, the player 0 | identical pictures (both eyes and the bottom screen): near content 2.4 px, far 7.0 px, no clamp; over 1200 frames near at most 4.3 px, far at most 9.0 px |
+| mission 1, `max_far_parallax_px=3` (clamp check) | | eye offset 1.72, top rows +3 px (far_px 3.0) |
+| Gulf mission 1 bot | | clamped on 31-36 % of the frames: models near the camera reached 39 px in front of the screen, now at most 10; eye offset avg 3.5-3.8, min 0.5; the dump at step 1200 identical to before |
+| AirStrike 3D attract level behind the menus | +36 to +39 px everywhere | +2 to +4 px (screen plane at the nearest terrain, about 225 units; eye offset 4) |
+| Gulf attract level | +32 to +38 px | +11 to +12 px (eye offset 0.7: rocks 12 units from the camera at 10 px in front, the far hills at 12 behind) |
+| AirStrike 3D banner | -6 px (in front of the letterbox band) | +3 px (behind it) |
+
+Mono pictures (mission 1, step 600) and the bottom screens are pixel-identical to before; the
+simulation end states are equal (mission 1, 1200 steps: map_pos 872.0, created 508, freed 462; Gulf
+mission 1: map_pos 1227.2, created 1486, freed 1332).
+
+### Run.ini keys (also in apps/3ds/README.md)
+
+| key | default | |
+|---|---|---|
+| `max_parallax_px` | 10 | the nearest content's parallax in front of the screen at slider 1 (scaled by the slider) |
+| `max_far_parallax_px` | 12 | the farthest terrain's parallax behind the screen at slider 1 |
+| `stereo_comfort` | 1 | 0: the eye offset and screen plane as before P5 |
+| `terrain_lod_band` | 40 | the LOD hysteresis, world units either side of `terrain_lod_dist` |
+
+### What the owner should feel on the console
+
+- In missions the usual view keeps its depth (in mission 1's bot flight the clamp never acts: the
+  ground under the helicopter is behind the screen, the far hills about 7 px); when something comes
+  close to the camera (Gulf: a third of the time) the depth shrinks smoothly instead of the object
+  jumping out of the screen, and comes back over two seconds.
+- Behind the menus the landscape is no longer 35 to 39 px deep (the eyes had to diverge to fuse
+  it); the title banner sits on the screen with little depth.
+- PAUSED, the perf line and the letterbox band are flat on the screen.
+- If the depth still tires: `max_far_parallax_px=8` (or 6) first, then `max_parallax_px=6`;
+  `eye_offset=` now only scales the slider's range below the limits. Report the values that feel
+  right.
+- No pop or flicker of the far hills when hovering about 500 units from a ridge; if one shows,
+  `terrain_lod_band=80`.
+- The first frame of a mission no longer stutters on the touch band; the Gulf menus take half the
+  bottom-screen time.

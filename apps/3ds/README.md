@@ -129,6 +129,9 @@ start a comment line, unknown keys are ignored, no file (or no `mode=`) means `m
 | `slider` | 0..1 | force the 3D slider (the emulator, comparisons); absent: the hardware slider |
 | `eye_offset` | world units, default 4 | the eye offset at slider 1 (each eye moves this far along the camera's right axis; `ctr_frame.h` kMaxEyeOffset) |
 | `min_focal` | world units, default 40 | the smallest zero-parallax distance (`ctr_frame.h` kMinFocalDistance; the focal distance is the camera-to-player depth) |
+| `max_parallax_px` | pixels, default 10 | stereo comfort (docs/3ds-port.md "Stereo comfort and frame polish (round 2, P5)"): the nearest visible content (terrain or a model's box) never comes out of the screen by more than this many pixels of the 400 at slider 1 (scaled by the slider); the eye offset is lowered smoothly when it would |
+| `max_far_parallax_px` | pixels, default 12 | the same for the farthest visible terrain behind the screen; lower it (8, 6) if the far hills strain the eyes |
+| `stereo_comfort` | `1` (default) or `0` | `0`: no comfort clamp and no easing of the screen plane (the eye offset is slider x `eye_offset`, as before P5) |
 | `precache` | `1` (default) or `0` | `0` skips the level-start precache (everything loads on first use) |
 | `audio` | `1` (default) or `0` | sound in `bot` and `play` (never in `sim`): the ndsp device, or silence when `ndspInit` fails (no `sdmc:/3ds/dspfirm.cdc`); see "Sound (M2.3)" |
 | `hold`, `only` | | probe only (see above) |
@@ -150,6 +153,7 @@ start a comment line, unknown keys are ignored, no file (or no `mode=`) means `m
 | `shadow_cache` | `1` (default) or `0` | the silhouette cache (`shadow_pica.h`): `cache/<game>_m<N>.shadows` keeps the rasterised silhouettes of the level, keyed by a hash of their inputs, and the next start reuses them (`AS3D_SHADOW_CACHE`) |
 | `terrain_lod` | `auto` (default), `0`, `1`, `2` | the terrain's far chunks drawn from a coarse grid (every second vertex, docs/3ds-port.md "Stereo at 60 (round 2, P3)"): `0` never, `1` (= `auto`, the quality profile's default) only while two eyes are drawn, `2` also in mono |
 | `terrain_lod_dist` | world units, default 520 | a chunk whose box is farther than this from the camera is coarse |
+| `terrain_lod_band` | world units, default 40 | hysteresis of the far-chunk LOD: a chunk turns coarse beyond `terrain_lod_dist` + band and fine again under `terrain_lod_dist` - band (at most 2 visible chunks change per frame, those farthest from the view's centre first) |
 | `shadow_atlas` | `1` (default) or `0` | the silhouettes packed into 512x512 A8 atlas pages, one draw per page; `0` = one texture per silhouette as before |
 | `touch_segments` | 8..96, default 24 | segments of the touch band's circles (48 before: 16k vertices a frame on the bottom screen, 8k now) |
 | `fixed_steps` | N (1..8), default 0 (the clock) | N simulation steps per displayed frame whatever the clock: two builds profile and dump (`dump_at`) at the same steps (docs/3ds-port.md "Sequels' CPU (round 2, P4)") |
