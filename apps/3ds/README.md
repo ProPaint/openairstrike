@@ -32,6 +32,28 @@ it); without the tree the decoder is the stub and CMake warns. Tremor (pre-rende
 comes from the image's portlibs. `source/scene.v.pica` goes through `ctr_add_shader_library`
 and is embedded as `scene_shbin`; `icon.png` is the project's own icon scaled to 48x48.
 
+## Package, install and launch (P6)
+
+    tools/3ds_package.sh [--no-build] [--no-cia]   # AS3D_BUILD_JOBS (default 2), AS3D_VERSION (default 0.3.0-dev)
+
+builds (tools/3ds_build.sh) and writes `out/3ds/package/<version>-<commit>/`: `3ds/openairstrike/openairstrike.3dsx`,
+`3ds/openairstrike/run.ini` (every line a comment: the defaults), `openairstrike.cia` and `INSTALL.txt` (the SD
+layout, where each game's files come from, the music and `dspfirm.cdc`), and the zip of it,
+`out/3ds/package/openairstrike-3ds-<version>-<commit>.zip`. No game data goes in (the script checks the file
+list). The CIA needs makerom and bannertool: `tools/fetch_third_party.sh ctrtools` (run by the script when
+they are missing) puts them under `${AS3D_DATA_ROOT:-repo}/third_party_local/`; they run in the pinned
+devkitPro image without network. The CIA's description is `openairstrike.rsf` (title ID
+`000400000FA35D00`), its HOME menu banner `banner.png` (drawn from the project's icon by
+`tools/3ds_banner_image.py`) with a silent sound. docs/3ds-port.md, "Packaging and launch (round 2, P6)".
+
+On the card: copy the package's `3ds/` to the SD root, the game files into
+`sdmc:/3ds/openairstrike/<game>/` (below). The Homebrew Launcher lists OpenAirStrike with its icon; the
+CIA (FBI: Install CIA) is a HOME menu title. Either way the data is read from `sdmc:/3ds/openairstrike/`
+whatever the launch path (`argv[0]` is only logged, as `from=` in the first log line; the working
+directory is set there). Without `run.ini` the game starts (`mode=play`: the selector, the menus,
+sound and music on). When the data is missing or a pak does not open, the screens show the reason and
+the expected layout (`source/ctr_fatal.cpp`); A, B or START returns to the launcher.
+
 ## Game data
 
 Copy `pak0.apk`, `pak1.apk`, `pak2.apk` of AirStrike 3D (the files under
@@ -59,8 +81,9 @@ the crop `410x245+434+20` of a 1280x540 window. Emulator timings are not hardwar
 
 ## Run on a real 3DS
 
-Put the paks on the console's SD card as above, open the Homebrew Launcher, press Y
-(netload), then from this machine:
+Installed: the package (above) on the card, then the Homebrew Launcher or the HOME menu's CIA. For
+a development build, put the paks on the console's SD card as above, open the Homebrew Launcher,
+press Y (netload), then from this machine:
 
     tools/3ds_build.sh netload 192.168.0.151
 
@@ -77,7 +100,7 @@ variants (docs/3ds-port.md, "M1.0 GPU probe"). It is selected by a run config on
 
     mode=probe
 
-`mode=spike` or no file gives the spike. Optional keys, one per line, no trailing comments:
+`mode=spike` gives the spike. Optional keys, one per line, no trailing comments:
 `hold=N` keeps drawing N frames after each variant (for screenshots), `only=CH` runs just
 those variants.
 
@@ -87,11 +110,11 @@ The probe runs unattended, prints a table on the bottom screen and appends it to
 ## Game loop and run.ini (M1.2)
 
 `sdmc:/3ds/openairstrike/run.ini` chooses what the app does. One `key=value` per line, `#` or `;`
-start a comment line, unknown keys are ignored, no file means `mode=spike`:
+start a comment line, unknown keys are ignored, no file (or no `mode=`) means `mode=play`, the front end:
 
 | key | values | meaning |
 |---|---|---|
-| `mode` | `spike` (default), `probe`, `sim`, `bot`, `play` | `spike` and `probe` run the old code paths. `sim`: the mission headless at full speed with the bot, no screens, ends after `frames` steps (reproduces `as3d_sim --bot`). `bot`: real-time 60 Hz loop with the bot's input and both screens through the frame composer (`ctr_frame.cpp`: the world on the top screen, in stereo with the 3D slider, the HUD, hint box and touch buttons on the bottom one, a loading screen while the level is precached). `play`: the same loop with the pad (circle pad / D-pad steer, A fire, B missile, X power-up, Y weapon, R next missile, START pause, ZR next power-up on a New 3DS; the bottom-screen buttons pause / next weapon / next missile / missile / power-up / next power-up work by touch; see `ctr_input.h`). |
+| `mode` | `play` (default), `menu`, `sim`, `bot`, `spike`, `probe` and the test modes below | `spike`, `probe` and every other value (`picatest`, `meshtest`, ...) run the old code paths. `sim`: the mission headless at full speed with the bot, no screens, ends after `frames` steps (reproduces `as3d_sim --bot`). `bot`: real-time 60 Hz loop with the bot's input and both screens through the frame composer (`ctr_frame.cpp`: the world on the top screen, in stereo with the 3D slider, the HUD, hint box and touch buttons on the bottom one, a loading screen while the level is precached). `play`: the same loop with the pad (circle pad / D-pad steer, A fire, B missile, X power-up, Y weapon, R next missile, START pause, ZR next power-up on a New 3DS; the bottom-screen buttons pause / next weapon / next missile / missile / power-up / next power-up work by touch; see `ctr_input.h`). |
 | `game` | profile key (`as3d`, `as2`, `gulf`) or `select` | the game; its paks are read from `sdmc:/3ds/openairstrike/<key>/`. In the front end (`mode=menu`, or `mode=play` without `level=`) an absent `game=` or `game=select` shows the game selector first (see "Game selector (M5.4)"); the direct modes (`sim`, `bot`, `play` with `level=`) use `as3d` when it is absent |
 | `level` | N, default 1 | the mission to start directly (the front end is off: `startLevel=true`, `levelFlow=false`). `mode=play` without `level=` runs the front end instead (see "Front end (M2.1)") |
 | `frames` | N, default 0 | simulation steps, then the app quits cleanly; 0 means 600 in `sim` and unlimited otherwise |
@@ -300,14 +323,16 @@ vertices, draws, arena, texture bytes, build time) and `markstest_<phase>.ppm`. 
 (`source/ctr_menu_loop.cpp`): `GameStack` with `GameFlow` over the session, the frame composer as
 its view. The menus, the intro pages, the HUD, the hint box, mission end, game over and the
 high scores are on the bottom screen (the 320x240 mapping, scale 0.4); the top screen shows the
-attract level behind the menus and the mission during play, mono or stereo as in `play`, with
-the game's title where the desktop's main menu has its 3D banner and PAUSED under the in-game
-menu. Missions start from Start Game and end through the menus (Restart, Continue, Quit); every
+attract level behind the menus and the mission during play, mono or stereo as in `play`; over the
+main menu the first game's rotating 3D banner (`objects\banner.obj`, on the letterbox's black band as
+on the desktop; the sequels have none: their title in text) and PAUSED under the in-game menu. Missions start from Start Game and end through the menus (Restart, Continue, Quit); every
 level start shows the original's loading screen on both screens.
 
 Controls in the menus: D-pad up / down move the focus (held: repeats), left / right change the
 focused value (spinners, sliders, the mission list, the helicopter), A = Enter, B and START =
-back; touch = the mouse (tap an item; the name entry has its own keyboard). During play the pad
+back; touch = the mouse (tap an item). The high-score name entry (all three games) opens the system's
+software keyboard (one line, 31 characters at most, a name the score table's field cannot hold is refused
+with a message); its Cancel leaves the screen's own touch keys, Y opens the keyboard again. During play the pad
 is as in `play`; START or the touch pause button opens the in-game menu. START+SELECT quits;
 the main menu's Exit too. HOME / sleep during play open the in-game menu and save the profile.
 
@@ -336,6 +361,8 @@ no Configure controls, Mouse Control, Screen, video or touch rows); Start Game o
 | `dump_from` | S | with `dump_every=N`: every N simulation steps from step S instead, named `<prefix>s<step>_*.ppm` (mission runs) |
 | `dump_prefix` | default `fe_` | the file name prefix of those dumps |
 | `report_at` | N | with `menu_bot=1`: the end-state lines (`level N: ... map_pos`, `created ... freed`) once after N bot steps of the mission (the bot's clock stops during the sequels' opening dialogue) |
+| `name_entry` | `applet` (default) or `touch` | the name entry: the software keyboard applet when the screen opens, or only the screen's touch keys (`AS3D_NAME keyboard=... result=ok\|cancel\|failed name=... kept=...` in the log) |
+| `name_script` | text | the keyboard's result without the applet (scripted runs: Azahar's keyboard is a dialog that needs a hand); the field's rules apply as to a typed name |
 | `cycle` | `1,6,1,6` | memory growth check (M5.4): from the main menu start each listed mission (`GameFlow::startMission`), leave it after `cycle_frames` displayed frames (`GameFlow::loadAttract`, what the in-game menu's Quit does), then stop the app |
 | `cycle_frames` | N, default 240 | see `cycle` |
 
