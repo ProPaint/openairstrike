@@ -101,6 +101,12 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toFloat(val, &f) && f >= 0.0f && f <= 50.0f) c.eyeOffset = f;
         } else if (key == "min_focal") {
             if (toFloat(val, &f) && f >= 1.0f) c.minFocal = f;
+        } else if (key == "max_parallax_px") {
+            if (toFloat(val, &f) && f >= 0.0f && f <= 100.0f) c.maxParallaxPx = f;
+        } else if (key == "max_far_parallax_px") {
+            if (toFloat(val, &f) && f >= 0.0f && f <= 100.0f) c.maxFarParallaxPx = f;
+        } else if (key == "stereo_comfort") {
+            if (toInt(val, &n)) c.stereoComfort = n != 0;
         } else if (key == "precache") {
             if (toInt(val, &n)) c.precache = n != 0;
         } else if (key == "audio") {
@@ -189,6 +195,8 @@ RunConfig parseRunConfig(const std::string& text) {
             else if (toInt(val, &n) && n >= 0 && n <= 2) c.terrainLod = n;
         } else if (key == "terrain_lod_dist") {
             if (toFloat(val, &f) && f >= 0.0f) c.terrainLodDistance = f;
+        } else if (key == "terrain_lod_band") {
+            if (toFloat(val, &f) && f >= 0.0f) c.terrainLodBand = f;
         } else if (key == "touch_segments") {
             if (toInt(val, &n) && n >= 8 && n <= 96) c.touchSegments = n;
         } else if (key == "shadow_atlas") {

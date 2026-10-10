@@ -33,6 +33,7 @@ QualityProfile selectQuality(QualityMode mode, bool isNew3ds) {
 void applyRunOverrides(QualityProfile& q, const RunConfig& run) {
     if (run.terrainLod >= 0) q.terrainLod = run.terrainLod;
     if (run.terrainLodDistance >= 0.0f) q.terrainLodDistance = run.terrainLodDistance;
+    if (run.terrainLodBand >= 0.0f) q.terrainLodBand = run.terrainLodBand;
     if (run.shadowAtlas >= 0) q.shadowAtlas = run.shadowAtlas != 0;
 }
 
@@ -46,15 +47,16 @@ void applyQuality(const QualityProfile& q, bool isNew3ds) {
                     : q.terrainLod == 2 ? as3d::pica::RenderQuality::TerrainLod::Always
                                         : as3d::pica::RenderQuality::TerrainLod::Stereo;
     rq.terrainLodDistance = q.terrainLodDistance;
+    rq.terrainLodBand = q.terrainLodBand;
     rq.shadowAtlas = q.shadowAtlas;
     as3d::pica::setRenderQuality(rq);
     C3D_FrameRate(static_cast<float>(q.renderHz));
     AS3D_INFO("AS3D_QUALITY profile=%s hardware=%s renderHz=%d particleCap=%d spriteCap=%d blobShadowsOnly=%d "
-              "terrainDetail=%d stereoAllowed=%d prerenderedMusic=%d terrainLod=%s terrainLodDist=%.0f shadowAtlas=%d",
+              "terrainDetail=%d stereoAllowed=%d prerenderedMusic=%d terrainLod=%s terrainLodDist=%.0f terrainLodBand=%.0f shadowAtlas=%d",
               q.name, isNew3ds ? "new" : "old", q.renderHz, q.particleCap, q.spriteCap, q.blobShadowsOnly ? 1 : 0,
               q.terrainDetail ? 1 : 0, q.stereoAllowed ? 1 : 0, q.preferPrerenderedMusic ? 1 : 0,
               q.terrainLod == 0 ? "off" : q.terrainLod == 2 ? "always" : "stereo",
-              static_cast<double>(q.terrainLodDistance), q.shadowAtlas ? 1 : 0);
+              static_cast<double>(q.terrainLodDistance), static_cast<double>(q.terrainLodBand), q.shadowAtlas ? 1 : 0);
 }
 
 } // namespace ctrapp

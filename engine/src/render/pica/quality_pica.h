@@ -21,6 +21,10 @@ struct RenderQuality {
     enum class TerrainLod { Off, Stereo, Always };
     TerrainLod terrainLod = TerrainLod::Stereo;
     float terrainLodDistance = 520.0f;
+    // Hysteresis (docs/3ds-port.md "Stereo comfort and frame polish (round 2, P5)"): a fine chunk
+    // turns coarse beyond terrainLodDistance + terrainLodBand, a coarse one fine again under
+    // terrainLodDistance - terrainLodBand, so a chunk near the distance never flickers.
+    float terrainLodBand = 40.0f;
     // The silhouettes packed into A8 atlas pages, one draw per page (shadow_renderer_pica.cpp).
     bool shadowAtlas = true;
 };

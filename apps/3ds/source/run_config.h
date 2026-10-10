@@ -45,6 +45,10 @@ struct RunConfig {
     float slider = -1.0f;      // slider=F: force the 3D slider to F in [0, 1]; -1 = the hardware slider
     float eyeOffset = 0.0f;    // eye_offset=F: world units at slider 1; 0 = ctr_frame.h kMaxEyeOffset
     float minFocal = 0.0f;     // min_focal=F: smallest focal distance; 0 = ctr_frame.h kMinFocalDistance
+    // Stereo comfort (docs/3ds-port.md "Stereo comfort and frame polish (round 2, P5)"):
+    float maxParallaxPx = 10.0f;    // max_parallax_px=F: the nearest content's negative parallax at slider 1 (px of 400)
+    float maxFarParallaxPx = 12.0f; // max_far_parallax_px=F: the farthest terrain's positive parallax at slider 1
+    bool stereoComfort = true;      // stereo_comfort=0: no clamp and no focal easing (the eye offset as before)
     bool precache = true;      // precache=0: skip the level-start precache (first-use loads, for comparison)
     bool audio = true;         // audio=0|1: sound in bot and play (ctr_audio.h); never in sim
     bool music = true;         // music=0|1: the level and menu music (M2.4; needs a libopenmpt build)
@@ -108,6 +112,7 @@ struct RunConfig {
     // Stereo at 60 (docs/3ds-port.md "Stereo at 60 (round 2, P3)"); -1 = the quality profile's default.
     int terrainLod = -1;              // terrain_lod=auto|0|1|2: far chunks coarse: 0 never, 1 in stereo, 2 always
     float terrainLodDistance = -1.0f; // terrain_lod_dist=N: world units from the camera to a coarse chunk
+    float terrainLodBand = -1.0f;     // terrain_lod_band=N: hysteresis, coarse beyond dist + N, fine again under dist - N
     int shadowAtlas = -1;             // shadow_atlas=0|1: silhouettes in A8 atlas pages, one draw per page
     int touchSegments = 24;           // touch_segments=N: segments of the touch band's circles (48 before)
     int pakCacheKb = 0;        // pak_cache_kb=N: a block cache of N KB per pak stream (rw_stream_ctr.cpp); 0 = none (default)

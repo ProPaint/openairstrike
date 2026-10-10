@@ -44,6 +44,8 @@ struct TerrainPicaStats {
     // build(): chunks with a coarse level; since build(): coarse and visible chunks over all renders
     int coarseBuilt = 0;
     size_t coarseTotal = 0, visibleTotal = 0;
+    // since build(): chunks that changed level (fine <-> coarse), and the frames that had a change
+    size_t lodSwitches = 0, lodSwitchFrames = 0;
     // the last update()
     int updatedChunks = 0;
     int deferredFrees = 0;      // linear buffers waiting for the GPU to finish with them

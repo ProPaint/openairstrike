@@ -181,6 +181,10 @@ struct CoarseLists {
 
 bool coarseEligible(int rows, int W) { return rows >= 2 && (rows & 1) == 0 && W >= 2 && (W & 1) == 0; }
 
+// The visible chunks that may change level in one frame (render()); the camera crosses a chunk
+// (8 rows, 320 world units) every second or two, so this only bites when many are due at once.
+constexpr size_t kLodSwitchesPerFrame = 2;
+
 // The flattened copy of a chunk's vertices (see the header) plus the appended fine edge vertices.
 void flattenChunk(const TerrainChunkGeometry& c, int W, std::vector<TerrainVertex>& out) {
     const int vw = W + 1, R = c.rows;
@@ -275,7 +279,10 @@ struct TerrainRenderer::Impl {
     std::vector<const DynamicLight*> lightPick;
     std::map<int, CoarseLists> coarseLists; // by chunk row count
     std::vector<TerrainVertex> flatScratch, flatTileScratch;
-    std::vector<uint8_t> coarseOf;          // this render's level per chunk (1 = coarse)
+    std::vector<uint8_t> coarseOf;          // the level per chunk (1 = coarse), kept between frames (hysteresis)
+    unsigned lodFrame = ~0u;                // the arena frame whose first render decided coarseOf
+    std::vector<uint8_t> lodVisibleMark;    // scratch: the visible chunks of that render
+    std::vector<std::pair<float, size_t>> lodCandidates; // scratch: visible chunks due a change (cosine, chunk)
 
     ~Impl() { release(); }
     void release();
@@ -372,6 +379,7 @@ void TerrainRenderer::Impl::release() {
             if (p) linearFree(p);
     coarseLists.clear();
     coarseOf.clear();
+    lodFrame = ~0u;
     collectRetired(true);
     if (indices) linearFree(indices);
     if (zeros) linearFree(zeros);
@@ -826,21 +834,71 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
     const int W = im.geo.width;
 
     // Far-chunk LOD: the level of every chunk (visible or not: a neighbour's level decides the
-    // seam fill) from its box's distance to the central camera, the same for both eyes.
+    // seam fill) from its box's distance to the central camera, the same for both eyes: decided by
+    // the first render of a frame and kept for the second eye. Hysteresis (docs/3ds-port.md "Stereo
+    // comfort and frame polish"): a fine chunk turns coarse beyond distance + band, a coarse one
+    // fine again under distance - band. Of the visible chunks at most kLodSwitchesPerFrame change in
+    // a frame, those farthest from the camera's forward direction first (a change at the edge of
+    // the view shows least); hidden chunks change freely, and so does everything on the frame the
+    // LOD comes on.
     const size_t chunkCount = im.geo.chunks.size();
-    im.coarseOf.assign(chunkCount, 0);
-    if (pica::terrainLodActive()) {
+    const unsigned lodNow = pica::frameArena().frames();
+    if (!pica::terrainLodActive()) {
+        im.coarseOf.assign(chunkCount, 0);
+        im.lodFrame = ~0u;
+    } else if (im.lodFrame != lodNow || im.coarseOf.size() != chunkCount) {
+        const bool fresh = im.lodFrame == ~0u || im.coarseOf.size() != chunkCount;
+        if (im.coarseOf.size() != chunkCount) im.coarseOf.assign(chunkCount, 0);
+        im.lodFrame = lodNow;
         const Mat4& v = params.view; // rigid: the camera is -R^T t
         Vec3 cam;
         cam.x = -(v.at(0, 0) * v.at(3, 0) + v.at(0, 1) * v.at(3, 1) + v.at(0, 2) * v.at(3, 2));
         cam.y = -(v.at(1, 0) * v.at(3, 0) + v.at(1, 1) * v.at(3, 1) + v.at(1, 2) * v.at(3, 2));
         cam.z = -(v.at(2, 0) * v.at(3, 0) + v.at(2, 1) * v.at(3, 1) + v.at(2, 2) * v.at(3, 2));
-        const float d = pica::renderQuality().terrainLodDistance;
-        const float d2 = d * d;
-        for (size_t k = 0; k < chunkCount; ++k)
-            if (im.chunks[k].coarse && im.coarseListsFor(im.geo.chunks[k].rows) &&
-                boxDistanceSq(im.geo.chunks[k].bounds, cam) > d2)
-                im.coarseOf[k] = 1;
+        const Vec3 fwd{-v.at(0, 2), -v.at(1, 2), -v.at(2, 2)};
+        const pica::RenderQuality& q = pica::renderQuality();
+        const float band = fresh ? 0.0f : std::max(0.0f, std::min(q.terrainLodBand, q.terrainLodDistance));
+        const float up = q.terrainLodDistance + band, down = q.terrainLodDistance - band;
+        const float up2 = up * up, down2 = down * down;
+        std::vector<uint8_t>& visibleMark = im.lodVisibleMark;
+        visibleMark.assign(chunkCount, 0);
+        for (int ki : visible) visibleMark[static_cast<size_t>(ki)] = 1;
+        im.lodCandidates.clear();
+        size_t switched = 0;
+        for (size_t k = 0; k < chunkCount; ++k) {
+            const bool can = im.chunks[k].coarse && im.coarseListsFor(im.geo.chunks[k].rows);
+            const float dist2 = boxDistanceSq(im.geo.chunks[k].bounds, cam);
+            uint8_t want = im.coarseOf[k];
+            if (!can) want = 0;
+            else if (im.coarseOf[k]) want = dist2 < down2 ? 0 : 1;
+            else want = dist2 > up2 ? 1 : 0;
+            if (want == im.coarseOf[k]) continue;
+            if (fresh || !visibleMark[k]) {
+                im.coarseOf[k] = want;
+                if (!fresh) ++switched;
+                continue;
+            }
+            // How far off the forward direction the chunk's centre is (cosine: smaller = farther).
+            const Aabb& b = im.geo.chunks[k].bounds;
+            const Vec3 c{0.5f * (b.min.x + b.max.x) - cam.x, 0.5f * (b.min.y + b.max.y) - cam.y,
+                         0.5f * (b.min.z + b.max.z) - cam.z};
+            const float len = std::sqrt(c.x * c.x + c.y * c.y + c.z * c.z);
+            const float cosA = len > 0.0f ? (c.x * fwd.x + c.y * fwd.y + c.z * fwd.z) / len : 1.0f;
+            im.lodCandidates.push_back({cosA, k});
+        }
+        std::sort(im.lodCandidates.begin(), im.lodCandidates.end(),
+                  [](const std::pair<float, size_t>& a, const std::pair<float, size_t>& b) {
+                      return a.first < b.first || (a.first == b.first && a.second < b.second);
+                  });
+        for (size_t i = 0; i < im.lodCandidates.size() && i < kLodSwitchesPerFrame; ++i) {
+            uint8_t& lvl = im.coarseOf[im.lodCandidates[i].second];
+            lvl = lvl ? 0 : 1;
+            ++switched;
+        }
+        if (switched) {
+            st.lodSwitches += switched;
+            ++st.lodSwitchFrames;
+        }
     }
 
     int boundBlock = -1;

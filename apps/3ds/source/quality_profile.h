@@ -22,6 +22,7 @@ struct QualityProfile {
     // the silhouettes in atlas pages.
     int terrainLod = 1;
     float terrainLodDistance = 520.0f;
+    float terrainLodBand = 40.0f; // hysteresis: coarse beyond distance + band, fine again under distance - band
     bool shadowAtlas = true;
 
     // Simulation steps one drawn frame may catch up (the loops' bounded catch-up).
