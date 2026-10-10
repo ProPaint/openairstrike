@@ -33,7 +33,11 @@ bool DynamicLightList::add(const DynamicLight& light) {
 bool evaluateLight(const DynamicLight& light, const Vec3& target, Vec3& toLight, float& att, float& spot) {
     if (light.radius <= 0.0f) return false;
     Vec3 v = light.position - target;
-    float dist = length(v);
+    // A conservative early out before the square root (dist > radius for certain); the exact
+    // test below decides every other case, so the results are the same.
+    const float d2 = dot(v, v);
+    if (d2 > light.radius * light.radius * 1.01f) return false;
+    float dist = std::sqrt(d2);
     if (dist > light.radius) return false;
     if (dist != 0.0f) v = v * (1.0f / dist);
     spot = 1.0f;
