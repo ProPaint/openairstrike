@@ -85,6 +85,15 @@ private:
     void noteTextures();
     MarkList lastMarks_;
     bool dirty_ = true;
+    // The draped geometry of each mark of the last rebuild, by entity (slot << 32 | generation)
+    // and rectangle: a rebuild for a colour or alpha change (the sequels fade their marks every
+    // frame) cuts only the new marks; cleared by invalidate() (craters) and reset().
+    struct CutMark {
+        std::uint64_t id = 0;
+        float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+        std::vector<DecalVertex> verts;
+    };
+    std::vector<CutMark> cut_, cutNext_;
     int markBatchCount_ = 0, markDropped_ = 0;
     std::vector<FlatVertex> markVerts_;
     std::vector<DrawRun> markRuns_;

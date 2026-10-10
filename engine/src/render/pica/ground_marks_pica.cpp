@@ -41,6 +41,7 @@ const std::vector<SkidTrail>* testSkidTrails() { return g_testSkids; }
 
 void MarkPass::reset() {
     lastMarks_.clear();
+    cut_.clear();
     markVerts_.clear();
     markRuns_.clear();
     skidVerts_.clear();
@@ -66,7 +67,10 @@ void MarkPass::setMarks(const MarkList& marks, const TerrainGridView& grid) {
     bool same = !dirty_ && marks.size() == lastMarks_.size();
     for (size_t i = 0; same && i < marks.size(); ++i) same = sameMark(marks[i], lastMarks_[i]);
     if (!same && grid.valid()) {
+        if (dirty_) cut_.clear(); // the terrain changed under them
         dirty_ = false;
+        cutNext_.clear();
+        size_t cursor = 0;
         lastMarks_ = marks;
         markVerts_.clear();
         markRuns_.clear();
@@ -79,9 +83,23 @@ void MarkPass::setMarks(const MarkList& marks, const TerrainGridView& grid) {
             const GroundMarkDesc& d = m.first;
             if (!d.texture || !d.texture->valid()) continue;
             tmp.clear();
-            buildTerrainDecal(grid, GroundRect::axisAligned(d.origin.x + d.minX, d.origin.y + d.minY,
-                                                            d.origin.x + d.maxX, d.origin.y + d.maxY),
-                              tmp);
+            const float x0 = d.origin.x + d.minX, y0 = d.origin.y + d.minY, x1 = d.origin.x + d.maxX,
+                        y1 = d.origin.y + d.maxY;
+            auto matches = [&](const CutMark& c) {
+                return c.id == m.second && c.x0 == x0 && c.y0 == y0 && c.x1 == x1 && c.y1 == y1;
+            };
+            // The marks keep their order between rebuilds: search on from the last match.
+            const CutMark* old = nullptr;
+            for (size_t k = 0; !old && k < cut_.size(); ++k) {
+                const size_t at = (cursor + k) % cut_.size();
+                if (matches(cut_[at])) {
+                    old = &cut_[at];
+                    cursor = at + 1;
+                }
+            }
+            if (old) tmp = old->verts;
+            else buildTerrainDecal(grid, GroundRect::axisAligned(x0, y0, x1, y1), tmp);
+            cutNext_.push_back(CutMark{m.second, x0, y0, x1, y1, tmp});
             if (tmp.empty() || markVerts_.size() + tmp.size() > kMaxMarkVertices) {
                 ++dropped;
                 continue;
@@ -109,6 +127,7 @@ void MarkPass::setMarks(const MarkList& marks, const TerrainGridView& grid) {
                 markVerts_.push_back(f);
             }
         }
+        cut_.swap(cutNext_);
         buildDecalRuns(batches, markRuns_);
         markBatchCount_ = static_cast<int>(batches.size());
         markDropped_ = dropped;
