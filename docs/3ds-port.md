@@ -23,7 +23,9 @@ GPU read-back of the terrain every 30 frames so the water wash is caught without
 verdict to `soak.txt` and pushes every file of the run to the PC. **The agent's side:** before the
 owner launches, `tools/3ds_receive.py --port 7777` must be listening in the main checkout (it needs
 `build/apps/sim_tool/as3d_sim` and the data at the repo root, or `--sim` / `AS3D_DATA_ROOT`); the
-PC's address on the route is `ip route get 192.168.1.133` (`src`, 192.168.1.86 on 2026-10-11). It
+PC's address on the route is `ip route get 192.168.1.133` (`src`, 192.168.1.86 on 2026-10-11). Never
+probe the port to check it (a connection is a run: with `--once` the receiver files an empty
+`-partial` run and quits; `ss -ltnp | grep 7777` says whether it listens). It
 files the run under `out/3ds/<date>-<commit>/`, prints the verdict and the `AS3D_SOAK_RESULT`
 lines, runs the perf report per stage (`stages/NN-game-level-eyes/`), the marks' contact sheet
 and the end-state comparison with `as3d_sim --bot --bot-weapons`. If the PC was not listening,
