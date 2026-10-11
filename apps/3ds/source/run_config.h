@@ -224,6 +224,12 @@ struct RunConfig {
     // plan's files read by a thread while the level start parses (1, default; a read of a file not
     // yet in memory waits for it) or on the main thread before the definitions (0, as before).
     bool prefetchThread = true;
+    // R4.11: the sequels on the console (docs/3ds-port.md "The sequels on the console (round 4,
+    // R4.11)"; apps/3ds/README.md).
+    int skinHalf = -1;      // skin_half=auto|0|1: the model skins of at least skin_half_min a side made from level 1 of their chain; -1 = auto (the sequels only)
+    int skinHalfMin = 128;  // skin_half_min=N: the smallest larger side (texels) skin_half halves (128, default: a 128 skin becomes 64)
+    bool uiMerge = true;    // ui_merge=0|1: the 2D lists' quads reordered into fewer runs where no pixel is shared, the same picture (1, default)
+    // R4.11 end
     bool effectiveWashCheck() const { return washCheck >= 0 ? washCheck != 0 : mode == Mode::Soak; }
     int effectiveProbeEvery() const { return probeEvery >= 0 ? probeEvery : (mode == Mode::Soak ? 30 : 0); }
     int effectiveFrames() const { return frames > 0 ? frames : (mode == Mode::Sim ? 600 : 0); }

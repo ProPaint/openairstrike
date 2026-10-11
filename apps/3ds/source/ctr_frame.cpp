@@ -397,7 +397,15 @@ struct GameFrame::Impl {
     struct LightSeen {
         size_t chunks = 0, reuses = 0, evals = 0;
         uint64_t ticks = 0;
+        size_t missNew = 0, missCount = 0, missMoved = 0, missTurned = 0, missOther = 0; // R4.11
     } lightSeen;
+    // R4.11: the particle and sprite quads over the frames since the last AS3D_FX line (the
+    // sequels fill the particle cap, docs/3ds-port.md "The sequels on the console").
+    struct FxSums {
+        unsigned frames = 0;
+        long particles = 0, particlesDropped = 0, sprites = 0, spritesDropped = 0;
+        int particlesMax = 0, particlesDroppedMax = 0, spritesMax = 0;
+    } fxSum;
     // R4.6: the last precacheLevel's parts (ms), for AS3D_LEVEL_RENDERER.
     struct PrecacheParts {
         double scripts = 0, world = 0, tex = 0, mip = 0, swizzle = 0, upload = 0, mesh = 0, shadows = 0, frames = 0,
@@ -825,6 +833,10 @@ struct GameFrame::Impl {
                   "terrain_light_cache=%d terrain_base_cache=%d",
                   run.brightnessMode == 1 ? "quad" : "fold", run.waterCover ? 1 : 0, run.shadowFastHit ? 1 : 0,
                   run.texFast ? 1 : 0, run.baseInt ? 1 : 0, run.terrainLightCache ? 1 : 0, run.terrainBaseCache ? 1 : 0);
+        // R4.11: the sequels on the console (the skin rule is applied per level, applySkinHalf).
+        ui::ui2dPicaSetMergeRuns(run.uiMerge);
+        AS3D_INFO("AS3D_R411 ui_merge=%d skin_half=%s skin_half_min=%d", run.uiMerge ? 1 : 0,
+                  run.skinHalf < 0 ? "auto" : run.skinHalf ? "1" : "0", run.skinHalfMin);
         AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d terrain_force_state=%d eye_replay=%d",
                   wash.enabled() ? 1 : 0, run.washInject, run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0,
                   run.terrainForceState ? 1 : 0, run.eyeReplay ? 1 : 0);
@@ -871,6 +883,18 @@ struct GameFrame::Impl {
         menuView.setKeyGlyphs(keysTexture.valid() ? &keyAtlas : nullptr);
     }
 
+    // R4.11 (docs/3ds-port.md "The sequels on the console (round 4, R4.11)"): the model skins of
+    // this level from level 1 of their chain (scene.h setSkinHalfMinSide) when run.ini skin_half
+    // says so, or by default for the sequels (their skins overflow the VRAM budget by 4 to 6 MB
+    // and the GPU reads linear memory several times slower). Before the renderer's beginLevel.
+    void applySkinHalf(as3d_game::GameSession& ses) {
+        const GameId game = ses.game() ? ses.game()->id : GameId::AirStrike3D;
+        const bool on = run.skinHalf >= 0 ? run.skinHalf != 0 : game != GameId::AirStrike3D;
+        setSkinHalfMinSide(on ? run.skinHalfMin : 0);
+        AS3D_INFO("AS3D_R411 skin_half=%d skin_half_min=%d (run.ini %s) game=%s", on ? 1 : 0, run.skinHalfMin,
+                  run.skinHalf < 0 ? "auto" : run.skinHalf ? "1" : "0", ses.game() ? ses.game()->key : "as3d");
+    }
+
     // The level-start precache (run.ini precache=1), then every later load counts as lazy.
     // R4.6: the terrain's base texture cache (terrain_pica.h) of this level start, next to the
     // silhouettes' file; set before the renderer's beginLevel, written after it (writer thread).
@@ -903,6 +927,7 @@ struct GameFrame::Impl {
         const as3d::ctr::StreamReadStats rd1 = as3d::ctr::streamReadStats();
         loadingFrame(from, true);
         const pica::LoadProfile lp0 = pica::loadProfile();
+        const pica::SkinHalfStats sh0 = pica::skinHalfStats(); // R4.11
         const double shadowMs0 = pica::shadowPicaStats().generateMs;
         const u64 frames0 = loadingTicks;
         // The silhouette cache of this level (shadow_pica.h): cached ones are not rasterised.
@@ -928,6 +953,12 @@ struct GameFrame::Impl {
                       cs.saveMs, cs.keyMs, cs.keyModels, cs.keyReuses, cs.placeMs, run.shadowFastHit ? 1 : 0);
         }
         const as3d::ctr::StreamReadStats rd2 = as3d::ctr::streamReadStats();
+        {
+            // R4.11: the skins made from level 1 of their chain in this precache (skin_half).
+            const pica::SkinHalfStats& sh = pica::skinHalfStats();
+            AS3D_INFO("AS3D_SKIN_HALF min_side=%d textures=%d levels_dropped=%d", skinHalfMinSide(), sh.textures - sh0.textures,
+                      sh.dropped - sh0.dropped);
+        }
         const LoadCounts before = LoadStats::lazyLoads();
         if (hudReady) {
             assets->precachePlay();
@@ -1057,6 +1088,7 @@ struct GameFrame::Impl {
                    run.prefetch && run.precache, run.prefetchThread);
         std::string err;
         setBaseCache(ses);
+        applySkinHalf(ses);
         if (!renderer->beginLevel(ses.world(), &err)) {
             AS3D_ERROR("WorldRenderer::beginLevel: %s", err.c_str());
             if (error) *error = err;
@@ -1403,6 +1435,7 @@ bool GameFrame::begin(CtrContext& ctx, as3d_game::GameSession& session) {
     const uint64_t tMade = svcGetSystemTick();
     // The terrain first: its textures are the first VRAM tenants.
     im.setBaseCache(session);
+    im.applySkinHalf(session);
     if (!im.renderer->beginLevel(world, &err)) {
         AS3D_ERROR("WorldRenderer::beginLevel: %s", err.c_str());
         return false;
@@ -1852,6 +1885,27 @@ void GameFrame::stats(FrameStats& out) {
         s.mergedRecords += m.mergedRecords;
         s.mergeArenaBytes += m.mergeArenaBytes;
         im.culledSum += pica::worldPicaStats().culledRecords;
+        // R4.11: the particle and sprite quads of the frame (the first eye's build).
+        const pica::FxPicaStats& fx = pica::fxPicaStats();
+        Impl::FxSums& fs = im.fxSum;
+        ++fs.frames;
+        fs.particles += fx.particleQuads;
+        fs.particlesDropped += fx.particleQuadsDropped;
+        fs.sprites += fx.spriteQuads;
+        fs.spritesDropped += fx.spriteQuadsDropped;
+        fs.particlesMax = std::max(fs.particlesMax, fx.particleQuads);
+        fs.particlesDroppedMax = std::max(fs.particlesDroppedMax, fx.particleQuadsDropped);
+        fs.spritesMax = std::max(fs.spritesMax, fx.spriteQuads);
+    }
+    if (pp.frames() >= kPassReportFrames && im.fxSum.frames > 0) {
+        const Impl::FxSums& fs = im.fxSum;
+        const double n = static_cast<double>(fs.frames);
+        AS3D_INFO("AS3D_FX frames=%u particle_quads=%.0f (max %d, cap %d) dropped=%.0f (max %d) sprite_quads=%.0f (max %d) "
+                  "sprites_dropped=%.0f late_textures=%d",
+                  fs.frames, fs.particles / n, fs.particlesMax, pica::renderQuality().particleCap, fs.particlesDropped / n,
+                  fs.particlesDroppedMax, fs.sprites / n, fs.spritesMax, fs.spritesDropped / n,
+                  pica::fxPicaStats().particleLateTextures);
+        im.fxSum = Impl::FxSums();
     }
     if (pp.frames() >= kPassReportFrames) {
         const double n = static_cast<double>(pp.frames());
@@ -1934,17 +1988,25 @@ void GameFrame::stats(FrameStats& out) {
             // the sums restart at a level's build.
             const pica::TerrainPicaStats& tls = pica::terrainPicaStats();
             Impl::LightSeen& sn = im.lightSeen;
-            if (tls.lightChunks < sn.chunks || tls.lightTicks < sn.ticks) sn = Impl::LightSeen();
+            if (tls.lightChunks < sn.chunks || tls.lightTicks < sn.ticks || tls.lightMissNew < sn.missNew)
+                sn = Impl::LightSeen();
             const double lightMs =
                 static_cast<double>(tls.lightTicks - sn.ticks) * 1000.0 / static_cast<double>(SYSCLOCK_ARM11);
             AS3D_INFO("AS3D_TERRAIN_LIGHTS frames=%u chunks=%zu reused=%zu light_vertex_evals=%zu ms=%.1f per_frame=%.3f "
-                      "cache=%d",
+                      "cache=%d miss_new=%zu miss_count=%zu miss_moved=%zu miss_turned=%zu miss_other=%zu",
                       leanFrames, tls.lightChunks - sn.chunks, tls.lightReuses - sn.reuses, tls.lightEvals - sn.evals,
-                      lightMs, lightMs / leanFrames, im.run.terrainLightCache ? 1 : 0);
+                      lightMs, lightMs / leanFrames, im.run.terrainLightCache ? 1 : 0, tls.lightMissNew - sn.missNew,
+                      tls.lightMissCount - sn.missCount, tls.lightMissMoved - sn.missMoved, tls.lightMissTurned - sn.missTurned,
+                      tls.lightMissOther - sn.missOther);
             sn.chunks = tls.lightChunks;
             sn.reuses = tls.lightReuses;
             sn.evals = tls.lightEvals;
             sn.ticks = tls.lightTicks;
+            sn.missNew = tls.lightMissNew;
+            sn.missCount = tls.lightMissCount;
+            sn.missMoved = tls.lightMissMoved;
+            sn.missTurned = tls.lightMissTurned;
+            sn.missOther = tls.lightMissOther;
             const std::string gp = pica::gpuPassReport();
             if (!gp.empty()) AS3D_INFO("AS3D_GPU_PASS %s", gp.c_str());
         }

@@ -329,6 +329,15 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
         } else if (key == "base_int") {
             if (toInt(val, &n)) c.baseInt = n != 0;
         // R4.6 end
+        // R4.11 (docs/3ds-port.md "The sequels on the console (round 4, R4.11)")
+        } else if (key == "skin_half") {
+            if (val == "auto") c.skinHalf = -1;
+            else if (toInt(val, &n)) c.skinHalf = n != 0 ? 1 : 0;
+        } else if (key == "skin_half_min") {
+            if (toInt(val, &n) && n >= 8) c.skinHalfMin = n;
+        } else if (key == "ui_merge") {
+            if (toInt(val, &n)) c.uiMerge = n != 0;
+        // R4.11 end
         } else if (key == "terrain_force_state") {
             if (toInt(val, &n)) c.terrainForceState = n != 0;
         } else if (key == "probe_inject") {
