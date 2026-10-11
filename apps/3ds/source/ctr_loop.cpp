@@ -143,9 +143,10 @@ void setRenderHz(int hz, const char* why);
 // for an SD write of the log (perf=1), a dump, or a late load. A miss is logged with the columns
 // of the frame before (what ran between the two syncs) and this frame's step and prepare.
 // pace=auto: two eyes start at 30 Hz (the console's stereo GPU is 13.5 ms avg, 16.5 p95), one
-// eye at 60 Hz; 6 counted misses in 120 frames at 60 Hz go to 30 Hz (the first soak run of
-// 2026-10-11 showed bursts of 3 heavy frames in the fights, 0.5% of the frames: a dropped frame
-// now and then beats a second and a half at 30 Hz); at 30 Hz, fitNeeded (60)
+// eye at 60 Hz; 12 counted misses in 120 frames at 60 Hz go to 30 Hz (the whole-mission soaks of
+// 2026-10-11: mono misses 1.6-1.9% of the frames spread over the mission, in bursts of 2-3 heavy
+// frames; with the old rules of 3 then 6 misses the pacer spent 70% of mission 1 at 30 Hz, and a
+// dropped frame now and then beats that); at 30 Hz, fitNeeded (60)
 // frames in a row whose CPU path (one step + prepare + recording + end) stays under 13 ms and
 // whose GPU time (from the first command list to the end of the queue) under 14 ms go to 60 Hz;
 // a fall back within 600 frames of that doubles fitNeeded (at most 3600).
@@ -227,7 +228,7 @@ void updatePacer(const FrameSample& sample) {
         p.misses += m - p.miss[p.missAt];
         p.miss[p.missAt] = m;
         p.missAt = (p.missAt + 1) % PacerState::kWindow;
-        if (p.misses >= 6) {
+        if (p.misses >= 12) {
             if (p.promotedAt && p.frameNo - p.promotedAt < 600) p.fitNeeded = std::min(p.fitNeeded * 2, 3600);
             setRenderHz(30, "misses");
         }

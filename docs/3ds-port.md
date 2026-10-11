@@ -3224,3 +3224,29 @@ launcher. `soak.txt`:
   answer `SO_ERROR` the Linux way (Azahar's does, which is why the emulator passed). The check is now
   `getpeername` after the poll, with the poll's error bits as the failure; the files were fetched over
   ftpd meanwhile.
+
+## Second console soak (2026-10-11, build 5192662; out/3ds/2026-10-11-5192662/, pushed by the console)
+
+The push worked (3 files, 3.7 MB, connected in 1.8 s). Four whole missions (AirStrike 3D 1 and 2,
+mono and stereo), every stage to Mission Complete, every end state identical to the desktop sim.
+
+- `PASS wash`: 1534 terrain probes over the four missions, 0 mismatches, no marks. As far as the bot
+  can tell the wash is gone; the owner's play is the only proof left (`run-play.ini`, L if it shows).
+- **The simulation step grows 5x through a mission** (per 1200 steps, mono mission 1): 0.9 ms per
+  step at the start, 1.9 at 2400, 3.0 at 7200, 4.5 at 10800, 5.2 at 12000; mission 2 the same
+  (1.2 to 5.2). Draws and vertices stay flat (150-230 draws, 21-25k vertices); `prep_entities`
+  goes from 172 to 1003 items, prepare from 1.1 to 3.4 ms. The desktop sim is bit-identical, so
+  this is measured and fixed on the desktop (round 3, R3.1).
+- `FAIL mono60`: mission 1 at 60 Hz for 30% of the frames, mission 2 for 66%. The misses at 60 Hz
+  are 1.6% and 1.9%, spread over the whole mission (miss frames: step 3.3 ms vs 1.7, submit 7.4 vs
+  5.7, GPU 8.5 vs 6.9 ms); the rule of 6 misses in 120 frames still tripped 7 and 10 times and the
+  return needs 60 fitting frames (doubling after a quick fall). The rule is now 12 in 120 (10%).
+- `PASS stereo` at 30 Hz, but mission 1 missed 9.2% of its 30 Hz frames (13.4% by the perf.csv
+  sum), 433 of the last 600 frames: late in the mission two steps cost 10 ms, the submit 10 ms
+  (p95 19), the GPU 12 ms: the CPU path alone is over 20 ms. Mission 2: 0.7%. Per frame in stereo
+  (`AS3D_PASS_MS`, 2 eyes): terrain 1.7, **water 2.4-2.5 ms for 2 draws of 57 vertices**, opaque
+  0.8, rest 0.85, hud 0.75, touch 0.54 (8.4k vertices a frame for the touch band), top2d 0.5,
+  particles 0.6, ui_copy 0.3; `AS3D_MESH` 160-190 draws, 100 texture binds, 57 state changes,
+  merged 0. Round 3, R3.2.
+- Level start 3.2-3.4 s (gate 3.0); lazy loads 0; fence 0; GPU busy 0; textures in frame 0; the
+  probe 2.2 ms mono / 4.0 ms stereo (max 10) every 30 frames.
