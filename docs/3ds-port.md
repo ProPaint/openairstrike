@@ -78,7 +78,10 @@ AirStrike 3D menus, R4.7 in play, R4.8 sequels + selector + loading + name entry
 out/ui3ds/gallery/ (the drop's own binary: drop-08613d6; the sequels: c708b4f). The drop round4c on
 the card predates R4.8, which changes nothing for AirStrike 3D; the sequels' screens are unverified on
 hardware (the console has only AirStrike 3D). The owner's five-minute photo session is listed at the
-end of the R4.8 section of the UI doc.**
+end of the R4.8 section of the UI doc. R4.9 (the owner, 2026-10-12: "In the selector airstrike 3d
+doesn't have its proper logo"): the first game's flaming banner mesh on the selector, in its card and
+over the top screen, through `apps/3ds/source/ctr_banner.h`, the main menu's banner code moved out of
+`ctr_frame.cpp` and shared; gallery out/ui3ds/gallery/banner3/selector_sheet.png.**
 
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
@@ -2017,8 +2020,8 @@ instead of `runCtrMenuLoop` alone:
    800x600 field, three cards of 94 px; text as small as in the menus), the font and HUD atlases
    from the first game whose paks are all there, the sequels' marquees from their own pictures
    (`gfx\logo\logo.tga`, `clouds`, `glow`, `two3`, mounted from each game's paks for the time the
-   selector is up), the first game's banner mesh replaced by its title in text (the mesh renderer is
-   not wired here). Input as in the menus (`CtrInput::uiInputs`: D-pad = arrows, A = Enter, B / START =
+   selector is up), the first game's flaming banner mesh in its card and over the top screen (R4.9,
+   `ctr_banner.h`: the frame composer's banner, shared). Input as in the menus (`CtrInput::uiInputs`: D-pad = arrows, A = Enter, B / START =
    Escape = Exit, touch = pointer). The top screen shows the focused game's title, version and the
    keys (or its missing files in red). Cards of a game with files missing show `Missing: <first>`
    and "and N more", and cannot be started (`selector: <key> cannot start, missing: ...`).
@@ -2893,7 +2896,8 @@ letterbox (black bands, the red rule at virtual y 99), the rotating 3D banner `o
 items; with `--dual-screen` all of it on the bottom screen. The 3DS had the attract level on top
 with the game's title in text where the banner goes ("Deferred" in M2.1 and M3.4).
 
-Now (`ctr_frame.cpp`): at an attract level's start the banner's mesh and material are loaded
+Now (`ctr_banner.h`, `ConsoleBanner`, since R4.9 shared with the game selector; `ctr_frame.cpp`
+before): at an attract level's start the banner's mesh and material are loaded
 into a cache of their own (`AS3D_BANNER model=models/banner/banner.mdl ... load_ms=31` on Azahar;
 released with the renderer at every level start, as the model view's), and while the main menu
 is up (`Frontend::bannerVisible`) the top screen gets, after the world and its brightness pass,

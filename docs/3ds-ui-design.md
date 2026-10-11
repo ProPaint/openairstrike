@@ -853,11 +853,12 @@ the layout.
 before each update so the bottom screen's 0.4 mapping takes taps to the drawn cards.
 
 - Bottom: "CHOOSE A GAME" (L) on a 20-px band; three cards 101 x 166 at y 22 (the game's own
-  marquee, AirStrike 3D's name in L and T since its banner mesh is not drawn here; the card's
+  marquee, AirStrike 3D's flaming banner mesh since R4.9, below; the card's
   name with "AirStrike II: " dropped, and "N missions", each group at one size, L or S;
   "TAP: PLAY" on the current card); EXIT and PLAY 92 x 38 in the bottom corners.
 - Top: the current game's logo at exactly 1/2 (AirStrike 2's logo and "2", Gulf Thunder's
-  emblem; none for the first game), its full title at T (L when wider), the version (S), the save
+  emblem; the first game's banner mesh over the top 100 px since R4.9, below), its full title at T
+  (L when wider), the version (S), the save
   lines (L) or its missing files (red), and the keys with the owner's pictures: A Play, B Exit,
   START SELECT Quit (`loadKeyGlyphs` is now also used by the selector).
 - `GameCard::brief` and `GameCard::missing` are new fields the desktop ignores.
@@ -910,8 +911,8 @@ first dump of a run is the boot's, without one).
 - **Mission complete title at L** (T is wider than 392 px).
 - **Selector**: the cards' names without "AirStrike II: " (the full title is on the top screen),
   "TAP: PLAY" (the mockup's "TAP TO PLAY" is wider than a card at S); no "Best score" on a card
-  (on the top screen); the first game's card and top have no logo (its banner is a 3D mesh not
-  drawn in the selector).
+  (on the top screen); the first game's card and top had no logo in R4.8 (its banner is a 3D mesh;
+  drawn since R4.9, below).
 - **Loading**: the first game's picture cropped to its middle 206 rows; the bar 200 px (the
   mockup's 200 as well, 6 px high).
 - **Name entry**: the model's 4 x 10 keys (as the first game's, R4.5), not the mockup's 8 x 5.
@@ -946,7 +947,52 @@ At arm's length, slider off then halfway; a phone photo of each, both screens in
 
 - The desktop `--dual-screen` preview (apps/game, not this package's files) draws the sequels'
   new HUD with the old band over it and their old menus.
-- The first game's card and selector top without a logo (the banner mesh needs the mesh renderer
-  in the selector).
 - On hardware: the console photo session above, the stereo comfort of the top-screen text and the
   model view, the GPU time of the nine-piece boxes (a few dozen more quads than one box).
+
+## The first game's banner on the selector (round 4, R4.9)
+
+The owner, 2026-10-12, on the R4.8 selector sheet: "In the selector airstrike 3d doesn't have its
+proper logo". AirStrike 3D's logo is the flaming 3D title mesh (`objects\banner`): the desktop draws
+it in the main menu over the attract level and, through the launcher's banner drawer, inside the
+selector card's marquee box; on the console it was drawn over the attract level only (the main
+menu, `ctr_frame.cpp`), and the selector card and top screen had the name in text.
+
+- `apps/3ds/source/ctr_banner.h` (`ConsoleBanner`): the main menu's banner code moved out of the
+  frame composer and shared. `load(vfs, defs)` (the object's mesh and material in a cache of its
+  own; `AS3D_BANNER` logged once), `prepare(mt, slider, eyes, comfort, maxEyeOffset, minFocal)` (the
+  pass and the stereo, as before), `drawEye(eye)` (the letterbox band and the mesh over the top
+  400 x 100 px of the top screen, as before) and the new `drawBox(x, y, w, h, targetW, targetH,
+  depth)`: the banner mono in a box of the current target, the viewport placed so that the part of
+  the 4:1 picture the title covers (`ui::kBannerContent`, the desktop's rule) fills the box,
+  scissored to it, shrunk to stay inside the target (the first card's box is 8 px from the screen's
+  edge; its title is then 88 px wide instead of 93). The bottom target has no depth buffer: the
+  mesh is drawn without the depth test in its pass order, which the banner's letters survive
+  (gallery below).
+- `ctr_selector.cpp`: when the first game's paks are present, its object definitions are loaded
+  (`DefDatabase`, kept for the selector's stay with the paks mounted) and the banner with them
+  (`selector: as3d: banner ready, defs+mesh 591 ms` on Azahar: the definitions' parse is most of
+  it; the selector appears that much later at boot, once). Per frame the pass is prepared at the
+  selector's clock, drawn after the bottom list in the card's marquee box (every frame: the card is
+  always on screen) and, when that card is the current one, after the top list over the top 100 px
+  with the band, in stereo per the slider as the main menu's (run.ini `slider=`, `eye_offset=`,
+  `min_focal=`, `stereo_comfort=` apply).
+- `console_menu.h`: `ConsoleSelectorLayout::marquee[3]` (the box 4 px inside each card, 56 px
+  high; the app draws into the same box), `drawConsoleSelectorBottom(..., banner)` leaves the
+  first game's name out of its marquee when the app draws the mesh, `drawConsoleSelectorTop(...,
+  banner)` starts the text at y 104 under the mesh, as under the sequels' logos.
+- Gallery: `tools/3ds_ui_gallery.sh BIN banner3 --only selector`, out/ui3ds/gallery/banner3/
+  selector_sheet.png: the banner in the card (small, as on the desktop's card: the letters about
+  11 px tall, the flames over the card's dark red) and over the top screen (the main menu's
+  picture); the sequels' screens unchanged. The sway is the main menu's (the mesh's top edge
+  leaves the band at some phases there too).
+- Not changed: the title in text under the top-screen banner (as the full title under the
+  sequels' logos).
+- With it, the owner's second note on the same sheet ("You can write gulf thunder on two lines if
+  no space"): a card's name wider than the card at L goes on two lines at its last space
+  (`consoleCardTitleLines`), the group size then chosen for the parts: the group stays at L and
+  all three names are two L lines ("AirStrike 3D" and "AirStrike 2" are wider than 93 px at L
+  too), instead of three S lines with "Gulf Thund..."; a wrapped card's "N missions" line moves
+  down 16 px (and its missing-file line with it), "TAP: PLAY" keeps its place. Gallery
+  out/ui3ds/gallery/banner4/selector_sheet.png.
+

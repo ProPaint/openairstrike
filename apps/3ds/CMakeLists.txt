@@ -26,6 +26,7 @@ add_executable(openairstrike
   source/ctr_name_entry.cpp
   source/ctr_mem.cpp
   source/ctr_frame.cpp
+  source/ctr_banner.cpp
   source/ctr_input.cpp
   source/ctr_perf.cpp
   source/ctr_soak.cpp

@@ -12,6 +12,7 @@
 
 #include "as3d/console_menu.h"
 #include "as3d/core.h"
+#include "as3d/defs.h"
 #include "as3d/frontend.h"
 #include "as3d/game_data.h"
 #include "as3d/image.h"
@@ -20,6 +21,7 @@
 #include "as3d/render_state.h"
 #include "as3d/ui.h"
 #include "as3d/vfs.h"
+#include "ctr_banner.h"
 #include "ctr_context.h"
 #include "ctr_fatal.h"
 #include "ctr_frame.h"
@@ -90,7 +92,7 @@ std::vector<std::string> cardLines(const GameInstall& gi) {
 
 ui::Marquee marqueeOf(GameId id) {
     switch (id) {
-        case GameId::AirStrike3D: return ui::Marquee::Banner; // no banner mesh here: the title in text
+        case GameId::AirStrike3D: return ui::Marquee::Banner; // the flaming title mesh on the top screen (ctr_banner.h)
         case GameId::AirStrike2: return ui::Marquee::TitleLogo;
         case GameId::GulfThunder: return ui::Marquee::Emblem;
         default: return ui::Marquee::None;
@@ -136,6 +138,14 @@ Selection runSelector(CtrContext& ctx, CtrInput& input, const RunConfig& run, co
     std::unique_ptr<Vfs> fontVfs;
     std::unique_ptr<ui::UiAssets> assets(new ui::UiAssets());
     std::vector<std::unique_ptr<Texture2D>> pictures;
+    // The first game's flaming title on the top screen (ctr_banner.h; the desktop selector's
+    // marquee): its object definitions and mesh from its paks, which stay mounted for the
+    // selector's stay (the banner's cache reads them). The vfs and the definitions outlive the
+    // banner (declared first).
+    std::unique_ptr<Vfs> bannerVfs;
+    std::unique_ptr<DefDatabase> bannerDefs;
+    std::unique_ptr<ConsoleBanner> banner;
+    int bannerCard = -1;
     std::vector<ui::GameCard> cards;
     std::string err;
     bool ready = top->init(&err) && bottom->init(&err);
@@ -174,6 +184,27 @@ Selection runSelector(CtrContext& ctx, CtrInput& input, const RunConfig& run, co
                         card.glow = picture("gfx\\logo\\glow.tga", false);
                         card.two = picture("gfx\\logo\\two3.tga", false);
                     }
+                }
+            } else if (card.marquee == ui::Marquee::Banner && gi->paksPresent && !banner) {
+                std::string e2;
+                std::unique_ptr<Vfs> vfs = gi == fontGame ? nullptr : mountPaks(*gi->game, &e2);
+                Vfs* v = gi == fontGame ? fontVfs.get() : vfs.get();
+                if (v) {
+                    const uint64_t t0 = nowTicks();
+                    std::unique_ptr<DefDatabase> defs(new DefDatabase());
+                    std::unique_ptr<ConsoleBanner> b(new ConsoleBanner());
+                    const bool defsOk = defs->load(*v);
+                    if (defsOk && b->load(*v, *defs)) {
+                        banner = std::move(b);
+                        bannerDefs = std::move(defs);
+                        bannerVfs = std::move(vfs);
+                        bannerCard = static_cast<int>(cards.size());
+                        AS3D_INFO("selector: %s: banner ready, defs+mesh %.1f ms", gi->game->key, ticksToMs(nowTicks() - t0));
+                    } else {
+                        AS3D_WARN("selector: %s: no banner (%s): the title in text", gi->game->key, defsOk ? "no mesh" : "definitions");
+                    }
+                } else {
+                    AS3D_WARN("selector: %s: %s: the title in text", gi->game->key, e2.c_str());
                 }
             }
             cards.push_back(std::move(card));
@@ -243,12 +274,22 @@ Selection runSelector(CtrContext& ctx, CtrInput& input, const RunConfig& run, co
 
         // The lists, outside the frame.
         const bool shown = sel != nullptr;
+        const int eyes = ctx.eyeCount();
+        const bool bannerOn = shown && console && banner && sel->current() == bannerCard;
+        if (bannerOn) {
+            // The banner's stereo as the frame composer's (ctr_loop.cpp: run.ini slider= forces the
+            // hardware slider; eye_offset= and min_focal= the stereo).
+            const float slider = run.slider >= 0.0f ? run.slider : ctx.sliderValue();
+            banner->prepare(sel->clock(), slider, eyes, run.stereoComfort, run.eyeOffset > 0.0f ? run.eyeOffset : kMaxEyeOffset,
+                            run.minFocal > 0.0f ? run.minFocal : kMinFocalDistance);
+        }
         if (shown && console) {
             bottom->begin(kBottomW, kBottomH);
-            ui::drawConsoleSelectorBottom(*bottom, *assets, *sel);
+            ui::drawConsoleSelectorBottom(*bottom, *assets, *sel, banner != nullptr);
             top->begin(kTopW, kTopH);
             const GameInstall& cur = *offered[static_cast<size_t>(sel->current())];
-            ui::drawConsoleSelectorTop(*top, *assets, *sel, keysOk ? &keyAtlas : nullptr, cur.complete() ? std::string() : missingList(cur));
+            ui::drawConsoleSelectorTop(*top, *assets, *sel, keysOk ? &keyAtlas : nullptr, cur.complete() ? std::string() : missingList(cur),
+                                       bannerOn);
         } else if (shown) {
             bottom->begin(kBottomW, kBottomH);
             sel->draw(*bottom, *assets);
@@ -269,20 +310,32 @@ Selection runSelector(CtrContext& ctx, CtrInput& input, const RunConfig& run, co
         }
         if (ctx.beginFrame()) {
             pica::frameBegin();
-            const int eyes = ctx.eyeCount();
             for (int eye = 0; eye < eyes; ++eye) {
                 pica::drawOn(pica::FrameTarget{ctx.topTarget(eye), kTopW, kTopH, true});
                 clear(Vec4{0.0f, 0.0f, 0.0f, 1.0f}, true, 1.0f);
                 if (shown) {
                     top->flush();
+                    if (bannerOn) banner->drawEye(eye); // the flaming title over the ground, under nothing
                 } else {
                     pica::fillRect(0, 0, kTopW, kTopH, 80, 0, 0);
                 }
             }
             pica::drawOn(pica::FrameTarget{ctx.bottomTarget(), kBottomW, kBottomH, false});
             clear(Vec4{0.0f, 0.0f, 0.0f, 1.0f}, false, 1.0f);
-            if (shown) bottom->flush();
-            else pica::fillRect(0, 0, kBottomW, kBottomH, 80, 0, 0);
+            if (shown) {
+                bottom->flush();
+                if (console && banner) { // the first game's card: its flaming title in the marquee box
+                    const ui::ConsoleSelectorLayout L = ui::consoleSelectorLayout(*sel);
+                    if (bannerCard >= 0 && bannerCard < L.count) {
+                        if (!bannerOn) banner->prepare(sel->clock(), 0.0f, 1, run.stereoComfort, kMaxEyeOffset, kMinFocalDistance);
+                        const ui::RectF& mq = L.marquee[bannerCard];
+                        banner->drawBox(static_cast<int>(mq.x), static_cast<int>(mq.y), static_cast<int>(mq.w), static_cast<int>(mq.h),
+                                        kBottomW, kBottomH, false);
+                    }
+                }
+            } else {
+                pica::fillRect(0, 0, kBottomW, kBottomH, 80, 0, 0);
+            }
             pica::frameEnd();
             ctx.endFrame();
         }

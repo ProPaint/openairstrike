@@ -155,6 +155,7 @@ void drawConsoleLoading(Renderer2D& top, Renderer2D& bottom, const UiAssets& a, 
 struct ConsoleSelectorLayout {
     int count = 0;
     RectF cards[3];
+    RectF marquee[3]; // the game's animated title inside each card (pixels)
     RectF exit, play;
     FontSize titleSize = FontSize::L, lineSize = FontSize::L;
 };
@@ -162,9 +163,13 @@ ConsoleSelectorLayout consoleSelectorLayout(const GameSelector& sel);
 // Writes the items' hit rectangles (virtual units, 2.5 x the pixels): taps through the bottom
 // screen's 0.4 mapping land on the drawn cards and buttons.
 void consoleSelectorApplyHits(GameSelector& sel);
-void drawConsoleSelectorBottom(Renderer2D& r, const UiAssets& a, const GameSelector& sel);
+// `banner`: the app draws the first game's flaming title mesh after this (apps/3ds
+// ctr_banner.h): on the bottom in its card's marquee box (the layout's), so the card's name in
+// text is left out; on the top over the top 100 px (the current card's marquee is Banner), so the
+// text starts below it.
+void drawConsoleSelectorBottom(Renderer2D& r, const UiAssets& a, const GameSelector& sel, bool banner = false);
 void drawConsoleSelectorTop(Renderer2D& r, const UiAssets& a, const GameSelector& sel, const KeyGlyphAtlas* keys,
-                            const std::string& missing);
+                            const std::string& missing, bool banner = false);
 
 class ConsoleMenuView {
 public:

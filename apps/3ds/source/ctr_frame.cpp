@@ -29,6 +29,7 @@
 #include "as3d/ui.h"
 #include "as3d/world.h"
 #include "as3d/world_render.h"
+#include "ctr_banner.h"
 #include "ctr_context.h"
 #include "ctr_input.h"
 #include "ctr_mem.h"
@@ -172,27 +173,6 @@ double kb(size_t b) { return static_cast<double>(b) / 1024.0; }
 // grid at the same mapping. The desktop's dual-screen frame at --size 800x960 has the same
 // mapping on its bottom screen (the comparison of the report).
 constexpr float kModelPxPerVirtual = 0.8f;
-
-// The first game's main-menu banner (objects\banner.obj, the flaming title; docs/3ds-port.md
-// "Packaging and launch"): the desktop draws it in the virtual rectangle (0, 0, 800, 200) of the
-// main menu, over the attract level (GameView::drawBanner). The 3DS's menus are on the bottom
-// screen, so it goes on the top one, over the attract level as there: the whole width, a quarter
-// of the height (400 x 100 px: the desktop's 4:1), at the top. Its stereo has zero parallax at
-// kBannerFocal (the mesh is about 30 to 45 units away).
-constexpr int kBannerW = 400, kBannerH = 100;
-constexpr float kBannerFocal = 40.0f;
-constexpr float kBannerDepthPx = 4.0f; // the banner's depth behind the screen at slider 1 (stereo_comfort)
-constexpr float kBannerBand = 99.0f * kTopH / 600.0f; // the letterbox's black band (virtual 0..99)
-
-// BannerMesh::draw's model matrix (apps/game/game_view.cpp): the entity at (-34, 7, -30), angles
-// (95 + 7 sin mt, 3 sin(0.7 mt + 0.5), 0) degrees, times the object's scale.
-Mat4 bannerMatrix(float mt, float objectScale) {
-    const float angles[3] = {95.0f + 7.0f * std::sin(mt), 3.0f * std::sin(0.7f * mt + 0.5f), 0.0f};
-    const float origin[3] = {-34.0f, 7.0f, -30.0f};
-    Mat4 model = as3d_game::entityMatrix(angles, origin);
-    if (objectScale != 1.0f) model = model * scale(Vec3{objectScale, objectScale, objectScale});
-    return model;
-}
 
 // A 2D pass (or the brightness pass) in the pass profile (pass_profile.h): its CPU ticks, the
 // 2D runs and vertices it drew.
@@ -376,21 +356,11 @@ struct GameFrame::Impl {
     bool modelActive = false;
     ui::ModelView modelView;
     pica::MeshPass modelPass;
-    // The first game's main-menu banner on the top screen (kBannerW x kBannerH): its mesh and
-    // material from a cache of its own, loaded at the attract level's start (with the precache)
-    // and released with the renderer at every level start, as the model view's.
-    struct Banner {
-        std::unique_ptr<ResourceCache> cache;
-        const GpuMesh* gpu = nullptr;
-        Material material;
-        float scale = 1.0f;
-    };
-    std::unique_ptr<Banner> banner;
+    // The first game's main-menu banner on the top screen (ctr_banner.h): its mesh and material
+    // from a cache of its own, loaded at the attract level's start (with the precache) and
+    // released with the renderer at every level start, as the model view's.
+    std::unique_ptr<ConsoleBanner> banner;
     bool bannerActive = false; // this frame
-    float bannerTime = 0.0f;
-    StereoParams bannerStereo;
-    pica::MeshPass bannerPass;
-    bool bannerLogged = false;
     bool bannerTried = false; // loadBanner ran since the last level start
     int modelX = 0, modelY = 0, modelW = 0, modelH = 0; // the viewport, top screen pixels from the top left
     float modelFocal = 0.0f; // the model view's screen plane: its nearest vertex (0: unknown)
@@ -1165,25 +1135,8 @@ struct GameFrame::Impl {
     void loadBanner(as3d_game::GameSession& ses) {
         banner.reset();
         bannerTried = true;
-        const ObjectDef* def = ses.db().findObject("banner");
-        if (!def || def->model.empty()) return;
-        const uint64_t t0 = svcGetSystemTick();
-        std::unique_ptr<Banner> b(new Banner());
-        b->cache.reset(new ResourceCache(ses.vfs()));
-        const GpuMesh& gpu = b->cache->mesh(def->model);
-        if (!gpu.valid) {
-            AS3D_WARN("banner: %s has no mesh: the title in text", def->model.c_str());
-            return;
-        }
-        b->gpu = &gpu;
-        b->material = Material::fromObjectDef(*def, *b->cache);
-        b->scale = def->scale > 0.001f ? def->scale : 1.0f;
-        banner = std::move(b);
-        if (!bannerLogged)
-            AS3D_INFO("AS3D_BANNER model=%s scale=%.2f load_ms=%.1f viewport=(0, 0, %d, %d)", def->model.c_str(),
-                      static_cast<double>(banner->scale), static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11,
-                      kBannerW, kBannerH);
-        bannerLogged = true;
+        std::unique_ptr<ConsoleBanner> b(new ConsoleBanner());
+        if (b->load(ses.vfs(), ses.db())) banner = std::move(b);
     }
 
     // prepare: the banner's pass at the menu clock, when the main menu shows it.
@@ -1192,55 +1145,8 @@ struct GameFrame::Impl {
         if (!fe || !fe->bannerVisible() || modelActive || !pica::passEnabled(pica::Pass::Model)) return;
         if (!banner && !bannerTried) loadBanner(ses);
         if (!banner) return;
-        bannerTime = fe->menus().menuTime();
-        bannerPass.begin(SceneLighting(), nullptr, 0);
-        bannerPass.setEnvironment(Mat4::identity(), 0.0f, false);
-        const Mat4 model = bannerMatrix(bannerTime, banner->scale);
-        bannerPass.submit(*banner->gpu, banner->material, model, Vec4{1, 1, 1, 1});
-        bannerPass.finish();
-        // Stereo (docs/3ds-port.md "Stereo comfort and frame polish"): the screen plane at the nearest
-        // vertex of the swaying mesh (the camera is the origin, identity view), so the title sits on
-        // the screen with its depth behind it, never in front of the letterbox band (2D, at the
-        // screen plane) it overlaps. kBannerFocal when no vertex is in the view.
-        // Its depth (the mesh is 20 to 45 units away, the world's eye offset made it span 15 px
-        // and more) is kept to kBannerDepthPx behind the screen at slider 1.
-        const float aspect = static_cast<float>(kBannerW) / static_cast<float>(kBannerH);
-        float nearD = 0.0f, farD = 0.0f;
-        if (run.stereoComfort &&
-            pica::meshDepthRange(model, banner->gpu->model.positions, 60.0f, aspect, 1.0f, 1000.0f, nearD, farD)) {
-            bannerStereo = stereoFor(fi.eyes == 2 ? fi.slider : 0.0f, nearD, maxEyeOffset(), 1.0f);
-            const float s = std::min(std::max(fi.slider, 0.0f), 1.0f);
-            bannerStereo.eyeOffset = pica::limitEyeOffsetForDepth(bannerStereo.eyeOffset, nearD, farD, pica::stereoA(60.0f, aspect),
-                                                                  static_cast<float>(kBannerW), kBannerDepthPx * s);
-        } else {
-            bannerStereo = stereoFor(fi.eyes == 2 ? fi.slider : 0.0f, kBannerFocal, maxEyeOffset(), minFocal());
-        }
+        banner->prepare(fe->menus().menuTime(), fi.slider, fi.eyes, run.stereoComfort, maxEyeOffset(), minFocal());
         bannerActive = true;
-    }
-
-    // One eye of the banner: BannerMesh::draw's camera (the origin, identity view, 60 degrees,
-    // planes 1..1000) in the top kBannerW x kBannerH pixels, depth cleared there first.
-    void drawBannerEye(int eye) {
-        const int glY = kTopH - kBannerH;
-        setViewport(0, glY, kBannerW, kBannerH);
-        setScissor(true, 0, glY, kBannerW, kBannerH);
-        clearDepth();
-        WorldView wv;
-        wv.view = Mat4::identity();
-        wv.fovY = 60.0f;
-        wv.nearPlane = 1.0f;
-        wv.farPlane = 1000.0f;
-        EyeView ev;
-        if (bannerStereo.eyes == 2) {
-            ev.eyeOffset = eye == 0 ? -bannerStereo.eyeOffset : bannerStereo.eyeOffset;
-            ev.focalDistance = bannerStereo.focal;
-        }
-        pica::setDepthMapping(FogDepthMap::WBuffer, wv.nearPlane);
-        pica::disableFog(); // SceneLighting's fog starts at 650
-        const float aspect = static_cast<float>(kBannerW) / static_cast<float>(kBannerH);
-        bannerPass.draw(pica::picaEyeProjection(wv, ev, aspect) * wv.view);
-        setScissor(false);
-        setViewport(0, 0, kTopW, kTopH);
     }
 
     // FlowView::drawModel (prepare, from GameFlow::draw): the parts of the view's object (loaded
@@ -1407,10 +1313,10 @@ struct GameFrame::Impl {
                       static_cast<double>(comfort.ratio), static_cast<double>(stereo.focal), static_cast<double>(nearDepth),
                       static_cast<double>(farDepth), static_cast<double>(nearPx), static_cast<double>(farPx));
         if (bannerActive) {
-            const pica::MeshDrawStats& bs = bannerPass.lastStats();
+            const pica::MeshDrawStats& bs = banner->lastStats();
             AS3D_INFO("AS3D_BANNER_DUMP %s mt=%.2f eyes=%d eye_offset=%.2f focal=%.1f draws=%d vertices=%d triangles=%d", base.c_str(),
-                      static_cast<double>(bannerTime), bannerStereo.eyes, static_cast<double>(bannerStereo.eyeOffset), static_cast<double>(bannerStereo.focal), bs.draws,
-                      bs.vertices, bs.triangles);
+                      static_cast<double>(banner->time()), banner->stereo().eyes, static_cast<double>(banner->stereo().eyeOffset),
+                      static_cast<double>(banner->stereo().focal), bs.draws, bs.vertices, bs.triangles);
         }
         if (modelActive) {
             const pica::MeshDrawStats& ms = modelPass.lastStats();
@@ -1784,14 +1690,9 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
     }
     if (im.bannerActive) {
         UiMeter m(pica::Pass::Model);
-        // The desktop's main menu has the banner over the letterbox's black top band, whose red
-        // rule is at virtual y 99 (frontend.md 3.3): the same band at the top screen's scale, so
-        // that the additive flames are on black as there, not on the snow.
-        pica::fillRect(0.0f, 0.0f, static_cast<float>(kTopW), kBannerBand, 0, 0, 0);
-        pica::fillRect(0.0f, kBannerBand, kTopW * 0.975f, kBannerBand + 1.0f, 211, 0, 0);
-        im.drawBannerEye(eye);
-        m.extraDraws = im.bannerPass.lastStats().draws;
-        m.extraVerts = im.bannerPass.lastStats().vertices;
+        im.banner->drawEye(eye); // over the letterbox's band, as the desktop's main menu
+        m.extraDraws = im.banner->lastStats().draws;
+        m.extraVerts = im.banner->lastStats().vertices;
     }
     im.cmdUsageMax = std::max(im.cmdUsageMax, C3D_GetCmdBufUsage());
     pica::gpuPassMark(pica::GpuExtra::Other);
@@ -1926,7 +1827,7 @@ void GameFrame::stats(FrameStats& out) {
     out.prepareMs = im.prepareMs;
     out.eyes = im.worldDrawn || im.modelActive ? im.stereo.eyes : 1;
     out.draws = (im.worldDrawn ? ws.drawCalls : 0) + (im.modelActive ? im.modelPass.lastStats().draws : 0) +
-                (im.bannerActive ? im.bannerPass.lastStats().draws : 0) + us.runs;
+                (im.bannerActive ? im.banner->lastStats().draws : 0) + us.runs;
     out.verts = (im.worldDrawn ? ws.vertices : 0) + us.vertices;
     const pica::TextureStats ts = pica::textureStats();
     out.texVramKb = static_cast<unsigned>(ts.vramBytes / 1024);

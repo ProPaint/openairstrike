@@ -2192,6 +2192,15 @@ static std::string consoleCardTitle(const GameCard& card) {
     return c == std::string::npos ? card.title : card.title.substr(c + 2);
 }
 
+// The card's name on one line when it fits `room` at L, else its two halves at the last space
+// ("Gulf Thunder" at 93 px).
+static std::vector<std::string> consoleCardTitleLines(const GameCard& card, float room) {
+    const std::string t = consoleCardTitle(card);
+    const size_t sp = t.rfind(' ');
+    if (sp == std::string::npos || measureTextPx(fm(), t, FontSize::L) <= room) return {t};
+    return {t.substr(0, sp), t.substr(sp + 1)};
+}
+
 ConsoleSelectorLayout consoleSelectorLayout(const GameSelector& sel) {
     ConsoleSelectorLayout L;
     const int n = std::min(static_cast<int>(sel.cards().size()), 3);
@@ -2200,17 +2209,23 @@ ConsoleSelectorLayout consoleSelectorLayout(const GameSelector& sel) {
         const float w = std::floor((312.0f - 4.0f * static_cast<float>(n - 1)) / static_cast<float>(n));
         const float total = w * static_cast<float>(n) + 4.0f * static_cast<float>(n - 1);
         const float x0 = std::floor((kConsoleBottomW - total) * 0.5f);
-        for (int i = 0; i < n; ++i) L.cards[i] = {x0 + (w + 4.0f) * static_cast<float>(i), 22, w, 166};
+        for (int i = 0; i < n; ++i) {
+            L.cards[i] = {x0 + (w + 4.0f) * static_cast<float>(i), 22, w, 166};
+            // The marquee: a box 4 px inside the card, 56 px high.
+            L.marquee[i] = {L.cards[i].x + 4, L.cards[i].y + 6, w - 8, 56};
+        }
     }
     L.exit = {kMargin, 198, 92, 38};
     L.play = {kConsoleBottomW - kMargin - 92, 198, 92, 38};
-    // One size for the cards' titles and one for their lines (the size rule), L else S.
+    // One size for the cards' titles and one for their lines (the size rule), L else S. A title
+    // wider than its card at L goes on two lines (the owner, 2026-10-12: "You can write gulf
+    // thunder on two lines if no space"): the size is chosen for its two parts.
     std::vector<std::string> titles, lines;
+    const float room = n > 0 ? L.cards[0].w - 8 : 0;
     for (int i = 0; i < n; ++i) {
-        titles.push_back(consoleCardTitle(sel.cards()[static_cast<size_t>(i)]));
+        for (const std::string& part : consoleCardTitleLines(sel.cards()[static_cast<size_t>(i)], room)) titles.push_back(part);
         lines.push_back(sel.cards()[static_cast<size_t>(i)].brief);
     }
-    const float room = n > 0 ? L.cards[0].w - 8 : 0;
     L.titleSize = consoleGroupSize(fm(), titles, {room}, FontSize::L);
     L.lineSize = consoleGroupSize(fm(), lines, {room}, FontSize::L);
     return L;
@@ -2233,7 +2248,7 @@ void consoleSelectorApplyHits(GameSelector& sel) {
     }
 }
 
-void drawConsoleSelectorBottom(Renderer2D& r, const UiAssets& a, const GameSelector& sel) {
+void drawConsoleSelectorBottom(Renderer2D& r, const UiAssets& a, const GameSelector& sel, bool banner) {
     g_skin = &kSkinAs3d;
     const Px p(r, a);
     const ConsoleSelectorLayout L = consoleSelectorLayout(sel);
@@ -2251,11 +2266,12 @@ void drawConsoleSelectorBottom(Renderer2D& r, const UiAssets& a, const GameSelec
         const bool cur = i == sel.current();
         p.rect(b, cur ? Color{0.30f, 0.05f, 0.03f, 0.95f} : Color{0.10f, 0.02f, 0.015f, 0.9f});
         p.frame(b, cur ? Color{1.0f, 0.45f + 0.2f * pl, 0.15f, 1} : sk().barEdge, cur ? 2 : 1);
-        // The marquee: the game's own animated title in a box 8 px inside the card, 56 px high; the
-        // first game's (its 3D banner is not drawn here) as its name in large text.
-        const RectF mq{b.x + 4, b.y + 6, b.w - 8, 56};
+        // The marquee: the game's own animated title in the layout's box; the first game's 3D
+        // banner by the app after this list (`banner`), else its name in large text.
+        const RectF& mq = L.marquee[i];
         bool drawn = false;
-        if (card.marquee != Marquee::Banner && card.marquee != Marquee::None)
+        if (card.marquee == Marquee::Banner) drawn = banner;
+        else if (card.marquee != Marquee::None)
             drawn = drawMarquee(r, card, RectF{p.vx(mq.x), p.vy(mq.y), p.vw(mq.w), p.vh(mq.h)}, clock, false);
         if (!drawn) {
             const size_t sp = card.title.rfind(' ');
@@ -2269,9 +2285,12 @@ void drawConsoleSelectorBottom(Renderer2D& r, const UiAssets& a, const GameSelec
         }
         float y = b.y + 72;
         const float room = b.w - 8;
-        p.text(b.x + b.w * 0.5f, y, fitLabel(fm(), consoleCardTitle(card), L.titleSize, room), L.titleSize,
-               cur ? Color{1, 0.95f, 0.85f, 1} : Color{1.0f, 0.55f, 0.30f, 1}, Align::Center);
-        y += 20;
+        for (const std::string& part : consoleCardTitleLines(card, room)) {
+            p.text(b.x + b.w * 0.5f, y, fitLabel(fm(), part, L.titleSize, room), L.titleSize,
+                   cur ? Color{1, 0.95f, 0.85f, 1} : Color{1.0f, 0.55f, 0.30f, 1}, Align::Center);
+            y += 16;
+        }
+        y += 4;
         if (!card.brief.empty())
             p.text(b.x + b.w * 0.5f, y, fitLabel(fm(), card.brief, L.lineSize, room), L.lineSize, sk().value, Align::Center);
         y += 20;
@@ -2291,7 +2310,7 @@ void drawConsoleSelectorBottom(Renderer2D& r, const UiAssets& a, const GameSelec
 }
 
 void drawConsoleSelectorTop(Renderer2D& r, const UiAssets& a, const GameSelector& sel, const KeyGlyphAtlas* keys,
-                            const std::string& missing) {
+                            const std::string& missing, bool banner) {
     g_skin = &kSkinAs3d;
     const Px p(r, a);
     // A dark red ground, darker towards the bottom.
@@ -2330,6 +2349,10 @@ void drawConsoleSelectorTop(Renderer2D& r, const UiAssets& a, const GameSelector
             q.combine2 = 2;
         }
         p.r.add(q);
+        y = 104;
+    } else if (card.marquee == Marquee::Banner && banner) {
+        // AirStrike 3D's flaming title mesh, drawn by the app over the top 100 px (the desktop
+        // selector's marquee), with its letterbox band: the text below it as under the logos.
         y = 104;
     }
     const FontSize ts = measureTextPx(fm(), card.title, FontSize::T) <= kConsoleTopW - 16 ? FontSize::T : FontSize::L;
