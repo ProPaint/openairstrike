@@ -3380,3 +3380,231 @@ step would still be about 2.4 times the first window). What would reach it, as o
   grows less (80 flashes by step 10800).
 Next measurement: the console soak of this build; `perf.csv` step times per window against the
 table above.
+
+## Stereo CPU path (round 3, R3.2)
+
+The second console soak (above) measured, late in mission 1 in stereo at 30 Hz, a submit of 9-10 ms
+(p95 19), a GPU of 11-12 ms and a prepare of 3.4 ms, with the water's pass at 2.4 ms of CPU for
+"two draws of 57 vertices" and the touch band at 0.54 ms. This round looked for the causes, made
+the right eye's world a replay of the left eye's command words, and cut what each pass costs per
+draw. It also built the wash detector the owner's soak observation called for (below). Only
+`engine/src/render/pica`, `engine/src/ui/pica` and `apps/3ds` changed (plus the shader list in
+`engine/src/render/module.cmake` and the new desktop test's source list in `apps/CMakeLists.txt`);
+`tools/ci.sh` OK, the desktop goldens untouched.
+
+### Causes found
+
+- **The water was not waiting for its buffer.** Its fenced buffer never stalled (`hazards=0` in
+  every `AS3D_STATE` line: each half is taken only once its frame is done). The 2.4 ms were the
+  CPU tiling of the plane: per eye about 330 tiles tested and 230 emitted, each with four clip
+  transforms, six plane compares per corner, up to eight divisions for its NDC span and six
+  vertices built (two more divisions each), then a 33 KB copy into the buffer. The "57 vertices"
+  of the counter is the old quad count (it never counted the tiles).
+- **citro3d's per-draw cost.** Timed on Azahar, `C3D_DrawElements` alone is about 25 us of a mesh
+  draw's 45 (`C3Di_UpdateContext`: two scans of the 96 uniform flags, the dirty blocks, then the
+  draw's register writes); our side added a full TEV re-emission at every draw (`applyTev` marked
+  the stages dirty each call), a program reload per 2D run (`C3D_BindProgram` reloads the
+  program's constants and attribute layout even for the bound program), the vertex buffer set up
+  per 2D run, and a vertex shader code upload at every program switch (six separate shader
+  binaries: citro3d uploads the code whenever the new program's DVLP differs).
+- **Every model record was submitted, on screen or not** (no culling after the entity pass):
+  late in mission 1 about 21 records a frame (of 73) are outside both eyes' frusta.
+- **The touch band's list was built every frame** (cached vertices, but `drawTouchControls`, the
+  unit matching against 24 slots and 15-22 draws ran each frame).
+- **Prepare growth:** `prep_entities` walks every live entity (1045 late in mission 1 on Azahar
+  too, from 109 at the start); the simulation's own growth is R3.1's. Not changed here (see
+  "What remains").
+
+### The second eye: replay (eye_replay_pica.{h,cpp}, run.ini `eye_replay=1` by default)
+
+The two eye projections (`picaEyeProjection`, citro3d's `Mtx_PerspStereoTilt`) differ only in
+row 1 (the tilted screen's horizontal axis), columns 2 and 3; with w = -z_view, the right eye's
+clip y is the left eye's plus `k1 * w + k2` for every vertex of every world draw. `eyeShiftOf`
+derives (k1, k2) from the two matrices each frame and refuses when anything else differs.
+
+- The world shaders (flat, mesh, env, terrain, water) end with `y += eye.x * w + eye.y`, `eye`
+  being every program's first uniform (c0 in all six, checked at load: `eye_register=0` in the
+  log). eye is (0, 0) except during a replay, and adding zero leaves y exactly as before: mono,
+  the left eye and the 2D layers are bit-identical.
+- The left eye, after its clear, draws a degenerate triangle (three equal vertices: no fragment)
+  that emits its frame buffer and everything dirty, then marks every citro3d state flag dirty
+  except the frame buffer (through the state check's mirror of the 1.7.1 context: attribute and
+  buffer setup, effect, viewport, scissor, program and its code, texture units and TEV, fog LUT
+  and mode) and every uniform except `eye` (`C3Di_DirtyUniforms`). The region it then records,
+  up to the end of the sprites, depends on nothing recorded before it.
+- The right eye clears its target, sets eye = (k1, k2), primes (its frame buffer, the uniform)
+  and appends a copy of the region's words (`GPUCMD_AddRawCommands`: 10-14k words in mission 1,
+  17-25k in Gulf mission 1; 0.27-0.62 ms on Azahar). Then all state is marked dirty again (the
+  GPU holds the region's last state, citro3d its own), the shadow copies are forgotten and
+  eye = (0, 0).
+- What the left eye records must serve both eyes: the terrain culls its chunks against both eye
+  frusta (`set_union` of the two visible lists), the water plane's tiles and the sequels' wave
+  grid chunks are culled for both (a corner is outside a y plane only when outside in both eyes;
+  x, z and w are equal), and the meshes were already culled with the widened stereo volume. The
+  extra chunks and tiles lie outside the left eye's frustum: its picture is unchanged.
+- Off (both eyes recorded as before) in mono, with `eye_replay=0`, in a frame whose state-check
+  probes submit the command list mid-pass (`stateCheckSplitsThisFrame`: level 2, the frames after
+  a mark or a wash episode, a `probe_every` frame), when the region was split, and when the
+  command buffer lacks room (a quarter kept free). `AS3D_EYE_REPLAY` every 300 frames: armed,
+  recorded, replayed, failed, words per replay, replay ms.
+- The gpu_kick and frame-synchronisation rules are untouched: the region lies inside the left
+  eye's kicked list and is only read by the CPU; the copy is new words of the right eye's list;
+  no fence, deferred free or texture path changes.
+
+The right eye's picture differs from its own projection's by float rounding only: 100-180 pixels
+of 96000 by at most 4 levels in mission 1 (step 600, both dumps), similar in Gulf mission 1.
+
+### Per draw and per pass
+
+- **Water** (water_renderer_pica.cpp): the tiles as an indexed grid. Each corner of a visible
+  quad's tile grid is transformed once (clip position, outcode), its NDC and its vertex made once
+  when a tile uses it, and a tile adds six 16-bit indices (`drawFlatRunsIndexed`). The corner
+  values are the per-tile path's bit for bit and the triangles the same; tiles cut at the near
+  plane or split keep the per-tile path (non-indexed, drawn after). Fewer vertices for the GPU as
+  well (about 400 per eye instead of 1400, with the post-transform cache of indexed draws).
+- **One shader binary** with six entry points (`pica_all.shbin`, `.entry main_<name>` in each
+  source): a program switch uploads no code.
+- **TEV**: `applyTev` skips a configuration equal to the last one; `c3dInvalidate` (pass starts,
+  targets) resets it, so the passes still issue their TEV in full.
+- **2D** (renderer2d_pica.cpp): the shader, its matrix and the vertex buffer are issued when they
+  change, not per run; a flush of the same list as the list's last flush replays its draw list
+  without matching units (`replays` in the stats; a replayed split list still counts towards its
+  consolidation).
+- **Touch band** (ctr_frame.cpp `TouchKey`): the list is built again only when what it shows
+  changes (layout, held buttons, drag target, the HUD fields of its faces, rules, assets).
+- **Model records** outside the prepared cull volume (the model box as a sphere through the model
+  matrix) are not submitted: `AS3D_MESH culled_records=`.
+- `mesh_merge` stays off by default (P4's Azahar measurement: the bake costs what the draws
+  save); `merged_draws=0` in the soak is that default, not a failure.
+
+### Azahar numbers (relative: Azahar's CPU ticks are not the console's)
+
+`mode=bot level=1 frames=1800 fixed_steps=2 bot_weapons=1 state_check=1 perf=1 audio=0`, parent
+`1c48f7a` against this branch; per displayed frame. The whole-mission rows ran 13800 steps
+(Mission Complete at about 13660) and show the last 300-frame window.
+
+| | parent | this round |
+|---|---|---|
+| mission 1 stereo, submit (PERF_SUMMARY avg) | 15.9 ms | 9.8 ms |
+| mission 1 mono, submit | 10.8 ms | 8.8 ms |
+| mission 1 stereo, whole mission, submit avg | 17.7 ms | 10.6 ms |
+| mission 1 stereo, last window, pass sum | 13.3 ms | 7.2 ms |
+| Gulf mission 1 stereo, submit | 19.8 ms | 14.3 ms |
+| water, stereo frame / mono | 3.36 / 1.68 ms | 0.89 / 0.86 ms (one eye recorded in stereo) |
+| touch band | 1.18-1.20 ms, 20-22 draws | 0.65-0.69 ms (0.48 late, the list changes less) |
+| hud | 1.9-2.3 ms | 1.4-1.7 ms |
+| `AS3D_MESH` draws, stereo, last window | 145 (both eyes) | 52 (the left eye; the right is a copy), 21 records culled |
+| prepare, last window | 4.42 ms | 4.25 ms (prep_meshes 0.54 -> 0.37; prep_entities 1.99 ms for 1045 entities in both) |
+
+Pictures: mono and both bottom screens identical to the parent but for the perf text line (rows
+230-234); left eye identical; right eye within rounding (above). End states equal in every run.
+
+### Wash detector (ctr_wash.{h,cpp}, wash_detect.{h,cpp}; run.ini `wash_check`, on in soak)
+
+The owner saw the wash in the second soak "on the lower half of the screen" while the 1534
+register probes reported nothing. The detector judges the picture instead, every frame, with no
+added wait:
+
+- After each top eye's passes a GX texture copy of seven 8-pixel columns of the eye's D24S8 depth
+  buffer is queued behind the eye's command list: the native target is 240 x 400 with 8x8 tiles,
+  one "strip" of tiles per 8 screen columns (7680 bytes); strips 3, 10, ..., 45 (screen columns
+  28, 84, ..., 364) are 52.5 KB per eye, into a double-buffered linear buffer.
+- At the next frame start, after the fence (that frame is complete), 98 samples per eye (7
+  columns x 14 rows, 10 rows in the lower half) are judged: the ray through the pixel meets the
+  water plane (planeZ; the analytic eye depth there: the W-buffer is linear in the eye depth,
+  depth = (far - e) / (far - near)); a height-field march (30-unit steps, bisection) says whether
+  the terrain is clearly above the water and in front of the plane (8 units or 3 %). Only those
+  samples count; one whose GPU depth is at the plane or behind it (the water's depth, or the
+  cleared far depth) is washed. The march is redone for a sixteenth of the samples each frame and
+  for any sample before it counts as washed (a stale answer cannot raise a false wash).
+- 3 washed samples make a washed frame; an episode (a run of washed frames) is logged when it
+  ends: `AS3D_WASH start=<frame> frames=<N> eye=<L|R|both> washed=<max samples> rows=.. cols=..
+  episode=<n>`; its first frame logs `AS3D_WASH_START` with the terrain chunks drawn and the first
+  one, asks for a mark (the screens and depth dumped as for L, the first 3 episodes of a level)
+  and arms the register read-back of every probed pass for this frame and the next.
+- `AS3D_WASH_STATS` every 300 frames: eye-frames judged, samples judged per eye, the share whose
+  depth agreed with the analytic terrain (calibration: 91-94 % on Azahar, mean error 2 units; the
+  rest are models in front, 5-6 %), episodes, judge ms (0.31-0.36 ms per eye on Azahar).
+- The soak: `wash_frames`, `wash_episodes`, `wash_evals`, `prime_mismatches` in the `wash` line
+  (FAIL when a frame was washed or a terrain probe mismatched), one `FAIL wash <stage>
+  first_frame= episodes= frames= longest= max_samples=` per stage that had one, and the fields in
+  `AS3D_SOAK_RESULT`.
+- Self-tests: `wash_inject=N` (the terrain writes no depth N frames every 600; 1 = 60): Azahar
+  catches one 60-frame episode per window in mono, and with `wash_inject=2` two-frame episodes in
+  both eyes in stereo (single-frame episodes are caught the same way); `wash_selftest=1`: the
+  decoding of the copied tiles against a synchronous display-transfer read-back of the whole
+  buffer, 98 of 98 samples equal (`AS3D_WASH_SELFTEST`; the depth is bytes 0-2 of each raw word).
+- Without injection: 0 washed frames in mission 1 (1800 steps) mono and stereo, with
+  `terrain_prime=1` and with `terrain_prime=0` (Azahar never loses state).
+- Cost on the console: 105 KB of texture copy per stereo frame (the colour display transfers are
+  about 768 KB), two more GX queue entries per eye, the CPU judging. The sequels' wave grid is not
+  judged (no single plane height).
+
+#### Why the probe was blind, and the priming draw
+
+- The probe compares the depth map (0x6D enable, 0x4D scale, 0x4E offset), the depth test and
+  masks (0x107), the depth write, the depth and colour buffer addresses, cull, blend and texture
+  unit 0: the depth state is in it. But the periodic probe reads the registers **after all the
+  terrain's base draws**, and since the console session of 2026-10-11 (c314767) the terrain
+  re-issues its state with its second draw. The marks of that session caught the PICA holding the
+  2D passes' depth state after the terrain's first state block; if the first block is still lost
+  now and then, only the **first chunk** draws without its depth write, and the visible chunks are
+  drawn in index order, nearest rows first: the first chunk is the nearest strip of terrain, the
+  lower part of the screen. The probe, reading after the re-issued state, sees nothing: it fits
+  the owner's "lower half only" with 0 mismatches.
+- The shadowing does not hide it: `c3dDepthMap` and the other setters skip a repeat inside a pass
+  only, every pass start of the terrain and the water forgets them (`c3dInvalidate`), and
+  citro3d re-emits the whole effect block whenever any of it changes. A register lost on the GPU
+  behind the CPU's back is not re-sent inside a pass by any layer: only a read-back or the picture
+  can see it.
+- The water's near tiles: drawn in the same draw and state as the others (the CPU cut only
+  changes their vertices; `near_tiles=0` in the soak's bot flight). The mesh passes between the
+  terrain and the water do not touch the depth map (`MeshRenderer::end`'s near check is the
+  banner and model view's path). The near plane is the same in both eyes: the eye projections
+  share rows 2 and 3, which `eyeShiftOf` now checks every stereo frame.
+- **terrain_prime** (default on): before the first chunk the terrain draws a degenerate triangle
+  that carries its first state block, then issues its state again with the first real chunk (as
+  it already did with the second). Every other periodic probe now reads the registers right after
+  this priming draw (`pass=terrain_prime`), so the lost first block shows as
+  `AS3D_GPU_MISMATCH pass=terrain_prime` (counted as `prime_mismatches`, no mark: the picture is
+  not hit) while the detector says whether any wash is left on screen.
+
+### What the next console soak should show
+
+- `AS3D_EYE_REPLAY ... replayed=` close to the frame count in stereo stages (minus the probe
+  frames), `failed=0`.
+- `AS3D_PASS_MS eyes=2`: the world passes once (terrain about half, opaque/rest/sprites about
+  half of the second soak), `water` well under 1 ms, `touch` under 0.4 ms when the band does not
+  change, `clear` up by the replay (0.3-0.4 ms); submit in stereo late in mission 1 around
+  6 ms (from 9-10); mono submit 0.5-1 ms lower. The GPU time is unchanged by the replay (both
+  eyes are still drawn) but should drop a little with the indexed water and no shader uploads.
+- The wash: `PASS wash` with `wash_frames=0`, or `AS3D_WASH` episodes with their length and rows;
+  `prime_mismatches` says whether the first state block is still being lost (if it is and no
+  episode shows, the priming draw is the fix).
+
+### What remains
+
+- **Prepare**: `prep_entities` and `prep_order` walk every live entity (1.99 + 0.73 ms on Azahar
+  for 1045 late in mission 1). An entity-level reject before the mesh and material lookups is
+  neutral code (`world_scene.cpp`, shared with the desktop) and must keep the lights, health
+  bars, shadow requests and marks of off-screen entities: after R3.1's simulation work shows
+  whether those entities stay alive. The prepare target (1.5 ms late in stereo) is not reached.
+- **Water**: still 0.86 ms per eye on Azahar (about 0.6 on the console by the soak's ratio of
+  1.4): the per-tile tests of 230 tiles. A coarser tiling far from the camera changes pixels (and
+  the water's depth precision was the wash's first suspect), so it waits for the console's
+  verdict on the wash. The 0.3 ms target is not reached.
+- **Touch band**: 0.1 ms is not reached while the bot's weapon tour changes the faces several
+  times a second; in play the list replays and consolidates (9 draws).
+- **Per draw**: citro3d's `C3D_DrawElements` is about half of a mesh draw. A lean draw path
+  (our own context update without the geometry-shader uniform scan) or fewer draws (a shared mesh
+  vertex pool, `mesh_merge` measured on the console) are the next CPU items; the HUD's 42-57
+  draws need a glyph atlas.
+- **GPU in stereo (11-12 ms)**, from the counters: about 25k vertices a stereo frame, of which
+  8.4k are the touch band on the bottom screen (tessellated circles, every frame), 10k the
+  terrain (two TEV stages with the detail texture), 3.5-6k the shadows; RGB565 targets gained
+  nothing on the console (drop 4), so the cost is vertices and texturing, not fill. Options:
+  bake the touch band into a texture (render it once per change, draw one quad: -8.4k vertices
+  a frame), draw the bottom screen every other frame in stereo (it only needs 30 Hz; meets the
+  C3D_FrameEnd swap race of "Frame synchronisation"), the coarse terrain chunks with one TEV
+  stage, the brightness pass skipped when the brightness is near neutral. The indexed water
+  (1400 -> 400 vertices per eye) and the shader-code uploads gone should already show a little.
