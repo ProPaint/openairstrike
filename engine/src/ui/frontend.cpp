@@ -255,6 +255,36 @@ void Frontend::quitToMainMenu(bool bank, bool check) {
     if (check) highScoreCheck();
 }
 
+Frontend::Facts Frontend::facts() const {
+    Facts f;
+    f.texts = &texts_;
+    f.content = &content_;
+    f.profile = &profile_;
+    f.rules = &rules();
+    f.sequel = sequel();
+    f.plain = plain();
+    f.infoPage = infoPage_;
+    f.difficulty = difficultyChoice_;
+    f.helicopter = heli_[0];
+    f.heliLocked = heliLocked_;
+    f.mission = campaign_.mission;
+    f.report = report_;
+    f.missionRank = rankIndex(campaign_.missionRankValue(report_.players[0], report_.totals), report_.cheatUsed);
+    // Game over and the complete screens: the score Quit / Continue banks; the name entry: banked
+    // already.
+    Campaign c = campaign_;
+    if (!menus_.empty()) {
+        const Screen s = topScreen();
+        if (s == Screen::GameOver || s == Screen::MissionComplete || s == Screen::GameComplete)
+            c.bank(report_.players, report_.totals);
+    }
+    f.endScore = c.p[0].banked;
+    f.endSlot = c.players == 1 ? profile_.progress.qualifyingSlot(f.endScore) : -1;
+    f.endRank = rankIndex(c.highScoreRankValue(), report_.cheatUsed);
+    f.hintText = hintText_;
+    return f;
+}
+
 void Frontend::highScoreCheck() {
     if (campaign_.players != 1) return; // two-player scores are never recorded
     if (profile_.progress.qualifyingSlot(campaign_.p[0].banked) >= 0) open(Screen::NameEntry);
@@ -290,7 +320,7 @@ void Frontend::onGameOver(const MissionReport& report) {
 }
 
 void Frontend::showTutorialHint(std::string text) {
-    hintText_ = std::move(text);
+    hintText_ = hintFilter_ ? hintFilter_(text) : std::move(text);
     setPausedFlag(true); // the HUD stays visible behind the box
     open(Screen::Hint);
 }

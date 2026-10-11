@@ -327,8 +327,37 @@ public:
     const int* helicopters() const { return heli_; }
     bool twoPlayers() const { return twoPlayers_; }
 
+    // Ours (docs/3ds-ui-design.md "AirStrike 3D menus on the console (round 4, R4.5)"): what a
+    // console layout (as3d/console_menu.h) shows besides the menu items, read-only.
+    struct Facts {
+        const Texts* texts = nullptr;
+        const FrontendContent* content = nullptr;
+        const Profile* profile = nullptr;
+        const GameRules* rules = nullptr;
+        bool sequel = false, plain = false;
+        int infoPage = 0;            // Information: the page shown, 0..9
+        int difficulty = 0;          // Start Game: the difficulty spinner's choice
+        int helicopter = 0;          // player 1's helicopter (0-based)
+        const bool* heliLocked = nullptr; // [helicopterCount]
+        int mission = 0;             // the campaign's mission (0-based)
+        MissionReport report;        // the last EndLevel / game over report
+        // Mission / Game Complete: the rank index of the mission (Your current rank).
+        int missionRank = 0;
+        // Game over and name entry: the score the campaign banks (the high score candidate), the
+        // table slot it takes (-1: none) and the rank index stored with it.
+        std::int64_t endScore = 0;
+        int endSlot = -1;
+        int endRank = 0;
+        std::string hintText;
+    };
+    Facts facts() const;
+    // Ours: rewrites the tutorial hints' texts before they are shown (the 3DS: the desktop's key
+    // names, {Ctrl}, {Shift}, ..., as the console's buttons). Empty: unchanged.
+    void setHintFilter(std::function<std::string(const std::string&)> f) { hintFilter_ = std::move(f); }
+
     // For tests and the viewer.
     MenuSystem& menus() { return menus_; }
+    const MenuSystem& menus() const { return menus_; }
     Profile& profile() { return profile_; }
     Texts& texts() { return texts_; }
     // Builds a screen and pushes it (the main menu replaces the stack).
@@ -438,6 +467,7 @@ private:
     int carriedWeapon_[2] = {0, 0};
     bool haveCarried_ = false;
     float playPointerX_ = 0, playPointerY_ = 0;
+    std::function<std::string(const std::string&)> hintFilter_;
 };
 
 // Loading screen (S9, frontend.md 3.16): black, menu\loading.tga unless an intermission level
