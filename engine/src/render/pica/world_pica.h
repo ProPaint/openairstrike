@@ -10,6 +10,7 @@ struct WorldPicaStats {
     int records = 0;         // model records of the last prepare()
     int linearRecords = 0;   // of which with a texture in linear memory (over the VRAM budget)
     std::string linearSkins; // their definitions, each once (" name name ...")
+    unsigned culledRecords = 0; // model records outside the prepared cull volume, not submitted (last prepare())
 };
 
 const WorldPicaStats& worldPicaStats();

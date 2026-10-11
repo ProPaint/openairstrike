@@ -285,6 +285,7 @@ struct GameFrame::Impl {
     // whether the flush reused its cached vertices (1) or rebuilt them (0); -1 = not flushed.
     double listMs[3] = {0, 0, 0};
     pica::MeshDrawStats meshSum; // the mesh passes since the last AS3D_MESH line
+    double culledSum = 0.0;      // model records culled in prepare over the same frames
     int listHit[3] = {-1, -1, -1};
     int listVerts[3] = {0, 0, 0};
     struct ListSums { // AS3D_UI_LISTS: the three lists over the frames since the last line
@@ -1542,16 +1543,18 @@ void GameFrame::stats(FrameStats& out) {
         s.mergedDraws += m.mergedDraws;
         s.mergedRecords += m.mergedRecords;
         s.mergeArenaBytes += m.mergeArenaBytes;
+        im.culledSum += pica::worldPicaStats().culledRecords;
     }
     if (pp.frames() >= kPassReportFrames) {
         const double n = static_cast<double>(pp.frames());
         const pica::MeshDrawStats& s = im.meshSum;
         AS3D_INFO("AS3D_MESH (per frame, both mesh passes, all eyes) draws=%.1f env=%.1f tex_binds=%.1f states=%.1f "
-                  "merged_draws=%.1f merged_records=%.1f merge_kb=%.2f sort=%d merge=%d",
+                  "merged_draws=%.1f merged_records=%.1f merge_kb=%.2f sort=%d merge=%d culled_records=%.1f",
                   s.draws / n, s.envDraws / n, s.textureBinds / n, s.stateChanges / n, s.mergedDraws / n,
                   s.mergedRecords / n, static_cast<double>(s.mergeArenaBytes) / 1024.0 / n, pica::meshStateSort() ? 1 : 0,
-                  pica::meshMerge() ? 1 : 0);
+                  pica::meshMerge() ? 1 : 0, static_cast<double>(im.culledSum) / n);
         im.meshSum = pica::MeshDrawStats();
+        im.culledSum = 0;
     }
     if (pp.frames() >= kPassReportFrames)
         AS3D_INFO("AS3D_PREP_MS (ms/items per frame) %s", pp.reportPrepare(static_cast<double>(SYSCLOCK_ARM11) / 1000.0).c_str());

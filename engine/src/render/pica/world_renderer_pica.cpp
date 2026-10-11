@@ -552,12 +552,37 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
     im.opaquePass.begin(light, sc.lights.data(), sc.lights.size());
     im.opaquePass.setEnvironment(sc.frame().wv.view, sc.frame().time, im.rules.envViewNormal);
     im.restPass.setEnvironment(sc.frame().wv.view, sc.frame().time, im.rules.envViewNormal);
-    for (const MeshRecord& r : sc.opaque) im.opaquePass.submit(*r.mesh, *r.material, r.model, r.colour);
+    // Records wholly outside the prepared cull volume (the frustum of every eye drawn from this
+    // prepare, eyeCullFrustum) are not submitted (round 3, R3.2): they drew no pixel, and cost a
+    // draw, its cube colours and its uniforms per eye. The model's box as a sphere through the
+    // model matrix (scaled by its largest axis). The remaining records keep their order.
+    const CullFrustum& cull = sc.frame().cull;
+    unsigned culledRecords = 0;
+    auto inView = [&](const MeshRecord& r) {
+        const ModelData& md = r.mesh->model;
+        const Vec3 c{0.5f * (md.boundsMin.x + md.boundsMax.x), 0.5f * (md.boundsMin.y + md.boundsMax.y),
+                     0.5f * (md.boundsMin.z + md.boundsMax.z)};
+        const Vec3 e{md.boundsMax.x - c.x, md.boundsMax.y - c.y, md.boundsMax.z - c.z};
+        const float radius = std::sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
+        const Mat4& m = r.model;
+        auto axis = [&](int col) { return std::sqrt(m.at(col, 0) * m.at(col, 0) + m.at(col, 1) * m.at(col, 1) + m.at(col, 2) * m.at(col, 2)); };
+        const float scale = std::max(axis(0), std::max(axis(1), axis(2)));
+        const Vec4 wc = m * Vec4{c.x, c.y, c.z, 1.0f};
+        if (!(radius * scale < 1.0e6f) || !(std::fabs(wc.x) + std::fabs(wc.y) + std::fabs(wc.z) < 1.0e7f)) return true;
+        if (cull.sphereVisible(Vec3{wc.x, wc.y, wc.z}, radius * scale * 1.01f + 1.0f)) return true;
+        ++culledRecords;
+        return false;
+    };
+    for (const MeshRecord& r : sc.opaque)
+        if (inView(r)) im.opaquePass.submit(*r.mesh, *r.material, r.model, r.colour);
     im.opaquePass.finish();
     im.restPass.begin(light, sc.lights.data(), sc.lights.size());
-    for (const MeshRecord& r : sc.trans) im.restPass.submit(*r.mesh, *r.material, r.model, r.colour);
-    for (const MeshRecord& r : sc.effect) im.restPass.submit(*r.mesh, *r.material, r.model, r.colour);
+    for (const MeshRecord& r : sc.trans)
+        if (inView(r)) im.restPass.submit(*r.mesh, *r.material, r.model, r.colour);
+    for (const MeshRecord& r : sc.effect)
+        if (inView(r)) im.restPass.submit(*r.mesh, *r.material, r.model, r.colour);
     im.restPass.finish();
+    pica::g_worldStats.culledRecords = culledRecords;
     meter.lap(Pass::PrepMeshes, static_cast<int>(im.opaquePass.size() + im.restPass.size()));
     // Which of this frame's model textures live in linear memory (the VRAM split).
     pica::WorldPicaStats& ws = pica::g_worldStats;
