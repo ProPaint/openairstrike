@@ -213,11 +213,17 @@ void Perf::open(bool csv) {
 void Perf::record(const FrameSample& s) {
     const size_t linearFree = linearSpaceFree();
     linearFreeMin_ = std::min(linearFreeMin_, linearFree);
-    if ((s.frame & 31) == 0) {
+    // The heap's high-water mark. mallinfo walks every chunk of the heap on the main thread: done
+    // every 32 frames (twice: here and in heapSample) it was the frame after it that missed its
+    // vblank, 59% and 78% of the mono misses of the third console soak (frame mod 32 == 1: a 57-65%
+    // miss rate there against 0.6-1.3% elsewhere; docs/3ds-port.md "Third console soak"). Now one
+    // walk every kHeapSampleFrames, and the next frame's miss is excused as after an SD write.
+    if (s.frame % kHeapSampleFrames == 0) {
         struct mallinfo mi = mallinfo();
         heapHigh_ = std::max(heapHigh_, static_cast<size_t>(mi.uordblks));
         heapArenaHigh_ = std::max(heapArenaHigh_, static_cast<size_t>(mi.arena));
-        heapSample();
+        heapNote(static_cast<size_t>(mi.uordblks));
+        g_ioFlag = true;
     }
     stepSum_ += s.stepMs;
     stepMax_ = std::max<double>(stepMax_, s.stepMs);

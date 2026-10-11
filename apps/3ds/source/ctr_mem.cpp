@@ -23,6 +23,7 @@ size_t heapUsed() {
 } // namespace
 
 void heapSample() { g_heapHigh = std::max(g_heapHigh, heapUsed()); }
+void heapNote(size_t usedBytes) { g_heapHigh = std::max(g_heapHigh, usedBytes); }
 
 unsigned heapHighKb() { return static_cast<unsigned>(g_heapHigh / 1024); }
 

@@ -136,4 +136,8 @@ private:
 // 0.04 ms jitter and measurement noise).
 constexpr double kOverMs = 17.0;
 
+// The heap's high-water mark is sampled every this many frames (Perf::record): the sample walks the
+// whole heap on the main thread, a few ms (it was every 32 frames until R3.3).
+constexpr unsigned kHeapSampleFrames = 600;
+
 } // namespace ctrapp

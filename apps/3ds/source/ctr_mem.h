@@ -3,11 +3,15 @@
 // (meshes, terrain, water) and the VRAM textures.
 #pragma once
 
+#include <cstddef>
+
 namespace ctrapp {
 
 // Raises the heap high-water mark (bytes in use by malloc) to the current value. Called by the
-// perf record every 32 frames, by logMem and at the summary.
+// perf record every kHeapSampleFrames (ctr_perf.h), by logMem and at the summary.
 void heapSample();
+// The same with a value the caller already read (mallinfo walks the whole heap: one walk, not two).
+void heapNote(size_t usedBytes);
 // The highest malloc'd bytes seen by heapSample since the process started, in KB.
 unsigned heapHighKb();
 
