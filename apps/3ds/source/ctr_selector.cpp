@@ -120,6 +120,7 @@ struct Selection {
 Selection runSelector(CtrContext& ctx, CtrInput& input, const RunConfig& run, const std::vector<const GameInstall*>& offered,
                       const std::string& last) {
     Selection result;
+    ui::UiAssets::setConsoleTextDefault(run.uiText); // run.ini ui_text (R4.4)
     if (!pica::initBackend()) {
         AS3D_ERROR("selector: pica::initBackend failed");
         return result;

@@ -594,6 +594,14 @@ struct GameFrame::Impl {
         screen(ctx->bottomTarget(), kBottomW, kBottomH, false, r2dBottom.get());
         pica::frameEnd();
         ctx->endFrame();
+        if (run.dumpLoading && original && force && !intermission) { // run.ini dump_loading (R4.4)
+            static int loadingDumps = 0;
+            char b[64];
+            std::snprintf(b, sizeof b, "%sload%02d", run.dumpPrefix.c_str(), loadingDumps++);
+            const std::string d = std::string(kDataDir) + "/" + b;
+            const bool t = dumpTarget(ctx->topTarget(0), kTopW, d + "_top.ppm"), bt = dumpTarget(ctx->bottomTarget(), kBottomW, d + "_bottom.ppm");
+            AS3D_INFO("AS3D_DUMP %s loading=%.2f top=%d bottom=%d", b, static_cast<double>(p), t ? 1 : 0, bt ? 1 : 0);
+        }
     }
 
     // Two empty frames: C3D_FrameBegin waits until the GPU is done with every texture and buffer

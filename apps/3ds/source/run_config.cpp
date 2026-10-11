@@ -228,6 +228,37 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
             c.catchUp.parseLag(val);
         } else if (key == "catchup_margin_ms") {
             c.catchUp.parseMargin(val);
+        } else if (key == "ui_text") { // R4.4
+            if (toInt(val, &n)) c.uiText = n != 0;
+        } else if (key == "hint_hold") {
+            if (toInt(val, &n) && n >= 0) c.hintHold = n;
+        } else if (key == "dump_loading") {
+            if (toInt(val, &n)) c.dumpLoading = n != 0;
+        } else if (key == "ui_taps") {
+            // F:@ID or F:@SCREEN/ID, comma-separated; a malformed entry is skipped.
+            c.uiTaps.clear();
+            size_t pos = 0;
+            while (pos <= val.size()) {
+                size_t end = val.find(',', pos);
+                if (end == std::string::npos) end = val.size();
+                const std::string e = val.substr(pos, end - pos);
+                pos = end + 1;
+                const size_t colon = e.find(":@");
+                int f = 0, id = 0;
+                if (colon == std::string::npos || !toInt(e.substr(0, colon), &f) || f < 0) continue;
+                std::string rest = e.substr(colon + 2), screen;
+                const size_t slash = rest.find('/');
+                if (slash != std::string::npos) {
+                    screen = rest.substr(0, slash);
+                    rest = rest.substr(slash + 1);
+                }
+                if (!toInt(rest, &id)) continue;
+                RunConfig::UiTap t;
+                t.frame = f;
+                t.item = id;
+                t.screen = screen;
+                c.uiTaps.push_back(t);
+            }
         } else if (key == "clear") {
             if (val == "split") c.clearMode = 0;
             else if (val == "joint") c.clearMode = 1;

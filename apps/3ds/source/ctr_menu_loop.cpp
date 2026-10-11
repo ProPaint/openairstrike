@@ -163,6 +163,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     applyQuality(quality, new3ds);
     startPacing(quality.renderHz);
 
+    // run.ini ui_text (R4.4): the console text sizes, or the scaled text of before.
+    ui::UiAssets::setConsoleTextDefault(run.uiText);
     const GameProfile* game = findGameProfile(run.game.c_str());
     if (!game) {
         setFatal("unknown game '" + run.game + "' in run.ini", "game= takes as3d, as2, gulf or select");
@@ -247,6 +249,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     unsigned cycleAt = 0;
     std::string screen;
     int focusedItem = -1;
+    int hintHeld = 0; // run.ini hint_hold: steps the current hint box has been held
 
     while (aptMainLoop()) {
         const PadState& pad = input.readPad();
@@ -277,6 +280,17 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         if (queuedEnter) {
             queuedEnter = false;
             if (as3d_game::nameEntryField(flow.frontend())) uin.key(ui::keys::Enter);
+        }
+        // run.ini ui_taps (R4.4): a tap at the centre of a menu item, wherever the layout put it.
+        for (const RunConfig::UiTap& t : run.uiTaps) {
+            if (static_cast<unsigned>(t.frame) != frameNo) continue;
+            const ui::Menu* top = flow.frontend().menus().top();
+            const ui::MenuItem* hit = nullptr;
+            if (top && (t.screen.empty() || t.screen == screen))
+                for (const ui::MenuItem& it : top->items)
+                    if (it.id == t.item && !it.hidden() && it.hit.w > 0 && it.hit.h > 0) hit = &it;
+            if (hit) uin.tap(hit->hit.x + hit->hit.w * 0.5f, hit->hit.y + hit->hit.h * 0.5f);
+            AS3D_INFO("AS3D_UI_TAP frame=%u screen=%s item=%d %s", frameNo, screen.c_str(), t.item, hit ? "tapped" : "not found");
         }
         // run.ini cycle=: the memory growth check starts and leaves the missions itself.
         if (!run.cycle.empty()) {
@@ -393,8 +407,11 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
                 if (run.menuBot) {
                     const bool pause = in.pausePressed;
                     in = running ? botInput(runStep) : FrameInput();
+                    // run.ini hint_hold (R4.4): the hint box stays up that many steps first.
+                    if (hint && hintHeld++ < run.hintHold) in = FrameInput();
                     in.pausePressed = pause;
                 }
+                if (!hint) hintHeld = 0;
                 if (run.botWeapons && running) applyWeaponTour(ses.world(), runStep, in);
             }
             const int before = flow.levelLoads();

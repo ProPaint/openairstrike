@@ -131,6 +131,22 @@ struct RunConfig {
     // for it), catchup_lag=N (1..8, 3: the most steps the simulation stays behind the clock),
     // catchup_margin_ms=X (0..10, 2: the room is the frame's period minus this).
     CatchUpRule catchUp;
+    // R4.4 (docs/3ds-ui-design.md "UI foundation and the screen gallery (round 4, R4.4)"):
+    // ui_text=1|0: the console text sizes S/L/T (1, default) or the scaled text of before (0);
+    // dump_loading=1: the front end's loading frames written as <prefix>load<NN>_{top,bottom}.ppm;
+    // ui_taps=F:@ID,F:@SCREEN/ID,...: at displayed frame F a tap at the centre of the top menu's
+    // visible item ID (only on screen SCREEN when given): scripted taps that follow the layouts.
+    // hint_hold=N: with menu_bot, the bot leaves a hint box up for N steps before its confirm closes
+    // it (the gallery's hint captures).
+    bool uiText = true;
+    bool dumpLoading = false;
+    int hintHold = 0;
+    struct UiTap {
+        int frame = 0;
+        int item = 0;
+        std::string screen; // empty: any screen
+    };
+    std::vector<UiTap> uiTaps;
     int clearMode = 0;         // clear=split (0, default) | joint (1) | quad (2): how a target's colour and depth are cleared (pica_frame.h ClearMode)
     bool gpuKick = true;       // gpu_kick=0: no mid-frame start of the GPU (pica_frame.h kickGpu); default on
     bool cmdlistFlush = false; // end_flush=cmdlist: C3D_FrameEnd(GX_CMDLIST_FLUSH), no whole-heap flush (forced by gpu_kick=1)
