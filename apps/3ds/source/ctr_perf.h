@@ -63,6 +63,9 @@ struct FrameSample {
 // True once after Perf wrote log.txt / perf.csv to the SD card (the pacer excuses the frame
 // that waited for it); reading clears it.
 bool takePerfIoFlag();
+// The writer thread finished a write at or after `tick` (minus one vblank): the pacer excuses
+// that frame's miss.
+bool perfWriterWroteSince(uint64_t tick);
 
 // A file the writer thread writes (as3d::writeFileAtomic: temporary file, fsync, rename) instead
 // of the caller: the level start's caches (the shadow silhouettes, the read plan), whose first

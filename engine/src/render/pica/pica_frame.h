@@ -71,6 +71,16 @@ unsigned gpuKicks(); // kicks since start
 // The arena's new vertices flushed, then C3D_FrameSplit(GX_CMDLIST_FLUSH) (render_state's clears).
 void splitCommandList();
 
+// How clear() fills a target that has colour and depth (docs/3ds-port.md "Console session of
+// 2026-10-11"): Split (the default) issues the depth fill and the colour fill as two GX memory
+// fills, each on the PSC0 engine whose completion libctru's GX queue waits for; Joint is citro3d's
+// one fill with the depth on PSC1, whose completion the queue ignores (gxqueue.c), so a slow depth
+// fill can still be running when the terrain draws; Quad draws a full-screen quad instead (no
+// fill engine at all, strictly ordered in the command list).
+enum class ClearMode { Split = 0, Joint = 1, Quad = 2 };
+void setClearMode(ClearMode mode);
+ClearMode clearMode();
+
 LinearArena& frameArena();
 ShaderSet& shaders();
 

@@ -540,6 +540,7 @@ struct GameFrame::Impl {
         if (!run.touch) mask &= ~(1u << static_cast<int>(pica::Pass::Touch));
         pica::setPassMask(mask);
         pica::setGpuKick(run.gpuKick);
+        pica::setClearMode(static_cast<pica::ClearMode>(run.clearMode));
         pica::setArenaPoison(run.arenaPoison); // docs/3ds-port.md "Frame synchronisation"
         pica::setStateCheck(run.stateCheck);
         std::string off;

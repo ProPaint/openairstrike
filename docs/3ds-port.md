@@ -5,28 +5,25 @@ Working notes of the port (plan: M1.0 onwards). The feasibility spike is in
 
 ## State on 2026-10-11 and how to resume
 
-Round 2 (2026-10-10/11, main `e712df7`) is merged and built but NOT console-verified: the drop is
-`out/3ds/drop-round2-e712df7/` (the package's `openairstrike.3dsx`, `openairstrike.cia`, and three
-run.ini files: `run.ini` = play with `state_check=1 log_lazy=1 perf=1`, `run-diag.ini` = the same
-with `state_check=2 arena_poison=1`, `run-bot-stereo.ini` = the stereo acceptance run). Every
-package of the plan (M0 to M5.4) plus round 1 and round 2 are on main; the merged binary ran on
-Azahar (mission 1 bot in stereo: end state equal to the simulation, 0 lazy loads, 0 state
-mismatches; `mode=play` boots to the selector). **The console session that is due** (one
-session, in this order; fetch the logs with `tools/3ds_fetch_logs.sh` after it):
+Round 2 (2026-10-10/11) is merged and was played once on the console (see "Console session of
+2026-10-11" at the end: the water wash was caught in the act, the terrain writes no depth for
+seconds at a time; mono fell to 30 Hz from a half-second hiccup of the audio thread; the stereo
+felt strong). The drop after that session is the latest `out/3ds/drop-round2b-<commit>/` (the package's
+`openairstrike.3dsx`, `openairstrike.cia`, `run.ini` = play with `state_check=1 log_lazy=1
+perf=1`, `run-diag.ini` = the same with `state_check=2 arena_poison=1`, `run-bot-stereo.ini` = the
+stereo acceptance run), uploaded to the card. **The console session that is due** (fetch the logs
+with `tools/3ds_fetch_logs.sh` after it):
 
-1. `run.ini` (play): play the tutorial and mission 2 in mono, then with the slider up. Expect
-   no hitch when firing (the touch band fix of P1/P5) and 60 Hz in mono; note whether stereo
-   stays at 60 or falls to 30 (P3's cuts; the pacer line in the log says which).
-2. Press **L** whenever the water wash is on screen (P2's `AS3D_WASH_MARK` + `markNN_*.ppm`
-   dumps); the decision table is in "Frame synchronisation". If it never shows, say so: that
-   also decides.
-3. Stereo feel (P5): if the depth tires, lower `max_far_parallax_px` to 8 or 6, then
-   `max_parallax_px` to 6. Hover near a ridge for LOD flicker.
-4. The high-score name entry through the system keyboard (P6, unverified on Azahar).
-5. `run-bot-stereo.ini`: the 3600-step acceptance run in stereo for the GPU numbers
-   (`tools/3ds_perf_report.py`).
-6. Optional: `run-diag.ini` for one tutorial if the wash was seen (slower: register read-backs).
-7. Optional: install `openairstrike.cia` with FBI and start it from the HOME menu (icon, banner,
+1. `run.ini` (play): the tutorial and mission 2 in mono, then with the slider up. Expect no wash
+   (`clear=split` + the terrain's second state block); if it shows, press L as before, then A/B
+   `clear=quad`, `gpu_kick=0`, `end_flush=all`. Expect mono at 60 Hz throughout (the mixer no
+   longer blocks the game thread; the pacer's `AS3D_PACE` lines say when it fell and why).
+2. Stereo feel at the new defaults (eye offset 3, 6 px near, 8 px far); lower
+   `max_far_parallax_px` to 6 if it still tires.
+3. The high-score name entry through the system keyboard (P6, unverified on Azahar).
+4. `run-bot-stereo.ini`: the 3600-step acceptance run in stereo for the GPU numbers
+   (`tools/3ds_perf_report.py`): stereo stayed at 30 Hz in the play session.
+5. Optional: install `openairstrike.cia` with FBI and start it from the HOME menu (icon, banner,
    804 MHz line in the log).
 
 Last console-verified state before round 2 (New 3DS, drop 4, main `098f524` = drop 5 was played
@@ -3030,3 +3027,69 @@ mission 1: map_pos 1227.2, created 1486, freed 1332).
   `terrain_lod_band=80`.
 - The first frame of a mission no longer stutters on the touch band; the Gulf menus take half the
   bottom-screen time.
+
+## Console session of 2026-10-11 (the round-2 drop played; the water wash caught)
+
+The owner played the tutorial in mono, then again in stereo at about 40 % of the slider, pressing
+L five times, four of them with the water wash on screen (`out/3ds/hw23-round2-play/`: log.txt,
+perf.csv, `mark01..05_*.ppm`, `marks_sheet.png` = top | right eye | depth | bottom per mark).
+
+**The wash, caught.** Marks 1, 4 and 5 (washed) have a depth buffer that holds only the water
+plane's flat gradient and the models: the terrain wrote no depth at all. Mark 3 (no wash) has the
+terrain's relief everywhere; mark 2 has it in the near rows only. With no terrain depth the water
+plane passes its GEQUAL test over the whole ground and its translucent blend covers the terrain
+and the roads (drawn before it), while the models (drawn after, with their own depth) stay clean:
+the symptom the owner described since drop 1. The register read-back of the three frames after
+each mark (`AS3D_GPU_MISMATCH pass=terrain field=depth_test expected=0x1f71 actual=0x0f10`) says
+the same from the GPU's side: after the terrain's base draws the PICA's depth/colour-mask register
+held the 2D passes' value (test off, write off) in marks 1, 2, 4 and 5 and the terrain's value in
+mark 3, while citro3d's context and our shadow copy held the terrain's value every time, dirty
+before the pass and emitted with its first draw (`mismatches=0` on the CPU layers, `dirty=0` after
+the draw). The water's own read-back in the same frames was right. So the words citro3d records
+for the terrain's first draw are not what the GPU ends up with, for seconds at a time, in mono and
+in stereo, at 60 and at 30 Hz; nothing in the CPU-side bookkeeping differs between a washed and a
+clean frame. Not explained; two things are in the drop that each remove a way for it to happen:
+
+- `clear=split` (the default now; `clear=joint` is the old behaviour, `clear=quad` draws the
+  clear). citro3d clears colour and depth with one GX memory fill, the depth half on the PSC1
+  engine, and libctru's GX queue ignores PSC1's completion (gxqueue.c: `irq==GSPGPU_EVENT_PSC1`
+  returns), so the queue can start the eye's command list while the depth fill is still running:
+  the terrain's depth is then wiped behind its draws (mark 2's near rows written after the fill
+  passed them fit this). The split issues the depth fill and the colour fill separately, both on
+  PSC0, whose completion is waited for. Cost: the two fills no longer overlap (about 0.2 ms).
+- The terrain pass issues its full state a second time with its second draw (a few command words),
+  so a lost first state block cannot cost the pass its depth.
+
+If the wash is still there with these, the A/B is `clear=quad` (no fill engine at all), then
+`gpu_kick=0`, then `end_flush=all`; the L mark keeps working. If it is gone with the defaults, the
+clear was it.
+
+**Mono fell to 30 Hz for half the time, from a periodic hiccup.** Mono held 60 Hz with 0.4 % misses,
+but the pacer went to 30 Hz 7 times and stayed there for 5116 of 10857 mono frames: 3 misses in
+120 frames each time, and the misses come every 32 frames (0.53 s): frames 3457, 3489, 3521 ...
+with the step 1 to 2 ms longer and the submit slightly longer, enough to miss the vblank in a
+mission whose frames have only a few ms of slack. The period is the music's: the Ogg decoder
+(tremor, on the audio thread, core 1) decodes a page every half second in an 8 ms burst
+(`max_decode_ms=7.93`), the audio thread then exceeds the app's share of the system core and is
+held off mid-mix while holding the mixer's voice lock, and the game thread's sound starts
+(firing!) wait for it. The mixer now mixes the voices on a copy taken under the lock and writes the
+positions back under it, so the game thread never waits for a mix in progress; `stopAll` waits
+for a mix in flight. The pacer also excuses a frame during which the writer thread wrote the log
+(the SD write delays the system core's services), and needs 60 fitting frames to return to 60 Hz
+instead of 120. Expect: mono at 60 Hz throughout play, a single judder at most when the writer
+writes. Stereo stayed a steady 30 Hz (GPU 11.5 ms avg of the tail alone; the P3 cuts were not
+enough for 60): the `run-bot-stereo.ini` run gives the numbers to decide the next cut.
+
+**Stereo "quite strong" at 40 % of the slider.** The log says the parallax was small then (far
+2 to 4 px, near 1 to 3 px; the two eyes of mark 5 differ by 1 px), but one 300-frame window had
+a near object at 93 px before the clamp caught up (`downPerSecond` 3.0: a third of a second) and
+the clamp then acting on a third of the frames, so the depth pumped. Changed: the clamp now
+shrinks within two or three frames (`downPerSecond` 24), the near scan ignores props whose box
+spans more than 250 units (their box corner, not a visible part, was the near object), and the
+defaults are lower: `eye_offset` 3 (was 4), `max_parallax_px` 6 (was 10), `max_far_parallax_px`
+8 (was 12). The owner's next feel decides whether to go lower still (`max_far_parallax_px=6`).
+
+**Other numbers of the session:** load 645 ms, lazy loads 0 in the front end and mission 1 (P1
+holds), `AS3D_TOUCH_PREBUILD` 10 ms in the loading screen, no `AS3D_FENCE`, no `AS3D_GPU_BUSY`,
+no texture created inside a frame, heap 15.5 MB, linear free 16 MB at the lowest, texture VRAM
+4193 KB. The three `AS3D_SLOW_SUBMIT` lines are the L mark's own read-backs.

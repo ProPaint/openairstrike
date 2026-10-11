@@ -902,10 +902,20 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
     }
 
     int boundBlock = -1;
+    bool rearmed = false;
     for (int ki : visible) {
         const size_t k = static_cast<size_t>(ki);
         const TerrainChunkGeometry& c = im.geo.chunks[k];
         ChunkGpu& g = im.chunks[k];
+        if (st.drawCalls > 0 && !rearmed) {
+            // The console session of 2026-10-11 (docs/3ds-port.md): the PICA read back the depth
+            // register as the 2D passes' value after the terrain's base draws while citro3d had
+            // emitted the terrain's with the first draw. The state is issued once more with the
+            // second draw (a few command words), so a lost first block cannot cost the pass its depth.
+            rearmed = true;
+            pica::detail::c3dInvalidate();
+            applyMaterialState(key);
+        }
         im.computeLights(k, params.lights, lightCount);
         if (g.dyn) ++st.litChunks;
         if (c.block != boundBlock) {

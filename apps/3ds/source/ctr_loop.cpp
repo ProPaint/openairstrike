@@ -124,7 +124,7 @@ struct PacerState {
     long long lazyLoads = 0;  // LoadStats total at the last frame (a late load excuses a miss)
     bool loadBefore = false;  // the last frame had a late load (excuses this one's miss as well)
     int eyes = 1;             // of the last frame (pace=auto: stereo starts at 30 Hz)
-    int fitNeeded = 120;      // fitting frames in a row to go to 60 Hz (doubled after a quick fall back)
+    int fitNeeded = 60;       // fitting frames in a row to go to 60 Hz (doubled after a quick fall back)
     unsigned promotedAt = 0, frameNo = 0;
     // The summary.
     unsigned frames60 = 0, misses60 = 0, excused60 = 0, frames30 = 0, misses30 = 0, logged = 0;
@@ -138,7 +138,7 @@ void setRenderHz(int hz, const char* why);
 // for an SD write of the log (perf=1), a dump, or a late load. A miss is logged with the columns
 // of the frame before (what ran between the two syncs) and this frame's step and prepare.
 // pace=auto: two eyes start at 30 Hz (the console's stereo GPU is 13.5 ms avg, 16.5 p95), one
-// eye at 60 Hz; 3 counted misses in 120 frames at 60 Hz go to 30 Hz; at 30 Hz, fitNeeded (120)
+// eye at 60 Hz; 3 counted misses in 120 frames at 60 Hz go to 30 Hz; at 30 Hz, fitNeeded (60)
 // frames in a row whose CPU path (one step + prepare + recording + end) stays under 13 ms and
 // whose GPU time (from the first command list to the end of the queue) under 14 ms go to 60 Hz;
 // a fall back within 600 frames of that doubles fitNeeded (at most 3600).
@@ -152,13 +152,16 @@ void updatePacer(const FrameSample& sample) {
     const bool lateLoad = loadNow || p.loadBefore;
     p.loadBefore = loadNow;
     p.lazyLoads = lazy;
+    const uint64_t prevSync = p.lastSync;
     int interval = 1;
     if (p.lastSync != 0)
         interval = static_cast<int>(static_cast<double>(g_clock.lastSync - p.lastSync) / kVblankTicks + 0.5);
     p.lastSync = g_clock.lastSync;
     const int expected = 60 / p.hz;
     const bool late = interval > expected;
-    const bool excused = p.grace > 0 || io || lateLoad || p.prev.afterMs > 5.0f;
+    // A write of the log by the writer thread during the frame is excused too (the SD write
+    // delays the system core's services, docs/3ds-port.md "Console session of 2026-10-11").
+    const bool excused = p.grace > 0 || io || lateLoad || p.prev.afterMs > 5.0f || perfWriterWroteSince(prevSync);
     if (p.grace > 0) --p.grace;
     if (p.hz == 60) ++p.frames60;
     else ++p.frames30;
@@ -192,7 +195,7 @@ void updatePacer(const FrameSample& sample) {
     const int eyes = sample.stats.eyes > 0 ? sample.stats.eyes : 1;
     if (eyes != p.eyes) {
         p.eyes = eyes;
-        p.fitNeeded = 120;
+        p.fitNeeded = 60;
         if (eyes == 2 && p.hz == 60) setRenderHz(30, "stereo");
         else if (eyes == 1 && p.hz == 30) setRenderHz(60, "mono");
         p.grace = std::max(p.grace, 60);

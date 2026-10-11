@@ -93,8 +93,14 @@ void Mixer::setVoiceParams(VoiceId id, const PlayParams& params) {
 }
 
 void Mixer::stopAll() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (auto& v : voices_) v.active = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (auto& v : voices_) v.active = false;
+    }
+    // A mix in flight still reads the samples: let it finish (a millisecond at most) so the
+    // caller may free them.
+    while (mixing_) {
+    } // a spin: the audio thread runs on another core (3DS) or another OS thread (SDL)
 }
 
 void Mixer::setMusic(MusicSource* decoder) {
@@ -174,14 +180,28 @@ void Mixer::render(float* out, int frames) {
 }
 
 bool Mixer::mixVoices(float* out, int frames) {
-    std::lock_guard<std::mutex> lock(mutex_);
     std::memset(out, 0, sizeof(float) * 2 * static_cast<size_t>(frames));
-    if (paused_) return false;
-    musicGain_ = musicVolume_;
-    musicRate_ = deviceRate_;
+    // The active voices copied under the lock, mixed outside it (mixer.h).
+    Voice local[kMaxVoices];
+    int slots[kMaxVoices];
+    int n = 0;
+    float sfxVolume = 1.0f;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (paused_) return false;
+        musicGain_ = musicVolume_;
+        musicRate_ = deviceRate_;
+        sfxVolume = sfxVolume_;
+        for (int i = 0; i < kMaxVoices; ++i) {
+            if (!voices_[i].active) continue;
+            slots[n] = i;
+            local[n++] = voices_[i];
+        }
+        mixing_ = n > 0;
+    }
 
-    for (auto& v : voices_) {
-        if (!v.active) continue;
+    for (int k = 0; k < n; ++k) {
+        Voice& v = local[k];
         const Sample* s = v.sample;
         const size_t frameCount = s->frameCount();
         const int channels = s->channels;
@@ -208,7 +228,7 @@ bool Mixer::mixVoices(float* out, int frames) {
                 float m1 = s->pcm[i1] / 32768.0f;
                 l = r = static_cast<float>(m0 + (m1 - m0) * frac);
             }
-            float gain = v.volume * sfxVolume_;
+            float gain = v.volume * sfxVolume;
             out[i * 2 + 0] += l * v.gainL * gain;
             out[i * 2 + 1] += r * v.gainR * gain;
 
@@ -223,6 +243,19 @@ bool Mixer::mixVoices(float* out, int frames) {
         }
     }
 
+    if (n > 0) {
+        // Positions back, unless the slot was stopped or restarted meanwhile.
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (int k = 0; k < n; ++k) {
+            Voice& live = voices_[slots[k]];
+            const Voice& c = local[k];
+            if (live.active && live.generation == c.generation && live.startSeq == c.startSeq) {
+                live.pos = c.pos;
+                live.active = c.active;
+            }
+        }
+        mixing_ = false;
+    }
     return true;
 }
 

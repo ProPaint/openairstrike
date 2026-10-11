@@ -56,7 +56,7 @@ namespace ctrapp {
 // helicopter at a depth of about 180, so kMaxEyeOffset 4 gives at most 9 px of far disparity at
 // slider 1 (about 2.3 % of the width), the ground under the helicopter 0, nearer things out of
 // the screen. Tune on hardware with run.ini eye_offset= and min_focal=.
-constexpr float kMaxEyeOffset = 4.0f;
+constexpr float kMaxEyeOffset = 3.0f; // 4 until the console session of 2026-10-11 ("quite strong" at 40 % of the slider)
 constexpr float kMinFocalDistance = 40.0f;
 
 struct StereoParams {

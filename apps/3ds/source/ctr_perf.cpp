@@ -4,6 +4,7 @@
 #include <malloc.h>
 
 #include <algorithm>
+#include <atomic>
 #include <mutex>
 
 #include "as3d/core.h"
@@ -25,6 +26,7 @@ std::FILE* g_logFile = nullptr;
 std::FILE* g_csvFile = nullptr;
 std::string g_logBuf, g_csvBuf;
 bool g_ioFlag = false; // a write on the main thread happened (Perf::flush)
+std::atomic<uint64_t> g_writerWroteAt{0}; // svcGetSystemTick at the end of the writer thread's last write
 
 // queueFileWrite: the files to write, under g_logMutex (taken by drainToFiles).
 struct FileJob {
@@ -69,6 +71,7 @@ void drainToFiles() {
         std::fwrite(csv.data(), 1, csv.size(), g_csvFile);
         std::fflush(g_csvFile);
     }
+    g_writerWroteAt = svcGetSystemTick();
 }
 
 void writerEntry(void*) {
@@ -134,6 +137,11 @@ bool queueFileWrite(const std::string& path, std::vector<uint8_t>&& bytes) {
 size_t pendingFileWrites() {
     std::lock_guard<std::mutex> lock(g_logMutex);
     return g_fileJobs.size();
+}
+
+bool perfWriterWroteSince(uint64_t tick) {
+    const uint64_t at = g_writerWroteAt;
+    return at != 0 && at + 4481136u >= tick; // a write ending up to one vblank before the frame counts
 }
 
 bool takePerfIoFlag() {

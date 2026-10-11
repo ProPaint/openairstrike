@@ -428,7 +428,9 @@ TEST_CASE("stereo comfort: parallax, the clamp ratio and its filters") {
     CHECK(parallaxPxPerUnit(90.0f, 180.0f, a, 400.0f) == doctest::Approx(-400.0f * a / 180.0f));
     CHECK(parallaxPxPerUnit(1e9f, 180.0f, a, 400.0f) == doctest::Approx(400.0f * a / 180.0f).epsilon(1e-4));
 
-    ComfortLimits lim; // 10 px near, 12 px far
+    ComfortLimits lim; // the limits of the derivation below (the defaults are 6 px near, 8 px far since 2026-10-11)
+    lim.maxNearPx = 10.0f;
+    lim.maxFarPx = 12.0f;
     // Nothing near, the far terrain within 12 px at e = 4: no clamp.
     CHECK(comfortRatio(lim, 0.0f, 900.0f, 180.0f, a, 400.0f, 4.0f) == doctest::Approx(1.0f));
     // A model at depth 60 with the focal plane at 180: 400 A (1/60 - 1/180) = 4.62 px per unit,
@@ -458,6 +460,7 @@ TEST_CASE("stereo comfort: parallax, the clamp ratio and its filters") {
 
     // The filter: the first update takes the target, then at most down / up per second.
     ComfortFilter f;
+    f.downPerSecond = 3.0f; // the rates of the derivation (the default shrinks at 24/s since 2026-10-11)
     CHECK(f.update(0.8f, 1.0f / 60.0f) == doctest::Approx(0.8f));
     CHECK(f.update(0.2f, 1.0f / 60.0f) == doctest::Approx(0.8f - 3.0f / 60.0f));
     for (int i = 0; i < 60; ++i) f.update(0.2f, 1.0f / 60.0f);

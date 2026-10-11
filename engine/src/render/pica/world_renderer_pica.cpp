@@ -601,6 +601,12 @@ void WorldRenderer::prepare(const World& world, const Viewport& viewport, const 
         for (const std::vector<MeshRecord>* list : {&sc.opaque, &sc.trans}) {
             for (const MeshRecord& r : *list) {
                 if (!r.mesh || !r.mesh->valid) continue;
+                // Props whose box spans more than 250 units (fences, long decals, the sequels'
+                // large effects) would put their box corner, not any visible part, near the camera.
+                const float ex = r.mesh->model.boundsMax.x - r.mesh->model.boundsMin.x;
+                const float ey = r.mesh->model.boundsMax.y - r.mesh->model.boundsMin.y;
+                const float ez = r.mesh->model.boundsMax.z - r.mesh->model.boundsMin.z;
+                if (ex * ex + ey * ey + ez * ez > 250.0f * 250.0f) continue;
                 const float d = pica::modelNearDepth(fr.wv.view * r.model, r.mesh->model.boundsMin, r.mesh->model.boundsMax,
                                                      fr.wv.fovY, aspect, fr.wv.nearPlane, sd.farLimit);
                 if (d > 0.0f && (modelNear == 0.0f || d < modelNear)) modelNear = d;

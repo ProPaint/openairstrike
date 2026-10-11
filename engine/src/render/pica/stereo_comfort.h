@@ -41,8 +41,8 @@ inline float stereoA(float fovYDegrees, float aspect) {
 }
 
 struct ComfortLimits {
-    float maxNearPx = 10.0f; // negative parallax of the nearest content at slider 1 (run.ini max_parallax_px)
-    float maxFarPx = 12.0f;  // positive parallax of the farthest terrain at slider 1 (max_far_parallax_px)
+    float maxNearPx = 6.0f; // negative parallax of the nearest content at slider 1 (run.ini max_parallax_px)
+    float maxFarPx = 8.0f;  // positive parallax of the farthest terrain at slider 1 (max_far_parallax_px)
 };
 
 // The fraction (0..1] of the slider's eye offset `fullOffset` (= slider x eye_offset) that keeps
@@ -83,7 +83,7 @@ inline float balancedFocal(const ComfortLimits& lim, float nearDepth, float farD
 struct ComfortFilter {
     float ratio = 1.0f;
     bool primed = false;
-    float downPerSecond = 3.0f;
+    float downPerSecond = 24.0f; // a close object takes the depth down within two or three frames
     float upPerSecond = 0.4f;
 
     void reset() { primed = false; ratio = 1.0f; }

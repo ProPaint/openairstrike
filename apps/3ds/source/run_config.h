@@ -46,8 +46,8 @@ struct RunConfig {
     float eyeOffset = 0.0f;    // eye_offset=F: world units at slider 1; 0 = ctr_frame.h kMaxEyeOffset
     float minFocal = 0.0f;     // min_focal=F: smallest focal distance; 0 = ctr_frame.h kMinFocalDistance
     // Stereo comfort (docs/3ds-port.md "Stereo comfort and frame polish (round 2, P5)"):
-    float maxParallaxPx = 10.0f;    // max_parallax_px=F: the nearest content's negative parallax at slider 1 (px of 400)
-    float maxFarParallaxPx = 12.0f; // max_far_parallax_px=F: the farthest terrain's positive parallax at slider 1
+    float maxParallaxPx = 6.0f;     // max_parallax_px=F: the nearest content's negative parallax at slider 1 (px of 400)
+    float maxFarParallaxPx = 8.0f;  // max_far_parallax_px=F: the farthest terrain's positive parallax at slider 1
     bool stereoComfort = true;      // stereo_comfort=0: no clamp and no focal easing (the eye offset as before)
     bool precache = true;      // precache=0: skip the level-start precache (first-use loads, for comparison)
     bool audio = true;         // audio=0|1: sound in bot and play (ctr_audio.h); never in sim
@@ -119,6 +119,7 @@ struct RunConfig {
     // Frame pacing (ctr_loop.h): pace=auto (0, the default: 60 Hz, 30 Hz while frames do not fit),
     // pace=60, pace=30. The simulation always steps once per vblank.
     int pace = 0;
+    int clearMode = 0;         // clear=split (0, default) | joint (1) | quad (2): how a target's colour and depth are cleared (pica_frame.h ClearMode)
     bool gpuKick = true;       // gpu_kick=0: no mid-frame start of the GPU (pica_frame.h kickGpu); default on
     bool cmdlistFlush = false; // end_flush=cmdlist: C3D_FrameEnd(GX_CMDLIST_FLUSH), no whole-heap flush (forced by gpu_kick=1)
     // Synchronisation diagnostics (docs/3ds-port.md "Frame synchronisation"):

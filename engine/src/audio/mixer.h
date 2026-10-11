@@ -40,10 +40,13 @@ struct Voice {
 // command queue: every public entry point (from the game thread) does O(1)
 // or O(kMaxVoices) work under the lock, and render() (from the audio
 // thread) never allocates, blocks on I/O, or calls anything that can throw
-// while holding it. With only 32 voices the whole critical section is a
-// handful of microseconds, so contention is a non-issue at audio-engine
-// scale, and a mutex is far easier to get right than a correct multi-writer
-// lock-free structure. See docs/audio.md "Thread safety".
+// while holding it. The voice mix itself runs on a copy of the voices taken
+// under the lock, outside it, and writes the positions back under the lock:
+// the game thread never waits for a mix in progress (on the 3DS the audio
+// thread shares the system core with the OS and can be held off mid-mix for
+// milliseconds, docs/3ds-port.md "Console session of 2026-10-11"). stopAll()
+// waits for a mix in flight before it returns, so a sample may be freed after
+// it. See docs/audio.md "Thread safety".
 class Mixer {
 public:
     Mixer() = default;
@@ -108,6 +111,7 @@ private:
     int musicRate_ = 44100;
     MusicSource* music_ = nullptr;  // owned, under musicMutex_
     std::atomic<bool> hasMusic_{false};
+    std::atomic<bool> mixing_{false};  // a voice mix is in flight outside mutex_ (set and cleared under it)
     std::atomic<u64> musicDecodeUs_{0};
     std::atomic<u64> musicFrames_{0};
     std::atomic<u64> musicMaxCallUs_{0};

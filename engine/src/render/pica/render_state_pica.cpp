@@ -133,6 +133,12 @@ void fillTarget(bool color, const Vec4& c, bool depth, float glDepth) {
         colour = static_cast<u32>(toByte(c.x) >> 3) << 11 | static_cast<u32>(toByte(c.y) >> 2) << 5 |
                  static_cast<u32>(toByte(c.z) >> 3);
     }
+    if (color && depth && clearMode() == ClearMode::Split) {
+        // Two fills on PSC0 (pica_frame.h ClearMode): the depth first, then the colour.
+        C3D_FrameBufClear(&t.target->frameBuf, C3D_CLEAR_DEPTH, colour, packDepth(glDepth));
+        C3D_FrameBufClear(&t.target->frameBuf, C3D_CLEAR_COLOR, colour, packDepth(glDepth));
+        return;
+    }
     C3D_FrameBufClear(&t.target->frameBuf, bits, colour, packDepth(glDepth));
 }
 
@@ -186,11 +192,18 @@ void fillQuad(bool color, const Vec4& c, bool depth, float glDepth) {
 
 void clearImpl(bool color, const Vec4& c, bool depth, float glDepth) {
     depth = depth && currentTarget().hasDepth;
-    if (state().scissor) fillQuad(color, c, depth, glDepth);
+    if (state().scissor || (depth && clearMode() == ClearMode::Quad)) fillQuad(color, c, depth, glDepth);
     else fillTarget(color, c, depth, glDepth);
 }
 
 } // namespace
+
+namespace {
+ClearMode g_clearMode = ClearMode::Split;
+} // namespace
+
+void setClearMode(ClearMode mode) { g_clearMode = mode; }
+ClearMode clearMode() { return g_clearMode; }
 
 namespace detail {
 

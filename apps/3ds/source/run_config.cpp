@@ -212,6 +212,10 @@ RunConfig parseRunConfig(const std::string& text) {
             if (val == "auto") c.pace = 0;
             else if (val == "60") c.pace = 60;
             else if (val == "30") c.pace = 30;
+        } else if (key == "clear") {
+            if (val == "split") c.clearMode = 0;
+            else if (val == "joint") c.clearMode = 1;
+            else if (val == "quad") c.clearMode = 2;
         } else if (key == "gpu_kick") {
             if (toInt(val, &n)) c.gpuKick = n != 0;
         } else if (key == "arena_poison") {
