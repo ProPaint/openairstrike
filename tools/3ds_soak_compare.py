@@ -41,7 +41,9 @@ def parse_stages(log_path):
         m = STAGE_RE.search(line)
         if m:
             soak = True
-            cur = {"name": "%s:%s:%s" % (m.group(2), m.group(3), m.group(4)), "n": int(m.group(1)), "game": m.group(2),
+            o = re.search(r" opts=(\S+)", line)
+            opts = ":" + o.group(1) if o and o.group(1) != "none" else ""
+            cur = {"name": "%s:%s:%s%s" % (m.group(2), m.group(3), m.group(4), opts), "n": int(m.group(1)), "game": m.group(2),
                    "level": int(m.group(3)), "frames": int(m.group(5)), "weapons": m.group(6) == "1", "end": None}
             stages.append(cur)
             continue

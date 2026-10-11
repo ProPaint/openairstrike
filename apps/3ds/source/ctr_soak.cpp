@@ -99,7 +99,10 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         ++n;
         SoakStageResult r;
         r.stage = st;
-        r.targetSteps = static_cast<unsigned>(base.soakFrames > 0 ? base.soakFrames : RunConfig::kSoakStepCap);
+        // The stage's own run.ini overrides (soak=game:level:eyes:key=value...), soak_frames included.
+        RunConfig stageBase = base;
+        applyRunConfig(stageBase, soakStageOptionsText(st));
+        r.targetSteps = static_cast<unsigned>(stageBase.soakFrames > 0 ? stageBase.soakFrames : RunConfig::kSoakStepCap);
         if (aborted) {
             r.skipped = "(aborted before it)";
             results.push_back(r);
@@ -110,21 +113,21 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
             results.push_back(r);
             continue;
         }
-        RunConfig sr = base;
+        RunConfig sr = stageBase;
         sr.mode = Mode::Bot;
         sr.game = st.game;
         sr.gameGiven = true;
         sr.level = st.level;
         sr.levelGiven = true;
         // soak_frames=0 (the default): the whole mission, the step cap as the safety net.
-        sr.frames = base.soakFrames > 0 ? base.soakFrames : RunConfig::kSoakStepCap;
-        sr.stopAtLevelEnd = base.soakFrames <= 0;
+        sr.frames = stageBase.soakFrames > 0 ? stageBase.soakFrames : RunConfig::kSoakStepCap;
+        sr.stopAtLevelEnd = stageBase.soakFrames <= 0;
         sr.slider = st.stereo ? 0.5f : 0.0f; // the hardware slider is ignored
         sr.botWeapons = true;                // the player's weapons fire as in play
         sr.perf = true;
-        sr.stateCheck = std::max(1, base.stateCheck);
-        sr.probeEvery = probeEvery;
-        sr.washCheck = base.effectiveWashCheck() ? 1 : 0; // the wash detector: on in the soak unless wash_check=0
+        sr.stateCheck = std::max(1, stageBase.stateCheck);
+        sr.probeEvery = stageBase.effectiveProbeEvery();
+        sr.washCheck = stageBase.effectiveWashCheck() ? 1 : 0; // the wash detector: on in the soak unless wash_check=0
         sr.soakStage = n;
         sr.dumpAt = 0;
         sr.dumpEvery = 0;
@@ -136,10 +139,10 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         writeMarker(marker);
         withLog([&]() {
             AS3D_INFO("AS3D_SOAK_STAGE n=%d of=%d game=%s level=%d eyes=%s slider=%.2f frames=%d bot_weapons=1 "
-                      "state_check=%d probe_every=%d audio=%d whole_mission=%d",
+                      "state_check=%d probe_every=%d audio=%d whole_mission=%d opts=%s",
                       n, static_cast<int>(stages.size()), st.game.c_str(), st.level, st.stereo ? "stereo" : "mono",
-                      static_cast<double>(sr.slider), sr.frames, sr.stateCheck, probeEvery, sr.audio ? 1 : 0,
-                      sr.stopAtLevelEnd ? 1 : 0);
+                      static_cast<double>(sr.slider), sr.frames, sr.stateCheck, sr.probeEvery, sr.audio ? 1 : 0,
+                      sr.stopAtLevelEnd ? 1 : 0, soakStageOptions(st).c_str());
         });
         // The last stage's precache armed the lazy-load log: this stage's session start is not play.
         as3d::LoadStats::setLogLazy(false);
@@ -209,7 +212,8 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
                       "gpu_p95=%.2f lazy=%lld lazy_stamps=%lld gpu_mismatches=%u terrain_gpu_mismatches=%u state_mismatches=%u probes=%u "
                       "probe_ms_avg_max=%.2f/%.2f auto_marks=%u fence=%u gpu_busy=%u tex_in_frame=%u context=%s "
                       "prime_mismatches=%u wash_evals=%u wash_frames=%u wash_episodes=%u wash_first=%u wash_longest=%u "
-                      "wash_max_samples=%u wash_judge_ms_avg_max=%.3f/%.3f",
+                      "wash_max_samples=%u wash_judge_ms_avg_max=%.3f/%.3f mismatch_probes=%u reread_changed=%u "
+                      "canary_ok=%u canary_stale=%u prime_marks=%u details=%u opts=%s",
                       n, st.game.c_str(), st.level, st.stereo ? "stereo" : "mono", r.finished ? 1 : 0,
                       !r.levelEnded ? "none" : r.gameOver ? "game_over" : "complete", r.levelEndStep, r.frames, r.steps,
                       r.hzEnd, r.graceFrames, r.graceAt60, r.graceAt30, r.misses60, r.misses30, r.excused60,
@@ -218,7 +222,8 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
                       sc.probes ? sc.probeMs / sc.probes : 0.0, sc.probeMaxMs, r.autoMarks, r.fence, r.gpuBusy, r.texInFrame,
                       sc.contextRead ? "read" : "not read", r.primeGpuMismatches, r.washEvals, r.washFrames,
                       r.washEpisodes, r.washFirstFrame, r.washLongest, r.washMaxSamples,
-                      sc.washEvals ? sc.washMs / sc.washEvals : 0.0, sc.washMaxMs);
+                      sc.washEvals ? sc.washMs / sc.washEvals : 0.0, sc.washMaxMs, sc.mismatchProbes, sc.rereadChanged,
+                      sc.canaryOk, sc.canaryStale, sc.primeMarks, sc.details, soakStageOptions(st).c_str());
         });
         results.push_back(r);
     }

@@ -47,6 +47,11 @@ bool toFloat(const std::string& v, float* out) {
 
 RunConfig parseRunConfig(const std::string& text) {
     RunConfig c;
+    applyRunConfig(c, text);
+    return c;
+}
+
+void applyRunConfig(RunConfig& c, const std::string& text) {
     size_t pos = 0;
     while (pos <= text.size()) {
         size_t nl = text.find('\n', pos);
@@ -257,7 +262,6 @@ RunConfig parseRunConfig(const std::string& text) {
             else if (val == "all") c.cmdlistFlush = false;
         }
     }
-    return c;
 }
 
 RunConfig readRunConfig(const std::string& path) {

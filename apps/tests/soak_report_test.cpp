@@ -36,6 +36,31 @@ TEST_CASE("soak: the stage list of run.ini soak=") {
     CHECK(soakStageName(d[1]) == "as3d:1:stereo");
     CHECK(soakStageName(d[2]) == "as3d:2:mono");
     CHECK(soakStageName(d[7]) == "gulf:2:stereo");
+    CHECK(soakStageOptions(d[0]) == "none");
+}
+
+TEST_CASE("soak: per-stage run.ini overrides (R3.3)") {
+    std::vector<SoakStage> s;
+    REQUIRE(parseSoakList("as3d:1:mono,as3d:1:stereo:eye_replay=0:soak_frames=3600, as3d:1:mono:wash_check=0", &s));
+    REQUIRE(s.size() == 3);
+    CHECK(s[0].options.empty());
+    REQUIRE(s[1].options.size() == 2);
+    CHECK(s[1].options[0].first == "eye_replay");
+    CHECK(s[1].options[0].second == "0");
+    CHECK(s[1].options[1].first == "soak_frames");
+    CHECK(s[1].options[1].second == "3600");
+    CHECK(soakStageName(s[1]) == "as3d:1:stereo:eye_replay=0:soak_frames=3600");
+    CHECK(soakStageOptions(s[1]) == "eye_replay=0:soak_frames=3600");
+    CHECK(soakStageOptionsText(s[1]) == "eye_replay=0\nsoak_frames=3600\n");
+    CHECK(soakStageName(s[2]) == "as3d:1:mono:wash_check=0");
+    const std::vector<SoakStage> keep = s;
+    CHECK_FALSE(parseSoakList("as3d:1:stereo:eye_replay", &s));      // no value
+    CHECK_FALSE(parseSoakList("as3d:1:stereo:=0", &s));              // no key
+    CHECK_FALSE(parseSoakList("as3d:1:stereo:Eye=0", &s));           // not a run.ini key's spelling
+    CHECK_FALSE(parseSoakList("as3d:1:stereo:level=2", &s));         // the stage's own keys
+    CHECK_FALSE(parseSoakList("as3d:1:stereo:report_to=1.2.3.4", &s));
+    CHECK(s.size() == keep.size());
+    CHECK(soakStageName(s[1]) == soakStageName(keep[1]));
 }
 
 TEST_CASE("soak: report_to and the file names of the push") {

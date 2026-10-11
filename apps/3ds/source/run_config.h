@@ -132,8 +132,10 @@ struct RunConfig {
     // does (3 per level start at most). -1 = the default: 30 in mode=soak, 0 (never) otherwise.
     int probeEvery = -1;
     int probeInject = 0;       // probe_inject=N: the N-th probe of each level start reports a made-up mismatch (self-test)
-    // mode=soak (ctr_soak.h): soak=game:level:mono|stereo,... (empty = every installed game,
-    // missions 1 and 2, mono and stereo), soak_frames=N steps per stage; 0 (the default) = the
+    // mode=soak (ctr_soak.h): soak=game:level:mono|stereo[:key=value...],... (empty = every
+    // installed game, missions 1 and 2, mono and stereo; the key=value overrides apply to that
+    // stage's run.ini only, e.g. as3d:1:stereo:eye_replay=0:soak_frames=3600, soak_report.h
+    // SoakStage), soak_frames=N steps per stage; 0 (the default) = the
     // whole mission: until Mission Complete or Game Over plus kLevelEndMargin steps of that
     // screen, kSoakStepCap at most (the wash showed late in the missions, never in their first
     // 30 seconds).
@@ -171,6 +173,8 @@ const char* modeName(Mode m);
 
 // Parses the file text; keys it does not know are skipped, bad values keep the default.
 RunConfig parseRunConfig(const std::string& text);
+// The same lines applied over `c` (a soak stage's key=value overrides, ctr_soak.cpp).
+void applyRunConfig(RunConfig& c, const std::string& text);
 // Reads `path`; an absent file gives the defaults.
 RunConfig readRunConfig(const std::string& path);
 

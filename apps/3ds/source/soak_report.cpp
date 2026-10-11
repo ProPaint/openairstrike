@@ -56,7 +56,7 @@ bool parseSoakList(const std::string& text, std::vector<SoakStage>* out) {
         const std::string entry = trim(raw);
         if (entry.empty()) continue;
         const std::vector<std::string> f = split(entry, ':');
-        if (f.size() != 3) return false;
+        if (f.size() < 3) return false;
         SoakStage s;
         s.game = trim(f[0]);
         long level = 0;
@@ -66,6 +66,19 @@ bool parseSoakList(const std::string& text, std::vector<SoakStage>* out) {
         if (eyes == "mono") s.stereo = false;
         else if (eyes == "stereo") s.stereo = true;
         else return false;
+        for (size_t i = 3; i < f.size(); ++i) {
+            const std::string opt = trim(f[i]);
+            const size_t eq = opt.find('=');
+            if (eq == std::string::npos || eq == 0 || eq + 1 >= opt.size()) return false;
+            const std::string key = opt.substr(0, eq), val = opt.substr(eq + 1);
+            for (char c : key)
+                if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) return false;
+            for (char c : val)
+                if (c == ' ' || c == '\t' || c == '=' || static_cast<unsigned char>(c) < 0x20) return false;
+            if (key == "mode" || key == "game" || key == "level" || key == "slider" || key == "soak" || key == "report_to")
+                return false;
+            s.options.emplace_back(key, val);
+        }
         stages.push_back(s);
     }
     if (stages.empty()) return false;
@@ -77,12 +90,26 @@ std::vector<SoakStage> defaultSoakStages(const std::vector<std::string>& gameKey
     std::vector<SoakStage> out;
     for (const std::string& g : gameKeys)
         for (int level = 1; level <= 2; ++level)
-            for (int stereo = 0; stereo < 2; ++stereo) out.push_back(SoakStage{g, level, stereo != 0});
+            for (int stereo = 0; stereo < 2; ++stereo) out.push_back(SoakStage{g, level, stereo != 0, {}});
     return out;
 }
 
 std::string soakStageName(const SoakStage& s) {
-    return s.game + ":" + std::to_string(s.level) + (s.stereo ? ":stereo" : ":mono");
+    std::string n = s.game + ":" + std::to_string(s.level) + (s.stereo ? ":stereo" : ":mono");
+    for (const auto& o : s.options) n += ":" + o.first + "=" + o.second;
+    return n;
+}
+
+std::string soakStageOptionsText(const SoakStage& s) {
+    std::string t;
+    for (const auto& o : s.options) t += o.first + "=" + o.second + "\n";
+    return t;
+}
+
+std::string soakStageOptions(const SoakStage& s) {
+    std::string t;
+    for (const auto& o : s.options) t += (t.empty() ? "" : ":") + o.first + "=" + o.second;
+    return t.empty() ? std::string("none") : t;
 }
 
 std::string soakVerdict(const std::vector<SoakStageResult>& results, const std::vector<std::string>& failNotes) {

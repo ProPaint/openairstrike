@@ -17,18 +17,27 @@
 
 namespace ctrapp {
 
-// One stage of the soak: a bot run of `level` of `game` in mono or stereo (slider forced to 0.5).
+// One stage of the soak: a bot run of `level` of `game` in mono or stereo (slider forced to 0.5),
+// with run.ini key=value overrides for this stage only (R3.3: the A/B stages of one launch).
 struct SoakStage {
     std::string game; // a profile key: as3d, as2, gulf
     int level = 1;
     bool stereo = false;
+    std::vector<std::pair<std::string, std::string>> options; // in the list's order
 };
 
-// "as3d:1:mono,as3d:1:stereo,gulf:2:stereo": false (and *out untouched) on a malformed entry.
+// "as3d:1:mono,as3d:1:stereo:eye_replay=0:soak_frames=3600,gulf:2:stereo": false (and *out
+// untouched) on a malformed entry. An option is key=value, the key [a-z0-9_]+ and not one the
+// stage itself sets (mode, game, level, slider, soak, report_to), the value without spaces,
+// commas, colons or '='.
 bool parseSoakList(const std::string& text, std::vector<SoakStage>* out);
+// The overrides as run.ini lines ("key=value\n" each).
+std::string soakStageOptionsText(const SoakStage& s);
+// "eye_replay=0:soak_frames=3600", or "none".
+std::string soakStageOptions(const SoakStage& s);
 // The default stages: for each game key, mission 1 and 2, each in mono then stereo.
 std::vector<SoakStage> defaultSoakStages(const std::vector<std::string>& gameKeys);
-std::string soakStageName(const SoakStage& s); // "as3d:1:mono"
+std::string soakStageName(const SoakStage& s); // "as3d:1:mono", "as3d:1:stereo:eye_replay=0"
 
 // What a stage measured (ctr_soak.cpp fills it from the loop's report).
 struct SoakStageResult {

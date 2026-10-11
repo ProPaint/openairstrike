@@ -161,10 +161,20 @@ def contact_sheet(d):
 
 
 STAGE_RE = re.compile(r"AS3D_SOAK_STAGE n=(\d+) of=\d+ game=(\w+) level=(\d+) eyes=(\w+)")
+OPTS_RE = re.compile(r" opts=(\S+)")
+
+
+def stage_dir_name(n, game, level, eyes, opts):
+    """<NN>-<game>-<level>-<eyes>[-key=value...]: a stage's run.ini overrides (soak=...:key=value,
+    docs/3ds-port.md "Third console soak") in its directory name, ':' as '-'."""
+    name = "%02d-%s-%s-%s" % (n, game, level, eyes)
+    if opts and opts != "none":
+        name += "-" + re.sub(r"[^A-Za-z0-9_=.-]", "-", opts.replace(":", "-"))
+    return name
 
 
 def split_stages(d):
-    """A soak's log.txt and perf.csv cut per stage into <d>/stages/<NN>-<game>-<level>-<eyes>/.
+    """A soak's log.txt and perf.csv cut per stage into <d>/stages/<NN>-<game>-<level>-<eyes>[-opts]/.
     Returns [(dir, stereo)], empty when the log is not a soak's."""
     log = os.path.join(d, "log.txt")
     lines = open(log, errors="replace").read().splitlines(True)
@@ -172,9 +182,10 @@ def split_stages(d):
     for i, l in enumerate(lines):
         m = STAGE_RE.search(l)
         if m:
-            cuts.append((i, int(m.group(1)), m.group(2), m.group(3), m.group(4)))
-        elif "AS3D_SOAK_VERDICT" in l and cuts and len(cuts[-1]) == 5:
-            cuts.append((i, None, None, None, None))
+            o = OPTS_RE.search(l)
+            cuts.append((i, int(m.group(1)), m.group(2), m.group(3), m.group(4), o.group(1) if o else None))
+        elif "AS3D_SOAK_VERDICT" in l and cuts and cuts[-1][1] is not None:
+            cuts.append((i, None, None, None, None, None))
             break
     rows = {}
     csv_path = os.path.join(d, "perf.csv")
@@ -189,11 +200,11 @@ def split_stages(d):
                 if k >= 0 and len(parts) > k:
                     rows.setdefault(parts[k], []).append(row)
     out = []
-    for j, (start, n, game, level, eyes) in enumerate(cuts):
+    for j, (start, n, game, level, eyes, opts) in enumerate(cuts):
         if n is None:
             break
         end = cuts[j + 1][0] if j + 1 < len(cuts) else len(lines)
-        sd = os.path.join(d, "stages", "%02d-%s-%s-%s" % (n, game, level, eyes))
+        sd = os.path.join(d, "stages", stage_dir_name(n, game, level, eyes, opts))
         os.makedirs(sd, exist_ok=True)
         with open(os.path.join(sd, "log.txt"), "w") as f:
             f.writelines(lines[start:end])
@@ -328,6 +339,25 @@ def self_test():
                 good = not os.path.exists(os.path.join(root, "evil"))
             print("%s  %s complete=%s names=%s err=%s" % ("PASS" if good else "FAIL", payload[:24], complete, names, err))
             ok = ok and good
+    # The per-stage cut of a soak whose stages carry run.ini overrides (soak=...:key=value, R3.3).
+    with tempfile.TemporaryDirectory() as d:
+        log = ("[info] AS3D_SOAK_STAGE n=1 of=2 game=as3d level=1 eyes=mono slider=0.00 frames=24000 opts=none\n"
+               "[info] stage one\n"
+               "[info] AS3D_SOAK_STAGE n=2 of=2 game=as3d level=1 eyes=stereo slider=0.50 frames=3600 "
+               "opts=soak_frames=3600:eye_replay=0\n"
+               "[info] stage two\n"
+               "[info] AS3D_SOAK_VERDICT VERDICT PASS\n")
+        with open(os.path.join(d, "log.txt"), "w") as f:
+            f.write(log)
+        with open(os.path.join(d, "perf.csv"), "w") as f:
+            f.write("frame,stage\n0,1\n0,2\n1,2\n")
+        stages = split_stages(d)
+        names = [os.path.basename(sd) for sd, _ in stages]
+        want = ["01-as3d-1-mono", "02-as3d-1-stereo-soak_frames=3600-eye_replay=0"]
+        rows = open(os.path.join(d, "stages", want[1], "perf.csv")).read().count("\n") if names == want else 0
+        good = names == want and [st for _, st in stages] == [False, True] and rows == 3
+        print("%s  split_stages with overrides: %s" % ("PASS" if good else "FAIL", names))
+        ok = ok and good
     print("self-test: %s" % ("OK" if ok else "FAILED"))
     return 0 if ok else 1
 
@@ -340,11 +370,16 @@ def main():
     ap.add_argument("--once", action="store_true", help="stop after one run")
     ap.add_argument("--sim", default=None, help="as3d_sim for the end-state comparison (tools/3ds_soak_compare.py)")
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--report", metavar="DIR", default=None,
+                    help="no listening: the report of a run already filed (or fetched over ftpd) in DIR")
     ap.add_argument("--expect", default=None, metavar="COMMIT",
                     help="the drop's commit: a run of another build is flagged (an old CIA in the HOME menu)")
     a = ap.parse_args()
     if a.self_test:
         return self_test()
+    if a.report:
+        report(a.report, a.sim, expect=a.expect)
+        return 0
     serve(a.port, a.bind, a.out, a.once, a.sim, expect=a.expect)
     return 0
 
