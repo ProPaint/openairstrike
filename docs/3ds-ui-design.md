@@ -242,11 +242,12 @@ offline resample the engine would do.
 
 - **Font: the game's own font** at the three fixed sizes (alternative A, the X11 pixel font, is dropped).
 - **Top screen in menus: the live attract level** (alternative B, the static panel, is dropped).
-- **No controller-button sprites.** The owner does not like the look of the round A/B/X/Y/R button
-  glyphs in the mockups. Key hints are text in the game's own font and colours, the key letter set
-  in a thin frame in the game's HUD style (e.g. `[A] Select  [B] Back`, the brackets drawn as the HUD's
-  orange frame corners), no circles, no Nintendo-style glyph art. The menus package shows the
-  footer in the gallery for the owner to judge.
+- **Better-looking controller-button sprites.** The owner keeps button glyphs in the key hints but
+  does not like the round A/B/X/Y/R ones in the mockups. Candidates to draw and show as images
+  (1x and 2x), the owner picks: (1) badges drawn in the game's own style and palette (the HUD's
+  orange/gold frame colours, a bevel, the letter in the game's font); (2) a CC0 prompt set (e.g.
+  Kenney's Input Prompts, pixel 16 px and 32 px variants) recoloured to the game's palette; (3) the
+  letter in a thin HUD-style frame. No Nintendo glyph art (trademarked).
 
 ## 4. Implementation plan (next package)
 
