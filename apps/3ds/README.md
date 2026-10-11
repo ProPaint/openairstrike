@@ -114,7 +114,7 @@ start a comment line, unknown keys are ignored, no file (or no `mode=`) means `m
 
 | key | values | meaning |
 |---|---|---|
-| `mode` | `play` (default), `menu`, `sim`, `bot`, `spike`, `probe` and the test modes below | `spike`, `probe` and every other value (`picatest`, `meshtest`, ...) run the old code paths. `sim`: the mission headless at full speed with the bot, no screens, ends after `frames` steps (reproduces `as3d_sim --bot`). `bot`: real-time 60 Hz loop with the bot's input and both screens through the frame composer (`ctr_frame.cpp`: the world on the top screen, in stereo with the 3D slider, the HUD, hint box and touch buttons on the bottom one, a loading screen while the level is precached). `play`: the same loop with the pad (circle pad / D-pad steer, A fire, B missile, X power-up, Y weapon, R next missile, START pause, ZR next power-up on a New 3DS; the bottom-screen buttons pause / next weapon / next missile / missile / power-up / next power-up work by touch; see `ctr_input.h`). |
+| `mode` | `play` (default), `menu`, `sim`, `bot`, `soak`, `spike`, `probe` and the test modes below | `soak`: the console tests itself, a chain of `bot` runs in one launch, then `soak.txt` and back to the launcher (see "Soak mode and the log push (P7)" below). `spike`, `probe` and every other value (`picatest`, `meshtest`, ...) run the old code paths. `sim`: the mission headless at full speed with the bot, no screens, ends after `frames` steps (reproduces `as3d_sim --bot`). `bot`: real-time 60 Hz loop with the bot's input and both screens through the frame composer (`ctr_frame.cpp`: the world on the top screen, in stereo with the 3D slider, the HUD, hint box and touch buttons on the bottom one, a loading screen while the level is precached). `play`: the same loop with the pad (circle pad / D-pad steer, A fire, B missile, X power-up, Y weapon, R next missile, START pause, ZR next power-up on a New 3DS; the bottom-screen buttons pause / next weapon / next missile / missile / power-up / next power-up work by touch; see `ctr_input.h`). |
 | `game` | profile key (`as3d`, `as2`, `gulf`) or `select` | the game; its paks are read from `sdmc:/3ds/openairstrike/<key>/`. In the front end (`mode=menu`, or `mode=play` without `level=`) an absent `game=` or `game=select` shows the game selector first (see "Game selector (M5.4)"); the direct modes (`sim`, `bot`, `play` with `level=`) use `as3d` when it is absent |
 | `level` | N, default 1 | the mission to start directly (the front end is off: `startLevel=true`, `levelFlow=false`). `mode=play` without `level=` runs the front end instead (see "Front end (M2.1)") |
 | `frames` | N, default 0 | simulation steps, then the app quits cleanly; 0 means 600 in `sim` and unlimited otherwise |
@@ -147,6 +147,10 @@ start a comment line, unknown keys are ignored, no file (or no `mode=`) means `m
 | `clear` | `split` (default), `joint` or `quad` | how a target with colour and depth is cleared (docs/3ds-port.md "Console session of 2026-10-11"): `split` = two GX memory fills (depth, then colour) on the engine whose completion libctru's GX queue waits for; `joint` = citro3d's single fill (the depth half on PSC1, which the queue does not wait for: the behaviour up to the round-2 drop); `quad` = a full-screen quad in the command list (no fill engine) |
 | `arena_poison` | `0` (default) or `1` | synchronisation check (docs/3ds-port.md "Frame synchronisation"): each frame arena half and water buffer half is filled with finite garbage and flushed the moment the CPU takes it back, and every deferred block (meshes, textures, 2D caches) when it is freed: a GPU still reading one draws visible garbage. Costs about a 1.5 MB fill per frame |
 | `state_check` | `0` (default), `1`, `2` | the render-state self-check (`state_check_pica.h`): `1` compares the terrain's and the water's expected state with the shadow copies and citro3d's context before their draws (`AS3D_STATE_MISMATCH`), reads the GPU's idle status at each frame start (`AS3D_GPU_BUSY`), logs `AS3D_STATE` every 60 frames (water plane, tiles, near tiles, span, its buffer half/offset, near planes, fence, textures created inside frames, command buffer and GX queue use); `2` also reads the GPU registers back right after the terrain's and the water's draws (`AS3D_GPU_MISMATCH`, `AS3D_GPU_REGS`; stalls the CPU twice per eye). With either, **L** marks the moment (the water wash on screen): `AS3D_WASH_MARK`, the screens dumped to `mark<NN>_*.ppm`, the next 3 frames checked in full |
+| `probe_every` | N, default 30 in `soak`, 0 otherwise | with `state_check` on: every N displayed frames the GPU registers are read back after the terrain's draws (the `state_check=2` read-back, one GPU stall per eye; the pacer excuses that frame), so the water wash's signature `AS3D_GPU_MISMATCH pass=terrain` is caught without L; the first 3 mismatches of a level start dump the screens as L does (`AS3D_AUTO_MARK`, `mark<NN>_*.ppm`, numbered over the whole launch) |
+| `probe_inject` | N, default 0 | the N-th probe of each level start reports a made-up terrain mismatch (`field=inject`): the self-test of the mark, verdict and push path on a GPU that never loses its state (Azahar) |
+| `report_to` | `IP:PORT`, default none | at the clean end of any mode the files this launch wrote (log.txt, perf.csv, soak.txt, the mark dumps) are pushed over TCP to `tools/3ds_receive.py` on the PC (3 s connect timeout; when it cannot connect, one `AS3D_REPORT ... not sent` line and the files stay on the SD card) |
+| `soak`, `soak_frames` | see "Soak mode" | the stages of `mode=soak` and their length |
 | `passes` | names, default all | only these passes draw, for A/B hardware runs: `clear terrain marks shadows opaque water rest lightning particles sprites brightness top2d model hud hint touch bottom2d`, `world` (the world passes), `all`, `none`; comma separated |
 | `hud`, `touch` | `1` (default) or `0` | `0` leaves the HUD / the touch band off the bottom screen |
 | `top_format` | `rgba8` (default) or `rgb565` | the top screen's eye targets and framebuffers in RGB565: half the colour bytes the GPU writes and blends (stereo GPU A/B); dumps are read back from 565 (Azahar: MAE 4.6 against RGBA8, the 565 steps under the brightness pass) |
@@ -170,7 +174,8 @@ speed-up on.
 Outputs, all in `sdmc:/3ds/openairstrike/`: `log.txt` (every `AS3D_INFO/WARN/ERROR` of the engine and
 the app, kept in memory and written about once a second by a low-priority writer thread, never on the main thread during play; replaced at each start), and with `perf=1` `perf.csv`, one row per
 displayed frame: `frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,
-linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz` (prepare_ms: the
+linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz,stage` (stage: the soak's
+stage number, 0 otherwise; a soak's stages append to one file, the frame column restarting; prepare_ms: the
 composer's CPU prepare; verts/draws: the GPU work of both screens and both eyes; lazy_loads: first-use
 loads since the precache; arena_kb: the frame arena bytes the frame used; the frame's CPU in order:
 step_ms, prepare_ms, wait_ms in C3D_FrameBegin (vblank and previous GPU frame), submit_ms recording
@@ -194,9 +199,57 @@ heap high-water, linear free, lazy loads, arena). Fetch with ftpd and report:
     tools/3ds_fetch_logs.sh 192.168.1.133         # -> out/3ds/<date>-<commit>/
     python3 tools/3ds_perf_report.py out/3ds/<date>-<commit>
 
+## Soak mode and the log push (P7)
+
+The console tests itself: the owner starts OpenAirStrike from the Homebrew Launcher and waits for the
+launcher to come back; the agent runs the receiver on the PC. docs/3ds-port.md, "Soak mode and the log
+push (round 2, P7)". The drop's `run.ini`:
+
+    mode=soak
+    report_to=192.168.1.86:7777
+    perf=1
+    state_check=1
+    log_lazy=1
+
+`mode=soak` (`source/ctr_soak.cpp`) runs a chain of `mode=bot` stages on the same screens (the loading
+screen between them): by default every game whose paks are installed, missions 1 and 2, each in mono and
+in stereo (`slider` forced to 0 / 0.5, the hardware slider ignored), `soak_frames` steps each (default
+1800), with the weapon tour (`bot_weapons=1`), `perf=1`, `state_check` at least 1 and `probe_every=30`.
+`soak=as3d:1:mono,as3d:1:stereo,gulf:2:stereo` chooses the stages (a game that is not installed is
+skipped). Per stage the log gets `AS3D_SOAK_STAGE` (game, level, eyes, frames, weapons), the stage's own
+config line, `AS3D_PACE`, `AS3D_PASS_MS`, `PERF_SUMMARY`, `AS3D_LAZY_LOADS`, the end state (`level N: F
+frames, map_pos ...`) and `AS3D_SOAK_RESULT` (pacer, GPU, lazy loads, GPU mismatches, probes and their
+stall, fence, busy, textures created inside a frame). At the end `soak.txt`, one line per check:
+
+| check | PASS when |
+|---|---|
+| `wash` | no `AS3D_GPU_MISMATCH pass=terrain` over all stages (and at least one probe ran) |
+| `mono60 <stage>` | at least 97 % of the frames after the pacer's grace at 60 Hz (the miss rate beside it); `INFO` for a stage shorter than the grace |
+| `stereo <stage>` | informational (the rate it settled at, GPU avg / p95); FAIL only when it could not hold 30 Hz (more than 3 % misses at 30) |
+| `lazy_loads` | no first-use load after the precache (the sequels' TerraMorph stamps are counted beside it: not precachable) |
+| `fence`, `gpu_busy`, `tex_in_frame` | no `AS3D_FENCE`, `AS3D_GPU_BUSY`, `AS3D_TEX_IN_FRAME` |
+| `stages_finished` | every stage that started reached its last step; a launch that died inside a stage leaves `soak.running`, which the next launch reports as a `FAIL note` (in its own `soak.txt` when it is not a soak) |
+
+and `VERDICT PASS|FAIL`; then the app returns to the launcher by itself (START+SELECT still aborts).
+
+`report_to=IP:PORT` (any mode, `source/ctr_report.cpp`): libctru's soc service is started only then
+(a 1 MB buffer), the connection times out after 3 s, nothing is read from it. The stream: `AS3D1\n`,
+per file `<name>\n<size>\n` and the bytes, `END\n` (`source/soak_report.h`). The CIA's service list has
+`soc:U` for it; the `.3dsx` needs nothing more (the Homebrew Launcher grants its services). On the PC:
+
+    tools/3ds_receive.py --port 7777          # -> out/3ds/<date>-<commit>/, until Ctrl-C
+
+writes each run to `out/3ds/<date>-<commit of the log's build=>/` (names with a slash or `..` and files
+over 64 MB are refused), prints `soak.txt`, runs `tools/3ds_perf_report.py` per stage
+(`stages/<NN>-<game>-<level>-<eyes>/`), converts the marks to PNG with `marks_sheet.png` (top | right |
+depth | bottom per mark) and runs `tools/3ds_soak_compare.py`, which replays every stage with
+`as3d_sim --game G --level N --frames F --bot --bot-weapons` and compares map_pos, entities, slots,
+created, freed (PASS/FAIL per stage). The console's address for the PC: `ip route get 192.168.1.133`
+(`src`). `mode=play` is unchanged for playing.
+
 Code: `ctr_main.cpp` (entry), `run_config.*`, `ctr_loop.*` (the loop, `FrameHook`), `ctr_frame.*`
 (the frame composer: PICA WorldRenderer, 2D layer, stereo, loading screen; docs/3ds-port.md
-"M1.8"), `ctr_perf.*`;
+"M1.8"), `ctr_perf.*`, `ctr_soak.*` and `ctr_report.*` (P7, with the neutral `soak_report.*` and `build_info.*`);
 the graphics context is the engine's ctr platform backend (`engine/src/platform/ctr/`, its
 private header `ctr_context.h`).
 

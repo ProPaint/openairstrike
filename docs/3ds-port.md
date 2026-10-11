@@ -26,6 +26,19 @@ with `tools/3ds_fetch_logs.sh` after it):
 5. Optional: install `openairstrike.cia` with FBI and start it from the HOME menu (icon, banner,
    804 MHz line in the log).
 
+**The console tests itself (round 2, P7; see "Soak mode and the log push" at the end).** The owner's
+procedure is now: start OpenAirStrike from the Homebrew Launcher, wait until the launcher comes back
+(five to ten minutes), nothing else. The drop's `run.ini` is `mode=soak report_to=<this PC>:7777 perf=1
+state_check=1 log_lazy=1` (the PC's address: `ip route get 192.168.1.133`, `src`): bot runs of every
+installed game (missions 1 and 2, mono and stereo at slider 0.5, the weapon tour, the GPU read-back of
+the terrain every 30 frames so the water wash is caught without L), the verdict in `soak.txt`, then
+every file of the run pushed to the PC. The agent starts `tools/3ds_receive.py --port 7777` before the
+owner launches: it files the run under `out/3ds/<date>-<commit>/`, prints the verdict, runs the perf
+report per stage, the marks' contact sheet and the end-state comparison with `as3d_sim`. If the PC was
+not listening, the files are on the card as before (ftpd + `tools/3ds_fetch_logs.sh`; it fetches
+`soak.txt` too now). `run-play.ini` (`mode=play` with the same diagnostics) is in the drop for when the
+owner wants to play.
+
 Last console-verified state before round 2 (New 3DS, drop 4, main `098f524` = drop 5 was played
 but not measured):
 
@@ -3093,3 +3106,92 @@ defaults are lower: `eye_offset` 3 (was 4), `max_parallax_px` 6 (was 10), `max_f
 holds), `AS3D_TOUCH_PREBUILD` 10 ms in the loading screen, no `AS3D_FENCE`, no `AS3D_GPU_BUSY`,
 no texture created inside a frame, heap 15.5 MB, linear free 16 MB at the lowest, texture VRAM
 4193 KB. The three `AS3D_SLOW_SUBMIT` lines are the L mark's own read-backs.
+
+## Soak mode and the log push (round 2, P7)
+
+The owner no longer does QA by hand: one launch runs the checks, writes the verdict, pushes the files
+to the PC and returns to the Homebrew Launcher (the owner's "done" signal). Code:
+`apps/3ds/source/ctr_soak.cpp` (the stages), `ctr_report.cpp` (the push), `soak_report.{h,cpp}` (the
+stage list, the verdict and the framing: platform-neutral, tested on the desktop by
+`apps/tests/soak_report_test.cpp`), the probe in `engine/src/render/pica/state_check_pica.cpp`; on the PC
+`tools/3ds_receive.py` and `tools/3ds_soak_compare.py`. The keys are in apps/3ds/README.md ("Soak mode
+and the log push (P7)").
+
+**The stages.** `mode=soak` runs `runCtrLoop` in `mode=bot` once per stage on the same graphics context
+and input (the loop now borrows them, as the front end does from the selector), with a loading screen
+between stages: every game whose paks are installed, missions 1 and 2, each in mono (`slider=0`) and in
+stereo (`slider=0.5`; the hardware slider is ignored), `soak_frames` steps (1800), the weapon tour,
+`perf=1`, `state_check>=1`, `probe_every=30`, audio and music on (the mono hiccup of the last session was
+the music thread). `soak=game:level:mono|stereo,...` overrides the list. Before each stage
+`soak.running` names it on the card; it is removed at the end, so a launch that died inside a stage is
+reported by the next one (`FAIL note the previous launch stopped inside a stage (...)`). The lazy-load
+log is disarmed between stages (the previous stage's precache had armed it: the next session start
+logged 500 false AS3D_LAZY lines). Each stage appends to the same `log.txt` and `perf.csv` (a new
+`stage` column; the frame column restarts).
+
+**The probe.** `probe_every=N`: every N frames the terrain pass's register read-back of
+`state_check=2` (`probeGpuState("terrain")`: the command list so far submitted and waited for, one stall
+per eye) compares the PICA's registers with citro3d's context, so the wash's signature
+(`AS3D_GPU_MISMATCH pass=terrain field=depth_test`) is counted without anyone pressing L. The first 3
+GPU mismatches of a level start mark the frame as L does (`AS3D_AUTO_MARK`, `mark<NN>_top/right/
+bottom/depth.ppm`; the numbers now run over the whole launch, so stages do not overwrite each other's
+marks), and the next 3 frames are checked in full. The pacer excuses a frame that ran a probe and the
+next one (the stall delays the next vblank), so the 60 Hz verdict judges the game, not the instrument.
+`probe_inject=N` makes the N-th probe of each level start report a made-up mismatch (`field=inject`):
+the self-test of the mark, verdict and push path on Azahar, whose GPU never loses its state.
+
+**The verdict** (`soak.txt`, also as `AS3D_SOAK_VERDICT` lines in the log): `wash` (no terrain GPU
+mismatch over all stages, at least one probe), `mono60 <stage>` (>= 97 % of the frames after the pacer's
+300-frame grace at 60 Hz, the miss rate beside it), `stereo <stage>` (the rate it settled at and the GPU
+avg / p95; FAIL only when it could not hold 30 Hz), `lazy_loads` (0; the sequels' TerraMorph stamps,
+not precachable by design (as3d/load_stats.h), are counted beside it), `fence`, `gpu_busy`,
+`tex_in_frame` (no AS3D_FENCE / AS3D_GPU_BUSY / AS3D_TEX_IN_FRAME), `stages_finished`, then `VERDICT
+PASS|FAIL`. Per stage the log has `AS3D_SOAK_STAGE` (game, level, eyes, frames, weapons: what the PC's
+comparison needs), the stage's config line (now with `probe_every`, `slider`, `stage` and `build=<commit>`,
+the commit tools/3ds_build.sh passes in), the pacer's `AS3D_PACE` lines and `PERF_SUMMARY pace` (now with
+`after_grace`, `at60`, `at30`, `probe_excused`, `hz_end`), the pass profile, `AS3D_LAZY_LOADS`, the end
+state and `AS3D_SOAK_RESULT` (the counts above plus the probes and their stall, avg / max ms).
+
+**The push.** `report_to=IP:PORT`, in any mode: after the run (before a fatal screen, if any) libctru's
+soc service is started (`socInit` with a 1 MB `memalign(0x1000)` buffer, only then), a non-blocking
+connect with a 3 s timeout, then the files this launch wrote (noted as they are written: `perf.csv`,
+`soak.txt`, the marks; an older `soak.txt` or mark on the card is not sent) and `log.txt` last, in the
+framing `AS3D1\n`, per file `<name>\n<size>\n` + bytes, `END\n`. Nothing is read from the socket.
+When it cannot connect: one `AS3D_REPORT ... not sent: <why>` line and the files stay on the SD card.
+The CIA's RSF lists `soc:U`; the `.3dsx` needs nothing more (the Homebrew Launcher's process has the
+service). `tools/3ds_receive.py` listens (one connection at a time, until Ctrl-C), refuses names with
+a slash, a backslash or `..` and files over 64 MB, files the run under `out/3ds/<date>-<commit>/`
+(the log's `build=`), prints `soak.txt` and the `AS3D_SOAK_RESULT` lines, cuts the log and perf.csv per
+stage (`stages/<NN>-<game>-<level>-<eyes>/`) and runs `tools/3ds_perf_report.py` on each (stereo with
+`--slider max`), converts the marks to PNG with `marks_sheet.png`, and runs `tools/3ds_soak_compare.py`:
+for every stage `as3d_sim --game G --level N --frames F --bot --bot-weapons` (the sim tool got
+`--bot-weapons`, the weapon tour on top of the bot as on the console) against the stage's end state
+(map_pos, entities, slots, created, freed, refused, script errors).
+
+**Azahar (2026-10-11, no console):**
+
+- `mode=soak soak_frames=300`, the default stages with all three games on the emulated card: 12
+  stages, 12 finished, `VERDICT PASS` (`wash` PASS with 105 probes and 0 mismatches; lazy loads 0 with
+  16 TerraMorph stamps in the sequels; no fence, busy or in-frame texture; the rate lines are `INFO`:
+  300 steps are shorter than the pacer's grace). The push to `127.0.0.1:7777` arrived (Azahar's soc
+  reaches the host: 3 files, 418 KB, 42 ms to connect) and the receiver's comparison gave **12 of 12 end
+  states equal to the desktop sim** (as3d, as2, gulf, missions 1 and 2, mono and stereo).
+- The mark path: `soak=as3d:1:mono,gulf:2:stereo soak_frames=900 probe_inject=5`: two `AS3D_AUTO_MARK`,
+  seven mark PPMs pushed (10 files, 2 MB), the contact sheet, `wash` FAIL with the two made-up
+  mismatches, both end states equal to the sim.
+- The crash marker: a planted `soak.running` gave `FAIL note the previous launch stopped inside a stage
+  (...)` and was removed. `report_to` with nothing listening (a plain `mode=bot` run): `AS3D_REPORT
+  to=127.0.0.1:7799 not sent: connection refused or unreachable (errno 111)`, the run otherwise intact.
+- The probe's cost, mission 1 mono, 1800 steps, the weapon tour, `state_check=1`: the soak stage (37
+  probes) against a plain `mode=bot` run: frame 26.78 vs 26.83 ms avg, submit 10.60 vs 10.58 ms, 1125 vs
+  1123 frames, end states identical. Azahar's stall per probe is 0.6 ms (its GPU is synchronous); on the
+  console it is the GPU time of the terrain draws recorded so far, about 1 to 3 ms, once every 30 frames,
+  and the pacer excuses it. `AS3D_SOAK_RESULT probe_ms_avg_max=` gives the console's number.
+- Not checked on Azahar: the return to the Homebrew Launcher at the end (the same path as any
+  `frames=`-limited bot run, which the console has done since M1) and the console's Wi-Fi.
+
+**On the console, what to expect:** about 30 s per stage plus its load (12 stages with three games:
+eight to ten minutes), then the launcher. The first console soak gives, without the owner doing anything
+else: whether the wash still happens with `clear=split` (any `pass=terrain` GPU mismatch, with the marks),
+mono at 60 Hz with the music thread fixed, the stereo GPU numbers per mission and game, and the end
+states of all three games against the desktop.
