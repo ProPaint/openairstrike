@@ -388,7 +388,7 @@ void layoutInGame(ConsoleLayout& L, const Menu& m, const Texts& t) {
 void layoutHint(ConsoleLayout& L, const Menu& m, const Texts& t) {
     const int i = indexOf(m, 1);
     if (i >= 0) L.boxes.push_back(bar(i, {80, 100, 160, 56}, conText(t, "hint.ok", "OK")));
-    footerHints(L, 8, {{HintKey::A, conText(t, "hint.ok", "OK")}});
+    // No footer: the HUD's pad reminder sits in the bottom-left corner; the top box says "A OK".
 }
 
 void layoutGameOver(ConsoleLayout& L, const Menu& m, const Texts& t) {

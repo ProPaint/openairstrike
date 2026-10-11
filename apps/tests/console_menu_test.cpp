@@ -583,3 +583,28 @@ TEST_CASE("console menus: one size per group of labels") {
         rig.fe.menus().pop();
     }
 }
+
+// R4.7: the tutorial hint is a console screen: a 160 x 56 OK on the bottom (no footer: the HUD's
+// pad reminder is in the bottom-left corner), a tap on it closes the hint and resumes play.
+TEST_CASE("console menus: the tutorial hint's OK") {
+    Rig rig;
+    rig.fe.menus().clear(); // the main menu of the boot
+    rig.fe.setState(FrontendState::Playing);
+    rig.fe.showTutorialHint("To launch missile^press the {Shift} key.");
+    REQUIRE(rig.fe.menuOpen());
+    REQUIRE(rig.fe.topScreen() == Screen::Hint);
+    CHECK(ConsoleMenuView::handles(rig.fe));
+    for (int k = 0; k < 40; ++k) rig.fe.update(0.016f, {}); // past the opening: the OK is shown
+    REQUIRE_FALSE(rig.fe.menus().top()->items[0].hidden());
+    checkLayout(rig, "hint");
+    const ConsoleLayout L = rig.layout();
+    CHECK(L.hints.empty());
+    REQUIRE(rig.bar(1));
+    CHECK(rig.bar(1)->r.x == 80);
+    CHECK(rig.bar(1)->r.y == 100);
+    CHECK(rig.bar(1)->r.w == 160);
+    CHECK(rig.bar(1)->r.h == 56);
+    CHECK(rig.fe.facts().hintText.find("Shift") != std::string::npos);
+    rig.tapBox(*rig.bar(1));
+    CHECK_FALSE(rig.fe.menuOpen());
+}
