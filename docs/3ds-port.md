@@ -4835,3 +4835,143 @@ in doubles: 56 ms, not the 30 % Azahar charged). R4.6's cuts are worth 0.5 s on 
 - The sim end states of all four stages equal the desktop's: the sequels are correct on the console,
   only slow. R4.11 (in progress) takes the skins' residency, the draw count, the script precache, the
   light cache and the report's excuse.
+
+## Prefetch overlap (round 4, R4.10)
+
+The level start of a level with a read plan spent 1.14 s on the console reading the plan's 541 files
+(9.2 MB at 8 MB/s from the SD card) with the CPU idle, then about 2 s parsing (the definitions 191
+ms, the level 304, the textures) with the card idle (R4.2 E, R4.6 D). Now a reader thread fills the
+prefetch map while the main thread parses: the plan's runs are read in the order the start needs
+them, a read of a planned file not yet in memory waits for it, a file outside the plan reads the
+pak at once. The same bytes either way (the pak's data goes through the same map and the same
+decryption; apps/tests/vfs_test.cpp section 6 checks every file against its content, in and out of
+order, during and after the reader).
+
+### What changed
+
+- **The vfs (engine/include/as3d/vfs.h, engine/src/vfs/vfs.cpp, pak_source.cpp)**, platform-neutral:
+  `Vfs::setPrefetchThreading(threading)` takes the platform's thread and locks (`PrefetchThreading`:
+  start, join, a data lock with a condition, a stream lock); `Vfs::prefetchAsync(paths)` plans the
+  runs as `prefetch` does (per pak, the entries sorted by offset, neighbours within 64 KB read
+  together, runs up to 2 MB: the same 41 reads for mission 1) but orders them by the smallest
+  index in the list of the files each run brings (the plan records the paths in the order the
+  start read them, so the reader's order is the parsers' order) and hands the list to the thread.
+  The pak source marks the planned files *pending* under the data lock; `read()` of a file in the
+  map copies it (one copy, as before); of a pending file waits on the condition until its run lands;
+  of any other file reads the pak under the stream lock (one reader of the file handle at a time:
+  the reader's runs and the main thread's misses; `FSFILE_Read` on one handle from two threads
+  is not relied on, and the block cache of `pak_cache_kb`, when on, stays single-threaded).
+  `Vfs::prefetchJoin()` stops the reader (its current run finishes, the rest is forgotten and no
+  longer pending); `dropPrefetched(nullptr)`, the next `prefetchAsync`, `setPrefetchThreading` and
+  the destructor call it first, so no reader outlives the map or the stream. Without a threading
+  (or when the platform refuses a thread) `prefetchAsync` reads on the caller, as `prefetch`. The
+  definitions' own `Vfs::prefetch` (defs.cpp) skips the files that are pending or in the map and
+  reads the rest under the locks, as before otherwise. `Vfs::prefetchStats()` after the join:
+  files, runs, bytes, the reader's time, the main thread's waits (how long, how many files).
+- **The desktop's threading** (engine/src/vfs/prefetch_thread.cpp, `makeStdPrefetchThreading`):
+  std::thread, two mutexes, a condition variable; the tests run the same vfs code through it. Null
+  on the 3DS and the web (no std::thread there; the web never reads ahead on a thread).
+- **The 3DS's threading** (engine/src/platform/ctr/prefetch_thread_ctr.cpp,
+  `as3d::ctr::makePrefetchThreading`): a libctru thread with a 32 KB stack, LightLocks and a CondVar.
+  Core and priority as the audio feeder's (audio_device_ndsp.cpp): **core 1**, the application's 30 %
+  share (`APT_SetAppCpuTimeLimit(30)`, set by the ndsp device when it opens; with `audio=0` the
+  threading sets it itself when core 1 refuses the thread), **one priority step above its creator**
+  (0x2F for the main thread's 0x30); core 0 when core 1 still refuses. The thread spends its life
+  blocked in `FSFILE_Read` (the FS process and the SD card do the work) and, when a read returns,
+  copies the run's files into the map (about 9 MB of memcpy for the whole plan) and issues the next
+  read; the priority step matters only on core 0, where the 3DS kernel never time-slices between
+  priorities: at the main thread's priority or below, a returned read would be handled only when
+  the parse blocks, which it never does, and nothing would overlap. The description goes into the
+  log (`thread=core 1 prio 0x2F`).
+- **The app** (ctr_loop.h ReadPlan, run_config, ctr_frame.cpp): `ReadPlan::begin` sets the session's
+  threading (or none, `prefetch_thread=0`) and calls `prefetchAsync` right after the mount, where
+  `prefetch` was (GameOptions::afterMount, before the definitions); the front end's renderer plan
+  (`_fe`, `_attract`) the same. `ReadPlan::end` (after the audio's level start, before the first
+  frame) joins the reader and logs **`AS3D_PREFETCH plan= files= bytes= runs=<read>/<planned>
+  read_ms= wait_ms= waits= thread= join_ms=`** next to `AS3D_READPLAN`: `read_ms` is the reader's
+  time from its start to its last run, `wait_ms` how long the main thread waited for pending
+  files, `waits` how many reads waited, `join_ms` what the join cost (0 when the reader was done),
+  then the stream statistics since boot (file reads, KB). `AS3D_LOAD phase=prefetch` now says
+  `started on core N prio 0x.. in N ms (reading on; N file reads so far)` and `AS3D_LEVEL_START
+  prefetch=` is that start time (its `mount_rest` is the mount as before); with `prefetch_thread=0`
+  both lines read as before. The `pak reads` of `AS3D_LEVEL_START` (the stream statistics) count
+  the reader's reads wherever they land in time, so with the thread the session's and the
+  renderer's `pak reads` are the plan's runs split by when they completed, not reads of the main
+  thread (the stream's counters are written under the stream lock, by one thread at a time).
+- **run.ini `prefetch_thread=1|0`** (apps/3ds/README.md): 1 by default; 0 is the level start of
+  before, for the soak's comparison.
+
+### Azahar (correctness; Azahar's timings are indicative only, the console decides)
+
+Mission 1 of AirStrike 3D, `mode=bot frames=1800 slider=0 audio=0`, the second start of the level
+(the plan and the caches on the SD; Azahar reads the SD at about 5 MB/s), twice each, alternating;
+the two runs of each setting gave the same lines to the millisecond (Azahar's clock is
+deterministic), the end states equal (`level 1: 1800 frames, map_pos 1292.0, list entities 59,
+slots 125 (max 165)` in all four, `AS3D_LAZY_LOADS` all 0, `AS3D_READPLAN ... hits=519 unchanged`):
+
+    prefetch_thread=0
+    AS3D_LOAD phase=prefetch plan=as3d_m1 files=519 kb=6980 ms=1708 (38 file reads, 8270 KB read)
+    AS3D_PREFETCH plan=as3d_m1 files=519 bytes=7147773 runs=38/38 read_ms=1691 wait_ms=0 waits=0 thread=none join_ms=0.0
+    AS3D_LEVEL_START phases: to_first_frame=5338 gate_measure=5317 | session=3036 (prefetch=1708 mount_rest=80
+      defs=485 world_init=86 level=677 other=0; pak reads 1597 ms, 50 reads, 8374 KB) | renderer=2281 (textures=662
+      n=189 ...; meshes=195 n=176; shadows=137 silhouettes=145 cache_hits=145 ... cache_load=152; pak reads 0 ms;
+      rest=1286) | audio=0 | read_plan_end=7 | first_frame=14 (...)
+
+    prefetch_thread=1
+    AS3D_LOAD phase=prefetch plan=as3d_m1 files=519 runs=38 started on core 1 prio 0x2F in 16.8 ms (reading on; 12 file reads so far)
+    AS3D_PREFETCH plan=as3d_m1 files=519 bytes=7147773 runs=38/38 read_ms=1715 wait_ms=191 waits=1 thread=core 1 prio 0x2F
+      join_ms=0.0 (50 file reads, 8374 KB since boot)
+    AS3D_LEVEL_START phases: to_first_frame=3884 gate_measure=3862 | session=1573 (prefetch=17 mount_rest=80
+      defs=714 world_init=86 level=676 other=0; pak reads 1355 ms, 35 reads, 7127 KB) | renderer=2290 (textures=662
+      n=189 ...; meshes=195 n=176; shadows=137 silhouettes=145 cache_hits=145 ... cache_load=152; pak reads 242 ms;
+      rest=1053) | audio=0 | read_plan_end=7 | first_frame=14 (...)
+
+Read: the session 3036 -> 1573 ms (-1463), the gate measure 5317 -> 3862 (-1455); the reader's 38
+runs took 1715 ms (the same 38 reads of 8270 KB as before, 1708 ms on the main thread), of which
+the main thread waited 191 ms, once: for the first run (the definitions' files, 1.5 MB, which must
+land before the first parse; `defs=` 485 -> 714 holds that wait and the locks), then it never
+caught up with the reader again: the level's parse (676) and 242 ms of the renderer's start
+(`pak reads 242 ms` there: the reader's last 15 runs, read while the terrain was made) ran with the
+card busy. The 12 reads before the thread are the mount's (the three paks' headers, keys and
+tables, 104 KB). The thread took 16.8 ms to plan and start on Azahar (the sort of 519 entries,
+`APT_SetAppCpuTimeLimit` since `audio=0`, the thread's creation); `join_ms=0.0`: the reader was
+done long before the plan's end. Scaled to the console (the reads 1142 ms at 8 MB/s, the defs 191
+and the level 304 against Azahar's 485 and 677: the console parses 2.3x faster than Azahar while
+it reads 1.5x faster), the overlap should hide most of the level's parse and some of the defs':
+expected a session of about 1.3 s instead of 1.78 (the wait for the first run about 150 ms), the
+gate measure under 3 s with R4.6's cuts.
+
+### What the soak should check (`run-soak-r410.ini`)
+
+    soak=as3d:1:mono:soak_frames=1800,as3d:1:mono:soak_frames=1800:prefetch_thread=0,
+      as3d:2:mono:soak_frames=1800,as3d:2:mono:soak_frames=1800:prefetch_thread=0,
+      as2:1:mono:soak_frames=1800,gulf:1:mono:soak_frames=1800,as3d:1:stereo:soak_frames=1800
+
+- `AS3D_PREFETCH` of stages 1 and 3 (the thread) against 2 and 4 (the main thread): `read_ms` about
+  the 1142 of before (the same 41 reads; a little more if the main thread's misses interleave),
+  `wait_ms` is what the overlap did not hide: expected about 150 ms (the first run, the definitions'
+  1.5 MB, must land before the first parse; Azahar: 191 ms, one wait), `waits` 1 or a few.
+  `thread=core 1 prio 0x2F` (core 0 would mean core 1 refused the thread: still correct, and the
+  overlap holds there through the priority step).
+- `AS3D_LEVEL_START` of the same pairs: `session=` down by about `read_ms - wait_ms - 17` (expected
+  1783 -> about 1300), `gate_measure` by the same (3205 -> about 2.7 s with R4.6's cuts, the 3 s
+  gate); `defs=` grows by its wait (it is inside the session now), `level=` should not.
+- The thread's start (`AS3D_LOAD phase=prefetch ... in N ms`): Azahar's 16.8 ms; the console's
+  should be a few ms (the sort of 541 entries and `threadCreate`); more would be
+  `APT_SetAppCpuTimeLimit` or the creation itself, and is counted in `prefetch=`.
+- Every stage: the end state equal to the desktop sim (`tools/3ds_soak_compare.py`), 0 lost state
+  blocks, `AS3D_READPLAN ... unchanged` (the plan's order is unchanged by the thread: the main
+  thread's reads are recorded as before).
+- The sequels and the front end (stages 5-7, the `_fe` plans of a play session): the same lines,
+  no `AS3D_PREFETCH ... thread=refused`.
+- A hang at a level start would be a read waiting for a file whose run never lands: the log's
+  last line before the silence is then `AS3D_LOAD phase=prefetch ... started on`; `prefetch_thread=0`
+  is the way around it until the cause is found.
+
+### What remains
+
+- The first start of a level (no plan yet) gains nothing: still the precache set's read-ahead idea
+  of "Load: left for later".
+- The renderer's part (textures, the base cache's 1.37 MB read) is not overlapped with the terrain's
+  generation: the `_fe` plan interleaves them by the plan's order only.
+- `tools/3ds_perf_report.py` does not read `AS3D_PREFETCH` yet.
