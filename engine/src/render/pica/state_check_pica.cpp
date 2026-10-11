@@ -85,6 +85,13 @@ struct State {
     bool firstRegs[4] = {true, true, true, true};
     int fullFrames = 0;          // after a mark: frames left with full logging and GPU read-back
     int marks = 0;
+    int probeEvery = 0;          // probe_every=N: the terrain's GPU read-back every N frames
+    bool probeNow = false;       // this frame is one of them
+    unsigned terrainGpuMismatches = 0;
+    int autoMarks = 0;           // automatic marks asked for (kMaxAutoMarks at most)
+    unsigned probeInject = 0;    // probe_inject=N: the N-th probe reports a made-up mismatch
+    bool autoMarkPending = false;
+    u64 probeTicks = 0, probeMaxTicks = 0; // the probes' stalls
     unsigned queueMax = 0;       // most GX queue entries seen in a frame (citro3d's queue holds 32)
     float cmdMax = 0.0f;
     // The terrain's depth map of the current target (the water's must equal it).
@@ -100,6 +107,7 @@ State& st() {
     static State s;
     return s;
 }
+unsigned g_probesTotal = 0; // every probe since the start (not reset by setStateCheck)
 
 const char* funcName(int f) {
     static const char* names[] = {"NEVER", "ALWAYS", "EQUAL", "NOTEQUAL", "LESS", "LEQUAL", "GREATER", "GEQUAL"};
@@ -272,7 +280,9 @@ void checkPassState(const PassExpect& e) {
 
 void probeGpuState(const char* pass) {
     State& s = st();
-    if (!s.level || !s.ctxOk || !(s.level >= 2 || s.fullFrames > 0)) return;
+    const bool periodic = s.probeNow && std::strcmp(pass, "terrain") == 0;
+    if (!s.level || !s.ctxOk || !(s.level >= 2 || s.fullFrames > 0 || periodic)) return;
+    ++g_probesTotal;
     ++s.probes;
     const C3dContextMirror* m = ctxMirror();
     const bool effectDirty = (m->flags & kFlagEffect) != 0;
@@ -281,11 +291,15 @@ void probeGpuState(const char* pass) {
     const C3D_FrameBuf fb = m->fb;
     const C3D_Tex* tex0 = m->tex[0];
     // Everything recorded so far to the GPU, then wait for it.
+    const u64 stall0 = svcGetSystemTick();
     splitCommandList();
     gxCmdQueueRun(gxQueue());
     gxCmdQueueWait(gxQueue(), -1);
     u32 r40[16] = {}, r6d[1] = {}, r80[6] = {}, r100[30] = {};
     const bool ok = readRegs(0x40, r40, 16) && readRegs(0x6D, r6d, 1) && readRegs(0x80, r80, 6) && readRegs(0x100, r100, 30);
+    const u64 stall = svcGetSystemTick() - stall0;
+    s.probeTicks += stall;
+    if (stall > s.probeMaxTicks) s.probeMaxTicks = stall;
     const int slot = std::strncmp(pass, "water", 5) == 0 ? 1 : 0;
     if (s.firstRegs[slot] || s.fullFrames > 0) {
         s.firstRegs[slot] = false;
@@ -305,6 +319,12 @@ void probeGpuState(const char* pass) {
     if (!ok) return;
     auto gpuMismatch = [&](const char* field, u32 expected, u32 actual) {
         ++s.gpuMismatches;
+        if (std::strcmp(pass, "terrain") == 0) ++s.terrainGpuMismatches;
+        // probe_every: the first mismatches of a level start dump the screens (the caller's mark).
+        if (s.probeEvery > 0 && s.fullFrames <= 0 && s.autoMarks < kMaxAutoMarks && !s.autoMarkPending) {
+            s.autoMarkPending = true;
+            ++s.autoMarks;
+        }
         noteField(s, pass, field);
         if (s.gpuLogged >= 64 && s.fullFrames <= 0 && s.frames - s.lastLogFrame < 60) return;
         ++s.gpuLogged;
@@ -314,6 +334,7 @@ void probeGpuState(const char* pass) {
                   static_cast<unsigned>(frameSerial()), static_cast<const void*>(currentTarget().target),
                   effectDirty ? 1 : 0);
     };
+    if (s.probeInject && s.probes == s.probeInject && std::strcmp(pass, "terrain") == 0) gpuMismatch("inject", 0u, 1u); // probe_inject (self-test)
     if ((r6d[0] & 1u) != (ef.zBuffer ? 1u : 0u)) gpuMismatch("depthmap_mode", ef.zBuffer ? 1u : 0u, r6d[0]);
     if ((r40[0xD] & 0xFFFFFFu) != (ef.zScale & 0xFFFFFFu)) gpuMismatch("depthmap_scale", ef.zScale, r40[0xD]);
     if ((r40[0xE] & 0xFFFFFFu) != (ef.zOffset & 0xFFFFFFu)) gpuMismatch("depthmap_offset", ef.zOffset, r40[0xE]);
@@ -335,6 +356,7 @@ void probeGpuState(const char* pass) {
 void stateCheckFrameBegin() {
     State& s = st();
     if (!s.level) return;
+    s.probeNow = s.probeEvery > 0 && s.frames % static_cast<unsigned>(s.probeEvery) == 0;
     // The GPU after the fence: the memory fill engines (PSC0/PSC1 control, bit 0 busy) and the
     // display transfer engine (PPF, bit 0 busy) must be idle once the GX queue drained.
     u32 ext[12] = {};
@@ -389,6 +411,49 @@ void stateCheckFrameEnd() {
               s.fieldsSeen.empty() ? "none" : s.fieldsSeen.c_str());
     s.cmdMax = 0.0f;
     s.queueMax = 0;
+}
+
+void setProbeEvery(int frames) {
+    State& s = st();
+    s.probeEvery = frames > 0 ? frames : 0;
+    s.probeNow = false;
+    if (s.level && s.probeEvery)
+        AS3D_INFO("AS3D_STATE_CHECK probe_every=%d (the terrain's GPU read-back, one stall per eye; automatic marks: %d)",
+                  s.probeEvery, kMaxAutoMarks);
+}
+
+void setProbeInject(int nthProbe) {
+    State& s = st();
+    s.probeInject = nthProbe > 0 ? static_cast<unsigned>(nthProbe) : 0u;
+    if (s.level && s.probeInject)
+        AS3D_INFO("AS3D_STATE_CHECK probe_inject=%u (probe %u reports a made-up terrain mismatch: a self-test)", s.probeInject,
+                  s.probeInject);
+}
+
+bool stateCheckTakeAutoMark() {
+    State& s = st();
+    const bool due = s.autoMarkPending;
+    s.autoMarkPending = false;
+    return due;
+}
+
+unsigned stateCheckProbes() { return g_probesTotal; }
+
+StateCheckCounts stateCheckCounts() {
+    const State& s = st();
+    StateCheckCounts c;
+    c.checks = s.checks;
+    c.probes = s.probes;
+    c.mismatches = s.mismatches;
+    c.gpuMismatches = s.gpuMismatches;
+    c.terrainGpuMismatches = s.terrainGpuMismatches;
+    c.busyFrames = s.busyFrames;
+    c.marks = static_cast<unsigned>(s.marks);
+    c.autoMarks = static_cast<unsigned>(s.autoMarks);
+    c.contextRead = s.ctxOk;
+    c.probeMs = static_cast<double>(s.probeTicks) * 1000.0 / SYSCLOCK_ARM11;
+    c.probeMaxMs = static_cast<double>(s.probeMaxTicks) * 1000.0 / SYSCLOCK_ARM11;
+    return c;
 }
 
 int stateCheckMark(unsigned displayedFrame, unsigned step) {

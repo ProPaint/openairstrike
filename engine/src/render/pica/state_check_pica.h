@@ -62,4 +62,35 @@ void stateCheckFrameEnd();
 // The L button: logs AS3D_WASH_MARK and checks the next frames in full. Returns the mark's number.
 int stateCheckMark(unsigned displayedFrame, unsigned step);
 
+// run.ini probe_every=N (mode=soak's default 30; docs/3ds-port.md "Soak mode and the log push"):
+// every N frames the terrain pass's GPU read-back of state_check=2 runs (probeGpuState("terrain"):
+// one GPU stall per eye), so the water wash's signature (AS3D_GPU_MISMATCH pass=terrain) is caught
+// without anyone pressing L. A GPU mismatch found by any probe asks for an automatic mark (the
+// screens dumped as for L, at most kMaxAutoMarks per setStateCheck): stateCheckTakeAutoMark.
+// 0 = off. Call after setStateCheck (which resets it).
+void setProbeEvery(int frames);
+constexpr int kMaxAutoMarks = 3;
+// True once when a probe found a GPU mismatch and an automatic mark is due (the caller dumps the
+// screens and calls stateCheckMark, as for L).
+bool stateCheckTakeAutoMark();
+// run.ini probe_inject=N: the N-th probe of each level start reports a made-up terrain mismatch
+// (field=inject), the self-test of the soak's mark, verdict and push path on a GPU that never
+// loses its state (Azahar). 0 = never (default).
+void setProbeInject(int nthProbe);
+// Probes run since the start (the pacer excuses a frame that stalled for one).
+unsigned stateCheckProbes();
+
+// The counts since setStateCheck (the soak's per-stage verdict).
+struct StateCheckCounts {
+    unsigned checks = 0, probes = 0;
+    unsigned mismatches = 0;           // AS3D_STATE_MISMATCH (shadow / c3d layers)
+    unsigned gpuMismatches = 0;        // AS3D_GPU_MISMATCH, all passes
+    unsigned terrainGpuMismatches = 0; // of those, pass=terrain
+    unsigned busyFrames = 0;           // AS3D_GPU_BUSY
+    unsigned marks = 0, autoMarks = 0;
+    double probeMs = 0.0, probeMaxMs = 0.0; // the probes' stalls (submit, wait, read-back): total and longest
+    bool contextRead = false;          // citro3d's context mirror passed its layout check (probes need it)
+};
+StateCheckCounts stateCheckCounts();
+
 } // namespace as3d::pica
