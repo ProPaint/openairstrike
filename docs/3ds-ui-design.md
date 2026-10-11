@@ -242,12 +242,13 @@ offline resample the engine would do.
 
 - **Font: the game's own font** at the three fixed sizes (alternative A, the X11 pixel font, is dropped).
 - **Top screen in menus: the live attract level** (alternative B, the static panel, is dropped).
-- **Better-looking controller-button sprites.** The owner keeps button glyphs in the key hints but
-  does not like the round A/B/X/Y/R ones in the mockups. Candidates to draw and show as images
-  (1x and 2x), the owner picks: (1) badges drawn in the game's own style and palette (the HUD's
-  orange/gold frame colours, a bevel, the letter in the game's font); (2) a CC0 prompt set (e.g.
-  Kenney's Input Prompts, pixel 16 px and 32 px variants) recoloured to the game's palette; (3) the
-  letter in a thin HUD-style frame. No Nintendo glyph art (trademarked).
+- **Controller-button sprites: candidate 4, "HUD plate"** (the owner's pick, 2026-10-11, from
+  out/ui3ds/buttons/candidates_4x.png): bevelled squares with the bottom-right corner notched like
+  the HUD's weapon and pause boxes, dark fill, orange frame, gold letter; START and SELECT as pills,
+  the D-pad as a small cross. The glyph sheet and its per-key rectangles are out/ui3ds/buttons/set_4.png
+  and set_4.json (15 px high, drawn by us, not game data: it may be committed into the app's own
+  assets by the menus package). The letters use a 5x7 pixel font because the game's wide font does
+  not fit a 15 px badge; if they read too thin on hardware, thicken the strokes by one pixel.
 
 ## 4. Implementation plan (next package)
 
