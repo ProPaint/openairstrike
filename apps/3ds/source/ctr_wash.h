@@ -2,8 +2,8 @@
 // every frame, after each top eye's passes, a GX texture copy of seven 8-pixel columns of the eye's
 // D24S8 depth buffer (the native buffer's tile rows: 7 x 7.5 KB = 52.5 KB per eye) is queued
 // behind the eye's command list into a double-buffered linear buffer; at the start of the next
-// frame, once the fence says that frame is complete (no wait is added), the CPU judges 98
-// samples per eye (7 columns x 14 rows, 10 of them in the lower half) with wash_detect.h: the analytic water-plane depth against the GPU's depth where
+// frame, once the fence says that frame is complete (no wait is added), the CPU judges 112
+// samples per eye (7 columns x 16 rows, 12 of them in the lower half, the last at row 238: R3.3) with wash_detect.h: the analytic water-plane depth against the GPU's depth where
 // the terrain must be in front. An episode is a run of consecutive washed frames; it is logged
 // when it ends (AS3D_WASH start= frames= eye= washed= rows= cols= ...), and the first frame of the
 // first kMaxAutoMarks episodes of a level asks for a mark (the screens dumped as for L) and arms
@@ -49,6 +49,11 @@ public:
     void selfTest(C3D_RenderTarget* target, const WashView& view, const WashScene& scene);
     // The periodic line (AS3D_WASH_STATS, with the AS3D_PASS_MS report).
     std::string statsLine();
+    // The rows of the sample grid inside the nearest terrain the frame drew (the first chunk of the
+    // base pass, terrain_pica.h terrainFirstChunkBounds), over the level so far: logged once per
+    // level as AS3D_WASH_COVERAGE (R3.3), after kCoverageFrames judged left-eye frames or at the
+    // level's end.
+    static constexpr unsigned kCoverageFrames = 1800;
 
 private:
     struct Pending {
@@ -58,7 +63,17 @@ private:
         WashView view;
         WashScene scene;
         const as3d::Terrain* terrain = nullptr;
+        bool firstValid = false; // the first chunk the eye's base pass drew (world box)
+        float firstMin[3] = {0, 0, 0}, firstMax[3] = {0, 0, 0};
     };
+    void noteCoverage(const Pending& p);
+    void logCoverage();
+    struct Coverage {
+        unsigned frames = 0, framesUnder2 = 0, rowsInSum = 0, rowsInMin = ~0u;
+        double topSum = 0.0, bottomSum = 0.0;
+        bool logged = false;
+    } coverage_;
+    std::vector<int> sampleRows_; // the distinct sample rows
     bool alloc();
     float sampleEyeDepth(const uint8_t* buf, int x, int y, float nearPlane, float farPlane) const;
     void closeEpisode();

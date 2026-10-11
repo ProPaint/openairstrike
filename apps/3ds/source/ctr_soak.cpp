@@ -190,6 +190,10 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         r.washLongest = sc.washLongest;
         r.washFirstFrame = sc.washFirstFrame;
         r.washMaxSamples = sc.washMaxSamples;
+        r.mismatchProbes = sc.mismatchProbes;
+        r.rereadChanged = sc.rereadChanged;
+        r.canaryOk = sc.canaryOk;
+        r.canaryStale = sc.canaryStale;
         r.gpuBusy = sc.busyFrames;
         r.fence = as3d::pica::fenceStats().queueBusyAtBegin - fence0;
         r.texInFrame = as3d::pica::textureInFrameStats().creates - tex0;

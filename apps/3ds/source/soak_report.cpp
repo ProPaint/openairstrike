@@ -96,6 +96,7 @@ std::string soakVerdict(const std::vector<SoakStageResult>& results, const std::
 
     unsigned terrain = 0, gpuAll = 0, probes = 0, marks = 0, fence = 0, busy = 0, texIn = 0, ran = 0, finished = 0;
     unsigned washEvals = 0, washFrames = 0, washEpisodes = 0, prime = 0;
+    unsigned mismatchProbes = 0, reread = 0, canaryOk = 0, canaryStale = 0;
     long long lazy = 0, stamps = 0;
     for (const SoakStageResult& r : results) {
         if (!r.ran) continue;
@@ -109,6 +110,10 @@ std::string soakVerdict(const std::vector<SoakStageResult>& results, const std::
         washFrames += r.washFrames;
         washEpisodes += r.washEpisodes;
         prime += r.primeGpuMismatches;
+        mismatchProbes += r.mismatchProbes;
+        reread += r.rereadChanged;
+        canaryOk += r.canaryOk;
+        canaryStale += r.canaryStale;
         fence += r.fence;
         busy += r.gpuBusy;
         texIn += r.texInFrame;
@@ -120,8 +125,9 @@ std::string soakVerdict(const std::vector<SoakStageResult>& results, const std::
     // the check did not run.
     line(terrain == 0 && washFrames == 0 && (probes > 0 || washEvals > 0), "wash",
          fmt("terrain_gpu_mismatches=%u gpu_mismatches=%u probes=%u marks=%u wash_frames=%u wash_episodes=%u "
-             "wash_evals=%u prime_mismatches=%u",
-             terrain, gpuAll, probes, marks, washFrames, washEpisodes, washEvals, prime));
+             "wash_evals=%u prime_mismatches=%u mismatch_probes=%u reread_changed=%u canary_ok=%u/%u canary_stale=%u",
+             terrain, gpuAll, probes, marks, washFrames, washEpisodes, washEvals, prime, mismatchProbes, reread, canaryOk,
+             probes, canaryStale));
     for (const SoakStageResult& r : results) {
         if (!r.ran || r.washEpisodes == 0) continue;
         line(false, "wash " + soakStageName(r.stage),

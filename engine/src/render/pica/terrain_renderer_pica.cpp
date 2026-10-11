@@ -79,7 +79,11 @@ float terrainOverlayDepthOffset() { return overlayOffset(); }
 
 namespace {
 bool g_prime = true;
+bool g_forceState = true;
 int g_washInject = 0;
+float g_firstBounds[2][6] = {};
+bool g_firstValid[2] = {false, false};
+TerrainEyeChunks g_eyeChunks;
 std::vector<int> g_drawn[2];
 unsigned g_drawnFrame = ~0u;
 int g_drawnEye = 0;
@@ -88,6 +92,18 @@ std::vector<int> g_chunkFirstRow; // per chunk: its first height-map row (build(
 
 void setTerrainPrime(bool on) { g_prime = on; }
 bool terrainPrime() { return g_prime; }
+void setTerrainForceState(bool on) { g_forceState = on; }
+bool terrainForceState() { return g_forceState; }
+bool terrainFirstChunkBounds(int eye, float boxMin[3], float boxMax[3]) {
+    const int e = eye == 1 ? 1 : 0;
+    if (!g_firstValid[e]) return false;
+    for (int i = 0; i < 3; ++i) {
+        boxMin[i] = g_firstBounds[e][i];
+        boxMax[i] = g_firstBounds[e][3 + i];
+    }
+    return true;
+}
+const TerrainEyeChunks& terrainEyeChunks() { return g_eyeChunks; }
 void setTerrainWashInject(int frames) { g_washInject = frames == 1 ? 60 : std::max(frames, 0); }
 bool terrainWashInjectNow() {
     if (g_washInject <= 0) return false;
@@ -565,6 +581,7 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
     lastVisible_ = 0;
     pica::TerrainPicaStats& st = pica::stats();
     st = pica::TerrainPicaStats();
+    pica::g_eyeChunks = pica::TerrainEyeChunks();
     if (!terrain.level() || terrain.positions().empty()) {
         if (error) *error = "terrain not built";
         return false;
@@ -813,6 +830,7 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
     fr.p[5][2] = -vp.at(2, 2);
     fr.p[5][3] = -vp.at(3, 2);
     std::vector<int> visible = visibleTerrainChunks(im.geo, fr);
+    const size_t ownVisible = visible.size();
     // While this eye records for both eyes (eye_replay_pica.h): the chunks either eye sees. The
     // right eye's projection is this one with row 1's columns 2 and 3 moved by the eye shift.
     float shiftK1 = 0.0f, shiftK2 = 0.0f;
@@ -962,10 +980,22 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
             pica::g_drawnEye = 1;
         }
         pica::g_drawn[pica::g_drawnEye] = visible;
+        const int e = pica::g_drawnEye;
+        const Aabb& b0 = im.geo.chunks[static_cast<size_t>(visible.front())].bounds;
+        const float bb[6] = {b0.min.x, b0.min.y, b0.min.z, b0.max.x, b0.max.y, b0.max.z};
+        std::copy(bb, bb + 6, pica::g_firstBounds[e]);
+        pica::g_firstValid[e] = true;
+        if (e == 0) pica::g_firstValid[1] = false;
+        ++pica::g_eyeChunks.renders[e];
+        pica::g_eyeChunks.own[e] += ownVisible;
+        pica::g_eyeChunks.drawn[e] += visible.size();
     }
 
     int boundBlock = -1;
     bool rearmed = false;
+    // R3.3: where this pass's command words start (the state check's list scan at a mismatch).
+    pica::stateCheckNotePassStart();
+    bool forced = false;
     if (pica::terrainPrime()) {
         // The priming draw (terrain_pica.h setTerrainPrime): one degenerate triangle on the first
         // chunk's first vertex carries the pass's first state block, then the state goes again
@@ -977,11 +1007,15 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
             sh.setTerrainVertices(v0, im.zeros);
             C3D_DrawElements(GPU_TRIANGLES, 3, C3D_UNSIGNED_SHORT, im.zeros); // zero bytes: indices 0, 0, 0
             ++st.primeDraws;
+            // terrain_force_state: the effect block once more, as direct words (terrain_pica.h); the
+            // prime probe reads the registers after them.
+            if (pica::terrainForceState()) forced = pica::detail::forceEffectState();
             pica::probeGpuState("terrain_prime");
             pica::detail::c3dInvalidate();
             applyMaterialState(key);
         }
     }
+    if (!forced && pica::terrainForceState()) pica::detail::forceEffectState(); // terrain_prime=0
     for (int ki : visible) {
         const size_t k = static_cast<size_t>(ki);
         const TerrainChunkGeometry& c = im.geo.chunks[k];

@@ -56,6 +56,9 @@ struct SoakStageResult {
     // The wash detector (docs/3ds-port.md "Wash detector"): eye-frames judged, washed frames,
     // episodes (runs of washed frames), the longest, the first one's frame, the most washed samples.
     unsigned washEvals = 0, washFrames = 0, washEpisodes = 0, washLongest = 0, washFirstFrame = 0, washMaxSamples = 0;
+    // R3.3 (docs/3ds-port.md "Third console soak"): probes with a mismatch, of those whose second
+    // read differed from the first, the canary read back (all probes) and missing on a mismatch.
+    unsigned mismatchProbes = 0, rereadChanged = 0, canaryOk = 0, canaryStale = 0;
     unsigned fence = 0;        // AS3D_FENCE (the GX queue running at frameBegin)
     unsigned gpuBusy = 0;      // AS3D_GPU_BUSY frames
     unsigned texInFrame = 0;   // AS3D_TEX_IN_FRAME (textures created inside a frame)

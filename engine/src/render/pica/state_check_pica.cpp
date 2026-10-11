@@ -10,6 +10,7 @@
 #include <string>
 
 #include "as3d/core.h"
+#include "pass_profile.h"
 #include "pica_frame.h"
 #include "texture_budget.h"
 #include "water_renderer_pica.h"
@@ -109,8 +110,10 @@ struct State {
     unsigned washMaxSamples = 0, washFirstFrame = 0;
     u64 washTicks = 0, washMaxTicks = 0;
     unsigned terrainGpuMismatches = 0;
-    int autoMarks = 0;           // automatic marks asked for (kMaxAutoMarks at most)
+    int autoMarks = 0;           // automatic marks asked for (kMaxAutoMarks of each kind at most)
     unsigned washMarks = 0;      // of those, the wash detector's
+    unsigned primeMarks = 0;     // ... the priming draw's mismatches (R3.3)
+    unsigned probeMarks = 0;     // ... the other probes' mismatches
     unsigned probeInject = 0;    // probe_inject=N: the N-th probe reports a made-up mismatch
     bool autoMarkPending = false;
     u64 probeTicks = 0, probeMaxTicks = 0; // the probes' stalls
@@ -123,6 +126,17 @@ struct State {
     float waterScale = 0.0f;
     // Counts by field for the periodic line.
     std::string fieldsSeen;
+    // R3.3 evidence (state_check_pica.h "Evidence at a GPU mismatch").
+    u32* passStartBuf = nullptr;  // the command buffer and word offset when the terrain pass started
+    u32 passStartOffset = 0;
+    uint32_t passStartSerial = 0;
+    unsigned mismatchProbes = 0, rereadChanged = 0, canaryOk = 0, canaryStale = 0, details = 0;
+    // Over the 60 frames of each AS3D_STATE line: at the prime probes, the GX queue entries queued
+    // before the probe's list and the command words recorded in the frame before it (the context
+    // of a burst of prime mismatches: what ran before the terrain in that frame).
+    u32 primeQueueMin = ~0u, primeQueueMax = 0, primeWordsMin = ~0u, primeWordsMax = 0;
+    uint32_t traceSerial[4] = {0, 0, 0, 0}; // frames whose wash judgement is logged in full (S and S+1)
+    int traceAt = 0;
 };
 
 State& st() {
@@ -130,6 +144,7 @@ State& st() {
     return s;
 }
 unsigned g_probesTotal = 0; // every probe since the start (not reset by setStateCheck)
+bool g_forcedThisPass = false; // detail::forceEffectState ran since the terrain pass started
 
 const char* funcName(int f) {
     static const char* names[] = {"NEVER", "ALWAYS", "EQUAL", "NOTEQUAL", "LESS", "LEQUAL", "GREATER", "GEQUAL"};
@@ -186,6 +201,66 @@ u32 blendReg(int src, int dst) {
 bool readRegs(u32 firstId, u32* out, u32 count) {
     return R_SUCCEEDED(GSPGPU_ReadHWRegs(0x401000u + firstId * 4u, out, static_cast<u8>(count * 4u)));
 }
+
+// The canary (state_check_pica.h): GPUREG_LIGHT0_SPECULAR0 (0x140), three 8-bit fields at bits
+// 0-7, 10-17 and 20-27; lighting is never enabled (no C3D_LightEnv), so the register has no effect.
+constexpr u32 kCanaryReg = 0x140;
+constexpr u32 kCanaryMask = 0x0FF3FCFFu;
+u32 canaryValue(unsigned n) {
+    return (n & 0xFFu) | (((n >> 8) & 0xFFu) << 10) | ((((n >> 16) & 0x7Fu) | 0x80u) << 20);
+}
+
+// The last writes to the registers of interest in the command words [from, to) of `buf` (the
+// libctru layout: parameter 0, header (id 0-15, byte mask 16-19, extra parameters 20-27,
+// consecutive 31), the extra parameters, a pad word when their count is odd).
+struct ListScan {
+    bool ok = false;
+    u32 words = 0, commands = 0;
+    int at107 = -1, at101 = -1, atCanary = -1, finalizes = 0;
+    u32 v107 = 0, v101 = 0, m107 = 0, m101 = 0, vCanary = 0;
+};
+ListScan scanList(const u32* buf, u32 from, u32 to) {
+    ListScan r;
+    if (!buf || from > to) return r;
+    r.ok = true;
+    r.words = to - from;
+    u32 i = from;
+    while (i + 1 < to) {
+        const u32 hdr = buf[i + 1];
+        const u32 id = hdr & 0xFFFFu, mask = (hdr >> 16) & 0xFu, n = (hdr >> 20) & 0xFFu;
+        const bool consec = (hdr >> 31) != 0;
+        if (i + 2 + n > to) {
+            r.ok = false; // a command cut by the range: the scan's start was not a command boundary
+            break;
+        }
+        for (u32 k = 0; k <= n; ++k) {
+            const u32 reg = consec ? id + k : id;
+            const u32 v = k == 0 ? buf[i] : buf[i + 1 + k];
+            const int at = static_cast<int>(i - from);
+            if (reg == 0x107) {
+                r.at107 = at;
+                r.v107 = v;
+                r.m107 = mask;
+            } else if (reg == 0x101) {
+                r.at101 = at;
+                r.v101 = v;
+                r.m101 = mask;
+            } else if (reg == kCanaryReg) {
+                r.atCanary = at;
+                r.vCanary = v;
+            } else if (reg == 0x010) {
+                ++r.finalizes;
+            }
+        }
+        ++r.commands;
+        i += 2 + n + (n & 1u);
+    }
+    return r;
+}
+
+struct QueueSnap {
+    u32 num = 0, cur = 0, last = 0;
+};
 
 } // namespace
 
@@ -312,22 +387,44 @@ void probeGpuState(const char* pass) {
     const C3dEffectMirror ef = m->effect;
     const C3D_FrameBuf fb = m->fb;
     const C3D_Tex* tex0 = m->tex[0];
+    // R3.3: the canary as the list's last word before the split; where the list stands; the words
+    // the terrain pass recorded so far.
+    const u32 canary = canaryValue(g_probesTotal);
+    GPUCMD_AddWrite(kCanaryReg, canary);
+    u32* cmd = nullptr;
+    u32 cmdSize = 0, cmdOffset = 0;
+    GPUCMD_GetBuffer(&cmd, &cmdSize, &cmdOffset);
+    const bool samePass = cmd && s.passStartBuf == cmd && s.passStartSerial == frameSerial();
+    const ListScan scan = scanList(cmd, samePass ? s.passStartOffset : cmdOffset, cmdOffset);
+    const u32 cmdBase = cmd && m->cmdBuf ? static_cast<u32>(cmd - m->cmdBuf) : 0u;
+    const QueueSnap q0{gxQueue()->numEntries, gxQueue()->curEntry, gxQueue()->lastEntry};
+    if (std::strcmp(pass, "terrain_prime") == 0) {
+        s.primeQueueMin = std::min(s.primeQueueMin, q0.num);
+        s.primeQueueMax = std::max(s.primeQueueMax, q0.num);
+        s.primeWordsMin = std::min(s.primeWordsMin, cmdBase + cmdOffset);
+        s.primeWordsMax = std::max(s.primeWordsMax, cmdBase + cmdOffset);
+    }
     // Everything recorded so far to the GPU, then wait for it.
     const u64 stall0 = svcGetSystemTick();
     splitCommandList();
     gxCmdQueueRun(gxQueue());
     gxCmdQueueWait(gxQueue(), -1);
-    u32 r40[16] = {}, r6d[1] = {}, r80[6] = {}, r100[30] = {};
+    const QueueSnap q1{gxQueue()->numEntries, gxQueue()->curEntry, gxQueue()->lastEntry};
+    u32 r40[16] = {}, r6d[1] = {}, r80[6] = {}, r100[30] = {}, rCanary[1] = {}, stat[1] = {};
     const bool ok = readRegs(0x40, r40, 16) && readRegs(0x6D, r6d, 1) && readRegs(0x80, r80, 6) && readRegs(0x100, r100, 30);
+    const bool canaryRead = readRegs(kCanaryReg, rCanary, 1);
+    GSPGPU_ReadHWRegs(0x400034u, stat, 4);
     const u64 stall = svcGetSystemTick() - stall0;
     s.probeTicks += stall;
     if (stall > s.probeMaxTicks) s.probeMaxTicks = stall;
+    const bool canaryOk = canaryRead && (rCanary[0] & kCanaryMask) == (canary & kCanaryMask);
+    if (canaryOk) ++s.canaryOk;
     const int slot = std::strncmp(pass, "water", 5) == 0 ? 1 : (std::strcmp(pass, "terrain_prime") == 0 ? 2 : 0);
     if (s.firstRegs[slot] || s.fullFrames > 0) {
         s.firstRegs[slot] = false;
         AS3D_INFO("AS3D_GPU_REGS pass=%s frame=%u read=%d dirty=%d cull=0x%lx map_scale=0x%lx map_offset=0x%lx map_enable=0x%lx "
                   "tex_config=0x%lx tex0=0x%lx color_op=0x%lx blend=0x%lx alpha=0x%lx stencil=0x%lx depth_mask=0x%lx "
-                  "color_write=0x%lx depth_write=0x%lx depth_loc=0x%lx color_loc=0x%lx",
+                  "color_write=0x%lx depth_write=0x%lx depth_loc=0x%lx color_loc=0x%lx canary=0x%lx/0x%lx",
                   pass, static_cast<unsigned>(frameSerial()), ok ? 1 : 0, effectDirty ? 1 : 0,
                   static_cast<unsigned long>(r40[0]), static_cast<unsigned long>(r40[0xD]),
                   static_cast<unsigned long>(r40[0xE]), static_cast<unsigned long>(r6d[0]),
@@ -336,18 +433,24 @@ void probeGpuState(const char* pass) {
                   static_cast<unsigned long>(r100[4]), static_cast<unsigned long>(r100[5]),
                   static_cast<unsigned long>(r100[7]), static_cast<unsigned long>(r100[0x13]),
                   static_cast<unsigned long>(r100[0x15]), static_cast<unsigned long>(r100[0x1C]),
-                  static_cast<unsigned long>(r100[0x1D]));
+                  static_cast<unsigned long>(r100[0x1D]), static_cast<unsigned long>(canary),
+                  static_cast<unsigned long>(rCanary[0]));
     }
     if (!ok) return;
+    const bool prime = std::strcmp(pass, "terrain_prime") == 0;
+    std::string fields;
     auto gpuMismatch = [&](const char* field, u32 expected, u32 actual) {
         ++s.gpuMismatches;
-        const bool prime = std::strcmp(pass, "terrain_prime") == 0;
         if (std::strcmp(pass, "terrain") == 0) ++s.terrainGpuMismatches;
         if (prime) ++s.primeGpuMismatches;
-        // probe_every: the first mismatches of a level start dump the screens (the caller's mark);
-        // not the priming draw's (the pass re-issues its state after it: the picture is not hit).
-        if (!prime && s.probeEvery > 0 && s.fullFrames <= 0 && s.autoMarks < kMaxAutoMarks && !s.autoMarkPending) {
+        fields += (fields.empty() ? "" : ",") + std::string(field);
+        // probe_every: the first mismatches of a level start dump the screens (the caller's mark),
+        // kMaxAutoMarks for the priming draw's and as many for the other probes' (R3.3: the
+        // priming draw's too, so the picture and the depth of that frame sit next to the registers).
+        unsigned& budget = prime ? s.primeMarks : s.probeMarks;
+        if (s.probeEvery > 0 && s.fullFrames <= 0 && budget < static_cast<unsigned>(kMaxAutoMarks) && !s.autoMarkPending) {
             s.autoMarkPending = true;
+            ++budget;
             ++s.autoMarks;
         }
         noteField(s, pass, field);
@@ -376,9 +479,103 @@ void probeGpuState(const char* pass) {
         gpuMismatch("color_loc", osConvertVirtToPhys(fb.colorBuf) >> 3, r100[0x1D]);
     if (tex0 && tex0->data && (r80[5] & 0x0FFFFFFFu) != (osConvertVirtToPhys(tex0->data) >> 3))
         gpuMismatch("texture0_addr", osConvertVirtToPhys(tex0->data) >> 3, r80[5]);
+    if (fields.empty()) return; // (probe_inject's made-up mismatch goes on: the self-test of this evidence too)
+
+    // R3.3: the evidence at a mismatch. The wash detector logs its judgement of this frame and the
+    // next in full.
+    ++s.mismatchProbes;
+    if (!canaryOk) ++s.canaryStale;
+    s.traceSerial[s.traceAt] = frameSerial();
+    s.traceAt = (s.traceAt + 1) % 4;
+    // A second read after another wait and 1 ms: a GPU still running when the first read was taken
+    // has finished by then.
+    gxCmdQueueWait(gxQueue(), -1);
+    svcSleepThread(1000000LL);
+    u32 b40[16] = {}, b6d[1] = {}, b100[30] = {}, bCanary[1] = {}, stat2[1] = {};
+    const bool ok2 = readRegs(0x40, b40, 16) && readRegs(0x6D, b6d, 1) && readRegs(0x100, b100, 30) &&
+                     readRegs(kCanaryReg, bCanary, 1);
+    GSPGPU_ReadHWRegs(0x400034u, stat2, 4);
+    const bool changed = ok2 && (b100[7] != r100[7] || b100[1] != r100[1] || b6d[0] != r6d[0] || b40[0xD] != r40[0xD] ||
+                                 b40[0xE] != r40[0xE] || b100[0x15] != r100[0x15] || bCanary[0] != rCanary[0]);
+    if (changed) ++s.rereadChanged;
+    if (s.details >= static_cast<unsigned>(kDetailsPerLevel)) return;
+    ++s.details;
+    char listText[200];
+    if (!samePass) std::snprintf(listText, sizeof listText, "none");
+    else
+        std::snprintf(listText, sizeof listText,
+                      "%s/words=%lu/cmds=%lu/d107=0x%08lx,m%lx@%d/b101=0x%08lx,m%lx@%d/canary@%d/fin=%d",
+                      scan.ok ? "ok" : "cut", static_cast<unsigned long>(scan.words), static_cast<unsigned long>(scan.commands),
+                      static_cast<unsigned long>(scan.v107), static_cast<unsigned long>(scan.m107), scan.at107,
+                      static_cast<unsigned long>(scan.v101), static_cast<unsigned long>(scan.m101), scan.at101,
+                      scan.atCanary, scan.finalizes);
+    AS3D_INFO("AS3D_GPU_MISMATCH_DETAIL n=%u pass=%s frame=%u fields=%s expected=depth:0x%04lx,blend:0x%08lx "
+              "first=depth:0x%04lx,blend:0x%08lx,map:%lx/%06lx/%06lx,zwrite:%lx second=%s,depth:0x%04lx,blend:0x%08lx,"
+              "map:%lx/%06lx/%06lx,zwrite:%lx canary=0x%08lx first=0x%08lx(%s) second=0x%08lx "
+              "queue=%lu/%lu/%lu->%lu/%lu/%lu stat=0x%08lx/0x%08lx cmdbuf=%lu+%lu/%lu list=%s forced=%d trail=%s",
+              s.details, pass, static_cast<unsigned>(frameSerial()), fields.c_str(),
+              static_cast<unsigned long>(ef.depthTest & 0x1F71u), static_cast<unsigned long>(ef.alphaBlend),
+              static_cast<unsigned long>(r100[7]), static_cast<unsigned long>(r100[1]), static_cast<unsigned long>(r6d[0]),
+              static_cast<unsigned long>(r40[0xD] & 0xFFFFFFu), static_cast<unsigned long>(r40[0xE] & 0xFFFFFFu),
+              static_cast<unsigned long>(r100[0x15]), !ok2 ? "unread" : (changed ? "changed" : "same"),
+              static_cast<unsigned long>(b100[7]), static_cast<unsigned long>(b100[1]), static_cast<unsigned long>(b6d[0]),
+              static_cast<unsigned long>(b40[0xD] & 0xFFFFFFu), static_cast<unsigned long>(b40[0xE] & 0xFFFFFFu),
+              static_cast<unsigned long>(b100[0x15]), static_cast<unsigned long>(canary),
+              static_cast<unsigned long>(rCanary[0]), canaryOk ? "ok" : "stale", static_cast<unsigned long>(bCanary[0]),
+              static_cast<unsigned long>(q0.num), static_cast<unsigned long>(q0.cur), static_cast<unsigned long>(q0.last),
+              static_cast<unsigned long>(q1.num), static_cast<unsigned long>(q1.cur), static_cast<unsigned long>(q1.last),
+              static_cast<unsigned long>(stat[0]), static_cast<unsigned long>(stat2[0]), static_cast<unsigned long>(cmdBase),
+              static_cast<unsigned long>(cmdOffset), static_cast<unsigned long>(m->cmdBufSize), listText,
+              g_forcedThisPass ? 1 : 0, passProfile().trail().c_str());
+}
+
+void stateCheckNotePassStart() {
+    State& s = st();
+    g_forcedThisPass = false;
+    if (!s.level) return;
+    u32* buf = nullptr;
+    u32 size = 0, offset = 0;
+    GPUCMD_GetBuffer(&buf, &size, &offset);
+    s.passStartBuf = buf;
+    s.passStartOffset = offset;
+    s.passStartSerial = frameSerial();
+}
+
+bool stateCheckWashTrace(uint32_t serial) {
+    const State& s = st();
+    if (!s.level || serial == 0) return false;
+    for (uint32_t t : s.traceSerial)
+        if (t != 0 && (serial == t || serial == t + 1u)) return true;
+    return false;
 }
 
 namespace detail {
+bool forceEffectState() {
+    if (!mirrorLayoutOk()) return false;
+    C3dContextMirror* m = const_cast<C3dContextMirror*>(ctxMirror());
+    C3dEffectMirror& e = m->effect;
+    // C3Di_EffectBind (citro3d 1.7.1 source/effect.c), word for word.
+    GPUCMD_AddWrite(GPUREG_DEPTHMAP_ENABLE, e.zBuffer ? 1 : 0);
+    GPUCMD_AddWrite(GPUREG_FACECULLING_CONFIG, static_cast<u32>(e.cullMode) & 0x3u);
+    GPUCMD_AddIncrementalWrites(GPUREG_DEPTHMAP_SCALE, &e.zScale, 2);
+    GPUCMD_AddIncrementalWrites(GPUREG_FRAGOP_ALPHA_TEST, &e.alphaTest, 4);
+    GPUCMD_AddMaskedWrite(GPUREG_GAS_DELTAZ_DEPTH, 0x8, static_cast<u32>(GPU_MAKEGASDEPTHFUNC((e.depthTest >> 4) & 7)) << 24);
+    GPUCMD_AddWrite(GPUREG_BLEND_COLOR, e.blendClr);
+    GPUCMD_AddWrite(GPUREG_BLEND_FUNC, e.alphaBlend);
+    GPUCMD_AddWrite(GPUREG_LOGIC_OP, static_cast<u32>(e.clrLogicOp));
+    GPUCMD_AddMaskedWrite(GPUREG_COLOR_OPERATION, 7, e.fragOpMode);
+    GPUCMD_AddWrite(GPUREG_FRAGOP_SHADOW, e.fragOpShadow);
+    GPUCMD_AddMaskedWrite(GPUREG_EARLYDEPTH_TEST1, 1, e.earlyDepth ? 1 : 0);
+    GPUCMD_AddWrite(GPUREG_EARLYDEPTH_TEST2, e.earlyDepth ? 1 : 0);
+    GPUCMD_AddMaskedWrite(GPUREG_EARLYDEPTH_FUNC, 1, static_cast<u32>(e.earlyDepthFunc));
+    GPUCMD_AddMaskedWrite(GPUREG_EARLYDEPTH_DATA, 0x7, e.earlyDepthRef);
+    // citro3d writes the same block again with the next draw: its context and the GPU agree
+    // either way, and no skipped update can leave the GPU behind it.
+    m->flags |= kFlagEffect;
+    g_forcedThisPass = true;
+    return true;
+}
+
 uint32_t* c3dFlagsPointer() {
     if (!mirrorLayoutOk()) return nullptr;
     return &const_cast<C3dContextMirror*>(ctxMirror())->flags;
@@ -433,7 +630,8 @@ void stateCheckFrameEnd() {
     AS3D_INFO("AS3D_STATE frame=%u t=%.1f water=%s planeZ=%.2f quads=%d tiles=%d near_tiles=%d split=%d max_span=%.2f "
               "min_w=%.2f buf=%d/%u/%u fallbacks=%u near_terrain=%.4f near_water=%.4f arena=%d/%uKB fence=%u/%u busy=%u "
               "hazards=%u deferred=%u/%u tex_in_frame=%u/%u cmdbuf=%.3f queue_max=%u checks=%u probes=%u "
-              "mismatches=%u gpu_mismatches=%u gpu_busy=%u psc=%lx/%lx ppf=%lx fields=%s",
+              "mismatches=%u gpu_mismatches=%u gpu_busy=%u psc=%lx/%lx ppf=%lx canary=%u/%u reread_changed=%u "
+              "prime_queue=%lu..%lu prime_words=%lu..%lu fields=%s",
               static_cast<unsigned>(frameSerial()), t, !w.active ? "off" : (w.grid ? "grid" : "plane"),
               static_cast<double>(w.planeZ), w.grid ? w.chunksVisible : w.quadsDrawn,
               w.grid ? w.trianglesDrawn : w.tilesDrawn, w.nearTiles, w.splitTiles, static_cast<double>(w.maxSpan),
@@ -445,9 +643,13 @@ void stateCheckFrameEnd() {
               f.queueBusyAtBegin, f.halfHazards + w.bufHazards, static_cast<unsigned>(deferredFreeCount()), f.deferredMax,
               tf.creates, tf.destroys, static_cast<double>(s.cmdMax), s.queueMax, s.checks, s.probes, s.mismatches,
               s.gpuMismatches, s.busyFrames, static_cast<unsigned long>(s.lastStat[0]),
-              static_cast<unsigned long>(s.lastStat[1]), static_cast<unsigned long>(s.lastStat[2]),
-              s.fieldsSeen.empty() ? "none" : s.fieldsSeen.c_str());
+              static_cast<unsigned long>(s.lastStat[1]), static_cast<unsigned long>(s.lastStat[2]), s.canaryOk, s.probes,
+              s.rereadChanged, static_cast<unsigned long>(s.primeQueueMin == ~0u ? 0u : s.primeQueueMin),
+              static_cast<unsigned long>(s.primeQueueMax), static_cast<unsigned long>(s.primeWordsMin == ~0u ? 0u : s.primeWordsMin),
+              static_cast<unsigned long>(s.primeWordsMax), s.fieldsSeen.empty() ? "none" : s.fieldsSeen.c_str());
     s.cmdMax = 0.0f;
+    s.primeQueueMin = s.primeWordsMin = ~0u;
+    s.primeQueueMax = s.primeWordsMax = 0;
     s.queueMax = 0;
 }
 
@@ -502,6 +704,12 @@ StateCheckCounts stateCheckCounts() {
     c.contextRead = s.ctxOk;
     c.probeMs = static_cast<double>(s.probeTicks) * 1000.0 / SYSCLOCK_ARM11;
     c.probeMaxMs = static_cast<double>(s.probeMaxTicks) * 1000.0 / SYSCLOCK_ARM11;
+    c.mismatchProbes = s.mismatchProbes;
+    c.rereadChanged = s.rereadChanged;
+    c.canaryOk = s.canaryOk;
+    c.canaryStale = s.canaryStale;
+    c.primeMarks = s.primeMarks;
+    c.details = s.details;
     return c;
 }
 
@@ -530,7 +738,7 @@ void stateCheckArmProbe(int frames) {
 
 bool stateCheckWashMarkDue() {
     State& s = st();
-    if (s.autoMarks >= kMaxAutoMarks) return false;
+    if (s.washMarks >= static_cast<unsigned>(kMaxAutoMarks)) return false;
     ++s.autoMarks;
     ++s.washMarks;
     return true;

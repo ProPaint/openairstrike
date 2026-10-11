@@ -86,8 +86,18 @@ public:
         t.ticks += ticks;
         t.draws += draws;
         t.verts += verts;
+        if ((draws > 0 || p == Pass::Clear) && !isProfileEntry(p)) {
+            trail_[trailAt_] = Trail{p, framesTotal_};
+            trailAt_ = (trailAt_ + 1) % kTrail;
+        }
     }
-    void endFrame() { ++frames_; }
+    void endFrame() {
+        ++frames_;
+        ++framesTotal_;
+    }
+    // The last passes that drew (and the clears), oldest first, with the frame they ran in relative
+    // to the current one: "f-1:hud f-1:touch f0:clear" (the state check's evidence at a mismatch).
+    std::string trail() const;
     unsigned frames() const { return frames_; }
     const PassTotals& totals(Pass p) const { return totals_[static_cast<int>(p)]; }
     // The per-frame averages since the last reset (passes never used are left out), then reset.
@@ -101,6 +111,14 @@ public:
 private:
     PassTotals totals_[kPassCount];
     unsigned frames_ = 0;
+    struct Trail {
+        Pass p = Pass::Count;
+        unsigned frame = 0;
+    };
+    static constexpr int kTrail = 8;
+    Trail trail_[kTrail];
+    int trailAt_ = 0;
+    unsigned framesTotal_ = 0; // not reset by report()
 };
 
 // The backend's instance.

@@ -73,6 +73,16 @@ float terrainOverlayDepthOffset();
 // (pass=terrain_prime): a mismatch there is the lost block, caught without a wash on screen.
 void setTerrainPrime(bool on);
 bool terrainPrime();
+// run.ini terrain_force_state (default on; docs/3ds-port.md "Third console soak", R3.3): after the
+// priming draw (before the first chunk when terrain_prime=0) the base pass writes citro3d's whole
+// effect block straight into the command list (state_check_pica.h detail::forceEffectState: the
+// depth map, the depth test and masks, blend, alpha and stencil tests, with the values of
+// citro3d's context, whatever its dirty flags say). The third console soak caught the PICA with
+// the previous pass's depth/mask and blend registers right after the priming draw (pass=
+// terrain_prime) in bursts; if a skipped-as-unchanged update loses that block, these words cannot
+// be skipped. The periodic prime probe reads after them.
+void setTerrainForceState(bool on);
+bool terrainForceState();
 // run.ini wash_inject=N (the wash detector's self-test): the base pass writes no depth for N
 // frames every 600 (frame serials 300..300+N-1 mod 600); wash_inject=1 means 60. 0 = never.
 void setTerrainWashInject(int frames);
@@ -80,6 +90,16 @@ bool terrainWashInjectNow(); // this frame's base pass writes no depth
 // The chunks the base pass drew this frame for `eye` (0: the frame's first render, 1: the second),
 // in draw order; and the chunk holding map y (world units), -1 outside the map.
 const std::vector<int>& terrainDrawnChunks(int eye);
+// The world-space box of the first chunk the base pass drew for `eye` this frame (the wash
+// detector's coverage check, AS3D_WASH_COVERAGE); false when it drew none.
+bool terrainFirstChunkBounds(int eye, float boxMin[3], float boxMax[3]);
+// Per eye and frame, the chunks the eye's own frustum sees and the chunks drawn (the union of
+// both eyes' while the left eye records for the replay): sums since the level's build, the
+// stereo GPU question of the third console soak (R3.3).
+struct TerrainEyeChunks {
+    size_t renders[2] = {0, 0}, own[2] = {0, 0}, drawn[2] = {0, 0};
+};
+const TerrainEyeChunks& terrainEyeChunks();
 int terrainChunkAt(float mapY);
 
 } // namespace as3d::pica

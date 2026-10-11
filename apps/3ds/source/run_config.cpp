@@ -238,6 +238,8 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.eyeReplay = n != 0;
         } else if (key == "terrain_prime") {
             if (toInt(val, &n)) c.terrainPrime = n != 0;
+        } else if (key == "terrain_force_state") {
+            if (toInt(val, &n)) c.terrainForceState = n != 0;
         } else if (key == "probe_inject") {
             if (toInt(val, &n) && n >= 0) c.probeInject = n;
         } else if (key == "soak") {

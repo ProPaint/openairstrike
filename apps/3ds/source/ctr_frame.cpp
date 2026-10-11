@@ -117,8 +117,10 @@ bool dumpRenderTarget(C3D_RenderTarget* t, int width, const std::string& path) {
 }
 
 // The depth buffer of a render target as an upright PPM (run.ini state_check's L mark): D24S8 read
-// as 32-bit words by the display transfer, the bytes 3, 2, 1 of each word (as the colour dumps read
-// them) as R, G, B: the cleared far depth is black, the depth grows towards the near plane.
+// as 32-bit words by the display transfer, the bytes 2, 1, 0 of each word (the 24-bit depth, high
+// byte first: the console's AS3D_WASH_SELFTEST of 2026-10-11 matched these bytes, not 3, 2, 1, whose
+// first is the stencil) as R, G, B: the cleared far depth is black, the depth grows towards the
+// near plane.
 bool dumpRenderTargetDepth(C3D_RenderTarget* t, int width, const std::string& path) {
     if (!t->frameBuf.depthBuf || t->frameBuf.depthFmt != GPU_RB_DEPTH24_STENCIL8) return false;
     const size_t bytes = static_cast<size_t>(240) * static_cast<size_t>(width) * 4;
@@ -137,9 +139,9 @@ bool dumpRenderTargetDepth(C3D_RenderTarget* t, int width, const std::string& pa
         for (int y = 0; y < 240; ++y) {
             for (int x = 0; x < width; ++x) {
                 const u8* px = lin + (static_cast<size_t>(x) * 240 + static_cast<size_t>(239 - y)) * 4;
-                row[static_cast<size_t>(x) * 3 + 0] = px[3];
-                row[static_cast<size_t>(x) * 3 + 1] = px[2];
-                row[static_cast<size_t>(x) * 3 + 2] = px[1];
+                row[static_cast<size_t>(x) * 3 + 0] = px[2];
+                row[static_cast<size_t>(x) * 3 + 1] = px[1];
+                row[static_cast<size_t>(x) * 3 + 2] = px[0];
             }
             std::fwrite(row.data(), 1, row.size(), f);
         }
@@ -648,10 +650,12 @@ struct GameFrame::Impl {
         wash.setEnabled(run.effectiveWashCheck());
         wash.logEvals = run.washLog;
         pica::setTerrainPrime(run.terrainPrime);
+        pica::setTerrainForceState(run.terrainForceState);
         pica::setEyeReplayEnabled(run.eyeReplay);
         pica::setTerrainWashInject(run.washInject);
-        AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d", wash.enabled() ? 1 : 0, run.washInject,
-                  run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0);
+        AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d terrain_force_state=%d eye_replay=%d",
+                  wash.enabled() ? 1 : 0, run.washInject, run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0,
+                  run.terrainForceState ? 1 : 0, run.eyeReplay ? 1 : 0);
         std::string off;
         for (int i = 0; i < pica::kPassCount; ++i)
             if (!pica::passBit(mask, static_cast<pica::Pass>(i))) off += std::string(off.empty() ? "" : ",") + pica::passName(static_cast<pica::Pass>(i));

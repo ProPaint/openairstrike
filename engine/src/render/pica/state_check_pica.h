@@ -99,6 +99,9 @@ struct StateCheckCounts {
     unsigned marks = 0, autoMarks = 0;
     double probeMs = 0.0, probeMaxMs = 0.0; // the probes' stalls (submit, wait, read-back): total and longest
     bool contextRead = false;          // citro3d's context mirror passed its layout check (probes need it)
+    // R3.3: probes with a mismatch; of those, a second read that differed from the first; the
+    // canary read back (all probes) and missing on a mismatching probe; prime-mismatch marks.
+    unsigned mismatchProbes = 0, rereadChanged = 0, canaryOk = 0, canaryStale = 0, primeMarks = 0, details = 0;
 };
 StateCheckCounts stateCheckCounts();
 
@@ -111,6 +114,32 @@ void stateCheckNoteWashEpisode(unsigned startFrame, unsigned frames, int maxWash
 // included when called before its passes), as after a mark.
 void stateCheckArmProbe(int frames);
 bool stateCheckWashMarkDue();
+
+// Evidence at a GPU mismatch (round 3 follow-up, R3.3; docs/3ds-port.md "Third console soak"). The
+// terrain pass calls stateCheckNotePassStart() when it starts (after its state is issued, before
+// the priming draw): the probe then scans the command words recorded since (the last writes to
+// the depth/mask and blend registers, as citro3d put them in the list). Every probe also writes a
+// canary (GPUREG_LIGHT0_SPECULAR0, unused: lighting is off) as the list's last word and reads it
+// back: the canary read back means the GPU had executed the whole list when the registers were
+// read (a stale read otherwise). A mismatching probe, the first kDetailsPerLevel of a level, reads
+// the registers a second time after another wait and 1 ms, and logs one AS3D_GPU_MISMATCH_DETAIL
+// line: both reads, the canary, the GX queue counters before and after, the GPU status word, the
+// command buffer position, the list scan and the passes that drew before (pass_profile.h trail).
+// The wash detector's judgement of that frame and the next is then logged per row band
+// (AS3D_WASH_TRACE; stateCheckWashTrace).
+constexpr int kDetailsPerLevel = 6;
+void stateCheckNotePassStart();
+// True when the wash detector should log its judgement of frame `serial` in full.
+bool stateCheckWashTrace(uint32_t serial);
+// The register words citro3d's effect block writes (C3Di_EffectBind of citro3d 1.7.1: depth map,
+// cull, alpha/stencil/depth tests and masks, blend function and colour, logic op, colour
+// operation, shadow, early depth), written straight into the command list with the values of
+// citro3d's context, whatever its dirty flags say; the effect flag is left dirty, so citro3d
+// writes the same block again with the next draw. False when the context mirror is not readable
+// (nothing written). run.ini terrain_force_state (terrain_pica.h).
+namespace detail {
+bool forceEffectState();
+}
 // The periodic probe alternates between the terrain's priming draw (pass=terrain_prime, its first
 // state block) and the end of its base draws (pass=terrain).
 

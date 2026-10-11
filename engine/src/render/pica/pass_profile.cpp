@@ -108,6 +108,19 @@ std::string PassProfile::reportPrepare(double ticksPerMs) const {
     return out;
 }
 
+std::string PassProfile::trail() const {
+    std::string out;
+    for (int i = 0; i < kTrail; ++i) {
+        const Trail& t = trail_[(trailAt_ + i) % kTrail];
+        if (t.p == Pass::Count) continue;
+        char buf[40];
+        std::snprintf(buf, sizeof buf, "%sf%d:%s", out.empty() ? "" : " ",
+                      static_cast<int>(t.frame) - static_cast<int>(framesTotal_), passName(t.p));
+        out += buf;
+    }
+    return out.empty() ? std::string("none") : out;
+}
+
 void PassProfile::reset() {
     for (PassTotals& t : totals_) t = PassTotals();
     frames_ = 0;
