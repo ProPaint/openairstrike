@@ -95,6 +95,17 @@ end): AirStrike 3D stereo 11.0 ms (fold 1.5, water 1.3), alternate eyes at 60, m
 starts of 11 and 9.6 s cold, scripts 1.7 s, light cache never hits). In progress on agents' worktrees:
 R4.10 (prefetch overlap, vfs) and R4.11 (the sequels' cuts). Unread: the owner's photo session.**
 
+**R4.11 (section "The sequels on the console (round 4, R4.11)" at the end): the seventh soak's sequel
+numbers read (as2 stereo GPU 20.1 ms, 4 to 6 MB of skins in linear memory, 400 draws, the scripts' 1.7 s,
+the light cache at 0); the sequels' model skins made from level 1 of their chain (`skin_half=auto`:
+on for the sequels, 4057 / 5815 KB of linear-memory skins -> 484 / 972 KB, the same picture within a
+few texels), the 2D lists' runs merged where no pixel is shared (`ui_merge=1`: the HUD 26 -> 9 draws,
+pixel-identical), the light cache's misses explained (`miss_moved`: beacons on driving trucks, not a key
+bug; the fixed per-chunk cost is the item), the scripts' 1.7 s traced to 367 cold pak reads (the read
+plan covers them from the second start: 67 ms), the perf report excusing the TerraMorph stamps. The
+next drop's list is `out/3ds/r411/run-soak-r411.ini` (14 stages: the sequels at the new defaults, the
+skins A/B, their first `gpu_passes=1` tables, `ui_merge=0`, as2 mission 2, `skin_half=1` on as3d).**
+
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
 installed game (missions 1 and 2, mono and stereo at slider 0.5, the weapon tour, audio on, the
@@ -4975,3 +4986,226 @@ gate measure under 3 s with R4.6's cuts.
 - The renderer's part (textures, the base cache's 1.37 MB read) is not overlapped with the terrain's
   generation: the `_fe` plan interleaves them by the plan's order only.
 - `tools/3ds_perf_report.py` does not read `AS3D_PREFETCH` yet.
+
+## The sequels on the console (round 4, R4.11)
+
+The seventh soak (above) ran AirStrike 2 and Gulf Thunder on the New 3DS for the first time (stages 14 to
+17, mission 1 of each, 3600 frames mono then stereo): correct (the end states equal the desktop sim's)
+and far off the gates. The console's numbers, with AirStrike 3D's stage 5 as the healthy reference:
+
+| | as3d 1 stereo | as2 1 stereo | gulf 1 stereo |
+|---|---|---|---|
+| GPU avg / p95 (ms) | 11.2 / 15.0 | 20.1 / 31.7 | 18.3 / 37.6 |
+| CPU submit (ms) | 4.1 | 10.9 | 8.2 |
+| draws / vertices per frame | 246 / 23k | 397 / 62k | 383 / 45k |
+| mono at 60 Hz | 89.7 % | 2.7 % | 30 % |
+| textures: VRAM / linear | 4193 KB (100) / 4212 KB (94) | 4194 KB (74) / 6995 KB (150) | 4193 KB (57) / 8454 KB (158) |
+| model skins in linear memory | 47 = 1563 KB | 87 = 4057 KB | 92 = 5815 KB |
+| to_first_frame (first start, caches cold) | 3.1 s (plan and caches warm) | 11.0 s | 9.6 s |
+| terrain lights: reused / chunks per window | up to 570 / 663 | 0 / 858 to 1119 | 0 / 906 to 1273 |
+
+What this round found per item, what changed, and what the next drop measures. Every change sits behind
+a run.ini key (`skin_half`, `skin_half_min`, `ui_merge`; apps/3ds/README.md), `AS3D_R411 ...` at each
+stage start and at each level start (the skin rule, per game). The desktop is untouched in behaviour:
+`TextureOptions::baseLevel` and `Batch2DOptions::mergeRuns` are hints the GL backend and the GL 2D
+renderer never set (ci.sh goldens unchanged); the simulation is not involved anywhere.
+
+### 1. The skins' residency: `skin_half` (auto: the sequels)
+
+The sequels' model skins are larger than the first game's (the TGAs under models/: as2 86 of 256 x 256, 107 of 256 x 128 and 168 of 128 x 128;
+gulf 71 of 256 x 256, 49 of 256 x 128; as3d 4 of 256 x 256, 34 of 256 x 128, 110 of 128 x 128) and every 32-bit one already becomes RGBA4 or RGB565 (texconv's Auto
+class), so a 16-bit format was not the lever. The VRAM budget (4.2 MB, what the 6 MB leave after the
+three targets) is filled in creation order: the terrain's blocks first (1.7 MB), then the skins until
+it is full; as2 put 4057 KB of skins in linear memory, gulf 5815 KB, and the first spike measured
+linear-memory textures at 12.8 ms of GPU against 2.65 from VRAM.
+
+The options weighed: (a) halve the skins (level 1 of the mip chain as the base: the same texels
+the chain's minified levels had, nothing resampled twice, a quarter of the bytes); (b) a 16-bit
+format for the 32-bit skins (already the case); (c) VRAM priority by draw count (the skins drawn most
+first) - a reorder of the precache or an eviction policy, and the skins would still overflow by 2 to
+4 MB; (d) ETC1 (out of scope). (a) is the one that fits: on a 400 x 240 screen a model covers at most
+a few thousand pixels, so the GPU samples the skins' level 1 and below anyway (the dumps below say so:
+the halved skins give the same picture).
+
+The rule (`skin_half=auto|0|1`, `skin_half_min=128`): `ResourceCache::texture(path, mipmaps, skin)`
+marks the model skins (Material::fromObjectDef; the env maps, the skid and mark textures and the
+particle textures are not skins), and a skin whose larger side is at least `skin_half_min` texels gets
+`TextureOptions::baseLevel = 1`; the PICA `Texture2D::create` then starts its chain one level down
+(gfx_pica.cpp buildTexture: the pow-2 resize as before, then the chain's own box filter once, never
+below 8 a side), so a 256 x 256 RGB565 skin is 43 KB instead of 171. `auto` is on for AirStrike 2 and
+Gulf Thunder and off for AirStrike 3D (whose skins the owner has looked at on the console since round
+1); `1` forces it, `0` keeps every skin at its size. `AS3D_R411 skin_half= skin_half_min= (run.ini
+...) game=` at the level start, `AS3D_SKIN_HALF textures= levels_dropped=` after the precache, `AS3D_TEXTURES`
+says where the skins went.
+
+Azahar, mission 1 of each game, 900 bot frames, mono (`skin_half=0` against the default):
+
+| | as2 skin_half=0 | as2 default (on) | gulf skin_half=0 | gulf default (on) | as3d default (off) | as3d skin_half=1 |
+|---|---|---|---|---|---|---|
+| model skins VRAM / linear | 37 = 1500 KB / 87 = 4057 KB | 84 = 1117 KB / 40 = 484 KB | 18 = 902 KB / 92 = 5815 KB | 45 = 905 KB / 65 = 972 KB | 51 = 1589 KB / 47 = 1563 KB | 98 = 956 KB / 0 |
+| all textures VRAM / linear | 4194 / 6995 KB | 4194 / 3039 KB | 4193 / 8454 KB | 4194 / 3613 KB | 4193 / 3956 KB | 4158 / 1794 KB |
+| texture conversions at the level start (Azahar ms) | 822 (swizzle 537) | 541 (swizzle 224) | 936 (swizzle 620) | 570 (swizzle 240) | 545 | 405 |
+| end state | map_pos 662.0, 120 entities | the same | map_pos 942.6, 110 entities | the same | map_pos 662.0, 49 | the same |
+
+The sequels' skins in linear memory fall from 4 to 6 MB to about 0.5 to 1 MB (the ones created last:
+the player's helicopters and items, after the budget is full again: VRAM stays at 4.2 MB because the
+particle textures, the UI atlases and the terrain take the rest), the level start's conversions drop
+by about 300 ms (Azahar's clock), and with `skin_half=1` the first game's skins all fit with 35 KB of
+VRAM to spare. The look (Azahar, `fixed_steps=1`, the top screen dumped at steps 1, 301 and 601, the perf text's 16
+rows left out; `skin_half=0` against the default on the sequels, `skin_half=1` against the default on the
+first game; the bottom screens identical in every pair):
+
+| game | pixels off by more than 1 level, of 89600 | max |
+|---|---|---|
+| as2 | 112, 4, 16 (0.12 %, 0.00 %, 0.02 %) | 42, 38, 30 |
+| gulf | 303, 287, 64 (0.34 %, 0.32 %, 0.07 %) | 42, 38, 23 |
+| as3d (`skin_half=1`) | 17, 8, 43 (0.02 %, 0.01 %, 0.05 %) | 12, 12, 124 |
+
+The differing pixels are single texels on the nearest models' edges (the side-by-sides at 2x in
+out/3ds/r411/az2/<game>_new_vs_skin0/, as3d_skin1_vs_new/: nothing to tell apart at 1x or 2x): the
+GPU already sampled the chain's level 1 and below for nearly every pixel. So `auto` keeps the first
+game at its size only out of caution for the owner's eye (`skin_half=1` is the stage 3 A/B below), and
+the sequels take the halved skins by default.
+
+What is left for the residency: the 40 to 65 skins still in linear memory are those the precache creates
+last; a priority (the player's and the items' skins first, or the particle textures last: the explosion
+textures are 256 x 256 RGBA4 = 170 KB each) or more VRAM (`depth16=1` gives the budget 375 KB) would
+take them in. The console decides whether the GPU time follows (stages below).
+
+### 2. The draw count
+
+Where the sequels' 400 draws per stereo frame come from (the console's `AS3D_PASS_MS`, stage 15, per
+eye: the "clear" column holds the right eye's replay of the left eye's world): the mesh passes 110 to
+160 per frame for both eyes (`AS3D_MESH`: as3d 40 to 96), of which the transparent and effect lists
+("rest": 64 to 105 draws, 3.7 to 6 k vertices per eye; as3d 12 to 47) and the opaque list (26 to 53;
+as3d 12 to 49); the particles 7 to 14 draws but 5.9 to 9.5 k vertices per eye (as3d 0.3 to 1.5 k):
+AirStrike 2's mission 1 runs at the particle cap (9216 vertices = 1536 quads x 6 in every window on
+the console; the bot's first 900 frames on Azahar stay at 22 to 57 quads, so the cap is reached in the
+fights); the shadows 6 draws but 4.9 to 8.2 k vertices per eye (the sequels' draped multiply decals;
+as3d 0.7 to 3.4 k); the HUD 55 draws (as3d 22 to 50); the sprites 12 to 20; the water (gulf) 4 to 7
+chunk draws of the wave grid, already cut to the wet cells.
+
+What was cheap to cut without a pixel changed: the HUD. The 2D batcher split a run at every texture
+change, and the sequels' HUD alternates its panel pieces, icons and text; with
+`Batch2DOptions::mergeRuns` (R4.11, `ui_merge=1`, the PICA Renderer2D only) a quad joins the last
+earlier run of its state (blend, textures, combine, shape) when no quad drawn between them touches its
+framebuffer rectangle (the corner box widened by one pixel: the snapping moves a textured quad by up to
+half a pixel), else it stays in list order; blending order only matters on shared pixels, so the picture
+is the same (apps/tests/batch2d_test.cpp; the bottom screens of the Azahar runs: 0 differing pixels).
+Azahar, per frame: the HUD list 26 draws -> 9 for as2 (`hud=1.20 ms -> 0.80` of CPU), 26 to 28 -> 9 to
+11 for gulf, the first game's 10 stays; the whole frame 136 -> 119 draws (as2), 138 -> 121 (gulf). On the
+console the HUD's 55 draws should come down the same way (the stereo HUD list is one flush); its GPU
+pass was 0.9 to 1.2 ms on as3d.
+
+Not cut, and why: the mesh records are one draw each (the sequels' smoke, flares and lamps are models
+with BLEND_ADD, not particles); `mesh_merge=1` (round 2) bakes the tiny ones into one flat draw and
+was no better than the draws under Azahar - a console stage below measures it on the sequels. The
+particles at the cap are the look (a lower cap drops the owner's smoke); their GPU cost is unknown until
+a `gpu_passes=1` stage runs on a sequel (below). The draped shadows' vertices are the look too. The
+sprites' runs split by texture and sit in depth-tested blending order.
+
+### 3. The script precache: 1.7 s against 41 ms
+
+Not the compiler and not the engine's script code: the sequels' scripts are precompiled `.scr` binaries
+(`ScriptProgram::load`), and `World::precacheScripts` loads, besides the 160 scripts, the simulation's
+copy of every model of the closure (347 for as2). On the console's first start of each sequel that was
+**367 pak reads of 976 KB in 1632 of the 1698 ms** (`AS3D_LOAD phase=precache_scripts ... read_ms=1632
+(367 file reads)`): 4.4 ms per read, the SD card's random access into a 47 MB pak, with no read plan
+yet (`phase=prefetch plan=as2_m1 none yet (recording it)`). The first game's 41 ms came from its
+plan: the prefetch had read 9.2 MB in 1.2 s before the session, 0 reads during the precache. The
+sequels' second starts in the same soak (stages 15 and 17) already had their plans: **scripts 67 and 61
+ms, 0 reads**. Under Azahar 148 / 133 ms with 0 reads. So the item belongs to the vfs's first start
+(R4.10, the prefetch), not to engine/src/script; nothing changed here. The same holds for the "ui 528
+ms" (the HUD pictures' reads on a cold start: 0 ms at the second start) and for most of the defs and
+level parse (defs 391 / level 678 at the first start against 327 / 455 at the second: pak reads again).
+
+### 4. The terrain light cache: `reused=0`
+
+Not a key problem. `AS3D_TERRAIN_LIGHTS` now says why a chunk's stream was computed instead of reused
+(`miss_new=` no stream yet or the chunk's vertices moved by a crater, `miss_count=` a different number
+of picked lights, `miss_moved=` a picked light's position changed, `miss_turned=` a spot's direction or
+cone, `miss_other=` colour or radius), and on Azahar the sequels' misses are `miss_moved` (as2: 584 of
+591 chunk computations in the first window, 620 of 629 in the second; gulf: 600 of 608, then 504 moved
+and 383 `miss_other` in the fight) with `miss_turned=0`. The light that moves is a `light_dir 400`
+beacon riding a driving vehicle: AirStrike 2's `gruzovik` (the one truck of the tutorial) attaches
+`svet_orangeflasher` (transport.obj: a spot light of radius 400 world units = 10 terrain cells), and
+Gulf Thunder's mission 1 has a moving light of its own (600 of 608 misses moved); such a light reaches every chunk near the truck, and a chunk's
+picked set changes every frame the truck moves (the first game's lights are burning wrecks that stay).
+`miss_other` in fights are lights whose colour pulses (fires, flashes). A spot-cone cull of the pick
+(a spot that cannot reach a chunk's box adds exactly nothing there, so leaving it out keeps the bytes)
+was tried and measured useless: the chunks are strips eight cells high and the whole map wide, so the
+cone always reaches them (`spots_culled=0` in every window of both games); it was taken out again.
+
+What the misses cost is the per-chunk fixed work, not the evaluations: 457 light-vertex evaluations
+per frame on Azahar (the rectangle cull keeps the evaluation to the cells within the radius), yet
+0.29 to 0.34 ms per frame for two chunks per frame: zeroing the chunk's 9 KB stream, the lit-minus-baked
+pass, the copy into the frame arena and the overlay quads' corners; on the console 0.33 ms per computed
+chunk (stage 14: 322 to 376 ms per 300 frames for 858 to 1119 chunks) against about 0.08 for a reused
+one. What would cut it keeps the bytes but is a larger change: a persistent per-chunk stream buffer
+(no zeroing, the arena copy only for the vertices the rectangle touched) - noted for the CPU round; the
+GPU is the sequels' gate first. The first game's windows are unchanged (reused 345 of 585 in a quiet
+window of the seventh soak).
+
+### 5. The perf report's excuse
+
+`tools/3ds_perf_report.py` failed `lazy_loads 3.00 == 0` on the sequels' stages for the three
+TerraMorph stamp loads (`AS3D_LAZY path=morphmaps/map1.tga kind=stamps site=terramorph`: the stamps
+load on their first hit and are not precachable, as the console's soak.txt already excuses). The report
+now reads the `AS3D_LAZY_LOADS ... stamps=N` summary (else counts the `kind=stamps` lines) and
+subtracts them: stage 15 `PASS lazy_loads 0.00 == 0 (TerraMorph stamps, not precachable: 3)`; the
+first game's stages are unchanged.
+
+### Azahar runs (correctness; Azahar's timings are not the console's)
+
+- Bot runs as above (mission 1 of each game, 900 frames, mono), each game three times: the defaults,
+  `skin_half=0`, and `skin_half=0 ui_merge=0` (the old behaviour); for the sequels the halved skins are
+  the default. Step-based dumps (`fixed_steps=1 dump_every=300 dump_from=1`) at steps 1, 301, 601:
+  `ui_merge` is pixel-identical on all three games, top and bottom screens (0 differing pixels in 18
+  pairs); the skins as in the table above. The end states equal the desktop sim's in every run (as2
+  map_pos 662.0, 120 entities; gulf 942.6, 110; as3d 662.0, 49) - the simulation sees none of this.
+- Per frame (perf.csv, frames 60 on): as2 136.4 -> 119.4 draws (the HUD 26 -> 9), CPU 8.05 -> 7.81 ms;
+  gulf 138.4 -> 121.2 (the HUD 26 to 28 -> 9 to 11), 9.93 -> 9.71 ms; as3d 61.0 (its HUD list was 10 runs
+  already). Vertices unchanged (23.2 k, 26.1 k, 11.4 k).
+- `AS3D_FX` (new, every 300 frames): the particle and sprite quads built and dropped against the caps:
+  as2 22 to 29 quads (max 57) in the bot's first 900 frames, gulf 69 to 139 (max 252), nothing dropped;
+  the console's 1536-quad windows are the fights later in the mission.
+- `AS3D_TERRAIN_LIGHTS` with the miss classes (above). The desktop: `tools/ci.sh` green for the three games (711 doctest cases each, the new
+  `batch2d: mergeRuns` case among them, the goldens unchanged: the GL never sets the two hints), `tools/3ds_ci.sh` ok.
+
+### The next soak's list (`out/3ds/r411/run-soak-r411.ini`, 14 stages, about 20 minutes)
+
+    soak=as3d:1:mono,as3d:1:stereo:soak_frames=3600,as3d:1:stereo:soak_frames=3600:skin_half=1,
+      as2:1:mono:soak_frames=3600,as2:1:stereo:soak_frames=3600,as2:1:stereo:soak_frames=3600:skin_half=0,
+      as2:1:stereo:soak_frames=1800:gpu_passes=1,as2:1:mono:soak_frames=3600:ui_merge=0,
+      as2:2:mono:soak_frames=3600,gulf:1:mono:soak_frames=3600,gulf:1:stereo:soak_frames=3600,
+      gulf:1:stereo:soak_frames=3600:skin_half=0,gulf:1:stereo:soak_frames=1800:gpu_passes=1,
+      gulf:1:mono:soak_frames=3600:ui_merge=0
+
+(one line in the file.) How to read it:
+
+- Stages 4 to 5 and 10 to 11 (the sequels at the new defaults, the caches and read plans warm from the
+  seventh soak): `gpu_kick_ms` avg / p95 against 20.1 / 31.7 (as2) and 18.3 / 37.6 (gulf); `AS3D_TEXTURES`
+  with the skins mostly in VRAM; `AS3D_LEVEL_START` against the first starts' 11.0 / 9.6 s (expected
+  about 4.4 / 4.5 s as in stages 15 / 17, minus about 100 ms of conversions); the HUD's draws in
+  `AS3D_PASS_MS` (55 before); `AS3D_FX` for the particle cap in the fights; `AS3D_TERRAIN_LIGHTS` with
+  the miss classes.
+- Stages 6 and 12 (`skin_half=0`) against 5 and 11: the GPU time the skins' residency is worth. Stage 3
+  (`skin_half=1` on the first game) against 2: whether as3d gains too (all its skins in VRAM), for the
+  owner's look later.
+- Stages 7 and 13 (`gpu_passes=1`): the sequels' first per-pass GPU table (`AS3D_GPU_PASS`): the
+  particles at the cap, the draped shadows, the "rest" list, the water grid; which pass the next cut
+  must take.
+- Stages 8 and 14 (`ui_merge=0`) against 4 and 10: the HUD's draws and the mono submit.
+- Stage 9: AirStrike 2's mission 2 (its water grid and skid trails) at the new defaults, a first look.
+- Every stage: 0 mismatches, the end state equal to the desktop sim (`tools/3ds_soak_compare.py`),
+  `lazy_loads` passing with the stamps excused.
+
+### What remains
+
+- The GPU of the sequels after the skins: the particle cap (1536 quads per eye in as2's fights: a
+  picture decision if the per-pass table blames it), the draped shadows, the mesh draws (`mesh_merge`
+  on the console).
+- The remaining linear-memory skins (a VRAM priority, or `depth16`).
+- The terrain lights' per-chunk fixed cost (a persistent stream per chunk).
+- The sequels' first start (the vfs prefetch, R4.10) - the 1.7 s of "scripts" and the 2.4 s of pak
+  reads were the cold start's random reads.
