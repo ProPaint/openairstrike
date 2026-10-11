@@ -625,3 +625,148 @@ their early hint was not reached and not dumped: not a change of this package.
   pictures are constants at the top of console_menu.cpp: make them a `ConsoleSkin` per game). The
   sequels' text buttons (`SequelButton`) are drawn as plain text labels by the generic Bar path.
   `GameSelector` has its own `MenuSystem`; the same `ConsoleLayout` / `touchInput` pattern applies.
+
+## In play on the console (round 4, R4.7)
+
+Step 4 of the plan (section 4), the first game. The bottom screen in play is the HUD drawn in the
+screen's own pixels at the art's own size, and its tiles are the touch controls; the top screen
+carries the level name, the hint box and PAUSED. The desktop, Android and the web are untouched
+(`tools/ci.sh` passes with the goldens unchanged; the console layout is `HudTarget::Bottom320x240`,
+which only the 3DS and the desktop's `--dual-screen` preview use). Also in this package: the
+owner's size rule (one size per group of labels, "Owner decisions" above).
+
+### The bottom screen
+
+`engine/src/ui/hud_layouts.cpp` `makeV170Bottom`: the same `HudLayout` data as before, every value
+a whole screen pixel times 2.5 (the 0.4 mapping of the 320 x 240 lists), so `drawHud` puts every
+quad on a whole pixel. New layout fields (`as3d/hud_layout.h`, all off in the original layouts):
+the health frame in three pieces (`barCapLeft` / `barCapRight`: its ends 1:1, the middle
+stretched), `pauseTile`, `HudColumn::fixedSlots` (every kind in its own slot, empty ones dimmed by
+`emptyDim`), `countPatch`, `selectOutline`, `scoreDigits`, `weaponTextX`, `keysArea`;
+`levelNameY` / `messageY` < 0 leave those texts to the top screen. The icon atlases are
+nearest-filtered for this layout (drawn 1:1); `mainbar.tga` stays bilinear (its fill is squeezed
+into the bar; its frames and boxes sit on whole texels), `life.tga` is drawn at exactly 1/2.
+`drawConsoleHudExtras` (`as3d/console_hud.h`) adds the pad reminder and the pressed look of the
+tile under the finger.
+
+| element | pixels (x, y, w, h) | notes |
+|---|---|---|
+| pause tile | touch (0, 0, 40, 36), drawn (4, 4, 32, 28) | dark plate, two bars |
+| health bar | (44, 8, 120, 21) | frame ends 6 and 14 texels 1:1, middle stretched; the fill (172 texels) squeezed into 112 px |
+| score | right-aligned at x 312, y 11; field (172, 11, 140, 16) | L digits (number routine, 14 px each); 10 digits reserved |
+| lives | (6, 40), step 18, 16 x 16 | life.tga at 1/2, at most 5 |
+| weapon box | (4, 60, 70, 38), icon 66 x 35 at (5, 62) | tap = next weapon |
+| weapon level | "WEAPON" / "LEVEL n" at S from (80, 64), 13-px pitch | the first game has no level pips |
+| power-up tiles | x 170, y 36 + 40 i, i = 0..3, 70 x 38 | the four kinds with icons |
+| missile tiles | x 246, y 36 + 40 i, i = 0..4, 70 x 38 | under the right thumb |
+| counts | right edge at the tile's x + 60, y tile + 21, L, on a dark patch | missiles from 1, power-ups from 2 (the game's rule) |
+| selection | the box drawn twice (the game's own) and a one-pixel orange frame | |
+| pad reminder | (4, 166, 162, 72): B Missile, X Power-up, Y Weapon, R Next missile | the owner's key pictures, S labels, 18-px rows |
+
+**The score rule** (Owner decisions): the field is 10 digits x the L number advance = 140 px (the
+plan's estimate of 80 px assumed an 8-px digit; the engine's number routine advances 14 px at L),
+ending 8 px from the right edge; the health bar takes the 120 px left between the pause tile
+(+4 px) and the field (-8 px). `hud_layout_test` "console hud: the layout in pixels, the score
+rule, no overlaps" asserts the field width, its right edge, the gap to the bar and that the widest
+score stays in its field; no two element rectangles overlap anywhere on the screen.
+
+### Touch: the tiles
+
+`TouchLayoutOptions::forHudTiles320x240(game)` / `hudTiles` (`as3d/input.h`,
+`engine/src/input/touch_mapper.cpp`): the tiles are the layout's element rectangles named
+`pause`, `weapon`, `missile0..4`, `powerup0..3` (`hudElementRects`), scaled to the framebuffer; no
+round buttons, no band, no drag area, no auto-fire. A game whose bottom layout has no tiles (the
+sequels) gets the band of before from the same call.
+
+- **pause tile**: the pause edge (the in-game menu, as START).
+- **weapon box**: one next-weapon press.
+- **a missile / power-up tile of a kind not selected**: that kind is selected: "next" presses on
+  alternate steps (press, release, press, ...) until the world's selection is the tapped kind,
+  read from `TouchInventory` (`touchInventoryOf(world)`, set by the menu loop before each frame's
+  steps), at most one cycle; nothing is fired. **A tap on the selected kind** uses it: missile /
+  power-up held while the finger is down. **An empty slot**: nothing.
+- Without an inventory (the direct modes of `ctr_loop.cpp`, which this package does not touch) a
+  missile or power-up tile uses the selected kind, as the old buttons did.
+- `log_input=1` names the tile: `AS3D_INPUT ... touch=missile3`.
+
+The circle band is not built or drawn for the first game (`ctr_frame.cpp`: `prebuildTouch`, the
+flow's and the direct path's touch lists). **Vertices**: before, the band alone was 8256 vertices
+(`AS3D_TOUCH_PREBUILD ... vertices=8256`, gallery 9c0e504) plus the HUD list; now the whole bottom
+screen in play is about 490 vertices per frame (`AS3D_HUD frames=300 bottom2d_vertices=505
+hud=492 touch=0 menu=13 layout=tiles`, a new line every 300 frames beside `AS3D_UI_LISTS`; the
+next soak's `AS3D_PASS_MS` will show the GPU side). The tap-through fix of R4.5 is unchanged: a
+finger that went down on a menu (the hint's OK, Resume) never reaches the tiles.
+
+Test "console hud: the tiles are the touch controls" (hud_layout_test): 11 tiles equal to the HUD
+rectangles, each at least 36 px, the centre of each hits it, the bar and the reminder are no
+tiles; pause, next weapon, an empty slot, a selection by two presses on alternate steps (no
+missile fired), the use of the selected missile and power-up, a touch beside the tiles; the
+sequels keep the band.
+
+### The top screen in play
+
+`drawConsolePlayTop` (`as3d/console_hud.h`), from `ctr_frame.cpp` `buildTopQuads`:
+
+- **Level name** for the typewriter's time (types from 1 s, holds 3 s, fades over 1 s): "Mission 1:
+  Tutorial" split at the colon, "MISSION 1" at L (y 14) over "TUTORIAL" at T (y 30), both outlined,
+  each line growing rightwards from the left edge of its full text, centred; a name without a
+  colon is all title; T steps down to L when wider than 392 px.
+- **Cheat message** at S, outlined, centred at y 206.
+- **PAUSED** at T, outlined, centred on y 116, over the world dimmed 45 % (the in-game menu).
+- **The tutorial hint** is a console menu screen now (`ConsoleMenuView::handles` takes
+  `Screen::Hint`): top, the world dimmed 35 % and a box at the bottom of the screen (x 14, 372 px
+  wide, sized to its text, 8 px above the edge): TUTORIAL at L, the hint re-flowed at S to 356 px
+  (the original's `^` breaks are its box's line ends: joined), A OK at the lower right; bottom,
+  the HUD dimmed 60 % and one OK bar 160 x 56 at (80, 100), no footer (the reminder is there). A, B
+  or a tap on OK closes it; the tap-through fix keeps the finger from the tiles. Test "console
+  menus: the tutorial hint's OK".
+
+### Gallery
+
+`out/ui3ds/gallery/a75e679/as3d_sheet.png` (+ `@2x`, the first game's runs on the final build),
+per screen under `out/ui3ds/gallery/a75e679/as3d/`; the selector and the sequels on the same code
+less the hint footer fix: `out/ui3ds/gallery/16e2e4e/{selector,as2,gulf}_sheet.png`. New run
+`as3d_play` (tools/3ds_ui_gallery.py): no bot, run.ini `hud_stock=5` (missiles 0, 1, 3 and
+power-ups 0, 1), `pad_script` taps at the tiles' centres: `20_play_stocked`,
+`21_tap_select_missile` (missile 3 selected by a tap: outlined), `22_tap_fire_missile` (a second
+tap: the count 5 -> 4, the missile in the air), `23_tap_select_powerup`, `24_tap_next_weapon`,
+`25_tap_pause` (the pause tile: PAUSED and the in-game menu). The tap-through check: `tap on
+ingame at 1300 -> playing at 1301` and `tap on hint at 1500 -> playing at 1501`, no menu within 30
+frames: ok. Start game, options and the Information pages show the size rule (the mission list
+all at S because "Mission 2: Leaving the Home" does not fit at L).
+
+### Deviations from the mockups, and why
+
+- **Health bar 120 px** (mockup 173): the score rule's 140-px field (10 digits at the 14-px L
+  number advance); the bar's ends stay 1:1, the middle and the fill are squeezed.
+- **No frame around the score**: the field is plain text right-aligned; the mockup has none either
+  at the console size, the original's second health-bar frame would not fit.
+- **Tiles 70 x 38 at a 40-px pitch** (mockup 39 with a 4-px gap): the box art is 38 texel rows
+  (1:1), and five missile rows must fit under the top row (36 + 5 x 40 = 236).
+- **Weapon level as text only** ("WEAPON / LEVEL n" at S): the first game has no level-pip art; L
+  would not fit beside the weapon box with the tile columns at x 170.
+- **Lives at 1/2 under the bar** instead of beside it: the top row holds the pause tile, the bar
+  and the score field.
+- **Counts 10 px from the tile's right edge**: the box's notched corner cut the last digit at 4 px.
+- **Pressed look** (a light frame and a faint glow on the tile under the finger): not in the
+  mockups; the console's only feedback that a tap landed.
+- **The hint's bottom screen has no footer** (the mockup's "A OK" footer would cover the pad
+  reminder; the top box says A OK); a hint longer than the top screen's 14 lines is cut there.
+- **PAUSED** is centred a little higher (y 96..136) than the mockup's to leave the helicopter clear.
+- **The desktop `--dual-screen` preview** (apps/game, not this package's files) draws the new HUD
+  with the old circle band over it and no level name (its top screen has no console overlay).
+
+### What the sequels package starts from
+
+- The sequels' bottom layouts (`makeSequelBottom`) are unchanged: the 0.4 copy above the band of
+  round buttons, the band drawn and touched as before, PAUSED and the level name as before
+  (`sequel` gallery runs of 16e2e4e). To move them: give `makeSequelBottom` pixel values (x 2.5)
+  and the console fields (`pauseTile`, `fixedSlots` with up to 10 power-up slots or a scrolling
+  column, `countPatch`, `scoreDigits`, `keysArea`, `levelNameY = -1`); their frames at 3/4 need a
+  resampled copy (as `textureHalf`); `hudTilesLayout` switches the touch to tiles as soon as the
+  layout has a `pauseTile` and fixed slots; `drawConsolePlayTop` takes over when `levelNameY < 0`.
+- The sequels' hint is their `SequelPanel` (`ConsoleMenuView::handles` is false for sequels); the
+  first game's `drawHintTop` / `layoutHint` are the pattern.
+- The size rule (`applySizeRule`) applies to every layout the view makes, so the sequels' screens
+  get it with their layout functions.
+- Not done here: the loading screen, the name-entry fallback grid and the selector (next package).
