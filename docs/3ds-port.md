@@ -4248,3 +4248,177 @@ counters' presence and the end states are read there.
 - The level start: shadows with cache hits, the terrain base cache, an overlapped prefetch.
 - `hitches60` is the model's reading; a direct read of when the screen took a buffer
   (`gspWaitForEvent` on the vblank with the present state) would make it a measure.
+
+## Stereo GPU budget (round 4, R4.1)
+
+The fourth soak put the stereo frame at 15.3 to 15.5 ms of GPU from the first kick whatever the CPU
+does, mono at 8.1 to 8.9 ms; stereo at 60 Hz needs about 11 ms. This round estimates where the
+milliseconds go, adds an instrument that measures it per pass on the console, and puts each cut
+behind a run.ini key for the next soak's one-minute A/B stages. It also adds the mid-frame GPU kick
+R4.2 asked for (mono). Only `engine/src/render/pica`, `apps/3ds/source/ctr_frame.cpp`,
+`quality_profile.*`, the R4.1 block of `run_config.*` and the README changed; `tools/ci.sh` OK,
+`tools/3ds_ci.sh` ok.
+
+The touch band as a cached picture (candidate a) was built, checked and dropped: the UI rework of
+`docs/3ds-ui-design.md` replaces the circle band with HUD tiles. What it showed, for whoever draws
+the new bottom screen: the band's rows copied back with one GX texture copy matched the drawn band
+except where AirStrike 3D's HUD draws into the band's rows (the power-up column's seventh box and
+below reach row 221), and it hit in 97 % of the bot's frames; a cached bottom picture must keep
+everything drawn under it out of its rows. Nothing of it is left in the code.
+
+### The estimate per pass (mission 1, stereo, slider 0.5, the fourth soak's counters)
+
+Counters per stereo frame (stage 05, `AS3D_PASS_MS`, `verts_r`): each eye's world 11.2k vertices
+(terrain 5.2k indices with the far chunks coarse, shadows 2.0k, opaque meshes 1.9k in 15 draws,
+water about 400 indexed, rest 0.6k, particles 1.0k, sprites 0.2k; about 70 draws), the brightness
+quad and the perf line per eye; the bottom screen 8.7k vertices (the touch band's 8.3k
+tessellated circles, the HUD 0.4k in about 50 runs). Mono (stage 09): the eye 13.5k (terrain 7.5k:
+no coarse chunks in mono) and the same bottom.
+
+Unit costs from the M1.0 probe (VRAM textures): a full-screen terrain pass of 7.3k vertices with one
+RGB565 texture about 1.25 ms (E - D: 4 extra passes 5.0 ms; the depth test rejects the repeats
+after texturing, so this is vertices and fill together), a full-screen alpha-blended quad 0.45 ms
+(F), a second eye's clear, transfer and terrain 1.76 ms (D - C), the bottom target's clear,
+transfer and one full textured quad 0.68 ms (H - C), and a texture read from linear memory about
+ten times one from VRAM (A against B: 12.3 against 2.65 ms for the same full-screen terrain).
+
+| pass (one stereo eye unless said) | estimate ms | why |
+|---|---|---|
+| clear (colour and depth fills, 768 KB) + its display transfer | 0.4 - 0.6 | D - C less a terrain pass |
+| terrain base (two TEV stages, base + detail textures) + tile overlays | 1.5 - 2.2 | 1.25 per full-screen pass of 7.3k vertices, a second texture, the overlays blended on part of it |
+| shadows (2.0k vertices, 3 draws, A8 atlas pages in **linear memory**) | 0.3 - 1.0 | linear-memory texels cost ~10x VRAM ones over the shadows' area |
+| opaque meshes (1.9k vertices, 15 draws, env maps, per-bind texture-cache clears) | 0.4 - 0.8 | small fill, per-draw command and uniform processing |
+| water (indexed tiles, blended) | 0.2 - 0.5 | its area of the screen |
+| rest + particles + sprites (1.7k vertices, blended, overdraw near explosions) | 0.4 - 1.0 | overdraw varies with the fight |
+| brightness quad (brightness 0.6: dst x 1.2) | 0.45 | F: one full-screen blend |
+| perf line + the wash detector's depth copy (52 KB) | 0.1 - 0.3 | the fourth soak: `wash_check=0` -0.25 ms for both eyes |
+| **one eye** | **3.8 - 6.9** | measured: the second eye costs 6.5 - 7 (15.4 - 8.5 + the bottom's share, below) |
+| bottom: clear + transfer 0.4, HUD 0.2 - 0.3, touch band 8.3k non-indexed vertices 0.8 - 1.3 | 1.4 - 2.0 | mono 8.5 - 8.9 = one eye (6.9, a little more with the fine terrain) + the bottom |
+
+The measured eye sits at the top of the range: what the unit costs do not hold is the per-draw cost on
+the GPU side (about 70 draws an eye, each with its uniforms and state words, and citro3d clears the
+texture cache at every texture bind) and the linear-memory reads (the shadow atlas, 42 model skins
+and the muzzle flashes and projectiles live in linear memory: VRAM is full, 4.19 MB of textures).
+`gpu_passes=1` (below) replaces this table by the console's own numbers in one stage.
+
+### The instrument: `gpu_passes=N` (gpu_passes_pica.{h,cpp})
+
+Every N-th displayed frame (`1` = every 10th, offset from the state check's probe frames and never
+one whose probes split the list) each pass boundary submits the commands recorded since the last one
+and waits for the GX queue to drain: the time from the submission to the drain is that pass's GPU
+time. The boundaries are the world passes (`PassMeter::stop`, both eyes: the eye replay is off in a
+timed frame, which the fourth soak showed costs the GPU nothing), the 2D passes (`UiMeter`), the
+clears, the wash copy and what each screen recorded outside the passes (`other`). The fixed cost of a
+boundary (a one-word list, submitted and waited for: `sync`) is measured every timed frame and
+subtracted; the display transfers C3D_FrameEnd queues are the next frame's `C3D_GetDrawingTime`
+(`tail`). After each wait the GX queue's entries are counted from 0 again (`gxCmdQueueClear` on the
+idle queue), so a timed frame never reaches the queue's 32 entries. A split also flushes the GPU's
+framebuffer cache, which the untimed frame does once per target: the sum is a little above the
+frame's own GPU time. The log line, every 300 frames:
+
+    AS3D_GPU_PASS timed=30 every=10 sync=0.071 L: clear=.. terrain=.. marks=.. shadows=.. opaque=.. water=.. rest=..
+      particles=.. sprites=.. top2d=.. brightness=.. other=.. wash=.. (L sum) R: ... (R sum) B: clear=.. hud=.. touch=.. other=.. (B sum) tail=.. sum=..
+
+A timed frame waits for the GPU at every boundary, so it misses its vblank: a stage with gpu_passes
+measures the passes, not the frame rate. Azahar runs it (no mismatch, end state equal) but its GPU
+takes no time: every pass reads 0.00 there.
+
+### The keys (R4.1 block of run_config; apps/3ds/README.md)
+
+| key | default | mechanism | expected saving per stereo frame | picture (Azahar, matched dumps at steps 300..1800) |
+|---|---|---|---|---|
+| `gpu_kick_at=terrain` | **terrain** | the frame's first `kickGpu()` right after the first terrain pass that the eye replay does not record (mono; stereo with `eye_replay=0`): the GPU starts about 2 ms into the frame instead of after the whole top screen; stereo with the replay keeps its kick after the left eye (a split inside the recorded region would turn the replay off) | none in GPU time; mono: R4.2's what-if gives GPU-late frames 453 -> 14 and stutters 312 -> 85 in mission 1 | identical (mono top and bottom, 12 of 12 dumps); `kicks=` 2 per mono frame |
+| `bottom_hz=30` | 60 (30 in `gpu_lean`) | in a mission every other frame does not draw on the bottom target: C3D_FrameEnd neither transfers nor swaps it, the screen keeps its last picture (no flicker: citro3d swaps a screen only when its target was transferred) | the bottom's 1.4 - 2.0 ms on every other frame; the frames that draw it are unchanged, so alone it cannot hold 60 Hz | each bottom picture exact; the HUD updates at half the frame rate |
+| `terrain_far_tev=1` | 0 (1 in `gpu_lean`) | the coarse far chunks (beyond `terrain_lod_dist`) take the detail texture's mean colour as a TEV constant instead of sampling it, texture unit 1 off | 0.1 - 0.3 (a second texture read over the far third of the terrain) | the far rows (0..71) differ: 13-15k pixels per eye, MAE 0.5, at most 38 levels: the detail's 8x8 mip level still varies around its mean. Nearly, not exactly |
+| `brightness_skip=1` | **1** | no brightness pass within 1/255 of neutral 0.5 (only exactly 0.5 before) | 0 at the default brightness 0.6 (not neutral); the `brightness=0.5` stage measures what the quad costs (expected 0.9) | identical at 0.6; within 1 level at 0.5 |
+| `depth16=1` | 0 | the top eyes' depth buffers swapped to D16 at the stage start (the stencil is unused; swapped back without the key); the texture budget grows by the 375 KB saved; the wash detector is off with it (it reads D24S8) | 0.3 - 0.8 (half the depth bytes in the clears and every depth test and write), plus whatever the extra VRAM textures save (skins out of linear memory) | 0 to 7 pixels per eye differ (single pixels at depth ties) |
+| `right_eye_rate=half` | full | the right eye every other frame; its target is still transferred (drawOn with no draws), so the top screen stays in stereo | every other frame one eye (-6.5 to -7 ms), the others unchanged: alone no 60 Hz | the right eye one frame old every other frame |
+| `right_eye_rate=alternate` | full | the eyes in turn: each frame draws one eye, the other keeps and shows its last picture (the first stereo frame after mono or a level start draws both) | every frame about one eye + the bottom: 8.5 - 9 ms, the mono figure: stereo at 60 Hz expected | each eye at 30 Hz and one frame apart: depth error on moving objects; owner A/B only |
+| `gpu_lean=1` | 0 | `bottom_hz=30 terrain_far_tev=1 brightness_skip=1` (each key still overrides) | 1.5 - 2.3 on every other frame, 0.1 - 0.3 on the others: about 13.2 / 15.2 ms; not 60 Hz | as the two keys |
+| `gpu_passes=N` | 0 | the instrument above | (diagnostic) | identical |
+
+Evaluated and not made a key: the colour format of the eyes (`top_format=rgb565` exists; it is per
+launch, the graphics context is made once, so a soak stage cannot switch it: a whole-run A/B, as drop 4
+did); the clears (each eye must clear its depth; the colour fill of 384 KB is on the fill engine,
+cheap next to a pass, and the sky shows where the terrain does not reach); the particle cap and sort
+(the caps do not bite in mission 1, P3); the water's draws (one indexed draw per eye since R3.2).
+
+**What the picture-preserving cuts can reach:** about 15.4 -> 13 to 15 ms, not the 11 ms of stereo at
+60. Without the touch band (the UI rework draws the bottom differently) the bottom's share is what
+the new HUD tiles cost. Stereo at 60 with these keys needs either `right_eye_rate=alternate` (an owner
+decision on the look) or cuts inside the eye that the per-pass numbers will point at: if the shadows'
+pass is large, the atlas pages in VRAM (1.7 MB: VRAM is full, so a placement by use, with `depth16`'s
+375 KB); if the per-draw part is large, fewer draws (`mesh_merge`, a shared mesh vertex pool); if
+the terrain is, the far chunks coarser or `terrain_far_tev`.
+
+### Azahar runs (correctness; Azahar's GPU times are meaningless)
+
+`mode=bot` mission 1, 1800 steps, `fixed_steps=1 bot_weapons=1 state_check=1 wash_check=1`, dumps every
+300 steps, slider 0.5 (mono: 0), one run per key against the defaults:
+
+| run | state mismatches | washed frames | end state vs as3d_sim | `AS3D_GPU_LEAN` |
+|---|---|---|---|---|
+| mono, `gpu_kick_at=eye` / default (`terrain`) | 0 / 0 | 0 / 0 | equal / equal | kicks 300 / 600 per 300 frames |
+| stereo default | 0 | 0 | equal | kicks 600 |
+| `terrain_far_tev=1` | 0 | 0 | equal | far_tev_chunks 4508 per 300 frames |
+| `bottom_hz=30` | 0 | 0 | equal | bottom 150 drawn / 150 skipped |
+| `depth16=1` | 0 | (detector off) | equal | `AS3D_DEPTH16 on=1 changed=2 failed=0 texture_vram_limit_kb=4675` |
+| `gpu_lean=1` | 0 | 0 | equal | bottom 150/150, far chunks as above |
+| `right_eye_rate=half` / `alternate` | 0 / 0 | 0 / 0 | equal / equal | eyes skipped 0/150 and 150/150 |
+| `gpu_passes=1` | 0 | 0 | equal | 30 timed frames per 300, replay off in them (270 of 300 replayed) |
+| `eye_replay=0` | 0 | 0 | equal | kicks 900 (the terrain kick + both eyes) |
+
+`mode=soak` with the next soak's list as first drafted (18 stages, each shortened to 600 steps): every
+key reached its stage (`AS3D_GPU_LEAN` and `AS3D_QUALITY terrainFarTev=` per stage; `AS3D_DEPTH16 on=1`
+for the depth16 stages and `on=0 changed=2` for the stage after each: the D24S8 buffers come back),
+`PASS wash` (0 GPU mismatches in 309 probes, canary 309/309, 0 washed frames in 8406 judged
+eye-frames), 18 of 18 stages finished, `tools/3ds_soak_compare.py`: 18 of 18 end states equal to the
+desktop sim. Its `VERDICT FAIL` is the three mono60 lines (78 % at 60 Hz): Azahar's frame times, not
+the console's. The `gpu_passes` stages logged `AS3D_GPU_PASS` with every pass at 0.00 (Azahar's GPU
+takes no time) and the replay off in the timed frames only.
+
+### How to read the next soak (`run-soak-r41.ini`, about 30 minutes; R4.2's stages are merged into it)
+
+- Stages 1-4 (whole missions): the defaults on the hardware; mono with `gpu_kick_at=terrain` (R4.2's
+  `gpu_late60=` and stutters per mono line against its own simulator's what-if: 14 GPU-late frames in
+  mission 1).
+- Stage 6 (stereo) and 7 (mono) `gpu_passes=1`: **the table above in the console's numbers**:
+  `AS3D_GPU_PASS` per pass and eye, the bottom, the tail; `sum` against stage 5's `gpu_kick_ms`. This
+  decides the next cut: the largest pass first.
+- Stage 8 (mono `gpu_kick_at=eye`) against R4.2's mono 3600-step stage with the defaults: `gpu_late60`,
+  misses, the waits in perf.csv `wait_ms` (the GPU of the frame before still running at
+  C3D_FrameBegin).
+- Stages 9-17 against stage 5, `gpu_kick_ms` (mean, median and the share of frames under 11 ms) and
+  the share at 60 Hz: `bottom_hz=30` and `gpu_lean=1` should show two populations of frames (with and
+  without the bottom); `terrain_far_tev=1` 0.1 - 0.3 lower; `brightness=0.5` the brightness quad's
+  cost (two eyes); `depth16=1` the depth bandwidth (less 0.25 for its detector being off);
+  `right_eye_rate=half` two populations (one eye / two), `alternate` one eye per frame and the pacer
+  at 60 (`AS3D_PACE hz=60`, `PERF_SUMMARY frames_at_30hz`).
+- Every stage: 0 mismatches, its end state equal to the desktop sim.
+
+### R4.2's other items (renderer side)
+
+- **The terrain pass's CPU time varies 8x at constant draws** (0.2 - 0.6 ms quiet, 1.2 - 2.4 ms in
+  fights at the same 7 - 10 draws and 7.7k vertices): the dynamic lights. `TerrainRenderer::render`
+  computes, for every visible chunk a light reaches (explosions, muzzle flashes, burning wrecks:
+  `AS3D_PREP_MS prep_scene` lights), a per-vertex light stream on the CPU (`computeLights`: up to
+  `kTerrainPicaLightsPerChunk` lights per chunk, every vertex in the lights' rectangle, written to the
+  arena), and the soak's fight windows are the windows with lights. Not changed here (a cheaper
+  light stream changes the lit picture): the next step is to count it (`litChunks` per frame into
+  `AS3D_PASS_MS`) and, if it is the whole difference, to light per coarse vertex or reuse a chunk's
+  stream while its lights do not move.
+- **Level start, shadows with every silhouette cached at 2.2 - 2.6 ms each**: after a cache hit
+  `ShadowRenderer::generate` still hashes the whole model (positions, uvs, faces, byte by byte with
+  FNV) and the skin for the key, expands the cached alpha to RGBA and places it in the atlas (its mip
+  levels built on the CPU). A key memoised by model and skin within a level start, and the alpha
+  written straight into the atlas cell, would leave the cache's own load; not done in this round.
+- **Terrain base generation 245 ms, identical every start**: cacheable as the silhouettes are (a file
+  per level keyed by the heightmap and the textures); not done. **Converted textures 311 ms**: R4.2's
+  own estimate says a cache would cost more SD reading than it saves.
+
+### What remains
+
+- The per-pass numbers from the console (stage 6/7), then the largest pass.
+- The look of `right_eye_rate=alternate` and `half` (owner).
+- VRAM placement by use (hot linear-memory textures such as the shadow atlas pages into VRAM).
+- The bottom screen's cost once the UI rework's tiles replace the band (a `gpu_passes` stage tells it).
