@@ -208,6 +208,16 @@ Recommended: the attract level.
   `as3d_hint`) while the bottom shows one 160 x 56 px OK and the dimmed HUD; PAUSED in T outlined over
   the world dimmed 45 % (`as3d_paused`). All at screen depth (zero parallax), as today.
 
+**Score width (owner's concern, 2026-10-11):** the in-play mockup sets the score right of the
+health bar with no reserved width, so a growing score would run into the bar. Rule for the in-play
+package: the score is right-aligned in a field reserved for the widest score the engine budgets
+(10 digits: `hudElementRects` in engine/src/ui/hud_layouts.cpp counts a pen advance of 14 per digit
+at the desktop scale; at the console's L size that is 10 digits x the L digit advance, about 80 px,
+plus an 8 px gap), the field ends 8 px from the screen's right edge, and the health bar takes
+whatever is left between the pause button and the field (about 140 px on a 320 px screen) instead
+of a fixed 160 px. `hud_layout_test` checks that the 10-digit score rectangle and the bar rectangle
+do not overlap at the console layout. The same rule for the sequels' score boxes.
+
 ### End screens, loading, name, selector
 
 - Mission complete (`as3d_mission_complete`): title picture and results (L) on top over the dimmed
