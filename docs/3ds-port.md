@@ -95,6 +95,14 @@ end): AirStrike 3D stereo 11.0 ms (fold 1.5, water 1.3), alternate eyes at 60, m
 starts of 11 and 9.6 s cold, scripts 1.7 s, light cache never hits). In progress on agents' worktrees:
 R4.10 (prefetch overlap, vfs) and R4.11 (the sequels' cuts). Unread: the owner's photo session.**
 
+**R4.10 and R4.11 are merged (36f0226, 8321814; sections at the end). Drop round4e-8321814 (title
+version 661) is built under out/3ds/drop-round4e-8321814/ with `run-soak-r4e.ini` (18 stages, about 22
+minutes: the prefetch thread off/on pairs for missions 1 and 2, as3d stereo with and without skin_half,
+the sequels mono/stereo/skins at full size/per-pass GPU table/2D merge off, AirStrike 2's mission 2);
+the upload waits for the console's ftpd (down after the seventh soak: the app replaced it), retried every
+five minutes by a background loop; the receiver expects 8321814. Read with the R4.10 and R4.11 sections'
+"what the soak should check" lists.**
+
 **R4.11 (section "The sequels on the console (round 4, R4.11)" at the end): the seventh soak's sequel
 numbers read (as2 stereo GPU 20.1 ms, 4 to 6 MB of skins in linear memory, 400 draws, the scripts' 1.7 s,
 the light cache at 0); the sequels' model skins made from level 1 of their chain (`skin_half=auto`:
