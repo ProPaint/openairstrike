@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <iterator>
 #include <vector>
 
 #include "as3d/core.h"
@@ -776,7 +777,19 @@ const float* WaterPass::animate(GridChunk& ch) {
 
 int WaterPass::drawGrid(const Mat4& view, const Mat4& projection, const Vec3& fogColour, float fogStart, float fogEnd) {
     const Mat4 m = projection * view;
-    const std::vector<int> visible = visibleWaterChunks(geo_, m);
+    std::vector<int> visible = visibleWaterChunks(geo_, m);
+    // While this eye records for both eyes (eye_replay_pica.h): the chunks either eye sees.
+    float shiftK1 = 0.0f, shiftK2 = 0.0f;
+    if (eyeReplayRecording() && eyeReplayShift(&shiftK1, &shiftK2)) {
+        Mat4 right = projection;
+        right.at(2, 1) -= shiftK1;
+        right.at(3, 1) += shiftK2;
+        const std::vector<int> visibleR = visibleWaterChunks(geo_, right * view);
+        std::vector<int> both;
+        both.reserve(visible.size() + visibleR.size());
+        std::set_union(visible.begin(), visible.end(), visibleR.begin(), visibleR.end(), std::back_inserter(both));
+        visible.swap(both);
+    }
     g_stats.chunksVisible = 0;
     g_stats.trianglesDrawn = 0;
     g_stats.draws = 0;
