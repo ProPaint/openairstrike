@@ -56,6 +56,11 @@ again, mono60 29.7%/62.5% with that build's 6-miss pacer, stereo 30 Hz; it tests
 3. The receiver now takes `--expect <commit>` and prints a warning at the top of its report when
 the run's build differs (the agent starts it with the drop's commit).
 
+**Fourth soak (build d63fbbf, `out/3ds/2026-10-11-d63fbbf/`, section at the end): the wash's
+register fault is gone with the forced state block (0 prime mismatches in 2485 probes, canary
+2485/2485), mono at 60 Hz 85.5 / 88.5%, stereo's GPU is 15.3 to 15.5 ms from the first kick whatever
+the CPU does (the eye replay and the detector cost no GPU), so stereo at 60 is a GPU job (round 4).**
+
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
 installed game (missions 1 and 2, mono and stereo at slider 0.5, the weapon tour, audio on, the
@@ -3909,3 +3914,57 @@ where the nearest chunk's visible part is under 10 pixels tall.
   7-8 ms plus a 9-10 ms tail); the per-pass CPU items of "Stereo CPU path, What remains".
 - Stereo at 60: 19-20 ms of CPU plus GPU tail per frame; the GPU's own time per frame (`gpu_kick_ms`)
   decides the next cut.
+
+## Fourth console soak (2026-10-11, build d63fbbf; out/3ds/2026-10-11-d63fbbf/, the ten-stage list)
+
+The drop round3b (R3.3 merged) on the console, launched from the HOME menu (the CIA reinstalled
+with FBI), ten stages in about 25 minutes, 10 of 10 end states equal to the desktop sim.
+
+**The wash's fingerprint is gone.** `prime_mismatches=0` in 2485 probes (101 of 1725 in the third
+soak, all in mission 2), `canary_ok=2485/2485`, `canary_stale=0`, `reread_changed=0`,
+`mismatch_probes=0`. Of R3.3's three readings this is the first: the terrain pass's first state
+block was being skipped or dropped as "unchanged", and the forced effect block
+(`terrain_force_state=1`, the whole C3Di_EffectBind block as direct words after the priming draw)
+makes it land. The canary read back on every probe, so the third soak's mismatches were not a
+race in the probe either. The detector judged 69115 eye-frames with `washed=0`, its hardware
+self-test matched 112 of 112 samples (bytes 2,1,0), coverage of the nearest chunk row 11.8 sample
+rows on average, under 2 rows in 1.9 to 2.1% of frames. What the soak cannot say: the detector
+never saw a washed frame in any build (the third soak had the register fault and still no washed
+sample), so the register fix is proven at the register, not at the pixel. The owner's eyes are
+the last check (`run-play.ini`), optional.
+
+**Mono.** mission 1 at 60 Hz 85.5% (misses 1.69%, pace_changes 10), mission 2 88.5% (0.65%, 4);
+the one-minute stages 95.2% (1.1%). The third soak had 78.2 / 82.0% with 2.43 / 2.14%. The heap
+walk every 32 frames (R3.3 C3) is gone: the 60 Hz misses of mission 1 that remain are 170 in 11762
+frames, no longer on the frames 1 mod 32 (see the agent's analysis in the next section). `music=0`
+and `wash_check=0` change nothing in mono (1.15 / 1.08% misses): neither the music thread nor the
+detector causes the rest. Mono CPU avg 5.3 to 5.7 ms, GPU p95 9.3 to 10.2 ms, GPU from the first
+kick 8.1 to 8.9 ms.
+
+**Stereo, the A/B stages (mission 1, 3600 steps each, slider 0.5):**
+
+| stage | submit ms | gpu tail ms | gpu from first kick ms | at 60 (before settling) |
+|---|---|---|---|---|
+| baseline | 7.01 | 13.82 | 15.52 | 537 |
+| eye_replay=0 | 8.31 | 12.33 | 15.36 | 524 |
+| wash_check=0 | 6.24 | 13.38 | 15.27 | 619 |
+| terrain_prime=0 | 6.90 | 13.88 | 15.46 | 537 |
+
+The GPU takes 15.3 to 15.5 ms per stereo frame whatever the CPU does: the eye replay saves 1.3 ms
+of CPU and costs no GPU (the tail measure moved, the kick measure did not), the detector costs
+0.8 ms of CPU and 0.25 ms of GPU, the priming draw nothing. Stereo at 60 Hz needs about 5 ms
+less GPU per frame (a third): the touch band's 8.4k vertices, the bottom screen every other
+frame, a single TEV stage on the far terrain, the brightness pass when neutral ("GPU side" in the
+R3.2 section), or the plan's fallback of the right eye at half rate. Whole missions: stereo settled
+at 30 Hz throughout (gpu_avg 12.6 to 13.4 tail, p95 15.8 to 17.5), 0 misses at 30. Right eye
+share under the replay: 9000 to 10900 of 26900 to 30300 vertices, 86 to 98 of 249 to 272 draws
+(the right eye replays the world only; the 2D and the bottom screen are drawn once).
+
+**Else:** "mission load" 3.2 to 3.4 s by the report's measure (the renderer's level start),
+"loaded in" 1.8 s by the log's; lazy 0, fence 0, gpu_busy 0, tex_in_frame 0; linear peak 16 MB;
+texture VRAM 4193 KB.
+
+Open after this soak: stereo at 60 (GPU), mono's last 1 to 1.7% of misses and the pacer's 4 to 10
+drops per mission, the level start over 3 s, the muzzle flashes (owner decision, R3.1 section),
+the owner's optional checks (the wash by eye in play, the name entry, the stereo feel at the new
+defaults).
