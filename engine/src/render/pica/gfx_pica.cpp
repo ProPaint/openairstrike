@@ -468,6 +468,77 @@ void Texture2D::createZeroed(int w, int h, PicaFormat format, const TextureOptio
     bytes_ = bytes;
 }
 
+bool Texture2D::createConverted(int w, int h, PicaFormat format, int levels, const uint8_t* data, size_t bytes,
+                                const TextureOptions& options) {
+    destroy();
+    if (!data || pica::inFrame() || w < 8 || h < 8 || pica::textureSide(w) != w || pica::textureSide(h) != h || levels < 1 ||
+        byteSize(w, h, format, levels) != bytes)
+        return false;
+    pica::TextureBudget& budget = pica::textureBudget();
+    pica::LoadProfile& lp = pica::loadProfile();
+    const u64 t0 = svcGetSystemTick();
+    pica::collectDeferred(true); // the VRAM of destroyed textures, as create() outside a frame
+    auto* p = new PicaTexture;
+    p->format = format;
+    p->placement = budget.choose(bytes, options.res);
+    C3D_TexInitParams params{static_cast<u16>(w), static_cast<u16>(h), static_cast<u8>(levels - 1), pica::toGpu(format),
+                             GPU_TEX_2D, p->placement == pica::Placement::Vram};
+    bool ok = C3D_TexInitWithParams(&p->tex, nullptr, params);
+    if (!ok && p->placement == pica::Placement::Vram) {
+        budget.noteVramFallback();
+        p->placement = pica::Placement::Linear;
+        params.onVram = false;
+        ok = C3D_TexInitWithParams(&p->tex, nullptr, params);
+    }
+    if (!ok) {
+        budget.noteFailure();
+        delete p;
+        return false;
+    }
+    size_t offset = 0;
+    if (p->placement == pica::Placement::Vram) {
+        auto* staging = static_cast<uint8_t*>(linearAlloc(bytes));
+        if (!staging) {
+            C3D_TexDelete(&p->tex);
+            budget.noteFailure();
+            delete p;
+            return false;
+        }
+        std::memcpy(staging, data, bytes);
+        GSPGPU_FlushDataCache(staging, bytes);
+        for (int level = 0; level < levels; ++level) {
+            C3D_TexLoadImage(&p->tex, staging + offset, GPU_TEXFACE_2D, level);
+            offset += byteSize(w >> level, h >> level, format, 1);
+        }
+        linearFree(staging);
+    } else {
+        for (int level = 0; level < levels; ++level) {
+            u32 size = 0;
+            auto* dst = static_cast<uint8_t*>(C3D_Tex2DGetImagePtr(&p->tex, level, &size));
+            const size_t lb = byteSize(w >> level, h >> level, format, 1);
+            if (dst && size >= lb) std::memcpy(dst, data + offset, lb);
+            offset += lb;
+        }
+        C3D_TexFlush(&p->tex);
+    }
+    C3D_TexSetFilter(&p->tex, pica::toGpu(options.magFilter), pica::toGpu(options.minFilter));
+    if (levels > 1) C3D_TexSetFilterMipmap(&p->tex, pica::toGpu(options.minFilter));
+    C3D_TexSetWrap(&p->tex, pica::toGpu(options.wrapS), pica::toGpu(options.wrapT));
+    p->bytes = bytes;
+    budget.add(p->placement, bytes);
+    const u64 t1 = svcGetSystemTick();
+    lp.texUploadTicks += t1 - t0;
+    lp.texTicks += t1 - t0;
+    ++lp.texCount;
+    lp.texLevels += levels;
+    lp.texBytes += bytes;
+    handle_ = reinterpret_cast<std::uintptr_t>(p);
+    width_ = w;
+    height_ = h;
+    bytes_ = bytes;
+    return true;
+}
+
 void Texture2D::bind(unsigned unit) const {
     if (!handle_ || unit > 2) return;
     C3D_Tex* t = &pica::picaTex(handle_)->tex;

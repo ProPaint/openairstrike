@@ -322,6 +322,8 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
             if (toInt(val, &n)) c.texFast = n != 0;
         } else if (key == "terrain_light_cache") {
             if (toInt(val, &n)) c.terrainLightCache = n != 0;
+        } else if (key == "terrain_base_cache") {
+            if (toInt(val, &n)) c.terrainBaseCache = n != 0;
         } else if (key == "base_int") {
             if (toInt(val, &n)) c.baseInt = n != 0;
         // R4.6 end

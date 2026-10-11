@@ -44,6 +44,12 @@ public:
     // PICA only (gfx_pica.cpp): a w x h texture of `format` in linear memory whose every byte is
     // zero (the shadow atlas's empty pages), without an image to convert.
     void createZeroed(int w, int h, PicaFormat format, const TextureOptions& options = {});
+    // PICA only: a w x h texture (power-of-two sides of at least 8) of `format` with `levels` mip
+    // levels from bytes already converted (texconv's layout, the levels one after the other, as
+    // Texture2D::create makes them), placed as create would place it; outside frames only (false
+    // inside one, or when the bytes do not match the size). The terrain's base texture cache.
+    bool createConverted(int w, int h, PicaFormat format, int levels, const uint8_t* data, size_t bytes,
+                         const TextureOptions& options = {});
 #endif
     void bind(unsigned unit = 0) const;
 

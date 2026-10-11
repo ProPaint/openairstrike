@@ -39,11 +39,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <iterator>
 #include <map>
 
 #include "as3d/core.h"
+#include "as3d/fs_util.h"
+#include "as3d/texconv.h"
 #include "as3d/material_key.h"
 #include "as3d/render_state.h"
 #include "as3d/terrain_render.h"
@@ -478,6 +481,62 @@ void TerrainRenderer::Impl::collectRetired(bool all) {
 // holds what they add to the baked colour (the shader adds the two and clamps).
 namespace pica {
 void setTerrainLightCache(bool on) { g_lightCache = on; }
+
+namespace {
+constexpr u32 kBaseCacheMagic = 0x31534254; // "TBS1"
+constexpr u32 kBaseCacheVersion = 1;
+struct BaseCache {
+    std::string path;
+    u64 key = 0;
+    std::vector<u8> pending; // the file to write (a miss), empty otherwise
+    TerrainBaseCacheStats stats;
+};
+BaseCache& baseCache() {
+    static BaseCache c;
+    return c;
+}
+// A 64-bit hash of words (the cache key: fast over the 1 MB of source texels).
+struct WordHash {
+    u64 h = 0x9E3779B97F4A7C15ull;
+    void word(u32 w) {
+        h ^= w;
+        h *= 0xFF51AFD7ED558CCDull;
+        h ^= h >> 32;
+    }
+    void bytes(const u8* p, size_t n) {
+        size_t i = 0;
+        for (; i + 4 <= n; i += 4) {
+            u32 w;
+            std::memcpy(&w, p + i, 4);
+            word(w);
+        }
+        u32 tail = 0;
+        for (size_t k = 0; i < n; ++i, ++k) tail |= static_cast<u32>(p[i]) << (8 * k);
+        word(tail ^ static_cast<u32>(n));
+    }
+};
+} // namespace
+
+void setTerrainBaseCacheFile(const std::string& path) {
+    BaseCache& c = baseCache();
+    c.path = path;
+    c.key = 0;
+    c.pending.clear();
+    c.stats = TerrainBaseCacheStats();
+}
+const TerrainBaseCacheStats& terrainBaseCacheStats() { return baseCache().stats; }
+
+int saveTerrainBaseCache(const std::function<bool(const std::string&, std::vector<uint8_t>&&)>& write) {
+    BaseCache& c = baseCache();
+    if (c.path.empty() || c.pending.empty()) return 0;
+    const size_t slash = c.path.find_last_of('/');
+    if (slash != std::string::npos) makeDirectories(c.path.substr(0, slash));
+    const int blocks = c.stats.blocks;
+    std::vector<u8> out = std::move(c.pending);
+    c.pending.clear();
+    if (write && write(c.path, std::move(out))) return blocks;
+    return writeFileAtomic(c.path, out.data(), out.size()) ? blocks : 0;
+}
 } // namespace pica
 
 void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, size_t count) {
@@ -663,8 +722,75 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
     topts.magFilter = Filter::Linear;
     topts.cls = TextureClass::Opaque;
     im.baseTextures.resize(static_cast<size_t>(blocks));
-    {
+    // The base texture cache (terrain_pica.h setTerrainBaseCacheFile): the key over what the
+    // generation reads, then the file's blocks when it matches.
+    pica::BaseCache& bc = pica::baseCache();
+    const PicaFormat baseFmt = PicaFormat::RGB565; // chooseFormat(Opaque), what create() makes of a block
+    int baseLevels = 1;
+    for (int lw = kBaseTextureSize; lw / 2 >= 8; lw /= 2) ++baseLevels;
+    const size_t blockBytes = byteSize(kBaseTextureSize, kBaseTextureSize, baseFmt, baseLevels);
+    bool fromCache = false;
+    if (!bc.path.empty()) {
+        const u64 c0 = svcGetSystemTick();
+        bc.stats.used = true;
+        bc.stats.blocks = blocks;
+        pica::WordHash kh;
+        kh.word(pica::kBaseCacheVersion);
+        kh.word(static_cast<u32>(kBaseTextureSize));
+        kh.word(static_cast<u32>(blocks));
+        kh.word(static_cast<u32>(level.width));
+        kh.word(static_cast<u32>(level.height));
+        {
+            std::vector<u8> plane(level.cells.size());
+            for (size_t i = 0; i < plane.size(); ++i) plane[i] = level.cells[i].height;
+            kh.bytes(plane.data(), plane.size());
+        }
+        for (const Image& s : src) {
+            kh.word(static_cast<u32>(s.width));
+            kh.word(static_cast<u32>(s.height));
+            kh.bytes(s.rgba.data(), s.rgba.size());
+        }
+        bc.key = kh.h;
+        std::vector<u8> data;
+        if (std::FILE* f = std::fopen(bc.path.c_str(), "rb")) {
+            u32 head[4] = {0, 0, 0, 0};
+            u64 key = 0;
+            if (std::fread(head, sizeof head, 1, f) == 1 && std::fread(&key, sizeof key, 1, f) == 1 &&
+                head[0] == pica::kBaseCacheMagic && head[1] == pica::kBaseCacheVersion &&
+                head[2] == static_cast<u32>(blocks) && head[3] == static_cast<u32>(blockBytes) && key == bc.key) {
+                data.resize(static_cast<size_t>(blocks) * blockBytes);
+                if (std::fread(data.data(), 1, data.size(), f) != data.size()) data.clear();
+            }
+            std::fclose(f);
+        }
+        bc.stats.fileBytes = data.size();
+        bc.stats.loadMs = static_cast<double>(svcGetSystemTick() - c0) * 1000.0 / SYSCLOCK_ARM11;
+        if (!data.empty()) {
+            const u64 g1 = svcGetSystemTick();
+            fromCache = true;
+            for (int b = 0; b < blocks && fromCache; b++)
+                fromCache = im.baseTextures[static_cast<size_t>(b)].createConverted(
+                    kBaseTextureSize, kBaseTextureSize, baseFmt, baseLevels, data.data() + static_cast<size_t>(b) * blockBytes,
+                    blockBytes, topts);
+            tCreate += svcGetSystemTick() - g1;
+            bc.stats.hit = fromCache;
+        }
+    }
+    if (!fromCache) {
         std::vector<u8> rgb;
+        // A miss with the cache on: each block converted once here (texconv's chain, what create()
+        // does) and made from those bytes, which also go to the file.
+        const bool keep = !bc.path.empty();
+        if (keep) {
+            bc.pending.clear();
+            bc.pending.reserve(24 + static_cast<size_t>(blocks) * blockBytes);
+            const u32 head[4] = {pica::kBaseCacheMagic, pica::kBaseCacheVersion, static_cast<u32>(blocks),
+                                 static_cast<u32>(blockBytes)};
+            const u8* hp = reinterpret_cast<const u8*>(head);
+            bc.pending.insert(bc.pending.end(), hp, hp + sizeof head);
+            const u8* kp = reinterpret_cast<const u8*>(&bc.key);
+            bc.pending.insert(bc.pending.end(), kp, kp + sizeof bc.key);
+        }
         Image img;
         img.width = img.height = kBaseTextureSize;
         img.rgba.resize(static_cast<size_t>(kBaseTextureSize) * kBaseTextureSize * 4);
@@ -678,10 +804,29 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
                 img.rgba[i * 4 + 3] = 255;
             }
             const u64 g1 = svcGetSystemTick();
-            im.baseTextures[static_cast<size_t>(b)].create(img, topts);
+            bool made = false;
+            if (keep) {
+                const size_t at = bc.pending.size();
+                bc.pending.resize(at + blockBytes);
+                u8* dst = bc.pending.data() + at;
+                Image cur = img, next;
+                size_t off = 0;
+                for (int level = 0; level < baseLevels; ++level) {
+                    swizzleInto(cur, baseFmt, dst + off, blockBytes - off);
+                    off += byteSize(cur.width, cur.height, baseFmt, 1);
+                    if (level + 1 < baseLevels) {
+                        next = downsampleBox2x2(cur);
+                        cur = std::move(next);
+                    }
+                }
+                made = im.baseTextures[static_cast<size_t>(b)].createConverted(kBaseTextureSize, kBaseTextureSize,
+                                                                               baseFmt, baseLevels, dst, blockBytes, topts);
+            }
+            if (!made) im.baseTextures[static_cast<size_t>(b)].create(img, topts);
             tGenerate += g1 - g0;
             tCreate += svcGetSystemTick() - g1;
         }
+        if (keep && bc.pending.size() != 24 + static_cast<size_t>(blocks) * blockBytes) bc.pending.clear();
     }
     for (Image& s : src) s = Image();
     if (pica::renderQuality().terrainDetail) { // M4.1: the Old 3DS profile has no detail texture

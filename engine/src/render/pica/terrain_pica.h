@@ -16,6 +16,9 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <string>
 #include <vector>
 
 namespace as3d::pica {
@@ -67,6 +70,23 @@ const TerrainPicaStats& terrainPicaStats();
 // radius, cone) are the ones of its last computed stream, and whose vertices did not move since,
 // reuses that stream instead of lighting its vertices again: the same bytes.
 void setTerrainLightCache(bool on);
+// The SD cache of the terrain's base textures (R4.6, run.ini terrain_base_cache, default on): the
+// level start generates the same eight 256x256 blocks every time (245 ms on the console) and
+// converts them (RGB565 and its mip chain). setTerrainBaseCacheFile names the file of this level
+// start (empty: off) before TerrainRenderer::build; build loads it and, when its key (a hash of the
+// level's height plane and the four source textures, the sizes, the converter's version) matches,
+// makes the textures from the converted bytes; else it generates them, converts them once and keeps
+// the bytes for saveTerrainBaseCache, which writes the file (through `write`, the app's writer
+// thread, like the silhouette cache). The same texels either way.
+void setTerrainBaseCacheFile(const std::string& path);
+struct TerrainBaseCacheStats {
+    bool used = false, hit = false;
+    double loadMs = 0.0;   // reading the file (hit or not)
+    size_t fileBytes = 0;
+    int blocks = 0;
+};
+const TerrainBaseCacheStats& terrainBaseCacheStats();
+int saveTerrainBaseCache(const std::function<bool(const std::string&, std::vector<uint8_t>&&)>& write);
 
 // Depth bias of the tile overlay pass, C3D_DepthMap's offset (pica_frame.h applyDepthMap);
 // pica::kPolygonOffsetDepth by default (see there for the value and why). The overlay is drawn

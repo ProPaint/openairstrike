@@ -845,9 +845,9 @@ struct GameFrame::Impl {
         setBaseTextureReference(!run.baseInt);
         pica::setTerrainLightCache(run.terrainLightCache);
         AS3D_INFO("AS3D_R46 brightness_mode=%s water_cover=%d shadow_fast_hit=%d tex_fast=%d base_int=%d "
-                  "terrain_light_cache=%d",
+                  "terrain_light_cache=%d terrain_base_cache=%d",
                   run.brightnessMode == 1 ? "quad" : "fold", run.waterCover ? 1 : 0, run.shadowFastHit ? 1 : 0,
-                  run.texFast ? 1 : 0, run.baseInt ? 1 : 0, run.terrainLightCache ? 1 : 0);
+                  run.texFast ? 1 : 0, run.baseInt ? 1 : 0, run.terrainLightCache ? 1 : 0, run.terrainBaseCache ? 1 : 0);
         AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d terrain_force_state=%d eye_replay=%d",
                   wash.enabled() ? 1 : 0, run.washInject, run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0,
                   run.terrainForceState ? 1 : 0, run.eyeReplay ? 1 : 0);
@@ -895,6 +895,27 @@ struct GameFrame::Impl {
     }
 
     // The level-start precache (run.ini precache=1), then every later load counts as lazy.
+    // R4.6: the terrain's base texture cache (terrain_pica.h) of this level start, next to the
+    // silhouettes' file; set before the renderer's beginLevel, written after it (writer thread).
+    void setBaseCache(as3d_game::GameSession& ses) {
+        if (!run.terrainBaseCache || !ses.hasLevel()) {
+            pica::setTerrainBaseCacheFile(std::string());
+            return;
+        }
+        pica::setTerrainBaseCacheFile(std::string(kDataDir) + "/cache/" + (ses.game() ? ses.game()->key : "as3d") + "_m" +
+                                      std::to_string(ses.mission()) + (ses.world().intermission() ? "_attract" : "") +
+                                      ".terrain");
+    }
+    void saveBaseCache() {
+        const int saved = pica::saveTerrainBaseCache([](const std::string& path, std::vector<u8>&& bytes) {
+            return queueFileWrite(path, std::move(bytes));
+        });
+        const pica::TerrainBaseCacheStats& s = pica::terrainBaseCacheStats();
+        if (s.used)
+            AS3D_INFO("AS3D_TERRAIN_BASE_CACHE hit=%d blocks=%d file_kb=%.0f load_ms=%.1f saved=%d", s.hit ? 1 : 0, s.blocks,
+                      static_cast<double>(s.fileBytes) / 1024.0, s.loadMs, saved);
+    }
+
     void precacheLevel(as3d_game::GameSession& ses, float from, float to) {
         if (!run.precache || !ses.hasLevel()) return;
         World& world = ses.world();
@@ -1058,12 +1079,14 @@ struct GameFrame::Impl {
                        (intermission ? "_attract" : "_fe"),
                    run.prefetch && run.precache);
         std::string err;
+        setBaseCache(ses);
         if (!renderer->beginLevel(ses.world(), &err)) {
             AS3D_ERROR("WorldRenderer::beginLevel: %s", err.c_str());
             if (error) *error = err;
             plan.end();
             return false;
         }
+        saveBaseCache();
         levelBegun = true;
         if (intermission) loadBanner(ses);
         const uint64_t t1 = svcGetSystemTick();
@@ -1464,10 +1487,12 @@ bool GameFrame::begin(CtrContext& ctx, as3d_game::GameSession& session) {
     if (!im.makeRenderer(session)) return false;
     const uint64_t tMade = svcGetSystemTick();
     // The terrain first: its textures are the first VRAM tenants.
+    im.setBaseCache(session);
     if (!im.renderer->beginLevel(world, &err)) {
         AS3D_ERROR("WorldRenderer::beginLevel: %s", err.c_str());
         return false;
     }
+    im.saveBaseCache();
     im.levelBegun = true;
     im.wash.reset();
     const uint64_t t1 = svcGetSystemTick();
