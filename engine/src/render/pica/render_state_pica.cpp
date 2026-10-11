@@ -112,11 +112,6 @@ FbRect clampRect(FbRect r, int fbWidth, int fbHeight) {
 
 u8 toByte(float v) { return static_cast<u8>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); }
 
-u32 packRgba(const Vec4& c) {
-    return static_cast<u32>(toByte(c.x)) << 24 | static_cast<u32>(toByte(c.y)) << 16 |
-           static_cast<u32>(toByte(c.z)) << 8 | toByte(c.w);
-}
-
 // GL depth value (0 near, 1 far) as the D24S8 fill word (stencil 0): the PICA stores 1 - d.
 u32 packDepth(float glDepth) {
     return static_cast<u32>((1.0f - std::clamp(glDepth, 0.0f, 1.0f)) * 16777215.0f + 0.5f) & 0xFFFFFFu;
@@ -128,10 +123,14 @@ void fillTarget(bool color, const Vec4& c, bool depth, float glDepth) {
     if (!t.target || (!color && !depth)) return;
     C3D_ClearBits bits = static_cast<C3D_ClearBits>((color ? C3D_CLEAR_COLOR : 0) | (depth ? C3D_CLEAR_DEPTH : 0));
     splitCommandList(); // flushed: with gpu_kick the queue may run it at once (pica_frame.h)
-    u32 colour = packRgba(c);
+    // The brightness fold (tev.h): the fill is what the quad would have made of it.
+    const uint8_t fs = brightnessFold();
+    auto ch = [fs](float v) { return fs ? foldByte(toByte(v), fs) : toByte(v); };
+    u32 colour = static_cast<u32>(ch(c.x)) << 24 | static_cast<u32>(ch(c.y)) << 16 | static_cast<u32>(ch(c.z)) << 8 |
+                 toByte(c.w);
     if (t.target->frameBuf.colorFmt == GPU_RB_RGB565) { // a 16-bit fill
-        colour = static_cast<u32>(toByte(c.x) >> 3) << 11 | static_cast<u32>(toByte(c.y) >> 2) << 5 |
-                 static_cast<u32>(toByte(c.z) >> 3);
+        colour = static_cast<u32>(ch(c.x) >> 3) << 11 | static_cast<u32>(ch(c.y) >> 2) << 5 |
+                 static_cast<u32>(ch(c.z) >> 3);
     }
     if (color && depth && clearMode() == ClearMode::Split) {
         // Two fills on PSC0 (pica_frame.h ClearMode): the depth first, then the colour.
@@ -220,6 +219,14 @@ void c3dAlphaBlend(GPU_BLENDEQUATION colorEq, GPU_BLENDEQUATION alphaEq, GPU_BLE
     std::copy(v, v + 6, g_c3d.blend);
     g_c3d.blendValid = true;
     C3D_AlphaBlend(colorEq, alphaEq, srcClr, dstClr, srcAlpha, dstAlpha);
+    // The brightness fold (tev.h) applies to the blends linear in the source colour: neither factor
+    // a colour of the source or the destination (Filter = DST_COLOR, ZERO multiplies the already
+    // brightened destination).
+    auto plain = [](GPU_BLENDFACTOR f) {
+        return f != GPU_SRC_COLOR && f != GPU_ONE_MINUS_SRC_COLOR && f != GPU_DST_COLOR && f != GPU_ONE_MINUS_DST_COLOR &&
+               f != GPU_CONSTANT_COLOR && f != GPU_ONE_MINUS_CONSTANT_COLOR;
+    };
+    tevSetFoldable(colorEq == GPU_BLEND_ADD && plain(srcClr) && plain(dstClr));
 }
 
 void c3dDepthTest(bool enable, GPU_TESTFUNC function, GPU_WRITEMASK writemask) {
@@ -248,11 +255,36 @@ void c3dAlphaTest(bool enable, GPU_TESTFUNC function, int ref) {
     C3D_AlphaTest(enable, function, ref);
 }
 
-void c3dFogColor(u32 color) {
+namespace {
+u32 g_fogRequested = 0;
+bool g_fogRequestedValid = false;
+
+// The fog colour as issued: folded by the brightness (tev.h) on a foldable blend. The fog unit
+// mixes the combiner's output with this colour before the blend, so the fold of both terms is
+// the fold of the mix.
+u32 foldedFog(u32 c) {
+    const uint8_t s = brightnessFold();
+    if (!s || !tevFoldable()) return c;
+    return static_cast<u32>(foldByte(c & 0xFF, s)) | static_cast<u32>(foldByte((c >> 8) & 0xFF, s)) << 8 |
+           static_cast<u32>(foldByte((c >> 16) & 0xFF, s)) << 16;
+}
+
+void emitFog(u32 color) {
     if (g_c3d.fogValid && g_c3d.fog == color) return;
     g_c3d.fogValid = true;
     g_c3d.fog = color;
     C3D_FogColor(color);
+}
+} // namespace
+
+void c3dFogColor(u32 color) {
+    g_fogRequested = color;
+    g_fogRequestedValid = true;
+    emitFog(foldedFog(color));
+}
+
+void c3dRefoldFog() {
+    if (g_fogRequestedValid) emitFog(foldedFog(g_fogRequested));
 }
 
 void c3dDepthMap(bool zBuffer, float zScale, float zOffset) {

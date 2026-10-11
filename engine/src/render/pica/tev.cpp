@@ -152,6 +152,16 @@ TevConfig tevShadow(uint8_t alpha) {
     return one(s);
 }
 
+bool tevAppendFold(TevConfig& cfg, uint8_t s) {
+    if (cfg.count >= kMaxTevStages) return false;
+    TevStage st = stage(TevFunc::Modulate, TevSrc::Previous, TevSrc::Constant);
+    setAlpha(st, TevFunc::Replace, TevSrc::Previous);
+    setConstant(st, s, s, s, 255);
+    st.scaleRgb = 2;
+    cfg.stages[cfg.count++] = st;
+    return true;
+}
+
 #if defined(__3DS__)
 
 static_assert(static_cast<int>(TevSrc::Primary) == GPU_PRIMARY_COLOR, "TevSrc");
@@ -178,17 +188,68 @@ bool sameStage(const TevStage& a, const TevStage& b) {
     for (int k = 0; k < 3; ++k)
         if (a.srcRgb[k] != b.srcRgb[k] || a.srcA[k] != b.srcA[k] || a.opRgb[k] != b.opRgb[k] || a.opA[k] != b.opA[k])
             return false;
-    return a.funcRgb == b.funcRgb && a.funcA == b.funcA && a.constant[0] == b.constant[0] &&
+    return a.funcRgb == b.funcRgb && a.funcA == b.funcA && a.scaleRgb == b.scaleRgb && a.constant[0] == b.constant[0] &&
            a.constant[1] == b.constant[1] && a.constant[2] == b.constant[2] && a.constant[3] == b.constant[3];
 }
 TevConfig g_lastTev;
 bool g_lastTevValid = false;
+// The brightness fold (tev.h): the configuration the renderer asked for, the fold's colour byte
+// (0 off), whether the current blend takes it.
+TevConfig g_reqTev;
+bool g_reqTevValid = false;
+uint8_t g_fold = 0;
+bool g_foldable = true;
+unsigned g_foldOverflows = 0;
+
+void issueTev(const TevConfig& cfg);
+
+void reissue() {
+    if (g_reqTevValid) issueTev(g_reqTev);
+}
 } // namespace
 
 void tevInvalidate() { g_lastTevValid = false; }
 
+void setBrightnessFold(uint8_t s) {
+    if (s == g_fold) return;
+    g_fold = s;
+    reissue();
+    detail::c3dRefoldFog();
+}
+
+uint8_t brightnessFold() { return g_fold; }
+
+unsigned brightnessFoldOverflows() { return g_foldOverflows; }
+
+namespace detail {
+void tevSetFoldable(bool foldable) {
+    if (foldable == g_foldable) return;
+    g_foldable = foldable;
+    if (g_fold) {
+        reissue();
+        c3dRefoldFog();
+    }
+}
+bool tevFoldable() { return g_foldable; }
+} // namespace detail
+
 void applyTev(const TevConfig& cfg) {
+    g_reqTev = cfg;
+    g_reqTevValid = true;
+    issueTev(cfg);
+}
+
+namespace {
+void issueTev(const TevConfig& requested) {
     static int lastCount = kMaxTevStages; // unknown at start: reset everything once
+    TevConfig folded;
+    const TevConfig* use = &requested;
+    if (g_fold && g_foldable) {
+        folded = requested;
+        if (tevAppendFold(folded, g_fold)) use = &folded;
+        else ++g_foldOverflows;
+    }
+    const TevConfig& cfg = *use;
     if (g_lastTevValid && cfg.count == g_lastTev.count) {
         bool same = true;
         for (int i = 0; i < cfg.count && i < kMaxTevStages && same; ++i) same = sameStage(cfg.stages[i], g_lastTev.stages[i]);
@@ -212,12 +273,13 @@ void applyTev(const TevConfig& cfg) {
         // GPUREG_TEXENVi_COLOR: R in bits 0-7, G 8-15, B 16-23, A 24-31.
         env->color = static_cast<u32>(s.constant[0]) | static_cast<u32>(s.constant[1]) << 8 |
                      static_cast<u32>(s.constant[2]) << 16 | static_cast<u32>(s.constant[3]) << 24;
-        env->scaleRgb = GPU_TEVSCALE_1;
+        env->scaleRgb = s.scaleRgb == 4 ? GPU_TEVSCALE_4 : s.scaleRgb == 2 ? GPU_TEVSCALE_2 : GPU_TEVSCALE_1;
         env->scaleAlpha = GPU_TEVSCALE_1;
     }
     for (int i = cfg.count; i < lastCount; ++i) C3D_TexEnvInit(C3D_GetTexEnv(i));
     lastCount = cfg.count;
 }
+} // namespace
 
 #endif
 

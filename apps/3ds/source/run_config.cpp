@@ -310,6 +310,11 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
         } else if (key == "gpu_lean") {
             if (toInt(val, &n)) c.gpuLean = n != 0;
         // R4.1 end
+        // R4.6 (docs/3ds-port.md "GPU cuts and the level start (round 4, R4.6)")
+        } else if (key == "brightness_mode") {
+            if (val == "fold") c.brightnessMode = 0;
+            else if (val == "quad") c.brightnessMode = 1;
+        // R4.6 end
         } else if (key == "terrain_force_state") {
             if (toInt(val, &n)) c.terrainForceState = n != 0;
         } else if (key == "probe_inject") {

@@ -44,6 +44,7 @@
 #include "pass_profile.h"
 #include "shadow_pica.h"
 #include "stereo_comfort.h"
+#include "tev.h"
 #include "pica_frame.h"
 #include "quality_pica.h"
 #include "state_check_pica.h"
@@ -267,6 +268,7 @@ struct LeanSums {
     unsigned bottomSkipped = 0, bottomDrawn = 0;
     unsigned eyeSkipped[2] = {0, 0};
     unsigned brightnessSkipped = 0;
+    unsigned brightnessFolded = 0; // R4.6: eye draws with the brightness folded (no quad)
 };
 
 } // namespace
@@ -767,6 +769,8 @@ struct GameFrame::Impl {
                   pica::renderQuality().terrainFarTev ? 1 : 0, brightnessSkip() ? 1 : 0,
                   run.rightEyeRate == 1 ? "half" : run.rightEyeRate == 2 ? "alternate" : "full", pica::gpuPassEvery(),
                   run.depth16 ? 1 : 0);
+        // R4.6: the GPU cuts (docs/3ds-port.md "GPU cuts and the level start (round 4, R4.6)").
+        AS3D_INFO("AS3D_R46 brightness_mode=%s", run.brightnessMode == 1 ? "quad" : "fold");
         AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d terrain_force_state=%d eye_replay=%d",
                   wash.enabled() ? 1 : 0, run.washInject, run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0,
                   run.terrainForceState ? 1 : 0, run.eyeReplay ? 1 : 0);
@@ -1552,6 +1556,19 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
         if (eye == 0) im.kickTick = pica::gpuKick() ? pica::firstKickTick() : 0;
         return;
     }
+    // Pass 14, the brightness (0.5 is neutral: dst * 0.5 + 0.5 * dst). run.ini brightness_skip
+    // (default on): none within 1/255 of neutral either (the quad at 128/255 would scale by
+    // 256/255). brightness_mode=fold (default, R4.6): no quad; every draw of the world and of the
+    // 2D layer over it takes the quad's product itself (tev.h setBrightnessFold), the clear and
+    // fog colours too.
+    const bool neutralBrightness =
+        im.topBrightness == 0.5f || (im.brightnessSkip() && std::fabs(im.topBrightness - 0.5f) <= 1.0f / 255.0f);
+    const bool brightnessOn = im.worldDrawn && !neutralBrightness && pica::passEnabled(pica::Pass::Brightness);
+    const bool fold = brightnessOn && im.run.brightnessMode == 0;
+    if (fold) {
+        pica::setBrightnessFold(static_cast<uint8_t>(std::min(im.topBrightness, 1.0f) * 255.0f + 0.5f));
+        ++im.lean.brightnessFolded;
+    }
     if (im.worldDrawn) {
         EyeView ev;
         if (im.stereo.eyes == 2) {
@@ -1585,6 +1602,9 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
         UiMeter m(pica::Pass::Top2d);
         im.r2d->flush();
     }
+    // The quad covered the world and the 2D layer; what follows (the model view, the banner) is
+    // drawn after it.
+    if (fold) pica::setBrightnessFold(0);
     if (im.modelActive) {
         UiMeter m(pica::Pass::Model);
         im.drawModelEye(eye);
@@ -1592,12 +1612,8 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
         m.extraDraws = im.modelPass.lastStats().draws;
         m.extraVerts = im.modelPass.lastStats().vertices;
     }
-    // Pass 14 (0.5 is neutral: dst * 0.5 + 0.5 * dst). run.ini brightness_skip (default on): no pass
-    // within 1/255 of neutral either (the quad at 128/255 would scale by 256/255).
-    const bool neutralBrightness =
-        im.topBrightness == 0.5f || (im.brightnessSkip() && std::fabs(im.topBrightness - 0.5f) <= 1.0f / 255.0f);
     if (im.worldDrawn && neutralBrightness && im.topBrightness != 0.5f) ++im.lean.brightnessSkipped;
-    if (im.worldDrawn && !neutralBrightness && pica::passEnabled(pica::Pass::Brightness)) {
+    if (brightnessOn && !fold) {
         UiMeter m(pica::Pass::Brightness);
         im.renderer->drawBrightness(kTopW, kTopH, im.topBrightness);
         m.extraDraws = 1;
@@ -1843,9 +1859,10 @@ void GameFrame::stats(FrameStats& out) {
         {
             LeanSums& l = im.lean;
             AS3D_INFO("AS3D_GPU_LEAN frames=%u kicks=%u bottom_drawn=%u bottom_skipped=%u "
-                      "eye_skipped=%u/%u brightness_skipped=%u far_tev_chunks=%zu",
+                      "eye_skipped=%u/%u brightness_skipped=%u far_tev_chunks=%zu brightness_folded=%u fold_overflows=%u",
                       l.frames, pica::gpuKicks() - im.kicksSeen, l.bottomDrawn, l.bottomSkipped, l.eyeSkipped[0],
-                      l.eyeSkipped[1], l.brightnessSkipped, ts.farTevChunks);
+                      l.eyeSkipped[1], l.brightnessSkipped, ts.farTevChunks, l.brightnessFolded,
+                      pica::brightnessFoldOverflows());
             l = LeanSums();
             im.kicksSeen = pica::gpuKicks();
             const std::string gp = pica::gpuPassReport();

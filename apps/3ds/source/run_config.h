@@ -210,6 +210,10 @@ struct RunConfig {
     bool depth16 = false;   // depth16=1: D16 depth buffers on the top eyes (wash_check off), +375 KB of texture VRAM
     bool gpuLean = false;   // gpu_lean=1: bottom_hz=30 terrain_far_tev=1 brightness_skip=1 (each key still overrides)
     // R4.1 end
+    // R4.6: GPU cuts and the level start (docs/3ds-port.md "GPU cuts and the level start (round 4,
+    // R4.6)"; apps/3ds/README.md).
+    int brightnessMode = 0; // brightness_mode=fold|quad: the brightness folded into every top-screen draw (0, default) or the full-screen quad per eye (1)
+    // R4.6 end
     bool effectiveWashCheck() const { return washCheck >= 0 ? washCheck != 0 : mode == Mode::Soak; }
     int effectiveProbeEvery() const { return probeEvery >= 0 ? probeEvery : (mode == Mode::Soak ? 30 : 0); }
     int effectiveFrames() const { return frames > 0 ? frames : (mode == Mode::Sim ? 600 : 0); }

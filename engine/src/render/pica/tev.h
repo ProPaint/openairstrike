@@ -50,6 +50,7 @@ struct TevStage {
     TevFunc funcRgb = TevFunc::Replace;
     TevFunc funcA = TevFunc::Replace;
     uint8_t constant[4] = {255, 255, 255, 255}; // r, g, b, a of TevSrc::Constant
+    uint8_t scaleRgb = 1; // the RGB result times 1, 2 or 4 (GPU_TEVSCALE_*), then clamped
 };
 
 constexpr int kMaxTevStages = 6;
@@ -106,7 +107,39 @@ TevConfig tevWaterGrid();
 // Model shadows: constant black, alpha = texture alpha * alpha/255 (default 0.4).
 TevConfig tevShadow(uint8_t alpha = 102);
 
+// The brightness fold (run.ini brightness_mode=fold, docs/3ds-port.md "GPU cuts and the level
+// start (round 4, R4.6)"). The brightness pass drew a full-screen quad with the blend
+// (DST_COLOR, SRC_COLOR) and the colour s = round(brightness * 255): out = min(255, 2 * d * s / 255)
+// per channel. The fold applies the same product to every fragment instead: one more TEV stage
+// MODULATE(PREVIOUS, CONSTANT s) with the RGB scale 2 (alpha passed on), on the draws whose blend is
+// linear in the source colour (ONE / ALPHA factors); a draw whose blend multiplies by the
+// destination (Filter) already gets the brightened destination and is left alone. The fog colour
+// and the clear colours are folded on the CPU with foldByte.
+//   foldByte: the quad's per-channel result for a byte c: min(255, (2 * c * s + 127) / 255).
+inline uint8_t foldByte(uint8_t c, uint8_t s) {
+    const unsigned v = (2u * c * s + 127u) / 255u;
+    return static_cast<uint8_t>(v > 255u ? 255u : v);
+}
+// `cfg` with the fold stage appended (unchanged when it has kMaxTevStages stages already: false).
+bool tevAppendFold(TevConfig& cfg, uint8_t s);
+
 #if defined(__3DS__)
+// The fold's state (render_state_pica.cpp keeps the blend class and the fog colour): s = 0 off,
+// else the quad's colour byte (128 = neutral is treated as off by the caller). Takes effect at
+// once: the current TEV and fog colour are issued again folded or plain.
+void setBrightnessFold(uint8_t s);
+uint8_t brightnessFold();
+// Draws since start that could not take the fold stage (six stages in use), for the log.
+unsigned brightnessFoldOverflows();
+namespace detail {
+// From the blend shadow (render_state_pica.cpp): whether the current blend is linear in the
+// source colour, so the fold stage applies.
+void tevSetFoldable(bool foldable);
+bool tevFoldable();
+// render_state_pica.cpp: issues the fog colour again, folded or plain (the fold or the blend class
+// changed).
+void c3dRefoldFog();
+} // namespace detail
 // Writes `cfg` to the citro3d texture environment: stages 0..count-1 from the config, the
 // stages the previous call used beyond count reset to pass-through.
 void applyTev(const TevConfig& cfg);
