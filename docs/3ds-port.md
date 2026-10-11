@@ -28,7 +28,7 @@ top screen only. The periodic probe reads after the terrain's base draws, and si
 terrain re-issues its state with its second draw, so a lost first state block hits only the first
 (nearest, lowest on screen) chunk and the probe never sees it; hence the detector that judges
 every frame from an asynchronous depth read-back (`wash_check`, on in soak; `AS3D_WASH` lines per
-episode; "Wash detector" in the R3.2 section). The drop of round 3 was `out/3ds/drop-round3-664fee3/` (its build info says `664fee3-dirty`: only a docs edit was uncommitted); **the latest drop is `out/3ds/drop-round3b-d63fbbf/`** (R3.3 merged; `run.ini` = the ten-stage soak list of the R3.3 section, about 25 minutes: four whole missions then six one-minute A/B stages; the CIA must be reinstalled with FBI, the receiver started with `--expect d63fbbf`)
+episode; "Wash detector" in the R3.2 section). The drop of round 3 was `out/3ds/drop-round3-664fee3/` (its build info says `664fee3-dirty`: only a docs edit was uncommitted); the drop round3b was `out/3ds/drop-round3b-d63fbbf/` (R3.3; its soak is "Fourth console soak" at the end); **the latest drop is `out/3ds/drop-round4-8577ef9/`** (R4.1 + R4.2 merged; the CIA carries title version 627 = the commit count, `tools/3ds_package.sh -ver`; `run.ini` = the 23-stage list of both round 4 sections, the four whole missions then one-minute A/B stages, about 40 minutes; the receiver runs with `--expect 8577ef9`)
 (`run.ini` = `mode=soak report_to=192.168.1.86:7777 perf=1 state_check=1 log_lazy=1
 wash_selftest=1`, `run-play.ini` = play with the same diagnostics). What its soak should show:
 `AS3D_WASH` episodes with their length (or none), `prime_mismatches` versus `mismatches`
