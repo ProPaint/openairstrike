@@ -28,7 +28,7 @@ top screen only. The periodic probe reads after the terrain's base draws, and si
 terrain re-issues its state with its second draw, so a lost first state block hits only the first
 (nearest, lowest on screen) chunk and the probe never sees it; hence the detector that judges
 every frame from an asynchronous depth read-back (`wash_check`, on in soak; `AS3D_WASH` lines per
-episode; "Wash detector" in the R3.2 section). The drop of round 3 was `out/3ds/drop-round3-664fee3/` (its build info says `664fee3-dirty`: only a docs edit was uncommitted); the drop round3b was `out/3ds/drop-round3b-d63fbbf/` (R3.3; its soak is "Fourth console soak" at the end); **the latest drop is `out/3ds/drop-round4-8577ef9/`** (R4.1 + R4.2 merged; the CIA carries title version 627 = the commit count, `tools/3ds_package.sh -ver`; `run.ini` = the 23-stage list of both round 4 sections, the four whole missions then one-minute A/B stages, about 40 minutes; the receiver runs with `--expect 8577ef9`)
+episode; "Wash detector" in the R3.2 section). The drop of round 3 was `out/3ds/drop-round3-664fee3/` (its build info says `664fee3-dirty`: only a docs edit was uncommitted); the drop round3b was `out/3ds/drop-round3b-d63fbbf/` (R3.3; its soak is "Fourth console soak" at the end); the drop round4 `out/3ds/drop-round4-8577ef9/` (R4.1 + R4.2; the CIA carries a title version = the commit count, `tools/3ds_package.sh -ver`) CRASHED on the console at the first frame of its stage 10 (`terrain_far_tev=1`): a data abort in `C3D_TexBind(1, NULL)`, citro3d 1.7.1 reads the texture's type for units above 0 (fixed in cb763ba through the context mirror; Azahar reads 0 from unmapped memory, so a null dereference never faults there: a blind spot to remember). Its nine completed stages are in `out/3ds/crash-round4-8577ef9/` (the Luma dumps under `dumps/`, parsed in the "Fifth console soak" section at the end); **the latest drop is `out/3ds/drop-round4b-227dd60/`** (the fix + R4.4's UI foundation; title version 632; the same 23-stage `run.ini`, about 40 minutes; the receiver runs with `--expect 227dd60`)
 (`run.ini` = `mode=soak report_to=192.168.1.86:7777 perf=1 state_check=1 log_lazy=1
 wash_selftest=1`, `run-play.ini` = play with the same diagnostics). What its soak should show:
 `AS3D_WASH` episodes with their length (or none), `prime_mismatches` versus `mismatches`
@@ -4422,3 +4422,46 @@ takes no time) and the replay off in the timed frames only.
 - The look of `right_eye_rate=alternate` and `half` (owner).
 - VRAM placement by use (hot linear-memory textures such as the shadow atlas pages into VRAM).
 - The bottom screen's cost once the UI rework's tiles replace the band (a `gpu_passes` stage tells it).
+
+## Fifth console soak (2026-10-11, build 8577ef9; crashed at stage 10; out/3ds/crash-round4-8577ef9/)
+
+The drop round4 ran stages 1 to 9 of the 23-stage list and died at the first frame of stage 10
+(`as3d:1:stereo:soak_frames=1800:terrain_far_tev=1`). `soak.running` named the stage; the owner
+started ftpd; `log.txt`, `perf.csv` and the Luma dumps (`sdmc:/luma/dumps/arm11/crash_dump_*.dmp`)
+were fetched; `tools/3ds_receive.py --report out/3ds/crash-round4-8577ef9` split the nine stages.
+
+**The dump.** Luma's header: magic 0xDEADC0DE 0xDEADCAFE, version minor/major (u16), processor
+(11) and core (u16), type (3 = data abort), total size, register dump size (92 = 23 words: r0-r12,
+sp, lr, pc, cpsr, dfsr, ifsr, far, fpexc, fpinst, fpinst2), code dump size, stack dump size,
+additional data size (the process name: "OpenAirS" = the CIA title; the older dumps on the card say
+"3dsx_app" and "menu"). The latest dump: pc 0x00256b70, lr 0x00227584, far 0x0000000C, dfsr 5 (a
+translation fault: a null pointer plus 12). `arm-none-eabi-addr2line -f -C -i -p -e
+build-3ds/apps/3ds/openairstrike.elf` inside the pinned devkitPro image (the 3dsx loads at the ELF's
+link address, so the addresses map directly): `C3D_TexGetType` inlined in `C3D_TexBind`
+(texture.c:229), called from `TerrainRenderer::render` at terrain_renderer_pica.cpp:1071, the far-TEV
+switch's `pica::detail::unbindTexture(1)`. The disassembly of `C3D_TexBind` in libcitro3d.a:
+`ldr ip, [r1, #12]` on the texture pointer for units above 0 (the cube-map check), then the slot
+store at context + (70 + unit) * 4 and the flag bit 23 + unit of the flags word at context + 32.
+Fix cb763ba: `unbindTexture` clears units 1 and 2 through the context mirror
+(`c3dSetTextureSlotNull`, static_asserts on the mirror's offsets), unit 0 still through
+`C3D_TexBind(0, NULL)`. Azahar never faulted: it reads 0 from an unmapped address.
+
+**What the nine stages said** (build 8577ef9, deferred catch-up, `gpu_kick_at=terrain`):
+
+| stage | result |
+|---|---|
+| 1 mission 1 mono | misses60 104 (170 in the fourth soak), gpu_late60 123 (about 570), hitches60 172 (about 450); late syncs 1.27%, runs 31 (longest 27); GPU p95 7.68 |
+| 3 mission 2 mono | misses60 100, gpu_late 75, hitches 159; late syncs 0.98% |
+| 2, 4 stereo whole missions | 30 Hz settled, GPU p95 17.3 / 15.9, CPU avg 6.9 / 6.5 |
+| 5 stereo baseline 1800 | GPU p95 15.70, frames over 16.7 ms 88.4% |
+| 6 stereo gpu_passes=1 | `AS3D_GPU_PASS`: per eye terrain 1.3-1.7, water 1.0-1.4, brightness 0.7-1.1, opaque 0.3-0.6, rest+marks+shadows+particles about 1, clear 0.2 (eye 5.2-6.0); bottom hud 0.35-0.7 + touch 0.56-0.89 (1.2-1.7); tail (display transfers) 1.8; sum 13.7-15.0 |
+| 7 mono gpu_passes=1 | eye 4.9-6.0, bottom 1.3, tail 1.1-1.25, sum 7.3-8.4 |
+| 8 mono gpu_kick_at=eye (the old kick) | late syncs 1.53% (1.27% with the new kick in stage 1), GPU p95 10.31 (7.68) |
+| 9 stereo bottom_hz=30 | GPU p95 15.03 (15.70), frames over 16.7 ms 76.1% (88.4%) |
+
+Reading: the mid-frame kick and the deferred catch-up cut the mono misses by 40% and the GPU-late
+frames by 80%; the stereo GPU's biggest avoidable parts are the water (1.0-1.4 ms per eye for a
+plane mostly under the terrain: the early depth test is not taking effect, or the tiles cover
+too much) and the brightness quad (0.7-1.1 ms per eye at the default 0.6, foldable into the
+lighting colours on the CPU for nothing), then the display transfers (1.8 ms for three) and the
+touch band (0.6-0.9, which the UI rework removes). Stages 10 to 23 run in the drop round4b.
