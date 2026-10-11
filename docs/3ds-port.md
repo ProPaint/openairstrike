@@ -83,6 +83,15 @@ doesn't have its proper logo"): the first game's flaming banner mesh on the sele
 over the top screen, through `apps/3ds/source/ctr_banner.h`, the main menu's banner code moved out of
 `ctr_frame.cpp` and shared; gallery out/ui3ds/gallery/banner3/selector_sheet.png.**
 
+**Drop round4d-62eb093 (title version 652) is on the card since 2026-10-12, with the sequels' files
+(`as2/`, `gulf/`: the paks, Settings.xml, the texts file, copied from the emulator's card over ftpd):
+the first build with the complete UI rework and the selector banner, and the first time the sequels
+are on the console. Its `run.ini` is `run-soak-r49.ini`: the R4.6 list (13 stages) plus four sequel
+stages (mission 1 of each, one minute mono then stereo); about 27 minutes. The receiver listens with
+`--expect 62eb093`. With two games installed the app shows the selector at boot (`mode=play`);
+the soak's stages name their game. Unread: the seventh soak (this list) and the owner's photo
+session.**
+
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
 installed game (missions 1 and 2, mono and stereo at slider 0.5, the weapon tour, audio on, the
