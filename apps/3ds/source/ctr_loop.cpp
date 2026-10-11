@@ -23,7 +23,9 @@
 #include "ctr_fatal.h"
 #include "build_info.h"
 #include "ctr_input.h"
+#include "pass_profile.h"
 #include "quality_profile.h"
+#include "shadow_pica.h"
 #include "state_check_pica.h"
 #include "texture_budget.h"
 
@@ -443,12 +445,61 @@ void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSam
 
 namespace {
 
+// R4.2: where a level start goes (AS3D_LEVEL_START, once, after the mission's first frame;
+// docs/3ds-port.md "Mono at 60 and the level start (round 4, R4.2)"). The perf report's
+// "mission load" (PERF_SUMMARY load_ms, the 3 s gate) runs from `start` to `rendererEnd`; the
+// log's "mission N loaded in" from `start` to `sessionEnd`. Taken from this side of the calls:
+// the session's own times (GameSession::InitTimes), the read plan's prefetch, the renderer's
+// cumulative counters (pica::loadProfile, the shadow and stream statistics) around hook.begin.
+struct LevelStartTimes {
+    uint64_t start = 0, sessionEnd = 0, rendererEnd = 0, audioEnd = 0, planEnd = 0;
+    double prefetchMs = 0.0;
+    as3d_game::GameSession::InitTimes init;
+    as3d::ctr::StreamReadStats rd0, rd1, rd2;
+    as3d::pica::LoadProfile lp0, lp1;
+    bool logged = false;
+};
+
+void logLevelStart(LevelStartTimes& t, const FrameSample& first) {
+    if (t.logged || t.start == 0) return;
+    t.logged = true;
+    const uint64_t now = nowTicks();
+    auto ms = [](uint64_t a, uint64_t b) { return b > a ? ticksToMs(b - a) : 0.0; };
+    const double k = static_cast<double>(SYSCLOCK_ARM11) / 1000.0;
+    auto tick = [k](uint64_t a, uint64_t b) { return static_cast<double>(b - a) / k; };
+    const double session = ms(t.start, t.sessionEnd);
+    const double renderer = ms(t.sessionEnd, t.rendererEnd);
+    const double sessReads = tick(t.rd0.ticks, t.rd1.ticks);
+    const double rendReads = tick(t.rd1.ticks, t.rd2.ticks);
+    const double texMs = tick(t.lp0.texTicks, t.lp1.texTicks);
+    const double meshMs = tick(t.lp0.meshTicks, t.lp1.meshTicks);
+    const as3d::pica::ShadowPicaStats& sh = as3d::pica::shadowPicaStats();   // since the renderer's beginLevel
+    const as3d::pica::ShadowCacheStats& sc = as3d::pica::shadowCacheStats();
+    const double initSum = t.init.mountMs + t.init.defsMs + t.init.worldMs + t.init.levelMs;
+    AS3D_INFO("AS3D_LEVEL_START phases: to_first_frame=%.0f gate_measure=%.0f | session=%.0f (prefetch=%.0f mount_rest=%.0f "
+              "defs=%.0f world_init=%.0f level=%.0f other=%.0f; pak reads %.0f ms, %lu reads, %.0f KB) | renderer=%.0f "
+              "(textures=%.0f n=%d conversions=%d mip=%.0f swizzle=%.0f upload=%.0f; meshes=%.0f n=%d; shadows=%.0f "
+              "silhouettes=%d cache_hits=%d cache_misses=%d cache_load=%.0f; pak reads %.0f ms; rest=%.0f) | audio=%.0f | "
+              "read_plan_end=%.0f | first_frame=%.0f (steps=%d step=%.1f prepare=%.1f sync=%.1f wait=%.1f submit=%.1f end=%.1f)",
+              ms(t.start, now), ms(t.start, t.rendererEnd), session, t.prefetchMs, t.init.mountMs - t.prefetchMs,
+              t.init.defsMs, t.init.worldMs, t.init.levelMs, session - initSum, sessReads,
+              static_cast<unsigned long>(t.rd1.reads - t.rd0.reads), static_cast<double>(t.rd1.bytes - t.rd0.bytes) / 1024.0,
+              renderer, texMs, t.lp1.texCount - t.lp0.texCount, t.lp1.texCount - t.lp0.texCount,
+              tick(t.lp0.texMipTicks, t.lp1.texMipTicks), tick(t.lp0.texSwizzleTicks, t.lp1.texSwizzleTicks),
+              tick(t.lp0.texUploadTicks, t.lp1.texUploadTicks), meshMs, t.lp1.meshCount - t.lp0.meshCount, sh.generateMs,
+              sh.generated, sc.hits, sc.misses, sc.loadMs, rendReads, renderer - texMs - meshMs - sh.generateMs - rendReads,
+              ms(t.rendererEnd, t.audioEnd), ms(t.audioEnd, t.planEnd), ms(t.planEnd, now), first.simSteps,
+              static_cast<double>(first.stepMs), static_cast<double>(first.stats.prepareMs), static_cast<double>(first.syncMs),
+              static_cast<double>(first.waitMs), static_cast<double>(first.submitMs), static_cast<double>(first.endMs));
+}
+
 std::string planPath(const std::string& key) { return std::string(kDataDir) + "/cache/" + key + ".plan"; }
 constexpr const char* kPlanHeader = "openairstrike read plan 1";
 } // namespace
 
 void ReadPlan::begin(as3d::Vfs& vfs, const std::string& key, bool enabled) {
     end();
+    prefetchMs_ = 0.0;
     if (!enabled) return;
     vfs_ = &vfs;
     key_ = key;
@@ -478,8 +529,9 @@ void ReadPlan::begin(as3d::Vfs& vfs, const std::string& key, bool enabled) {
         const uint64_t t0 = nowTicks();
         const size_t bytes = vfs.prefetch(loaded_);
         const as3d::ctr::StreamReadStats& r1 = as3d::ctr::streamReadStats();
+        prefetchMs_ = ticksToMs(nowTicks() - t0);
         AS3D_INFO("AS3D_LOAD phase=prefetch plan=%s files=%d kb=%.0f ms=%.0f (%lu file reads, %.0f KB read)", key.c_str(),
-                  static_cast<int>(loaded_.size()), static_cast<double>(bytes) / 1024.0, ticksToMs(nowTicks() - t0),
+                  static_cast<int>(loaded_.size()), static_cast<double>(bytes) / 1024.0, prefetchMs_,
                   static_cast<unsigned long>(r1.reads - r0.reads), static_cast<double>(r1.bytes - r0.bytes) / 1024.0);
     } else {
         AS3D_INFO("AS3D_LOAD phase=prefetch plan=%s none yet (recording it)", key.c_str());
@@ -584,7 +636,10 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     };
 
     auto session = std::make_unique<as3d_game::GameSession>();
+    LevelStartTimes lst; // AS3D_LEVEL_START
+    lst.rd0 = as3d::ctr::streamReadStats();
     const uint64_t loadStart = nowTicks();
+    lst.start = loadStart;
     std::string err;
     if (!session->init(go, &err)) {
         setFatal(std::string("cannot start ") + game->title + " (" + go.extractedDir + "/)", err);
@@ -592,7 +647,12 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         perf.close();
         return 1;
     }
-    const double simLoadMs = ticksToMs(nowTicks() - loadStart);
+    lst.sessionEnd = nowTicks();
+    lst.rd1 = as3d::ctr::streamReadStats();
+    lst.init = session->initTimes();
+    lst.prefetchMs = plan.prefetchMs();
+    lst.lp0 = as3d::pica::loadProfile();
+    const double simLoadMs = ticksToMs(lst.sessionEnd - loadStart);
     AS3D_INFO("mission %d loaded in %.0f ms", run.level, simLoadMs);
     {
         const as3d_game::GameSession::InitTimes& it = session->initTimes();
@@ -620,7 +680,10 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         perf.close();
         return 1;
     }
-    const double loadMs = ticksToMs(nowTicks() - loadStart);
+    lst.rendererEnd = nowTicks();
+    lst.rd2 = as3d::ctr::streamReadStats();
+    lst.lp1 = as3d::pica::loadProfile();
+    const double loadMs = ticksToMs(lst.rendererEnd - loadStart);
     perf.setLoadMs(loadMs);
     if (!sim) AS3D_INFO("level start (mission and renderer) %.0f ms", loadMs);
 
@@ -634,8 +697,10 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         // that only loads during play count as lazy.
         if (run.precache) LoadStats::reset();
     }
+    lst.audioEnd = nowTicks();
 
     plan.end(); // the level start's reads are done: store the plan, free what was not read
+    lst.planEnd = nowTicks();
 
     AptState apt;
     apt.session = session.get();
@@ -741,6 +806,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         info.padDown = pad.down;
 
         drawFrame(*ctx, *hook, info, sample);
+        if (frame == 0) logLevelStart(lst, sample);
         lastCpu = sample.cpuMs;
         lastGpu = sample.gpuMs;
         const uint64_t end = nowTicks();

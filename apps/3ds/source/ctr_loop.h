@@ -196,8 +196,10 @@ public:
     void begin(as3d::Vfs& vfs, const std::string& key, bool enabled);
     void end();
     bool active() const { return vfs_ != nullptr; }
+    double prefetchMs() const { return prefetchMs_; } // the last begin()'s prefetch (AS3D_LEVEL_START)
 
 private:
+    double prefetchMs_ = 0.0;
     as3d::Vfs* vfs_ = nullptr;
     std::string key_;
     std::vector<std::string> loaded_, recorded_;
