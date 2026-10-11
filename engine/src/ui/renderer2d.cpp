@@ -31,6 +31,13 @@ Mapping computeMapping(int fbWidth, int fbHeight) {
     return m;
 }
 
+Mapping pixelMapping(int fbWidth, int fbHeight) {
+    Mapping m;
+    m.fbWidth = std::max(fbWidth, 1);
+    m.fbHeight = std::max(fbHeight, 1);
+    return m; // scale 1, offset 0
+}
+
 void Mapping::fieldPixels(int& x, int& y, int& w, int& h) const {
     const int x0 = std::max(0, static_cast<int>(std::lround(toFbX(0))));
     const int y0 = std::max(0, static_cast<int>(std::lround(toFbY(0))));
@@ -49,6 +56,11 @@ void Renderer2D::begin(int fbWidth, int fbHeight, int originX, int originY) {
     quads_.clear();
     breaks_.clear();
     dropped_ = 0;
+}
+
+void Renderer2D::beginPixels(int fbWidth, int fbHeight, int originX, int originY) {
+    begin(fbWidth, fbHeight, originX, originY);
+    mapping_ = pixelMapping(fbWidth, fbHeight);
 }
 
 bool Renderer2D::add(const Quad& q) {

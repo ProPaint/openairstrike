@@ -32,7 +32,9 @@
 #include "pica_space.h"
 #include "shader_set.h"
 #include "tev.h"
+#include "texture_budget.h"
 #include "ui_pica.h"
+#include "../ui_backend.h"
 
 namespace as3d::ui {
 
@@ -579,6 +581,37 @@ int Renderer2D::flush() {
     setDepth(true, true);
     setCull(CullMode::Back);
     return calls;
+}
+
+} // namespace as3d::ui
+
+namespace as3d::ui {
+
+bool consoleTextBackendDefault() { return true; }
+
+void noteFontAtlases(const UiAssets& a) {
+    // AS3D_UI_FONT: where the font textures landed (the S atlas must be in VRAM: it is created
+    // with the font, before the level's terrain fills VRAM).
+    auto one = [](const Texture2D& t, char* out, size_t n) {
+        pica::Placement pl = pica::Placement::Linear;
+        int w = 0, h = 0, levels = 0;
+        PicaFormat fmt = PicaFormat::RGBA8;
+        if (!t.valid() || !pica::textureInfo(t, &pl, &w, &h, &fmt, &levels)) {
+            std::snprintf(out, n, "none");
+            return;
+        }
+        static const char* const kFmt[] = {"RGBA8", "RGB8", "RGBA5551", "RGB565", "RGBA4", "LA8", "L8", "A8", "LA4", "L4", "A4"};
+        const int fi = static_cast<int>(fmt);
+        std::snprintf(out, n, "%dx%d_%s_%.0fKB_%s", w, h, fi >= 0 && fi < 11 ? kFmt[fi] : "?",
+                      static_cast<double>(t.bytes()) / 1024.0, pl == pica::Placement::Vram ? "vram" : "linear");
+    };
+    char f[64], fa[64], s[64];
+    one(a.font, f, sizeof f);
+    one(a.fontAlpha, fa, sizeof fa);
+    one(a.fontSmall, s, sizeof s);
+    const pica::TextureStats ts = pica::textureStats();
+    AS3D_INFO("AS3D_UI_FONT console=%d font=%s alpha=%s small=%s vram_used_kb=%.0f", a.consoleText ? 1 : 0, f, fa, s,
+              static_cast<double>(ts.vramBytes) / 1024.0);
 }
 
 } // namespace as3d::ui

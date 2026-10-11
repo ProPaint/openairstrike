@@ -8,6 +8,7 @@
 #include "as3d/gfx.h"
 #include "as3d/batch2d.h"
 #include "as3d/ui.h"
+#include "../ui_backend.h"
 
 namespace as3d::ui {
 
@@ -160,5 +161,12 @@ int Renderer2D::flush() {
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
     return calls;
 }
+
+} // namespace as3d::ui
+
+namespace as3d::ui {
+
+bool consoleTextBackendDefault() { return false; }
+void noteFontAtlases(const UiAssets&) {}
 
 } // namespace as3d::ui

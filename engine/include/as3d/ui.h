@@ -75,6 +75,8 @@ struct Mapping {
     void fieldPixels(int& x, int& y, int& w, int& h) const;
 };
 Mapping computeMapping(int fbWidth, int fbHeight);
+// One unit = one framebuffer pixel (scale 1, offset 0): the console layouts' mapping.
+Mapping pixelMapping(int fbWidth, int fbHeight);
 
 // ---------------------------------------------------------------------------
 // Quad list
@@ -121,6 +123,10 @@ public:
     // (GL convention, y from the bottom): the default is the whole framebuffer. A dual-screen or
     // sub-rectangle host passes the rectangle's size and origin.
     void begin(int fbWidth, int fbHeight, int originX = 0, int originY = 0);
+    // The same with the console pixel mapping (pixelMapping below): the quads are laid out in the
+    // target's own pixels, scale 1, no 4:3 field (the 3DS console layouts: 320x240 bottom, 400x240
+    // top; docs/3ds-ui-design.md section 4).
+    void beginPixels(int fbWidth, int fbHeight, int originX = 0, int originY = 0);
     const Mapping& mapping() const { return mapping_; }
 
     // Returns false (and counts a drop) once kMaxQuads is reached.
@@ -222,13 +228,52 @@ enum class Align { Left, Center, Right };
 //             >= 0x80 draw nothing. Used for black text and shadows.
 enum class FontKind { Additive, Alpha };
 
+// The console text sizes (docs/3ds-ui-design.md "Typography"; 3DS only, see Font::consoleSizes):
+// the game's font drawn one atlas texel to one screen pixel, never at a fractional scale.
+//   S: font.tga resampled once at load to 0.8 (its own atlas, smallFontAtlas), cap 8 px
+//   L: font.tga as is, cap 10 px
+//   T: font.tga at 2x nearest, cap 20 px
+// Auto picks the size nearest the text's scale on screen (consoleSizeFor). The desktop, Android
+// and the web ignore the size (Font::consoleSizes is off there): their text is unchanged.
+enum class FontSize : u8 { Auto, S, L, T };
+// What is drawn under the glyphs. Auto: an outline for additive T text on a console font (the
+// banners drawn over the world), nothing otherwise. Outline: the glyphs in black (the alpha
+// font) at the eight one-pixel offsets first; Shadow: once at (+1, +1) pixel. Console fonts only.
+enum class TextEffect : u8 { Auto, None, Outline, Shadow };
+
 struct TextStyle {
     float scale = 1.0f;
     Color color;
     Align align = Align::Left;
     bool markup = false;      // '{' switches to white, '}' back to `color`; neither is drawn
     FontKind kind = FontKind::Additive;
+    FontSize size = FontSize::Auto; // console fonts only
+    TextEffect effect = TextEffect::Auto; // console fonts only
 };
+
+// Screen pixels per font texel of each size (0.8, 1, 2; Auto: 1), the cap height in pixels
+// (8, 10, 20) and the line pitch the console layouts use (13, 16, 32).
+float fontSizeScale(FontSize size);
+int fontCapPx(FontSize size);
+int fontLinePitchPx(FontSize size);
+// The size for a text drawn at `pxPerTexel` screen pixels per font texel: below 0.7 S, below 1.1
+// L, else T (today's 3DS body text at 0.4 and the HUD counts at 0.6 become S, items at 0.8 L,
+// PAUSED and the titles at 1.2 T).
+FontSize consoleSizeFor(float pxPerTexel);
+// The pen advance of byte c at a size, whole pixels: L the table's, T twice it, S the table's x 0.8
+// rounded (a non-zero advance stays at least 1).
+int glyphAdvancePx(const FontMetrics& m, FontSize size, unsigned char c);
+// Width in pixels of the string at a size (sum of glyphAdvancePx; markup braces not counted).
+int measureTextPx(const FontMetrics& m, std::string_view text, FontSize size, bool markup = false);
+// The metrics of the S atlas: the same 8 x 16 grid of 32 x 16 cells in 256 x 256, the glyph the
+// left 24 and lower 12 texels of its cell, the advances of glyphAdvancePx(S).
+FontMetrics smallFontMetrics(const FontMetrics& m);
+// The S atlas from font.tga (`font`: the atlas as loaded, 256 x 256, glyph intensity in RGB):
+// every drawable glyph's 30 x 15 texels area-averaged onto 24 x 12 (exactly 0.8, each output
+// texel the coverage-weighted mean of the 1.25 x 1.25 texels it covers), contrast x 1.25 so a
+// one-texel stroke keeps full intensity, placed as smallFontMetrics says. RGB and alpha both
+// hold the value: one LA8 texture serves the additive font (RGB) and the alpha font (A).
+Image smallFontAtlas(const Image& font, const FontMetrics& m);
 
 // Width of the string in virtual pixels (sum of advances). With markup the braces are not
 // counted (the original counts them, 6 px each; frontend.md 8 question 4: we centre exactly).
@@ -238,9 +283,20 @@ struct Font {
     const FontMetrics* metrics = nullptr;
     const Texture2D* texture = nullptr;      // gfx\ui\font.tga
     const Texture2D* alphaTexture = nullptr; // gfx\ui\font_alpha.tga
+    // The console sizes (FontSize): text is drawn at S, L or T in whole screen pixels instead of
+    // at its scale. Set by UiAssets::uiFont when UiAssets::consoleText is on (the 3DS).
+    bool consoleSizes = false;
+    const Texture2D* smallTexture = nullptr;     // the S atlas (smallFontAtlas)
+    const FontMetrics* smallMetrics = nullptr;   // smallFontMetrics
 };
 // Draws one line; (x, y) is the top of the glyph boxes, x is the left, centre or right edge
 // depending on style.align. Returns the number of quads added.
+// A console font (Font::consoleSizes) draws the size style.size (Auto: consoleSizeFor of the
+// scale on screen) in whole pixels of the Renderer2D's mapping: the anchor (left, centre or right
+// edge per style.align) and the vertical centre of the glyph box stay where the scaled text
+// would have them, the pen starts on a whole pixel and advances by glyphAdvancePx. An Auto size
+// that would leave the screen steps down (T to L to S); text still too wide at S is cut at the
+// screen edge (glyphs wholly outside are not drawn).
 int drawText(Renderer2D& r, const Font& font, float x, float y, std::string_view text,
              const TextStyle& style = {});
 // Text with the original's black alpha-font shadow at (+2, +2) drawn first.
@@ -253,6 +309,58 @@ int drawNumber(Renderer2D& r, const Font& font, float x, float y, std::string_vi
                float scale, Color c);
 // Width drawNumber advances over `digits` (14 s per character, truncated per glyph).
 float numberWidth(std::string_view digits, float scale);
+// A console font draws the number routine's cells at consoleSizeFor(scale on screen) as
+// drawText does, the glyphs' vertical centre kept, the pen advancing by numberAdvancePx (14 px at
+// L, 28 at T, 11 at S).
+int numberAdvancePx(FontSize size);
+
+// ---------------------------------------------------------------------------
+// Key hints (the console layouts' footers: "[A] Select  [B] Back")
+// ---------------------------------------------------------------------------
+// The pad keys a hint can name.
+enum class HintKey : u8 { A, B, X, Y, L, R, ZL, ZR, Start, Select, DPad, Count };
+const char* hintKeyName(HintKey k); // "A", "B", ..., "START", "SELECT", "+"
+// A swappable picture set for the keys: one small texture and a rectangle per key (texels, the
+// texture's v = 0 at the top). No set is built in: the owner chooses the art; a host loads it
+// and fills `rects`. A key whose rectangle is empty, or a null texture, falls back to text.
+struct KeyGlyphAtlas {
+    const Texture2D* texture = nullptr;
+    struct Rect {
+        int x = 0, y = 0, w = 0, h = 0;
+        bool empty() const { return w <= 0 || h <= 0; }
+    };
+    Rect rects[static_cast<int>(HintKey::Count)];
+    const Rect& rect(HintKey k) const { return rects[static_cast<int>(k)]; }
+};
+struct KeyHintStyle {
+    FontSize size = FontSize::S;
+    Color keyColor;            // the key's name (text fallback) and frame
+    Color labelColor;          // the label after it
+    int gap = 4;               // pixels between the key and its label
+};
+// One hint at (x, y) (pixels of a beginPixels mapping, top of the line): the key's picture from
+// `atlas` drawn 1:1 and centred on the line, or (no picture) its name in the font inside a
+// one-pixel frame of keyColor; then the label. Returns the hint's width in pixels.
+int drawKeyHint(Renderer2D& r, const Font& font, const KeyGlyphAtlas* atlas, int x, int y, HintKey key,
+                std::string_view label, const KeyHintStyle& style = {});
+
+// ---------------------------------------------------------------------------
+// Half-size pictures (console layouts: a menu picture at exactly 1/2 of its texels)
+// ---------------------------------------------------------------------------
+// A picture's half-size copy: each texel the mean of a 2 x 2 block (colour weighted by alpha, so
+// transparent texels do not darken the edges; odd last rows and columns dropped), padded with
+// transparent texels to power-of-two sides of at least 8 (the PICA's texture sizes: no stretch on
+// upload). `w` and `h` get the picture's size, the image is the padded one.
+Image halfSizePicture(const Image& src, int* w, int* h);
+struct HalfPicture {
+    const Texture2D* texture = nullptr; // nearest filtering
+    int width = 0, height = 0;          // pixels of the picture (half its texels)
+    float s1 = 1, t1 = 1;               // the picture's corner in the padded texture
+    bool valid() const { return texture && width > 0 && height > 0; }
+};
+// The picture at one texel per screen pixel of the mapping (beginPixels: its width x height
+// pixels), its top-left corner at (x, y).
+bool drawHalfPicture(Renderer2D& r, float x, float y, const HalfPicture& p, Color c, Blend blend = Blend::Alpha);
 
 // ---------------------------------------------------------------------------
 // Assets
@@ -270,6 +378,12 @@ struct UiAssets {
     // with repeat wrapping). A texture the game's layout does not name stays invalid.
     Texture2D font, fontAlpha, mainbar, life, weapons, missiles, items, cursor1, cursor2, mcCursor;
     Texture2D panel, panelNoise;
+    // The console text (FontSize, docs/3ds-ui-design.md): when on before load(), the S atlas is
+    // built from font.tga (fontSmall, LA8 256 x 256, 128 KB, loaded with the font, before any
+    // level texture) and the font textures are nearest-filtered; uiFont() then draws the console
+    // sizes. Default: consoleTextDefault() (on in the 3DS build, off elsewhere).
+    bool consoleText = consoleTextDefault();
+    Texture2D fontSmall;
     bool fontLoaded = false;
     int missing = 0; // textures that could not be loaded (their draws are skipped)
     GameId game = GameId::AirStrike3D;
@@ -293,6 +407,14 @@ struct UiAssets {
     // The same with repeat wrapping (a picture sampled over more than one width: the sequels'
     // title-logo clouds and panel noise), cached apart from the clamped one.
     const Texture2D* textureRepeat(std::string_view path) const;
+    // Its half-size copy (halfSizePicture), nearest-filtered, made on first use and cached apart;
+    // invalid if the picture cannot be loaded. Not made at load: only the console layouts that
+    // draw a picture at 1/2 ask for it (about 0.2 MB for the first game's menus).
+    HalfPicture textureHalf(std::string_view path) const;
+    // The 3DS build's default for consoleText (the PICA backend: true; GL: false), and an override
+    // for the hosts (run.ini ui_text=0 on the 3DS: today's scaled text, for comparisons).
+    static bool consoleTextDefault();
+    static void setConsoleTextDefault(bool on);
     // Level-start precache (as3d/precache.h): loads into the texture() cache the pictures play
     // can show besides the atlases load() takes, so the first hint or level end loads nothing:
     // the first game's hint OK button and its mission complete / game over pictures (the
@@ -311,6 +433,7 @@ struct UiAssets {
 private:
     Vfs* vfs_ = nullptr;
     mutable std::map<std::string, std::unique_ptr<Texture2D>> cache_;
+    mutable std::map<std::string, HalfPicture> halfInfo_; // textureHalf: the sizes, by cache key
 };
 
 // ---------------------------------------------------------------------------

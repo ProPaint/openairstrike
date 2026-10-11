@@ -1,8 +1,10 @@
 // Loading of the 2D textures. See as3d/ui.h.
+#include <algorithm>
 #include "as3d/hud_layout.h"
 #include "as3d/image.h"
 #include "as3d/load_stats.h"
 #include "as3d/ui.h"
+#include "ui_backend.h"
 
 namespace as3d::ui {
 
@@ -12,7 +14,7 @@ namespace {
 // `cls` is the PICA backend's format hint (the GL backend ignores it): the font atlases are
 // LA8, the HUD pictures RGBA4, anything loaded by path keeps the automatic choice.
 bool loadOne(Vfs& vfs, const std::string& path, Texture2D& out, std::string* error, Wrap wrap = Wrap::ClampToEdge,
-             TextureClass cls = TextureClass::Auto) {
+             TextureClass cls = TextureClass::Auto, Filter filter = Filter::Linear, Image* keep = nullptr) {
     LoadStats::Site site;
     LoadStats::count(LoadKind::Texture, path, "ui_assets");
     Blob blob;
@@ -22,21 +24,80 @@ bool loadOne(Vfs& vfs, const std::string& path, Texture2D& out, std::string* err
         return false;
     }
     TextureOptions o;
-    o.minFilter = o.magFilter = Filter::Linear;
+    o.minFilter = o.magFilter = filter;
     o.wrapS = o.wrapT = wrap;
     o.cls = cls;
     out.create(image, o);
+    if (keep) *keep = std::move(image);
     return true;
 }
 
+bool g_consoleTextOverride = false, g_consoleTextOverridden = false;
+
 } // namespace
+
+bool UiAssets::consoleTextDefault() { return g_consoleTextOverridden ? g_consoleTextOverride : consoleTextBackendDefault(); }
+void UiAssets::setConsoleTextDefault(bool on) {
+    g_consoleTextOverride = on;
+    g_consoleTextOverridden = true;
+}
+
+Image halfSizePicture(const Image& src, int* w, int* h) {
+    const int hw = std::max(src.width / 2, 0), hh = std::max(src.height / 2, 0);
+    if (w) *w = hw;
+    if (h) *h = hh;
+    Image out;
+    if (hw <= 0 || hh <= 0 || src.rgba.size() < static_cast<size_t>(src.width) * static_cast<size_t>(src.height) * 4) return out;
+    auto side = [](int v) {
+        int p = 8;
+        while (p < v) p *= 2;
+        return p;
+    };
+    out.width = side(hw);
+    out.height = side(hh);
+    out.hasAlpha = true;
+    out.rgba.assign(static_cast<size_t>(out.width) * static_cast<size_t>(out.height) * 4, 0);
+    for (int y = 0; y < hh; ++y)
+        for (int x = 0; x < hw; ++x) {
+            unsigned a = 0, c[3] = {0, 0, 0};
+            for (int k = 0; k < 4; ++k) {
+                const int sx = 2 * x + (k & 1), sy = 2 * y + (k >> 1);
+                const uint8_t* p = &src.rgba[(static_cast<size_t>(sy) * static_cast<size_t>(src.width) + static_cast<size_t>(sx)) * 4];
+                a += p[3];
+                for (int i = 0; i < 3; ++i) c[i] += static_cast<unsigned>(p[i]) * p[3];
+            }
+            uint8_t* o = &out.rgba[(static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)) * 4];
+            for (int i = 0; i < 3; ++i) o[i] = static_cast<uint8_t>(a ? (c[i] + a / 2) / a : 0);
+            o[3] = static_cast<uint8_t>((a + 2) / 4);
+        }
+    return out;
+}
+
+bool drawHalfPicture(Renderer2D& r, float x, float y, const HalfPicture& p, Color c, Blend blend) {
+    if (!p.valid()) return false;
+    const Mapping& m = r.mapping();
+    return r.quad(x, y, static_cast<float>(p.width) / m.scaleX, static_cast<float>(p.height) / m.scaleY, 0, 0, p.s1, p.t1,
+                  p.texture, c, blend);
+}
 
 bool UiAssets::load(Vfs& vfs, std::string* error, GameId g) {
     vfs_ = &vfs;
     game = g;
     missing = 0;
-    fontLoaded = loadOne(vfs, "gfx\\ui\\font.tga", font, error, Wrap::ClampToEdge, TextureClass::Font);
+    // The console text: the font drawn texel for pixel (nearest), and its S atlas made now, so that
+    // it is created with the font, before any level texture (VRAM on the 3DS).
+    const Filter fontFilter = consoleText ? Filter::Nearest : Filter::Linear;
+    Image fontImage;
+    fontLoaded = loadOne(vfs, "gfx\\ui\\font.tga", font, error, Wrap::ClampToEdge, TextureClass::Font, fontFilter,
+                         consoleText ? &fontImage : nullptr);
     if (!fontLoaded) return false;
+    if (consoleText) {
+        TextureOptions o;
+        o.minFilter = o.magFilter = Filter::Nearest;
+        o.wrapS = o.wrapT = Wrap::ClampToEdge;
+        o.cls = TextureClass::Font;
+        fontSmall.create(smallFontAtlas(fontImage, FontMetrics::original()), o);
+    }
     // The HUD's atlases as the game's layout names them (a layout without one: not loaded).
     const HudLayout& L = hudLayout();
     struct Item { const char* path; Texture2D* tex; Wrap wrap; TextureClass cls; };
@@ -54,8 +115,13 @@ bool UiAssets::load(Vfs& vfs, std::string* error, GameId g) {
         // The panel's static fill samples it at random offsets over more than one width.
         {L.hint == HintStyle::SequelPanel ? L.panelNoise : nullptr, &panelNoise, Wrap::Repeat, TextureClass::Alpha},
     };
-    for (const Item& it : items_)
-        if (it.path && !loadOne(vfs, it.path, *it.tex, error, it.wrap, it.cls)) missing++;
+    for (const Item& it : items_) {
+        // The font's alpha twin is filtered as the font; the HUD atlases stay bilinear while the
+        // HUD is drawn at fractional scales (0.6 to 0.8 of its texels on the 3DS bottom screen).
+        const Filter f = it.tex == &fontAlpha ? fontFilter : Filter::Linear;
+        if (it.path && !loadOne(vfs, it.path, *it.tex, error, it.wrap, it.cls, f)) missing++;
+    }
+    noteFontAtlases(*this);
     return true;
 }
 
@@ -66,6 +132,12 @@ Font UiAssets::uiFont() const {
     f.metrics = &FontMetrics::original();
     f.texture = fontLoaded ? &font : nullptr;
     f.alphaTexture = fontAlpha.valid() ? &fontAlpha : nullptr;
+    if (consoleText && fontSmall.valid()) {
+        static const FontMetrics small = smallFontMetrics(FontMetrics::original());
+        f.consoleSizes = true;
+        f.smallTexture = &fontSmall;
+        f.smallMetrics = &small;
+    }
     return f;
 }
 
@@ -83,6 +155,43 @@ const Texture2D* UiAssets::texture(std::string_view path) const {
     const Texture2D* p = tex.get();
     cache_[key] = std::move(tex);
     return p;
+}
+
+HalfPicture UiAssets::textureHalf(std::string_view path) const {
+    const std::string file = normalizePath(std::string(path));
+    const std::string key = "\x02half:" + file; // never a game path
+    auto it = halfInfo_.find(key);
+    if (it != halfInfo_.end()) return it->second;
+    HalfPicture hp;
+    if (!vfs_) return hp;
+    LoadStats::Site site;
+    LoadStats::count(LoadKind::Texture, file, "ui_assets");
+    Blob blob;
+    Image image;
+    if (!vfs_->read(file, blob) || !decodeTga(blob.data(), blob.size(), image)) {
+        AS3D_WARN("ui: cannot load %s", file.c_str());
+        halfInfo_[key] = hp;
+        return hp;
+    }
+    int w = 0, h = 0;
+    Image half = halfSizePicture(image, &w, &h);
+    if (half.width > 0) {
+        auto tex = std::make_unique<Texture2D>();
+        TextureOptions o;
+        o.minFilter = o.magFilter = Filter::Nearest;
+        o.wrapS = o.wrapT = Wrap::ClampToEdge;
+        tex->create(half, o);
+        if (tex->valid()) {
+            hp.texture = tex.get();
+            hp.width = w;
+            hp.height = h;
+            hp.s1 = static_cast<float>(w) / static_cast<float>(half.width);
+            hp.t1 = static_cast<float>(h) / static_cast<float>(half.height);
+            cache_[key] = std::move(tex);
+        }
+    }
+    halfInfo_[key] = hp;
+    return hp;
 }
 
 int UiAssets::precachePlay() const {
