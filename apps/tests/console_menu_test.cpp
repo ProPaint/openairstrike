@@ -520,3 +520,66 @@ TEST_CASE("console menus: drawing stays on the screens") {
         if (s != Screen::MainMenu) rig.fe.menus().pop();
     }
 }
+
+// The size rule (docs/3ds-ui-design.md "Owner decisions", R4.7): the rows of one list share one
+// size, chosen by the longest entry (not each line on its own), and a label too long even at S is
+// cut with "..." instead of shrinking further.
+TEST_CASE("console menus: one size per group of labels") {
+    const FontMetrics& fm = FontMetrics::original();
+    // The helpers.
+    CHECK(consoleGroupSize(fm, {"SHORT", "TINY"}, {200}) == FontSize::L);
+    const std::string longest = "Mission 2: Leaving the Home";
+    REQUIRE(measureTextPx(fm, longest, FontSize::L) > 256);
+    REQUIRE(measureTextPx(fm, longest, FontSize::S) <= 256);
+    CHECK(consoleGroupSize(fm, {"Mission 1: Tutorial", longest}, {256}) == FontSize::S);
+    CHECK(consoleGroupSize(fm, {"Mission 1: Tutorial"}, {256}) == FontSize::L);
+    CHECK(fitLabel(fm, "SHORT", FontSize::L, 200) == "SHORT");
+    const std::string cut = fitLabel(fm, std::string(60, 'W'), FontSize::S, 100);
+    REQUIRE(cut.size() > 3);
+    CHECK(cut.substr(cut.size() - 3) == "...");
+    CHECK(measureTextPx(fm, cut, FontSize::S) <= 100);
+    // A start-game list with one long entry and one too long even at S: every row at one size
+    // (the long entry is not visible: the list's every entry decides).
+    Host host;
+    Profile profile;
+    FrontendContent c = consoleContent(false);
+    for (int i = 0; i < kMissionCount; i++) c.missionNames[i] = "Mission " + std::to_string(i + 1) + ": Tutorial";
+    c.missionNames[5] = longest;
+    c.missionNames[kMissionCount - 1] = "Mission 24: " + std::string(40, 'W');
+    Frontend fe(host, profile, c, consoleTexts());
+    fe.setTouchMode(true);
+    fe.boot();
+    fe.setState(FrontendState::Attract);
+    fe.open(Screen::StartGame);
+    ConsoleMenuView view;
+    const ConsoleLayout L = view.layout(fe);
+    int rows = 0;
+    for (const ConsoleBox& b : L.boxes)
+        if (b.kind == ConsoleBoxKind::ListRow) {
+            ++rows;
+            CHECK(b.size == FontSize::S);
+            CHECK(measureTextPx(fm, b.label, b.size) <= b.r.w - 16);
+        }
+    CHECK(rows == 3);
+    // The same list without the long entries: L throughout.
+    FrontendContent c2 = consoleContent(false);
+    for (int i = 0; i < kMissionCount; i++) c2.missionNames[i] = "Mission " + std::to_string(i + 1) + ": Tutorial";
+    Frontend fe2(host, profile, c2, consoleTexts());
+    fe2.setTouchMode(true);
+    fe2.boot();
+    fe2.setState(FrontendState::Attract);
+    fe2.open(Screen::StartGame);
+    for (const ConsoleBox& b : view.layout(fe2).boxes)
+        if (b.kind == ConsoleBoxKind::ListRow) CHECK(b.size == FontSize::L);
+    // The option rows and the start screen's spinner rows: one size per column.
+    Rig rig;
+    for (Screen s : {Screen::Options, Screen::StartGame}) {
+        rig.fe.open(s);
+        std::vector<FontSize> col;
+        for (const ConsoleBox& b : rig.layout().boxes)
+            if (b.kind == ConsoleBoxKind::Bar && b.r.w == 312 && !b.label.empty()) col.push_back(b.size);
+        REQUIRE(!col.empty());
+        for (FontSize z : col) CHECK(z == col.front());
+        rig.fe.menus().pop();
+    }
+}

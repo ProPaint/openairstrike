@@ -241,6 +241,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     std::unique_ptr<CtrInput> ownInput;
     if (!opts.input) ownInput.reset(new CtrInput(run, new3ds));
     CtrInput& input = opts.input ? *opts.input : *ownInput;
+    input.setGame(game->id); // R4.7: the first game's HUD tiles are its touch controls
     const unsigned maxFrames = static_cast<unsigned>(std::max(run.frames, 0));
     unsigned frameNo = 0, steps = 0, dropped = 0, runStep = 0, levelSteps = 0;
     FrameClock clock;
@@ -405,6 +406,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         // The steps of this frame: the vblanks since the last one (ctr_loop.h FrameClock).
         const int due = clock.due(&dropped);
         int n = 0;
+        // R4.7: what the HUD tiles select from (the world before this frame's steps).
+        if (ses.hasLevel()) input.setInventory(touchInventoryOf(ses.world()));
         const uint64_t s0 = nowTicks();
         while (n < due) {
             if (!flow.worldRunning()) break;
@@ -430,6 +433,13 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
                     in.pausePressed = pause;
                 }
                 if (!hint) hintHeld = 0;
+                // run.ini hud_stock (R4.7, the gallery): stock at the mission's first step.
+                if (run.hudStock > 0 && running && runStep == 0) {
+                    PlayerRecord& pr = ses.world().player(0);
+                    for (int t : {0, 1, 3}) pr.missiles[t] = run.hudStock;
+                    for (int k : {0, 1}) pr.powerups[k] = run.hudStock;
+                    AS3D_INFO("hud_stock: %d of missiles 0, 1, 3 and power-ups 0, 1", run.hudStock);
+                }
                 if (run.botWeapons && running) applyWeaponTour(ses.world(), runStep, in);
             }
             const int before = flow.levelLoads();

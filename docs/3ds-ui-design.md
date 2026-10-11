@@ -259,6 +259,18 @@ offline resample the engine would do.
   and set_4.json (15 px high, drawn by us, not game data: it may be committed into the app's own
   assets by the menus package). The letters use a 5x7 pixel font because the game's wide font does
   not fit a 15 px badge; if they read too thin on hardware, thicken the strokes by one pixel.
+- **One size per group of labels** (the owner on the R4.5 gallery, 2026-10-11: "mission selection has
+  inconsistent font size"; implemented by R4.7): the foundation's step-down shrank each line on its
+  own, so "Mission 1: Tutorial" stayed at L while "Mission 2: Leaving the Home" dropped to S in the
+  same list. Rule: the labels of a group share one size, the largest at which the group's longest
+  label fits its room; a label that does not fit even at S is cut with "..." instead of shrinking
+  further. Groups: the rows of one list (every entry, not only the visible rows, so scrolling never
+  changes the size), the labelled boxes of the same kind and the same size on a screen (a column of
+  bars, a row of buttons, the option rows), all the spinner values of a screen (every value of
+  every spinner), the lines of an Information sheet and of the hint box (S throughout). The
+  keyboard's keys are key caps, not a list: each is sized alone. Code: `consoleGroupSize`,
+  `fitLabel` and `applySizeRule` in engine/src/ui/console_menu.cpp; test "console menus: one size
+  per group of labels" (apps/tests/console_menu_test.cpp).
 
 ## 4. Implementation plan (next package)
 

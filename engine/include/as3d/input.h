@@ -234,7 +234,46 @@ struct TouchLayoutOptions {
         o.bottomBand = 36.0f / 240.0f;
         return o;
     }
+    // Ours (the 3DS console HUD, docs/3ds-ui-design.md "In play on the console (round 4, R4.7)"):
+    // the bottom screen is the game's HUD (HudTarget::Bottom320x240) and its tiles are the touch
+    // controls: the tiles are the HUD layout's element rectangles (ui::hudElementRects: "pause",
+    // "weapon", "missile0".., "powerup0"..) scaled to the framebuffer. No round buttons, no band,
+    // no drag area. Only a game whose bottom layout has tiles (the first game); for the others
+    // computeTouchLayout falls back to the band (bottomBand of 36/240).
+    bool hudTiles = false;
+    GameId hudGame = GameId::AirStrike3D;
+    static TouchLayoutOptions forHudTiles320x240(GameId game, float dpi = 132.0f) {
+        TouchLayoutOptions o = forBottomScreen320x240(dpi);
+        o.hudTiles = true;
+        o.hudGame = game;
+        return o;
+    }
 };
+
+// A touch tile of the hudTiles layout, in framebuffer pixels: what a tap on it does
+// (TouchMapper::touchEvent): Pause toggles the pause; Weapon selects the next weapon; Missile /
+// PowerUp `index` selects that kind (the "next" presses it takes, one every other step), and a
+// tap on the selected kind uses it (missile / power-up held while the finger is down).
+enum class TouchTileKind : u8 { Pause, Weapon, Missile, PowerUp };
+struct TouchTile {
+    TouchTileKind kind = TouchTileKind::Pause;
+    int index = 0;
+    float x = 0, y = 0, w = 0, h = 0;
+    bool contains(float px, float py) const { return px >= x && px < x + w && py >= y && py < y + h; }
+};
+constexpr int kMaxTouchTiles = 16;
+
+// What the tiles select from: player 1's inventory as the world has it this frame (the host
+// sets it before each frame's steps: touchInventoryOf).
+struct TouchInventory {
+    bool valid = false;
+    int missiles[5] = {};
+    int missileSelected = -1;
+    int powerups[16] = {};
+    int powerupSelected = -1;
+    u32 powerupSkip = 0; // GameRules::powerUpCycleSkip
+};
+TouchInventory touchInventoryOf(const World& world, int player = 0);
 
 // The on-screen buttons (docs/spec/issues/140): round, sized in millimetres from the display
 // density. Missile and power-up are the two big buttons in the corner under the thumb, each
@@ -253,6 +292,11 @@ struct TouchLayout {
     TouchRect buttons[kTouchButtonCount];   // bounding boxes of `circles`, normalised
     TouchCircle circles[kTouchButtonCount]; // drawn buttons, framebuffer pixels
     TouchCircle hit[kTouchButtonCount];     // touch areas, framebuffer pixels (at least 9 mm across)
+    // hudTiles: the tiles (no circles: every circle and hit radius is 0).
+    int tileCount = 0;
+    TouchTile tiles[kMaxTouchTiles];
+    // The tile under a finger (normalised framebuffer coordinates), -1 for none.
+    int tileAt(float nx, float ny) const;
     // The button under a finger (normalised framebuffer coordinates), -1 for none. Where touch
     // areas overlap, the button whose centre is nearest (relative to its radius) wins.
     int hitTest(float nx, float ny) const;
@@ -316,6 +360,12 @@ public:
     // The input for the next simulation frame.
     FrameInput takeFrame();
 
+    // hudTiles: the inventory the tiles select from (see TouchInventory). Without one (valid
+    // false), a missile or power-up tile uses the selected kind, as the old buttons did.
+    void setInventory(const TouchInventory& inv) { inventory_ = inv; }
+    // hudTiles: the tile a finger is on (-1: none), for its pressed look.
+    int pressedTile() const;
+
     // For drawing: whether a button is held, the drag target (virtual pixels).
     bool buttonHeld(TouchButton b) const;
     bool dragging() const { return dragFinger_ >= 0; }
@@ -331,6 +381,8 @@ private:
         bool down = false;
         long long id = 0;
         int button = -1;       // TouchButton index, -1 = play area
+        int tile = -1;         // hudTiles: the tile it went down on
+        u32 holdBits = 0;      // hudTiles: bits held while it is down (a tap on the selected kind)
         bool consumed = false; // went down while paused: no effect until lifted
         float x = 0, y = 0;    // last position (normalised)
     };
@@ -354,6 +406,13 @@ private:
     u32 latched_ = 0;          // bits pressed since the last takeFrame()
     bool confirmLatched_ = false;
     bool pauseLatched_ = false;
+    // hudTiles: the selection a tap asked for, reached by "next" presses on alternate steps.
+    TouchInventory inventory_;
+    int selectKind_ = -1;      // TouchTileKind of the pending selection, -1 none
+    int selectIndex_ = 0;
+    int selectPresses_ = 0;    // presses sent for it (a guard: at most one cycle)
+    bool selectGap_ = false;   // the step after a press: released
+    bool tileDown(int finger, int tile);
 };
 
 // ---------------------------------------------------------------------------------------

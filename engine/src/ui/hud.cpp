@@ -27,6 +27,28 @@ struct Hud {
     void draw(const HudPiece& p, float x, float y, bool mirror) const {
         piece(a.mainbar, x, y, p.w, p.h, p.uv, mirror, p.color, p.blend);
     }
+    // The health frame in three pieces (HudLayout::barCapLeft / barCapRight, the console HUD):
+    // its ends at one texel per 2.5 virtual pixels (1:1 on the 3DS bottom screen), the middle
+    // stretched over the rest of p.w.
+    void drawSliced(const HudPiece& p, float x, float y) const {
+        const float texels = (p.uv.s1 - p.uv.s0) * L.barAtlasW;
+        const float cl = L.barCapLeft, cr = L.barCapRight;
+        const float k = 2.5f; // virtual pixels per texel
+        if (cl <= 0 || cr <= 0 || p.w <= (cl + cr) * k || texels <= cl + cr) {
+            draw(p, x, y, false);
+            return;
+        }
+        const float du = 1.0f / L.barAtlasW;
+        SpecUv u = p.uv;
+        u.s1 = p.uv.s0 + cl * du;
+        piece(a.mainbar, x, y, cl * k, p.h, u, false, p.color, p.blend);
+        u.s0 = p.uv.s0 + cl * du;
+        u.s1 = p.uv.s1 - cr * du;
+        piece(a.mainbar, x + cl * k, y, p.w - (cl + cr) * k, p.h, u, false, p.color, p.blend);
+        u.s0 = p.uv.s1 - cr * du;
+        u.s1 = p.uv.s1;
+        piece(a.mainbar, x + p.w - cr * k, y, cr * k, p.h, u, false, p.color, p.blend);
+    }
     // `k` pieces side by side cut from one run of the atlas (the level pips): width k p.w,
     // growing leftwards from `x` when fromRight (mirrored).
     void run(const HudPiece& p, float x, float y, int k, bool fromRight) const {
@@ -44,10 +66,16 @@ struct Hud {
         if (ic.blend == Blend::Add) return grey(L.dimUnselected);
         return Color{1, 1, 1, L.dimUnselected};
     }
-    void icon(const Texture2D& atlas, const std::vector<HudIcon>& table, int i, float x, float y, bool selected) const {
+    void icon(const Texture2D& atlas, const std::vector<HudIcon>& table, int i, float x, float y, bool selected,
+              float dim = 1.0f) const {
         if (i < 0 || i >= static_cast<int>(table.size()) || table[static_cast<size_t>(i)].uv.empty()) return;
         const HudIcon& ic = table[static_cast<size_t>(i)];
-        piece(atlas, x, y, L.iconW, L.iconH, ic.uv, false, iconColor(ic, selected), ic.blend);
+        Color c = iconColor(ic, selected);
+        if (dim < 1.0f) {
+            if (ic.blend == Blend::Add) c = {c.r * dim, c.g * dim, c.b * dim, c.a};
+            else c = {c.r * dim, c.g * dim, c.b * dim, c.a}; // darker, still opaque: no frame through it
+        }
+        piece(atlas, x, y, L.iconW, L.iconH, ic.uv, false, c, ic.blend);
     }
 
     void healthFill(const HudSide& s, const HudPlayer& p) const {
@@ -88,17 +116,37 @@ struct Hud {
     void count(float right, float y, int n, bool selected) const {
         std::string s = std::to_string(n);
         float x = static_cast<float>(ftol(right - 14.0f * L.countScale * static_cast<float>(s.size())));
+        if (L.countPatch) {
+            // A dark patch behind the digits, over the icon: from 2 px left of the first digit to
+            // 1 px right of the last advance, the cap height (rows 3..12 of the number cell at L)
+            // with a pixel to spare above and below. Units: a console pixel is 2.5 virtual.
+            const float px = 2.5f;
+            r.rect(x - 2 * px, y + 2 * px, 14.0f * L.countScale * static_cast<float>(s.size()) + 3 * px, 13 * px,
+                   Color{0, 0, 0, 0.7f}, Blend::Alpha);
+        }
         drawNumber(r, a.uiFont(), x, y, s, L.countScale, selected ? L.countSelected : L.countOther);
     }
 
     // One entry of a column with its frame top at F.
     void entry(const HudColumn& c, float F, const Texture2D& atlas, const std::vector<HudIcon>& table, int i, int n,
                int countMin, bool selected) const {
+        // A fixed slot of a kind not owned: its frame and icon dimmed, no count, never selected.
+        const bool empty = c.fixedSlots && n <= 0;
+        if (empty) selected = false;
+        const float dim = empty ? L.emptyDim : 1.0f;
         if (c.drawFrames) {
-            draw(L.box, c.frameX, F, c.mirror);
+            if (empty) {
+                HudPiece b = L.box;
+                b.color = {b.color.r * dim, b.color.g * dim, b.color.b * dim, b.color.a};
+                draw(b, c.frameX, F, c.mirror);
+            } else {
+                draw(L.box, c.frameX, F, c.mirror);
+            }
             if (selected && L.selection == HudSelection::DoubleFrame) draw(L.box, c.frameX, F, c.mirror);
+            if (selected && L.selectOutline)
+                r.outline(c.frameX, F, L.box.w, L.box.h, Color{1.0f, 0.55f, 0.15f, 1});
         }
-        if (!c.iconAfterCount) icon(atlas, table, i, c.iconX, F + c.iconDy, selected);
+        if (!c.iconAfterCount) icon(atlas, table, i, c.iconX, F + c.iconDy, selected, dim);
         if (selected && L.selection == HudSelection::LineAndAlpha && c.drawLine && L.selLine.w > 0)
             draw(L.selLine, c.lineX, F + c.lineDy, c.mirror);
         if (n >= countMin) count(c.countRight, F + c.countDy, n, selected);
@@ -109,6 +157,14 @@ struct Hud {
     int missiles(const HudSide& s, const HudPlayer& p) const {
         const HudColumn& c = s.missiles;
         int n = 0;
+        if (c.fixedSlots) {
+            for (int t = 0; t < std::min(c.slots, kMissileTypes); t++) {
+                const float F = c.firstY + c.step * static_cast<float>(t);
+                entry(c, F, a.missiles, L.missiles, t, p.missiles[t], L.missileCountMin, t == p.missileSelected);
+                n += p.missiles[t] != 0 ? 1 : 0;
+            }
+            return n;
+        }
         for (int t = 0; t < kMissileTypes; t++) {
             if (p.missiles[t] == 0) continue;
             const float F = c.firstY + c.step * static_cast<float>(n++);
@@ -123,6 +179,12 @@ struct Hud {
                                 ? s.missiles.firstY + s.missiles.step * static_cast<float>(missileEntries)
                                 : c.firstY;
         int n = 0;
+        if (c.fixedSlots) {
+            for (int k = 0; k < std::min(c.slots, kPowerupSlots); k++)
+                entry(c, c.firstY + c.step * static_cast<float>(k), a.items, L.powerups, k, p.powerups[k], L.powerupCountMin,
+                      k == p.powerupSelected);
+            return;
+        }
         for (int k = 0; k < kPowerupSlots; k++) {
             if (p.powerups[k] == 0) continue;
             const float F = first + c.step * static_cast<float>(n++);
@@ -145,12 +207,43 @@ struct Hud {
         drawNumber(r, a.uiFont(), x, s.scoreY, str, L.scoreScale, L.scoreColor);
     }
 
+    // The console HUD's pause tile (HudLayout::pauseTile): a dark plate with two bars, inset in
+    // its touch area.
+    void pauseTile() const {
+        const RectF& t = L.pauseTile;
+        if (t.w <= 0) return;
+        const float px = 2.5f, in = L.pauseInset;
+        const float x = t.x + in, y = t.y + in, w = t.w - 2 * in, h = t.h - 2 * in;
+        r.rect(x, y, w, h, Color{0.21f, 0.035f, 0.02f, 0.92f}, Blend::Alpha);
+        r.outline(x, y, w, h, Color{0.55f, 0.16f, 0.06f, 1});
+        const float bw = 4 * px, bh = h - 12 * px, gap = 4 * px;
+        const float bx = x + std::floor((w - 2 * bw - gap) / px * 0.5f) * px, by = y + 6 * px;
+        r.rect(bx, by, bw, bh, Color{0.96f, 0.84f, 0.70f, 1}, Blend::Alpha);
+        r.rect(bx + bw + gap, by, bw, bh, Color{0.96f, 0.84f, 0.70f, 1}, Blend::Alpha);
+    }
+    // "WEAPON" / "LEVEL n" beside the weapon box (HudLayout::weaponTextX), at S.
+    void weaponText(const HudPlayer& p) const {
+        if (L.weaponTextX < 0) return;
+        const int w = p.weapon;
+        const int level = w >= 0 && w < kWeaponSlots ? p.upgrades[w] : 0;
+        TextStyle st;
+        st.scale = 2.0f; // 0.8 px per texel through the 0.4 mapping
+        st.size = FontSize::S;
+        st.effect = TextEffect::None;
+        st.color = Color{1.0f, 0.70f, 0.30f, 1};
+        drawText(r, a.uiFont(), L.weaponTextX, L.weaponTextY, "WEAPON", st);
+        drawText(r, a.uiFont(), L.weaponTextX, L.weaponTextY + 13 * 2.5f, "LEVEL " + std::to_string(std::max(level, 1)), st);
+    }
+
     void player(const HudSide& s, const HudPlayer& p) const {
         int missileEntries = 0;
         for (HudElement e : s.order) {
             switch (e) {
                 case HudElement::Lives: lives(s, p.lives); break;
-                case HudElement::HealthFrame: draw(L.barFrame, s.barX, s.barY, s.barMirror); break;
+                case HudElement::HealthFrame:
+                    if (L.barCapLeft > 0 && !s.barMirror) drawSliced(L.barFrame, s.barX, s.barY);
+                    else draw(L.barFrame, s.barX, s.barY, s.barMirror);
+                    break;
                 case HudElement::HealthFill: healthFill(s, p); break;
                 case HudElement::ScoreFrame:
                     if (s.scoreFrame) draw(L.scoreFrame, s.scoreFrameX, s.scoreFrameY, s.scoreFrameMirror);
@@ -216,7 +309,7 @@ void drawHud(Renderer2D& r, const UiAssets& a, const HudState& s) {
     Hud h{r, a, L};
     // Level-name typewriter first (frontend.md 4.1 order).
     Typewriter tw = typewriterText(s.levelName, s.levelTime);
-    if (!tw.text.empty()) {
+    if (!tw.text.empty() && L.levelNameY >= 0) {
         // The full name is measured so that the text grows rightwards from its final left edge
         // (the sequels skip '{' and '}' in the width, as2/frontend.md 2.8).
         const float full = measureText(FontMetrics::original(), s.levelName, L.levelNameScale, L.typewriterSkipsBraces);
@@ -231,9 +324,11 @@ void drawHud(Renderer2D& r, const UiAssets& a, const HudState& s) {
         h.player(L.twoPlayers[1], s.players[1]);
     } else {
         h.player(L.onePlayer, s.players[0]);
+        h.pauseTile();
+        h.weaponText(s.players[0]);
     }
     const float ma = messageAlpha(s.messageAge);
-    if (ma > 0 && !s.message.empty()) {
+    if (ma > 0 && !s.message.empty() && L.messageY >= 0) {
         TextStyle st;
         st.align = Align::Center;
         st.scale = L.messageScale;

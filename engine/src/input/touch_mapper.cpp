@@ -3,8 +3,13 @@
 // button layout, 140-android-polish.md).
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <string>
+#include <string_view>
 
+#include "as3d/hud_layout.h"
 #include "as3d/input.h"
+#include "as3d/player_select.h"
 
 namespace as3d {
 
@@ -107,6 +112,26 @@ int TouchLayout::hitTest(float nx, float ny) const {
 
 bool TouchLayout::hits(TouchButton b, float nx, float ny) const { return hitTest(nx, ny) == static_cast<int>(b); }
 
+int TouchLayout::tileAt(float nx, float ny) const {
+    const float px = nx * static_cast<float>(fbWidth), py = ny * static_cast<float>(fbHeight);
+    for (int i = 0; i < tileCount; ++i)
+        if (tiles[i].contains(px, py)) return i;
+    return -1;
+}
+
+TouchInventory touchInventoryOf(const World& w, int player) {
+    TouchInventory inv;
+    if (player < 0 || player >= w.numPlayers()) return inv;
+    const PlayerRecord& pr = w.player(player);
+    inv.valid = true;
+    for (int t = 0; t < 5; ++t) inv.missiles[t] = pr.missiles[t];
+    inv.missileSelected = pr.currentMissile;
+    for (int k = 0; k < 16; ++k) inv.powerups[k] = pr.powerups[k];
+    inv.powerupSelected = pr.currentPowerup;
+    inv.powerupSkip = w.rules().powerUpCycleSkip;
+    return inv;
+}
+
 float touchFadeAlpha(float t, float rest) {
     if (!(t > kTouchFadeHold)) return 1.0f;
     const float u = (t - kTouchFadeHold) / kTouchFadeTime;
@@ -178,7 +203,51 @@ static TouchLayout bottomBandLayout(const TouchLayoutOptions& o, int fbWidth, in
     return L;
 }
 
+// The console HUD's tiles (TouchLayoutOptions::hudTiles): the element rectangles of the game's
+// Bottom320x240 HUD layout that are tiles, scaled from the virtual 800x600 screen to the
+// framebuffer. Empty (tileCount 0) when the layout has none.
+static TouchLayout hudTilesLayout(const TouchLayoutOptions& o, int fbWidth, int fbHeight) {
+    TouchLayout L;
+    L.fbWidth = std::max(fbWidth, 1);
+    L.fbHeight = std::max(fbHeight, 1);
+    L.leftHanded = false; // the HUD has one layout
+    L.playField = {0, 0, 1, 1};
+    L.outside = false;
+    L.alpha = 1.0f;
+    const bool dpiKnown = o.dpi >= 80.0f && o.dpi <= 1200.0f;
+    L.pixelsPerMm = dpiKnown ? o.dpi / 25.4f : static_cast<float>(L.fbHeight) / kPhoneHeightMm;
+    const float sx = static_cast<float>(L.fbWidth) / kVirtualW, sy = static_cast<float>(L.fbHeight) / kVirtualH;
+    const ui::HudLayout& H = ui::hudLayout(o.hudGame, ui::HudTarget::Bottom320x240);
+    if (H.pauseTile.w <= 0 || !H.onePlayer.missiles.fixedSlots) return L; // not a console HUD
+    for (const ui::HudElementRect& e : ui::hudElementRects(H)) {
+        TouchTile t;
+        const std::string_view n = e.name;
+        if (n == "pause") t.kind = TouchTileKind::Pause;
+        else if (n == "weapon") t.kind = TouchTileKind::Weapon;
+        else if (n.size() == 8 && n.substr(0, 7) == "missile" && n[7] >= '0' && n[7] <= '9') {
+            t.kind = TouchTileKind::Missile;
+            t.index = n[7] - '0';
+        } else if (n.size() >= 8 && n.substr(0, 7) == "powerup" && n[7] >= '0' && n[7] <= '9') {
+            t.kind = TouchTileKind::PowerUp;
+            t.index = std::atoi(std::string(n.substr(7)).c_str());
+        } else {
+            continue;
+        }
+        if (L.tileCount >= kMaxTouchTiles) break;
+        t.x = e.x * sx;
+        t.y = e.y * sy;
+        t.w = e.w * sx;
+        t.h = e.h * sy;
+        L.tiles[L.tileCount++] = t;
+    }
+    return L;
+}
+
 TouchLayout computeTouchLayout(int fbWidth, int fbHeight, const TouchLayoutOptions& o) {
+    if (o.hudTiles) {
+        TouchLayout L = hudTilesLayout(o, fbWidth, fbHeight);
+        if (L.tileCount > 0) return L;
+    }
     if (o.bottomBand > 0) return bottomBandLayout(o, fbWidth, fbHeight);
     TouchLayout L;
     L.fbWidth = std::max(fbWidth, 1);
@@ -332,6 +401,49 @@ int TouchMapper::fingersDown() const {
     return n;
 }
 
+int TouchMapper::pressedTile() const {
+    for (const Finger& f : fingers_)
+        if (f.down && !f.consumed && f.tile >= 0) return f.tile;
+    return -1;
+}
+
+// A finger down on tile `t` (hudTiles). Returns true when it was handled.
+bool TouchMapper::tileDown(int finger, int t) {
+    if (t < 0 || t >= layout_.tileCount) return false;
+    Finger& f = fingers_[finger];
+    f.tile = t;
+    const TouchTile& tile = layout_.tiles[t];
+    const TouchInventory& inv = inventory_;
+    switch (tile.kind) {
+        case TouchTileKind::Pause: pauseLatched_ = true; break;
+        case TouchTileKind::Weapon: latched_ |= ACT_NEXT_WEAPON; break;
+        case TouchTileKind::Missile:
+        case TouchTileKind::PowerUp: {
+            const bool missile = tile.kind == TouchTileKind::Missile;
+            const u32 use = missile ? ACT_MISSILE : ACT_POWERUP;
+            if (!inv.valid) { // no inventory: the selected kind, as the old buttons
+                f.holdBits = use;
+                latched_ |= use;
+                break;
+            }
+            const int i = tile.index;
+            const int have = missile ? (i >= 0 && i < 5 ? inv.missiles[i] : 0) : (i >= 0 && i < 16 ? inv.powerups[i] : 0);
+            if (have <= 0) break; // an empty slot: nothing
+            if ((missile ? inv.missileSelected : inv.powerupSelected) == i) {
+                f.holdBits = use; // the selected kind: used while the finger is down
+                latched_ |= use;
+            } else {
+                selectKind_ = static_cast<int>(tile.kind);
+                selectIndex_ = i;
+                selectPresses_ = 0;
+                selectGap_ = false;
+            }
+            break;
+        }
+    }
+    return true;
+}
+
 bool TouchMapper::buttonHeld(TouchButton b) const {
     int i = static_cast<int>(b);
     for (const Finger& f : fingers_) {
@@ -367,8 +479,13 @@ void TouchMapper::touchEvent(long long id, TouchPhase phase, float x, float y) {
                 pauseLatched_ = true;
                 return;
             }
-            f.button = hitButton(x, y);
             confirmLatched_ = true; // a tap also closes a tutorial hint box
+            if (layout_.tileCount > 0) {
+                // hudTiles: a tile, or nothing (no drag area, no auto-fire).
+                tileDown(idx, layout_.tileAt(x, y));
+                return;
+            }
+            f.button = hitButton(x, y);
             if (f.button == static_cast<int>(TouchButton::Pause)) {
                 pauseLatched_ = true;
                 return;
@@ -414,6 +531,8 @@ void TouchMapper::releaseAll() {
     pendingDx_ = pendingDy_ = 0;
     latched_ = 0;
     confirmLatched_ = false;
+    selectKind_ = -1;
+    selectGap_ = false;
 }
 
 void TouchMapper::setPlayerScreen(bool valid, float vx, float vy) {
@@ -427,6 +546,11 @@ FrameInput TouchMapper::takeFrame() {
     u32 held = 0;
     for (const Finger& f : fingers_) {
         if (!f.down || f.consumed) continue;
+        if (f.tile >= 0) { // hudTiles: what its tap holds, no auto-fire
+            held |= f.holdBits;
+            continue;
+        }
+        if (layout_.tileCount > 0) continue; // a finger beside the tiles
         if (f.button == static_cast<int>(TouchButton::Pause)) continue;
         if (f.button >= 0) held |= kButtonBits[f.button];
         if (settings_.autoFire) held |= ACT_FIRE;
@@ -471,6 +595,24 @@ FrameInput TouchMapper::takeFrame() {
     prevX_ = playerX_;
     prevY_ = playerY_;
 
+    // hudTiles: a pending selection, one "next" press every other step until the world's
+    // selection (the inventory the host set this frame) is the tapped kind; at most one cycle.
+    if (selectKind_ >= 0) {
+        if (selectGap_) {
+            selectGap_ = false; // the press is released this step
+        } else {
+            const bool missile = selectKind_ == static_cast<int>(TouchTileKind::Missile);
+            const int cur = missile ? inventory_.missileSelected : inventory_.powerupSelected;
+            const int have = missile ? inventory_.missiles[selectIndex_] : inventory_.powerups[selectIndex_];
+            if (cur == selectIndex_ || have <= 0 || selectPresses_ >= (missile ? kMissileKindsOwned : kPowerupKindsOwned)) {
+                selectKind_ = -1;
+            } else {
+                held |= missile ? ACT_NEXT_MISSILE : ACT_NEXT_POWERUP;
+                ++selectPresses_;
+                selectGap_ = true;
+            }
+        }
+    }
     out.held[0] = held | latched_;
     out.confirm = confirmLatched_;
     out.pausePressed = pauseLatched_;

@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include "as3d/console_hud.h"
+#include "as3d/hud_layout.h"
 #include "as3d/console_menu.h"
 #include "as3d/console_pad.h"
 #include "as3d/core.h"
@@ -314,6 +316,7 @@ struct GameFrame::Impl {
         unsigned flushes[3] = {0, 0, 0};
         double ms[3] = {0, 0, 0};
         long units[3] = {0, 0, 0}, built[3] = {0, 0, 0}, draws[3] = {0, 0, 0};
+        long verts[3] = {0, 0, 0}; // R4.7: the AS3D_HUD line's vertices per list
     } listSum;
     std::unique_ptr<ui::UiAssets> assets;
     bool hudReady = false;
@@ -322,6 +325,20 @@ struct GameFrame::Impl {
     ui::ConsoleMenuView menuView;
     Texture2D keysTexture;
     ui::KeyGlyphAtlas keyAtlas;
+    // R4.7 (docs/3ds-ui-design.md "In play on the console (round 4, R4.7)"): the first game's HUD
+    // tiles are the touch controls (TouchLayoutOptions::hudTiles): no circle band then.
+    static bool tilesOn(const TouchMapper* t) { return t && t->layout().tileCount > 0; }
+    const ui::KeyGlyphAtlas* keyGlyphs() const { return keysTexture.valid() ? &keyAtlas : nullptr; }
+    // The pad reminder and the pressed tile over the HUD list (bottom-screen pixels).
+    void hudExtras(ui::Renderer2D& r, const TouchMapper* t) {
+        ui::RectF pressed;
+        const int k = t ? t->pressedTile() : -1;
+        if (k >= 0) {
+            const TouchTile& tile = t->layout().tiles[k];
+            pressed = {tile.x, tile.y, tile.w, tile.h};
+        }
+        ui::drawConsoleHudExtras(r, *assets, keyGlyphs(), k >= 0 ? &pressed : nullptr);
+    }
     bool precached = false;
     int mission = 0;
     // The front end (M2.1).
@@ -482,7 +499,8 @@ struct GameFrame::Impl {
             !pica::passEnabled(pica::Pass::Touch))
             return;
         as3d::TouchMapper t;
-        CtrInput::setUpTouch(t);
+        CtrInput::setUpTouch(t, assets->game);
+        if (tilesOn(&t)) return; // R4.7: the HUD's tiles, no band to build
         const ui::HudState h = as3d_game::hudStateOf(ses);
         ui::TouchControlsState ts;
         ts.assets = assets.get();
@@ -790,7 +808,8 @@ struct GameFrame::Impl {
         hudReady = r2d->init(&hudError) && r2dBottom->init(&hudError) && r2dTopOver->init(&hudError) &&
                    r2dTouch->init(&hudError) && r2dMenu->init(&hudError) && assets->load(ses.vfs(), &hudError, game);
         if (!hudReady) AS3D_WARN("HUD unavailable: %s", hudError.c_str());
-        if (run.uiMenus && !keysTexture.valid()) loadKeyGlyphs(keysTexture, keyAtlas);
+        // The key pictures: the console menus' footers and (R4.7) the in-play pad reminder.
+        if (!keysTexture.valid()) loadKeyGlyphs(keysTexture, keyAtlas);
         menuView.setKeyGlyphs(keysTexture.valid() ? &keyAtlas : nullptr);
     }
 
@@ -968,9 +987,13 @@ struct GameFrame::Impl {
         ui::Renderer2D& r = *r2dBottom;
         assets->hudTarget = ui::HudTarget::Bottom320x240;
         r.begin(kBottomW, kBottomH);
-        if (l.hud && pica::passEnabled(pica::Pass::Hud)) ui::drawHud(r, *assets, l.hudState);
+        const bool tiles = info && tilesOn(info->touch);
+        if (l.hud && pica::passEnabled(pica::Pass::Hud)) {
+            ui::drawHud(r, *assets, l.hudState);
+            if (tiles) hudExtras(r, info->playing ? info->touch : nullptr);
+        }
         touchQuads = false;
-        if (info && info->playing && info->touch && l.hud && pica::passEnabled(pica::Pass::Touch)) {
+        if (info && info->playing && info->touch && !tiles && l.hud && pica::passEnabled(pica::Pass::Touch)) {
             ui::TouchControlsState ts;
             ts.assets = assets.get();
             ts.player = &l.hudState.players[0];
@@ -1180,7 +1203,22 @@ struct GameFrame::Impl {
         // R4.5: the console menus' reading panel (titles, Information, scores, results).
         const bool menuTop = flow && fe && run.uiMenus && ui::ConsoleMenuView::handles(*fe);
         if (menuTop) title = false; // the main menu shows its banner; the panels their own titles
-        if (!paused && !title && !modelActive && !run.perf && !menuTop) return;
+        // R4.7: the top screen in play (the level name, the cheat message, PAUSED; the first
+        // game's console HUD: its bottom layout draws neither text).
+        ui::ConsolePlayTop play;
+        const bool consoleHud = assets->hudLayout().levelNameY < 0;
+        if (consoleHud) {
+            const ui::HudState* hs = flow ? (haveLayers && layers.hud ? &layers.hudState : nullptr) : (showHud ? &hud : nullptr);
+            if (hs) {
+                play.levelName = hs->levelName;
+                play.levelTime = hs->levelTime;
+                play.message = hs->message;
+                play.messageAge = hs->messageAge;
+            }
+            play.paused = paused;
+        }
+        const bool playTop = consoleHud && ui::consolePlayTopVisible(play);
+        if (!paused && !title && !modelActive && !run.perf && !menuTop && !playTop) return;
         r2d->begin(kTopW, kTopH);
         if (menuTop) menuView.drawTop(*r2d, *assets, *fe);
         if (modelActive) {
@@ -1202,7 +1240,9 @@ struct GameFrame::Impl {
             st.align = ui::Align::Center;
             ui::drawTextShadowed(*r2d, assets->uiFont(), 400, worldDrawn ? 60 : 250, session->game()->title, st);
         }
-        if (paused) {
+        if (playTop) {
+            ui::drawConsolePlayTop(*r2d, *assets, play);
+        } else if (paused) {
             st.scale = 3.0f;
             st.color = ui::orange();
             st.align = ui::Align::Left;
@@ -1624,6 +1664,7 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
                     im.listSum.units[k] += s1.units - s0.units;
                     im.listSum.built[k] += s1.unitsBuilt - s0.unitsBuilt;
                     im.listSum.draws[k] += s1.runs - s0.runs;
+                    im.listSum.verts[k] += im.listVerts[k];
                     ++im.listSum.flushes[k];
                 }
                 ++im.listSum.frames;
@@ -1637,6 +1678,7 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
                 ui::Renderer2D& h = *im.r2dBottom;
                 h.begin(kBottomW, kBottomH);
                 ui::drawHud(h, *im.assets, im.hud);
+                if (Impl::tilesOn(info.touch)) im.hudExtras(h, info.touch);
                 h.flush();
             }
             // The hint box over the HUD (render-pipeline.md 1.1 pass 13).
@@ -1646,7 +1688,7 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
                 ui::drawHint(r, *im.assets, world.hintText());
                 r.flush();
             }
-            if (info.touch && im.showHud && pica::passEnabled(pica::Pass::Touch)) {
+            if (info.touch && !Impl::tilesOn(info.touch) && im.showHud && pica::passEnabled(pica::Pass::Touch)) {
                 UiMeter m(pica::Pass::Touch);
                 ui::TouchControlsState ts;
                 ts.assets = im.assets.get();
@@ -1825,6 +1867,12 @@ void GameFrame::stats(FrameStats& out) {
                 parts += item;
             }
             AS3D_INFO("AS3D_UI_LISTS frames=%u%s", ls.frames, parts.c_str());
+            // R4.7: the bottom screen's 2D vertices per frame (the HUD tiles replaced the circle
+            // band: 8.3k vertices before).
+            const double fr = static_cast<double>(ls.frames);
+            AS3D_INFO("AS3D_HUD frames=%u bottom2d_vertices=%.0f hud=%.0f touch=%.0f menu=%.0f layout=%s", ls.frames,
+                      static_cast<double>(ls.verts[0] + ls.verts[1] + ls.verts[2]) / fr, ls.verts[0] / fr, ls.verts[1] / fr,
+                      ls.verts[2] / fr, im.assets && im.assets->hudLayout().pauseTile.w > 0 ? "tiles" : "band");
         }
         ls = Impl::ListSums();
     }

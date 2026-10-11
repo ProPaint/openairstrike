@@ -261,6 +261,10 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
             }
         } else if (key == "ui_menus") { // R4.5
             if (toInt(val, &n)) c.uiMenus = n != 0;
+        // R4.7
+        } else if (key == "hud_stock") {
+            if (toInt(val, &n)) c.hudStock = n > 0 ? n : 0;
+        // R4.7 end
         } else if (key == "clear") {
             if (val == "split") c.clearMode = 0;
             else if (val == "joint") c.clearMode = 1;

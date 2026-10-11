@@ -64,9 +64,15 @@ public:
     const as3d::TouchMapper& touch() const { return touch_; }
 
     static constexpr int kTouchW = 320, kTouchH = 240;
-    // The touch band's mapper as the input sets it up (the 320x240 preset, no auto-fire, no drag
+    // The touch mapper as the input sets it up for `game` (R4.7: the HUD's tiles where the game's
+    // bottom layout has them, the first game; else the 320x240 band preset; no auto-fire, no drag
     // area): the frame composer builds the band's first list with one during the loading screen.
-    static void setUpTouch(as3d::TouchMapper& t);
+    static void setUpTouch(as3d::TouchMapper& t, as3d::GameId game);
+    // The game whose bottom screen the touch drives (the front end of each game; the selector
+    // lends one CtrInput to all three).
+    void setGame(as3d::GameId game);
+    // R4.7: player 1's inventory for the HUD tiles' selections, before each frame's steps.
+    void setInventory(const as3d::TouchInventory& inv) { touch_.setInventory(inv); }
     // A pad_script press is held this many displayed frames.
     static constexpr unsigned kScriptHoldFrames = 6;
 
@@ -83,6 +89,7 @@ private:
     bool logInput_;
     bool firstStepOfFrame_ = true;
     uint32_t lastLogged_ = 0xFFFFFFFFu;
+    int touchButtonAt(float nx, float ny) const; // a round button, 100 + a HUD tile, or -1
     int lastButton_ = -2;
     bool menuTouch_ = false;  // the finger on the screen is a menu's: consumed until lifted
     int tapX_ = 0, tapY_ = 0; // queueTouch

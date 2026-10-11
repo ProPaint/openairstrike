@@ -152,6 +152,11 @@ struct RunConfig {
     // the desktop's screens (0, comparisons). With 1, ui_taps are fingers on the touch screen at
     // the item's bar (they go the way of a real touch, the tap-through fix included).
     bool uiMenus = true;
+    // R4.7 (docs/3ds-ui-design.md "In play on the console (round 4, R4.7)"): hud_stock=N: at a
+    // mission's first step player 1 gets N of missile types 0, 1, 3 and power-ups 0, 1 (the
+    // gallery's tile screens: owned, empty and selected tiles at once); 0 = off.
+    int hudStock = 0;
+    // R4.7 end
     int clearMode = 0;         // clear=split (0, default) | joint (1) | quad (2): how a target's colour and depth are cleared (pica_frame.h ClearMode)
     bool gpuKick = true;       // gpu_kick=0: no mid-frame start of the GPU (pica_frame.h kickGpu); default on
     bool cmdlistFlush = false; // end_flush=cmdlist: C3D_FrameEnd(GX_CMDLIST_FLUSH), no whole-heap flush (forced by gpu_kick=1)

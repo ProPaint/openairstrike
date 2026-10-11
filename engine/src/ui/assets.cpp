@@ -118,7 +118,13 @@ bool UiAssets::load(Vfs& vfs, std::string* error, GameId g) {
     for (const Item& it : items_) {
         // The font's alpha twin is filtered as the font; the HUD atlases stay bilinear while the
         // HUD is drawn at fractional scales (0.6 to 0.8 of its texels on the 3DS bottom screen).
-        const Filter f = it.tex == &fontAlpha ? fontFilter : Filter::Linear;
+        // R4.7: the first game's console HUD (Bottom320x240 with the console text) draws the icon
+        // atlases 1:1 on whole pixels: nearest (the bar atlas stays bilinear: its health fill is
+        // squeezed into the bar, its frames and boxes sit on whole texels either way; life.tga is
+        // drawn at exactly 1/2, where bilinear is a 2 x 2 mean).
+        const bool iconAtlas = it.tex == &weapons || it.tex == &missiles || it.tex == &items;
+        const bool consoleHud = consoleText && hudTarget == HudTarget::Bottom320x240 && this->game == GameId::AirStrike3D;
+        const Filter f = it.tex == &fontAlpha ? fontFilter : (iconAtlas && consoleHud ? Filter::Nearest : Filter::Linear);
         if (it.path && !loadOne(vfs, it.path, *it.tex, error, it.wrap, it.cls, f)) missing++;
     }
     noteFontAtlases(*this);

@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "console_px.h"
+
 namespace as3d::ui {
 
 namespace {
@@ -44,11 +46,9 @@ constexpr int kOptBack = 1, kOptConfKeys = 2, kOptApply = 3, kOptBrightness = 24
 
 const FontMetrics& fm() { return FontMetrics::original(); }
 
-int capOffset(FontSize s) { return static_cast<int>(std::lround(2.0f * fontSizeScale(s))); }
-// The top of the glyph boxes that centres the cap height in a band (y, h).
-int textTopIn(float y, float h, FontSize s) {
-    return static_cast<int>(std::floor(y + (h - static_cast<float>(fontCapPx(s))) * 0.5f)) - capOffset(s);
-}
+using consolepx::capOffset;
+using consolepx::Px;
+using consolepx::textTopIn;
 
 std::string upper(std::string s) {
     for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
@@ -66,93 +66,6 @@ std::string conText(const Texts& t, const std::string& key, const char* fallback
 }
 
 bool focusedItem(const Menu& m, int i) { return m.focused == i; }
-
-// ---------------------------------------------------------------------------
-// Drawing in pixels through any mapping.
-// ---------------------------------------------------------------------------
-struct Px {
-    Renderer2D& r;
-    const UiAssets& a;
-    Font font;
-    const Mapping& m;
-    Px(Renderer2D& rr, const UiAssets& aa) : r(rr), a(aa), font(aa.uiFont()), m(rr.mapping()) {}
-    float vx(float x) const { return m.toVirtX(x); }
-    float vy(float y) const { return m.toVirtY(y); }
-    float vw(float w) const { return w / m.scaleX; }
-    float vh(float h) const { return h / m.scaleY; }
-    void rect(const RectF& p, Color c, Blend b = Blend::Alpha) const { r.rect(vx(p.x), vy(p.y), vw(p.w), vh(p.h), c, b); }
-    void rect(float x, float y, float w, float h, Color c, Blend b = Blend::Alpha) const { rect(RectF{x, y, w, h}, c, b); }
-    void frame(const RectF& p, Color c, int t = 1) const {
-        const float ft = static_cast<float>(t);
-        rect(p.x, p.y, p.w, ft, c);
-        rect(p.x, p.y + p.h - ft, p.w, ft, c);
-        rect(p.x, p.y + ft, ft, p.h - 2 * ft, c);
-        rect(p.x + p.w - ft, p.y + ft, ft, p.h - 2 * ft, c);
-    }
-    // Text with its glyph boxes' top at y.
-    int text(float x, float y, std::string_view s, FontSize size, Color c, Align al = Align::Left, bool markup = false,
-             TextEffect fx = TextEffect::None) const {
-        if (!font.metrics || s.empty()) return 0;
-        TextStyle st;
-        st.scale = fontSizeScale(size) / m.scaleY;
-        st.size = size;
-        st.color = c;
-        st.align = al;
-        st.markup = markup;
-        st.effect = fx;
-        return drawText(r, font, vx(std::floor(x)), vy(static_cast<float>(y)), s, st);
-    }
-    // Text centred (vertically on its cap height) in a band.
-    void textIn(const RectF& b, std::string_view s, FontSize size, Color c, Align al = Align::Center, float pad = 8) const {
-        const float x = al == Align::Center ? b.x + b.w * 0.5f : al == Align::Left ? b.x + pad : b.x + b.w - pad;
-        text(x, static_cast<float>(textTopIn(b.y, b.h, size)), s, size, c, al);
-    }
-    // A sub-rectangle (spec UVs: t = 1 the top row) of a half-size picture, centred on (cx, cy)
-    // and cropped to maxW x maxH pixels around its centre. Returns its drawn width (0: no picture).
-    int halfPicture(std::string_view path, SpecUv uv, float cx, float cy, float maxW, float maxH, Color c, Blend b) const {
-        const HalfPicture p = a.textureHalf(path);
-        if (!p.valid()) return 0;
-        float w = std::floor((uv.s1 - uv.s0) * static_cast<float>(p.width));
-        float h = std::floor((uv.t1 - uv.t0) * static_cast<float>(p.height));
-        float s0 = uv.s0, s1 = uv.s1, t0 = uv.t0, t1 = uv.t1; // spec: t1 the top
-        if (w > maxW) {
-            const float cut = (w - maxW) * 0.5f / static_cast<float>(p.width);
-            s0 += cut;
-            s1 -= cut;
-            w = maxW;
-        }
-        if (h > maxH) {
-            const float cut = (h - maxH) * 0.5f / static_cast<float>(p.height);
-            t0 += cut;
-            t1 -= cut;
-            h = maxH;
-        }
-        const float x = std::floor(cx - w * 0.5f), y = std::floor(cy - h * 0.5f);
-        r.quad(vx(x), vy(y), vw(w), vh(h), s0 * p.s1, (1.0f - t1) * p.t1, s1 * p.s1, (1.0f - t0) * p.t1, p.texture, c, b);
-        return static_cast<int>(w);
-    }
-    // A filled triangle pointing left or right inside the box (one-pixel columns).
-    void triangle(const RectF& box, bool right, Color c) const {
-        const int h = 14, w = 8;
-        const float x0 = std::floor(box.x + (box.w - static_cast<float>(w)) * 0.5f);
-        const float yc = std::floor(box.y + box.h * 0.5f);
-        for (int i = 0; i < w; ++i) {
-            const int col = right ? i : w - 1 - i;
-            const float half = static_cast<float>(h) * 0.5f * (1.0f - static_cast<float>(i) / static_cast<float>(w));
-            rect(x0 + static_cast<float>(col), yc - std::floor(half), 1, std::max(1.0f, 2 * std::floor(half)), c);
-        }
-    }
-    void triangleUpDown(const RectF& box, bool down, Color c) const {
-        const int w = 14, h = 8;
-        const float y0 = std::floor(box.y + (box.h - static_cast<float>(h)) * 0.5f);
-        const float xc = std::floor(box.x + box.w * 0.5f);
-        for (int i = 0; i < h; ++i) {
-            const int row = down ? i : h - 1 - i;
-            const float half = static_cast<float>(w) * 0.5f * (1.0f - static_cast<float>(i) / static_cast<float>(h));
-            rect(xc - std::floor(half), y0 + static_cast<float>(row), std::max(1.0f, 2 * std::floor(half)), 1, c);
-        }
-    }
-};
 
 void drawBar(const Px& p, const RectF& b, bool focused, bool disabled) {
     p.rect(b, disabled ? kBarFillOff : focused ? kBarFillFocus : kBarFill);
@@ -470,6 +383,14 @@ void layoutInGame(ConsoleLayout& L, const Menu& m, const Texts& t) {
     footerHints(L, 8, {{HintKey::A, conText(t, "hint.select", "Select")}, {HintKey::B, conText(t, "hint.resume", "Resume")}});
 }
 
+// The tutorial hint (R4.7): its box is on the top screen; the bottom shows the OK (160 x 56, the
+// item's own id 1) over the dimmed HUD.
+void layoutHint(ConsoleLayout& L, const Menu& m, const Texts& t) {
+    const int i = indexOf(m, 1);
+    if (i >= 0) L.boxes.push_back(bar(i, {80, 100, 160, 56}, conText(t, "hint.ok", "OK")));
+    footerHints(L, 8, {{HintKey::A, conText(t, "hint.ok", "OK")}});
+}
+
 void layoutGameOver(ConsoleLayout& L, const Menu& m, const Texts& t) {
     L.title = conText(t, "gameover.title", "GAME OVER");
     L.titleY = 60;
@@ -518,6 +439,7 @@ void layoutNameEntry(ConsoleLayout& L, const Menu& m, const Texts& t) {
         // L letters; a key whose label is wider than the key (SP) at S.
         const FontSize size = measureTextPx(fm(), label, FontSize::L) <= 29 - 4 ? FontSize::L : FontSize::S;
         L.boxes.push_back(bar(static_cast<int>(i), {6.0f + 31.0f * static_cast<float>(col), 58.0f + 32.0f * static_cast<float>(row), 29, 30}, label, size));
+        L.boxes.back().group = ConsoleBox::kOwnSize;
         ++k;
     }
     const int ok = indexOf(m, 1);
@@ -745,6 +667,114 @@ InfoPage consoleInfoPage(const Texts& texts, const FontMetrics& m, int page, int
     return out;
 }
 
+FontSize consoleGroupSize(const FontMetrics& m, const std::vector<std::string>& texts, const std::vector<float>& room,
+                          FontSize from) {
+    const FontSize order[3] = {FontSize::T, FontSize::L, FontSize::S};
+    bool started = false;
+    for (FontSize sz : order) {
+        if (sz == from || (from == FontSize::Auto && sz == FontSize::L)) started = true;
+        if (!started) continue;
+        bool fits = true;
+        for (size_t i = 0; i < texts.size() && fits; ++i)
+            fits = static_cast<float>(measureTextPx(m, texts[i], sz, true)) <= (i < room.size() ? room[i] : room.back());
+        if (fits) return sz;
+    }
+    return FontSize::S;
+}
+
+std::string fitLabel(const FontMetrics& m, const std::string& text, FontSize size, float room) {
+    if (static_cast<float>(measureTextPx(m, text, size, true)) <= room) return text;
+    std::string out = text;
+    const int dots = measureTextPx(m, "...", size);
+    while (!out.empty() && static_cast<float>(measureTextPx(m, out, size, true) + dots) > room) out.pop_back();
+    while (!out.empty() && out.back() == ' ') out.pop_back();
+    return out + "...";
+}
+
+namespace {
+
+// The room a box's label has: a list row's text starts 10 px in (6 kept at the right); a row with
+// spinner arrows or a slider track starts its label 8 px in and ends it 4 px before them; a
+// centred label keeps 4 px either side.
+float labelRoom(const ConsoleLayout& L, const ConsoleBox& b) {
+    if (b.kind == ConsoleBoxKind::ListRow) return b.r.w - 16;
+    float end = b.r.x + b.r.w;
+    bool row = false;
+    for (const ConsoleBox& o : L.boxes) {
+        if (o.item != b.item || b.item < 0 || o.kind == ConsoleBoxKind::Bar || o.kind == ConsoleBoxKind::Key) continue;
+        end = std::min(end, o.r.x);
+        row = true;
+    }
+    return row ? end - 4 - b.r.x - 8 : b.r.w - 8;
+}
+
+// The size rule over a laid-out screen (ConsoleBox::group): each group's size, the labels that
+// do not fit even at S cut, and the spinner values' size.
+void applySizeRule(ConsoleLayout& L, const Menu& m) {
+    const FontMetrics& f = fm();
+    std::vector<bool> done(L.boxes.size(), false);
+    for (size_t i = 0; i < L.boxes.size(); ++i) {
+        ConsoleBox& b = L.boxes[i];
+        if (done[i] || b.label.empty() || (b.kind != ConsoleBoxKind::Bar && b.kind != ConsoleBoxKind::Key &&
+                                           b.kind != ConsoleBoxKind::ListRow))
+            continue;
+        std::vector<size_t> members;
+        for (size_t j = i; j < L.boxes.size(); ++j) {
+            const ConsoleBox& o = L.boxes[j];
+            if (done[j] || o.label.empty()) continue;
+            bool same = j == i;
+            if (!same && b.group != ConsoleBox::kOwnSize && o.group != ConsoleBox::kOwnSize) {
+                if (b.kind == ConsoleBoxKind::ListRow) same = o.kind == ConsoleBoxKind::ListRow && o.item == b.item;
+                else if (b.group >= 0) same = o.group == b.group;
+                else same = o.group < 0 && o.kind == b.kind && o.r.w == b.r.w && o.r.h == b.r.h;
+            }
+            if (same) members.push_back(j);
+        }
+        std::vector<std::string> texts;
+        std::vector<float> room;
+        for (size_t j : members) {
+            texts.push_back(L.boxes[j].label);
+            room.push_back(labelRoom(L, L.boxes[j]));
+        }
+        // A list's every entry (the rows scroll: the size must not change as they do).
+        if (b.kind == ConsoleBoxKind::ListRow && b.item >= 0 && b.item < static_cast<int>(m.items.size()))
+            for (const ListEntry& e : m.items[static_cast<size_t>(b.item)].entries) {
+                texts.push_back(e.text);
+                room.push_back(labelRoom(L, b));
+            }
+        const FontSize sz = consoleGroupSize(f, texts, room, b.size);
+        for (size_t j : members) {
+            ConsoleBox& o = L.boxes[j];
+            o.size = sz;
+            o.label = fitLabel(f, o.label, sz, labelRoom(L, o));
+            done[j] = true;
+        }
+    }
+    // The spinner values: every value of every spinner of the screen.
+    std::vector<std::string> values;
+    std::vector<float> room;
+    for (const ConsoleBox& b : L.boxes) {
+        if (b.kind != ConsoleBoxKind::SpinPrev) continue;
+        const ConsoleBox* next = nullptr;
+        for (const ConsoleBox& o : L.boxes)
+            if (o.item == b.item && o.kind == ConsoleBoxKind::SpinNext) next = &o;
+        if (!next || b.item < 0 || b.item >= static_cast<int>(m.items.size())) continue;
+        const float w = next->r.x - b.r.x - b.r.w - 4;
+        const MenuItem& it = m.items[static_cast<size_t>(b.item)];
+        for (const std::string& v : it.values) {
+            values.push_back(upper(v));
+            room.push_back(w);
+        }
+        if (it.type == ItemType::HeliGrid) { // "10 OF 10"
+            values.push_back("10 OF 10");
+            room.push_back(w);
+        }
+    }
+    if (!values.empty()) L.valueSize = consoleGroupSize(f, values, room, FontSize::L);
+}
+
+} // namespace
+
 // ---------------------------------------------------------------------------
 // The view
 // ---------------------------------------------------------------------------
@@ -753,7 +783,7 @@ bool ConsoleMenuView::handles(const Frontend& fe) {
     switch (fe.topScreen()) {
         case Screen::MainMenu: case Screen::Exit: case Screen::StartGame: case Screen::TopScores: case Screen::NameEntry:
         case Screen::Options: case Screen::Information: case Screen::InGame: case Screen::GameOver:
-        case Screen::MissionComplete: case Screen::GameComplete:
+        case Screen::MissionComplete: case Screen::GameComplete: case Screen::Hint:
             return true;
         default: return false;
     }
@@ -781,12 +811,14 @@ ConsoleLayout ConsoleMenuView::layout(const Frontend& fe) const {
             break;
         }
         case Screen::InGame: layoutInGame(L, *m, t); break;
+        case Screen::Hint: layoutHint(L, *m, t); break;
         case Screen::GameOver: layoutGameOver(L, *m, t); break;
         case Screen::MissionComplete: layoutMissionComplete(L, *m, t); break;
         case Screen::GameComplete: layoutGameComplete(L, *m, t); break;
         case Screen::NameEntry: layoutNameEntry(L, *m, t); break;
         default: L.valid = false; break;
     }
+    if (L.valid) applySizeRule(L, *m);
     // Titles: T where it fits the screen (the end screens' and the exit's), else L.
     const bool big = L.screen == Screen::GameOver || L.screen == Screen::GameComplete || L.screen == Screen::Exit;
     L.titleSize = big && measureTextPx(fm(), L.title, FontSize::T) <= kConsoleBottomW - 16 ? FontSize::T : FontSize::L;
@@ -985,7 +1017,7 @@ void drawLabelOrPicture(const Px& p, const MenuItem& it, const ConsoleBox& b, bo
             return;
         }
     }
-    const FontSize size = measureTextPx(fm(), b.label, b.size) <= r.w - 8 ? b.size : FontSize::S;
+    const FontSize size = b.size; // the size rule's (applySizeRule)
     p.textIn(r, b.label, size, disabled ? kLabelOff : focused ? kLabelFocus : kLabel);
     if (focused && r.w >= 160) drawMarkers(p, r, static_cast<float>(measureTextPx(fm(), b.label, size)));
 }
@@ -1002,8 +1034,8 @@ void drawSpinnerValue(const Px& p, const ConsoleLayout& L, int item, const std::
     p.triangle(prev->r, false, kArrow);
     p.triangle(next->r, true, kArrow);
     const RectF zone{prev->r.x + prev->r.w, prev->r.y, next->r.x - prev->r.x - prev->r.w, prev->r.h};
-    const std::string v = upper(value);
-    const FontSize size = measureTextPx(fm(), v, FontSize::L) <= zone.w - 4 ? FontSize::L : FontSize::S;
+    const FontSize size = L.valueSize; // one size for the screen's values (applySizeRule)
+    const std::string v = fitLabel(fm(), upper(value), size, zone.w - 4);
     p.textIn(zone, v, size, focused ? Color{1, 1, 1, 1} : kValue);
 }
 
@@ -1028,8 +1060,7 @@ void drawList(const Px& p, const ConsoleLayout& L, const MenuItem& list, int ite
             const bool sel = b.arg == list.selected;
             drawBar(p, b.r, sel && focused, !enabled);
             if (sel && !focused) p.frame(b.r, kBarEdgeFocus, 1);
-            const FontSize size = measureTextPx(fm(), b.label, FontSize::L) <= b.r.w - 16 ? FontSize::L : FontSize::S;
-            p.textIn(b.r, b.label, size, !enabled ? kLabelOff : sel ? kLabelFocus : kLabel, Align::Left, 10);
+            p.textIn(b.r, b.label, b.size, !enabled ? kLabelOff : sel ? kLabelFocus : kLabel, Align::Left, 10);
         } else if (b.kind == ConsoleBoxKind::ListUp || b.kind == ConsoleBoxKind::ListDown) {
             drawBar(p, b.r, false, false);
             p.triangleUpDown(b.r, b.kind == ConsoleBoxKind::ListDown, kArrow);
@@ -1077,7 +1108,9 @@ void ConsoleMenuView::drawBottom(Renderer2D& r, const UiAssets& a, const Fronten
     const float mt = fe.menus().menuTime();
     const long long ms = fe.menus().clockMs();
     const Frontend::Facts f = fe.facts();
-    p.rect(0, 0, kConsoleBottomW, kConsoleBottomH, Color{0, 0, 0, 1}, Blend::Opaque);
+    // The tutorial hint leaves the HUD under it, dimmed; every other screen is on black.
+    if (L.screen == Screen::Hint) p.rect(0, 0, kConsoleBottomW, kConsoleBottomH, Color{0, 0, 0, 0.6f});
+    else p.rect(0, 0, kConsoleBottomW, kConsoleBottomH, Color{0, 0, 0, 1}, Blend::Opaque);
     if (L.screen == Screen::TopScores) {
         if (p.halfPicture("menu\\topscores_1.tga", {0, 0, 1, 1}, 160, static_cast<float>(L.titleY) + 8, 300, 40, Color{}, Blend::Alpha) == 0)
             p.text(160, static_cast<float>(L.titleY), L.title, FontSize::T, kTitle, Align::Center, false, TextEffect::None);
@@ -1112,7 +1145,7 @@ void ConsoleMenuView::drawBottom(Renderer2D& r, const UiAssets& a, const Fronten
             case ItemType::HeliGrid:
                 if (L.screen == Screen::StartGame) {
                     drawBar(p, b.r, focused, disabled);
-                    p.textIn(b.r, b.label, FontSize::L, focused ? kLabelFocus : kLabel, Align::Left, 8);
+                    p.textIn(b.r, b.label, b.size, focused ? kLabelFocus : kLabel, Align::Left, 8);
                     char v[96];
                     const int c = it.grid.choice ? it.grid.choice[0] : 0;
                     std::snprintf(v, sizeof v, "%d %s %d", c + 1, conText(*f.texts, "of", "OF").c_str(), std::clamp(it.grid.count, 0, kHelicopters));
@@ -1123,14 +1156,14 @@ void ConsoleMenuView::drawBottom(Renderer2D& r, const UiAssets& a, const Fronten
                 break;
             case ItemType::Spinner: {
                 drawBar(p, b.r, focused, disabled);
-                p.textIn(b.r, b.label, FontSize::L, disabled ? kLabelOff : focused ? kLabelFocus : kLabel, Align::Left, 8);
+                p.textIn(b.r, b.label, b.size, disabled ? kLabelOff : focused ? kLabelFocus : kLabel, Align::Left, 8);
                 const std::string v = it.values.empty() ? std::string() : it.values[static_cast<size_t>(std::clamp(it.index, 0, static_cast<int>(it.values.size()) - 1))];
                 drawSpinnerValue(p, L, b.item, v, focused);
                 break;
             }
             case ItemType::Slider:
                 drawBar(p, b.r, focused, disabled);
-                p.textIn(b.r, b.label, FontSize::L, disabled ? kLabelOff : focused ? kLabelFocus : kLabel, Align::Left, 8);
+                p.textIn(b.r, b.label, b.size, disabled ? kLabelOff : focused ? kLabelFocus : kLabel, Align::Left, 8);
                 drawSlider(p, it, b.r, focused);
                 break;
             case ItemType::Edit: drawEdit(p, it, b.r, focused, ms); break;
@@ -1271,6 +1304,38 @@ void highScorePanel(const Px& p, const Frontend::Facts& f, float y) {
     }
 }
 
+
+// The tutorial hint on the top screen (R4.7): the world dimmed 35 %, a box at the bottom of the
+// screen sized to its text: TUTORIAL (L), the hint re-flowed at S to 356 px (the original's '^'
+// breaks are its box's line ends, not paragraphs: joined with spaces), "A OK" at its lower right.
+void drawHintTop(const Px& p, const Frontend::Facts& f, const KeyGlyphAtlas* keys) {
+    constexpr int kHintTextW = 356;
+    p.rect(0, 0, kConsoleTopW, kConsoleTopH, Color{0, 0, 0, 0.35f});
+    std::string joined = f.hintText;
+    for (char& ch : joined)
+        if (ch == '^') ch = ' ';
+    std::vector<std::string> lines = wrapText(fm(), joined, FontSize::S, kHintTextW);
+    const int maxLines = (kConsoleTopH - 8 - 44) / 13;
+    if (static_cast<int>(lines.size()) > maxLines) lines.resize(static_cast<size_t>(maxLines));
+    const float h = 28.0f + 13.0f * static_cast<float>(lines.size()) + 22.0f;
+    const RectF box{14, std::floor(static_cast<float>(kConsoleTopH) - 8 - h), kConsoleTopW - 28, h};
+    p.rect(box, Color{0, 0, 0, 0.78f});
+    p.frame(box, kBarEdge);
+    p.text(box.x + 12, box.y + 6, f.texts ? conText(*f.texts, "hint.title", "TUTORIAL") : std::string("TUTORIAL"), FontSize::L, kTitle);
+    float y = box.y + 28;
+    for (const std::string& l : lines) {
+        p.text(box.x + 12, y, l, FontSize::S, kBody, Align::Left, true);
+        y += 13;
+    }
+    KeyHintStyle st;
+    st.size = FontSize::S;
+    st.keyColor = kHintKey;
+    st.labelColor = kHintKey;
+    const std::string ok = f.texts ? conText(*f.texts, "hint.ok", "OK") : std::string("OK");
+    const int w = hintWidth(fm(), {HintKey::A, ok});
+    drawKeyHint(p.r, p.font, keys, static_cast<int>(box.x + box.w) - 12 - w, static_cast<int>(box.y + box.h) - 19, HintKey::A, ok, st);
+}
+
 } // namespace
 
 bool ConsoleMenuView::drawTop(Renderer2D& r, const UiAssets& a, const Frontend& fe) const {
@@ -1350,7 +1415,8 @@ bool ConsoleMenuView::drawTop(Renderer2D& r, const UiAssets& a, const Frontend& 
         }
         case Screen::TopScores: drawScoresTop(p, f); return true;
         case Screen::Information: drawInfoTop(p, f, infoSheetPage_ == f.infoPage ? infoSheet_ : 0); return true;
-        case Screen::InGame: return false; // PAUSED (the host's top list)
+        case Screen::InGame: return false; // PAUSED (the host's top list: drawConsolePlayTop)
+        case Screen::Hint: drawHintTop(p, f, keys_); return true;
         case Screen::GameOver: {
             p.rect(0, 0, kConsoleTopW, kConsoleTopH, Color{0, 0, 0, std::min(mt, 1.0f) * 0.45f});
             const float alpha = mt < 2.0f ? 0.5f * mt : 1.0f;

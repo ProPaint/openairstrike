@@ -123,45 +123,75 @@ HudLayout makeV170() {
 }
 
 // ---------------------------------------------------------------------------
-// AirStrike 3D on the 3DS bottom screen (HudTarget::Bottom320x240): the same elements and
-// atlases as makeV170, redrawn for a 320x240 screen at the 0.4 scale that holds nothing else.
-// Bars and score at twice the original size, boxes, icons and counts at 1.5 times (a box is
-// 42 x 23 px on that screen, its icon 40 x 21), text at 1.5 and score digits at 2; the
-// bottom 90 virtual pixels (kHudBottomBandTop) stay free for the touch buttons. Rows, top to
-// bottom: health bar (left) and score (right) at y 16, the life icons at y 70, then the weapon
-// box and the missile column under it at the left, the power-up column at the right, the level
-// name and the cheat message in the free middle. One player only (the screen belongs to one
-// player; no second player's tables).
+// AirStrike 3D on the 3DS bottom screen (HudTarget::Bottom320x240; docs/3ds-ui-design.md "In
+// play on the console (round 4, R4.7)"): the bottom screen is the HUD, drawn in whole screen
+// pixels at the art's own size (1:1), and its tiles are the touch controls (touch_mapper.cpp
+// hudTiles). Every value below is a screen pixel times 2.5 (the 0.4 mapping of the 320x240
+// screen), so the quads land on whole pixels; kPx converts.
+//   pause tile        touch area (0, 0, 40, 36), drawn inset by 4
+//   health bar        (44, 8), 120 x 21: whatever is left between the pause tile and the score
+//                     field (8 px either side); its ends 1:1, the middle stretched
+//   score             right-aligned at x 312, a field of 10 digits x 14 px (L) = 140 px, y 11
+//   lives             at 1/2 (16 x 16), (6, 40), step 18
+//   weapon box        (4, 60) 70 x 38, its icon 66 x 35 at (5, 62); "WEAPON" / "LEVEL n" at S
+//                     from (80, 64)
+//   power-up column   x 170, slots 0..3; missile column x 246, slots 0..4: tiles 70 x 38 at
+//                     y 36 + 40 i, the kinds in fixed slots (empty ones dimmed), counts at L
+//                     bottom-right on a dark patch, the selected one double-framed and outlined
+//   pad reminder      (4, 166) 162 x 72 (drawConsoleHudExtras: B Missile, X Power-up, ...)
+// The level name and the cheat message are on the top screen (drawConsolePlayTop). One player.
 // ---------------------------------------------------------------------------
+constexpr float kPx = 2.5f;                      // virtual pixels per bottom-screen pixel
+constexpr float kTileW = 70, kTileH = 38, kTilePitch = 40, kTileTop = 36;
+constexpr float kPowerupColX = 170, kMissileColX = 246;
+
 HudLayout makeV170Bottom() {
     HudLayout L = makeV170();
     L.name = "as3d-bottom";
-    const float S = 1.5f; // boxes, icons and counts
-    L.barFrame.w = 360; L.barFrame.h = 42;
+    // The frame: 180 x 21 texels (a notch at the right end); drawn 120 px wide.
+    const float barX = 44, barY = 8, barW = 120;
+    L.barFrame.w = barW * kPx; L.barFrame.h = 21 * kPx;
+    L.barCapLeft = 6; L.barCapRight = 14;
     L.scoreFrame = L.barFrame;
-    L.box.w = 70 * S; L.box.h = 39 * S;
-    L.fill.w = 344; L.fill.h = 42;
-    L.fillWidth = 344;
-    L.life.w = 40; L.life.h = 40;
-    L.iconW = 66 * S; L.iconH = 35 * S;
-    L.countScale = 0.75f * 2.0f;
-    L.scoreScale = 2.0f;
-    L.levelNameY = 250; L.levelNameScale = 1.5f;
-    L.messageY = 400; L.messageScale = 1.5f;
-    L.hintScale = 1.5f;
+    L.box.w = kTileW * kPx; L.box.h = kTileH * kPx; // 70 x 38 texels: 1:1
+    // The fill (172 x 21 texels, its notched end 6 px short of the frame's), squeezed into the bar.
+    L.fillWidth = (barW - 2 - 6) * kPx;
+    L.fill.w = L.fillWidth; L.fill.h = 21 * kPx;
+    L.life.w = 16 * kPx; L.life.h = 16 * kPx; // life.tga at 1/2 (bilinear at exactly 1/2: a 2 x 2 mean)
+    L.iconW = 66 * kPx; L.iconH = 35 * kPx;
+    L.countScale = kPx; // L: one texel per pixel
+    L.scoreScale = kPx;
+    L.countOther = Color{0.80f, 0.62f, 0.50f, 1}; // the game's dark red is unreadable at this size
+    L.countSelected = Color{1.0f, 0.62f, 0.30f, 1};
+    L.levelNameY = -1; // on the top screen
+    L.messageY = -1;
+    L.hintScale = 1.5f; // the legacy hint box (direct modes); the console view draws the front end's
+    L.pauseTile = {0, 0, 40 * kPx, 36 * kPx};
+    L.pauseInset = 4 * kPx;
+    L.emptyDim = 0.3f;
+    L.countPatch = true;
+    L.selectOutline = true;
+    L.scoreDigits = 10;
+    L.weaponTextX = 80 * kPx; L.weaponTextY = 64 * kPx;
+    L.keysArea = {4 * kPx, 166 * kPx, 162 * kPx, 72 * kPx};
 
     HudSide& s = L.onePlayer;
-    s.livesX = 20; s.livesStep = 44; s.livesY = 70;
-    s.barX = 20; s.barY = 16;
-    s.fillX = 24; s.fillY = 16;
-    s.scoreFrameX = 420; s.scoreFrameY = 16; s.scoreFrameMirror = true;
-    s.scoreX = 460; s.scoreY = 20;
-    s.weaponBoxX = 20; s.weaponBoxY = 126;
-    s.weaponIconX = 20 + 1 * S; s.weaponIconY = 126 + 3 * S;
-    const float step = 41 * S;
+    s.livesX = 6 * kPx; s.livesStep = 18 * kPx; s.livesY = 40 * kPx;
+    s.barX = barX * kPx; s.barY = barY * kPx;
+    s.fillX = (barX + 2) * kPx; s.fillY = barY * kPx;
+    s.scoreFrame = false;
+    s.scoreX = 312 * kPx; s.scoreY = 11 * kPx; s.scoreRightAligned = true;
+    s.weaponBoxX = 4 * kPx; s.weaponBoxY = 60 * kPx;
+    s.weaponIconX = 5 * kPx; s.weaponIconY = 62 * kPx;
     // frameX, firstY, step, mirror, followsMissiles, iconX, iconDy, countRight, countDy, lineX, lineDy, frames, line
-    s.missiles = {20, 186, step, false, false, 20 + 1 * S, 3 * S, 20 + 66 * S, 3 * S, 0, 0, true, false};
-    s.powerups = {675, 126, step, true, false, 675 + 1 * S, 3 * S, 675 + 66 * S, 3 * S, 0, 0, true, false};
+    s.missiles = {kMissileColX * kPx, kTileTop * kPx, kTilePitch * kPx, false, false, (kMissileColX + 2) * kPx, 2 * kPx,
+                  (kMissileColX + kTileW - 10) * kPx, 21 * kPx, 0, 0, true, false};
+    s.missiles.fixedSlots = true;
+    s.missiles.slots = kMissileTypes;
+    s.powerups = {kPowerupColX * kPx, kTileTop * kPx, kTilePitch * kPx, false, false, (kPowerupColX + 2) * kPx, 2 * kPx,
+                  (kPowerupColX + kTileW - 10) * kPx, 21 * kPx, 0, 0, true, false};
+    s.powerups.fixedSlots = true;
+    s.powerups.slots = kPowerupIconKinds;
     return L;
 }
 
@@ -390,9 +420,14 @@ const HudLayout& hudLayout(GameId game, HudTarget target) {
 std::vector<HudElementRect> hudElementRects(const HudLayout& L, int powerupEntries) {
     const HudSide& s = L.onePlayer;
     std::vector<HudElementRect> v;
+    if (L.pauseTile.w > 0) v.push_back({"pause", L.pauseTile.x, L.pauseTile.y, L.pauseTile.w, L.pauseTile.h});
     v.push_back({"health", s.barX, s.barY, L.barFrame.w, L.barFrame.h});
-    // The score frame and the widest score (10 digits: pen advance 14, cell 32 x 16, at scale).
-    {
+    if (!s.scoreFrame && s.scoreRightAligned) {
+        // The console's score field: scoreDigits digits right-aligned at scoreX, one number cell high.
+        const float w = 14.0f * L.scoreScale * L.scoreDigits;
+        v.push_back({"score", s.scoreX - w, s.scoreY, w, 16.0f * L.scoreScale});
+    } else {
+        // The score frame and the widest score (10 digits: pen advance 14, cell 32 x 16, at scale).
         const float sw = 14.0f * 9 * L.scoreScale + 32.0f * L.scoreScale, sh = 16.0f * L.scoreScale;
         float x0 = s.scoreFrameX, y0 = s.scoreFrameY, x1 = x0 + L.scoreFrame.w, y1 = y0 + L.scoreFrame.h;
         const float dx0 = s.scoreRightAligned ? s.scoreX - 14.0f * 10 * L.scoreScale : s.scoreX;
@@ -405,16 +440,36 @@ std::vector<HudElementRect> hudElementRects(const HudLayout& L, int powerupEntri
     const float lifeSpan = std::fabs(s.livesStep) * static_cast<float>(L.lifeIconsMax - 1) + L.life.w;
     v.push_back({"lives", s.livesStep >= 0 ? s.livesX : s.livesX - (lifeSpan - L.life.w), s.livesY, lifeSpan, L.life.h});
     v.push_back({"weapon", s.weaponBoxX, s.weaponBoxY, L.box.w, L.box.h});
-    v.push_back({"missiles", s.missiles.frameX, s.missiles.firstY, L.box.w,
-                 s.missiles.step * static_cast<float>(kMissileTypes - 1) + L.box.h});
-    if (!s.powerups.followsMissiles && powerupEntries > 0) {
+    if (L.weaponTextX >= 0) {
+        // "WEAPON" / "LEVEL nn" at S (13-px pitch): two lines, at most 88 px wide.
+        v.push_back({"weapon_level", L.weaponTextX, L.weaponTextY, 88.0f * 2.5f, 26.0f * 2.5f});
+    }
+    static const char* const kMissileNames[kMissileTypes] = {"missile0", "missile1", "missile2", "missile3", "missile4"};
+    static const char* const kPowerupNames[kPowerupSlots] = {"powerup0",  "powerup1",  "powerup2",  "powerup3",
+                                                             "powerup4",  "powerup5",  "powerup6",  "powerup7",
+                                                             "powerup8",  "powerup9",  "powerup10", "powerup11",
+                                                             "powerup12", "powerup13", "powerup14", "powerup15"};
+    if (s.missiles.fixedSlots) {
+        for (int t = 0; t < std::min(s.missiles.slots, kMissileTypes); ++t)
+            v.push_back({kMissileNames[t], s.missiles.frameX, s.missiles.firstY + s.missiles.step * static_cast<float>(t),
+                         L.box.w, L.box.h});
+    } else {
+        v.push_back({"missiles", s.missiles.frameX, s.missiles.firstY, L.box.w,
+                     s.missiles.step * static_cast<float>(kMissileTypes - 1) + L.box.h});
+    }
+    if (s.powerups.fixedSlots) {
+        for (int k = 0; k < std::min(s.powerups.slots, kPowerupSlots); ++k)
+            v.push_back({kPowerupNames[k], s.powerups.frameX, s.powerups.firstY + s.powerups.step * static_cast<float>(k),
+                         L.box.w, L.box.h});
+    } else if (!s.powerups.followsMissiles && powerupEntries > 0) {
         // Without frames the last entry ends with its icon.
         const float last = s.powerups.drawFrames ? L.box.h : s.powerups.iconDy + L.iconH;
         v.push_back({"powerups", s.powerups.frameX, s.powerups.firstY, L.box.w,
                      s.powerups.step * static_cast<float>(powerupEntries - 1) + last});
     }
-    v.push_back({"level_name", 140, L.levelNameY, 520, 18.0f * L.levelNameScale});
-    v.push_back({"message", 140, L.messageY, 520, 18.0f * L.messageScale});
+    if (L.keysArea.w > 0) v.push_back({"keys", L.keysArea.x, L.keysArea.y, L.keysArea.w, L.keysArea.h});
+    if (L.levelNameY >= 0) v.push_back({"level_name", 140, L.levelNameY, 520, 18.0f * L.levelNameScale});
+    if (L.messageY >= 0) v.push_back({"message", 140, L.messageY, 520, 18.0f * L.messageScale});
     return v;
 }
 

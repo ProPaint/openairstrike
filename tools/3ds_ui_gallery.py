@@ -92,6 +92,19 @@ RUNS = [
      "inputs": [(40, "@main/1"), (100, "@start/2"), (700, "A"), (860, "DOWN"), (880, "DOWN"), (1000, "A")],
      "keep": [("17_game_over", ("screen", "gameover", 1)), ("18_game_over_menu", ("after", "gameover", 1, 250)),
               ("19_name_entry", ("screen", "name", 1))]},
+    # R4.7: the HUD tiles by scripted taps (pad_script T presses at the tiles' centres, the console
+    # layout of hud_layouts.cpp makeV170Bottom), without the bot: the player stocked by hud_stock
+    # (missiles 0, 1, 3 and power-ups 0, 1), missile 3 selected by a tap and fired by a second
+    # one, power-up 1 selected, the next weapon, the pause tile; A closes a tutorial hint that
+    # comes up between the taps. Playing starts one frame after the start tap (frame 101).
+    {"name": "as3d_play", "game": "as3d", "fresh": [], "frames": 760,
+     "ini": {"game": "as3d", "logo": "0", "hud_stock": "5", "dump_every": "10",
+             "log_input": "1"},
+     "inputs": [(40, "@main/1"), (100, "@start/2"), (300, "T281/175"), (330, "A"), (360, "T281/175"), (400, "A"),
+                (420, "T205/95"), (450, "A"), (480, "T39/79"), (520, "A"), (560, "T20/18"), (640, "B")],
+     "keep": [("20_play_stocked", ("after", "playing", 1, 140)), ("21_tap_select_missile", ("after", "playing", 1, 230)),
+              ("22_tap_fire_missile", ("after", "playing", 1, 262)), ("23_tap_select_powerup", ("after", "playing", 1, 350)),
+              ("24_tap_next_weapon", ("after", "playing", 1, 410)), ("25_tap_pause", ("screen", "ingame", 1))]},
     {"name": "as2_intro", "game": "as2", "fresh": ["as2"], "frames": 2000,
      "ini": {"game": "as2", "logo": "1", "dump_every": "150"},
      "inputs": [],

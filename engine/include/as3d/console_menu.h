@@ -17,7 +17,8 @@
 //
 // Covered: the first game's screens (FrontendStyle::Original): main menu, exit, start game, top
 // scores, name entry, options, information, in-game menu, game over, mission complete, game
-// complete. Not covered (the legacy drawing stays): the tutorial hint (the in-play package),
+// complete, the tutorial hint (R4.7: its box on the top screen, its OK on the bottom one over the
+// dimmed HUD). Not covered (the legacy drawing stays):
 // Configure controls (not offered on the console), the sequels and the plain front end (the
 // next package: ConsoleSkin and the screen table are the places to extend).
 #pragma once
@@ -59,6 +60,14 @@ struct ConsoleBox {
     int arg = 0;
     std::string label;     // the text drawn on a Bar or Key (a Button with a picture: empty)
     FontSize size = FontSize::L;
+    // The size rule (docs/3ds-ui-design.md "Owner decisions", R4.7): the labels of a group share
+    // one size, the largest at which the group's longest label fits its room; a label that does
+    // not fit even at S is cut with "...". Groups: the rows of one list (every entry, not only the
+    // visible ones), and the labelled boxes of the same kind and the same width and height (a
+    // column of bars, a row of buttons, the option rows). kOwnSize: the box is sized alone (the
+    // keyboard's keys: key caps, not a list).
+    static constexpr int kOwnSize = -2;
+    int group = -1;        // -1: the automatic groups above; kOwnSize: alone
 };
 
 struct ConsoleHint {
@@ -78,6 +87,9 @@ struct ConsoleLayout {
     std::string title, subtitle;
     int titleY = 0, subtitleY = 0;
     FontSize titleSize = FontSize::L;
+    // The spinner values of the screen (between their arrows), one size for all of them and all
+    // their values (the size rule): L, else S, else cut with "...".
+    FontSize valueSize = FontSize::L;
 
     const ConsoleBox* boxAt(float px, float py) const;
     const ConsoleBox* barOf(int item) const;
@@ -89,6 +101,13 @@ struct ConsoleLayout {
 KeyGlyphAtlas::Rect consoleKeyRect(HintKey k);
 // The width a footer takes (key pictures, gaps, S labels, 8 px between hints).
 int consoleHintsWidth(const FontMetrics& m, const std::vector<ConsoleHint>& hints);
+
+// The size rule (see ConsoleBox::group): the largest of `from` and the smaller sizes at which
+// every text fits `room` pixels; S when none does (the texts are then cut: fitLabel).
+FontSize consoleGroupSize(const FontMetrics& m, const std::vector<std::string>& texts, const std::vector<float>& room,
+                          FontSize from = FontSize::L);
+// `text` at `size` cut to `room` pixels with "..." when it does not fit (unchanged when it does).
+std::string fitLabel(const FontMetrics& m, const std::string& text, FontSize size, float room);
 
 // The tutorial hints' key names as the console's buttons: "{Ctrl}" -> "{A}" etc. (the default
 // pad bindings: A fire, B missile, X power-up, Y next weapon, R next missile, ZR next power-up)

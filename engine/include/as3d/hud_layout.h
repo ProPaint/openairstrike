@@ -58,6 +58,12 @@ struct HudColumn {
     bool drawFrames = true;           // the box behind each entry
     bool drawLine = true;             // the selection line (a layout with a line piece)
     bool iconAfterCount = false;      // drawing order frame, line, count, icon (else frame, icon, line, count)
+    // Ours (the 3DS console HUD, docs/3ds-ui-design.md "In play on the console (round 4, R4.7)"):
+    // every kind has its own slot (entry t's frame at firstY + step t, whether owned or not), the
+    // `slots` first kinds are drawn, an empty one dimmed (HudLayout::emptyDim). The slots are the
+    // touch tiles (hudElementRects: "missile0".., "powerup0"..). Off: packed in type order.
+    bool fixedSlots = false;
+    int slots = 0;
 };
 
 // Positions of one player's elements.
@@ -150,6 +156,22 @@ struct HudLayout {
     float levelNameY = 500, levelNameScale = 1.0f; // typewriter text, centred on x 400
     float messageY = 555, messageScale = 1.0f;     // cheat message, centred on x 400
     float hintScale = 1.0f;              // tutorial hint box text and box (layoutHint)
+    // levelNameY / messageY < 0: drawHud does not draw that text (the console shows the level name
+    // and the message on the top screen: drawConsolePlayTop, as3d/console_hud.h).
+
+    // Ours: the console HUD's pieces (docs/3ds-ui-design.md "In play on the console (round 4,
+    // R4.7)"), all off in the original layouts. Positions in virtual pixels like the rest (the
+    // console layout uses whole screen pixels x 2.5, so its quads land on whole pixels).
+    float barCapLeft = 0, barCapRight = 0; // > 0: the health frame drawn as three pieces: its two
+                                           // ends 1:1 (texels), the middle stretched to barFrame.w
+    RectF pauseTile;                     // the pause tile's touch area (w 0: none); drawn inset by pauseInset
+    float pauseInset = 0;
+    float emptyDim = 0;                  // fixedSlots: grey level (ADD) / alpha (ALPHA) of an empty slot
+    bool countPatch = false;             // a dark patch under each count (over the icon)
+    bool selectOutline = false;          // the selected slot also gets a one-pixel orange frame
+    float scoreDigits = 10;              // the score field: digits reserved left of scoreX (right-aligned)
+    float weaponTextX = -1, weaponTextY = 0; // "WEAPON" / "LEVEL n" (S) beside the weapon box (x < 0: none)
+    RectF keysArea;                      // the pad reminder's room (drawConsoleHudExtras; w 0: none)
 
     HudSide onePlayer;
     HudSide twoPlayers[2];
@@ -162,12 +184,16 @@ const HudLayout& hudLayout(GameId game);
 // (makeSequelBottom, one player).
 const HudLayout& hudLayout(GameId game, HudTarget target);
 
-// Bottom320x240: the virtual y where the band reserved for the touch pickers and the pause
-// button begins (virtual 800x600; 90 px = 36 px of the 320x240 screen). No HUD element reaches
-// into it.
+// Bottom320x240 of the sequels: the virtual y where the band reserved for the touch pickers and the pause
+// button begins (virtual 800x600; 90 px = 36 px of the 320x240 screen). None of their HUD elements reaches
+// into it. (The first game's console HUD has no band: its tiles are the touch controls, R4.7.)
 constexpr float kHudBottomBandTop = 510.0f;
 
-// A named rectangle of the HUD in virtual pixels.
+// A named rectangle of the HUD in virtual pixels. The console layout (HudLayout::pauseTile,
+// fixedSlots) also names its touch tiles: "pause", "weapon", "missile0".."missile4",
+// "powerup0".. (one per slot) instead of the "missiles" / "powerups" columns, the "score" field
+// (scoreDigits digits right-aligned at scoreX), "weapon_level" and "keys"; no "level_name" or
+// "message" when the layout does not draw them.
 struct HudElementRect {
     const char* name = "";
     float x = 0, y = 0, w = 0, h = 0;

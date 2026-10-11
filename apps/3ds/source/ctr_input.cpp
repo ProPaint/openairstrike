@@ -1,6 +1,9 @@
 #include "ctr_input.h"
 
+#include <cstdio>
+
 #include "as3d/core.h"
+#include "as3d/game_profile.h"
 
 namespace ctrapp {
 
@@ -19,14 +22,31 @@ CtrInput::CtrInput(const RunConfig& run, bool new3ds)
         else
             AS3D_WARN("pad_script: syntax error after %d presses (used as far as it goes)", static_cast<int>(script_.size()));
     }
-    setUpTouch(touch_);
+    const GameProfile* g = findGameProfile(run.game.c_str());
+    setUpTouch(touch_, g ? g->id : GameId::AirStrike3D);
     if (new3ds_) irrst_ = R_SUCCEEDED(irrstInit());
 }
 
-void CtrInput::setUpTouch(TouchMapper& t) {
-    t.setScreen(kTouchW, kTouchH, TouchLayoutOptions::forBottomScreen320x240());
+void CtrInput::setUpTouch(TouchMapper& t, GameId game) {
+    // R4.7: the HUD's tiles where the game's bottom layout has them (the first game), else the
+    // band of round buttons (computeTouchLayout falls back to it).
+    t.setScreen(kTouchW, kTouchH, TouchLayoutOptions::forHudTiles320x240(game));
     t.settings().autoFire = false; // A fires; the bottom screen is HUD and buttons only
     t.setPlayerScreen(false, 0, 0);
+}
+
+void CtrInput::setGame(GameId game) {
+    touch_.releaseAll();
+    setUpTouch(touch_, game);
+}
+
+int CtrInput::touchButtonAt(float nx, float ny) const {
+    const TouchLayout& L = touch_.layout();
+    if (L.tileCount > 0) {
+        const int t = L.tileAt(nx, ny);
+        return t >= 0 ? 100 + t : -1;
+    }
+    return L.hitTest(nx, ny);
 }
 
 CtrInput::~CtrInput() {
@@ -98,10 +118,10 @@ const PadState& CtrInput::readPad() {
         // the menu's finger: nothing for the touch buttons
     } else if (p.touch && !before_.touch) {
         touch_.touchEvent(0, TouchPhase::Down, nx, ny);
-        button = touch_.layout().hitTest(nx, ny);
+        button = touchButtonAt(nx, ny);
     } else if (p.touch) {
         if (p.touchX != before_.touchX || p.touchY != before_.touchY) touch_.touchEvent(0, TouchPhase::Move, nx, ny);
-        button = touch_.layout().hitTest(nx, ny);
+        button = touchButtonAt(nx, ny);
     } else if (before_.touch) {
         touch_.touchEvent(0, TouchPhase::Up, nx, ny);
     }
@@ -109,8 +129,14 @@ const PadState& CtrInput::readPad() {
     if (logInput_) {
         const uint32_t shown = held & ~pad::Touch;
         if (shown != lastLogged_ || (button >= 0 && button != lastButton_)) {
+            char tileName[24] = "none";
+            if (button >= 100) { // a HUD tile (R4.7)
+                static const char* const kinds[] = {"pause", "weapon", "missile", "powerup"};
+                const TouchTile& t = touch_.layout().tiles[button - 100];
+                std::snprintf(tileName, sizeof tileName, "%s%d", kinds[static_cast<int>(t.kind)], t.index);
+            }
             AS3D_INFO("AS3D_INPUT held=0x%08x touch=%s", static_cast<unsigned>(shown),
-                      button >= 0 ? touchButtonName(static_cast<TouchButton>(button)) : "none");
+                      button >= 100 ? tileName : button >= 0 ? touchButtonName(static_cast<TouchButton>(button)) : "none");
             lastLogged_ = shown;
         }
     }

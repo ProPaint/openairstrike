@@ -197,7 +197,9 @@ TEST_CASE("game view: one prepareWorld serves several drawWorld calls") {
     CHECK(l1.rgba != r1.rgba);
 }
 
-TEST_CASE("game view: the Bottom320x240 HUD draws inside its element rectangles and above the touch band") {
+// R4.7: the first game's Bottom320x240 HUD is the console HUD (the whole bottom screen; its tiles
+// are the touch controls, no band below it).
+TEST_CASE("game view: the Bottom320x240 HUD draws inside its element rectangles") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     GAMEVIEW_REQUIRE_GL();
     Level1 g;
@@ -233,7 +235,7 @@ TEST_CASE("game view: the Bottom320x240 HUD draws inside its element rectangles 
             inside = inside || (q.x >= e.x - 1.0f && q.y >= e.y - 1.0f && q.x + qw <= e.x + e.w + 1.0f && q.y + q.h <= e.y + e.h + 1.0f);
         INFO("quad " << q.x << "," << q.y << " " << q.w << "x" << q.h);
         CHECK(inside);
-        CHECK(q.y + q.h <= ui::kHudBottomBandTop + 1.0f);
+        CHECK(q.y + q.h <= 600.0f + 1.0f);
     }
 }
 

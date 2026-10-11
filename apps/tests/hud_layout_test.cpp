@@ -18,6 +18,7 @@
 #include "as3d/hud_layout.h"
 #include "as3d/image.h"
 #include "as3d/input.h"
+#include "as3d/player_select.h"
 #include "as3d/ui.h"
 #include "as3d/vfs.h"
 #include "test_data.h"
@@ -652,8 +653,10 @@ TEST_CASE("hud layout: Main is unchanged and each game has its own bottom table"
     CHECK(b.hint == HintStyle::V170Box);
 }
 
+// The sequels' bottom tables (still the 0.4 copy above the band of round buttons; the first game's
+// console HUD has its own tests below, R4.7).
 TEST_CASE("hud layout: every Bottom320x240 element is inside the screen, apart, above the touch band") {
-  for (GameId game : {GameId::AirStrike3D, GameId::AirStrike2, GameId::GulfThunder}) {
+  for (GameId game : {GameId::AirStrike2, GameId::GulfThunder}) {
     const HudLayout& L = hudLayout(game, HudTarget::Bottom320x240);
     CAPTURE(std::string(L.name));
     // The first game shows 4 power-up kinds; the sequels' column holds 10 above the band.
@@ -737,7 +740,7 @@ TEST_CASE("hud layout: the sequels' hint panel on the bottom screen keeps its Ok
 }
 
 TEST_CASE("hud layout: every element drawHud draws has a rectangle in each Bottom320x240 table") {
-    for (GameId game : {GameId::AirStrike3D, GameId::AirStrike2, GameId::GulfThunder}) {
+    for (GameId game : {GameId::AirStrike2, GameId::GulfThunder}) {
         const HudLayout& L = hudLayout(game, HudTarget::Bottom320x240);
         const HudLayout& M = hudLayout(game);
         CAPTURE(std::string(L.name));
@@ -888,8 +891,8 @@ TEST_CASE("touch layout: the bottom-screen preset keeps its buttons in the lower
         for (int b = 0; b < kTouchButtonCount; b++)
             CHECK(L.hitTest(L.circles[b].x / static_cast<float>(W), L.circles[b].y / static_cast<float>(H)) == b);
         CHECK(L.hitTest(0.5f, 0.3f) == -1);
-        // The band lies under every HUD element (virtual y -> real y at 0.4).
-        const HudLayout& H3 = hudLayout(GameId::AirStrike3D, HudTarget::Bottom320x240);
+        // The band lies under every HUD element of the sequels' tables (virtual y -> real y at 0.4).
+        const HudLayout& H3 = hudLayout(GameId::AirStrike2, HudTarget::Bottom320x240);
         for (const HudElementRect& e : hudElementRects(H3))
             CHECK((e.y + e.h) * 0.4f * scale <= bandTop + 0.01f);
         // Left-handed: the mirror image.
@@ -897,5 +900,260 @@ TEST_CASE("touch layout: the bottom-screen preset keeps its buttons in the lower
         lo.leftHanded = true;
         const TouchLayout M = computeTouchLayout(W, H, lo);
         for (int b = 0; b < kTouchButtonCount; b++) CHECK(M.circles[b].x == doctest::Approx(static_cast<float>(W) - L.circles[b].x));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The first game's console HUD (docs/3ds-ui-design.md "In play on the console (round 4, R4.7)"):
+// the bottom screen is the HUD in whole pixels and its tiles are the touch controls.
+// ---------------------------------------------------------------------------
+
+namespace {
+const HudElementRect* rectNamed(const std::vector<HudElementRect>& v, const std::string& n) {
+    for (const HudElementRect& e : v)
+        if (n == e.name) return &e;
+    return nullptr;
+}
+} // namespace
+
+TEST_CASE("console hud: the layout in pixels, the score rule, no overlaps") {
+    const HudLayout& L = hudLayout(GameId::AirStrike3D, HudTarget::Bottom320x240);
+    const std::vector<HudElementRect> r = hudElementRects(L);
+    // Every element on the 320 x 240 screen, on whole pixels (virtual = pixels x 2.5).
+    for (const HudElementRect& e : r) {
+        CAPTURE(e.name);
+        const float x = e.x * 0.4f, y = e.y * 0.4f, w = e.w * 0.4f, h = e.h * 0.4f;
+        CHECK(x >= 0);
+        CHECK(y >= 0);
+        CHECK(x + w <= 320.0f + 0.01f);
+        CHECK(y + h <= 240.0f + 0.01f);
+        CHECK(std::fabs(x - std::round(x)) < 0.01f);
+        CHECK(std::fabs(y - std::round(y)) < 0.01f);
+        CHECK(std::fabs(w - std::round(w)) < 0.01f);
+        CHECK(std::fabs(h - std::round(h)) < 0.01f);
+    }
+    for (size_t i = 0; i < r.size(); i++)
+        for (size_t j = i + 1; j < r.size(); j++) {
+            CAPTURE(r[i].name);
+            CAPTURE(r[j].name);
+            CHECK_FALSE(rectsOverlap(r[i], r[j]));
+        }
+    // The score rule (Owner decisions, 2026-10-11): the score right-aligned in a field of 10
+    // digits at L (14 px each), the field ending 8 px from the right edge; the health bar takes
+    // what is left between the pause tile and the field, 8 px from either.
+    const HudElementRect* score = rectNamed(r, "score");
+    const HudElementRect* health = rectNamed(r, "health");
+    const HudElementRect* pause = rectNamed(r, "pause");
+    REQUIRE(score);
+    REQUIRE(health);
+    REQUIRE(pause);
+    CHECK(score->w * 0.4f == doctest::Approx(10 * numberAdvancePx(FontSize::L)));
+    CHECK((score->x + score->w) * 0.4f == doctest::Approx(312));
+    CHECK(L.scoreScale * 0.4f == doctest::Approx(1.0f)); // L: one texel per pixel
+    CHECK_FALSE(rectsOverlap(*score, *health));
+    CHECK(score->x - (health->x + health->w) >= 8 * 2.5f - 0.01f);
+    CHECK(health->x - (pause->x + pause->w) >= 4 * 2.5f - 0.01f);
+    CHECK(health->w * 0.4f >= 100);
+    // The widest score (10 digits) drawn right-aligned stays in the field.
+    const float tenDigits = 14.0f * L.scoreScale * 10;
+    CHECK(L.onePlayer.scoreX - tenDigits >= score->x - 0.01f);
+    // The tiles: the pause tile 40 x 36, the weapon box, five missile and four power-up tiles,
+    // each at least 36 px (a thumb) and the art's 70 x 38 at 1:1.
+    CHECK(pause->w * 0.4f >= 36);
+    CHECK(pause->h * 0.4f >= 36);
+    for (const char* n : {"weapon", "missile0", "missile1", "missile2", "missile3", "missile4", "powerup0", "powerup1",
+                          "powerup2", "powerup3"}) {
+        CAPTURE(n);
+        const HudElementRect* t = rectNamed(r, n);
+        REQUIRE(t);
+        CHECK(t->w * 0.4f == doctest::Approx(70));
+        CHECK(t->h * 0.4f == doctest::Approx(38));
+    }
+    CHECK(rectNamed(r, "keys"));
+    CHECK(rectNamed(r, "weapon_level"));
+    // The level name and the message are on the top screen: no rectangle here.
+    CHECK_FALSE(rectNamed(r, "level_name"));
+    CHECK_FALSE(rectNamed(r, "message"));
+    CHECK_FALSE(rectNamed(r, "missiles"));
+    // The art 1:1: the boxes and icons at one texel per pixel.
+    CHECK(L.box.w * 0.4f == doctest::Approx((L.box.uv.s1 - L.box.uv.s0) * L.barAtlasW).epsilon(0.01));
+    CHECK(L.iconW * 0.4f == doctest::Approx(66));
+    CHECK(L.iconH * 0.4f == doctest::Approx(35));
+    // Main is untouched.
+    const HudLayout& M = hudLayout(GameId::AirStrike3D);
+    CHECK(M.pauseTile.w == 0);
+    CHECK_FALSE(M.onePlayer.missiles.fixedSlots);
+    CHECK(M.levelNameY == 500);
+}
+
+TEST_CASE("console hud: the tiles are the touch controls") {
+    const TouchLayout T = computeTouchLayout(320, 240, TouchLayoutOptions::forHudTiles320x240(GameId::AirStrike3D));
+    REQUIRE(T.tileCount == 11); // pause, weapon, 5 missiles, 4 power-ups
+    for (int b = 0; b < kTouchButtonCount; ++b) CHECK(T.circles[b].r == 0);
+    // The tiles are the HUD's rectangles at 0.4.
+    const std::vector<HudElementRect> r = hudElementRects(hudLayout(GameId::AirStrike3D, HudTarget::Bottom320x240));
+    int seen = 0;
+    for (int i = 0; i < T.tileCount; ++i) {
+        const TouchTile& t = T.tiles[i];
+        CHECK(t.w >= 36);
+        CHECK(t.h >= 36);
+        CHECK(T.tileAt((t.x + t.w * 0.5f) / 320.0f, (t.y + t.h * 0.5f) / 240.0f) == i);
+        for (const HudElementRect& e : r)
+            if (t.x == doctest::Approx(e.x * 0.4f) && t.y == doctest::Approx(e.y * 0.4f) && t.w == doctest::Approx(e.w * 0.4f)) ++seen;
+    }
+    CHECK(seen == T.tileCount);
+    // The health bar and the reminder are not tiles.
+    CHECK(T.tileAt(100.0f / 320, 18.0f / 240) == -1);
+    CHECK(T.tileAt(40.0f / 320, 200.0f / 240) == -1);
+    // The sequels keep the band of round buttons.
+    const TouchLayout B = computeTouchLayout(320, 240, TouchLayoutOptions::forHudTiles320x240(GameId::AirStrike2));
+    CHECK(B.tileCount == 0);
+    CHECK(B.circles[static_cast<int>(TouchButton::Missile)].r > 0);
+
+    auto tileOf = [&](TouchTileKind k, int index) {
+        for (int i = 0; i < T.tileCount; ++i)
+            if (T.tiles[i].kind == k && T.tiles[i].index == index) return i;
+        return -1;
+    };
+    auto centre = [&](int i, float& nx, float& ny) {
+        nx = (T.tiles[i].x + T.tiles[i].w * 0.5f) / 320.0f;
+        ny = (T.tiles[i].y + T.tiles[i].h * 0.5f) / 240.0f;
+    };
+    TouchMapper m;
+    m.setScreen(320, 240, TouchLayoutOptions::forHudTiles320x240(GameId::AirStrike3D));
+    m.settings().autoFire = false;
+    TouchInventory inv;
+    inv.valid = true;
+    inv.missiles[0] = 3;
+    inv.missiles[1] = 6;
+    inv.missiles[3] = 2;
+    inv.missileSelected = 0;
+    inv.powerups[0] = 2;
+    inv.powerupSelected = 0;
+    m.setInventory(inv);
+    float nx = 0, ny = 0;
+    // Pause.
+    centre(tileOf(TouchTileKind::Pause, 0), nx, ny);
+    m.touchEvent(1, TouchPhase::Down, nx, ny);
+    CHECK(m.takeFrame().pausePressed);
+    m.touchEvent(1, TouchPhase::Up, nx, ny);
+    CHECK_FALSE(m.takeFrame().pausePressed);
+    // The weapon box: one next-weapon press.
+    centre(tileOf(TouchTileKind::Weapon, 0), nx, ny);
+    m.touchEvent(2, TouchPhase::Down, nx, ny);
+    CHECK((m.takeFrame().held[0] & ACT_NEXT_WEAPON) != 0);
+    CHECK((m.takeFrame().held[0] & ACT_NEXT_WEAPON) == 0);
+    m.touchEvent(2, TouchPhase::Up, nx, ny);
+    // An empty slot: nothing.
+    centre(tileOf(TouchTileKind::Missile, 2), nx, ny);
+    m.touchEvent(3, TouchPhase::Down, nx, ny);
+    CHECK(m.takeFrame().held[0] == 0);
+    m.touchEvent(3, TouchPhase::Up, nx, ny);
+    CHECK(m.takeFrame().held[0] == 0);
+    // Missile 3 (selected: 0): next-missile presses on alternate steps until the world's
+    // selection is 3 (the world here: nextOwnedIndex on the presses), no missile fired.
+    centre(tileOf(TouchTileKind::Missile, 3), nx, ny);
+    m.touchEvent(4, TouchPhase::Down, nx, ny);
+    CHECK(m.pressedTile() == tileOf(TouchTileKind::Missile, 3));
+    m.touchEvent(4, TouchPhase::Up, nx, ny);
+    CHECK(m.pressedTile() == -1);
+    int presses = 0;
+    bool last = false;
+    for (int step = 0; step < 20; ++step) {
+        const FrameInput f = m.takeFrame();
+        CHECK((f.held[0] & ACT_MISSILE) == 0);
+        const bool now = (f.held[0] & ACT_NEXT_MISSILE) != 0;
+        if (now && !last) { // the world acts on the press
+            ++presses;
+            inv.missileSelected = nextOwnedIndex(inv.missiles, 5, inv.missileSelected);
+            m.setInventory(inv);
+        }
+        CHECK_FALSE((now && last)); // released between presses
+        last = now;
+    }
+    CHECK(inv.missileSelected == 3);
+    CHECK(presses == 2); // 0 -> 1 -> 3
+    // A tap on the selected kind uses it while the finger is down.
+    m.touchEvent(5, TouchPhase::Down, nx, ny);
+    CHECK((m.takeFrame().held[0] & ACT_MISSILE) != 0);
+    CHECK((m.takeFrame().held[0] & ACT_MISSILE) != 0);
+    m.touchEvent(5, TouchPhase::Up, nx, ny);
+    CHECK((m.takeFrame().held[0] & ACT_MISSILE) == 0);
+    // The selected power-up: used.
+    centre(tileOf(TouchTileKind::PowerUp, 0), nx, ny);
+    m.touchEvent(6, TouchPhase::Down, nx, ny);
+    CHECK((m.takeFrame().held[0] & ACT_POWERUP) != 0);
+    m.touchEvent(6, TouchPhase::Up, nx, ny);
+    // Beside the tiles: nothing (no drag, no fire).
+    m.touchEvent(7, TouchPhase::Down, 100.0f / 320, 18.0f / 240);
+    CHECK((m.takeFrame().held[0] & ~0u) == 0);
+    m.touchEvent(7, TouchPhase::Up, 100.0f / 320, 18.0f / 240);
+}
+
+// The console HUD drawn with the console text (as the 3DS draws it): every quad inside an element
+// rectangle (or the pad reminder's room), on whole pixels, the score's ten digits inside its field.
+// AS3D_HUD_DUMP=<dir> writes the 320x240 picture (as3d-bottom-console.png).
+TEST_CASE("console hud: the fullest HUD draws inside its rectangles, on whole pixels") {
+    AS3D_REQUIRE_GLES();
+    REQUIRE_GAME_VFS(gv, GameId::AirStrike3D);
+    struct ConsoleText {
+        ConsoleText() { UiAssets::setConsoleTextDefault(true); }
+        ~ConsoleText() { UiAssets::setConsoleTextDefault(false); }
+    } consoleText;
+    UiAssets a;
+    a.hudTarget = HudTarget::Bottom320x240;
+    std::string err;
+    REQUIRE_MESSAGE(a.load(gv.vfs, &err, GameId::AirStrike3D), err);
+    REQUIRE(a.consoleText);
+    const HudLayout& L = a.hudLayout();
+    HudState st;
+    HudPlayer& p = st.players[0];
+    p.lives = 5;
+    p.score = 9876543210LL; // ten digits
+    p.health = 300;
+    const int m[kMissileTypes] = {3, 6, 0, 2, 0};
+    for (int t = 0; t < kMissileTypes; t++) p.missiles[t] = m[t];
+    p.missileSelected = 1;
+    p.powerups[0] = 2;
+    p.powerups[1] = 1;
+    p.powerupSelected = 0;
+    p.weapon = 1;
+    p.upgrades[1] = 2;
+    st.levelName = "Mission 1: Tutorial";
+    st.levelTime = 3.0f; // not drawn here: the top screen's
+    const std::vector<HudElementRect> rects = hudElementRects(L);
+    Renderer2D r;
+    REQUIRE_MESSAGE(r.init(&err), err);
+    RenderTarget target;
+    REQUIRE(target.create(320, 240, 0));
+    target.bind();
+    clear({0, 0, 0, 1}, true);
+    r.begin(320, 240);
+    drawHud(r, a, st);
+    CHECK(r.dropped() == 0);
+    REQUIRE(r.quads().size() > 30u);
+    for (const Quad& q : r.quads()) {
+        INFO("quad " << q.x << "," << q.y << " " << q.w << "x" << q.h);
+        bool inside = false;
+        for (const HudElementRect& e : rects)
+            inside = inside || (q.x >= e.x - 0.01f && q.y >= e.y - 2.5f && q.x + q.w <= e.x + e.w + 0.01f &&
+                                q.y + q.h <= e.y + e.h + 2.5f);
+        // A glyph's quad covers its whole cell (wider than its advance): its left edge counts.
+        const bool glyph = q.texture == &a.font || q.texture == &a.fontSmall || q.texture == &a.fontAlpha;
+        if (glyph) {
+            inside = false;
+            for (const HudElementRect& e : rects)
+                inside = inside || (q.x >= e.x - 0.01f && q.x < e.x + e.w && q.y >= e.y - 2.5f && q.y < e.y + e.h);
+        }
+        CHECK(inside);
+        // Whole pixels.
+        CHECK(std::fabs(q.x * 0.4f - std::round(q.x * 0.4f)) < 0.01f);
+        CHECK(std::fabs(q.y * 0.4f - std::round(q.y * 0.4f)) < 0.01f);
+    }
+    r.flush();
+    if (const char* dir = std::getenv("AS3D_HUD_DUMP")) {
+        Image img;
+        REQUIRE(target.readPixels(img));
+        writePng((std::string(dir) + "/as3d-bottom-console.png").c_str(), img);
     }
 }
