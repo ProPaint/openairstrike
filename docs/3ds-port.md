@@ -8,36 +8,33 @@ Working notes of the port (plan: M1.0 onwards). The feasibility spike is in
 Round 2 (2026-10-10/11) is merged and was played once on the console (see "Console session of
 2026-10-11" at the end: the water wash was caught in the act, the terrain writes no depth for
 seconds at a time; mono fell to 30 Hz from a half-second hiccup of the audio thread; the stereo
-felt strong). The drop after that session is the latest `out/3ds/drop-round2b-<commit>/` (the package's
-`openairstrike.3dsx`, `openairstrike.cia`, `run.ini` = play with `state_check=1 log_lazy=1
-perf=1`, `run-diag.ini` = the same with `state_check=2 arena_poison=1`, `run-bot-stereo.ini` = the
-stereo acceptance run), uploaded to the card. **The console session that is due** (fetch the logs
-with `tools/3ds_fetch_logs.sh` after it):
+felt strong). The fixes went into `c314767` (clear=split, the terrain re-issuing its state, the
+voice mix outside the mixer lock, comfort defaults 3 / 6 px / 8 px). **Then the owner asked not
+to do QA any more, so the console tests itself (round 2, P7; see "Soak mode and the log push" at
+the end).** The latest drop is `out/3ds/drop-round2c-362f779/` (the package's `openairstrike.3dsx`,
+`openairstrike.cia`, `run.ini` = `mode=soak report_to=192.168.1.86:7777 perf=1 state_check=1
+log_lazy=1`, `run-play.ini` = play with the same diagnostics), its 3dsx and run.ini uploaded to
+the card on 2026-10-11 (the card's run.ini is the soak one).
 
-1. `run.ini` (play): the tutorial and mission 2 in mono, then with the slider up. Expect no wash
-   (`clear=split` + the terrain's second state block); if it shows, press L as before, then A/B
-   `clear=quad`, `gpu_kick=0`, `end_flush=all`. Expect mono at 60 Hz throughout (the mixer no
-   longer blocks the game thread; the pacer's `AS3D_PACE` lines say when it fell and why).
-2. Stereo feel at the new defaults (eye offset 3, 6 px near, 8 px far); lower
-   `max_far_parallax_px` to 6 if it still tires.
-3. The high-score name entry through the system keyboard (P6, unverified on Azahar).
-4. `run-bot-stereo.ini`: the 3600-step acceptance run in stereo for the GPU numbers
-   (`tools/3ds_perf_report.py`): stereo stayed at 30 Hz in the play session.
-5. Optional: install `openairstrike.cia` with FBI and start it from the HOME menu (icon, banner,
-   804 MHz line in the log).
-
-**The console tests itself (round 2, P7; see "Soak mode and the log push" at the end).** The owner's
-procedure is now: start OpenAirStrike from the Homebrew Launcher, wait until the launcher comes back
-(five to ten minutes), nothing else. The drop's `run.ini` is `mode=soak report_to=<this PC>:7777 perf=1
-state_check=1 log_lazy=1` (the PC's address: `ip route get 192.168.1.133`, `src`): bot runs of every
-installed game (missions 1 and 2, mono and stereo at slider 0.5, the weapon tour, the GPU read-back of
-the terrain every 30 frames so the water wash is caught without L), the verdict in `soak.txt`, then
-every file of the run pushed to the PC. The agent starts `tools/3ds_receive.py --port 7777` before the
-owner launches: it files the run under `out/3ds/<date>-<commit>/`, prints the verdict, runs the perf
-report per stage, the marks' contact sheet and the end-state comparison with `as3d_sim`. If the PC was
-not listening, the files are on the card as before (ftpd + `tools/3ds_fetch_logs.sh`; it fetches
-`soak.txt` too now). `run-play.ini` (`mode=play` with the same diagnostics) is in the drop for when the
-owner wants to play.
+**The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
+launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
+installed game (missions 1 and 2, mono and stereo at slider 0.5, the weapon tour, audio on, the
+GPU read-back of the terrain every 30 frames so the water wash is caught without L), writes the
+verdict to `soak.txt` and pushes every file of the run to the PC. **The agent's side:** before the
+owner launches, `tools/3ds_receive.py --port 7777` must be listening in the main checkout (it needs
+`build/apps/sim_tool/as3d_sim` and the data at the repo root, or `--sim` / `AS3D_DATA_ROOT`); the
+PC's address on the route is `ip route get 192.168.1.133` (`src`, 192.168.1.86 on 2026-10-11). It
+files the run under `out/3ds/<date>-<commit>/`, prints the verdict and the `AS3D_SOAK_RESULT`
+lines, runs the perf report per stage (`stages/NN-game-level-eyes/`), the marks' contact sheet
+and the end-state comparison with `as3d_sim --bot --bot-weapons`. If the PC was not listening,
+the files stay on the card (ftpd + `tools/3ds_fetch_logs.sh`; it fetches `soak.txt` too). A hang
+(not a crash) has no watchdog: the launcher never comes back, the owner power-cycles, and the
+next launch reports the `soak.running` marker. What the soak cannot judge, and stays optional for
+the owner with `run-play.ini`: the stereo feel at the new defaults, the system-keyboard name
+entry (P6), the CIA from the HOME menu. Open after the soak's first verdict: whether the wash is
+gone on hardware (`PASS wash`), mono at 60 Hz throughout (`mono60`), stereo still at 30 Hz (the
+GPU's 11.5 ms tail; "Stereo at 60" lists the next steps), the per-probe stall on hardware
+(`probe_ms_avg_max`).
 
 Last console-verified state before round 2 (New 3DS, drop 4, main `098f524` = drop 5 was played
 but not measured):
