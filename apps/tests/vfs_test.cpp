@@ -3,12 +3,17 @@
 
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 #include "as3d/core.h"
@@ -384,4 +389,300 @@ TEST_CASE("DirSource reads extracted files case-insensitively") {
     }
     REQUIRE(!want.empty());
     CHECK(sha1Hex(out) == want);
+}
+
+// ---------------------------------------------------------------------------
+// 6. The read-ahead thread (Vfs::prefetchAsync, docs/3ds-port.md "Prefetch overlap (round 4,
+// R4.10)") over a slow stream: the runs in the order of first use, reads in and out of order
+// while it runs, a miss (a file outside the plan), the synchronous prefetch during a plan,
+// destruction and dropPrefetched while the reader runs; the bytes identical throughout.
+// ---------------------------------------------------------------------------
+namespace {
+
+// What a slow stream records; it outlives the stream (the Vfs owns the stream).
+struct SlowState {
+    std::mutex mutex;
+    std::vector<std::pair<size_t, size_t>> reads; // offset, size
+    size_t bodiesEnd = 0;                         // where the pak's table starts
+    int delayMs = 15;
+    size_t count() {
+        std::lock_guard<std::mutex> lock(mutex);
+        return reads.size();
+    }
+    std::vector<std::pair<size_t, size_t>> copy() {
+        std::lock_guard<std::mutex> lock(mutex);
+        return reads;
+    }
+};
+
+class SlowStream : public as3d::IStream {
+public:
+    SlowStream(as3d::Blob data, std::shared_ptr<SlowState> state) : data_(std::move(data)), state_(std::move(state)) {}
+    size_t size() override { return data_.size(); }
+    bool readAt(size_t offset, void* out, size_t n) override {
+        if (n == 0) return true;
+        if (offset > data_.size() || n > data_.size() - offset) return false;
+        // The pak header, key and table are read at mount: only the bodies are slow and recorded.
+        if (offset >= 0x410 && offset < state_->bodiesEnd) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(state_->delayMs));
+            std::lock_guard<std::mutex> lock(state_->mutex);
+            state_->reads.push_back({offset, n});
+        }
+        std::memcpy(out, data_.data() + offset, n);
+        return true;
+    }
+
+private:
+    as3d::Blob data_;
+    std::shared_ptr<SlowState> state_;
+};
+
+as3d::Blob pseudoRandom(size_t n, u32 seed) {
+    as3d::Blob b(n);
+    for (size_t i = 0; i < n; ++i) {
+        seed = seed * 1664525u + 1013904223u;
+        b[i] = static_cast<u8>(seed >> 24);
+    }
+    return b;
+}
+
+// Three groups of three small files, 70 KB fillers between them (more than the 64 KB gap a run
+// reads through, so each group is one run), two more files outside the plan (d1, d2).
+struct PrefetchFixture {
+    std::vector<RawEntry> entries;
+    std::vector<std::string> plan = {"c1", "c2", "c3", "a1", "a2", "a3", "b1", "b2", "b3"};
+    std::vector<std::string> misses = {"d1", "d2"};
+    std::vector<std::string> all;
+    std::shared_ptr<SlowState> state = std::make_shared<SlowState>();
+
+    PrefetchFixture() {
+        u32 seed = 7;
+        auto add = [&](const std::string& name, size_t n, bool enc) {
+            entries.push_back({name, pseudoRandom(n, seed++), enc});
+        };
+        add("a1", 3000, false);
+        add("a2", 4500, true);
+        add("a3", 2200, false);
+        add("filler1", 70 * 1024, false);
+        add("b1", 1500, true);
+        add("b2", 6000, false);
+        add("b3", 2600, true);
+        add("filler2", 70 * 1024, false);
+        add("c1", 5000, false);
+        add("c2", 1200, true);
+        add("c3", 3300, false);
+        add("filler3", 70 * 1024, false);
+        add("d1", 2000, true);
+        add("d2", 2500, false);
+        all = plan;
+        all.insert(all.end(), misses.begin(), misses.end());
+        state->bodiesEnd = 0x410;
+        for (const RawEntry& e : entries) state->bodiesEnd += e.content.size();
+    }
+    size_t offsetOf(const std::string& name) const {
+        size_t off = 0x410;
+        for (const RawEntry& e : entries) {
+            if (e.name == name) return off;
+            off += e.content.size();
+        }
+        return 0;
+    }
+    const as3d::Blob& content(const std::string& name) const {
+        for (const RawEntry& e : entries)
+            if (e.name == name) return e.content;
+        static const as3d::Blob none;
+        return none;
+    }
+    size_t planBytes() const {
+        size_t n = 0;
+        for (const std::string& p : plan) n += content(p).size();
+        return n;
+    }
+    void mount(as3d::Vfs& vfs) const {
+        auto src = as3d::makePakSource(std::unique_ptr<as3d::IStream>(new SlowStream(buildPak(entries), state)));
+        REQUIRE(src != nullptr);
+        vfs.mount(std::move(src));
+    }
+    // Every file of the plan and the misses, read through `vfs`, against its content.
+    void checkAll(as3d::Vfs& vfs) const {
+        for (const std::string& name : all) {
+            as3d::Blob out;
+            REQUIRE(vfs.read(name, out));
+            CHECK(out == content(name));
+        }
+    }
+};
+
+} // namespace
+
+TEST_CASE("Vfs::prefetchAsync: the runs in the order of first use, reads in and out of order, a miss") {
+    PrefetchFixture fx;
+    std::unique_ptr<as3d::PrefetchThreading> threading = as3d::makeStdPrefetchThreading();
+    REQUIRE(threading != nullptr); // the desktop has std::thread
+    as3d::Vfs vfs;
+    fx.mount(vfs);
+    vfs.setPrefetchThreading(std::move(threading));
+    CHECK(std::string(vfs.prefetchThreadDescription()) == "std::thread");
+
+    vfs.prefetchAsync(fx.plan);
+    CHECK(vfs.prefetchStats().threaded);
+    CHECK(vfs.prefetchStats().steps == 3);
+    CHECK(vfs.prefetchStats().files == 9);
+
+    as3d::Blob out;
+    REQUIRE(vfs.read("d1", out)); // a miss while the reader runs: from the file, no wait for the plan
+    CHECK(out == fx.content("d1"));
+    REQUIRE(vfs.read("c1", out)); // the plan's first file: waits for its run (the first one read)
+    CHECK(out == fx.content("c1"));
+    REQUIRE(vfs.read("b3", out)); // out of order: the last run
+    CHECK(out == fx.content("b3"));
+    REQUIRE(vfs.read("a2", out));
+    CHECK(out == fx.content("a2"));
+    REQUIRE(vfs.read("c1", out)); // twice: still in memory
+    CHECK(out == fx.content("c1"));
+    CHECK_FALSE(vfs.read("nowhere", out));
+
+    vfs.prefetchJoin();
+    const as3d::Vfs::PrefetchStats st = vfs.prefetchStats();
+    CHECK(st.done);
+    CHECK(st.threaded);
+    CHECK(st.stepsRun == 3);
+    CHECK(st.bytes == fx.planBytes());
+    CHECK(st.readMs >= 3 * fx.state->delayMs);
+    CHECK(st.waits >= 1); // b3 at least (c1 too unless its run landed first)
+    CHECK(st.waits <= 3);
+    CHECK(st.waitMs >= 0.0);
+
+    // The stream saw the three runs, in the plan's order of first use (C, A, B), and the miss.
+    const auto reads = fx.state->copy();
+    REQUIRE(reads.size() == 4);
+    std::vector<std::pair<size_t, size_t>> runs;
+    for (const auto& r : reads)
+        if (r.first != fx.offsetOf("d1")) runs.push_back(r);
+    REQUIRE(runs.size() == 3);
+    CHECK(runs[0].first == fx.offsetOf("c1"));
+    CHECK(runs[0].second == fx.content("c1").size() + fx.content("c2").size() + fx.content("c3").size());
+    CHECK(runs[1].first == fx.offsetOf("a1"));
+    CHECK(runs[2].first == fx.offsetOf("b1"));
+
+    // Every file, planned or not, in memory or from the file: the same bytes.
+    fx.checkAll(vfs);
+    CHECK(fx.state->count() == 4 + fx.misses.size()); // the misses read again, the plan's files not
+    vfs.dropPrefetched();
+    fx.checkAll(vfs); // all from the file now
+    CHECK(fx.state->count() == 4 + fx.misses.size() + fx.all.size());
+}
+
+TEST_CASE("Vfs::prefetchAsync: without a thread it reads on the caller; the synchronous prefetch during a plan") {
+    PrefetchFixture fx;
+    fx.state->delayMs = 2;
+    SUBCASE("no threading: the same plan, read before prefetchAsync returns") {
+        as3d::Vfs vfs;
+        fx.mount(vfs);
+        vfs.prefetchAsync(fx.plan);
+        const as3d::Vfs::PrefetchStats st = vfs.prefetchStats();
+        CHECK_FALSE(st.threaded);
+        CHECK(st.done);
+        CHECK(st.steps == 3);
+        CHECK(st.stepsRun == 3);
+        CHECK(st.bytes == fx.planBytes());
+        CHECK(st.waits == 0);
+        CHECK(fx.state->count() == 3);
+        const auto reads = fx.state->copy();
+        CHECK(reads[0].first == fx.offsetOf("c1"));
+        fx.checkAll(vfs);
+        CHECK(fx.state->count() == 3 + fx.misses.size()); // the plan's files from memory
+    }
+    SUBCASE("a plan of unknown files plans nothing") {
+        as3d::Vfs vfs;
+        fx.mount(vfs);
+        vfs.setPrefetchThreading(as3d::makeStdPrefetchThreading());
+        vfs.prefetchAsync({"x1", "x2"});
+        const as3d::Vfs::PrefetchStats st = vfs.prefetchStats();
+        CHECK(st.files == 0);
+        CHECK(st.steps == 0);
+        CHECK(st.done);
+        CHECK_FALSE(st.threaded);
+        fx.checkAll(vfs);
+    }
+    SUBCASE("Vfs::prefetch of pending and new files while the reader runs") {
+        fx.state->delayMs = 15;
+        as3d::Vfs vfs;
+        fx.mount(vfs);
+        vfs.setPrefetchThreading(as3d::makeStdPrefetchThreading());
+        vfs.prefetchAsync(fx.plan);
+        // The definitions' read-ahead (defs.cpp): a1 is pending (skipped), d1 is read now.
+        const std::vector<std::string> defs = {"a1", "d1"};
+        CHECK(vfs.prefetch(defs) == fx.content("d1").size());
+        as3d::Blob out;
+        REQUIRE(vfs.read("d1", out));
+        CHECK(out == fx.content("d1"));
+        REQUIRE(vfs.read("a1", out));
+        CHECK(out == fx.content("a1"));
+        vfs.dropPrefetched(&defs); // drops both; a1 is read again from the file below
+        fx.checkAll(vfs);
+        vfs.prefetchJoin();
+        CHECK(vfs.prefetchStats().stepsRun == 3);
+        CHECK(fx.state->count() == 3 + 1 + 1 + fx.misses.size()); // the runs, the defs' d1, a1 again, the misses
+    }
+}
+
+TEST_CASE("Vfs::prefetchAsync: destroyed, dropped and restarted while the reader runs") {
+    PrefetchFixture fx;
+    fx.state->delayMs = 20;
+    SUBCASE("the destructor joins the reader; nothing is read after it") {
+        {
+            as3d::Vfs vfs;
+            fx.mount(vfs);
+            vfs.setPrefetchThreading(as3d::makeStdPrefetchThreading());
+            vfs.prefetchAsync(fx.plan);
+            CHECK(vfs.prefetchStats().threaded);
+        }
+        const size_t atDestruction = fx.state->count();
+        CHECK(atDestruction <= 3);
+        std::this_thread::sleep_for(std::chrono::milliseconds(3 * fx.state->delayMs));
+        CHECK(fx.state->count() == atDestruction);
+    }
+    SUBCASE("dropPrefetched(nullptr) joins the reader; the files come from the file afterwards") {
+        as3d::Vfs vfs;
+        fx.mount(vfs);
+        vfs.setPrefetchThreading(as3d::makeStdPrefetchThreading());
+        vfs.prefetchAsync(fx.plan);
+        vfs.dropPrefetched();
+        const as3d::Vfs::PrefetchStats st = vfs.prefetchStats();
+        CHECK(st.done);
+        CHECK(st.stepsRun <= 3);
+        const size_t before = fx.state->count();
+        fx.checkAll(vfs);
+        CHECK(fx.state->count() == before + fx.all.size());
+    }
+    SUBCASE("a second prefetchAsync joins the first") {
+        as3d::Vfs vfs;
+        fx.mount(vfs);
+        vfs.setPrefetchThreading(as3d::makeStdPrefetchThreading());
+        vfs.prefetchAsync(fx.plan);
+        const std::vector<std::string> again = {"b1", "d2"};
+        vfs.prefetchAsync(again); // b1 may be in memory already (then only d2 is planned)
+        const as3d::Vfs::PrefetchStats st = vfs.prefetchStats();
+        CHECK(st.files == 2);
+        CHECK(st.steps >= 1);
+        CHECK(st.steps <= 2);
+        fx.checkAll(vfs);
+        vfs.prefetchJoin();
+        CHECK(vfs.prefetchStats().done);
+        fx.checkAll(vfs);
+    }
+    SUBCASE("setPrefetchThreading(nullptr) joins the reader; the next plan reads on the caller") {
+        as3d::Vfs vfs;
+        fx.mount(vfs);
+        vfs.setPrefetchThreading(as3d::makeStdPrefetchThreading());
+        vfs.prefetchAsync(fx.plan);
+        vfs.setPrefetchThreading(nullptr);
+        CHECK(vfs.prefetchStats().done);
+        CHECK(std::string(vfs.prefetchThreadDescription()) == "none");
+        vfs.prefetchAsync(fx.plan);
+        CHECK_FALSE(vfs.prefetchStats().threaded);
+        CHECK(vfs.prefetchStats().done);
+        fx.checkAll(vfs);
+    }
 }
