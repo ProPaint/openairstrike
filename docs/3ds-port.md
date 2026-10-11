@@ -11,10 +11,12 @@ seconds at a time; mono fell to 30 Hz from a half-second hiccup of the audio thr
 felt strong). The fixes went into `c314767` (clear=split, the terrain re-issuing its state, the
 voice mix outside the mixer lock, comfort defaults 3 / 6 px / 8 px). **Then the owner asked not
 to do QA any more, so the console tests itself (round 2, P7; see "Soak mode and the log push" at
-the end).** The latest drop is `out/3ds/drop-round2c-362f779/` (the package's `openairstrike.3dsx`,
+the end).** The latest drop is `out/3ds/drop-round2d-5192662/` (after the first console soak, below) (the package's `openairstrike.3dsx`,
 `openairstrike.cia`, `run.ini` = `mode=soak report_to=192.168.1.86:7777 perf=1 state_check=1
 log_lazy=1`, `run-play.ini` = play with the same diagnostics), its 3dsx and run.ini uploaded to
-the card on 2026-10-11 (the card's run.ini is the soak one).
+the card on 2026-10-11 (the card's run.ini is the soak one; the first soak's results are in
+"First console soak" at the end: no wash in 30-second stages, mono 60 Hz missed by bursts, the push
+failed on SO_ERROR, all three addressed in `5192662`).
 
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
@@ -3194,3 +3196,31 @@ eight to ten minutes), then the launcher. The first console soak gives, without 
 else: whether the wash still happens with `clear=split` (any `pass=terrain` GPU mismatch, with the marks),
 mono at 60 Hz with the music thread fixed, the stereo GPU numbers per mission and game, and the end
 states of all three games against the desktop.
+
+## First console soak (2026-10-11, build 362f779; out/3ds/hw24-soak1-362f779/)
+
+The owner launched the soak once (four stages: AirStrike 3D missions 1 and 2, mono and stereo, 1800
+steps each, the weapon tour, audio on, `probe_every=30`). It ran to the end and came back to the
+launcher. `soak.txt`:
+
+- `PASS wash`: 232 terrain probes, 0 GPU mismatches, no marks. The owner then pointed out that the
+  wash shows later in the missions, never in the first 30 seconds: the stages are now the whole
+  mission (`soak_frames=0`, `AS3D_LEVEL_END`, 300 steps of the Mission Complete screen, where the
+  owner once saw the wash too; the desktop bot completes missions 1 and 2 at steps 13660 and 13859
+  without dying, verified identical on Azahar).
+- `FAIL mono60` mission 1 at 94.6 %, mission 2 at 90.6 % of the frames at 60 Hz after the grace;
+  the misses themselves are 0.5 % / 1 %: bursts of three heavy frames in the fights (`submit` 8-9 ms
+  plus a GPU tail of 9-11 ms, 23.5k vertices, ~212 draws) tripped the pacer's "3 misses in 120
+  frames" rule, and each fall costs 60 fitting frames at 30 Hz. The rule is now 6 misses in 120
+  frames. The heavy frames themselves (mono GPU avg 6.6 ms, p95 8.8 ms; the fights' peaks over 10 ms
+  with a 9 ms CPU submit) are the next performance item if the soak still fails `mono60`.
+- `PASS stereo`: settled at 30 Hz, 0 misses at 30, GPU avg 10.1 / 10.5 ms, p95 13.3 / 14.3 ms.
+- `PASS lazy_loads` 0, `fence` 0, `gpu_busy` 0, `tex_in_frame` 0, 4 of 4 stages finished; level
+  start 5.7 s (precache 5.0 s, 335 pak reads of 2.3 s).
+- The probe's stall on hardware: 2.2 ms average in mono (max 3.1), 3.8-4.0 ms in stereo (max 7.9),
+  every 30 frames, excused by the pacer.
+- The push: `AS3D_REPORT ... not sent: connection refused or unreachable (errno -26)` while the PC's
+  receiver had accepted the connection (0 bytes, then a reset). The console's socket service does not
+  answer `SO_ERROR` the Linux way (Azahar's does, which is why the emulator passed). The check is now
+  `getpeername` after the poll, with the poll's error bits as the failure; the files were fetched over
+  ftpd meanwhile.
