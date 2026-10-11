@@ -497,12 +497,13 @@ std::string planPath(const std::string& key) { return std::string(kDataDir) + "/
 constexpr const char* kPlanHeader = "openairstrike read plan 1";
 } // namespace
 
-void ReadPlan::begin(as3d::Vfs& vfs, const std::string& key, bool enabled) {
+void ReadPlan::begin(as3d::Vfs& vfs, const std::string& key, bool enabled, bool threaded) {
     end();
     prefetchMs_ = 0.0;
     if (!enabled) return;
     vfs_ = &vfs;
     key_ = key;
+    threaded_ = threaded;
     loaded_.clear();
     recorded_.clear();
     seen_.clear();
@@ -524,15 +525,25 @@ void ReadPlan::begin(as3d::Vfs& vfs, const std::string& key, bool enabled) {
         std::fclose(f);
     }
     planned_.insert(loaded_.begin(), loaded_.end());
+    // R4.10: the plan's files on the reader thread (prefetch_thread=1) or here (0, as before).
+    // Not a thread per start: the session's Vfs keeps its threading (it is joined at end()).
+    vfs.setPrefetchThreading(threaded ? as3d::ctr::makePrefetchThreading() : nullptr);
     if (!loaded_.empty()) {
         const as3d::ctr::StreamReadStats r0 = as3d::ctr::streamReadStats();
         const uint64_t t0 = nowTicks();
-        const size_t bytes = vfs.prefetch(loaded_);
+        vfs.prefetchAsync(loaded_);
+        const as3d::Vfs::PrefetchStats st = vfs.prefetchStats();
         const as3d::ctr::StreamReadStats& r1 = as3d::ctr::streamReadStats();
         prefetchMs_ = ticksToMs(nowTicks() - t0);
-        AS3D_INFO("AS3D_LOAD phase=prefetch plan=%s files=%d kb=%.0f ms=%.0f (%lu file reads, %.0f KB read)", key.c_str(),
-                  static_cast<int>(loaded_.size()), static_cast<double>(bytes) / 1024.0, prefetchMs_,
-                  static_cast<unsigned long>(r1.reads - r0.reads), static_cast<double>(r1.bytes - r0.bytes) / 1024.0);
+        if (st.threaded) {
+            AS3D_INFO("AS3D_LOAD phase=prefetch plan=%s files=%d runs=%d started on %s in %.1f ms (reading on; %lu file reads so far)",
+                      key.c_str(), static_cast<int>(loaded_.size()), static_cast<int>(st.steps), vfs.prefetchThreadDescription(),
+                      prefetchMs_, static_cast<unsigned long>(r0.reads));
+        } else {
+            AS3D_INFO("AS3D_LOAD phase=prefetch plan=%s files=%d kb=%.0f ms=%.0f (%lu file reads, %.0f KB read)", key.c_str(),
+                      static_cast<int>(loaded_.size()), static_cast<double>(st.bytes) / 1024.0, prefetchMs_,
+                      static_cast<unsigned long>(r1.reads - r0.reads), static_cast<double>(r1.bytes - r0.bytes) / 1024.0);
+        }
     } else {
         AS3D_INFO("AS3D_LOAD phase=prefetch plan=%s none yet (recording it)", key.c_str());
     }
@@ -544,6 +555,19 @@ void ReadPlan::begin(as3d::Vfs& vfs, const std::string& key, bool enabled) {
 void ReadPlan::end() {
     if (!vfs_) return;
     vfs_->setReadObserver(nullptr);
+    if (!loaded_.empty()) {
+        // The reader joined (what it had not read yet is dropped: the start is over), its line
+        // (R4.10): the main thread's waits are what the overlap did not hide.
+        const uint64_t t0 = nowTicks();
+        vfs_->prefetchJoin();
+        const as3d::Vfs::PrefetchStats st = vfs_->prefetchStats();
+        const as3d::ctr::StreamReadStats& rd = as3d::ctr::streamReadStats();
+        AS3D_INFO("AS3D_PREFETCH plan=%s files=%d bytes=%lu runs=%d/%d read_ms=%.0f wait_ms=%.0f waits=%u thread=%s join_ms=%.1f "
+                  "(%lu file reads, %.0f KB since boot)",
+                  key_.c_str(), static_cast<int>(st.files), static_cast<unsigned long>(st.bytes), static_cast<int>(st.stepsRun),
+                  static_cast<int>(st.steps), st.readMs, st.waitMs, st.waits, st.threaded ? vfs_->prefetchThreadDescription() : "none",
+                  ticksToMs(nowTicks() - t0), static_cast<unsigned long>(rd.reads), static_cast<double>(rd.bytes) / 1024.0);
+    }
     vfs_->dropPrefetched();
     int hits = 0;
     for (const std::string& p : recorded_) hits += planned_.count(p) ? 1 : 0;
@@ -632,7 +656,8 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     // first frame.
     ReadPlan plan;
     go.afterMount = [&plan, &run, game, sim](as3d::Vfs& vfs) {
-        plan.begin(vfs, std::string(game->key) + "_m" + std::to_string(run.level) + (sim ? "_sim" : ""), run.prefetch);
+        plan.begin(vfs, std::string(game->key) + "_m" + std::to_string(run.level) + (sim ? "_sim" : ""), run.prefetch,
+                   run.prefetchThread);
     };
 
     auto session = std::make_unique<as3d_game::GameSession>();

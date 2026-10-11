@@ -213,6 +213,8 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
             else if (val == "rgba8") c.top565 = false;
         } else if (key == "prefetch") {
             if (toInt(val, &n)) c.prefetch = n != 0;
+        } else if (key == "prefetch_thread") { // R4.10
+            if (toInt(val, &n)) c.prefetchThread = n != 0;
         } else if (key == "pak_cache_kb") {
             if (toInt(val, &n) && n >= 0 && n <= 8192) c.pakCacheKb = n;
         } else if (key == "pace") {

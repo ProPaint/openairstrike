@@ -220,6 +220,10 @@ struct RunConfig {
     bool terrainBaseCache = true; // terrain_base_cache=0|1: the terrain's base textures from cache/<game>_m<N>.terrain when its key matches (1, default)
     bool baseInt = false;   // base_int=0|1: the terrain base generation in integers, the same bytes (0, default: Azahar counts it slower, the console's doubles are the question)
     // R4.6 end
+    // R4.10 (docs/3ds-port.md "Prefetch overlap (round 4, R4.10)"): prefetch_thread=0|1: the read
+    // plan's files read by a thread while the level start parses (1, default; a read of a file not
+    // yet in memory waits for it) or on the main thread before the definitions (0, as before).
+    bool prefetchThread = true;
     bool effectiveWashCheck() const { return washCheck >= 0 ? washCheck != 0 : mode == Mode::Soak; }
     int effectiveProbeEvery() const { return probeEvery >= 0 ? probeEvery : (mode == Mode::Soak ? 30 : 0); }
     int effectiveFrames() const { return frames > 0 ? frames : (mode == Mode::Sim ? 600 : 0); }

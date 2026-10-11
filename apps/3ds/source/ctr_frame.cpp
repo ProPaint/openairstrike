@@ -1054,7 +1054,7 @@ struct GameFrame::Impl {
         plan.begin(ses.vfs(),
                    std::string(ses.game() ? ses.game()->key : "as3d") + "_m" + std::to_string(mission) +
                        (intermission ? "_attract" : "_fe"),
-                   run.prefetch && run.precache);
+                   run.prefetch && run.precache, run.prefetchThread);
         std::string err;
         setBaseCache(ses);
         if (!renderer->beginLevel(ses.world(), &err)) {

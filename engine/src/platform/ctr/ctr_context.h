@@ -12,6 +12,7 @@
 #include <memory>
 
 #include "as3d/platform.h"
+#include "as3d/vfs.h"
 
 namespace as3d {
 namespace ctr {
@@ -70,6 +71,11 @@ const StreamReadStats& streamReadStats();
 // The block cache of each platform stream opened from now on (bytes, 64 KB blocks; 0 = none).
 // run.ini pak_cache_kb=; default 0.
 void setStreamBlockCache(size_t bytes);
+
+// The read-ahead thread of Vfs::prefetchAsync on libctru (prefetch_thread_ctr.cpp; docs/3ds-port.md
+// "Prefetch overlap (round 4, R4.10)"): a thread on core 1 (the audio feeder's core; core 0 when
+// core 1 refuses) one priority step above its creator, LightLocks and a CondVar.
+std::unique_ptr<PrefetchThreading> makePrefetchThreading();
 
 } // namespace ctr
 } // namespace as3d

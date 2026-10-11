@@ -191,15 +191,22 @@ public:
 // file names only) and prefetches them (as3d::Vfs::prefetch: a few large reads per pak), then
 // records every path read until end(), which frees what was not used and stores the plan when it
 // changed. The data read is the same with or without a plan. run.ini prefetch=0 turns it off.
+// With `threaded` (run.ini prefetch_thread=1, the default; R4.10) the plan's files are read by a
+// thread (as3d::Vfs::prefetchAsync, as3d::ctr::makePrefetchThreading) while the level start
+// parses: a read of a planned file not yet in memory waits for it; end() joins the thread and
+// logs AS3D_PREFETCH (files, bytes, the reader's time, how long and how often reads waited).
 class ReadPlan {
 public:
-    void begin(as3d::Vfs& vfs, const std::string& key, bool enabled);
+    void begin(as3d::Vfs& vfs, const std::string& key, bool enabled, bool threaded = false);
     void end();
     bool active() const { return vfs_ != nullptr; }
-    double prefetchMs() const { return prefetchMs_; } // the last begin()'s prefetch (AS3D_LEVEL_START)
+    // The last begin()'s prefetch on the main thread (AS3D_LEVEL_START prefetch=): the reads
+    // without a thread, the thread's start with one.
+    double prefetchMs() const { return prefetchMs_; }
 
 private:
     double prefetchMs_ = 0.0;
+    bool threaded_ = false;
     as3d::Vfs* vfs_ = nullptr;
     std::string key_;
     std::vector<std::string> loaded_, recorded_;
