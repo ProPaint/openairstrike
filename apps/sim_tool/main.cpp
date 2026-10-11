@@ -2,7 +2,7 @@
 //
 //   as3d_sim --level 1 --frames 3600 [--seed S] [--difficulty D] [--players N] [--heli 0..9]
 //            [--dump-state state.json] [--builtin-report report.json] [--data ROOT]
-//            [--bot | --pilot | --input-script FILE] [--record FILE] [--god] [--trace-player FILE]
+//            [--bot | --pilot | --input-script FILE] [--bot-weapons] [--record FILE] [--god] [--trace-player FILE]
 //            [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]
 //            [--time]
 //
@@ -14,6 +14,9 @@
 //
 // --bot flies the scripted test pilot of as3d/input.h (the same input as `as3d_game --bot`);
 // --pilot the pilot that looks at the world (stays in the lower middle, dodges, collects);
+// --bot-weapons adds the weapon tour of as3d/input.h applyWeaponTour on top of --bot or --pilot
+// (as as3d_game --bot-weapons and the 3DS's run.ini bot_weapons=1: the 3DS soak's end states are
+// compared against this, tools/3ds_soak_compare.py);
 // --record saves the input of the run as an input script, which `as3d_game --input-script`
 // replays identically; --input-script plays an input script (as3d/input.h format; pause edges toggle the pause
 // like the game does). --god turns on god mode (the `iwannabe` cheat of engine-behaviour.md
@@ -72,7 +75,7 @@ int usage() {
     std::fprintf(stderr,
                  "usage: as3d_sim --level N --frames N [--seed S] [--difficulty 0..4] [--players 1|2] [--heli 0..9]\n"
                  "                [--dump-state FILE] [--builtin-report FILE] [--data ROOT]\n"
-                 "                [--bot | --pilot | --input-script FILE] [--record FILE] [--god]\n"
+                 "                [--bot | --pilot | --input-script FILE] [--bot-weapons] [--record FILE] [--god]\n"
                  "                [--trace-player FILE] [--game as3d|as2|gulf] [--paks DIR] [--list-games]\n"
                  "                [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]\n"
                  "                [--time]\n");
@@ -104,7 +107,7 @@ int main(int argc, char** argv) {
     std::string level = "1", dumpPath, reportPath, dataRoot, inputPath, tracePath, recordPath, gameKey, paksDir;
     bool listGames = false;
     long frames = 600;
-    bool bot = false, pilot = false, timeSteps = false;
+    bool bot = false, pilot = false, timeSteps = false, botWeapons = false;
     int upgrades = -1, items = -1, powerupType = -1, missileType = -1; long pauseEvery = 0, faultPlayerAt = -1; // developer options (see --help)
     WorldConfig cfg;
     for (int i = 1; i < argc; ++i) {
@@ -132,6 +135,7 @@ int main(int argc, char** argv) {
         else if (a == "--record" && next(v)) recordPath = v;
         else if (a == "--bot") bot = true;
         else if (a == "--pilot") pilot = true;
+        else if (a == "--bot-weapons") botWeapons = true;
         else if (a == "--god") cfg.godMode = true;
         else if (a == "--time") timeSteps = true;
         else if (a == "--upgrades" && next(v)) upgrades = std::atoi(v);
@@ -250,6 +254,7 @@ int main(int argc, char** argv) {
         }
         if (bot || pilot) {
             FrameInput in = bot ? botInput(static_cast<u32>(f)) : botInput(world, static_cast<u32>(f));
+            if (botWeapons) applyWeaponTour(world, static_cast<u32>(f), in);
             recorder.record(static_cast<u32>(f), in);
             input = in.toPlayerInput();
         } else if (!inputPath.empty()) {
