@@ -238,6 +238,16 @@ Mockups (each `.png` 1x, `@2x.png`, and `_notes@2x.png` with the sizes in px and
 real dumps (top screens) and the games' own art drawn with the rules above; the S size there is the same
 offline resample the engine would do.
 
+## Owner decisions (2026-10-11)
+
+- **Font: the game's own font** at the three fixed sizes (alternative A, the X11 pixel font, is dropped).
+- **Top screen in menus: the live attract level** (alternative B, the static panel, is dropped).
+- **No controller-button sprites.** The owner does not like the look of the round A/B/X/Y/R button
+  glyphs in the mockups. Key hints are text in the game's own font and colours, the key letter set
+  in a thin frame in the game's HUD style (e.g. `[A] Select  [B] Back`, the brackets drawn as the HUD's
+  orange frame corners), no circles, no Nintendo-style glyph art. The menus package shows the
+  footer in the gallery for the owner to judge.
+
 ## 4. Implementation plan (next package)
 
 Principle: the 3DS gets **console layouts** in pixel units; the desktop, Android and web paths and their
