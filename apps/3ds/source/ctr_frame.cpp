@@ -423,6 +423,11 @@ struct GameFrame::Impl {
     size_t arenaUsed = 0;
     bool dumped = false;
     uint64_t lastLoadingFrame = 0;
+    // R4.6: AS3D_TERRAIN_LIGHTS counts from these (terrainPicaStats at the last line).
+    struct LightSeen {
+        size_t chunks = 0, reuses = 0, evals = 0;
+        uint64_t ticks = 0;
+    } lightSeen;
     // R4.6: the last precacheLevel's parts (ms), for AS3D_LEVEL_RENDERER.
     struct PrecacheParts {
         double scripts = 0, world = 0, tex = 0, mip = 0, swizzle = 0, upload = 0, mesh = 0, shadows = 0, frames = 0,
@@ -782,9 +787,11 @@ struct GameFrame::Impl {
         pica::setShadowFastHit(run.shadowFastHit);
         setTexconvReference(!run.texFast);
         setBaseTextureReference(!run.baseInt);
-        AS3D_INFO("AS3D_R46 brightness_mode=%s water_cover=%d shadow_fast_hit=%d tex_fast=%d base_int=%d",
+        pica::setTerrainLightCache(run.terrainLightCache);
+        AS3D_INFO("AS3D_R46 brightness_mode=%s water_cover=%d shadow_fast_hit=%d tex_fast=%d base_int=%d "
+                  "terrain_light_cache=%d",
                   run.brightnessMode == 1 ? "quad" : "fold", run.waterCover ? 1 : 0, run.shadowFastHit ? 1 : 0,
-                  run.texFast ? 1 : 0, run.baseInt ? 1 : 0);
+                  run.texFast ? 1 : 0, run.baseInt ? 1 : 0, run.terrainLightCache ? 1 : 0);
         AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d terrain_force_state=%d eye_replay=%d",
                   wash.enabled() ? 1 : 0, run.washInject, run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0,
                   run.terrainForceState ? 1 : 0, run.eyeReplay ? 1 : 0);
@@ -1929,8 +1936,24 @@ void GameFrame::stats(FrameStats& out) {
                       l.frames, pica::gpuKicks() - im.kicksSeen, l.bottomDrawn, l.bottomSkipped, l.eyeSkipped[0],
                       l.eyeSkipped[1], l.brightnessSkipped, ts.farTevChunks, l.brightnessFolded,
                       pica::brightnessFoldOverflows());
+            const unsigned leanFrames = std::max(1u, l.frames);
             l = LeanSums();
             im.kicksSeen = pica::gpuKicks();
+            // R4.6: the terrain's dynamic-light streams over the same frames (terrain_light_cache);
+            // the sums restart at a level's build.
+            const pica::TerrainPicaStats& tls = pica::terrainPicaStats();
+            Impl::LightSeen& sn = im.lightSeen;
+            if (tls.lightChunks < sn.chunks || tls.lightTicks < sn.ticks) sn = Impl::LightSeen();
+            const double lightMs =
+                static_cast<double>(tls.lightTicks - sn.ticks) * 1000.0 / static_cast<double>(SYSCLOCK_ARM11);
+            AS3D_INFO("AS3D_TERRAIN_LIGHTS frames=%u chunks=%zu reused=%zu light_vertex_evals=%zu ms=%.1f per_frame=%.3f "
+                      "cache=%d",
+                      leanFrames, tls.lightChunks - sn.chunks, tls.lightReuses - sn.reuses, tls.lightEvals - sn.evals,
+                      lightMs, lightMs / leanFrames, im.run.terrainLightCache ? 1 : 0);
+            sn.chunks = tls.lightChunks;
+            sn.reuses = tls.lightReuses;
+            sn.evals = tls.lightEvals;
+            sn.ticks = tls.lightTicks;
             const std::string gp = pica::gpuPassReport();
             if (!gp.empty()) AS3D_INFO("AS3D_GPU_PASS %s", gp.c_str());
         }

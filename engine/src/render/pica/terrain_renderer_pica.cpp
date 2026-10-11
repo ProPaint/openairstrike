@@ -208,7 +208,23 @@ struct ChunkGpu {
     size_t lightSourceCount = 0;
     const LightBytes* dyn = nullptr;         // null: unlit (the zero buffer)
     std::vector<const LightBytes*> tileDyn;
+    // terrain_light_cache: the lights of the last computed stream and the stream (lit minus baked,
+    // 4 bytes a vertex); invalid after the chunk's vertices moved (update).
+    bool lightKeyValid = false;
+    bool lightKeyAny = false;
+    std::vector<DynamicLight> lightKey;
+    std::vector<uint8_t> lightKeyStream;
 };
+
+namespace {
+bool g_lightCache = true;
+bool sameLight(const DynamicLight& a, const DynamicLight& b) {
+    return a.position.x == b.position.x && a.position.y == b.position.y && a.position.z == b.position.z &&
+           a.colour.x == b.colour.x && a.colour.y == b.colour.y && a.colour.z == b.colour.z && a.radius == b.radius &&
+           a.spot == b.spot && a.direction.x == b.direction.x && a.direction.y == b.direction.y &&
+           a.direction.z == b.direction.z && a.cosOuter == b.cosOuter && a.cosInner == b.cosInner;
+}
+} // namespace
 
 struct Retired {
     void* ptr;
@@ -333,6 +349,7 @@ struct TerrainRenderer::Impl {
     void retire(void* p);
     void collectRetired(bool all);
     void computeLights(size_t k, const DynamicLight* lights, size_t count);
+    void emitLights(size_t k);
     size_t extraOf(size_t k) const {
         return chunks[k].coarse ? static_cast<size_t>(geo.width) : 0u; // appended edge vertices
     }
@@ -459,6 +476,10 @@ void TerrainRenderer::Impl::collectRetired(bool all) {
 // The light streams of chunk k for this frame: the lights reaching its box, nearest first, at
 // most kTerrainPicaLightsPerChunk; terrainDynamicLightColors gives the lit colours, the stream
 // holds what they add to the baked colour (the shader adds the two and clamps).
+namespace pica {
+void setTerrainLightCache(bool on) { g_lightCache = on; }
+} // namespace pica
+
 void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, size_t count) {
     ChunkGpu& cg = chunks[k];
     const unsigned frame = pica::frameArena().frames();
@@ -485,11 +506,25 @@ void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, 
         lightPick.resize(static_cast<size_t>(pica::kTerrainPicaLightsPerChunk));
     DynamicLight picked[pica::kTerrainPicaLightsPerChunk];
     for (size_t i = 0; i < lightPick.size(); ++i) picked[i] = *lightPick[i];
+    pica::TerrainPicaStats& ls = pica::stats();
+    ++ls.lightChunks;
+    const size_t n = ch.verts.size();
+    // terrain_light_cache: the same lights as the last computed stream: that stream.
+    bool reused = false;
+    if (g_lightCache && cg.lightKeyValid && cg.lightKey.size() == lightPick.size() && cg.lightKeyStream.size() == n * 4) {
+        reused = true;
+        for (size_t i = 0; i < lightPick.size() && reused; ++i) reused = sameLight(cg.lightKey[i], picked[i]);
+    }
+    if (reused) {
+        ++ls.lightReuses;
+        if (!cg.lightKeyAny) return;
+        lightScratch.assign(cg.lightKeyStream.begin(), cg.lightKeyStream.end());
+        emitLights(k);
+        return;
+    }
     // Only the vertices the picked lights can reach: a conservative rectangle of the chunk's
     // grid (vertex (c, r) sits at (c, r) * kHmapCellSize; outside it every light is farther than
     // its radius, so the lit colour is the baked one and what it adds is 0).
-    const size_t n = ch.verts.size();
-    const size_t extra = extraOf(k);
     const int vw = geo.width + 1;
     int c0 = vw, c1 = -1, r0 = ch.rows + 1, r1 = -1;
     for (size_t i = 0; i < lightPick.size(); ++i) {
@@ -514,8 +549,19 @@ void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, 
     c1 = std::min(c1, vw - 1);
     r1 = std::min(r1, ch.rows);
     lightScratch.assign(n * 4, 0);
-    if (c0 > c1 || r0 > r1) return;
+    auto remember = [&](bool any) {
+        if (!g_lightCache) return;
+        cg.lightKey.assign(picked, picked + lightPick.size());
+        cg.lightKeyStream = lightScratch;
+        cg.lightKeyAny = any;
+        cg.lightKeyValid = true;
+    };
+    if (c0 > c1 || r0 > r1) {
+        remember(false);
+        return;
+    }
     terrainDynamicLightColors(ch, vw, picked, static_cast<int>(lightPick.size()), c0, c1, r0, r1, lightScratch);
+    ls.lightEvals += static_cast<size_t>(c1 - c0 + 1) * static_cast<size_t>(r1 - r0 + 1) * lightPick.size();
 
     // Lit colour minus the baked byte, per vertex of the rectangle (0 elsewhere).
     bool any = false;
@@ -532,7 +578,18 @@ void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, 
             lightScratch[i * 4 + 3] = 0;
         }
     }
+    remember(any);
     if (!any) return;
+    emitLights(k);
+}
+
+// The frame's streams of chunk k from lightScratch (lit minus baked per vertex): the chunk's, the
+// coarse level's appended edge vertices, the overlay quads'.
+void TerrainRenderer::Impl::emitLights(size_t k) {
+    ChunkGpu& cg = chunks[k];
+    const TerrainChunkGeometry& ch = geo.chunks[k];
+    const size_t n = ch.verts.size();
+    const size_t extra = extraOf(k);
     auto* dyn = pica::frameArena().allocArray<LightBytes>(n + extra);
     if (!dyn) return; // arena full: drawn unlit
     std::memcpy(dyn, lightScratch.data(), n * 4);
@@ -821,6 +878,7 @@ void TerrainRenderer::update(const VertexRect* rects, size_t count, const Terrai
         }
         if (g.coarse) im.buildCoarse(k, true); // the flattened copy follows (kept as it was without memory)
         g.lightFrame = ~0u; // the lit colours follow the moved vertices
+        g.lightKeyValid = false;
         ++lastUpdated_;
     }
     pica::stats().updatedChunks = lastUpdated_;
@@ -1050,7 +1108,9 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
             pica::detail::c3dInvalidate();
             applyMaterialState(key);
         }
+        const u64 tLight = svcGetSystemTick();
         im.computeLights(k, params.lights, lightCount);
+        st.lightTicks += svcGetSystemTick() - tLight;
         if (g.dyn) ++st.litChunks;
         if (c.block != boundBlock) {
             im.baseTextures[static_cast<size_t>(c.block)].bind(0);

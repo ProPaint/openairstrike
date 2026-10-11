@@ -216,6 +216,7 @@ struct RunConfig {
     bool waterCover = true; // water_cover=0|1: the water plane's tiles under the terrain left out (1, default)
     bool shadowFastHit = true; // shadow_fast_hit=0|1: a silhouette cache hit keyed with the model's hash memoised and placed from its alpha (1, default)
     bool texFast = true;    // tex_fast=0|1: the texture conversion (swizzle by tile rows, the box filter by words) in its fast exact form (1, default)
+    bool terrainLightCache = true; // terrain_light_cache=0|1: a chunk's light stream reused while its picked lights are unchanged (1, default)
     bool baseInt = false;   // base_int=0|1: the terrain base generation in integers, the same bytes (0, default: Azahar counts it slower, the console's doubles are the question)
     // R4.6 end
     bool effectiveWashCheck() const { return washCheck >= 0 ? washCheck != 0 : mode == Mode::Soak; }

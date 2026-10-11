@@ -52,12 +52,21 @@ struct TerrainPicaStats {
     // the last update()
     int updatedChunks = 0;
     int deferredFrees = 0;      // linear buffers waiting for the GPU to finish with them
+    // R4.6, since start: the dynamic-light streams (computeLights): chunks given a stream, of them
+    // the ones whose picked lights equalled the last computed set (the stream reused,
+    // terrain_light_cache), the light-vertex evaluations made, the CPU ticks spent.
+    size_t lightChunks = 0, lightReuses = 0, lightEvals = 0;
+    uint64_t lightTicks = 0;
     // build(): the load profile of AS3D_LOAD phase=terrain (ms), for AS3D_LEVEL_RENDERER
     double loadMs = 0.0, loadGenerateMs = 0.0, loadCreateMs = 0.0, loadGeometryMs = 0.0, loadRestMs = 0.0;
 };
 
 // The counters of the live terrain renderer (there is one per level).
 const TerrainPicaStats& terrainPicaStats();
+// run.ini terrain_light_cache (R4.6, default on): a chunk whose picked lights (position, colour,
+// radius, cone) are the ones of its last computed stream, and whose vertices did not move since,
+// reuses that stream instead of lighting its vertices again: the same bytes.
+void setTerrainLightCache(bool on);
 
 // Depth bias of the tile overlay pass, C3D_DepthMap's offset (pica_frame.h applyDepthMap);
 // pica::kPolygonOffsetDepth by default (see there for the value and why). The overlay is drawn
