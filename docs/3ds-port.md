@@ -89,8 +89,11 @@ the first build with the complete UI rework and the selector banner, and the fir
 are on the console. Its `run.ini` is `run-soak-r49.ini`: the R4.6 list (13 stages) plus four sequel
 stages (mission 1 of each, one minute mono then stereo); about 27 minutes. The receiver listens with
 `--expect 62eb093`. With two games installed the app shows the selector at boot (`mode=play`);
-the soak's stages name their game. Unread: the seventh soak (this list) and the owner's photo
-session.**
+the soak's stages name their game. The seventh soak is read (section "Seventh console soak" at the
+end): AirStrike 3D stereo 11.0 ms (fold 1.5, water 1.3), alternate eyes at 60, mono m1 89.7 %, start
+3.09 s; the sequels correct but far off (GPU 20 and 18 ms, 7 to 8.5 MB of textures in linear memory,
+starts of 11 and 9.6 s cold, scripts 1.7 s, light cache never hits). In progress on agents' worktrees:
+R4.10 (prefetch overlap, vfs) and R4.11 (the sequels' cuts). Unread: the owner's photo session.**
 
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
@@ -4785,3 +4788,50 @@ position and radius so streams can be shared (owner).
 - The level start below 1 s: the texture conversions, decoding, the UI pictures, the prefetch overlap
   (vfs); `base_int` if the console likes it for the first start of a level.
 - The terrain lights in fights (a picture decision).
+
+## Seventh console soak (drop round4d-62eb093, 2026-10-12)
+
+The seventh soak (`run-soak-r49.ini`: R4.6's 13 stages plus mission 1 of each sequel, one minute mono then
+stereo; 17 stages, launched from the HOME menu title, build 62eb093, New 3DS with the speed-up),
+out/3ds/2026-10-12-62eb093/, 17 of 17 end states equal to the desktop sim, verdict FAIL on the mono gate
+and the sequels. Wash: 0 mismatches, 0 prime mismatches, canary 3388/3388, no washed frame.
+
+**AirStrike 3D, stereo (slider 0.5, mission 1, stages 5 to 10):** the GPU span fell from the sixth
+soak's 14.1 ms to **11.0 ms** avg (p95 15.0) with R4.6's defaults; the two cuts measured one at a time:
+`brightness_mode=quad` 12.5 (the fold saves **1.5 ms**), `water_cover=0` 12.3 (the coverage cut saves
+**1.3 ms**); `top_format=rgb565` 10.8 (0.2 ms: not worth the banding); `right_eye_rate=alternate` runs at
+**60 Hz** (GPU 6.0 avg / 8.2 p95, 2101 frames at 60 of 2536): the owner's call on the look. The per-pass
+stage (`gpu_passes=1`, bot play): one eye 2.2 to 4.3 ms, terrain 1.1 to 1.5, opaque 0.3 to 0.6, water up to
+0.4 in fights, top2d up to 1.05 (the mission title's outlined text); whole mission 1 stereo settles at 30
+(GPU 10.7 avg), mission 2 at **60** (GPU 10.0 avg, 5168 frames at 60).
+
+**AirStrike 3D, mono at 60:** mission 1 89.7 % (the gate is 90: 99 misses, 931 behind; six pace
+changes), mission 2 97.7 %; the one-minute stage 94.2 %. The one-minute stages with the old level start
+(`tex_fast=0 shadow_fast_hit=0 terrain_base_cache=0`, stage 12) and with `base_int=1` (stage 13) both
+100 % at 60.
+
+**AirStrike 3D, level start (stages 11 to 13, the second and later starts):** to_first_frame **3.09 s**
+with R4.6's defaults (gate measure 2.87: session 1.83 = prefetch 1.18 + defs 0.19 + level 0.30; renderer
+1.04 = terrain 0.24 (base cache hit, read_decode_upload 207) + precache 0.69 (textures 212, meshes 104,
+shadows 39 with 145 cache hits)), against **3.60 s** with the old defaults (renderer 1.55: base generation
+241, shadow placing 344, conversions 336) and **3.16 s** with `base_int=1` (generate_base 185 against 241
+in doubles: 56 ms, not the 30 % Azahar charged). R4.6's cuts are worth 0.5 s on the console; the prefetch
+(1.18 s, the CPU idle) is the next item (R4.10, in progress).
+
+**The sequels, first time on the console (stages 14 to 17; their caches and read plans cold):**
+- GPU: as2 stereo **20.1 ms avg / 31.7 p95**, gulf 18.3 / 37.6; mono at 60: as2 2.7 % of frames, gulf
+  30 %. Per frame as2 397 draws and 62k vertices, gulf 383 / 45k (as3d 246 / 23k). CPU submit as2 10.9 ms
+  (particles 5, HUD 3, terrain 2.5 to 4 per AS3D_SLOW_SUBMIT), gulf 8.2.
+- Textures: as2 VRAM 4194 KB (74), **linear 6995 KB (150), 1195 fallbacks**, 4057 KB of model skins in
+  linear memory; gulf linear 8454 KB, 1461 fallbacks. The first spike's lesson (linear textures 12.8 ms)
+  again.
+- Level start: as2 to_first_frame **11.0 s**, gulf 9.6 s: session 1.2 (defs 391, level 678); renderer
+  8.2 = precache 7.1 (**scripts 1.70 s** against as3d's 0.04; world 5.4: shadows 2.0 with 182 cache
+  misses (no cache yet), pak reads 2.4 s (no read plan yet), textures 316, meshes 205, decode 382); ui
+  0.53 (as3d 0.08). Second starts will hit both caches; scripts, ui and the parses stay.
+- The terrain light cache never hits for the sequels (reused=0 in every window, 1.0 to 2.0 ms per
+  frame; as3d reuses 570 of 663).
+- The perf report counts the three TerraMorph stamp loads as lazy (the console's verdict excuses them).
+- The sim end states of all four stages equal the desktop's: the sequels are correct on the console,
+  only slow. R4.11 (in progress) takes the skins' residency, the draw count, the script precache, the
+  light cache and the report's excuse.
