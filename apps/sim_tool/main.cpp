@@ -4,7 +4,7 @@
 //            [--dump-state state.json] [--builtin-report report.json] [--data ROOT]
 //            [--bot | --pilot | --input-script FILE] [--bot-weapons] [--record FILE] [--god] [--trace-player FILE]
 //            [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]
-//            [--time]
+//            [--time] [--step-times [N]]
 //
 // Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT; --game KEY
 // (as3d, as2, gulf; default $AS3D_GAME, then as3d) picks the game, --paks DIR mounts its paks
@@ -33,6 +33,10 @@
 // `phases:` line (mean ms per step of each World::step phase, StepPhaseTimes); the clock
 // reads never touch the simulation (tools/sim_bench.sh). The summary ends with the deepest handler nesting, the forced
 // respawns, the entities stopped after a script error, and any faulted entity still around.
+// --step-times [N] (implies the clock reads of --time) prints one `steps:` row per window of N
+// steps (default 1200): mean and p95 ms per step, the phase means, the list entities and slots
+// in use at the window's end (docs/3ds-port.md "Simulation step growth"): how the step cost
+// grows through a mission.
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -78,7 +82,7 @@ int usage() {
                  "                [--bot | --pilot | --input-script FILE] [--bot-weapons] [--record FILE] [--god]\n"
                  "                [--trace-player FILE] [--game as3d|as2|gulf] [--paks DIR] [--list-games]\n"
                  "                [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]\n"
-                 "                [--time]\n");
+                 "                [--time] [--step-times [N]]\n");
     return 2;
 }
 
@@ -108,6 +112,7 @@ int main(int argc, char** argv) {
     bool listGames = false;
     long frames = 600;
     bool bot = false, pilot = false, timeSteps = false, botWeapons = false;
+    long stepWindow = 0; // --step-times: window length in steps (0: off)
     int upgrades = -1, items = -1, powerupType = -1, missileType = -1; long pauseEvery = 0, faultPlayerAt = -1; // developer options (see --help)
     WorldConfig cfg;
     for (int i = 1; i < argc; ++i) {
@@ -138,6 +143,12 @@ int main(int argc, char** argv) {
         else if (a == "--bot-weapons") botWeapons = true;
         else if (a == "--god") cfg.godMode = true;
         else if (a == "--time") timeSteps = true;
+        else if (a == "--step-times") {
+            timeSteps = true;
+            stepWindow = 1200;
+            if (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9') stepWindow = std::strtol(argv[++i], nullptr, 10);
+            if (stepWindow <= 0) return usage();
+        }
         else if (a == "--upgrades" && next(v)) upgrades = std::atoi(v);
         else if (a == "--items" && next(v)) items = std::atoi(v);
         else if (a == "--powerup" && next(v)) powerupType = std::atoi(v);
@@ -224,6 +235,12 @@ int main(int argc, char** argv) {
     PlayerInput input;
     InputRecorder recorder;
     int maxList = world.listCount();
+    // --step-times: the phase sums and the counts at each window's end.
+    struct WindowMark {
+        StepPhaseTimes phases;
+        int list = 0, slots = 0;
+    };
+    std::vector<WindowMark> windowMarks;
     long completeFrame = -1, gameOverFrame = -1;
     for (long f = 0; f < frames; ++f) {
         if (f % 600 == 0) {
@@ -284,6 +301,9 @@ int main(int argc, char** argv) {
         if (completeFrame < 0 && world.levelComplete()) completeFrame = f + 1;
         if (gameOverFrame < 0 && world.gameOver()) gameOverFrame = f + 1;
         maxList = std::max(maxList, world.listCount());
+        if (stepWindow > 0 && ((f + 1) % stepWindow == 0 || f + 1 == frames)) {
+            windowMarks.push_back(WindowMark{world.phaseTimes(), world.listCount(), world.slotsInUse()});
+        }
     }
     if (trace) std::fclose(trace);
     if (!recordPath.empty() && !recorder.script().save(recordPath)) {
@@ -339,6 +359,29 @@ int main(int argc, char** argv) {
         const double k = ph.steps > 0 ? 1000.0 / static_cast<double>(ph.steps) : 0.0;
         std::printf("phases: camera %.4f spawn %.4f player %.4f entities %.4f collisions %.4f after %.4f (mean ms per step)\n",
                     ph.camera * k, ph.spawn * k, ph.player * k, ph.entities * k, ph.collisions * k, ph.after * k);
+    }
+    if (stepWindow > 0 && !stepMs.empty()) {
+        std::printf("steps: %7s %8s %8s %8s %8s %8s %8s %8s %8s %5s %5s\n", "to", "mean_ms", "p95_ms", "camera", "spawn",
+                    "player", "entities", "collide", "after", "list", "slots");
+        StepPhaseTimes prev;
+        size_t from = 0;
+        for (const WindowMark& m : windowMarks) {
+            const size_t to = static_cast<size_t>(m.phases.steps);
+            if (to <= from) continue;
+            std::vector<double> win(stepMs.begin() + static_cast<long>(from), stepMs.begin() + static_cast<long>(to));
+            double sum = 0.0;
+            for (double v : win) sum += v;
+            std::sort(win.begin(), win.end());
+            const double n = static_cast<double>(win.size());
+            const double k = 1000.0 / n;
+            std::printf("steps: %7zu %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f %5d %5d\n", to, sum / n,
+                        win[std::min(win.size() - 1, win.size() * 95 / 100)], (m.phases.camera - prev.camera) * k,
+                        (m.phases.spawn - prev.spawn) * k, (m.phases.player - prev.player) * k,
+                        (m.phases.entities - prev.entities) * k, (m.phases.collisions - prev.collisions) * k,
+                        (m.phases.after - prev.after) * k, m.list, m.slots);
+            prev = m.phases;
+            from = to;
+        }
     }
     const std::vector<GameScriptHost::UnknownGlobal>& unknownGlobals = world.host().unknownGlobals();
     for (const auto& u : unknownGlobals) {
