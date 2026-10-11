@@ -73,6 +73,13 @@ screen), `top_format` per soak stage, the level start's renderer part named and 
 texture conversion, the terrain base textures cached on the SD), the terrain light streams counted;
 expected stereo span about 10 ms; its soak list is `run-soak-r46.ini` (13 stages, about 22 minutes).**
 
+**The UI rework (docs/3ds-ui-design.md) is complete on main at c124bc4: R4.4 foundation, R4.5
+AirStrike 3D menus, R4.7 in play, R4.8 sequels + selector + loading + name entry; galleries under
+out/ui3ds/gallery/ (the drop's own binary: drop-08613d6; the sequels: c708b4f). The drop round4c on
+the card predates R4.8, which changes nothing for AirStrike 3D; the sequels' screens are unverified on
+hardware (the console has only AirStrike 3D). The owner's five-minute photo session is listed at the
+end of the R4.8 section of the UI doc.**
+
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
 installed game (missions 1 and 2, mono and stereo at slider 0.5, the weapon tour, audio on, the
