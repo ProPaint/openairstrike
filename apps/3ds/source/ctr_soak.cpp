@@ -177,6 +177,9 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         r.misses30 = lr.pace.misses30;
         r.excused60 = lr.pace.excused60;
         r.paceChanges = lr.pace.changes;
+        r.gpuLate60 = lr.pace.gpuLate60;
+        r.hitches60 = lr.pace.hitches60;
+        r.behindFrames = lr.pace.behindFrames;
         r.gpuAvg = lr.gpuAvg;
         r.gpuP95 = lr.gpuP95;
         r.lazyLoads = lr.lazyLoads;
@@ -224,6 +227,12 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
                       r.washEpisodes, r.washFirstFrame, r.washLongest, r.washMaxSamples,
                       sc.washEvals ? sc.washMs / sc.washEvals : 0.0, sc.washMaxMs, sc.mismatchProbes, sc.rereadChanged,
                       sc.canaryOk, sc.canaryStale, sc.primeMarks, sc.details, soakStageOptions(st).c_str());
+            // R4.2: its own line (the result line above is at the log's line length already).
+            AS3D_INFO("AS3D_SOAK_PACE n=%d misses60=%u gpu_late60=%u hitches60=%u behind_frames=%u repaid=%u forced=%u "
+                      "dropped=%u lag_max=%d catchup=%s pace_rule=%s opts=%s",
+                      n, r.misses60, lr.pace.gpuLate60, lr.pace.hitches60, lr.pace.behindFrames, lr.pace.repaid,
+                      lr.pace.forced, lr.pace.dropped, lr.pace.lagMax, framePacing().catchUp.name().c_str(),
+                      framePacing().rule.name().c_str(), soakStageOptions(st).c_str());
         });
         results.push_back(r);
     }

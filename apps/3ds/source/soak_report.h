@@ -54,6 +54,9 @@ struct SoakStageResult {
     unsigned graceAt60 = 0, graceAt30 = 0; // of those, drawn at 60 / 30 Hz
     unsigned misses60 = 0, misses30 = 0, excused60 = 0;
     unsigned paceChanges = 0;
+    // R4.2 (ctr_loop.h PaceStats): frames at 60 Hz shown late by their GPU, stutters at 60 Hz,
+    // frames that ended with simulation steps owed (the deferred catch-up).
+    unsigned gpuLate60 = 0, hitches60 = 0, behindFrames = 0;
     double gpuAvg = 0.0, gpuP95 = 0.0;
     long long lazyLoads = 0;   // first-use loads after the precache, stamps excepted
     long long lazyStamps = 0;  // the sequels' TerraMorph stamps: not precachable (as3d/load_stats.h), reported only

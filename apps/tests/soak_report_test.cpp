@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "../3ds/source/catch_up.h"
 #include "../3ds/source/pace_rule.h"
 #include "../3ds/source/soak_report.h"
 
@@ -220,4 +221,135 @@ TEST_CASE("pace: the drop rules of run.ini pace_rule= (R3.3)") {
     REQUIRE(r.parse("never"));
     s.reset();
     for (int i = 0; i < 200; ++i) CHECK_FALSE(s.frame(r, true));
+}
+
+TEST_CASE("catch-up: run.ini catchup= and its rules (R4.2)") {
+    CatchUpRule r;
+    CHECK(r.mode == CatchUpRule::Deferred); // the default since R4.2
+    CHECK(r.maxLag == 3);
+    CHECK(r.name() == "deferred(lag=3,margin=2.0)");
+    CHECK(r.parseMode("immediate"));
+    CHECK(r.name() == "immediate");
+    CHECK_FALSE(r.parseMode("later"));
+    CHECK(r.mode == CatchUpRule::Immediate); // untouched
+    CHECK_FALSE(r.parseLag("0"));
+    CHECK_FALSE(r.parseLag("9"));
+    CHECK(r.parseLag("2"));
+    CHECK_FALSE(r.parseMargin("-1"));
+    CHECK_FALSE(r.parseMargin("x"));
+    CHECK(r.parseMargin("1.5"));
+    CHECK(r.maxLag == 2);
+    CHECK(r.marginMs == doctest::Approx(1.5));
+
+    // Immediate: what the clock did before R4.2: every due step at once, the rest over the cap dropped.
+    CatchUpRule imm;
+    imm.parseMode("immediate");
+    CatchUpState s;
+    CatchUpFrame f; // 60 Hz: base 1, cap 2
+    f.fixedMs = 12.0f;
+    f.prepareMs = 3.0f;
+    f.stepMs = 4.0f; // no room for a second step (12 + 3 + 8 > 14.7)
+    f.due = 1;
+    CHECK(s.plan(imm, f).steps == 1);
+    f.due = 2;
+    CHECK(s.plan(imm, f).steps == 2);
+    f.due = 5;
+    CatchUpPlan p = s.plan(imm, f);
+    CHECK(p.steps == 2);
+    CHECK(p.dropped == 3);
+    CHECK(s.owed() == 0);
+
+    // Deferred: a late frame (two due) with no room runs one step and owes one.
+    CatchUpRule def;
+    s.reset();
+    f.due = 2;
+    p = s.plan(def, f);
+    CHECK(p.steps == 1);
+    CHECK(p.lag == 1);
+    CHECK(p.repaid == 0);
+    // On time again but still no room: one step, the lag stays.
+    f.due = 1;
+    p = s.plan(def, f);
+    CHECK(p.steps == 1);
+    CHECK(p.lag == 1);
+    // A frame with room (5 + 1.5 + 2 x 2 <= 14.7) repays it.
+    f.fixedMs = 5.0f;
+    f.prepareMs = 1.5f;
+    f.stepMs = 2.0f;
+    p = s.plan(def, f);
+    CHECK(p.steps == 2);
+    CHECK(p.repaid == 1);
+    CHECK(p.lag == 0);
+    // An unknown step cost (0) never repays: only the bound forces.
+    f.stepMs = 0.0f;
+    f.due = 2;
+    p = s.plan(def, f);
+    CHECK(p.steps == 1);
+    CHECK(p.lag == 1);
+
+    // The bound: late frames in a row without room owe 1, 2, 3; the fourth forces a step.
+    f.fixedMs = 12.0f;
+    f.prepareMs = 3.0f;
+    f.stepMs = 4.0f;
+    s.reset();
+    int lagAfter[4];
+    int forced = 0;
+    for (int i = 0; i < 4; ++i) {
+        f.due = 2;
+        p = s.plan(def, f);
+        lagAfter[i] = p.lag;
+        forced += p.forced;
+        CHECK(p.dropped == 0);
+    }
+    CHECK(lagAfter[0] == 1);
+    CHECK(lagAfter[1] == 2);
+    CHECK(lagAfter[2] == 3);
+    CHECK(lagAfter[3] == 3); // 3 + 2 due: the base step and one forced (the cap of 2), 3 still owed
+    CHECK(forced == 1);
+    // A long hitch (20 vblanks): the cap runs, what is over the bound is dropped.
+    f.due = 20;
+    p = s.plan(def, f);
+    CHECK(p.steps == 2);
+    CHECK(p.lag == 3);
+    CHECK(p.dropped == 3 + 20 - 2 - 3);
+
+    // Steps are kept: over any sequence of frames, run + dropped + still owed = due in total; at
+    // most one late frame in a row is never more than the cap can absorb, so nothing is dropped.
+    s.reset();
+    long due = 0, run = 0, dropped = 0;
+    unsigned x = 12345;
+    for (int i = 0; i < 5000; ++i) {
+        x = x * 1103515245u + 12345u;
+        f.due = 1 + static_cast<int>((x >> 16) % 3 == 0); // a third of the frames late
+        f.fixedMs = 4.0f + static_cast<float>((x >> 8) % 100) / 10.0f;
+        f.stepMs = 2.0f;
+        f.prepareMs = 1.5f;
+        p = s.plan(def, f);
+        due += f.due;
+        run += p.steps;
+        dropped += p.dropped;
+        CHECK(p.steps >= 1);
+        CHECK(p.steps <= 2);
+        CHECK(p.lag <= 3);
+    }
+    CHECK(run + dropped + s.owed() == due);
+
+    // 30 Hz: base 2, cap 4, the budget two vblanks (31.3 ms with the margin).
+    s.reset();
+    f.due = 2;
+    f.base = 2;
+    f.cap = 4;
+    f.fixedMs = 12.0f;
+    f.prepareMs = 3.0f;
+    f.stepMs = 4.0f;
+    CHECK(s.plan(def, f).steps == 2);
+    f.due = 4; // late: 12 + 3 + 3 x 4 = 27 fits, 12 + 3 + 4 x 4 = 31 fits too
+    p = s.plan(def, f);
+    CHECK(p.steps == 4);
+    CHECK(p.lag == 0);
+    f.fixedMs = 16.0f; // 16 + 3 + 3 x 4 = 31 fits, 4 x 4 = 35 does not
+    f.due = 4;
+    p = s.plan(def, f);
+    CHECK(p.steps == 3);
+    CHECK(p.lag == 1);
 }

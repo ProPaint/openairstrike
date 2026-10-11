@@ -222,6 +222,12 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
         } else if (key == "pace_rule") {
             PaceRule r;
             if (r.parse(val)) c.paceRule = r;
+        } else if (key == "catchup") { // R4.2
+            c.catchUp.parseMode(val);
+        } else if (key == "catchup_lag") {
+            c.catchUp.parseLag(val);
+        } else if (key == "catchup_margin_ms") {
+            c.catchUp.parseMargin(val);
         } else if (key == "clear") {
             if (val == "split") c.clearMode = 0;
             else if (val == "joint") c.clearMode = 1;

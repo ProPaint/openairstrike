@@ -22,6 +22,7 @@
 #include "as3d/platform.h"
 #include "ctr_perf.h"
 #include "game_session.h"
+#include "catch_up.h"
 #include "pace_rule.h"
 #include "run_config.h"
 
@@ -85,6 +86,15 @@ struct PaceStats {
     unsigned graceFrames = 0; // frames after the pacer's grace (300 after a start or a load, 60 after an eye change)
     unsigned graceAt60 = 0, graceAt30 = 0; // of those, drawn at 60 / 30 Hz
     unsigned probeExcused = 0; // misses excused because a probe_every GPU read-back stalled the frame
+    // R4.2: frames at 60 Hz after the grace whose sync was on time but whose GPU (wait + submit +
+    // end + the GPU tail) ended after the next vblank, so the picture came a vblank late; and the
+    // pictures that stayed on screen longer than the rate (a late sync or a late GPU: what the eye
+    // sees as a stutter; a run of late GPU frames is one stutter, then a steady delay).
+    unsigned gpuLate60 = 0, hitches60 = 0;
+    // The catch-up (catch_up.h): frames that ended with steps owed, owed steps run because the
+    // frame had room / because the lag bound was reached, steps dropped, the most owed.
+    unsigned behindFrames = 0, repaid = 0, forced = 0, dropped = 0;
+    int lagMax = 0;
 };
 PaceStats paceStats();
 
@@ -140,8 +150,11 @@ int runCtrMenuLoop(const CtrLoopOptions& options); // ctr_menu_loop.cpp
 // The clock is the vblank (docs/3ds-port.md "Frame cadence"): drawFrame waits for the next tick of
 // citro3d's frame counter (C3D_FrameSync: every vblank at 60 Hz, every other one at 30 Hz) and
 // takes its timestamp; FrameClock::due() turns the time between the last two of them into whole
-// vblanks, the simulation steps of the next frame (60 Hz steps, one per vblank, at most
-// maxCatchUp; the rest are dropped). So a frame never carries 0 steps and a steady rate never
+// vblanks, the simulation steps due (60 Hz steps, one per vblank), and the catch-up rule
+// (catch_up.h, run.ini catchup=: deferred by default since R4.2) decides how many of them the
+// next frame runs: its own (1 at 60 Hz, 2 at 30) and an owed one only when the frame has room,
+// at most catchup_lag behind, at most maxCatchUp per frame (catchup=immediate: all of them up to
+// maxCatchUp, the rest dropped). So a frame never carries 0 steps and a steady rate never
 // mixes 0- and 2-step frames (the tick accumulator did against the 59.83 Hz panel).
 // pace=auto (default with the New 3DS profile): 60 Hz, dropping to 30 Hz (two steps per frame)
 // after 3 misses in 120 frames and back after 240 frames that would fit (AS3D_PACE lines);
@@ -151,6 +164,7 @@ struct FramePacing {
     bool cmdlistFlush = true;
     int pace = 0; // 0 auto, 60, 30
     PaceRule rule; // pace=auto's drop rule (run.ini pace_rule=, pace_rule.h)
+    CatchUpRule catchUp; // the steps owed after a late frame (run.ini catchup=, catch_up.h)
 };
 void setFramePacing(const RunConfig& run);
 const FramePacing& framePacing();
@@ -164,8 +178,9 @@ class FrameClock {
 public:
     // The next two frames carry one tick of steps (start, a level load, resume from HOME).
     void reset();
-    // The simulation steps due before the next frame (>= 1); steps over maxCatchUp() are added
-    // to *dropped.
+    // The simulation steps the next frame runs (>= 1, the catch-up rule of catch_up.h); steps
+    // never run (over maxCatchUp() with catchup=immediate, beyond the lag bound with deferred) are
+    // added to *dropped.
     int due(unsigned* dropped);
     int lastInterval() const; // vblanks between the last two frames, uncapped
 };

@@ -107,6 +107,13 @@ struct ClockState {
     uint64_t prevSync = 0;  // the one the last due() counted from
     int fresh = 2;          // due() calls left that return one tick (start, reset)
     int lastInterval = 1;   // vblanks between the last two frames (uncapped)
+    // The catch-up (catch_up.h): the steps owed, and what the last frame cost (updatePacer).
+    CatchUpState catchUp;
+    float fixedMs = 0.0f;   // wait + submit + end + late textures + after
+    float prepareMs = 0.0f;
+    float stepMs = 0.0f;    // per step (the last frame that ran one)
+    unsigned behindFrames = 0, repaid = 0, forced = 0, dropped = 0;
+    int lagMax = 0;
 };
 ClockState g_clock;
 
@@ -131,6 +138,11 @@ struct PacerState {
     // The summary.
     unsigned frames60 = 0, misses60 = 0, excused60 = 0, frames30 = 0, misses30 = 0, logged = 0;
     unsigned graceFrames = 0, graceAt60 = 0, graceAt30 = 0, probeExcused = 0;
+    // R4.2: when each picture reached the screen (the first vblank of the rate after its GPU end),
+    // the GPU-late frames and the stutters (PaceStats).
+    uint64_t presentPrev = 0; // the picture of the frame before p.prev
+    bool lastLate = false;    // p.prev's sync was late
+    unsigned gpuLate60 = 0, hitches60 = 0;
 };
 PacerState g_pacer;
 
@@ -204,6 +216,32 @@ void updatePacer(const FrameSample& sample) {
                       static_cast<double>(sample.waitMs));
         }
     }
+    // The catch-up's view of this frame (catch_up.h CatchUpFrame): its CPU path outside the steps,
+    // its prepare, its cost per step.
+    g_clock.fixedMs = sample.waitMs + sample.submitMs + sample.endMs + sample.lateMs + sample.afterMs;
+    g_clock.prepareMs = sample.stats.prepareMs;
+    if (sample.simSteps > 0) g_clock.stepMs = sample.stepMs / static_cast<float>(sample.simSteps);
+    // R4.2: the previous frame's picture. Its GPU ended wait + submit + end + its tail (the tail
+    // C3D_GetDrawingTime gives now) after its sync; citro3d swaps the buffers when the queue
+    // finishes and the screen takes them at the next vblank, so a frame whose GPU ends after the
+    // next vblank of the rate is shown a vblank late although its sync was on time (the
+    // console's fourth soak: 5.9% of mission 1's frames at 60 Hz). A picture that stays longer than
+    // the rate is a stutter.
+    if (prevSync != 0 && sample.gpuMs > 0.0f && p.prev.renderHz > 0) {
+        const FrameSample& q = p.prev;
+        static const double vbMs = ticksToMs(static_cast<uint64_t>(kVblankTicks));
+        const int per = q.renderHz == 30 ? 2 : 1;
+        const double gpuEnd = static_cast<double>(q.waitMs + q.submitMs + q.endMs + sample.gpuMs);
+        int k = static_cast<int>(std::ceil(gpuEnd / (vbMs * per) - 1e-6)) * per;
+        if (k < per) k = per;
+        const uint64_t present = prevSync + static_cast<uint64_t>(k * kVblankTicks);
+        if (p.grace == 0 && q.renderHz == 60 && p.hz == 60) {
+            if (!p.lastLate && gpuEnd > vbMs) ++p.gpuLate60;
+            if (p.presentPrev && present > p.presentPrev + static_cast<uint64_t>(1.5 * kVblankTicks)) ++p.hitches60;
+        }
+        p.presentPrev = present;
+    }
+    p.lastLate = late;
     // The previous frame's GPU time: from its first command list to the end of the queue (the
     // tail C3D_GetDrawingTime gives now is the previous frame's).
     const FrameSample& q = p.prev;
@@ -244,6 +282,11 @@ void logPaceSummaryImpl() {
               "after_grace=%u at60=%u at30=%u probe_excused=%u hz_end=%d",
               p.changes, p.frames60, p.misses60, p.frames60 ? 100.0 * p.misses60 / p.frames60 : 0.0, p.excused60,
               p.frames30, p.misses30, p.graceFrames, p.graceAt60, p.graceAt30, p.probeExcused, p.hz);
+    const ClockState& c = g_clock;
+    AS3D_INFO("PERF_SUMMARY catchup rule=%s behind_frames=%u repaid=%u forced=%u dropped=%u lag_max=%d gpu_late60=%u "
+              "hitches60=%u (%.2f%% of the frames at 60 Hz after the grace)",
+              g_pacing.catchUp.name().c_str(), c.behindFrames, c.repaid, c.forced, c.dropped, c.lagMax, p.gpuLate60,
+              p.hitches60, p.graceAt60 ? 100.0 * p.hitches60 / p.graceAt60 : 0.0);
 }
 
 void setRenderHz(int hz, const char* why) {
@@ -274,6 +317,13 @@ PaceStats paceStats() {
     s.graceAt60 = p.graceAt60;
     s.graceAt30 = p.graceAt30;
     s.probeExcused = p.probeExcused;
+    s.gpuLate60 = p.gpuLate60;
+    s.hitches60 = p.hitches60;
+    s.behindFrames = g_clock.behindFrames;
+    s.repaid = g_clock.repaid;
+    s.forced = g_clock.forced;
+    s.dropped = g_clock.dropped;
+    s.lagMax = g_clock.lagMax;
     return s;
 }
 
@@ -282,10 +332,12 @@ void setFramePacing(const RunConfig& run) {
     g_pacing.cmdlistFlush = run.cmdlistFlush || run.gpuKick;
     g_pacing.pace = run.pace;
     g_pacing.rule = run.paceRule;
+    g_pacing.catchUp = run.catchUp;
     as3d::ctr::setStreamBlockCache(static_cast<size_t>(run.pakCacheKb) * 1024);
-    AS3D_INFO("AS3D_PACING pace=%s pace_rule=%s gpu_kick=%d end_flush=%s pak_cache_kb=%d",
-              run.pace == 0 ? "auto" : (run.pace == 30 ? "30" : "60"), g_pacing.rule.name().c_str(), g_pacing.gpuKick ? 1 : 0,
-              g_pacing.cmdlistFlush ? "cmdlist" : "all", run.pakCacheKb);
+    AS3D_INFO("AS3D_PACING pace=%s pace_rule=%s catchup=%s gpu_kick=%d end_flush=%s pak_cache_kb=%d",
+              run.pace == 0 ? "auto" : (run.pace == 30 ? "30" : "60"), g_pacing.rule.name().c_str(),
+              g_pacing.catchUp.name().c_str(), g_pacing.gpuKick ? 1 : 0, g_pacing.cmdlistFlush ? "cmdlist" : "all",
+              run.pakCacheKb);
 }
 
 const FramePacing& framePacing() { return g_pacing; }
@@ -310,6 +362,7 @@ unsigned paceChanges() { return g_pacer.changes; }
 
 void FrameClock::reset() {
     g_clock.fresh = 2;
+    g_clock.catchUp.reset(); // nothing owed across a load or a suspend
     g_pacer.grace = 300; // a level load: its first seconds' misses do not count
     g_pacer.lastSync = 0;
 }
@@ -328,12 +381,22 @@ int FrameClock::due(unsigned* dropped) {
     int n = static_cast<int>(vb + 0.5);
     if (n < 1) n = 1; // a sync always waits for a new vblank
     g_clock.lastInterval = n;
-    const int cap = maxCatchUp();
-    if (n > cap) {
-        if (dropped) *dropped += static_cast<unsigned>(n - cap);
-        n = cap;
-    }
-    return n;
+    // The catch-up rule (catch_up.h): how many of the due steps this frame runs.
+    CatchUpFrame f;
+    f.due = n;
+    f.base = perTick;
+    f.cap = maxCatchUp();
+    f.fixedMs = g_clock.fixedMs;
+    f.prepareMs = g_clock.prepareMs;
+    f.stepMs = g_clock.stepMs;
+    const CatchUpPlan plan = g_clock.catchUp.plan(g_pacing.catchUp, f);
+    if (dropped) *dropped += static_cast<unsigned>(plan.dropped);
+    g_clock.dropped += static_cast<unsigned>(plan.dropped);
+    g_clock.repaid += static_cast<unsigned>(plan.repaid);
+    g_clock.forced += static_cast<unsigned>(plan.forced);
+    if (plan.lag > 0) ++g_clock.behindFrames;
+    g_clock.lagMax = std::max(g_clock.lagMax, plan.lag);
+    return plan.steps;
 }
 
 int FrameClock::lastInterval() const { return g_clock.lastInterval; }
@@ -379,6 +442,7 @@ void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSam
 }
 
 namespace {
+
 std::string planPath(const std::string& key) { return std::string(kDataDir) + "/cache/" + key + ".plan"; }
 constexpr const char* kPlanHeader = "openairstrike read plan 1";
 } // namespace

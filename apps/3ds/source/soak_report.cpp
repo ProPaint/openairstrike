@@ -174,9 +174,10 @@ std::string soakVerdict(const std::vector<SoakStageResult>& results, const std::
             const double at60 = pct(r.graceAt60, r.graceFrames);
             line(at60 >= kSoakMono60Pct, "mono60 " + name,
                  fmt("at60=%.1f%% (%u of %u frames after the grace) misses60=%u (%.2f%%) excused60=%u pace_changes=%u "
-                     "hz_end=%d",
+                     "hz_end=%d hitches60=%u (%.2f%%) gpu_late60=%u behind=%u",
                      at60, r.graceAt60, r.graceFrames, r.misses60, pct(r.misses60, r.graceAt60 ? r.graceAt60 : 1),
-                     r.excused60, r.paceChanges, r.hzEnd));
+                     r.excused60, r.paceChanges, r.hzEnd, r.hitches60, pct(r.hitches60, r.graceAt60 ? r.graceAt60 : 1),
+                     r.gpuLate60, r.behindFrames));
         } else {
             // Informational unless it never held 30 Hz.
             const double miss30 = pct(r.misses30, r.graceAt30);

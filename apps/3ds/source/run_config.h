@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "as3d/console_pad.h"
+#include "catch_up.h"
 #include "pace_rule.h"
 #include "soak_report.h"
 
@@ -125,6 +126,11 @@ struct RunConfig {
     // pace_rule=24|N|run3|never: pace=auto's drop from 60 to 30 Hz (pace_rule.h); 24 misses in 120
     // frames by default since R3.3 (12 before: tools/3ds_pacer_replay.py on the third console soak).
     PaceRule paceRule;
+    // R4.2 (docs/3ds-port.md "Mono at 60 and the level start (round 4, R4.2)", catch_up.h):
+    // catchup=deferred|immediate (deferred by default: an owed step runs only in a frame with room
+    // for it), catchup_lag=N (1..8, 3: the most steps the simulation stays behind the clock),
+    // catchup_margin_ms=X (0..10, 2: the room is the frame's period minus this).
+    CatchUpRule catchUp;
     int clearMode = 0;         // clear=split (0, default) | joint (1) | quad (2): how a target's colour and depth are cleared (pica_frame.h ClearMode)
     bool gpuKick = true;       // gpu_kick=0: no mid-frame start of the GPU (pica_frame.h kickGpu); default on
     bool cmdlistFlush = false; // end_flush=cmdlist: C3D_FrameEnd(GX_CMDLIST_FLUSH), no whole-heap flush (forced by gpu_kick=1)
