@@ -35,6 +35,17 @@ wash_selftest=1`, `run-play.ini` = play with the same diagnostics). What its soa
 (whether the first state block is still lost), `AS3D_WASH_SELFTEST` 98/98, the step cost per
 window against R3.1's table, the stereo submit versus the 10 ms of 5192662, `eye_replay` counters.
 
+**The third console soak (build 664fee3, `out/3ds/2026-10-11-664fee3-dirty/`) and R3.3** (see "Third
+console soak ... and round 3 follow-up (R3.3)" at the end): no washed frame in 51792 judged eye-frames,
+but 101 register mismatches right after the terrain's priming draw, in bursts, all in mission 2; mono
+60 Hz failed (78 / 82 %) mostly from a heap walk every 32 frames; the stereo "GPU +2 ms" was the GPU
+tail measure. R3.3 adds the evidence at a mismatch (a canary word read back, a second read, the list
+scan, the passes before, marks, the detector's per-band judgement), the terrain's effect block forced
+as direct words after the priming draw (`terrain_force_state=1`), the detector's coverage of the nearest
+chunk, per-stage run.ini keys in the soak list with the A/B stages of the next drop
+(`run-soak-r33.ini`), per-eye counts and `gpu_kick_ms` in perf.csv, the heap walk every 600 frames
+instead of 32, `pace_rule=24` (12 before) from the offline replay `tools/3ds_pacer_replay.py`.
+
 **The owner launches from the HOME menu, not the Homebrew Launcher** (every soak log says
 `from=none`: argv is empty, which only the installed CIA does). So a new build reaches the console
 only when its CIA is reinstalled with FBI (the drop's `openairstrike.cia` is uploaded next to the
@@ -3635,3 +3646,266 @@ added wait:
   C3D_FrameEnd swap race of "Frame synchronisation"), the coarse terrain chunks with one TEV
   stage, the brightness pass skipped when the brightness is near neutral. The indexed water
   (1400 -> 400 vertices per eye) and the shader-code uploads gone should already show a little.
+
+## Third console soak (2026-10-11, build 664fee3; out/3ds/2026-10-11-664fee3-dirty/) and round 3 follow-up (R3.3)
+
+The owner launched the round 3 drop from the HOME menu (its CIA, `from=none`, build `664fee3-dirty`:
+only a docs edit was uncommitted). Four whole missions (AirStrike 3D 1 and 2, mono and stereo), every
+stage to Mission Complete, every end state equal to the desktop sim, the push of 3 files (4.3 MB). This
+section is what the soak said, what R3.3 changed for it, and how to read the next soak.
+
+### The numbers, against the second soak (5192662)
+
+Per displayed frame, averages over the stage's frames after the first 300 (`tools/3ds_perf_report.py`
+and the stage's `perf.csv`); `gpu` is perf.csv's `gpu_ms`, the GPU's tail after `C3D_FrameEnd` (see
+"stereo GPU" below); `verts`/`draws` of 664fee3 in stereo count the left eye only (the replayed right eye
+counted nothing; fixed by R3.3, B3).
+
+| stage | build | step per step | step per frame | prepare | submit (= cpu) | gpu tail | submit + tail | verts | draws | frames at 60 Hz |
+|---|---|---|---|---|---|---|---|---|---|---|
+| as3d 1 mono | 5192662 | 3.29 | 5.63 | 1.74 | 6.38 | 7.58 | 13.96 | 22744 | 187 | 29.8 % |
+| | 664fee3 | 2.61 | 3.24 | 1.77 | 5.66 | 7.66 | 13.32 | 21899 | 171 | 78.2 % |
+| as3d 1 stereo | 5192662 | 3.25 | 6.94 | 2.23 | 9.25 | 11.47 | 20.72 | 32245 | 306 | 0.6 % |
+| | 664fee3 | 2.59 | 5.03 | 2.25 | 6.91 | 13.47 | 20.38 | 20058 (left) | 179 (left) | 6.7 % |
+| as3d 2 mono | 5192662 | 3.32 | 4.50 | 1.53 | 6.03 | 6.98 | 13.01 | 20974 | 176 | 66.3 % |
+| | 664fee3 | 2.59 | 3.11 | 1.54 | 5.34 | 7.22 | 12.56 | 20256 | 161 | 82.0 % |
+| as3d 2 stereo | 5192662 | 3.31 | 6.64 | 2.00 | 8.65 | 10.71 | 19.36 | 28522 | 281 | 1.4 % |
+| | 664fee3 | 2.59 | 5.13 | 1.96 | 6.43 | 12.65 | 19.08 | 18150 (left) | 165 (left) | 2.3 % |
+
+- **mono60 FAIL** in both missions: 78.2 % and 82.0 % of the frames after the grace at 60 Hz (97 %
+  needed), misses 2.43 % / 2.14 %, the pacer's 12-misses-in-120 rule tripped 6 and 3 times (12 / 6
+  changes). Every `AS3D_MISS` is `vblanks=2`, mostly `steps=1`.
+- **stereo PASS** at 30 Hz (misses 0.03 % / 0.01 %); the soak's GPU avg 13.39 / 12.66 ms (p95 17.35 /
+  15.81) against 11.39 / 10.71 for 5192662, the CPU path down from 9.2 to 6.9 ms as R3.2 intended.
+- The simulation step fell from 3.3 to 2.6 ms per step (R3.1); per mono frame 3.2 ms.
+- Lazy loads 0, fence 0, GPU busy 0, textures in frame 0, probes 1725 (stall 1.4 ms mono, 3.5-3.7 ms
+  stereo, max 10.3), the eye replay `replayed=290 of 300` frames (the probe frames record both eyes),
+  9-15k words per replay in 0.28-0.38 ms.
+- **Load times**, two measures: `mission N loaded in 1806 ms` (log) is the game session's start (pak
+  mount 1286, defs, world, level); `PERF_SUMMARY load_ms` = the perf report's `mission load 3222 ms`
+  runs from the same start to the end of the renderer's level start (terrain, precache, shadows, the
+  loading frames: `AS3D_LOAD phase=level_start ms=1389` and the terrain's 366). The gate (3000 ms) is
+  on the second.
+
+### The wash
+
+- **The detector saw no wash**: 51792 eye-frames judged, 0 washed frames, 0 episodes. Its hardware
+  self-test passed: `AS3D_WASH_SELFTEST ... equal_to_full_readback=0/98 (bytes 3,2,1 / 2,1,0)` meant 0
+  samples equal with the reading of bytes 3, 2, 1 and **98 of 98 with bytes 2, 1, 0** (the reading the
+  detector uses: the 24-bit depth is the word's low three bytes). The line now prints
+  `equal_to_full_readback_bytes321=` and `equal_to_full_readback_bytes210=` separately. The L/auto
+  mark's `markNN_depth.ppm` read bytes 3, 2, 1 (the stencil as red): it now writes bytes 2, 1, 0.
+- **The priming draw's probe caught 101 register mismatches, all in mission 2** (stage 3 mono 53,
+  stage 4 stereo 48; none in mission 1, none at the `pass=terrain` probes after the base draws, `dirty=0`
+  on all, `state_mismatches=0` on the CPU layers): 86 `field=depth_test expected=0x1f71 actual=0x0f10`
+  (depth test off, depth write off: the value every 2D pass and every 3D pass with the test off leave)
+  and 15 `field=blend expected=0x01010000 actual=0x10110000` (ONE/ONE with alpha ZERO/ONE: the 2D
+  layer's additive blend, `renderer2d_pica.cpp` `Blend::Add`). In stereo they mostly come together (the
+  whole block stale: the previous frame's last 2D state; twice the blend alone, a few times the depth
+  alone); in mono only the depth register was stale and the blend register already held the terrain's
+  `0x01010000`. They come in bursts of consecutive prime
+  probes (one per 60 frames), at the same point of the mission in mono and stereo (the bot is
+  deterministic): mono frame serials 20609-20729 (3 probes in a row), 21449-21869 (8), 22109-23129 (18),
+  25169-25529 (7), then runs of 1-3 to 29009, i.e. from about 35 s to 3 minutes into mission 2;
+  stereo 31497, 31917-32097 (4), 32277-32697 (8), 33777-34137 (7), 34437-34677 (5), 34797-34917 (3),
+  35217, 35877-35997 (3), 36117-36177 (2), 36357. No auto-mark was taken: `gpuMismatch()` excluded the
+  prime mismatches from the marks ("the pass re-issues its state after it: the picture is not hit").
+- The detector over the same windows: the share of samples agreeing with the analytic terrain is
+  88.0 % in the 300-frame windows around a burst against 91.1 % in the others of the mono stage (86.7 /
+  86.0 in stereo), "nearer than terrain" (models, effects) 10.7 against 7.3 %; no sample at or behind the
+  water plane in any window. Mission 2's scenery (more models in front of the ground) explains that
+  difference as well as any GPU state: the picture was not washed.
+- What the probe cannot tell: the probe splits the command list, runs the queue and waits for it
+  (`gxCmdQueueWait(-1)`), then reads. libctru's GX queue (gxqueue.c) counts **any** completion interrupt
+  but PSC1 and the vblanks against its entries and submits up to three entries at once, so an interrupt
+  counted for the wrong entry would end the wait before the GPU ran the list: a stale read, the registers
+  still holding the previous pass's state, exactly what was read. A state block that the GPU dropped or
+  never received reads the same. The owner saw the wash with his own eyes (earlier sessions and the
+  second soak: brief, lower half only); the third soak's report carries no observation of the owner.
+
+### What R3.3 changed for the wash (A)
+
+**A1, evidence at the mismatch** (`state_check_pica.{h,cpp}`, `ctr_wash.cpp`, `pass_profile.{h,cpp}`):
+
+- **The canary**: every probe writes a value derived from the probe count into
+  `GPUREG_LIGHT0_SPECULAR0` (0x140: lighting is never enabled, the register has no effect) as the last
+  word before its split, and reads it back with the registers. Read back = the GPU had executed the
+  whole list when the registers were read. `canary=<ok>/<probes>` in every `AS3D_STATE` line,
+  `canary_ok=`, `canary_stale=` in `AS3D_SOAK_RESULT` and the `wash` line.
+- **A second read**: a mismatching probe waits again, sleeps 1 ms and reads the same registers again
+  (`reread_changed=`).
+- **`AS3D_GPU_MISMATCH_DETAIL`** (the first 6 per level, then counters): `fields=`, the expected
+  depth/blend, `first=` and `second=same|changed` (depth, blend, depth map enable/scale/offset, depth
+  write), `canary=<written> first=<read>(ok|stale) second=<read>`, `queue=<entries>/<started>/<done>`
+  before the probe's run `-><after the wait>`, `stat=` the GPU status word 0x1EF00034 at both reads,
+  `cmdbuf=<words of earlier lists>+<words of this list>/<buffer words>` (citro3d starts the buffer
+  afresh at every frame: no wrap), `list=` the scan of the command words the terrain pass recorded up
+  to the probe (`ok|cut/words=/cmds=/d107=<last value written to 0x107>,m<byte mask>@<word>/b101=...
+  /canary@<word>/fin=<GPUREG_FINALIZE writes>`: whether citro3d put the terrain's depth/mask and blend
+  words in the list at all), `forced=` (A2) and `trail=` the last passes that drew, with their frame
+  (`f-1:hud f-1:touch f0:clear`: what ran before the terrain).
+- **Prime mismatches take auto-marks now** (the first 3 per level, their own budget beside the 3 of the
+  other probes and the 3 of the detector): the screens and `markNN_depth.ppm` of that frame, and the
+  next 3 frames probe every pass in full (`AS3D_GPU_REGS` each).
+- **`AS3D_WASH_TRACE`**: the detector's judgement of the mismatching frame and the next, per row band
+  (`rows20-110`, `rows128-158`, `rows168-198`, `rows208-238`, each judged/agree/nearer/washed).
+- **`AS3D_STATE ... prime_queue=<min>..<max> prime_words=<min>..<max>`**: at the prime probes of the
+  last 60 frames, the GX queue entries before the probe's list and the command words recorded in the
+  frame before it. On Azahar mission 2 these stay `2..2` and constant: a burst on the console with
+  another value says that something queued or recorded before the terrain differs in those frames.
+
+**A2, the candidate fix, on by default** (`terrain_force_state=1`, `terrain_pica.h`,
+`detail::forceEffectState` in `state_check_pica.cpp`): right after the priming draw (before the first
+chunk with `terrain_prime=0`) the terrain writes citro3d's whole effect block straight into the command
+list with `GPUCMD_AddWrite` and friends, word for word what `C3Di_EffectBind` (citro3d 1.7.1
+`source/effect.c`) writes for the current context: depth map enable (0x6D), cull (0x40), depth map
+scale/offset (0x4D/0x4E), alpha test, stencil test and op, depth test and colour/depth masks
+(0x104-0x107), the gas depth function, blend colour (0x103), blend function (0x101), logic op (0x102),
+the colour operation (0x100), the shadow, early depth. It reads the values from citro3d's context
+(the state check's mirror of 1.7.1's `internal.h`), whatever its dirty flags say, and leaves the effect
+flag dirty afterwards, so citro3d writes the same block once more with the next draw (its context and
+the GPU agree either way). The prime probe reads the registers after these words. Reading the next
+soak: **prime mismatches 0** with the forced words = a lost (skipped) state update, fixed by them; **prime
+mismatches still there with `canary ... (stale)` or `second=changed`** = the probe's read raced the GPU
+(the queue's count, see above), not the GPU state; **still there with the canary read back, the second
+read the same and `list=` holding `d107=0x00001f71`** = the GPU executed the list and did not keep the
+register: a hardware matter no command word fixes; then look at `trail=` and `prime_queue=`.
+
+The audit of command words outside citro3d's tracking: (1) the eye replay's copy
+(`GPUCMD_AddRawCommands`) marks every state flag dirty afterwards (attribute and buffer setup, effect,
+viewport, scissor, program and its code, texture units and TEV, fog LUT, light environment) and every
+uniform (`C3Di_DirtyUniforms`); the region holds no frame buffer write (the prime draw before it emits
+the frame buffer), no geometry shader, no procedural texture or gas: nothing it can leave behind
+citro3d's back. (2) R3.2's 2D "replay of an unchanged list" replays the draw list through citro3d's own
+calls (`C3D_DrawArrays` with the tracked state), not raw words; its own shader/vertex cache lives inside
+one flush. (3) The probe's canary (0x140, unused) and A2's forced block (the effect flag left dirty).
+Nothing else writes command words (`GPUCMD_` appears in these three places only).
+
+**A3, the detector's coverage of the nearest chunk** (`ctr_wash.cpp`): per judged left-eye frame the
+world box of the first chunk the base pass drew (`terrainFirstChunkBounds`) goes through the eye's clip
+matrix: the screen rows it covers (to the bottom edge when a corner is behind the camera) and how many
+sample rows fall inside. `AS3D_WASH_COVERAGE frames= first_chunk_rows_avg= sample_rows_inside_avg= min=
+frames_under_2= sample_rows=` once per level (after 1800 judged frames or at the level's end). Azahar,
+the old rows (14 per column, lower half 126..234 step 12): mission 1 mono rows 96..239 on average,
+10.2 sample rows inside, fewer than 2 in 2.9 % of the frames (mission 2 stereo 2.3 %). The nearest
+chunk then shows only its last rows above the bottom edge, under the lowest sample row. The rows are
+now 16 per column, the lower half 128..238 step 10 (112 samples per eye, +14 % judging): 12.0-12.2 rows
+inside on average, fewer than 2 in 1.7 % of the frames (missions 1 stereo and 2 mono): the frames
+where the nearest chunk's visible part is under 10 pixels tall.
+
+### What R3.3 changed for the stereo GPU question (B)
+
+- **The "regression" is the measure.** perf.csv's `gpu_ms` is `C3D_GetDrawingTime`: from the end of
+  `C3D_FrameEnd` to the end of the GX queue (citro3d `renderqueue.c`), i.e. the GPU's tail after the
+  CPU has finished recording. Under `gpu_kick` the GPU starts at the end of the left eye; when the CPU
+  records the right eye 2.3 ms faster (the replay), the same GPU work shows 2 ms more of it after
+  `C3D_FrameEnd`. Submit plus tail went down in all four stages (table above: 20.72 -> 20.38 and 19.36
+  -> 19.08 ms in stereo, 13.96 -> 13.32 and 13.01 -> 12.56 in mono). perf.csv now also has
+  `gpu_kick_ms`: the same frame's GPU time from its first command list.
+- **The both-eye cull does not inflate the terrain**: `AS3D_EYE_CHUNKS` (new, every 300 frames:
+  chunks per render that the eye's own frustum sees and that it drew) on Azahar, missions 1 and 2 in
+  stereo with the replay: own 4.87-4.90, drawn 4.87-4.90 (left eye); the chunks are strips across the
+  whole map, so the eyes' horizontal shift almost never adds one. No change there.
+- **Per-eye counts (B3)**: a replayed right eye counts the draws and vertices the left eye recorded for
+  it (`stats_` of the world renderer), so perf.csv's `verts`/`draws` hold both eyes again, and the new
+  columns `draws_r,verts_r` give the right eye's share (Azahar mission 1 stereo: 61-64 draws, 9254-9270
+  vertices of 201-207 / 27592-27624).
+- **The detector's copy between the eyes (B4)**: moving both copies after the right eye would not
+  remove a GX entry (each eye's clears split the list anyway) and the tail measure explains the rise; it
+  stays where it is. The A/B stages below measure its cost directly (`wash_check=0`).
+- **Per-stage overrides in the soak list (B1)**: `soak=game:level:eyes[:key=value...]`, applied over the
+  file's keys for that stage only (`applyRunConfig`; keys the stage sets itself are refused). The stage
+  name in `soak.txt`, `AS3D_SOAK_STAGE ... opts=` and `AS3D_SOAK_RESULT ... opts=` carries them; the
+  receiver's directory is `stages/<NN>-<game>-<level>-<eyes>-<key=value>-...`; the end-state comparison
+  replays a shortened stage with its own step count. `tools/3ds_receive.py --report <dir>` runs the
+  report on a run already on disk. Checked on Azahar end to end (three stages with options, 3 of 3 end
+  states equal to the desktop sim).
+- **The drop's list (B2, `run-soak-r33.ini`)**: the four whole missions first (the wash evidence), then
+  one-minute A/B stages of 3600 steps from the start of mission 1, the same stretch of the mission
+  each: stereo baseline, `eye_replay=0`, `wash_check=0`, `terrain_prime=0`, then mono `wash_check=0` and
+  mono `music=0` (the controls). About 25 minutes in all.
+
+### What R3.3 changed for mono at 60 Hz (C)
+
+- **Where the misses come from (C3)**: a frame's loop period is the sum of perf.csv's
+  `sync,step,prepare,wait,submit,end,after` (it matches the console's own miss count: 238 = misses60 +
+  excused60 of mission 2). **59 % (mission 1) and 78 % (mission 2) of the mono misses are frames whose
+  number is 1 modulo 32**: a 57-65 % miss rate at that phase against 0.6-1.3 % everywhere else; the
+  gaps between misses are 32 frames (90 and 119 times) or 1 (the catch-up). `Perf::record` sampled the
+  heap's high-water mark every 32 frames with `mallinfo()`, twice (once more in `heapSample`): newlib's
+  `mallinfo` walks every chunk of the 15-18 MB heap on the main thread, and the next frame missed its
+  vblank. This is also the "music period" of the console session of 2026-10-11 (misses every 32
+  frames), which the audio work did not remove. The heavy submits are not the cause: the frame before a
+  miss is 2.2-3.4 ms busier than the average (the heap walk itself is not in the columns), the 7 ms
+  submits are the late mission's normal ones. **Fix**: one `mallinfo` every 600 frames
+  (`kHeapSampleFrames`, `ctr_perf.h`) feeding both high-water marks, and the next frame excused by the
+  pacer like an SD write. Expected: the mono misses down to 1.3 % (mission 1) and 0.6 % (mission 2).
+- **The pacer replay (C1, `tools/3ds_pacer_replay.py`)**: from a mono stage's perf.csv, the real misses
+  of the frames drawn at 60 Hz (the period over 20.5 ms) and, for the frames drawn at 30 Hz, two models:
+  the brief's "sum" (CPU path plus the GPU tail over 16.7 ms), which the tool shows to be far too
+  pessimistic on the real 60 Hz frames (mission 1: 228 hits, 3855 false alarms), and a "calibrated" one
+  (the miss rate of the 60 Hz frames of the same stage per 1 ms bucket of that sum, a seeded draw).
+  Limits: a replay keeps one row per frame (the console steps twice per 30 Hz frame), the probe frames
+  and the 300-frame grace are not counted, and a rate per bucket cannot place periodic misses in time.
+  Results (calibrated model; drops to 30 Hz, stutters = misses while at 60 Hz):
+
+  | rule (drop / return) | mission 1 at 60 | drops | stutters | mission 2 at 60 | drops | stutters |
+  |---|---|---|---|---|---|---|
+  | 12/120, 60 fitting frames (the old default) | 69.7 % | 4 | 189 | 75.7 % | 2 | 187 |
+  | 24/120, 60 fitting frames (**new default**) | 77.9 % | 3 | 266 (1.41x) | 84.1 % | 1 | 243 (1.30x) |
+  | 30/120, 60 fitting frames | 78.8 % | 3 | 286 (1.51x) | 84.4 % | 1 | 250 |
+  | 12/120, 30 fitting frames | 84.0 % | 9 | 286 (1.51x) | 90.5 % | 7 | 286 (1.53x) |
+  | 3 misses in a row | 50.5 % | 4 | 108 | 80.0 % | 1 | 198 |
+  | never drop in mono | 100 % | 0 | 578 (3.1x) | 100 % | 0 | 380 (2.0x) |
+
+  The replay's 12/120 shares are below the console's (78.2 / 82.0 %: the console also excuses SD writes
+  and late loads); the comparison between rules is what it is for.
+- **The rule (C2)**: the best share at 60 Hz within 1.5x the old rule's stutters in both missions is
+  24 misses in 120 frames with the current return (60 fitting frames, doubled after a quick fall back):
+  `pace_rule=24`, the default (`apps/3ds/source/pace_rule.h`, desktop-tested); `pace_rule=12` is the old
+  rule, `run3` and `never` the others. With the heap walk gone most of the misses the rule saw are gone
+  too; the rule matters for what is left.
+
+### Azahar runs (correctness only; Azahar's timings are relative)
+
+| run | result |
+|---|---|
+| `mode=soak`: mission 1 mono 1500 steps `probe_inject=5`, mission 2 stereo 1200 steps, mission 1 stereo 600 steps `eye_replay=0 wash_inject=2` | the injected mismatch went through the whole evidence path: `AS3D_GPU_MISMATCH_DETAIL` (canary read back `ok`, `second=same`, `queue=2/0/0->3/3/3`, the list scan holding `d107=0x00001f71` and `b101=0x01010000`, `forced=1`, the trail `f-1:rest ... f-1:touch f0:clear`), `AS3D_WASH_TRACE` for that frame and the next, an auto-mark; 0 other mismatches, canary 101 of 101, 0 washed frames; stage names and `opts=` as above |
+| `mode=soak`: mission 1 stereo 1500 steps `wash_inject=2`, mission 2 mono 2400, mission 1 mono 400 `terrain_force_state=0 pace_rule=12` | `wash_inject=2` still caught with the replay on (one 2-frame episode, both eyes, 100 samples, rows 20..238), otherwise 0 prime and 0 terrain mismatches, canary 130 of 130, 0 washed frames; self-test 112 of 112 with bytes 2, 1, 0; `pace_rule=12/120` and `terrain_force_state=0` reach their stage; the receiver's `--report` on the run: three option directories, 3 of 3 end states equal to the desktop sim |
+| mission 2 mono 4600 steps (`mode=soak`) | over the stretch where the console's bursts began (steps 2100-4600): 0 prime mismatches in 41 prime probes, canary 82 of 82, `prime_queue=2..2 prime_words=422..422` in every window, coverage 12.1 rows (1.6 % under 2); end state equal to the desktop's |
+| the drop's list with every stage shortened to 300 steps | 10 of 10 stages, `VERDICT PASS`; each override reached its stage (`AS3D_WASH_CHECK on=0` twice, `terrain_prime=0`, `eye_replay=0`, `music off (run.ini music=0)`); canary 94 of 94, 0 mismatches |
+
+### What the next soak's output must be read for
+
+1. `soak.txt`'s `wash` line: `prime_mismatches=` (0 expected if the forced words were the fix),
+   `mismatch_probes=`, `reread_changed=`, `canary_ok=<n>/<probes>` (all of them on a sane read path;
+   **if the canary is stale on the clean probes too, the console does not read 0x140 back** and only the
+   second read speaks), `canary_stale=`.
+2. Each `AS3D_GPU_MISMATCH_DETAIL` with the decision table of A2 above; the `AS3D_WASH_TRACE` lines
+   after it (a washed band there would tie the registers to the picture); the auto-marks of the prime
+   mismatches (`mark*_depth.ppm`: bytes 2, 1, 0 now); `AS3D_STATE ... prime_queue= prime_words=` around
+   the bursts against the quiet windows.
+3. `AS3D_WASH_COVERAGE` per level (at least 2 rows in about 98 % of the frames) and `AS3D_WASH` /
+   `AS3D_WASH_START` lines if any.
+4. mono60: the share at 60 Hz and the misses of the whole missions (expected well above 90 % without
+   the heap walk; `tools/3ds_pacer_replay.py stages/<mono stage>` replays the rules on them), the
+   `AS3D_MISS` lines (no 32-frame period left), the `music=0` and `wash_check=0` mono controls against
+   the first mono stage's first 3600 steps.
+5. Stereo: `gpu_kick_ms` and `gpu_ms` per stage, `draws_r`/`verts_r` (the right eye equal to the left
+   eye's world under the replay), and the A/B stages against the baseline: `eye_replay=0` (the CPU
+   saving and the tail moving back), `wash_check=0` (the detector's GPU cost: two GX copies per frame),
+   `terrain_prime=0` (the priming draws' cost); `AS3D_EYE_CHUNKS` per stage.
+
+### What remains
+
+- The cause of the prime mismatches, until the next soak's evidence: a probe race (the GX queue's
+  interrupt count), a dropped block, or a hardware latch. If the forced words end them, they stay
+  (a few dozen words per eye); if the canary says the read raced, the probe should wait on the GPU's own
+  status (`stat=`) rather than the queue's count, and the same race would also make the fence of
+  `C3D_FrameBegin` early in those frames (`AS3D_FENCE` would not see it: it reads the same count).
+- The wash itself: the owner has seen it; no instrument has caught it since c314767 (clear=split and the
+  re-issued terrain state). If the next soak is clean again, `run-play.ini` with L remains the proof.
+- Mono at 60 Hz beyond the heap walk: the rest are bursts of heavy frames late in the missions (submit
+  7-8 ms plus a 9-10 ms tail); the per-pass CPU items of "Stereo CPU path, What remains".
+- Stereo at 60: 19-20 ms of CPU plus GPU tail per frame; the GPU's own time per frame (`gpu_kick_ms`)
+  decides the next cut.
