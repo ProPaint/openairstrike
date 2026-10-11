@@ -31,6 +31,8 @@ add_executable(openairstrike
   source/ctr_soak.cpp
   source/ctr_report.cpp
   source/soak_report.cpp
+  source/wash_detect.cpp
+  source/ctr_wash.cpp
   source/build_info.cpp
   source/run_config.cpp
   source/quality_profile.cpp

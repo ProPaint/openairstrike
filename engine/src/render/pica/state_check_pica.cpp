@@ -4,6 +4,7 @@
 #include <3ds.h>
 #include <citro3d.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -87,8 +88,14 @@ struct State {
     int marks = 0;
     int probeEvery = 0;          // probe_every=N: the terrain's GPU read-back every N frames
     bool probeNow = false;       // this frame is one of them
+    bool probePrime = false;     // ... and its probe is the priming draw's (pass=terrain_prime)
+    unsigned primeGpuMismatches = 0;
+    unsigned washEvals = 0, washJudged = 0, washFrames = 0, washEpisodes = 0, washLongest = 0;
+    unsigned washMaxSamples = 0, washFirstFrame = 0;
+    u64 washTicks = 0, washMaxTicks = 0;
     unsigned terrainGpuMismatches = 0;
     int autoMarks = 0;           // automatic marks asked for (kMaxAutoMarks at most)
+    unsigned washMarks = 0;      // of those, the wash detector's
     unsigned probeInject = 0;    // probe_inject=N: the N-th probe reports a made-up mismatch
     bool autoMarkPending = false;
     u64 probeTicks = 0, probeMaxTicks = 0; // the probes' stalls
@@ -280,7 +287,7 @@ void checkPassState(const PassExpect& e) {
 
 void probeGpuState(const char* pass) {
     State& s = st();
-    const bool periodic = s.probeNow && std::strcmp(pass, "terrain") == 0;
+    const bool periodic = s.probeNow && std::strcmp(pass, s.probePrime ? "terrain_prime" : "terrain") == 0;
     if (!s.level || !s.ctxOk || !(s.level >= 2 || s.fullFrames > 0 || periodic)) return;
     ++g_probesTotal;
     ++s.probes;
@@ -300,7 +307,7 @@ void probeGpuState(const char* pass) {
     const u64 stall = svcGetSystemTick() - stall0;
     s.probeTicks += stall;
     if (stall > s.probeMaxTicks) s.probeMaxTicks = stall;
-    const int slot = std::strncmp(pass, "water", 5) == 0 ? 1 : 0;
+    const int slot = std::strncmp(pass, "water", 5) == 0 ? 1 : (std::strcmp(pass, "terrain_prime") == 0 ? 2 : 0);
     if (s.firstRegs[slot] || s.fullFrames > 0) {
         s.firstRegs[slot] = false;
         AS3D_INFO("AS3D_GPU_REGS pass=%s frame=%u read=%d dirty=%d cull=0x%lx map_scale=0x%lx map_offset=0x%lx map_enable=0x%lx "
@@ -319,9 +326,12 @@ void probeGpuState(const char* pass) {
     if (!ok) return;
     auto gpuMismatch = [&](const char* field, u32 expected, u32 actual) {
         ++s.gpuMismatches;
+        const bool prime = std::strcmp(pass, "terrain_prime") == 0;
         if (std::strcmp(pass, "terrain") == 0) ++s.terrainGpuMismatches;
-        // probe_every: the first mismatches of a level start dump the screens (the caller's mark).
-        if (s.probeEvery > 0 && s.fullFrames <= 0 && s.autoMarks < kMaxAutoMarks && !s.autoMarkPending) {
+        if (prime) ++s.primeGpuMismatches;
+        // probe_every: the first mismatches of a level start dump the screens (the caller's mark);
+        // not the priming draw's (the pass re-issues its state after it: the picture is not hit).
+        if (!prime && s.probeEvery > 0 && s.fullFrames <= 0 && s.autoMarks < kMaxAutoMarks && !s.autoMarkPending) {
             s.autoMarkPending = true;
             ++s.autoMarks;
         }
@@ -357,6 +367,7 @@ void stateCheckFrameBegin() {
     State& s = st();
     if (!s.level) return;
     s.probeNow = s.probeEvery > 0 && s.frames % static_cast<unsigned>(s.probeEvery) == 0;
+    s.probePrime = s.probeNow && (s.frames / static_cast<unsigned>(s.probeEvery)) % 2 == 0;
     // The GPU after the fence: the memory fill engines (PSC0/PSC1 control, bit 0 busy) and the
     // display transfer engine (PPF, bit 0 busy) must be idle once the GX queue drained.
     u32 ext[12] = {};
@@ -447,13 +458,55 @@ StateCheckCounts stateCheckCounts() {
     c.mismatches = s.mismatches;
     c.gpuMismatches = s.gpuMismatches;
     c.terrainGpuMismatches = s.terrainGpuMismatches;
+    c.primeGpuMismatches = s.primeGpuMismatches;
+    c.washEvals = s.washEvals;
+    c.washJudged = s.washJudged;
+    c.washFrames = s.washFrames;
+    c.washEpisodes = s.washEpisodes;
+    c.washLongest = s.washLongest;
+    c.washMaxSamples = s.washMaxSamples;
+    c.washFirstFrame = s.washFirstFrame;
+    c.washMs = static_cast<double>(s.washTicks) * 1000.0 / SYSCLOCK_ARM11;
+    c.washMaxMs = static_cast<double>(s.washMaxTicks) * 1000.0 / SYSCLOCK_ARM11;
     c.busyFrames = s.busyFrames;
     c.marks = static_cast<unsigned>(s.marks);
     c.autoMarks = static_cast<unsigned>(s.autoMarks);
+    c.washMarks = s.washMarks;
     c.contextRead = s.ctxOk;
     c.probeMs = static_cast<double>(s.probeTicks) * 1000.0 / SYSCLOCK_ARM11;
     c.probeMaxMs = static_cast<double>(s.probeMaxTicks) * 1000.0 / SYSCLOCK_ARM11;
     return c;
+}
+
+void stateCheckNoteWashEval(double ms, int judged) {
+    State& s = st();
+    ++s.washEvals;
+    const u64 ticks = static_cast<u64>(ms * static_cast<double>(SYSCLOCK_ARM11) / 1000.0);
+    s.washTicks += ticks;
+    if (ticks > s.washMaxTicks) s.washMaxTicks = ticks;
+    s.washJudged += static_cast<unsigned>(std::max(judged, 0));
+}
+
+void stateCheckNoteWashEpisode(unsigned startFrame, unsigned frames, int maxWashed) {
+    State& s = st();
+    if (s.washEpisodes == 0) s.washFirstFrame = startFrame;
+    ++s.washEpisodes;
+    s.washFrames += frames;
+    s.washLongest = std::max(s.washLongest, frames);
+    s.washMaxSamples = std::max(s.washMaxSamples, static_cast<unsigned>(std::max(maxWashed, 0)));
+}
+
+void stateCheckArmProbe(int frames) {
+    State& s = st();
+    if (s.level) s.fullFrames = std::max(s.fullFrames, frames);
+}
+
+bool stateCheckWashMarkDue() {
+    State& s = st();
+    if (s.autoMarks >= kMaxAutoMarks) return false;
+    ++s.autoMarks;
+    ++s.washMarks;
+    return true;
 }
 
 int stateCheckMark(unsigned displayedFrame, unsigned step) {

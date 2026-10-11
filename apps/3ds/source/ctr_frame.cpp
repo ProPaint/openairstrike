@@ -27,6 +27,7 @@
 #include "ctr_input.h"
 #include "ctr_mem.h"
 #include "ctr_perf.h"
+#include "ctr_wash.h"
 #include "flat_fill.h"
 #include "game_flow.h"
 #include "game_session.h"
@@ -42,6 +43,7 @@
 #include "terrain_pica.h"
 #include "texture_budget.h"
 #include "ui_pica.h"
+#include "water_renderer_pica.h"
 #include "world_pica.h"
 
 namespace ctrapp {
@@ -256,6 +258,12 @@ struct GameFrame::Impl {
     as3d_game::FrameLayers layers;
     const FrameInfo* info = nullptr; // during prepare
     bool worldDrawn = true;
+    // The wash detector (ctr_wash.h, run.ini wash_check): the frame's central view, a mark due.
+    ctrapp::WashDetector wash;
+    bool washMarkPending = false;
+    const Terrain* washTopOf = nullptr; // the terrain whose highest point washTop holds
+    float washTop = 0.0f;
+    WorldView washView;
     // The sequels' model view (FlowView::drawModel, from GameFlow::draw in prepare): the object's
     // parts (meshes and skins in a cache of their own, released with the renderer at every level
     // start), the pass prepared in prepare and drawn on each eye of the top screen.
@@ -526,6 +534,47 @@ struct GameFrame::Impl {
         }
     }
 
+    // The eye's view and the water plane for the wash detector (ctr_wash.h): only the first game's
+    // plane is judged (the sequels' wave grid has no single height).
+    bool washInputs(int eye, const FrameInfo& info, ctrapp::WashView* v, ctrapp::WashScene* s, const Terrain** terrainOut) {
+        if (!info.session || !info.session->hasLevel()) return false;
+        const pica::WaterPicaStats& w = pica::waterPicaStats();
+        if (!w.active || w.grid || !pica::passEnabled(pica::Pass::Water) || !pica::passEnabled(pica::Pass::Terrain)) return false;
+        const World& world = info.session->world();
+        const Terrain* terrain = world.terrain();
+        if (!terrain) return false;
+        if (eye == 0) washView = worldViewOf(world, kAspect);
+        EyeView ev;
+        if (stereo.eyes == 2) {
+            ev.eyeOffset = eye == 0 ? -stereo.eyeOffset : stereo.eyeOffset;
+            ev.focalDistance = stereo.focal;
+        }
+        v->view = eyeViewMatrix(washView, ev);
+        v->clip = eyeProjection(washView, ev, kAspect) * v->view;
+        v->nearPlane = washView.nearPlane;
+        v->farPlane = washView.farPlane;
+        if (washTopOf != terrain) {
+            float top = -1e30f;
+            for (const Vec3& p : terrain->positions()) top = std::max(top, p.z);
+            washTop = top;
+            washTopOf = terrain;
+        }
+        s->planeZ = w.planeZ;
+        s->mapW = static_cast<float>(terrain->width()) * kHmapCellSize;
+        s->mapH = static_cast<float>(terrain->height()) * kHmapCellSize;
+        s->topZ = washTop;
+        s->height = [terrain](float x, float y) { return terrain->heightAt(x, y); };
+        *terrainOut = terrain;
+        return true;
+    }
+    void queueWashCopy(CtrContext& c, int eye, const FrameInfo& info) {
+        ctrapp::WashView v;
+        ctrapp::WashScene s;
+        const Terrain* terrain = nullptr;
+        if (!washInputs(eye, info, &v, &s, &terrain)) return;
+        wash.queue(c.topTarget(eye), eye, v, s, terrain, info.frame);
+    }
+
     bool initBackend() {
         if (!pica::initBackend()) {
             AS3D_ERROR("pica::initBackend failed");
@@ -545,6 +594,13 @@ struct GameFrame::Impl {
         pica::setStateCheck(run.stateCheck);
         pica::setProbeEvery(run.effectiveProbeEvery()); // docs/3ds-port.md "Soak mode and the log push"
         pica::setProbeInject(run.probeInject);
+        // The wash detector and the terrain's priming draw (docs/3ds-port.md "Wash detector").
+        wash.setEnabled(run.effectiveWashCheck());
+        wash.logEvals = run.washLog;
+        pica::setTerrainPrime(run.terrainPrime);
+        pica::setTerrainWashInject(run.washInject);
+        AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d", wash.enabled() ? 1 : 0, run.washInject,
+                  run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0);
         std::string off;
         for (int i = 0; i < pica::kPassCount; ++i)
             if (!pica::passBit(mask, static_cast<pica::Pass>(i))) off += std::string(off.empty() ? "" : ",") + pica::passName(static_cast<pica::Pass>(i));
@@ -721,6 +777,7 @@ struct GameFrame::Impl {
             loadingFrame(0.25f, true, intermission);
         }
         levelBegun = false;
+        wash.reset();
         // The read plan of this level start (ctr_loop.h ReadPlan): the renderer's level start,
         // the precache and the sounds.
         ReadPlan plan;
@@ -1101,6 +1158,7 @@ bool GameFrame::begin(CtrContext& ctx, as3d_game::GameSession& session) {
         return false;
     }
     im.levelBegun = true;
+    im.wash.reset();
     const uint64_t t1 = svcGetSystemTick();
     im.loadingFrame(0.3f, true);
 
@@ -1236,11 +1294,16 @@ void GameFrame::prepare(const FrameInfo& info) {
     im.prepareMs = static_cast<float>(static_cast<double>(prepTicks) * 1000.0 / SYSCLOCK_ARM11);
 }
 
-void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
+void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
     Impl& im = *impl_;
     if (eye == 0) {
         ui::ui2dPicaResetStats();
         pica::frameBegin();
+        // The wash detector judges the last frame's depth copies (complete by the fence).
+        if (im.wash.enabled()) {
+            const Terrain* terrain = info.session && info.session->hasLevel() ? info.session->world().terrain() : nullptr;
+            if (im.wash.judge(terrain, info.frame)) im.washMarkPending = true;
+        }
         im.submitTick = svcGetSystemTick();
         for (int p = 0; p < pica::kPassCount; ++p) im.passTicks0[p] = pica::passProfile().totals(static_cast<pica::Pass>(p)).ticks;
         im.lateQueued0 = pica::lateTextureStats().queued;
@@ -1286,6 +1349,7 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo&) {
         m.extraVerts = im.bannerPass.lastStats().vertices;
     }
     im.cmdUsageMax = std::max(im.cmdUsageMax, C3D_GetCmdBufUsage());
+    if (im.wash.enabled() && im.worldDrawn) im.queueWashCopy(ctx, eye, info);
     // gpu_kick=1: the GPU draws this eye while the CPU records the next (pica_frame.h).
     if (eye == 0) im.kickTick = pica::gpuKick() ? svcGetSystemTick() : 0;
     pica::kickGpu();
@@ -1428,6 +1492,7 @@ void GameFrame::stats(FrameStats& out) {
     }
     if (pp.frames() >= kPassReportFrames)
         AS3D_INFO("AS3D_PREP_MS (ms/items per frame) %s", pp.reportPrepare(static_cast<double>(SYSCLOCK_ARM11) / 1000.0).c_str());
+    if (pp.frames() >= kPassReportFrames && im.wash.enabled()) AS3D_INFO("%s", im.wash.statsLine().c_str());
     if (pp.frames() >= kPassReportFrames) {
         AS3D_INFO("AS3D_PASS_MS eyes=%d (ms/draws/verts per frame) %s", out.eyes,
                   pp.report(static_cast<double>(SYSCLOCK_ARM11) / 1000.0).c_str());
@@ -1477,7 +1542,19 @@ void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
     // probe_every: a GPU mismatch found by a periodic probe marks the frame the same way
     // (AS3D_AUTO_MARK, the first kMaxAutoMarks of a level start). The file numbers run over the
     // whole launch (a soak's stages do not overwrite each other's marks).
-    const bool autoMark = pica::stateCheck() && pica::stateCheckTakeAutoMark();
+    bool autoMark = pica::stateCheck() && pica::stateCheckTakeAutoMark();
+    // The wash detector's first frame of an episode (ctr_wash.h): the same mark.
+    if (im.washMarkPending) {
+        im.washMarkPending = false;
+        autoMark = autoMark || pica::stateCheck();
+    }
+    // wash_selftest=1: once, 420 frames into a level with water (outside wash_inject's first window), the decoding against a full read-back.
+    if (im.run.washSelftest && im.wash.enabled() && im.worldDrawn && info.frame >= 420) {
+        ctrapp::WashView v;
+        ctrapp::WashScene s;
+        const Terrain* terrain = nullptr;
+        if (im.washInputs(0, info, &v, &s, &terrain)) im.wash.selfTest(ctx.topTarget(0), v, s);
+    }
     if (pica::stateCheck() && ((info.padDown & as3d::pad::L) || autoMark)) {
         static int markFiles = 0;
         char base[32];
@@ -1584,6 +1661,7 @@ void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
 
 void GameFrame::end() {
     Impl& im = *impl_;
+    im.wash.flush(); // the open wash episode is logged and counted
     AS3D_INFO("AS3D_CMDBUF max usage %.3f of the command list (top eyes, before the kick)", static_cast<double>(im.cmdUsageMax));
     im.logLazyLoads();
     if (im.backend && im.ctx) {

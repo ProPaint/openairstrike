@@ -15,7 +15,8 @@ if(AS3D_BUILD_TESTS)
   # verdict and log-push framing (apps/3ds/source/soak_report.cpp, tests/soak_report_test.cpp).
   set(pica_neutral_srcs ${AS3D_REPO_ROOT}/engine/src/render/pica/linear_arena.cpp
                         ${AS3D_REPO_ROOT}/engine/src/render/pica/tev.cpp
-                        ${AS3D_REPO_ROOT}/apps/3ds/source/soak_report.cpp)
+                        ${AS3D_REPO_ROOT}/apps/3ds/source/soak_report.cpp
+                        ${AS3D_REPO_ROOT}/apps/3ds/source/wash_detect.cpp)
   add_executable(as3d_tests ${test_srcs} ${pica_neutral_srcs})
   target_include_directories(as3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/third_party/doctest
                                                 ${AS3D_REPO_ROOT}/engine/src/render/pica)

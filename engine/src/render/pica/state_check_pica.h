@@ -86,11 +86,29 @@ struct StateCheckCounts {
     unsigned mismatches = 0;           // AS3D_STATE_MISMATCH (shadow / c3d layers)
     unsigned gpuMismatches = 0;        // AS3D_GPU_MISMATCH, all passes
     unsigned terrainGpuMismatches = 0; // of those, pass=terrain
+    unsigned primeGpuMismatches = 0;   // pass=terrain_prime (the terrain's priming draw: its first state block)
+    // The wash detector (apps/3ds/source/ctr_wash.cpp, run.ini wash_check): eye-frames judged, the
+    // samples judged, washed frames and episodes (runs of consecutive washed frames).
+    unsigned washEvals = 0, washJudged = 0, washFrames = 0, washEpisodes = 0, washLongest = 0;
+    unsigned washMaxSamples = 0, washFirstFrame = 0, washMarks = 0;
+    double washMs = 0.0, washMaxMs = 0.0; // the CPU's judging time: total and longest
     unsigned busyFrames = 0;           // AS3D_GPU_BUSY
     unsigned marks = 0, autoMarks = 0;
     double probeMs = 0.0, probeMaxMs = 0.0; // the probes' stalls (submit, wait, read-back): total and longest
     bool contextRead = false;          // citro3d's context mirror passed its layout check (probes need it)
 };
 StateCheckCounts stateCheckCounts();
+
+// The wash detector (run.ini wash_check, docs/3ds-port.md "Wash detector"): one eye-frame judged
+// in `ms` of CPU over `judged` samples; an episode of `frames` washed frames from `startFrame`
+// ended, `maxWashed` samples at most.
+void stateCheckNoteWashEval(double ms, int judged);
+void stateCheckNoteWashEpisode(unsigned startFrame, unsigned frames, int maxWashed);
+// The register read-back of every probed pass during the next `frames` frames (the current one
+// included when called before its passes), as after a mark.
+void stateCheckArmProbe(int frames);
+bool stateCheckWashMarkDue();
+// The periodic probe alternates between the terrain's priming draw (pass=terrain_prime, its first
+// state block) and the end of its base draws (pass=terrain).
 
 } // namespace as3d::pica

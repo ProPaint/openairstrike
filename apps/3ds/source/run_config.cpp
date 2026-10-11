@@ -226,6 +226,16 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n) && n >= 0 && n <= 2) c.stateCheck = n;
         } else if (key == "probe_every") {
             if (toInt(val, &n) && n >= 0) c.probeEvery = n;
+        } else if (key == "wash_check") {
+            if (toInt(val, &n)) c.washCheck = n != 0 ? 1 : 0;
+        } else if (key == "wash_inject") {
+            if (toInt(val, &n) && n >= 0) c.washInject = n;
+        } else if (key == "wash_log") {
+            if (toInt(val, &n)) c.washLog = n != 0;
+        } else if (key == "wash_selftest") {
+            if (toInt(val, &n)) c.washSelftest = n != 0;
+        } else if (key == "terrain_prime") {
+            if (toInt(val, &n)) c.terrainPrime = n != 0;
         } else if (key == "probe_inject") {
             if (toInt(val, &n) && n >= 0) c.probeInject = n;
         } else if (key == "soak") {

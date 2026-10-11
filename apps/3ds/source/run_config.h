@@ -152,6 +152,15 @@ struct RunConfig {
     bool usesLoop() const {
         return mode == Mode::Sim || mode == Mode::Bot || mode == Mode::Play || mode == Mode::Menu || mode == Mode::Soak;
     }
+    // The wash detector (docs/3ds-port.md "Wash detector"): wash_check=0|1 (-1: on in soak),
+    // wash_inject=N (the terrain writes no depth N frames every 600; 1 = 60), wash_selftest=1 (the
+    // sample decoding against a full read-back, once), terrain_prime=0|1 (the terrain's priming draw).
+    int washCheck = -1;
+    int washInject = 0;
+    bool washSelftest = false;
+    bool washLog = false; // wash_log=1: one AS3D_WASH_EVAL line per judged eye-frame
+    bool terrainPrime = true;
+    bool effectiveWashCheck() const { return washCheck >= 0 ? washCheck != 0 : mode == Mode::Soak; }
     int effectiveProbeEvery() const { return probeEvery >= 0 ? probeEvery : (mode == Mode::Soak ? 30 : 0); }
     int effectiveFrames() const { return frames > 0 ? frames : (mode == Mode::Sim ? 600 : 0); }
 };

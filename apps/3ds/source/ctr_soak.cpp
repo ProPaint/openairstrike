@@ -124,6 +124,7 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         sr.perf = true;
         sr.stateCheck = std::max(1, base.stateCheck);
         sr.probeEvery = probeEvery;
+        sr.washCheck = base.effectiveWashCheck() ? 1 : 0; // the wash detector: on in the soak unless wash_check=0
         sr.soakStage = n;
         sr.dumpAt = 0;
         sr.dumpEvery = 0;
@@ -182,6 +183,13 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         r.stateMismatches = sc.mismatches;
         r.probes = sc.probes;
         r.autoMarks = sc.autoMarks;
+        r.primeGpuMismatches = sc.primeGpuMismatches;
+        r.washEvals = sc.washEvals;
+        r.washFrames = sc.washFrames;
+        r.washEpisodes = sc.washEpisodes;
+        r.washLongest = sc.washLongest;
+        r.washFirstFrame = sc.washFirstFrame;
+        r.washMaxSamples = sc.washMaxSamples;
         r.gpuBusy = sc.busyFrames;
         r.fence = as3d::pica::fenceStats().queueBusyAtBegin - fence0;
         r.texInFrame = as3d::pica::textureInFrameStats().creates - tex0;
@@ -195,14 +203,18 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
             AS3D_INFO("AS3D_SOAK_RESULT n=%d game=%s level=%d eyes=%s finished=%d level_end=%s@%u frames=%u steps=%u hz_end=%d after_grace=%u "
                       "at60=%u at30=%u misses60=%u misses30=%u excused60=%u probe_excused=%u pace_changes=%u gpu_avg=%.2f "
                       "gpu_p95=%.2f lazy=%lld lazy_stamps=%lld gpu_mismatches=%u terrain_gpu_mismatches=%u state_mismatches=%u probes=%u "
-                      "probe_ms_avg_max=%.2f/%.2f auto_marks=%u fence=%u gpu_busy=%u tex_in_frame=%u context=%s",
+                      "probe_ms_avg_max=%.2f/%.2f auto_marks=%u fence=%u gpu_busy=%u tex_in_frame=%u context=%s "
+                      "prime_mismatches=%u wash_evals=%u wash_frames=%u wash_episodes=%u wash_first=%u wash_longest=%u "
+                      "wash_max_samples=%u wash_judge_ms_avg_max=%.3f/%.3f",
                       n, st.game.c_str(), st.level, st.stereo ? "stereo" : "mono", r.finished ? 1 : 0,
                       !r.levelEnded ? "none" : r.gameOver ? "game_over" : "complete", r.levelEndStep, r.frames, r.steps,
                       r.hzEnd, r.graceFrames, r.graceAt60, r.graceAt30, r.misses60, r.misses30, r.excused60,
                       lr.pace.probeExcused, r.paceChanges, r.gpuAvg, r.gpuP95, r.lazyLoads, r.lazyStamps, r.gpuMismatches,
                       r.terrainGpuMismatches, r.stateMismatches, r.probes,
                       sc.probes ? sc.probeMs / sc.probes : 0.0, sc.probeMaxMs, r.autoMarks, r.fence, r.gpuBusy, r.texInFrame,
-                      sc.contextRead ? "read" : "not read");
+                      sc.contextRead ? "read" : "not read", r.primeGpuMismatches, r.washEvals, r.washFrames,
+                      r.washEpisodes, r.washFirstFrame, r.washLongest, r.washMaxSamples,
+                      sc.washEvals ? sc.washMs / sc.washEvals : 0.0, sc.washMaxMs);
         });
         results.push_back(r);
     }

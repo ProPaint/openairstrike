@@ -95,6 +95,7 @@ std::string soakVerdict(const std::vector<SoakStageResult>& results, const std::
     for (const std::string& n : failNotes) line(false, "note", n);
 
     unsigned terrain = 0, gpuAll = 0, probes = 0, marks = 0, fence = 0, busy = 0, texIn = 0, ran = 0, finished = 0;
+    unsigned washEvals = 0, washFrames = 0, washEpisodes = 0, prime = 0;
     long long lazy = 0, stamps = 0;
     for (const SoakStageResult& r : results) {
         if (!r.ran) continue;
@@ -104,16 +105,29 @@ std::string soakVerdict(const std::vector<SoakStageResult>& results, const std::
         gpuAll += r.gpuMismatches;
         probes += r.probes;
         marks += r.autoMarks;
+        washEvals += r.washEvals;
+        washFrames += r.washFrames;
+        washEpisodes += r.washEpisodes;
+        prime += r.primeGpuMismatches;
         fence += r.fence;
         busy += r.gpuBusy;
         texIn += r.texInFrame;
         lazy += r.lazyLoads;
         stamps += r.lazyStamps;
     }
-    // The water wash: the terrain's depth state lost on the GPU (any terrain GPU mismatch). With no
-    // probe at all the check did not run.
-    line(terrain == 0 && probes > 0, "wash",
-         fmt("terrain_gpu_mismatches=%u gpu_mismatches=%u probes=%u marks=%u", terrain, gpuAll, probes, marks));
+    // The water wash: the terrain's depth state lost on the GPU (any terrain GPU mismatch), or the
+    // picture itself washed (the detector's washed frames). With neither a probe nor a judged frame
+    // the check did not run.
+    line(terrain == 0 && washFrames == 0 && (probes > 0 || washEvals > 0), "wash",
+         fmt("terrain_gpu_mismatches=%u gpu_mismatches=%u probes=%u marks=%u wash_frames=%u wash_episodes=%u "
+             "wash_evals=%u prime_mismatches=%u",
+             terrain, gpuAll, probes, marks, washFrames, washEpisodes, washEvals, prime));
+    for (const SoakStageResult& r : results) {
+        if (!r.ran || r.washEpisodes == 0) continue;
+        line(false, "wash " + soakStageName(r.stage),
+             fmt("first_frame=%u episodes=%u frames=%u longest=%u max_samples=%u", r.washFirstFrame, r.washEpisodes,
+                 r.washFrames, r.washLongest, r.washMaxSamples));
+    }
     for (const SoakStageResult& r : results) {
         if (!r.ran || !r.finished) continue;
         const std::string name = soakStageName(r.stage);

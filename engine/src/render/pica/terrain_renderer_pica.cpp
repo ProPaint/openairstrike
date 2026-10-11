@@ -75,6 +75,31 @@ const TerrainPicaStats& terrainPicaStats() { return stats(); }
 void setTerrainOverlayDepthOffset(float offset) { overlayOffset() = offset; }
 float terrainOverlayDepthOffset() { return overlayOffset(); }
 
+namespace {
+bool g_prime = true;
+int g_washInject = 0;
+std::vector<int> g_drawn[2];
+unsigned g_drawnFrame = ~0u;
+int g_drawnEye = 0;
+std::vector<int> g_chunkFirstRow; // per chunk: its first height-map row (build())
+} // namespace
+
+void setTerrainPrime(bool on) { g_prime = on; }
+bool terrainPrime() { return g_prime; }
+void setTerrainWashInject(int frames) { g_washInject = frames == 1 ? 60 : std::max(frames, 0); }
+bool terrainWashInjectNow() {
+    if (g_washInject <= 0) return false;
+    const uint32_t f = frameSerial() % 600u;
+    return f >= 300u && f < 300u + static_cast<uint32_t>(g_washInject);
+}
+const std::vector<int>& terrainDrawnChunks(int eye) { return g_drawn[eye == 1 ? 1 : 0]; }
+int terrainChunkAt(float mapY) {
+    if (g_chunkFirstRow.empty() || !(mapY >= 0.0f)) return -1;
+    const int row = static_cast<int>(mapY / kHmapCellSize);
+    const auto it = std::upper_bound(g_chunkFirstRow.begin(), g_chunkFirstRow.end(), row);
+    return static_cast<int>(it - g_chunkFirstRow.begin()) - 1;
+}
+
 } // namespace pica
 
 namespace {
@@ -662,6 +687,9 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
         GSPGPU_FlushDataCache(im.zeros, static_cast<u32>(std::max<size_t>(longest, 1) * 4));
     }
 
+    pica::g_chunkFirstRow.clear();
+    for (const TerrainChunkGeometry& c : im.geo.chunks) pica::g_chunkFirstRow.push_back(c.firstRow);
+
     // Vertex buffers.
     bool ok = im.indices && im.zeros;
     im.chunks.resize(im.geo.chunks.size());
@@ -811,7 +839,7 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
     MaterialKey key;
     key.blend = RenderBlend::None;
     key.depthTest = true;
-    key.depthWrite = true;
+    key.depthWrite = !pica::terrainWashInjectNow(); // wash_inject: the detector's self-test
     key.cull = CullMode::Off;
     key.fog = FogColorMode::Level;
     applyMaterialState(key);
@@ -827,6 +855,7 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
         e.pass = "terrain";
         pica::expectDepthMap(e, nearPlane, 0.0f);
         e.cull = GPU_CULL_NONE;
+        if (!key.depthWrite) e.writeMask = GPU_WRITE_COLOR;
         pica::checkPassState(e);
     }
 
@@ -901,8 +930,37 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
         }
     }
 
+    // The chunks drawn, per eye (the wash detector's diagnostics).
+    {
+        const unsigned f = pica::frameArena().frames();
+        if (pica::g_drawnFrame != f) {
+            pica::g_drawnFrame = f;
+            pica::g_drawnEye = 0;
+            pica::g_drawn[1].clear();
+        } else {
+            pica::g_drawnEye = 1;
+        }
+        pica::g_drawn[pica::g_drawnEye] = visible;
+    }
+
     int boundBlock = -1;
     bool rearmed = false;
+    if (pica::terrainPrime()) {
+        // The priming draw (terrain_pica.h setTerrainPrime): one degenerate triangle on the first
+        // chunk's first vertex carries the pass's first state block, then the state goes again
+        // with the first real chunk.
+        const ChunkGpu& g0 = im.chunks[static_cast<size_t>(visible.front())];
+        const TerrainVertexPica* v0 = im.coarseOf[static_cast<size_t>(visible.front())] ? g0.coarse : g0.verts;
+        if (v0) {
+            im.baseTextures[static_cast<size_t>(im.geo.chunks[static_cast<size_t>(visible.front())].block)].bind(0);
+            sh.setTerrainVertices(v0, im.zeros);
+            C3D_DrawElements(GPU_TRIANGLES, 3, C3D_UNSIGNED_SHORT, im.zeros); // zero bytes: indices 0, 0, 0
+            ++st.primeDraws;
+            pica::probeGpuState("terrain_prime");
+            pica::detail::c3dInvalidate();
+            applyMaterialState(key);
+        }
+    }
     for (int ki : visible) {
         const size_t k = static_cast<size_t>(ki);
         const TerrainChunkGeometry& c = im.geo.chunks[k];

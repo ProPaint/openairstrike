@@ -16,6 +16,7 @@
 #pragma once
 
 #include <cstddef>
+#include <vector>
 
 namespace as3d::pica {
 
@@ -41,6 +42,7 @@ struct TerrainPicaStats {
     size_t indicesDrawn = 0;    // chunk indices + overlay vertices submitted
     size_t arenaBytes = 0;      // light streams written to the frame arena
     int coarseChunks = 0;       // of visibleChunks: drawn from the coarse level (far-chunk LOD)
+    size_t primeDraws = 0;      // since start: the priming draws (setTerrainPrime)
     // build(): chunks with a coarse level; since build(): coarse and visible chunks over all renders
     int coarseBuilt = 0;
     size_t coarseTotal = 0, visibleTotal = 0;
@@ -60,5 +62,24 @@ const TerrainPicaStats& terrainPicaStats();
 // GEQUAL test; the bias only absorbs rounding.
 void setTerrainOverlayDepthOffset(float offset); // tests: try other values
 float terrainOverlayDepthOffset();
+
+// run.ini terrain_prime (default on; docs/3ds-port.md "Wash detector"): before its first chunk the
+// base pass draws one degenerate triangle (three times the first vertex: no pixel) that carries
+// the pass's first state block, then issues the state again for the real draws. The console's
+// marks of 2026-10-11 caught the PICA holding the 2D passes' depth state after the terrain's first
+// state block; since the state is re-issued with the second draw (c314767) only the first chunk
+// (the nearest: the lower half of the screen) can still lose its depth. With state_check on, the
+// periodic probe reads the registers back right after this draw every other period
+// (pass=terrain_prime): a mismatch there is the lost block, caught without a wash on screen.
+void setTerrainPrime(bool on);
+bool terrainPrime();
+// run.ini wash_inject=N (the wash detector's self-test): the base pass writes no depth for N
+// frames every 600 (frame serials 300..300+N-1 mod 600); wash_inject=1 means 60. 0 = never.
+void setTerrainWashInject(int frames);
+bool terrainWashInjectNow(); // this frame's base pass writes no depth
+// The chunks the base pass drew this frame for `eye` (0: the frame's first render, 1: the second),
+// in draw order; and the chunk holding map y (world units), -1 outside the map.
+const std::vector<int>& terrainDrawnChunks(int eye);
+int terrainChunkAt(float mapY);
 
 } // namespace as3d::pica

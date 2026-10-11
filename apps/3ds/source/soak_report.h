@@ -52,6 +52,10 @@ struct SoakStageResult {
     unsigned terrainGpuMismatches = 0; // of those, pass=terrain (the water wash signature)
     unsigned stateMismatches = 0;      // AS3D_STATE_MISMATCH (the CPU layers)
     unsigned probes = 0, autoMarks = 0;
+    unsigned primeGpuMismatches = 0;   // pass=terrain_prime: the terrain's first state block lost (the priming draw takes it)
+    // The wash detector (docs/3ds-port.md "Wash detector"): eye-frames judged, washed frames,
+    // episodes (runs of washed frames), the longest, the first one's frame, the most washed samples.
+    unsigned washEvals = 0, washFrames = 0, washEpisodes = 0, washLongest = 0, washFirstFrame = 0, washMaxSamples = 0;
     unsigned fence = 0;        // AS3D_FENCE (the GX queue running at frameBegin)
     unsigned gpuBusy = 0;      // AS3D_GPU_BUSY frames
     unsigned texInFrame = 0;   // AS3D_TEX_IN_FRAME (textures created inside a frame)

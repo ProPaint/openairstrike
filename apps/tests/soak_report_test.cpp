@@ -143,6 +143,18 @@ TEST_CASE("soak: the verdict of soak.txt") {
     v = soakVerdict(s, {});
     CHECK(hasLine(v, "FAIL stereo as2:2:stereo"));
     CHECK(hasLine(v, "FAIL wash terrain_gpu_mismatches=0 gpu_mismatches=0 probes=0"));
+    // The detector's judged frames count as a run check; a washed episode fails the stage.
+    s[0].washEvals = 1000;
+    v = soakVerdict(s, {});
+    CHECK(hasLine(v, "PASS wash terrain_gpu_mismatches=0 gpu_mismatches=0 probes=0 marks=0 wash_frames=0"));
+    s[0].washEpisodes = 2;
+    s[0].washFrames = 7;
+    s[0].washLongest = 5;
+    s[0].washFirstFrame = 4321;
+    s[0].washMaxSamples = 40;
+    v = soakVerdict(s, {});
+    CHECK(hasLine(v, "FAIL wash terrain_gpu_mismatches=0 gpu_mismatches=0 probes=0 marks=0 wash_frames=7 wash_episodes=2"));
+    CHECK(hasLine(v, "FAIL wash as2:2:stereo first_frame=4321 episodes=2 frames=7 longest=5 max_samples=40"));
 
     // A stage shorter than the pacer's grace: no rate to judge.
     s = {goodStage("as3d", 1, false)};
