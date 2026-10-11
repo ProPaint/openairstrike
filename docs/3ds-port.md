@@ -61,6 +61,12 @@ register fault is gone with the forced state block (0 prime mismatches in 2485 p
 2485/2485), mono at 60 Hz 85.5 / 88.5%, stereo's GPU is 15.3 to 15.5 ms from the first kick whatever
 the CPU does (the eye replay and the detector cost no GPU), so stereo at 60 is a GPU job (round 4).**
 
+**Sixth soak (build 227dd60, section at the end): 23 of 23 stages, the wash fault stays gone, mono
+86 / 91% at 60 with deferred catch-up and the terrain kick (both confirmed better than their
+alternatives on the console), stereo's GPU span 14.1 ms with the brightness quad 1.9 and the water
+2.4 of it avoidable; `right_eye_rate=alternate` reaches 60 Hz today (each eye at 30, owner's call).
+R4.6 works on the brightness fold, the water, the transfers and the level start.**
+
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
 installed game (missions 1 and 2, mono and stereo at slider 0.5, the weapon tour, audio on, the
@@ -4465,3 +4471,54 @@ plane mostly under the terrain: the early depth test is not taking effect, or th
 too much) and the brightness quad (0.7-1.1 ms per eye at the default 0.6, foldable into the
 lighting colours on the CPU for nothing), then the display transfers (1.8 ms for three) and the
 touch band (0.6-0.9, which the UI rework removes). Stages 10 to 23 run in the drop round4b.
+
+## Sixth console soak (2026-10-11, build 227dd60; out/3ds/2026-10-11-227dd60/, 23 stages, all finished)
+
+The drop round4b (the null-bind fix + R4.4), launched from the HOME menu, 23 of 23 stages, 23 of 23
+end states equal to the desktop sim, `PASS wash` (0 prime mismatches in 3925 probes, canary
+3925/3925, 0 washed frames in 111643 evaluations).
+
+**Mono, whole missions:** mission 1 at 60 Hz 86.0% (misses 1.02%, hitches 1.74%, gpu_late 121,
+8 drops), mission 2 91.0% (0.81%, 1.35%, 83, 4 drops). Mono A/B on mission 2's first 190 s:
+`catchup=immediate` 97.5% at 60 / misses 0.89% / hitches 1.44% against `catchup=deferred` 98.7% /
+0.45% / 0.86%: deferred stays the default. `gpu_kick_at=eye` (the old kick) 94.7% / 1.23% / hitches
+5.64% / gpu_late 330 against the new kick's 93.6% / 0.94% / 2.30% / 86 on the same minute: the
+terrain kick halves the stutters. `mesh_merge=1` is worse (86.6% at 60, hitches 2.89% vs 2.30%,
+draws 164 vs 173): it stays off. `pace_rule=never`: 100% at 60 with misses 1.57% and hitches 3.15%
+(the default 24/120: 93.6%, 0.94%, 2.30%): kept at 24/120.
+
+**Stereo A/B (mission 1, 1800 steps, slider 0.5), the GPU span from the first kick (perf.csv
+`gpu_kick_ms`, avg / p95) and the tail after FrameEnd:**
+
+| stage | kick avg | kick p95 | tail avg | settled |
+|---|---|---|---|---|
+| baseline | 14.10 | 18.01 | 12.31 | 30 Hz |
+| bottom_hz=30 | 13.08 | 16.58 | 11.72 | 30 |
+| terrain_far_tev=1 | 13.52 | 17.55 | 11.73 | 30 (ran clean after the fix) |
+| brightness=0.5 (the quad skipped) | 12.24 | 14.93 | 10.70 | 30 |
+| depth16=1 | 13.78 | 16.99 | 12.04 | 30 |
+| right_eye_rate=half | 11.88 | 16.80 | 9.00 | 30 |
+| right_eye_rate=alternate | 10.91 | 15.07 | 6.51 | **60** |
+| gpu_lean=1 | 12.64 | 16.57 | 11.25 | 30 |
+| gpu_lean=1 depth16=1 | 12.37 | 16.42 | 11.02 | 30 |
+| gpu_lean=1 right_eye_rate=half | 10.67 | 16.46 | 8.19 | 30 |
+| gpu_lean=1 right_eye_rate=alternate | 9.78 | 12.95 | 5.80 | **60** |
+
+`AS3D_GPU_PASS` (the stereo stage, averages per eye): terrain 1.45-1.57, water 1.19-1.21,
+brightness 0.88-0.92, opaque 0.49-0.57, rest 0.33-0.42, marks 0.22-0.37, shadows 0.22-0.27,
+particles 0.24-0.27, clear 0.21-0.26, top2d 0.10-0.12 (eye 5.6-5.9); the bottom screen hud 0.58 +
+touch 0.77 (1.40); the display transfers 1.39; the pass sum 10.4 against a 14-15 ms span (the rest:
+the CPU's own submit after the first kick, which the span includes, and pipeline bubbles).
+
+Reading: the two costs that change no pixel are the brightness quad (1.9 ms per stereo frame at
+the default 0.6: fold the brightness into the lighting colours on the CPU) and the water (2.4 ms
+for a plane mostly under the terrain: the early depth test or the tile coverage); the bottom
+screen's touch band (0.8) goes with the UI rework; the transfers (1.4) shrink with 16-bit targets.
+Baseline 14.1 minus those is near the 11 that stereo at 60 needs, before the alternate-eye
+fallback, which reaches 60 today but shows each eye at 30 Hz one frame apart (the owner can try
+it in play: `right_eye_rate=alternate` in run-play.ini).
+
+**Level start** (`AS3D_LEVEL_START`, mission 1): to the first frame 3449 ms, the gate measure
+3235; session 1797 (prefetch 1141, defs 191, level 304); renderer 1438: textures 407 (193
+conversions every start: mip 125, swizzle 221, upload 61), shadows 325 (145 cache hits, cache load
+87: the hits still cost), meshes 85, **rest 621 (unattributed)**.
