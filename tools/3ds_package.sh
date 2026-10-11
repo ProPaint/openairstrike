@@ -61,6 +61,8 @@ cat > "${OUT}/3ds/openairstrike/run.ini" <<'EOF'
 # max_far_parallax_px=12  # 3D depth behind the screen at full slider (pixels); lower it (8, 6) if the 3D tires the eyes
 # max_parallax_px=10      # 3D depth in front of the screen at full slider (pixels)
 # perf=1             # write perf.csv (frame times) next to log.txt
+# mode=soak          # the self-test: bot runs of every installed game, soak.txt, back to the launcher
+# report_to=192.168.1.10:7777  # push log.txt and the results to tools/3ds_receive.py on that PC
 EOF
 
 # A file list for INSTALL.txt, from the game profiles (engine/src/game/game_profiles.cpp).
