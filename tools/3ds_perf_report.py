@@ -44,6 +44,14 @@ def parse_log(path):
         m = re.search(r"mission \d+ loaded in (\d+) ms", line)
         if m:
             out.setdefault("load", {})["ms"] = float(m.group(1))
+        # R4.11: the TerraMorph stamps the sequels load on their first hit (kind=stamps) are not
+        # precachable; the console's soak.txt excuses them, so does this check. The per-load
+        # AS3D_LAZY lines (log_lazy=1) count them, the AS3D_LAZY_LOADS summary gives the total.
+        if "AS3D_LAZY " in line and "kind=stamps" in line:
+            out.setdefault("stamps", {})["lines"] = out.get("stamps", {}).get("lines", 0) + 1
+        m = re.search(r"AS3D_LAZY_LOADS .*\bstamps=(\d+)", line)
+        if m:
+            out.setdefault("stamps", {})["total"] = float(m.group(1))
     return out
 
 
@@ -191,7 +199,14 @@ def main():
     lazy_col = col("lazy_loads")
     if lazy_col:
         lazy = max(lazy_col)
-    check("lazy_loads", lazy, lazy == 0, "", lazy is None, "== 0")
+    # The TerraMorph stamps (kind=stamps) are excused as in the console's soak.txt: the summary
+    # line's count, else the AS3D_LAZY lines seen.
+    stamps = log.get("stamps", {})
+    excused = stamps.get("total", float(stamps.get("lines", 0)))
+    if lazy is not None and excused > 0:
+        lazy = max(0.0, lazy - excused)
+    check("lazy_loads", lazy, lazy == 0, "", lazy is None,
+          "== 0" + (" (TerraMorph stamps, not precachable: %d)" % excused if excused else ""))
 
     # No hitch after the warm-up: frame period from the CSV is not recorded, so use the log's
     # max and the CSV step time.
