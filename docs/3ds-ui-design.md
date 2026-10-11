@@ -460,3 +460,156 @@ tables, lists, cards, results) overlaps or is cut, as expected without moving la
 - Seen in the gallery and not addressed here: a tap on the in-game menu's Resume falls through to a
   new pause on the drop (problem 10; the gallery resumes with B); with `ui_text=1` the sequels' hint
   panel and Gulf's credits are readable as they are.
+
+## AirStrike 3D menus on the console (round 4, R4.5)
+
+Step 3 of the plan (section 4): the first game's menus in the 3DS screens' own pixels. The desktop,
+Android and the web are untouched (the view is used only by apps/3ds; `tools/ci.sh` passes with the
+goldens unchanged). Run.ini `ui_menus=0` gives back the 0.4 copy of the desktop's screens.
+
+### The view
+
+`engine/include/as3d/console_menu.h`, `engine/src/ui/console_menu.cpp` (`ui::ConsoleMenuView`). The
+model stays the `Frontend`'s: its menus, items, focus, values, callbacks and the pad navigation of
+M2.1 (`MenuSystem::padMode`). The view:
+
+- **lays the top menu out** per screen (`ConsoleMenuView::layout` -> `ConsoleLayout`): boxes in
+  bottom-screen pixels, each a `Bar` (an item: drawn, a tap clicks it) or a sub-target of its item
+  (`SpinPrev` / `SpinNext`, `SliderTrack`, `ListRow`, `ListUp` / `ListDown`, `GridCell`) or a `Key`
+  (a pad key without an item: Information's PREV / NEXT); a footer of pad hints (`ConsoleHint`:
+  the owner's key pictures, S labels); a bottom title and sub-title. A screen's layout is a small
+  function of the menu (`layoutMain`, `layoutOptions`, ...): which items go in the column, which in
+  the corners, which hints. Layout constants: margin 4, bars 36 high, the bottom row
+  (`kFooterTop` 204 .. 240) for BACK / corner buttons and the footer.
+- **writes each item's hit rectangle** (`applyHits`): the item's bar in virtual units (2.5 x the
+  pixels: the bottom screen's 0.4 mapping inverted), an empty rectangle for an item without a bar.
+  So the menu system's own pointer path, the `AS3D_MENU` log and `ui_taps` follow the layout
+  (Information's page spinner gets the NEXT button). Called by the menu loop before and after
+  `GameFlow::uiFrame` and by the frame composer before drawing.
+- **turns the touch into the menu's input** (`touchInput`, called by `CtrInput::uiInputs` when the
+  view handles the screen): a bar = a pointer move to the item and Mouse1 (a click; spinners and the
+  start screen's helicopter row: the next value; sliders, lists, grids: the focus only); an arrow =
+  the pointer on the item + Left / Right (`padMode` turns them into the widget's step); the slider's
+  track = as many Left / Right as the steps to the value under the finger, again on every move
+  while the finger is down; a list row / a helicopter cell = the steps of `padKey`'s walk to it
+  (locked ones: nothing); a `Key` box = that key. No widget's own pixel geometry (the desktop's
+  20-px list rows, 72-px grid cells, 128-px slider) is involved: the 3DS layouts are free of it.
+- **pages Information in sheets** (`filterKeys`): a page longer than the top screen is read in
+  sheets; Left / Right / L / R / PREV / NEXT step through the sheets first, then the pages (a page
+  entered backwards opens at its last sheet).
+- **draws** the bottom screen (`drawBottom`) and the top screen's reading panel (`drawTop`), in
+  pixels through the list's mapping (the 3DS lists keep `begin()` and its 0.4 mapping; the view
+  converts its pixel rectangles, so the same code draws into `beginPixels` lists).
+
+Input (`apps/3ds/source/ctr_input.cpp`): L / R are PageUp / PageDown in the menus (Information's
+pages; the mission list's page). The tutorial hints' key names are the console's buttons
+(`consoleKeyNames` through `Frontend::setHintFilter`): {Ctrl} A, {Shift} B, {Space} X, {Z} Y,
+{X} R, "key" -> "button" after them (the default pad bindings).
+
+The key pictures: the owner's set 4 ("HUD plate", original art of this project) is
+`apps/3ds/assets/keys.png`, embedded as `apps/3ds/assets/keys.inc` (a 70-colour palette and an
+index per pixel, `tools/3ds_key_glyphs.py`; the engine decodes no PNG and `*.tga` is never
+committed), made into a 256 x 32 nearest texture by `apps/3ds/source/key_glyphs.cpp`; the
+rectangles are `consoleKeyRect` (set_4.json). Without it the hints draw the keys' names in a frame.
+
+### The tap-through fix (problem 10)
+
+`CtrInput::uiInputs` makes a finger on the screen while a menu is up the menu's until it is
+lifted: the touch mapper forgets it at once (`releaseAll` and a `takeFrame` that drops the latched
+pause / confirm / buttons) and `readPad` keeps it from the touch buttons until the release. Before,
+`readPad` fed the down edge to the touch mapper before the menu saw it; with the in-game menu up
+(the world paused) a tap anywhere latched a pause, the menu closed on the same tap (Resume, a hint's
+OK, Restart) and the first play step took the latched pause: the in-game menu again on the next
+frame. With the console menus, run.ini `ui_taps` are real fingers (`CtrInput::queueTouch`, from the
+next frame, held 6 frames), so the gallery taps go this path; the gallery logs a "tap-through"
+check for every tap that returns to play (`tap_through` in tools/3ds_ui_gallery.py).
+
+### Layouts (pixels; bottom 320 x 240, top 400 x 240)
+
+| screen | bottom | top |
+|---|---|---|
+| main menu | five bars 240 x 36 at x 40, y 4 + 40 i (the game's mmenu_1 label pictures at 1/2, mmenu_2 glowing on the focused one, markers at the bar's ends); GAMES 84 x 36 at (4, 204) with the selector; footer A Select, D-pad Move | the attract level and the 3D banner (unchanged); a 16-px band at the bottom: version and copyright in S |
+| options | the console's five rows 312 x 36 at y 4 + 38 i (Brightness, Sound, Music, Camera, Show FPS, short L labels), sliders' track x 168 .. 304 with a 9 x 22 knob (touch zone 160 .. 312), spinners' arrows 36 x 36 at the label column's end and at x 280, values in L (S when wider); BACK 80 x 36 at (4, 204); footer D-pad Change, B Back | the optionsh header at 1/2 on a 34-px black band; a help band at y 196: what the focused row does and how (S) |
+| information | title L, the page's title S; PREV / NEXT 148 x 56 at y 48; ten page dots at y 118; BACK; footer L Prev, R Next, B Back | the page re-flowed: title L, counter "n/10 (sheet/sheets)" S, text S at a 13-px pitch from y 28 to 236 over the attract level dimmed to 28 %, paragraphs 5 px apart, item headings on their own line with their icon (33 x 18) in a 44-px indent, credits centred |
+| top scores | the topscores picture at 1/2, the best pilot (L); BACK; footer B Back | the table: 15 rows at S, 13-px pitch, rank right-aligned at 34, name at 44, score right-aligned at 272, rank name at 284 |
+| exit | EXIT (T), YES / NO 138 x 56 at y 84 (the yesno pictures at 1/2); footer A Select, B Back | the question in L on a dark band |
+| start game | the mission list: three rows 272 x 36 (L, S when wider), the scroll arrows 36 x 36 and the position between them at x 280; Difficulty and Helicopter as spinner rows 312 x 36 at y 122, 160; BACK (4, 204) and START 100 x 36 at (216, 204) under the right thumb; footer A OK | the starth header; the chosen helicopter 1:1 (85 x 85) framed; mission name L; difficulty, helicopter n of N, helicopters open (S) |
+| in-game menu | Resume / Options / Quit bars 240 x 36 at y 40 + 44 i; footer A Select, B Resume | PAUSED (the host's, T outlined, unchanged) |
+| mission complete | the helicopter grid: ten cells 50 x 50 at a 54 pitch (icons at 1/2, locked dark, the chosen one framed); RESTART 108, QUIT 84, CONTINUE 112 x 44 at y 152 (pictures at 1/2, cropped to the bar); footer A Select, D-pad Move | MISSION COMPLETE (miscompl at 1/2, pulsing) over the world dimmed 35 %; the results in L: enemies destroyed, stars, rank, score (the score Continue banks) |
+| game over | GAME OVER (T); after 2 s RESTART / QUIT 138 x 44 at y 128; footer A Select | the gameover picture 1:1 (256 x 64) pulsing; the score (the one Quit banks) in L and, when it enters the table, "NEW HIGH SCORE", its place and rank in S |
+| name entry | title L; the field 248 x 32 and DEL 60 x 32 at y 22; the 40 keys 29 x 30 at a 31 x 32 pitch from y 58 (L letters, SP in S); OK 312 x 36 at y 188; footer A Type, Y Keyboard | WELL DONE, PILOT (T outlined), the score, place and rank, a help line |
+| game complete | CONGRATULATIONS (L), CONTINUE 160 x 44 | the congratulation lines typed (S) and the results |
+
+Not done by this view (legacy drawing at 0.4): the tutorial hint (the in-play package), the sequels
+and the plain front end, Configure controls (not on the console), the intro pages.
+
+### Tests
+
+`apps/tests/console_menu_test.cpp` (desktop, the original's font metrics, synthetic texts): every
+screen (main with and without GAMES, exit, start, scores, options, information on every page and
+sheet, name entry, in-game, mission complete, game over before and after its menu, game complete):
+every target at least 36 x 36 (the keyboard's keys 20 x 20), on the screen and on whole pixels, no
+two targets of different items overlapping, sub-targets inside their item's bar, labels fitting
+their box at their size (row labels before their arrows; every spinner value between its arrows at
+S), the footer inside its room and clear of every box, titles fitting, every visible item with a
+bar, hit rectangles equal to the bars (and their centre back in the bar through the 0.4 mapping);
+the layouts' pixel positions; the touch path into the model (a bar opens Options, the Show FPS
+arrow, the slider's ends and a drag, BACK, a mission row, a locked row, the difficulty arrow,
+START starting the chosen mission); Information's sheets and pages by touch and by PageUp; the
+re-flow (width, sheet height, paragraphs, icon headings, credits, balanced markup); the key names;
+the key widths; drawing inside both screens. `game_flow_test` passes unchanged.
+
+### Gallery
+
+`out/ui3ds/gallery/9c0e504/as3d_sheet.png` (+ `@2x`) and the per-screen pictures under
+`out/ui3ds/gallery/9c0e504/as3d/` (the selector and the sequels' sheets beside them are unchanged
+in their layouts). The gallery's tap-through check, on fingers through the real touch path:
+
+    as3d_menus: tap on ingame at 1300 -> playing at 1301, no menu within 30 frames: ok
+    as3d_menus: tap on hint at 1500 -> playing at 1501, no menu within 30 frames: ok
+
+The tutorial hint now reads "To launch missile press the {B} button" (key names). The sequels'
+runs started mission 3 (their profiles on the Azahar SD keep earlier gallery runs' checkpoints), so
+their early hint was not reached and not dumped: not a change of this package.
+
+### Deviations from the mockups, and why
+
+- **Options order**: Camera before Show FPS (the mockup has Show FPS first): the bars follow the
+  menu's item order, which is the pad's focus order.
+- **Options help band**: two S lines at y 196 instead of the mockup's larger text, so that the
+  attract level keeps most of the screen.
+- **Start Game**: three mission rows of 36 px (the mockup: four of 30) to keep every target at
+  36 px; the helicopter row shows "2 OF 10" instead of a small icon (the icon at 1/2 is 42 px, taller
+  than the bar; the top screen shows it 1:1). No "Best:" line on top (the profile keeps no per-mission
+  best). Footer only "A OK" (no room beside BACK / START for more).
+- **Information**: the page is read in sheets ("1/10 (1/2)") because a re-flowed page of the story
+  is about 23 lines at S and the top screen holds 16; the mockup's text simply ran off the screen.
+  The desktop's "(Page 1 of 2)" is dropped from the titles (the counter says it).
+- **Top Scores**: the table is on the top screen at S (the mockup put nothing there); the bottom
+  shows the title picture and the best pilot.
+- **Mission complete**: the "Next helicopter: N more stars" line is not drawn (the front end does
+  not compute it); buttons 108 / 84 / 112 x 44 instead of 100 x 40 (their pictures at 1/2 are wider).
+- **Game over**: the desktop's gameover_0 layer (a picture without alpha, a black box over the world
+  at 1:1) is not drawn; gameover_3 fades in and pulses over itself.
+- **Name entry**: the desktop model's 4 x 10 keys (29 x 30 px) instead of the mockup's 8 x 5 grid
+  of 36 x 30 (the model's keys and ids are kept, so the pad and the scripts are unchanged); the
+  system keyboard stays the main path.
+- **No focus is shown until the pad is used**: the touch mode starts menus without a focused item
+  (the M2.1 rule); the gallery's screens therefore show no focused bar except where a tap left one.
+- **Label pictures** of the small corner buttons (BACK, START, YES / NO) are at 1/2 as planned, which
+  makes YES / NO small (about 7 px caps); L text would be larger (a choice for the owner).
+
+### What the next packages start from
+
+- **In play (step 4)**: the view's skin and drawing toolkit (`Px`, `drawBar`, the key hints, the
+  half pictures) are in console_menu.cpp; the hint box (`Screen::Hint`) is still the legacy one and
+  `ConsoleMenuView::handles` is the place to add it (its top-screen panel, a 160 x 56 OK on the
+  bottom). PAUSED stays the host's. The tap-through fix already covers the hint's OK. The HUD
+  tiles' touch goes through `TouchMapper`, which now never sees a finger that went down on a menu.
+  `consoleKeyNames` already rewrites the hints' key names.
+- **Sequels and the selector (step 5)**: `handles` returns false for `Frontend::sequel()` /
+  `plain()`; their screens need a layout function each (the same boxes, hints and hit write-back:
+  `applyHits` and `touchInput` are generic over the box kinds) and a skin (colours and label
+  pictures are constants at the top of console_menu.cpp: make them a `ConsoleSkin` per game). The
+  sequels' text buttons (`SequelButton`) are drawn as plain text labels by the generic Bar path.
+  `GameSelector` has its own `MenuSystem`; the same `ConsoleLayout` / `touchInput` pattern applies.
