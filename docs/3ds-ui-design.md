@@ -770,3 +770,183 @@ all at S because "Mission 2: Leaving the Home" does not fit at L).
 - The size rule (`applySizeRule`) applies to every layout the view makes, so the sequels' screens
   get it with their layout functions.
 - Not done here: the loading screen, the name-entry fallback grid and the selector (next package).
+
+## Sequels, selector, loading and name entry on the console (round 4, R4.8)
+
+Step 5 of the plan (section 4). AirStrike 2 and Gulf Thunder go through the console menu view
+with their own skins, the game selector and the loading screen get console layouts, and the
+sequels' HUD is the console grid with their own art. The desktop, Android and the web are
+untouched (`tools/ci.sh` passes with the goldens unchanged). Run.ini `ui_menus=0` still gives
+back the 0.4 copy of every screen (README row).
+
+### The sequels' screens
+
+`engine/src/ui/console_menu.cpp`: the skin constants became a `ConsoleSkin` per game
+(`kSkinAs3d`, `kSkinAs2`, `kSkinGulf`, chosen by `useSkin` from the front end): AirStrike 2 grey
+bars with the top-right corner notched by 8 px (their HUD boxes' cut), green L labels (its ink,
+0xFF00B000), orange titles (its accent); Gulf Thunder the same bars on its green ground with its
+own scan lines (`lines_gulf.tga` repeated, one texel per pixel), white-green labels, red titles.
+`ConsoleMenuView::handles` now takes the sequels' menus, their `HeliSelect`, `Credits` and
+`Dialogue`, and their intro pages (`introShown`). The view reads the sequels' state through
+read-only accessors of `SequelScreens` (`state`, `introRun`, `shownHeli`; as2_screens.h), so the
+model, its callbacks and the pad navigation of M5.2 are unchanged. Their captions keep their own
+case (the desktop's padding spaces trimmed).
+
+| screen | bottom | top |
+|---|---|---|
+| intro (logo page, AirStrike 2's comic pages 1-4) | the game's name, FASTER (A: the page four times as fast) and SKIP (B or a tap: the comic's touch Skip) 148 x 56 at y 92 | the page fitted by its drawn part: pages 1 and 2 (the 800 x 320 panorama) at 1/2, page 3 at 0.4, page 4 (800 x 512) at 15/32, a logo page at 1/2 (`Renderer2D::beginMapped` / `appendMapped`) |
+| main menu | six bars 154 x 56 in two columns (Start Game, Top Scores, Options / Information, Credits, Quit: the pad's Up / Down walk a column), GAMES and the footer on the bottom row | AirStrike 2: its logo with the clouds, the glow and the spinning "2" at exactly 1/2 on a 34-px band; Gulf Thunder: its emblem, tinted, with its clouds, at 1/2; the version / copyright band |
+| start game | the first game's layout with their ids: three mission rows, Difficulty and Game mode spinners (labels at S when "SINGLE PLAYER" would not fit between the arrows at L), BACK, NEXT | the title band, the mission (L), difficulty and game mode (S) |
+| helicopter selection | previous / next arrows 56 x 104 (their picture items), between them the name (L), "n / N", speed and armour bars (the desktop's scales), "not available" for a locked one; the player spinner with two players; BACK, Start / Continue / Accept | the model view (the frame's, unchanged: `drawModelViews` is now also called with the console view) over the dot grid and the static; a locked one: "not available" over the attract level |
+| options, top scores, exit, name entry | the first game's layouts (the same item ids) in the skin | the first game's panels (the scores table, the question, WELL DONE) in the skin's colours |
+| information | the first game's PREV / NEXT and dots (7 or 8 pages) | the page re-flowed at S from the sequels' texts pages (`layout().infoKey`: Gulf Thunder has no page 4) with their icons from the game's own HUD tables |
+| credits | the title, BACK | the names centred at S, 13-px pitch, 5 px where the texts leave a line out; more than fit: sheets turning every 6 s |
+| in-game menu | Resume, Options, Restart, Quit 240 x 40 | PAUSED (the host's) |
+| hint | OK 160 x 56 over the HUD dimmed 60 % | the first game's box, titled "Tutorial Tip", the text re-flowed |
+| dialogue | NEXT 160 x 56 (Enter: completes the page being typed, else turns it) over the dimmed HUD | a box at the bottom: the portrait 1:1 (portraits2.tga, 80 x 120), the page re-flowed at S beside it, typed at the desktop's pace |
+| game over | GAME OVER (T), QUIT and RESTART 138 x 44 at once | the game's comic (gameover_k_1/2) and its GAME OVER picture at 1/2, fading in; the score panel (new high score, place, rank) |
+| mission complete | MISSION COMPLETE, Choose Helicopter 312 x 44, Restart / Quit / Next 102 x 44 | the title (L: T is wider than the screen) outlined, the statistics in L as they appear, the new helicopter's line |
+| game complete | CONGRATULATIONS, Continue from 4 s | the eleven lines typed at S from 4 s |
+
+**Name entry (the fallback of the system keyboard).** The sequels' touch keys have the first
+game's ids (200 + character, four rows of ten, DEL 60, OK 1), so they take the first game's
+layout: keys 29 x 30 at a 31 x 32 pitch, L letters, the field, DEL, OK across the screen, footer
+A Type, Y Keyboard; the M5.2 D-pad grid walks them unchanged.
+
+### The sequels' HUD and its tiles
+
+`engine/src/ui/hud_layouts.cpp` `makeSequelBottom`, in screen pixels x 2.5 as the first game's:
+the same grid as `makeV170Bottom` (pause tile 40 x 36, health bar left of the score field, the
+weapon box 70 x 38 at (4, 60), the power-up column at x 170 and the missile column at x 246 of
+70 x 38 tiles at a 40-px pitch, the pad reminder at (4, 166)) with the sequels' art: the boxes of
+mainbar2 in nine pieces (`HudLayout::boxSlice`, texels (13, 106) .. (87, 160), corners 8 / 7 /
+18 / 19 texels at 1:1, the pin and most of the top strip left out), the bar and its segmented
+fill at exactly 1/2 (116 x 17), the level pips 1:1 under the weapon box, the lives at 1/2 (at
+most five), icons 1:1, counts at L on a dark patch, the selected tile double-framed and outlined
+in the game's colour, every icon at full strength (the outline says which is selected), the
+pause tile and the reminder in the game's colours. The **score rule** is the first game's: 10
+digits at the L number advance (140 px) right-aligned at x 312, the bar between the pause tile and
+the field. The level name, the cheat message and the hint are on the top screen
+(`drawConsolePlayTop`, `levelNameY < 0`).
+
+Ten power-up kinds do not fit a column: the column has five rows (`HudColumn::packedRows`)
+showing the kinds owned in kind order; with more than five a window keeps the selected one in
+the middle row where it can (`hudPackedFirst`, `hudPackedKind`, hud_layout.h). The rows are the
+touch tiles `powerup0..4`; `TouchTile::packed` makes the touch mapper ask `hudPackedKind` which
+kind a row shows at the moment of the tap (tap = select by "next" presses on alternate steps,
+tap on the selected = use, an empty row = nothing), so the HUD and the touch never disagree. The
+missiles are fixed slots as in the first game. `hudTilesLayout` switches both sequels to tiles
+(12 of them); the circle band is no longer built for any game.
+
+Tests (hud_layout_test): the console layout test now runs for the three games (pixels, no
+overlaps, the score rule, tiles 70 x 38, the nine-piece box and the half-size bar for the
+sequels, Main untouched); the packed rows (window, kinds, empty rows); a packed row selecting
+then using its kind by touch; the fullest HUD of each game drawn inside its rectangles on whole
+pixels (headless GL, game data). The sequels' old 0.4 tests (band, column of ten) are gone with
+the layout.
+
+### The game selector
+
+`ui::consoleSelectorLayout`, `consoleSelectorApplyHits`, `drawConsoleSelectorBottom` /
+`drawConsoleSelectorTop` (console_menu.h), used by apps/3ds/source/ctr_selector.cpp when
+`ui_menus=1`. The model is `GameSelector`'s (cards, focus, Exit, Play); the hits are written
+before each update so the bottom screen's 0.4 mapping takes taps to the drawn cards.
+
+- Bottom: "CHOOSE A GAME" (L) on a 20-px band; three cards 101 x 166 at y 22 (the game's own
+  marquee, AirStrike 3D's name in L and T since its banner mesh is not drawn here; the card's
+  name with "AirStrike II: " dropped, and "N missions", each group at one size, L or S;
+  "TAP: PLAY" on the current card); EXIT and PLAY 92 x 38 in the bottom corners.
+- Top: the current game's logo at exactly 1/2 (AirStrike 2's logo and "2", Gulf Thunder's
+  emblem; none for the first game), its full title at T (L when wider), the version (S), the save
+  lines (L) or its missing files (red), and the keys with the owner's pictures: A Play, B Exit,
+  START SELECT Quit (`loadKeyGlyphs` is now also used by the selector).
+- `GameCard::brief` and `GameCard::missing` are new fields the desktop ignores.
+
+### The loading screen
+
+`ui::drawConsoleLoading` (console_menu.h), from ctr_frame.cpp `loadingFrame` (the console branch
+of its list building; its GPU part only skips the old 3-px bar). Top: the first game's
+`menu\loading.tga` 1:1 (its middle 206 rows), AirStrike 2's comic of the campaign's third at
+exactly 1/2 (400 x 165), Gulf Thunder's comic tiles at 1/2 (its first 400 x 206 px); under it the
+mission's name (L, S when wider) and a 6-px bar of 200 px in the game's colour. Bottom: the
+CONTROLS card: Circle Pad fly, A fire, B missile, X power-up, Y next weapon, R next missile, ZR
+next power-up, START pause, touch tiles: select, use (key pictures where the set has them, the
+labels one size). The attract level's loads stay black. `loadingInfo()` (frontend.h) gives the
+look and the name; the first game's front end now leaves its mission's name there too.
+
+### Gallery
+
+`out/ui3ds/gallery/c708b4f/{selector,as2,gulf,as3d}_sheet.png` (+ `@2x`, per screen under the
+game folders), all runs on this package's build. New runs in tools/3ds_ui_gallery.py:
+`as2_gameover` and `gulf_gameover` (game over, then Quit by a tap: the name entry),
+`as2_play` (the HUD tiles by taps, as `as3d_play`); `as2_menus` adds the second Information
+page, credits, exit and the next helicopter; the sequels' runs use a fresh profile (the SD's
+profiles start mission 3; restored after) so mission 1's start dialogue and hint are reached; a
+`("frame", F)` selector and `("load", -1)` (the mission's last loading frame, with its name; the
+first dump of a run is the boot's, without one).
+
+### Deviations from the mockups, and why
+
+- **Sequels' main menu in two columns** of 154 x 56 (the mockup: one column of six bars about 31
+  px high): six bars of 36 px and the bottom row (GAMES, footer) do not fit 240 px; two columns
+  keep every target at least 36 px and the footer row as the first game's. GAMES is bottom-left
+  as in the first game (the mockup has it bottom-right).
+- **Bars drawn, not the original's chrome pieces**: the sequels' button pieces are 30 (AirStrike
+  2) or 37 texels high and would be stretched or squeezed to 36; the bars are the skin's flat
+  fill, edge and notched corner, the captions in the game's font and colours.
+- **Comic pages at 1/2, 0.4 and 15/32**, not 0.75-1:1: a 4:3 page fitted to the 400 x 240 top
+  screen cannot be larger without cutting the speech bubbles; pages 1, 2 and 4 are about 20 %
+  larger than before, page 3 (the whole page is drawn on) stays 0.4.
+- **Gulf Thunder's logo at 1/2** (152 x 106 drawn), larger than the plan's 1/4-1/2: at 1/4 a
+  bilinear picture drops texels.
+- **The sequels' HUD boxes in nine pieces at 70 x 38** (the plan: their frames at 3/4 resampled):
+  at 3/4 a box is 65 x 45 and five missile rows no longer fit under the top row; the nine pieces
+  keep the corners and the notch at 1:1. The bar and fill at exactly 1/2 instead of 3/4 (a clean
+  2 x 2 mean; 116 px fit the score rule's room). Lives at most five (the sequels allow ten).
+- **Five power-up rows with a window** (the mockup shows four rows): five fit the 40-px pitch
+  like the missiles; a window instead of a scrolling column, so a tap always names one kind.
+- **Selection by the outline**, not the sequels' selection line and dimmed icons: the line is a
+  1-px piece and the dimmed icons were hard to read at this size.
+- **Mission complete title at L** (T is wider than 392 px).
+- **Selector**: the cards' names without "AirStrike II: " (the full title is on the top screen),
+  "TAP: PLAY" (the mockup's "TAP TO PLAY" is wider than a card at S); no "Best score" on a card
+  (on the top screen); the first game's card and top have no logo (its banner is a 3D mesh not
+  drawn in the selector).
+- **Loading**: the first game's picture cropped to its middle 206 rows; the bar 200 px (the
+  mockup's 200 as well, 6 px high).
+- **Name entry**: the model's 4 x 10 keys (as the first game's, R4.5), not the mockup's 8 x 5.
+- **Not dumped**: Gulf Thunder's mission 1 hint did not come up in the scripted run; AirStrike 2's
+  game over (`as2_gameover`) was tapped away before its settled dump (Gulf Thunder's is in the
+  set; the earlier work-in-progress set `r48wip1` has AirStrike 2's comic pages at more moments).
+- **Selector card names**: "Gulf Thunder" is wider than a card's 93 px even at S, so the size
+  rule cuts it ("Gulf Thund..."); the full title is on the top screen.
+
+### One photo session for the owner (five minutes, in this order)
+
+At arm's length, slider off then halfway; a phone photo of each, both screens in frame.
+
+1. **Selector** (hold START at boot if one game only): the three card names and "N missions"
+   readable; the logo on top crisp; tap a card.
+2. **AirStrike 2 intro** (delete `3ds/openairstrike/as2/profile.bin` first, or a fresh SD
+   profile): page 2 and page 4 on the top screen; can the speech bubbles be read? Tap SKIP.
+3. **AirStrike 2 main menu**: the logo band on top (clouds moving, the "2" spinning); the six
+   buttons under the thumb; Information page 2 on top (S text thickness: the alternative A
+   question of section 4).
+4. **Start Game, helicopter selection**: the model on top in stereo; the arrows by thumb.
+5. **Loading**: the comic on top, the name, the bar; the CONTROLS card legible.
+6. **In play (AirStrike 2)**: the tiles' frames (nine pieces) and icons sharp; tap a missile
+   tile, tap it again; the power-up rows; the score digits; the start dialogue's portrait and
+   text on top.
+7. **Gulf Thunder**: the main menu on the scan lines (do the lines beat or shimmer?), the
+   emblem on top, PAUSED, game over's comic, the name-entry keys by thumb.
+8. Note anything too thin (S), too dim (the sequels' green on black, Gulf's white-green on the
+   scan lines) or out of thumb reach.
+
+### What is left
+
+- The desktop `--dual-screen` preview (apps/game, not this package's files) draws the sequels'
+  new HUD with the old band over it and their old menus.
+- The first game's card and selector top without a logo (the banner mesh needs the mesh renderer
+  in the selector).
+- On hardware: the console photo session above, the stereo comfort of the top-screen text and the
+  model view, the GPU time of the nine-piece boxes (a few dozen more quads than one box).
