@@ -232,7 +232,7 @@ RunConfig parseRunConfig(const std::string& text) {
             std::vector<SoakStage> stages;
             if (parseSoakList(val, &stages)) c.soak = stages; // a malformed list keeps the default stages
         } else if (key == "soak_frames") {
-            if (toInt(val, &n) && n >= 1) c.soakFrames = n;
+            if (toInt(val, &n) && n >= 0) c.soakFrames = n;
         } else if (key == "report_to") {
             std::string host;
             int port = 0;

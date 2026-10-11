@@ -100,11 +100,15 @@ int connectTo(const std::string& host, int port, std::string* why) {
             close(sock);
             return -1;
         }
-        int err = 0;
-        socklen_t len = sizeof err;
-        if (rc < 0 || (pfd.revents & (POLLERR | POLLHUP)) ||
-            getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &len) != 0 || err != 0) {
-            *why = "connection refused or unreachable (errno " + std::to_string(rc < 0 ? errno : err) + ")";
+        // The console's socket service does not answer SO_ERROR as Linux does (the first console
+        // run got -26 from it on a connection the PC had accepted): a peer address is the proof
+        // of a connection, the poll's error bits the proof of a failure.
+        sockaddr_in peer = {};
+        socklen_t len = sizeof peer;
+        if (rc < 0 || (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) ||
+            getpeername(sock, reinterpret_cast<sockaddr*>(&peer), &len) != 0) {
+            *why = "connection refused or unreachable (errno " + std::to_string(errno) + ", revents " +
+                   std::to_string(static_cast<int>(pfd.revents)) + ")";
             close(sock);
             return -1;
         }

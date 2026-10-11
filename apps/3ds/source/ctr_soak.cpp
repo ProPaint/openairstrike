@@ -99,7 +99,7 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         ++n;
         SoakStageResult r;
         r.stage = st;
-        r.targetSteps = static_cast<unsigned>(base.soakFrames);
+        r.targetSteps = static_cast<unsigned>(base.soakFrames > 0 ? base.soakFrames : RunConfig::kSoakStepCap);
         if (aborted) {
             r.skipped = "(aborted before it)";
             results.push_back(r);
@@ -116,7 +116,9 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         sr.gameGiven = true;
         sr.level = st.level;
         sr.levelGiven = true;
-        sr.frames = base.soakFrames;
+        // soak_frames=0 (the default): the whole mission, the step cap as the safety net.
+        sr.frames = base.soakFrames > 0 ? base.soakFrames : RunConfig::kSoakStepCap;
+        sr.stopAtLevelEnd = base.soakFrames <= 0;
         sr.slider = st.stereo ? 0.5f : 0.0f; // the hardware slider is ignored
         sr.botWeapons = true;                // the player's weapons fire as in play
         sr.perf = true;
@@ -129,13 +131,14 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         sr.fixedSteps = 0;
         char marker[160];
         std::snprintf(marker, sizeof marker, "stage %d of %d: %s, %d frames, build %s\n", n, static_cast<int>(stages.size()),
-                      soakStageName(st).c_str(), base.soakFrames, buildCommit());
+                      soakStageName(st).c_str(), sr.frames, buildCommit());
         writeMarker(marker);
         withLog([&]() {
             AS3D_INFO("AS3D_SOAK_STAGE n=%d of=%d game=%s level=%d eyes=%s slider=%.2f frames=%d bot_weapons=1 "
-                      "state_check=%d probe_every=%d audio=%d",
+                      "state_check=%d probe_every=%d audio=%d whole_mission=%d",
                       n, static_cast<int>(stages.size()), st.game.c_str(), st.level, st.stereo ? "stereo" : "mono",
-                      static_cast<double>(sr.slider), sr.frames, sr.stateCheck, probeEvery, sr.audio ? 1 : 0);
+                      static_cast<double>(sr.slider), sr.frames, sr.stateCheck, probeEvery, sr.audio ? 1 : 0,
+                      sr.stopAtLevelEnd ? 1 : 0);
         });
         // The last stage's precache armed the lazy-load log: this stage's session start is not play.
         as3d::LoadStats::setLogLazy(false);
@@ -156,7 +159,10 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         }
         const as3d::pica::StateCheckCounts sc = as3d::pica::stateCheckCounts();
         r.ran = true;
-        r.finished = lr.finished;
+        r.finished = sr.stopAtLevelEnd ? lr.levelEnded : lr.finished;
+        r.levelEnded = lr.levelEnded;
+        r.gameOver = lr.gameOver;
+        r.levelEndStep = lr.levelEndStep;
         r.frames = lr.frames;
         r.steps = lr.steps;
         r.hzEnd = lr.pace.hz;
@@ -186,11 +192,12 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         }
         if (!fatal.empty()) notes.push_back("stage " + std::to_string(n) + " (" + soakStageName(st) + ") could not run: " + fatal);
         withLog([&]() {
-            AS3D_INFO("AS3D_SOAK_RESULT n=%d game=%s level=%d eyes=%s finished=%d frames=%u steps=%u hz_end=%d after_grace=%u "
+            AS3D_INFO("AS3D_SOAK_RESULT n=%d game=%s level=%d eyes=%s finished=%d level_end=%s@%u frames=%u steps=%u hz_end=%d after_grace=%u "
                       "at60=%u at30=%u misses60=%u misses30=%u excused60=%u probe_excused=%u pace_changes=%u gpu_avg=%.2f "
                       "gpu_p95=%.2f lazy=%lld lazy_stamps=%lld gpu_mismatches=%u terrain_gpu_mismatches=%u state_mismatches=%u probes=%u "
                       "probe_ms_avg_max=%.2f/%.2f auto_marks=%u fence=%u gpu_busy=%u tex_in_frame=%u context=%s",
-                      n, st.game.c_str(), st.level, st.stereo ? "stereo" : "mono", r.finished ? 1 : 0, r.frames, r.steps,
+                      n, st.game.c_str(), st.level, st.stereo ? "stereo" : "mono", r.finished ? 1 : 0,
+                      !r.levelEnded ? "none" : r.gameOver ? "game_over" : "complete", r.levelEndStep, r.frames, r.steps,
                       r.hzEnd, r.graceFrames, r.graceAt60, r.graceAt30, r.misses60, r.misses30, r.excused60,
                       lr.pace.probeExcused, r.paceChanges, r.gpuAvg, r.gpuP95, r.lazyLoads, r.lazyStamps, r.gpuMismatches,
                       r.terrainGpuMismatches, r.stateMismatches, r.probes,

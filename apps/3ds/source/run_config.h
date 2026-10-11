@@ -133,9 +133,15 @@ struct RunConfig {
     int probeEvery = -1;
     int probeInject = 0;       // probe_inject=N: the N-th probe of each level start reports a made-up mismatch (self-test)
     // mode=soak (ctr_soak.h): soak=game:level:mono|stereo,... (empty = every installed game,
-    // missions 1 and 2, mono and stereo), soak_frames=N steps per stage (default 1800).
+    // missions 1 and 2, mono and stereo), soak_frames=N steps per stage; 0 (the default) = the
+    // whole mission: until Mission Complete or Game Over plus kLevelEndMargin steps of that
+    // screen, kSoakStepCap at most (the wash showed late in the missions, never in their first
+    // 30 seconds).
     std::vector<SoakStage> soak;
-    int soakFrames = 1800;
+    int soakFrames = 0;
+    static constexpr int kSoakStepCap = 24000;    // 6.7 minutes; the bot completes missions 1 and 2 at ~13700
+    static constexpr int kLevelEndMargin = 300;   // 5 seconds of the Mission Complete / Game Over screen
+    bool stopAtLevelEnd = false; // not a key: set by the soak for a whole-mission stage (ctr_loop.cpp)
     // report_to=IP:PORT: at the clean end of any mode, the run's files are pushed over TCP to
     // tools/3ds_receive.py (ctr_report.h); empty = never (default).
     std::string reportTo;

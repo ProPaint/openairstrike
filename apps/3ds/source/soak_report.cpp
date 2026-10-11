@@ -149,6 +149,10 @@ std::string soakVerdict(const std::vector<SoakStageResult>& results, const std::
     line(ran > 0 && finished == ran, "stages_finished",
          fmt("%u of %u%s%s", finished, ran, unfinished.empty() ? "" : " unfinished:", unfinished.c_str()));
     for (const SoakStageResult& r : results)
+        if (r.ran && r.levelEnded)
+            out += "INFO mission " + soakStageName(r.stage) + (r.gameOver ? " game over" : " complete") + " at step " +
+                   std::to_string(r.levelEndStep) + " (" + std::to_string(r.steps) + " steps run)\n";
+    for (const SoakStageResult& r : results)
         if (!r.ran) out += "INFO skipped " + soakStageName(r.stage) + " " + r.skipped + "\n";
     out += std::string("VERDICT ") + (fail ? "FAIL" : "PASS") + "\n";
     return out;

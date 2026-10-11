@@ -143,7 +143,9 @@ void setRenderHz(int hz, const char* why);
 // for an SD write of the log (perf=1), a dump, or a late load. A miss is logged with the columns
 // of the frame before (what ran between the two syncs) and this frame's step and prepare.
 // pace=auto: two eyes start at 30 Hz (the console's stereo GPU is 13.5 ms avg, 16.5 p95), one
-// eye at 60 Hz; 3 counted misses in 120 frames at 60 Hz go to 30 Hz; at 30 Hz, fitNeeded (60)
+// eye at 60 Hz; 6 counted misses in 120 frames at 60 Hz go to 30 Hz (the first soak run of
+// 2026-10-11 showed bursts of 3 heavy frames in the fights, 0.5% of the frames: a dropped frame
+// now and then beats a second and a half at 30 Hz); at 30 Hz, fitNeeded (60)
 // frames in a row whose CPU path (one step + prepare + recording + end) stays under 13 ms and
 // whose GPU time (from the first command list to the end of the queue) under 14 ms go to 60 Hz;
 // a fall back within 600 frames of that doubles fitNeeded (at most 3600).
@@ -225,7 +227,7 @@ void updatePacer(const FrameSample& sample) {
         p.misses += m - p.miss[p.missAt];
         p.miss[p.missAt] = m;
         p.missAt = (p.missAt + 1) % PacerState::kWindow;
-        if (p.misses >= 3) {
+        if (p.misses >= 6) {
             if (p.promotedAt && p.frameNo - p.promotedAt < 600) p.fitNeeded = std::min(p.fitNeeded * 2, 3600);
             setRenderHz(30, "misses");
         }
@@ -587,6 +589,8 @@ int runCtrLoop(const CtrLoopOptions& opts) {
 
     const unsigned maxSteps = static_cast<unsigned>(run.effectiveFrames());
     unsigned frame = 0, steps = 0, dropped = 0;
+    unsigned levelEndStep = 0; // run.stopAtLevelEnd: the step Mission Complete / Game Over was seen
+    bool levelGameOver = false;
     FrameClock clock;
     uint64_t lastFrame = 0;
     float lastCpu = 0.0f, lastGpu = 0.0f;
@@ -650,6 +654,16 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         sample.stepMs = static_cast<float>(ticksToMs(nowTicks() - s0));
         sample.simSteps = n;
         audio.followPause(session->world().paused());
+        // A whole-mission stage (mode=soak, soak_frames=0): the level's end, then the margin of
+        // frames on the Mission Complete / Game Over screen (the wash was once seen there).
+        if (run.stopAtLevelEnd && !levelEndStep && session->hasLevel()) {
+            const as3d::World& w = session->world();
+            if (w.levelComplete() || w.gameOver()) {
+                levelEndStep = steps;
+                levelGameOver = w.gameOver();
+                AS3D_INFO("AS3D_LEVEL_END step=%u frame=%u %s", steps, frame, levelGameOver ? "game_over" : "complete");
+            }
+        }
 
         FrameInfo info;
         info.frame = frame;
@@ -676,6 +690,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         perf.record(sample);
         ++frame;
         if (maxSteps && steps >= maxSteps) break;
+        if (levelEndStep && steps >= levelEndStep + static_cast<unsigned>(RunConfig::kLevelEndMargin)) break;
     }
 
     // Exit: pause, save, report, release in reverse order of creation.
@@ -689,6 +704,9 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         LoopReport& r = *opts.report;
         r.started = true;
         r.finished = maxSteps && steps >= maxSteps;
+        r.levelEnded = levelEndStep != 0;
+        r.gameOver = levelGameOver;
+        r.levelEndStep = levelEndStep;
         r.quit = quit;
         r.frames = frame;
         r.steps = steps;

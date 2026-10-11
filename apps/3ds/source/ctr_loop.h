@@ -90,6 +90,9 @@ PaceStats paceStats();
 struct LoopReport {
     bool started = false;  // the mission loaded and the loop ran
     bool finished = false; // it reached its `frames` steps
+    bool levelEnded = false;  // run.stopAtLevelEnd: Mission Complete or Game Over was reached (then the margin)
+    bool gameOver = false;    // ... and it was Game Over
+    unsigned levelEndStep = 0; // the step the level ended at
     bool quit = false;     // START+SELECT, or the system closed the app
     unsigned frames = 0, steps = 0, dropped = 0;
     PaceStats pace;

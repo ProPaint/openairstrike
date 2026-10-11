@@ -34,7 +34,10 @@ std::string soakStageName(const SoakStage& s); // "as3d:1:mono"
 struct SoakStageResult {
     SoakStage stage;
     bool ran = false;          // the stage was started (false: skipped or aborted before it)
-    bool finished = false;     // it reached its last step
+    bool finished = false;     // it reached its last step (a whole-mission stage: the level's end)
+    bool levelEnded = false;   // a whole-mission stage reached Mission Complete / Game Over
+    bool gameOver = false;     // ... Game Over (the bot died: less of the mission was covered)
+    unsigned levelEndStep = 0; // the step it happened at
     std::string skipped;       // why it did not run ("not installed", "aborted")
     unsigned frames = 0, steps = 0, targetSteps = 0;
     int hzEnd = 0;             // the pacer's rate at the end

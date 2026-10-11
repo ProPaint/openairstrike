@@ -141,7 +141,7 @@ start a comment line, unknown keys are ignored, no file (or no `mode=`) means `m
 | `water` | `1` (default) or `0` | `0` draws no water (hardware A/B) |
 | `fog` | `1` (default) or `0` | `0`: the level fog stays off (the terrain, models and sprites keep their unfogged colours; the clear colour is the fog colour as before), for the hardware A/B of the fog table |
 | `depthmap` | `w` (default) or `z` | `z`: the world passes use the Z-buffer depth mapping instead of the W-buffer, with the fog table rebuilt for it (hardware A/B) |
-| `pace` | `auto` (default), `60`, `30` | the render rate (`ctr_loop.h`): the simulation steps once per vblank (the frame clock counts the vblanks since the last frame, never 0 steps); `auto`: one eye starts at 60 Hz, two eyes at 30 Hz (two steps per frame); 3 counted misses in 120 frames at 60 Hz drop to 30 Hz (misses after a load, an SD write, a dump or a late load do not count); at 30 Hz, 120 frames whose CPU path stays under 13 ms and GPU time under 14 ms return to 60 Hz. `AS3D_PACE`, `AS3D_MISS` and `PERF_SUMMARY pace` in the log |
+| `pace` | `auto` (default), `60`, `30` | the render rate (`ctr_loop.h`): the simulation steps once per vblank (the frame clock counts the vblanks since the last frame, never 0 steps); `auto`: one eye starts at 60 Hz, two eyes at 30 Hz (two steps per frame); 6 counted misses in 120 frames at 60 Hz drop to 30 Hz (a burst of 3 heavy frames in a fight no longer does; misses after a load, an SD write, a dump or a late load do not count); at 30 Hz, 120 frames whose CPU path stays under 13 ms and GPU time under 14 ms return to 60 Hz. `AS3D_PACE`, `AS3D_MISS` and `PERF_SUMMARY pace` in the log |
 | `gpu_kick` | `1` (default) or `0` | the GPU starts each eye's command list while the CPU records the next (`pica_frame.h` kickGpu); implies `end_flush=cmdlist`. gpu_ms then only times the tail after C3D_FrameEnd: measure the GPU gate with `gpu_kick=0` |
 | `end_flush` | `all` (default) or `cmdlist` | C3D_FrameEnd(0) flushes the whole linear heap; `cmdlist` only the command list (every other GPU buffer is flushed when written) |
 | `clear` | `split` (default), `joint` or `quad` | how a target with colour and depth is cleared (docs/3ds-port.md "Console session of 2026-10-11"): `split` = two GX memory fills (depth, then colour) on the engine whose completion libctru's GX queue waits for; `joint` = citro3d's single fill (the depth half on PSC1, which the queue does not wait for: the behaviour up to the round-2 drop); `quad` = a full-screen quad in the command list (no fill engine) |
@@ -150,7 +150,7 @@ start a comment line, unknown keys are ignored, no file (or no `mode=`) means `m
 | `probe_every` | N, default 30 in `soak`, 0 otherwise | with `state_check` on: every N displayed frames the GPU registers are read back after the terrain's draws (the `state_check=2` read-back, one GPU stall per eye; the pacer excuses that frame), so the water wash's signature `AS3D_GPU_MISMATCH pass=terrain` is caught without L; the first 3 mismatches of a level start dump the screens as L does (`AS3D_AUTO_MARK`, `mark<NN>_*.ppm`, numbered over the whole launch) |
 | `probe_inject` | N, default 0 | the N-th probe of each level start reports a made-up terrain mismatch (`field=inject`): the self-test of the mark, verdict and push path on a GPU that never loses its state (Azahar) |
 | `report_to` | `IP:PORT`, default none | at the clean end of any mode the files this launch wrote (log.txt, perf.csv, soak.txt, the mark dumps) are pushed over TCP to `tools/3ds_receive.py` on the PC (3 s connect timeout; when it cannot connect, one `AS3D_REPORT ... not sent` line and the files stay on the SD card) |
-| `soak`, `soak_frames` | see "Soak mode" | the stages of `mode=soak` and their length |
+| `soak`, `soak_frames` | see "Soak mode" | the stages of `mode=soak` and their length: `soak_frames=0` (default) = the whole mission, until Mission Complete or Game Over plus 300 steps of that screen (24000 steps at most; the bot completes missions 1 and 2 at about 13700); N = N steps |
 | `passes` | names, default all | only these passes draw, for A/B hardware runs: `clear terrain marks shadows opaque water rest lightning particles sprites brightness top2d model hud hint touch bottom2d`, `world` (the world passes), `all`, `none`; comma separated |
 | `hud`, `touch` | `1` (default) or `0` | `0` leaves the HUD / the touch band off the bottom screen |
 | `top_format` | `rgba8` (default) or `rgb565` | the top screen's eye targets and framebuffers in RGB565: half the colour bytes the GPU writes and blends (stereo GPU A/B); dumps are read back from 565 (Azahar: MAE 4.6 against RGBA8, the 565 steps under the brightness pass) |
@@ -213,8 +213,9 @@ push (round 2, P7)". The drop's `run.ini`:
 
 `mode=soak` (`source/ctr_soak.cpp`) runs a chain of `mode=bot` stages on the same screens (the loading
 screen between them): by default every game whose paks are installed, missions 1 and 2, each in mono and
-in stereo (`slider` forced to 0 / 0.5, the hardware slider ignored), `soak_frames` steps each (default
-1800), with the weapon tour (`bot_weapons=1`), `perf=1`, `state_check` at least 1 and `probe_every=30`.
+in stereo (`slider` forced to 0 / 0.5, the hardware slider ignored), each the whole mission by default
+(`soak_frames=0`: until Mission Complete or Game Over, then 300 steps of that screen, `AS3D_LEVEL_END`
+in the log; 24000 steps at most; `soak_frames=N` for N steps instead), with the weapon tour (`bot_weapons=1`), `perf=1`, `state_check` at least 1 and `probe_every=30`.
 `soak=as3d:1:mono,as3d:1:stereo,gulf:2:stereo` chooses the stages (a game that is not installed is
 skipped). Per stage the log gets `AS3D_SOAK_STAGE` (game, level, eyes, frames, weapons), the stage's own
 config line, `AS3D_PACE`, `AS3D_PASS_MS`, `PERF_SUMMARY`, `AS3D_LAZY_LOADS`, the end state (`level N: F

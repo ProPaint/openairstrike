@@ -3119,7 +3119,7 @@ and the log push (P7)").
 **The stages.** `mode=soak` runs `runCtrLoop` in `mode=bot` once per stage on the same graphics context
 and input (the loop now borrows them, as the front end does from the selector), with a loading screen
 between stages: every game whose paks are installed, missions 1 and 2, each in mono (`slider=0`) and in
-stereo (`slider=0.5`; the hardware slider is ignored), `soak_frames` steps (1800), the weapon tour,
+stereo (`slider=0.5`; the hardware slider is ignored), the whole mission each (`soak_frames=0`, the default since the first console soak: until Mission Complete or Game Over plus 300 steps, 24000 at most; `soak_frames=N` for N steps), the weapon tour,
 `perf=1`, `state_check>=1`, `probe_every=30`, audio and music on (the mono hiccup of the last session was
 the music thread). `soak=game:level:mono|stereo,...` overrides the list. Before each stage
 `soak.running` names it on the card; it is removed at the end, so a launch that died inside a stage is
