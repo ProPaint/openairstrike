@@ -28,6 +28,10 @@ add_executable(openairstrike
   source/ctr_frame.cpp
   source/ctr_input.cpp
   source/ctr_perf.cpp
+  source/ctr_soak.cpp
+  source/ctr_report.cpp
+  source/soak_report.cpp
+  source/build_info.cpp
   source/run_config.cpp
   source/quality_profile.cpp
   source/main.cpp
@@ -63,6 +67,12 @@ target_include_directories(openairstrike PRIVATE source ${AS3D_REPO_ROOT}/apps/g
 target_link_libraries(openairstrike PRIVATE scene_shbin_data ${AS3D_MODULES} ${AS3D_MODULES}
                                             citro3d ctru m)
 target_compile_options(openairstrike PRIVATE -fno-exceptions)
+# The commit logged as build= (tools/3ds_build.sh passes it; only build_info.cpp sees it, so a new
+# commit recompiles one file).
+set(AS3D_GIT_COMMIT "" CACHE STRING "commit of the 3DS build (logged as build=)")
+if(AS3D_GIT_COMMIT)
+  set_source_files_properties(source/build_info.cpp PROPERTIES COMPILE_DEFINITIONS "AS3D_GIT_COMMIT=\"${AS3D_GIT_COMMIT}\"")
+endif()
 set_target_properties(openairstrike PROPERTIES SUFFIX ".elf")
 
 # The Homebrew Launcher's and the HOME menu's titles (the CIA takes the same SMDH,

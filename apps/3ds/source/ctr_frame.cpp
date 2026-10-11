@@ -543,6 +543,8 @@ struct GameFrame::Impl {
         pica::setClearMode(static_cast<pica::ClearMode>(run.clearMode));
         pica::setArenaPoison(run.arenaPoison); // docs/3ds-port.md "Frame synchronisation"
         pica::setStateCheck(run.stateCheck);
+        pica::setProbeEvery(run.effectiveProbeEvery()); // docs/3ds-port.md "Soak mode and the log push"
+        pica::setProbeInject(run.probeInject);
         std::string off;
         for (int i = 0; i < pica::kPassCount; ++i)
             if (!pica::passBit(mask, static_cast<pica::Pass>(i))) off += std::string(off.empty() ? "" : ",") + pica::passName(static_cast<pica::Pass>(i));
@@ -1471,14 +1473,25 @@ void GameFrame::stats(FrameStats& out) {
 
 void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
     Impl& im = *impl_;
-    // state_check: L marks the water wash on screen (the log's AS3D_WASH_MARK and the screens).
-    if (pica::stateCheck() && (info.padDown & as3d::pad::L)) {
+    // state_check: L marks the water wash on screen (the log's AS3D_WASH_MARK and the screens);
+    // probe_every: a GPU mismatch found by a periodic probe marks the frame the same way
+    // (AS3D_AUTO_MARK, the first kMaxAutoMarks of a level start). The file numbers run over the
+    // whole launch (a soak's stages do not overwrite each other's marks).
+    const bool autoMark = pica::stateCheck() && pica::stateCheckTakeAutoMark();
+    if (pica::stateCheck() && ((info.padDown & as3d::pad::L) || autoMark)) {
+        static int markFiles = 0;
         char base[32];
-        std::snprintf(base, sizeof base, "mark%02d", pica::stateCheckMark(info.frame, info.step));
+        std::snprintf(base, sizeof base, "mark%02d", ++markFiles);
+        const int n = pica::stateCheckMark(info.frame, info.step);
+        AS3D_INFO("%s n=%d files=%s frame=%u step=%u game=%s mission=%d", autoMark ? "AS3D_AUTO_MARK" : "AS3D_L_MARK", n,
+                  base, info.frame, info.step, im.gameKey(), im.mission);
+        std::remove((std::string(kDataDir) + "/" + base + "_right.ppm").c_str()); // a mono mark has none
         im.dumpPair(base, info);
         // Is the terrain's depth there where the wash is? (the left eye's depth buffer)
         const bool d = dumpRenderTargetDepth(ctx.topTarget(0), kTopW, std::string(kDataDir) + "/" + base + "_depth.ppm");
         AS3D_INFO("AS3D_DUMP %s_depth depth=%d", base, d ? 1 : 0);
+        for (const char* part : {"_top.ppm", "_right.ppm", "_bottom.ppm", "_depth.ppm"})
+            noteRunFile(std::string(base) + part);
     }
     // The front end's dumps: every N frames, and once a screen has settled.
     // With dump_from=S: every N simulation steps from step S (the first frame at or after each), named

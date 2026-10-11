@@ -21,8 +21,10 @@
 #include "ctr_audio.h"
 #include "ctr_context.h"
 #include "ctr_fatal.h"
+#include "build_info.h"
 #include "ctr_input.h"
 #include "quality_profile.h"
+#include "state_check_pica.h"
 #include "texture_budget.h"
 
 namespace ctrapp {
@@ -126,8 +128,11 @@ struct PacerState {
     int eyes = 1;             // of the last frame (pace=auto: stereo starts at 30 Hz)
     int fitNeeded = 60;       // fitting frames in a row to go to 60 Hz (doubled after a quick fall back)
     unsigned promotedAt = 0, frameNo = 0;
+    unsigned probes = 0;      // state_check probes at the last frame (a probe_every read-back stalls the GPU)
+    bool probeBefore = false; // the last frame ran one (its stall delays this frame's sync)
     // The summary.
     unsigned frames60 = 0, misses60 = 0, excused60 = 0, frames30 = 0, misses30 = 0, logged = 0;
+    unsigned graceFrames = 0, graceAt60 = 0, graceAt30 = 0, probeExcused = 0;
 };
 PacerState g_pacer;
 
@@ -152,6 +157,13 @@ void updatePacer(const FrameSample& sample) {
     const bool lateLoad = loadNow || p.loadBefore;
     p.loadBefore = loadNow;
     p.lazyLoads = lazy;
+    // A GPU read-back of state_check (probe_every, mode=soak) stalls the frame it runs in: that
+    // frame's and the next one's misses are the instrument's, not the game's.
+    const unsigned probesNow = as3d::pica::stateCheckProbes();
+    const bool probeNow = probesNow != p.probes;
+    const bool probed = probeNow || p.probeBefore;
+    p.probeBefore = probeNow;
+    p.probes = probesNow;
     const uint64_t prevSync = p.lastSync;
     int interval = 1;
     if (p.lastSync != 0)
@@ -161,12 +173,19 @@ void updatePacer(const FrameSample& sample) {
     const bool late = interval > expected;
     // A write of the log by the writer thread during the frame is excused too (the SD write
     // delays the system core's services, docs/3ds-port.md "Console session of 2026-10-11").
-    const bool excused = p.grace > 0 || io || lateLoad || p.prev.afterMs > 5.0f || perfWriterWroteSince(prevSync);
-    if (p.grace > 0) --p.grace;
+    const bool excused = p.grace > 0 || io || lateLoad || probed || p.prev.afterMs > 5.0f || perfWriterWroteSince(prevSync);
+    if (p.grace > 0) {
+        --p.grace;
+    } else {
+        ++p.graceFrames;
+        if (p.hz == 60) ++p.graceAt60;
+        else ++p.graceAt30;
+    }
     if (p.hz == 60) ++p.frames60;
     else ++p.frames30;
     if (late) {
         if (excused) {
+            if (probed && p.grace == 0 && !io && !lateLoad) ++p.probeExcused;
             if (p.hz == 60) ++p.excused60;
         } else if (p.hz == 60) {
             ++p.misses60;
@@ -224,9 +243,10 @@ void updatePacer(const FrameSample& sample) {
 
 void logPaceSummaryImpl() {
     const PacerState& p = g_pacer;
-    AS3D_INFO("PERF_SUMMARY pace changes=%u frames60=%u misses60=%u (%.2f%%) excused60=%u frames30=%u misses30=%u",
+    AS3D_INFO("PERF_SUMMARY pace changes=%u frames60=%u misses60=%u (%.2f%%) excused60=%u frames30=%u misses30=%u "
+              "after_grace=%u at60=%u at30=%u probe_excused=%u hz_end=%d",
               p.changes, p.frames60, p.misses60, p.frames60 ? 100.0 * p.misses60 / p.frames60 : 0.0, p.excused60,
-              p.frames30, p.misses30);
+              p.frames30, p.misses30, p.graceFrames, p.graceAt60, p.graceAt30, p.probeExcused, p.hz);
 }
 
 void setRenderHz(int hz, const char* why) {
@@ -243,6 +263,23 @@ void setRenderHz(int hz, const char* why) {
 } // namespace
 
 void logPaceSummary() { logPaceSummaryImpl(); }
+
+PaceStats paceStats() {
+    const PacerState& p = g_pacer;
+    PaceStats s;
+    s.hz = p.hz;
+    s.changes = p.changes;
+    s.frames60 = p.frames60;
+    s.misses60 = p.misses60;
+    s.excused60 = p.excused60;
+    s.frames30 = p.frames30;
+    s.misses30 = p.misses30;
+    s.graceFrames = p.graceFrames;
+    s.graceAt60 = p.graceAt60;
+    s.graceAt30 = p.graceAt30;
+    s.probeExcused = p.probeExcused;
+    return s;
+}
 
 void setFramePacing(const RunConfig& run) {
     g_pacing.gpuKick = run.gpuKick;
@@ -265,6 +302,7 @@ void startPacing(int profileHz) {
     C3D_FrameRate(static_cast<float>(want));
     g_pacer.hz = want;
     g_pacer.lazyLoads = as3d::LoadStats::lazyLoads().total();
+    g_pacer.probes = as3d::pica::stateCheckProbes();
     g_clock = ClockState();
     AS3D_INFO("AS3D_PACE hz=%d reason=start auto=%d", want, g_pacer.autoMode ? 1 : 0);
 }
@@ -425,31 +463,34 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     const bool bot = run.mode != Mode::Play;
     Perf perf;
     perf.open(run.perf);
+    perf.setStage(run.soakStage);
     setFramePacing(run);
 
     bool new3ds = false;
     APT_CheckNew3DS(&new3ds);
     if (new3ds) osSetSpeedupEnable(true);
     AS3D_INFO("openairstrike 3ds: mode=%s game=%s level=%d frames=%d perf=%d bot_weapons=%d log_lazy=%d, %s 3DS%s "
-              "state_check=%d arena_poison=%d from=%s",
+              "state_check=%d probe_every=%d arena_poison=%d slider=%s audio=%d stage=%d build=%s from=%s",
               modeName(run.mode), run.game.c_str(), run.level, run.effectiveFrames(), run.perf ? 1 : 0,
               run.botWeapons ? 1 : 0, run.logLazy ? 1 : 0, new3ds ? "New" : "Old", new3ds ? ", speed-up on" : "",
-              run.stateCheck, run.arenaPoison ? 1 : 0, run.launchedFrom.c_str());
+              run.stateCheck, run.effectiveProbeEvery(), run.arenaPoison ? 1 : 0,
+              run.slider >= 0.0f ? std::to_string(run.slider).substr(0, 4).c_str() : "hw", run.audio ? 1 : 0,
+              run.soakStage, buildCommit(), run.launchedFrom.c_str());
     AS3D_INFO("memory: APPLICATION %.1f MB free, linear free %.1f MB", mb(osGetMemRegionFree(MEMREGION_APPLICATION)),
               mb(linearSpaceFree()));
 
-    // The screens: not for sim, which draws nothing.
+    // The screens: not for sim, which draws nothing. mode=soak lends its context.
     std::unique_ptr<GraphicsContext> gl;
     CtrContext* ctx = nullptr;
     if (!sim) {
-        gl = createGraphicsContext(GraphicsConfig());
+        if (!opts.context) gl = createGraphicsContext(GraphicsConfig());
         ctx = as3d::ctr::ctrContext();
-        if (!gl || !ctx) {
+        if ((!gl && !opts.context) || !ctx) {
             setFatal("cannot create the graphics context");
             perf.close();
             return 1;
         }
-        AS3D_INFO("graphics: %s", gl->description().c_str());
+        AS3D_INFO("graphics: %s", (opts.context ? opts.context : gl.get())->description().c_str());
     }
     QualityProfile quality = sim ? newProfile() : selectQuality(run.quality, new3ds);
     applyRunOverrides(quality, run);
@@ -550,7 +591,10 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     uint64_t lastFrame = 0;
     float lastCpu = 0.0f, lastGpu = 0.0f;
 
-    CtrInput input(run, new3ds);
+    std::unique_ptr<CtrInput> ownInput;
+    if (!opts.input) ownInput.reset(new CtrInput(run, new3ds));
+    CtrInput& input = opts.input ? *opts.input : *ownInput;
+    bool quit = false;
 
     auto stepOnce = [&]() {
         FrameInput in = bot ? botInput(steps) : input.frame(session->world().paused());
@@ -561,10 +605,12 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         ++steps;
     };
 
-    while (aptMainLoop()) {
+    bool looping = true;
+    while ((looping = aptMainLoop())) {
         const PadState& pad = input.readPad();
         if ((pad.held & (pad::Start | pad::Select)) == (pad::Start | pad::Select)) {
             AS3D_INFO("quit: START+SELECT");
+            quit = true;
             break;
         }
 
@@ -635,9 +681,24 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     // Exit: pause, save, report, release in reverse order of creation.
     if (session->hasLevel()) session->world().setPaused(true);
     if (opts.saveHook) opts.saveHook();
+    if (!looping) quit = true; // the system closes the app
     AS3D_INFO("stopped after %u frames, %u steps", frame, steps);
     logEndState(*session, run.level, steps);
     if (!sim) logPaceSummary();
+    if (opts.report) {
+        LoopReport& r = *opts.report;
+        r.started = true;
+        r.finished = maxSteps && steps >= maxSteps;
+        r.quit = quit;
+        r.frames = frame;
+        r.steps = steps;
+        r.dropped = dropped;
+        r.pace = paceStats();
+        perf.gpuStats(&r.gpuAvg, &r.gpuP95);
+        const LoadCounts lazy = LoadStats::lazyLoads();
+        r.lazyStamps = lazy.of(LoadKind::Stamp);
+        r.lazyLoads = lazy.total() - r.lazyStamps;
+    }
     perf.writeSummary(frame, steps, dropped);
     if (!sim) audio.logSummary();
     if (hook && !sim) hook->end();

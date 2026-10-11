@@ -43,6 +43,15 @@ void setFatal(const std::string& what, const std::string& detail) {
 
 bool hasFatal() { return g_fatal; }
 
+std::string takeFatal() {
+    if (!g_fatal) return std::string();
+    std::string s = g_what + (g_detail.empty() ? "" : ": " + g_detail);
+    g_fatal = false;
+    g_what.clear();
+    g_detail.clear();
+    return s;
+}
+
 std::string fatalText() {
     std::string s = "OpenAirStrike cannot start\n\n" + g_what + "\n";
     if (!g_detail.empty()) s += g_detail + "\n";

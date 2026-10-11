@@ -3,8 +3,10 @@
 // second) and, with perf=1, perf.csv with one row per displayed frame:
 //
 //   frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,
-//   linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz
+//   linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz,stage
 //
+// (stage: the soak's stage number, 0 outside mode=soak; a soak's stages append to one perf.csv,
+// the frame column restarting at each stage.)
 // The frame's CPU, in order (ctr_loop.cpp): step_ms (the simulation steps), prepare_ms (the
 // composer's prepare: scene lists, mesh passes, outside the frame), wait_ms (C3D_FrameBegin:
 // the vblank sync and the wait for the GPU to finish the previous frame), submit_ms (drawTop per
@@ -75,6 +77,11 @@ bool queueFileWrite(const std::string& path, std::vector<uint8_t>&& bytes);
 // Files queued and not written yet (tests, logs).
 size_t pendingFileWrites();
 
+// The files of the data directory this launch wrote that the log push sends besides log.txt,
+// perf.csv and soak.txt (the mark dumps; ctr_report.h). Names, no directory.
+void noteRunFile(const std::string& name);
+std::vector<std::string> runFiles();
+
 // Wall clock of the app: the ARM11 system tick (268.111856 MHz).
 uint64_t nowTicks();
 double ticksToMs(uint64_t ticks);
@@ -83,7 +90,11 @@ class Perf {
 public:
     ~Perf();
     // Opens log.txt (truncated) and, with `csv`, perf.csv; routes the engine log into log.txt.
+    // A later open in the same launch appends to both files (perf.csv's header is written once).
     void open(bool csv);
+    void setStage(int stage) { stage_ = stage; } // perf.csv's stage column (mode=soak)
+    // The GPU time of the frames recorded so far (gpu_ms): average and 95th percentile.
+    void gpuStats(double* avg, double* p95);
     // Appends the row and keeps the statistics. The log buffer is flushed once a second.
     void record(const FrameSample& s);
     void service(); // flush the log if a second has passed
@@ -95,6 +106,7 @@ public:
 
 private:
     bool csvOpen_ = false;
+    int stage_ = 0;
     std::FILE* csv_ = nullptr;
     std::vector<float> steps_, periods_;
     // Frame CPU split (frames with a period only): prepare, wait, submit, end, after; cpu, gpu.

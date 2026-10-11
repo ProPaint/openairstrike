@@ -38,9 +38,18 @@ run() {
     bash -c "export DEVKITARM=/opt/devkitpro/devkitARM DEVKITPRO=/opt/devkitpro HOME=/tmp; $*"
 }
 
+# The commit the build is logged with (build= in log.txt, docs/3ds-port.md "Soak mode and the log
+# push"): taken on the host, the image has no git.
+commit_arg() {
+  local c
+  c="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  if [ "${c}" != unknown ] && ! git -C "${REPO_ROOT}" diff --quiet HEAD -- 2>/dev/null; then c="${c}-dirty"; fi
+  echo "-DAS3D_GIT_COMMIT=${c}"
+}
+
 build() {
   prepare_music
-  run "cmake -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/3DS.cmake -S /repo -B /repo/build-3ds -DCMAKE_BUILD_TYPE=Release ${OPENMPT_ARG} \
+  run "cmake -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/3DS.cmake -S /repo -B /repo/build-3ds -DCMAKE_BUILD_TYPE=Release ${OPENMPT_ARG} $(commit_arg) \
        && cmake --build /repo/build-3ds -j${AS3D_BUILD_JOBS:-\$(nproc)}"
   echo "${OUT}"
 }

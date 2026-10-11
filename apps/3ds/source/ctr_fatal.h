@@ -11,6 +11,9 @@ namespace ctrapp {
 // Records the message (the first one wins) and logs it as an error.
 void setFatal(const std::string& what, const std::string& detail = std::string());
 bool hasFatal();
+// mode=soak: the reason recorded ("what: detail"), cleared, so that the next stage can run and
+// the app still returns to the launcher by itself at the end (the soak.txt verdict says why).
+std::string takeFatal();
 // The text shown (for the log and the desktop-free check of its layout): what, detail, the layout.
 std::string fatalText();
 // gfxInitDefault + the libctru console on the bottom screen, the text, then A / B / START or the

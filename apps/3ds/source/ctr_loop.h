@@ -75,6 +75,29 @@ public:
     virtual void end() {}
 };
 
+// What runCtrLoop measured, for mode=soak (ctr_soak.h). The pacer's counts are those of
+// paceStats() at the end.
+struct PaceStats {
+    int hz = 60;              // the rate at the end
+    unsigned changes = 0;
+    unsigned frames60 = 0, misses60 = 0, excused60 = 0, frames30 = 0, misses30 = 0;
+    unsigned graceFrames = 0; // frames after the pacer's grace (300 after a start or a load, 60 after an eye change)
+    unsigned graceAt60 = 0, graceAt30 = 0; // of those, drawn at 60 / 30 Hz
+    unsigned probeExcused = 0; // misses excused because a probe_every GPU read-back stalled the frame
+};
+PaceStats paceStats();
+
+struct LoopReport {
+    bool started = false;  // the mission loaded and the loop ran
+    bool finished = false; // it reached its `frames` steps
+    bool quit = false;     // START+SELECT, or the system closed the app
+    unsigned frames = 0, steps = 0, dropped = 0;
+    PaceStats pace;
+    double gpuAvg = 0.0, gpuP95 = 0.0;
+    long long lazyLoads = 0;  // first-use loads after the precache, TerraMorph stamps excepted
+    long long lazyStamps = 0; // the sequels' TerraMorph stamps (not precachable, as3d/load_stats.h)
+};
+
 struct CtrLoopOptions {
     RunConfig run;
     FrameHook* hook = nullptr;          // required in bot and play (ctr_frame.h GameFrame)
@@ -91,10 +114,13 @@ struct CtrLoopOptions {
     CtrInput* input = nullptr;
     bool changeGameOffered = false;
     mutable bool changeGameRequested = false;
+    // runCtrLoop (bot, play, sim) fills it at the end when set (mode=soak).
+    LoopReport* report = nullptr;
 };
 
 // Runs until the mission's `frames` steps are done, the user quits (START+SELECT) or the system
-// closes the app. Returns the process exit code (0, or 1 when the game data cannot be loaded).
+// closes the app. Borrows options.context and options.input when set (mode=soak runs one loop per
+// stage on the same screens). Returns the process exit code (0, or 1 when the game data cannot be loaded).
 // With run.menu() it runs the front end instead (runCtrMenuLoop, below).
 int runCtrLoop(const CtrLoopOptions& options);
 

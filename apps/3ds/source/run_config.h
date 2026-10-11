@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "as3d/console_pad.h"
+#include "soak_report.h"
 
 namespace ctrapp {
 
@@ -23,6 +24,7 @@ enum class Mode {
     Bot,   // real-time 60 Hz loop, bot input, screens through the frame hook
     Play,  // real-time loop with the pad; without level= the front end (as Menu); the default
     Menu,  // the front end (M2.1): menus on the bottom screen, missions started from them
+    Soak,  // unattended bot stages in one launch, then soak.txt (ctr_soak.h, docs/3ds-port.md "Soak mode")
 };
 
 struct RunConfig {
@@ -125,10 +127,26 @@ struct RunConfig {
     // Synchronisation diagnostics (docs/3ds-port.md "Frame synchronisation"):
     bool arenaPoison = false;  // arena_poison=1: garbage in every arena half / water half / freed block the CPU takes back
     int stateCheck = 0;        // state_check=1|2: the render-state self-check (state_check_pica.h); L marks the wash
+    // probe_every=N: with state_check on, every N displayed frames the GPU registers are read back
+    // after the terrain's draws (one GPU stall each); a mismatch dumps the screens as the L mark
+    // does (3 per level start at most). -1 = the default: 30 in mode=soak, 0 (never) otherwise.
+    int probeEvery = -1;
+    int probeInject = 0;       // probe_inject=N: the N-th probe of each level start reports a made-up mismatch (self-test)
+    // mode=soak (ctr_soak.h): soak=game:level:mono|stereo,... (empty = every installed game,
+    // missions 1 and 2, mono and stereo), soak_frames=N steps per stage (default 1800).
+    std::vector<SoakStage> soak;
+    int soakFrames = 1800;
+    // report_to=IP:PORT: at the clean end of any mode, the run's files are pushed over TCP to
+    // tools/3ds_receive.py (ctr_report.h); empty = never (default).
+    std::string reportTo;
+    int soakStage = 0;         // not a key: the soak's stage number (1..), 0 outside a soak (perf.csv's stage column)
 
     // The real-time front end instead of a direct mission start.
     bool menu() const { return mode == Mode::Menu || (mode == Mode::Play && !levelGiven); }
-    bool usesLoop() const { return mode == Mode::Sim || mode == Mode::Bot || mode == Mode::Play || mode == Mode::Menu; }
+    bool usesLoop() const {
+        return mode == Mode::Sim || mode == Mode::Bot || mode == Mode::Play || mode == Mode::Menu || mode == Mode::Soak;
+    }
+    int effectiveProbeEvery() const { return probeEvery >= 0 ? probeEvery : (mode == Mode::Soak ? 30 : 0); }
     int effectiveFrames() const { return frames > 0 ? frames : (mode == Mode::Sim ? 600 : 0); }
 };
 

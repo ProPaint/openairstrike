@@ -174,8 +174,8 @@ AccessControlInfo:
     QueryProcessMemory: 125
 
   InterruptNumbers:
-  # The services the app opens (libctru's defaults and ours); csnd, soc, http, cameras and the
-  # rest of the template's list are not used.
+  # The services the app opens (libctru's defaults and ours); csnd, http, cameras and the rest of
+  # the template's list are not used. soc:U only with run.ini report_to= (the log push, P7).
   ServiceAccessControl:
    - APT:U        # the applet manager: aptMainLoop, the HOME menu, sleep, the software keyboard
    - cfg:u        # the console's region and model (APT_CheckNew3DS, the keyboard applet)
@@ -188,6 +188,7 @@ AccessControlInfo:
    - ndm:u        # the network daemon manager libctru's applet code tells to suspend
    - ptm:sysm     # osSetSpeedupEnable (PTMSYSM_ConfigureNew3DSCPU)
    - ptm:u        # the battery and the shell (lid) state
+   - soc:U        # sockets: run.ini report_to= pushes the run's files to the PC (ctr_report.cpp)
 
 SystemControlInfo:
   SaveDataSize: 0KB   # no save data archive: the profile is a file on the SD card

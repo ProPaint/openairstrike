@@ -34,6 +34,7 @@ struct FileJob {
     std::vector<uint8_t> bytes;
 };
 std::vector<FileJob> g_fileJobs;
+std::vector<std::string> g_runFiles; // noteRunFile, under g_logMutex
 
 struct Writer {
     Thread thread = nullptr;
@@ -134,6 +135,18 @@ bool queueFileWrite(const std::string& path, std::vector<uint8_t>&& bytes) {
     return true;
 }
 
+void noteRunFile(const std::string& name) {
+    std::lock_guard<std::mutex> lock(g_logMutex);
+    for (const std::string& n : g_runFiles)
+        if (n == name) return;
+    g_runFiles.push_back(name);
+}
+
+std::vector<std::string> runFiles() {
+    std::lock_guard<std::mutex> lock(g_logMutex);
+    return g_runFiles;
+}
+
 size_t pendingFileWrites() {
     std::lock_guard<std::mutex> lock(g_logMutex);
     return g_fileJobs.size();
@@ -169,16 +182,25 @@ void Perf::open(bool csv) {
     as3d::setLogSink(logSink);
     as3d::setLogLevel(as3d::LogLevel::Info);
     if (csv) {
+        // The first perf.csv of the launch is truncated and gets the header; later ones (a
+        // soak's stages) append.
+        static bool csvOpened = false;
+        bool header = false;
         {
             std::lock_guard<std::mutex> files(g_fileMutex);
-            if (!g_csvFile) g_csvFile = std::fopen((std::string(kDataDir) + "/perf.csv").c_str(), "w");
+            if (!g_csvFile) {
+                g_csvFile = std::fopen((std::string(kDataDir) + "/perf.csv").c_str(), csvOpened ? "a" : "w");
+                header = g_csvFile && !csvOpened;
+                csvOpened = csvOpened || g_csvFile;
+            }
             csv_ = g_csvFile;
         }
-        if (csv_) {
+        if (csv_) noteRunFile("perf.csv");
+        if (csv_ && header) {
             std::lock_guard<std::mutex> lock(g_logMutex);
             g_csvBuf += "frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,"
-                        "linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz\n";
-        } else {
+                        "linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz,stage\n";
+        } else if (!csv_) {
             AS3D_WARN("cannot open perf.csv");
         }
     }
@@ -221,11 +243,11 @@ void Perf::record(const FrameSample& s) {
     arenaMax_ = std::max(arenaMax_, s.stats.arenaKb);
     if (csv_) {
         char row[256];
-        const int n = std::snprintf(row, sizeof row, "%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%u,%u,%u,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%d\n",
+        const int n = std::snprintf(row, sizeof row, "%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%u,%u,%u,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%d\n",
                                     s.frame, s.stepMs, s.stats.prepareMs, s.cpuMs, s.gpuMs, s.stats.eyes, s.stats.verts,
                                     s.stats.draws, s.stats.texVramKb, s.stats.texLinearKb,
                                     static_cast<unsigned>(linearFree / 1024), s.stats.lazyLoads, s.stats.arenaKb,
-                                    s.simSteps, s.submitMs, s.waitMs, s.endMs, s.afterMs, s.syncMs, s.renderHz);
+                                    s.simSteps, s.submitMs, s.waitMs, s.endMs, s.afterMs, s.syncMs, s.renderHz, stage_);
         if (n > 0) {
             std::lock_guard<std::mutex> lock(g_logMutex);
             g_csvBuf.append(row, static_cast<size_t>(std::min(n, static_cast<int>(sizeof row) - 1)));
@@ -245,6 +267,11 @@ void Perf::flush() {
     lastFlush_ = nowTicks();
     g_ioFlag = true;
     drainToFiles();
+}
+
+void Perf::gpuStats(double* avg, double* p95) {
+    *avg = splitCount_ ? splitSum_[6] / static_cast<double>(splitCount_) : 0.0;
+    *p95 = percentile(gpus_, 0.95);
 }
 
 void Perf::writeSummary(unsigned frames, unsigned steps, unsigned dropped) {

@@ -13,6 +13,7 @@ const char* modeName(Mode m) {
         case Mode::Bot: return "bot";
         case Mode::Play: return "play";
         case Mode::Menu: return "menu";
+        case Mode::Soak: return "soak";
     }
     return "?";
 }
@@ -64,6 +65,7 @@ RunConfig parseRunConfig(const std::string& text) {
             else if (val == "bot") c.mode = Mode::Bot;
             else if (val == "sim") c.mode = Mode::Sim;
             else if (val == "probe") c.mode = Mode::Probe;
+            else if (val == "soak") c.mode = Mode::Soak;
             else c.mode = Mode::Spike; // spike, and the test modes (picatest, meshtest, ...): main.cpp
         } else if (key == "game") {
             if (val == "select") {
@@ -222,6 +224,20 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.arenaPoison = n != 0;
         } else if (key == "state_check") {
             if (toInt(val, &n) && n >= 0 && n <= 2) c.stateCheck = n;
+        } else if (key == "probe_every") {
+            if (toInt(val, &n) && n >= 0) c.probeEvery = n;
+        } else if (key == "probe_inject") {
+            if (toInt(val, &n) && n >= 0) c.probeInject = n;
+        } else if (key == "soak") {
+            std::vector<SoakStage> stages;
+            if (parseSoakList(val, &stages)) c.soak = stages; // a malformed list keeps the default stages
+        } else if (key == "soak_frames") {
+            if (toInt(val, &n) && n >= 1) c.soakFrames = n;
+        } else if (key == "report_to") {
+            std::string host;
+            int port = 0;
+            if (val == "none" || val.empty()) c.reportTo.clear();
+            else if (parseHostPort(val, &host, &port)) c.reportTo = val;
         } else if (key == "end_flush") {
             if (val == "cmdlist") c.cmdlistFlush = true;
             else if (val == "all") c.cmdlistFlush = false;

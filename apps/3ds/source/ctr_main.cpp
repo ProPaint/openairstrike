@@ -10,16 +10,25 @@
 // argument at all; the path is only logged. The working directory is set to kDataDir, so that no
 // relative path can end up elsewhere. When the data is missing or a pak does not open, the loops
 // record why (ctr_fatal.h) and the bottom screen shows it with the expected SD layout.
+//
+// mode=soak runs the unattended stages of ctr_soak.h. A soak.running marker left by the last
+// launch (it died inside a stage) is reported: in this soak's verdict, or in any other mode as a
+// soak.txt of its own. report_to=IP:PORT pushes the run's files to the PC at the end (ctr_report.h),
+// before the fatal screen if there is one.
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <cstdio>
 #include <string>
 
 #include "ctr_context.h"
 #include "ctr_fatal.h"
 #include "ctr_frame.h"
 #include "ctr_loop.h"
+#include "ctr_perf.h"
+#include "ctr_report.h"
 #include "ctr_save.h"
+#include "ctr_soak.h"
 #include "ctr_selector.h"
 #include "mesh_renderer_pica.h"
 #include "pica_frame.h"
@@ -28,7 +37,8 @@
 #include "water_renderer_pica.h"
 
 namespace {
-int run(ctrapp::CtrLoopOptions& options) {
+int run(ctrapp::CtrLoopOptions& options, const std::string& previousCrash) {
+    if (options.run.mode == ctrapp::Mode::Soak) return ctrapp::runSoak(options.run, previousCrash);
     // The front end without game= in run.ini: the game selector first (ctr_selector.h).
     if (options.run.menu() && !options.run.gameGiven) return ctrapp::runCtrFrontEnd(options.run);
     // bot, play and the front end draw through the frame composer; sim draws nothing.
@@ -55,7 +65,18 @@ int main(int argc, char** argv) {
     as3d::pica::setWaterOptions(options.run.water, options.run.waterTile >= 0.0f ? options.run.waterTile
                                                                                 : as3d::pica::kDefaultWaterTile);
     if (!options.run.usesLoop()) return runSpike();
-    const int code = run(options);
+    const std::string previousCrash = ctrapp::takeSoakCrashMarker();
+    const int code = run(options, previousCrash);
+    if (!previousCrash.empty() && options.run.mode != ctrapp::Mode::Soak) {
+        // Not a soak this time: the report of the last launch's death goes into a soak.txt of its own.
+        const std::string text = "FAIL note the previous launch stopped inside a stage (" + previousCrash + ")\nVERDICT FAIL\n";
+        if (std::FILE* f = std::fopen((std::string(ctrapp::kDataDir) + "/soak.txt").c_str(), "w")) {
+            std::fputs(text.c_str(), f);
+            std::fclose(f);
+            ctrapp::noteRunFile("soak.txt");
+        }
+    }
+    if (!options.run.reportTo.empty()) ctrapp::pushReport(options.run.reportTo);
     // Every graphics resource is released by now: the reason on the screens, then back to the launcher.
     if (ctrapp::hasFatal()) ctrapp::showFatal(options.run.dumpScreens);
     return code;
