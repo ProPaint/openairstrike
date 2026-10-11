@@ -700,6 +700,61 @@ struct GameFrame::Impl {
     int bottomHz() const { return run.bottomHz > 0 ? run.bottomHz : (run.gpuLean ? 30 : 60); }
     bool brightnessSkip() const { return run.brightnessSkip >= 0 ? run.brightnessSkip != 0 : true; }
 
+    // run.ini top_format (R4.6, docs/3ds-port.md "GPU cuts and the level start (round 4, R4.6)"): the
+    // top eyes' colour buffers swapped between RGBA8 and RGB565 at a stage start, as depth16 swaps
+    // the depth buffers, so a soak stage can A/B it (the context makes them once, at launch, from
+    // the run.ini's top_format). Outside the frames, the GPU idle: each eye's colour buffer freed and
+    // made again in the format wanted, its display transfer told the formats, the top screen's
+    // framebuffers set to RGB565 when both eyes are 565 (the transfer converts otherwise).
+    void applyTopFormat(bool want565) {
+        if (!ctx || pica::inFrame()) return; // the GPU must be idle (waitGpuIdle does not wait inside a frame)
+        const GPU_COLORBUF want = want565 ? GPU_RB_RGB565 : GPU_RB_RGBA8;
+        bool waited = false;
+        int changed = 0, failed = 0;
+        for (int eye = 0; eye < 2; ++eye) {
+            C3D_RenderTarget* t = ctx->topTarget(eye);
+            if (!t || !t->frameBuf.colorBuf || t->frameBuf.colorFmt == want) continue;
+            if (!waited) {
+                pica::waitGpuIdle();
+                waited = true;
+            }
+            const GPU_COLORBUF had = static_cast<GPU_COLORBUF>(t->frameBuf.colorFmt);
+            vramFree(t->frameBuf.colorBuf);
+            GPU_COLORBUF fmt = want;
+            void* buf = vramAlloc(C3D_CalcColorBufSize(t->frameBuf.width, t->frameBuf.height, want));
+            if (!buf) { // the old format back (its block was just freed)
+                ++failed;
+                fmt = had;
+                buf = vramAlloc(C3D_CalcColorBufSize(t->frameBuf.width, t->frameBuf.height, had));
+            }
+            if (!buf) { // never expected: no colour buffer at all would draw nowhere
+                AS3D_ERROR("AS3D_TOP_FORMAT eye %d: no VRAM for a colour buffer", eye);
+                continue;
+            }
+            C3D_FrameBufColor(&t->frameBuf, buf, fmt); // citro3d frees it with the target (ownsColor)
+            if (fmt == want) ++changed;
+        }
+        if (!waited) return;
+        bool all565 = true;
+        for (int eye = 0; eye < 2; ++eye) {
+            C3D_RenderTarget* t = ctx->topTarget(eye);
+            if (t && t->frameBuf.colorFmt != GPU_RB_RGB565) all565 = false;
+        }
+        gfxSetScreenFormat(GFX_TOP, all565 ? GSP_RGB565_OES : GSP_BGR8_OES);
+        for (int eye = 0; eye < 2; ++eye) {
+            C3D_RenderTarget* t = ctx->topTarget(eye);
+            if (!t) continue;
+            const bool in565 = t->frameBuf.colorFmt == GPU_RB_RGB565;
+            const u32 flags = GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) |
+                              GX_TRANSFER_IN_FORMAT(in565 ? GX_TRANSFER_FMT_RGB565 : GX_TRANSFER_FMT_RGBA8) |
+                              GX_TRANSFER_OUT_FORMAT(all565 ? GX_TRANSFER_FMT_RGB565 : GX_TRANSFER_FMT_RGB8) |
+                              GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO);
+            C3D_RenderTargetSetOutput(t, GFX_TOP, eye == 0 ? GFX_LEFT : GFX_RIGHT, flags);
+        }
+        as3d::ctr::setTopColor565(all565);
+        AS3D_INFO("AS3D_TOP_FORMAT rgb565=%d changed=%d failed=%d", all565 ? 1 : 0, changed, failed);
+    }
+
     // run.ini depth16=1 (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"): the top eyes' depth
     // buffers as D16 instead of D24S8 (the stencil is never used): half the depth bytes the clears
     // fill and every depth test reads and writes, and 2 x 188 KB of VRAM more for the textures
@@ -765,6 +820,7 @@ struct GameFrame::Impl {
         pica::setProbeInject(run.probeInject);
         // The wash detector and the terrain's priming draw (docs/3ds-port.md "Wash detector").
         applyDepthFormat(run.depth16); // R4.1 depth16=
+        applyTopFormat(run.top565);    // R4.6 top_format= per stage
         wash.setEnabled(run.effectiveWashCheck() && !run.depth16);
         wash.logEvals = run.washLog;
         pica::setTerrainPrime(run.terrainPrime);
