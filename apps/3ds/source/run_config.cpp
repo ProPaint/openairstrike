@@ -314,6 +314,8 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
         } else if (key == "brightness_mode") {
             if (val == "fold") c.brightnessMode = 0;
             else if (val == "quad") c.brightnessMode = 1;
+        } else if (key == "water_cover") {
+            if (toInt(val, &n)) c.waterCover = n != 0;
         // R4.6 end
         } else if (key == "terrain_force_state") {
             if (toInt(val, &n)) c.terrainForceState = n != 0;

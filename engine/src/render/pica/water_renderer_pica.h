@@ -95,6 +95,8 @@ struct WaterPicaStats {
     // The plane's last draw (one eye): tiles cut at the near plane, tiles split, the largest tile
     // span in NDC, the smallest w emitted (the periodic AS3D_STATE line of state_check_pica.h).
     int nearTiles = 0, splitTiles = 0;
+    int dryTiles = 0;           // water_cover: tiles of the visible quads left out under the terrain
+    float screenShare = 0.0f;   // the drawn tiles' area over the screen's (NDC, unclipped: >= the fragments)
     float maxSpan = 0.0f, minCutW = 0.0f;
     // The water's own vertex buffer (WaterPass::Vertices): the half and the offset of the last
     // draw's vertices, the bytes of this frame, allocations that fell back to the frame arena,
@@ -111,6 +113,17 @@ const WaterPicaStats& waterPicaStats();
 // texture mapping unchanged; 0 keeps the GL's quads.
 void setWaterOptions(bool enabled, float tileSize);
 constexpr float kDefaultWaterTile = 80.0f;
+// run.ini water_cover (R4.6, default on; docs/3ds-port.md "GPU cuts and the level start (round 4,
+// R4.6)"): the tiled plane leaves out the tiles the terrain covers. A tile is dry when every
+// terrain vertex within kWaterCoverMargin cells of it (the coarse far chunks interpolate over two
+// cells) is more than kWaterCoverEpsilon above the plane: the terrain's surface, a height field
+// drawn before the water with depth writes, then lies above the whole tile, so every water
+// fragment there fails the depth test (the PICA tests depth after texturing and combining, so a
+// covered fragment cost as much as a visible one). Only while the terrain pass draws.
+void setWaterCover(bool on);
+bool waterCover();
+constexpr int kWaterCoverMargin = 2;
+constexpr float kWaterCoverEpsilon = 1.0f;
 
 class WaterPass {
 public:
@@ -147,6 +160,13 @@ private:
     int drawGrid(const Mat4& view, const Mat4& projection, const Vec3& fogColour, float fogStart, float fogEnd);
     const float* animate(GridChunk& ch);
     void freeGrid();
+    // water_cover: per terrain cell, the lowest vertex height within kWaterCoverMargin cells
+    // (W x H; rows beyond the map are wet). Built with the plane, updated at craters.
+    void buildCover(const TerrainGridView& heights, int c0, int r0, int c1, int r1);
+    bool tileDry(float x0, float x1, float y0, float y1) const;
+    std::vector<float> cellLow_;   // min of the cell's own 4 corners
+    std::vector<float> coverLow_;  // min of cellLow_ over the margin
+    int coverW_ = 0, coverH_ = 0;
 
     // The water's vertices (the plane's tiles, the grid's heights): a double-buffered linear
     // buffer of its own (not the shared frame arena) with its own fence: a half is taken at the

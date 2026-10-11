@@ -770,7 +770,9 @@ struct GameFrame::Impl {
                   run.rightEyeRate == 1 ? "half" : run.rightEyeRate == 2 ? "alternate" : "full", pica::gpuPassEvery(),
                   run.depth16 ? 1 : 0);
         // R4.6: the GPU cuts (docs/3ds-port.md "GPU cuts and the level start (round 4, R4.6)").
-        AS3D_INFO("AS3D_R46 brightness_mode=%s", run.brightnessMode == 1 ? "quad" : "fold");
+        pica::setWaterCover(run.waterCover);
+        AS3D_INFO("AS3D_R46 brightness_mode=%s water_cover=%d", run.brightnessMode == 1 ? "quad" : "fold",
+                  run.waterCover ? 1 : 0);
         AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d terrain_force_state=%d eye_replay=%d",
                   wash.enabled() ? 1 : 0, run.washInject, run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0,
                   run.terrainForceState ? 1 : 0, run.eyeReplay ? 1 : 0);

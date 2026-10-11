@@ -213,6 +213,7 @@ struct RunConfig {
     // R4.6: GPU cuts and the level start (docs/3ds-port.md "GPU cuts and the level start (round 4,
     // R4.6)"; apps/3ds/README.md).
     int brightnessMode = 0; // brightness_mode=fold|quad: the brightness folded into every top-screen draw (0, default) or the full-screen quad per eye (1)
+    bool waterCover = true; // water_cover=0|1: the water plane's tiles under the terrain left out (1, default)
     // R4.6 end
     bool effectiveWashCheck() const { return washCheck >= 0 ? washCheck != 0 : mode == Mode::Soak; }
     int effectiveProbeEvery() const { return probeEvery >= 0 ? probeEvery : (mode == Mode::Soak ? 30 : 0); }

@@ -19,6 +19,7 @@
 #include "fx_draw_pica.h"
 #include "eye_replay_pica.h"
 #include "fx_pica.h"
+#include "pass_profile.h"
 #include "pica_frame.h"
 #include "state_check_pica.h"
 #include "tev.h"
@@ -64,6 +65,7 @@ const FlatVertex* g_arena = nullptr;
 unsigned g_arenaFrame = ~0u;
 
 // setWaterOptions (hardware A/B).
+bool g_waterCover = true;
 bool g_waterEnabled = true;
 float g_waterTile = kDefaultWaterTile;
 unsigned g_drawCount = 0; // plane draws since start (one per eye), for the periodic log line
@@ -116,6 +118,62 @@ void setWaterOptions(bool enabled, float tileSize) {
     g_waterTile = tileSize > 0.0f ? tileSize : 0.0f;
 }
 
+void setWaterCover(bool on) { g_waterCover = on; }
+bool waterCover() { return g_waterCover; }
+
+void WaterPass::buildCover(const TerrainGridView& heights, int c0, int r0, int c1, int r1) {
+    if (!heights.valid()) return;
+    const int W = heights.width, H = heights.height;
+    if (coverW_ != W || coverH_ != H) {
+        coverW_ = W;
+        coverH_ = H;
+        cellLow_.assign(static_cast<size_t>(W) * H, 0.0f);
+        coverLow_.assign(static_cast<size_t>(W) * H, 0.0f);
+        c0 = r0 = 0;
+        c1 = W - 1;
+        r1 = H - 1;
+    }
+    c0 = std::max(c0, 0);
+    r0 = std::max(r0, 0);
+    c1 = std::min(c1, W - 1);
+    r1 = std::min(r1, H - 1);
+    if (c1 < c0 || r1 < r0) return;
+    for (int r = r0; r <= r1; ++r)
+        for (int c = c0; c <= c1; ++c) {
+            const float lo = std::min(std::min(heights.at(c, r).z, heights.at(c + 1, r).z),
+                                      std::min(heights.at(c, r + 1).z, heights.at(c + 1, r + 1).z));
+            cellLow_[static_cast<size_t>(r) * W + c] = lo;
+        }
+    // The margin: the cells whose window reaches the changed cells.
+    const int m = kWaterCoverMargin;
+    const int a0 = std::max(c0 - m, 0), b0 = std::max(r0 - m, 0), a1 = std::min(c1 + m, W - 1), b1 = std::min(r1 + m, H - 1);
+    for (int r = b0; r <= b1; ++r)
+        for (int c = a0; c <= a1; ++c) {
+            float lo = 1.0e30f;
+            for (int rr = std::max(r - m, 0); rr <= std::min(r + m, H - 1); ++rr) {
+                const float* row = &cellLow_[static_cast<size_t>(rr) * W];
+                for (int cc = std::max(c - m, 0); cc <= std::min(c + m, W - 1); ++cc) lo = std::min(lo, row[cc]);
+            }
+            coverLow_[static_cast<size_t>(r) * W + c] = lo;
+        }
+}
+
+bool WaterPass::tileDry(float x0, float x1, float y0, float y1) const {
+    if (coverLow_.empty()) return false;
+    // The cells the tile touches; a tile reaching beyond the map's rows or columns is wet (no
+    // terrain there).
+    const int c0 = static_cast<int>(std::floor(x0 / kHmapCellSize)), c1 = static_cast<int>(std::ceil(x1 / kHmapCellSize)) - 1;
+    const int r0 = static_cast<int>(std::floor(y0 / kHmapCellSize)), r1 = static_cast<int>(std::ceil(y1 / kHmapCellSize)) - 1;
+    if (c0 < 0 || r0 < 0 || c1 >= coverW_ || r1 >= coverH_ || c1 < c0 || r1 < r0) return false;
+    const float level = params_.planeZ + kWaterCoverEpsilon;
+    for (int r = r0; r <= r1; ++r) {
+        const float* row = &coverLow_[static_cast<size_t>(r) * coverW_];
+        for (int c = c0; c <= c1; ++c)
+            if (row[c] <= level) return false;
+    }
+    return true;
+}
+
 WaterPass::~WaterPass() {
     freeGrid();
     buf_.shutdown();
@@ -164,6 +222,9 @@ void WaterPass::reset() {
     shine_ = Texture2D();
     freeGrid();
     quads_ = 0;
+    cellLow_.clear();
+    coverLow_.clear();
+    coverW_ = coverH_ = 0;
     buf_.shutdown();
     bufFrame_ = 0;
     bufSerial_[0] = bufSerial_[1] = 0;
@@ -191,6 +252,7 @@ bool WaterPass::build(const Terrain& terrain, Vfs& vfs, const WaterSurface* grid
     quads_ = static_cast<int>(std::ceil(length / kQuadHeight));
     active_ = texture_.valid() && quads_ > 0;
     if (active_ && initWaterBuf(buf_, kPlaneBufHalfBytes)) g_stats.bufCapacity = buf_.capacity();
+    if (active_) buildCover(TerrainGridView::of(terrain), 0, 0, terrain.width() - 1, terrain.height() - 1);
     g_stats.active = active_;
     g_stats.quads = quads_;
     g_stats.textureWidth = texture_.width();
@@ -292,7 +354,8 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
     // Diagnostics of the emitted tiles: the largest span in NDC (2 = the whole screen) after the cut,
     // the tiles cut at the near plane, the tiles split, the smallest w emitted.
     float maxSpan = 0.0f, minCutW = 1.0e30f;
-    int nearTiles = 0, splitTiles = 0;
+    int nearTiles = 0, splitTiles = 0, dryTiles = 0;
+    float ndcArea = 0.0f; // the emitted tiles' area in NDC (4 = the screen), unclipped: the fragments' upper bound
     auto visible = [&](float xa, float xb, float ya, float yb, bool track) {
         const float xs[2] = {xa, xb}, ys[2] = {ya, yb};
         int outs[6] = {0, 0, 0, 0, 0, 0};
@@ -342,6 +405,8 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
         float nearPlane = 4.0f, farPlane = 2000.0f;
         detail::planesOfProjection(projection.m, &nearPlane, &farPlane);
         const float wCut = nearPlane * 1.01f + 0.01f;
+        // water_cover: only while the terrain draws (it is what hides a dry tile).
+        const bool cover = g_waterCover && passEnabled(Pass::Terrain);
         std::vector<FlatVertex>& out = g_tileVerts;
         out.clear();
         struct Pt {
@@ -351,6 +416,10 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
         auto clipOf = [&](float x, float y) { return m * Vec4{x, y, params_.planeZ, 1.0f}; };
         std::function<void(float, float, float, float, float, int)> tile = [&](float x0, float x1, float y0, float y1,
                                                                                float qy, int depth) {
+            if (cover && tileDry(x0, x1, y0, y1)) {
+                ++dryTiles;
+                return;
+            }
             const Pt corners[4] = {{x0, y0, clipOf(x0, y0)}, {x1, y0, clipOf(x1, y0)}, {x1, y1, clipOf(x1, y1)},
                                    {x0, y1, clipOf(x0, y1)}};
             int outs[6] = {0, 0, 0, 0, 0, 0};
@@ -404,6 +473,15 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
             }
             if (lo < wCut) ++nearTiles;
             maxSpan = std::max(maxSpan, span);
+            {
+                float a2 = 0.0f; // twice the polygon's NDC area (shoelace)
+                for (int i = 0; i < n; ++i) {
+                    const Vec4& p0 = poly[i].c;
+                    const Vec4& p1 = poly[(i + 1) % n].c;
+                    a2 += p0.x / p0.w * (p1.y / p1.w) - p1.x / p1.w * (p0.y / p0.w);
+                }
+                ndcArea += 0.5f * std::fabs(a2);
+            }
             for (int i = 0; i < n; ++i) minCutW = std::min(minCutW, poly[i].c.w);
             for (int i = 1; i + 1 < n; ++i) {
                 const Pt* tri[3] = {&poly[0], &poly[i], &poly[i + 1]};
@@ -479,6 +557,10 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
                     }
                     if (hi <= wCut) continue; // wholly behind the near plane
                     const float x0 = g_gridX[i], x1 = g_gridX[i + 1], y0 = g_gridY[j], y1 = g_gridY[j + 1];
+                    if (cover && tileDry(x0, x1, y0, y1)) {
+                        ++dryTiles;
+                        continue;
+                    }
                     if (lo < wCut) { // cut at the near plane: the per-tile path
                         tile(x0, x1, y0, y1, qy, 0);
                         continue;
@@ -501,6 +583,8 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
                         continue;
                     }
                     maxSpan = std::max(maxSpan, span);
+                    ndcArea += 0.5f * std::fabs((q[0]->ndcX - q[2]->ndcX) * (q[1]->ndcY - q[3]->ndcY) -
+                                                (q[1]->ndcX - q[3]->ndcX) * (q[0]->ndcY - q[2]->ndcY));
                     static const int kCol[4] = {0, 1, 1, 0}, kRow[4] = {0, 0, 1, 1};
                     uint16_t id[4];
                     for (int n = 0; n < 4; ++n) {
@@ -557,15 +641,18 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
     g_stats.maxW = drawn ? maxW : 0.0f;
     g_stats.nearTiles = nearTiles;
     g_stats.splitTiles = splitTiles;
+    g_stats.dryTiles = dryTiles;
+    g_stats.screenShare = ndcArea / 4.0f;
     g_stats.maxSpan = maxSpan;
     g_stats.minCutW = tiles ? minCutW : 0.0f;
     if (++g_drawCount % 300 == 1)
         AS3D_INFO("pica water: draw %u planeZ %.2f quads %d of %d, tiles %d (tile %.0f, %d split), quad corner w "
-                  "%.1f..%.1f, tiles cut at the near plane %d, smallest w drawn %.1f, largest tile span %.2f NDC",
+                  "%.1f..%.1f, tiles cut at the near plane %d, smallest w drawn %.1f, largest tile span %.2f NDC, "
+                  "dry tiles left out %d (water_cover=%d), tiles' area %.2f screens",
                   g_drawCount, static_cast<double>(params_.planeZ), drawn, quads_, tiles,
                   static_cast<double>(g_waterTile), splitTiles, static_cast<double>(g_stats.minW),
                   static_cast<double>(g_stats.maxW), nearTiles, static_cast<double>(tiles ? minCutW : 0.0f),
-                  static_cast<double>(maxSpan));
+                  static_cast<double>(maxSpan), dryTiles, g_waterCover ? 1 : 0, static_cast<double>(ndcArea / 4.0f));
     if (runs.empty() && gridIndexCount == 0) return 0;
     // The water's state is issued in full right before its draw, whatever the previous passes
     // left (docs/3ds-port.md "Frame synchronisation"): the shadow copies and the texture bindings
@@ -736,6 +823,10 @@ void WaterPass::update(const VertexRect* rects, size_t count, const TerrainGridV
     // The heights of the non-animated vertices live in geo_.verts (the next animate() reads them);
     // the static stream (x, y, alpha) does not change: the weights and wet cells stay.
     if (grid_ && count > 0) updateWaterGridHeights(geo_, surface_, rects, count, heights);
+    // The plane's cover follows the craters: a rect of vertices touches the cells around it.
+    if (!grid_ && active_ && heights.valid())
+        for (size_t i = 0; i < count; ++i)
+            if (!rects[i].empty()) buildCover(heights, rects[i].c0 - 1, rects[i].r0 - 1, rects[i].c1, rects[i].r1);
 }
 
 const float* WaterPass::animate(GridChunk& ch) {
