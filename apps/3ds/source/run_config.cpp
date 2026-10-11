@@ -219,6 +219,9 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
             if (val == "auto") c.pace = 0;
             else if (val == "60") c.pace = 60;
             else if (val == "30") c.pace = 30;
+        } else if (key == "pace_rule") {
+            PaceRule r;
+            if (r.parse(val)) c.paceRule = r;
         } else if (key == "clear") {
             if (val == "split") c.clearMode = 0;
             else if (val == "joint") c.clearMode = 1;

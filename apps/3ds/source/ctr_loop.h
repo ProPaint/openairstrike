@@ -22,6 +22,7 @@
 #include "as3d/platform.h"
 #include "ctr_perf.h"
 #include "game_session.h"
+#include "pace_rule.h"
 #include "run_config.h"
 
 namespace as3d {
@@ -149,6 +150,7 @@ struct FramePacing {
     bool gpuKick = true;
     bool cmdlistFlush = true;
     int pace = 0; // 0 auto, 60, 30
+    PaceRule rule; // pace=auto's drop rule (run.ini pace_rule=, pace_rule.h)
 };
 void setFramePacing(const RunConfig& run);
 const FramePacing& framePacing();

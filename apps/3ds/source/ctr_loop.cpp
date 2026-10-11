@@ -115,9 +115,7 @@ struct PacerState {
     int baseHz = 60;   // the quality profile's render rate
     int hz = 60;       // the current one
     bool autoMode = true;
-    static constexpr int kWindow = 120;
-    uint8_t miss[kWindow] = {};
-    int missAt = 0, misses = 0;
+    PaceDropState drop;       // the miss window / run of the drop rule (pace_rule.h)
     int fitStreak = 0;
     unsigned changes = 0;
     int grace = 300;          // frames after a start / level load whose misses do not count
@@ -143,10 +141,10 @@ void setRenderHz(int hz, const char* why);
 // for an SD write of the log (perf=1), a dump, or a late load. A miss is logged with the columns
 // of the frame before (what ran between the two syncs) and this frame's step and prepare.
 // pace=auto: two eyes start at 30 Hz (the console's stereo GPU is 13.5 ms avg, 16.5 p95), one
-// eye at 60 Hz; 12 counted misses in 120 frames at 60 Hz go to 30 Hz (the whole-mission soaks of
-// 2026-10-11: mono misses 1.6-1.9% of the frames spread over the mission, in bursts of 2-3 heavy
-// frames; with the old rules of 3 then 6 misses the pacer spent 70% of mission 1 at 30 Hz, and a
-// dropped frame now and then beats that); at 30 Hz, fitNeeded (60)
+// eye at 60 Hz; the drop rule (run.ini pace_rule=, pace_rule.h: 24 counted misses in 120 frames by
+// default since R3.3, 12 before; the whole-mission soaks of 2026-10-11 miss 2-3% of the mono frames,
+// most of them one every 32 frames, and tools/3ds_pacer_replay.py gives 24/120 eight more points of
+// 60 Hz for at most 1.4x the stutters of 12/120) goes to 30 Hz; at 30 Hz, fitNeeded (60)
 // frames in a row whose CPU path (one step + prepare + recording + end) stays under 13 ms and
 // whose GPU time (from the first command list to the end of the queue) under 14 ms go to 60 Hz;
 // a fall back within 600 frames of that doubles fitNeeded (at most 3600).
@@ -224,11 +222,7 @@ void updatePacer(const FrameSample& sample) {
         return;
     }
     if (p.hz == 60) {
-        const uint8_t m = late && !excused ? 1 : 0;
-        p.misses += m - p.miss[p.missAt];
-        p.miss[p.missAt] = m;
-        p.missAt = (p.missAt + 1) % PacerState::kWindow;
-        if (p.misses >= 12) {
+        if (p.drop.frame(g_pacing.rule, late && !excused)) {
             if (p.promotedAt && p.frameNo - p.promotedAt < 600) p.fitNeeded = std::min(p.fitNeeded * 2, 3600);
             setRenderHz(30, "misses");
         }
@@ -257,8 +251,7 @@ void setRenderHz(int hz, const char* why) {
     g_pacer.hz = hz;
     C3D_FrameRate(static_cast<float>(hz));
     ++g_pacer.changes;
-    for (uint8_t& m : g_pacer.miss) m = 0;
-    g_pacer.misses = 0;
+    g_pacer.drop.reset();
     g_pacer.fitStreak = 0;
     AS3D_INFO("AS3D_PACE hz=%d reason=%s changes=%u", hz, why, g_pacer.changes);
 }
@@ -288,9 +281,10 @@ void setFramePacing(const RunConfig& run) {
     g_pacing.gpuKick = run.gpuKick;
     g_pacing.cmdlistFlush = run.cmdlistFlush || run.gpuKick;
     g_pacing.pace = run.pace;
+    g_pacing.rule = run.paceRule;
     as3d::ctr::setStreamBlockCache(static_cast<size_t>(run.pakCacheKb) * 1024);
-    AS3D_INFO("AS3D_PACING pace=%s gpu_kick=%d end_flush=%s pak_cache_kb=%d",
-              run.pace == 0 ? "auto" : (run.pace == 30 ? "30" : "60"), g_pacing.gpuKick ? 1 : 0,
+    AS3D_INFO("AS3D_PACING pace=%s pace_rule=%s gpu_kick=%d end_flush=%s pak_cache_kb=%d",
+              run.pace == 0 ? "auto" : (run.pace == 30 ? "30" : "60"), g_pacing.rule.name().c_str(), g_pacing.gpuKick ? 1 : 0,
               g_pacing.cmdlistFlush ? "cmdlist" : "all", run.pakCacheKb);
 }
 

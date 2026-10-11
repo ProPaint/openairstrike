@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "../3ds/source/pace_rule.h"
 #include "../3ds/source/soak_report.h"
 
 using namespace ctrapp;
@@ -187,4 +188,36 @@ TEST_CASE("soak: the verdict of soak.txt") {
     v = soakVerdict(s, {});
     CHECK(hasLine(v, "INFO mono60 as3d:1:mono no frames after the pacer's grace"));
     CHECK(hasLine(v, "VERDICT PASS"));
+}
+
+TEST_CASE("pace: the drop rules of run.ini pace_rule= (R3.3)") {
+    PaceRule r;
+    CHECK(r.name() == "24/120"); // the default
+    REQUIRE(r.parse("12"));
+    CHECK(r.name() == "12/120");
+    CHECK_FALSE(r.parse("0"));
+    CHECK_FALSE(r.parse("121"));
+    CHECK_FALSE(r.parse("abc"));
+    CHECK(r.name() == "12/120"); // untouched
+    PaceDropState s;
+    int dropAt = -1;
+    for (int i = 0; i < 240 && dropAt < 0; ++i)
+        if (s.frame(r, i % 10 == 0)) dropAt = i; // one miss in ten: the 12th at frame 110
+    CHECK(dropAt == 110);
+    s.reset();
+    REQUIRE(r.parse("24"));
+    bool dropped = false;
+    for (int i = 0; i < 600; ++i) dropped = dropped || s.frame(r, i % 10 == 0); // 10%: never 24 in 120
+    CHECK_FALSE(dropped);
+    REQUIRE(r.parse("run3"));
+    s.reset();
+    CHECK_FALSE(s.frame(r, true));
+    CHECK_FALSE(s.frame(r, true));
+    CHECK_FALSE(s.frame(r, false));
+    CHECK_FALSE(s.frame(r, true));
+    CHECK_FALSE(s.frame(r, true));
+    CHECK(s.frame(r, true));
+    REQUIRE(r.parse("never"));
+    s.reset();
+    for (int i = 0; i < 200; ++i) CHECK_FALSE(s.frame(r, true));
 }

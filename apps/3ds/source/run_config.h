@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "as3d/console_pad.h"
+#include "pace_rule.h"
 #include "soak_report.h"
 
 namespace ctrapp {
@@ -121,6 +122,9 @@ struct RunConfig {
     // Frame pacing (ctr_loop.h): pace=auto (0, the default: 60 Hz, 30 Hz while frames do not fit),
     // pace=60, pace=30. The simulation always steps once per vblank.
     int pace = 0;
+    // pace_rule=24|N|run3|never: pace=auto's drop from 60 to 30 Hz (pace_rule.h); 24 misses in 120
+    // frames by default since R3.3 (12 before: tools/3ds_pacer_replay.py on the third console soak).
+    PaceRule paceRule;
     int clearMode = 0;         // clear=split (0, default) | joint (1) | quad (2): how a target's colour and depth are cleared (pica_frame.h ClearMode)
     bool gpuKick = true;       // gpu_kick=0: no mid-frame start of the GPU (pica_frame.h kickGpu); default on
     bool cmdlistFlush = false; // end_flush=cmdlist: C3D_FrameEnd(GX_CMDLIST_FLUSH), no whole-heap flush (forced by gpu_kick=1)
