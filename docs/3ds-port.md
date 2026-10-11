@@ -67,6 +67,12 @@ alternatives on the console), stereo's GPU span 14.1 ms with the brightness quad
 2.4 of it avoidable; `right_eye_rate=alternate` reaches 60 Hz today (each eye at 30, owner's call).
 R4.6 works on the brightness fold, the water, the transfers and the level start.**
 
+**R4.6 (section "GPU cuts and the level start (round 4, R4.6)" at the end): the brightness folded
+into the draws (no quad), the water's tiles under the terrain left out (it covered more than a
+screen), `top_format` per soak stage, the level start's renderer part named and cut (shadow hits,
+texture conversion, the terrain base textures cached on the SD), the terrain light streams counted;
+expected stereo span about 10 ms; its soak list is `run-soak-r46.ini` (13 stages, about 22 minutes).**
+
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
 installed game (missions 1 and 2, mono and stereo at slider 0.5, the weapon tour, audio on, the
@@ -4522,3 +4528,240 @@ it in play: `right_eye_rate=alternate` in run-play.ini).
 3235; session 1797 (prefetch 1141, defs 191, level 304); renderer 1438: textures 407 (193
 conversions every start: mip 125, swizzle 221, upload 61), shadows 325 (145 cache hits, cache load
 87: the hits still cost), meshes 85, **rest 621 (unattributed)**.
+
+## GPU cuts and the level start (round 4, R4.6)
+
+The sixth soak put the stereo GPU span at 14.1 ms (11 needed for 60 Hz) with two costs that change
+no pixel: the brightness quad (0.9 ms per eye at the default 0.6) and the water (1.2 ms per eye for
+a plane mostly under the terrain); the display transfers 1.4 ms for three; and the renderer's part
+of the level start at 1438 ms of which 621 were unnamed. This round removes the first two, makes
+the 16-bit targets a soak stage, names and cuts the level start, and measures the terrain's
+light streams. Every change sits behind a run.ini key (R4.6 block of `run_config.*`,
+`apps/3ds/README.md`); `AS3D_R46 brightness_mode= water_cover= shadow_fast_hit= tex_fast= base_int=
+terrain_light_cache= terrain_base_cache=` at each stage start. Commits: b566e33 (A), 92d3162 (B),
+12bab50 and 12dd6c9 (D), 8da5b30 (E), 7513cbf (C). Desktop goldens unchanged (the neutral changes, texconv and the terrain base
+generation, give the same bytes and are tested against the reference loops).
+
+### A. The brightness folded into the draws (`brightness_mode=fold`, default)
+
+What the quad did (`render_state_pica.cpp` RenderBlend::Brightness, pica_test's model): a full-screen
+quad of colour s = round(brightness x 255) with the blend (DST_COLOR, SRC_COLOR), after the world and
+the top 2D layer, so out = min(255, 2 d s / 255) per channel (s = 153 at 0.6: d x 1.2).
+
+The fold applies the same product inside each draw: `applyTev` (tev.cpp) appends one TEV stage
+MODULATE(PREVIOUS, CONSTANT s) with the RGB scale 2 (alpha passed on) while `setBrightnessFold(s)`
+is set, for the draws whose blend is linear in the source colour (neither factor a source or
+destination colour: None, Alpha, Add); the blend class comes from the blend shadow
+(`detail::c3dAlphaBlend`), so a Filter draw (DST_COLOR, ZERO: the particles' filter look, the
+sequels' multiplied shadows), which multiplies the already brightened destination, is left alone.
+The fog colour is folded on the CPU for the same draws (the fog unit mixes it with the combiner's
+output before the blend), the clear colour too (`fillTarget`; `fillQuad` goes through the TEV). The
+composer (ctr_frame.cpp drawTop) sets the fold before the eye's world and clears it after the top 2D
+layer, which is exactly what the quad covered (the model view and the banner came after it). The
+eye replay records the fold stage with the rest. No draw ran out of TEV stages (`fold_overflows=0`).
+Costs: one TEV stage per draw (the PICA's six stages run for every fragment anyway) and a few
+command words when the blend class changes. Expected saving 0.9 ms per eye, 1.9 ms per stereo frame
+(the sixth soak's brightness=0.5 stage: span 14.10 -> 12.24).
+
+Where it cannot be exact: the TEV clamps its result to 1 before the blend and the fog, the quad
+clamped after them. A bright channel (above 255 / k, k = 2 s / 255; 213 at 0.6) blended with partial
+alpha or mixed with fog comes out darker by at most (1 - 1/k) x 255 levels (42 at 0.6, 113 at 0.9);
+below 0.5 (k < 1) a channel saturated by additive blends comes out brighter (the quad scaled the
+saturated sum). Everywhere else the two differ by the rounding of one product (the quad rounds
+twice: the framebuffer byte, then the blend), +-1 in both directions about equally.
+
+Azahar, mission 1 bot run, 900 steps, `fixed_steps=1`, dumps at steps 300/600/900 (3 x 96000 pixels),
+the quad against the fold (`passes=clear,brightness,hud,touch,bottom2d,` plus the pass named):
+
+| passes drawn | MAE | pixels off by more than 1 | max |
+|---|---|---|---|
+| terrain | 0.385 | 836 | 16 (fogged far rows) |
+| terrain, marks | 0.407 | 1847 | 42 (bright marks at partial alpha) |
+| terrain, shadows | 0.386 | 1290 | 17 |
+| terrain, opaque | 0.388 | 1046 | 40 (bright models in the fog) |
+| terrain, water | 0.388 | 1039 | 16 |
+| terrain, rest | 0.388 | 1276 | 13 |
+| terrain, particles, sprites, lightning | 0.392 | 3187 | 16 |
+| terrain, top2d | 0.385 | 836 | 16 |
+| all, brightness 0.6 (mono; stereo left and right eyes the same) | 0.426 | 5083 (1.8 %) | 42 |
+| all, brightness 0.3 | 0.565 | 3701 | 101 |
+| all, brightness 0.9 | 0.860 | 23336 (8.1 %) | 113 |
+| AirStrike 2 mission 1, 0.6 | 0.554 | 27053 | 42 |
+| Gulf Thunder mission 1, 0.6 | 0.700 | 34766 | 42 |
+
+The bottom screen is untouched (0 differing pixels). `brightness_mode=quad` keeps the old pass
+(stage 6 of the next soak). Whether 42 levels on a highlight at partial alpha shows is the owner's
+eye; if it does, the premultiplied form (rgb x alpha in the TEV, the blend's source factor ONE) is
+exact for the alpha blends without fog.
+
+### B. The water's 1.2 ms per eye (`water_cover=1`, default)
+
+The finding: the PICA has no early depth rejection in our pipeline (citro3d's early depth test needs a
+separate coarse buffer cleared per target; the state check asserts it off; Azahar does not emulate
+it), so the depth test runs after texturing, the combiners and the fog: a water fragment behind the
+terrain costs as much as a visible one. And the tiles of the visible 320-unit quads span the whole
+map width: on Azahar the drawn tiles cover 1.1 to 1.4 screens of area per eye in mission 1
+(`tiles' area` in the `pica water: draw` line, NDC area of the emitted tiles, unclipped), a
+full-screen pass, which matches the terrain's 1.25 ms per full-screen pass of M1.0. Drawing the water
+before or after the terrain changes nothing without early rejection, and the two draws were already
+one (R3.2).
+
+The cut: a tile is left out when every terrain vertex within two cells of it (the coarse far chunks
+interpolate over two cells) lies more than 1 unit above the plane (`planeZ`, which already carries
+the wave). The terrain is a height field drawn before the water with depth writes, so its surface
+lies above the whole tile and every water fragment there would fail the depth test. The table
+(per cell, the lowest vertex within the margin) is built with the plane and updated at craters;
+the cut applies only while the terrain pass draws. Mission 1: 41 to 98 tiles instead of 220 to 232,
+0.03 to 0.19 screens of area. Azahar, 2700 steps, dumps every 300: mission 1 mono, mission 2 mono and
+mission 1 stereo (both eyes): 0 differing pixels in 45 dumps against `water_cover=0`. Expected saving
+about 1 ms per eye (2 per stereo frame); stage 7 (`water_cover=0`) measures it.
+
+The terrain overlays and the particles: the overlays are the road and tile quads lying on the
+terrain (visible where they are drawn, hidden only behind hills); the particles are small and mostly
+in front. Neither has a large hidden area; nothing changed there. The sequels' wave grid draws the wet
+cells only.
+
+### C. The display transfers: `top_format` per stage
+
+The two eye targets in RGB565 halve the colour bytes the GPU writes and blends and the display
+transfers read; `top_format` was per launch. `applyTopFormat` (ctr_frame.cpp, at each stage's
+`initBackend`, outside the frames, the GPU idle) swaps each eye's colour buffer for one of the
+stage's format, tells its display transfer the formats, and sets the top screen's framebuffers to
+RGB565 when both eyes are. Azahar soak (stereo RGBA8, stereo rgb565, stereo RGBA8, mono rgb565):
+every stage finished, `AS3D_TOP_FORMAT changed=2 failed=0` at each switch, 0 GPU mismatches, 0
+washed frames. The picture (bot runs, stereo, both eyes): MAE 2.5 against RGBA8, at most 64 levels
+on a channel, smooth gradients in visible 565 steps (with the brightness quad it was MAE 4.6: the quad
+quantised a second time). Stage 8 measures the transfers and the passes.
+
+### D. The level start
+
+`AS3D_LEVEL_RENDERER` (one line per mission start, ctr_frame.cpp GameFrame::begin) names the
+renderer's part of `AS3D_LEVEL_START`: init_backend+make_renderer, begin_level (the terrain: base
+generation, its textures, geometry, reads and decodes; the water and scene), the UI, the precache
+(scripts; world: textures with mip / swizzle / upload, meshes, shadows with the cache load, key and
+placement, decode and parse; the UI pictures; the sounds), the touch prebuild, the last loading
+frame, the loading frames counted inside those. The sixth soak's 621 ms of "rest" were the terrain
+base generation 245, the UI 73, the loading frames 62, the shadow cache load 87, the scripts'
+precache 41, decoding and parsing 60, the terrain's reads and geometry 60.
+
+The cuts (Azahar's clock, mission 1, the same picture in every case, the shadow silhouettes all from
+the cache; Azahar's clock is deterministic run to run):
+
+| part | before | after | key |
+|---|---|---|---|
+| shadows (145 cache hits) | 909 | 137 | `shadow_fast_hit=1` |
+| of which the atlas pages (5) | 339 | 6 | |
+| textures (all conversions) | 1286 | 787 | `tex_fast=1`, pages no longer converted |
+| of which mip / swizzle | 411 / 747 | 123 / 536 | |
+| terrain base generation + its conversion | 458 + 161 | 0 + 33, the file read 286 | `terrain_base_cache=1` (from the second start) |
+| (the same in integers instead) | 458 | 596 | `base_int=1`, off |
+| the renderer's part | 3583 | 2580 (2278 with the base cache hit) | |
+
+Scaled to the console (its renderer was 1438 where Azahar's is 3583; Azahar's SD reads are not the
+console's, so the base cache is counted with the console's 8.6 MB/s): about 1035 ms without the base
+cache and about 890 with it, the gate measure about 2.7 s instead of 3.2 (the session's 1797
+unchanged). Not the 600 ms target: what is left is the texture conversions (about 250), decoding and
+parsing, the UI (73), the meshes (85), the two cache files' reads (87 + about 160) and the loading
+frames (62).
+
+- **Shadows**: a cache hit cost nearly as much as a raster, and not for the key: `atlasFind` made each
+  of the five A8 pages from a 1 MB grey image converted and mip-filtered by `Texture2D::create`, every
+  silhouette was expanded to RGBA, written texel by texel with a Morton offset computed per texel,
+  and seven whole-level cache flushes followed each placement. Now the pages are zeroed directly
+  (`Texture2D::createZeroed`, 3DS only), the alpha goes straight into the page with per-axis offset
+  tables, the precache's placements are one batch (`shadowAtlasBatchBegin/End`) whose upper levels
+  and flushes happen once per page, and the key's geometry hash is computed once per model (86
+  models for 145 keys; the same FNV bytes, so the same keys and the existing cache files stay valid).
+  Misses (`shadow_cache=0`) take the alpha path too; identical dumps.
+- **Texture conversion** (`tex_fast=1`): texconv's swizzle walks 8x8 tiles from eight row pointers
+  instead of computing each texel's source address, and the box filter sums the four channels of a
+  texel in two 32-bit words (16-bit lanes); the same bytes (apps/tests/texconv_test.cpp compares every
+  format and the box filter against the reference loops).
+- **Terrain base textures cached** (`terrain_base_cache=1`): the eight blocks, converted (RGB565 and
+  their mip chains, 1.37 MB), in `cache/<game>_m<N>[_attract].terrain`, keyed by a word hash of the
+  level's height plane, the four source textures and the sizes; a matching file gives the textures
+  through `Texture2D::createConverted` (3DS only: placed and uploaded as create() would); a miss
+  converts each block once, makes the texture from those bytes and hands the file to the writer
+  thread (as the silhouettes'). Azahar: mission 1 of AirStrike 3D and of Gulf Thunder, the dumps of
+  the miss and of the hit identical to `terrain_base_cache=0`. Expected on the console: about 160 ms of
+  reading for about 310 of generation and conversion.
+- **Terrain base generation** (`base_int`, off): the same bytes in integers: the height resample's
+  weights are k / 65536, so the double sums are exact and equal integer sums; a blended channel is
+  (pa (86 - m) + pb m) / 86 (m = height mod 86), whose floor the double formula gives whenever the
+  quotient is not whole (its error is far below 1/86), and the double formula is kept when it is
+  (apps/tests/terrain_build_test.cpp checks all 256 x 256 x 256 cases). Azahar counts it 30 % slower:
+  its clock charges an instruction, not a VFP double's latency; stage 13 decides on the console.
+- **Not done: the converted-texture cache on the SD.** The level's converted textures are 7.7 MB
+  (5967 KB precached + the terrain's 1728 KB); the SD reads about 8.6 MB/s (the shadow cache: 750 KB
+  in 87 ms; the prefetch 9.2 MB in 1141 ms), so reading them costs about 900 ms against the 346 ms of
+  mip and swizzle it would save. It pays only if the TGA sources are then not read (the pak is
+  uncompressed, so the converted bytes are about the sources' size): that is the read plan's and the
+  vfs's business (the plan records what a start reads) and, with the conversions now about 250 ms,
+  the gain would be about the decoding. Not worth the cache's invalidation risk this round.
+- **Not mine, written up: the prefetch overlap.** The session's prefetch reads 9.2 MB in 1141 ms
+  with the CPU idle, then the defs (191) and the level (304) are parsed. Parsing the defs and the
+  level while the prefetch thread reads (the files they need first in the plan's order) would hide
+  up to about 500 ms; the vfs and the session own it.
+
+### E. The terrain's light streams (`terrain_light_cache=1`, default)
+
+`AS3D_TERRAIN_LIGHTS frames= chunks= reused= light_vertex_evals= ms= per_frame=` every 300 frames.
+Azahar, mission 1, 2700 steps: 0.7 to 1.3 ms per frame in quiet windows (650 to 960 lit chunks per
+300 frames), 2.4 to 3.1 ms in fights (1300 to 1500 lit chunks, up to 1.7 million light-vertex
+evaluations per 300 frames). The cost is lighting the vertices inside the lights' radius (a square
+root and four divisions per light and vertex, bit-exact with the desktop's formula); the rectangle
+cull already skips the rest, and lighting each vertex only by the lights whose own rectangle holds
+it was tried and gave nothing. The bounded fix kept: a chunk whose picked lights (position, colour,
+radius, cone) equal those of its last computed stream, its vertices unmoved, reuses that stream (the
+same bytes). Steady lights hit (one quiet window: 570 of 654 chunks reused, 0.67 -> 0.15 ms per
+frame); explosions and muzzle flashes change every frame, so fights stay at 2.4 to 3.1. Identical
+dumps. What would cut fights changes the picture: lighting per coarse vertex, or lights snapped in
+position and radius so streams can be shared (owner).
+
+### Azahar runs (correctness; Azahar's timings are not the console's)
+
+- Bot runs as listed above (A, B, C, D, E), each against its old path: the dumps identical where the
+  change keeps the picture, the fold within the bounds above. `state_check=1 wash_check=1` throughout:
+  0 state mismatches, 0 washed frames.
+- `mode=soak` with the list below, each stage shortened to 600 steps (build 7513cbf, before the base
+  cache):
+  13 of 13 stages finished, `AS3D_R46` and `AS3D_TOP_FORMAT changed=2` (to 565 at stage 8, back at 9)
+  in their stages, `PASS wash` (0 GPU mismatches in 236 probes, canary 236/236, 0 washed frames in 7077
+  evaluations), `tools/3ds_soak_compare.py`: 13 of 13 end states equal to the desktop sim. Its
+  `VERDICT FAIL` is the mono60 lines (Azahar's frame times, as in R4.1's runs).
+
+### The next soak's list (`run-soak-r46.ini`, about 22 minutes) and how to read it
+
+    soak=as3d:1:mono,as3d:1:stereo,as3d:2:mono,as3d:2:stereo,as3d:1:stereo:soak_frames=3600,
+      as3d:1:stereo:soak_frames=3600:brightness_mode=quad,as3d:1:stereo:soak_frames=3600:water_cover=0,
+      as3d:1:stereo:soak_frames=3600:top_format=rgb565,as3d:1:stereo:soak_frames=3600:right_eye_rate=alternate,
+      as3d:1:stereo:soak_frames=1800:gpu_passes=1,as3d:1:mono:soak_frames=3600,
+      as3d:1:mono:soak_frames=1800:tex_fast=0:shadow_fast_hit=0:terrain_base_cache=0,
+      as3d:1:mono:soak_frames=1800:base_int=1:terrain_base_cache=0
+
+(one line in the file; R4.5's stages are appended at its end.)
+
+- Stages 1-4: the defaults on the whole missions: the stereo span (`gpu_kick_ms`) against the sixth
+  soak's 14.1; `AS3D_LEVEL_START` / `AS3D_LEVEL_RENDERER` against 3449 / 1438 (expected about 3.0 s /
+  1.0 s); `AS3D_TERRAIN_LIGHTS` per window.
+- Stage 5 (stereo baseline, new defaults) against 6 (`brightness_mode=quad`, expected +1.9 ms of span)
+  and 7 (`water_cover=0`, expected +2 ms): `gpu_kick_ms` avg / p95, the share at 60 Hz. Stage 5 is the
+  number for stereo at 60: 14.1 - 1.9 - 2.0 would be about 10.2 ms.
+- Stage 8 (`top_format=rgb565`) against 5: the transfers and the passes' fill.
+- Stage 9 (`right_eye_rate=alternate` on top of the new defaults): one eye per frame, expected well
+  under 11 ms (owner's call on the look).
+- Stage 10 (`gpu_passes=1`): `AS3D_GPU_PASS` per pass at the new defaults: brightness 0, water about
+  0.1 to 0.2 per eye; the next largest pass.
+- `AS3D_TERRAIN_BASE_CACHE`: a miss at each mission's first start (stages 1 and 3), hits after.
+- Stage 11 (mono baseline, the base cache hit) against 12 (the old level start: `tex_fast=0
+  shadow_fast_hit=0 terrain_base_cache=0`): `AS3D_LEVEL_RENDERER` shadows / textures / mip / swizzle /
+  the terrain; stage 13 (`base_int=1 terrain_base_cache=0`): `generate_base=` against stage 12's (the
+  doubles; 245 on the sixth soak).
+- Every stage: 0 mismatches, the end state equal to the desktop sim, `fold_overflows=0`.
+
+### What remains
+
+- The owner's eye on the fold's darker highlights (42 levels at partial alpha) and on 565's steps.
+- The level start below 1 s: the texture conversions, decoding, the UI pictures, the prefetch overlap
+  (vfs); `base_int` if the console likes it for the first start of a level.
+- The terrain lights in fights (a picture decision).
