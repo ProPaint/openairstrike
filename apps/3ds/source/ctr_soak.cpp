@@ -20,10 +20,12 @@
 #include "ctr_install.h"
 #include "ctr_loop.h"
 #include "ctr_perf.h"
+#include "mesh_renderer_pica.h"
 #include "pica_frame.h"
 #include "soak_report.h"
 #include "state_check_pica.h"
 #include "texture_budget.h"
+#include "water_renderer_pica.h"
 
 namespace ctrapp {
 namespace {
@@ -149,6 +151,14 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         as3d::LoadStats::setFrame(0);
         const unsigned fence0 = as3d::pica::fenceStats().queueBusyAtBegin;
         const unsigned tex0 = as3d::pica::textureInFrameStats().creates;
+        // The process-wide renderer switches main() sets once from the file (ctr_main.cpp), again
+        // from the stage's own keys, so that a stage's mesh_merge=, mesh_sort=, depthmap=, fog=,
+        // water=, water_tile= reach it (before R4.2 a stage's mesh_merge=1 was ignored).
+        as3d::pica::setWBufferAsZBuffer(sr.depthMapZ);
+        as3d::pica::setFogForcedOff(!sr.fog);
+        as3d::pica::setMeshStateSort(sr.meshSort);
+        as3d::pica::setMeshMerge(sr.meshMerge);
+        as3d::pica::setWaterOptions(sr.water, sr.waterTile >= 0.0f ? sr.waterTile : as3d::pica::kDefaultWaterTile);
         LoopReport lr;
         {
             GameFrame frame(sr);
