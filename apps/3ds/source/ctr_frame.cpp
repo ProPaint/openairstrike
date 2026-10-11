@@ -23,6 +23,8 @@
 #include "as3d/precache.h"
 #include "as3d/render_state.h"
 #include "as3d/scene.h"
+#include "as3d/terrain_build.h"
+#include "as3d/texconv.h"
 #include "as3d/touch_controls.h"
 #include "as3d/ui.h"
 #include "as3d/world.h"
@@ -421,6 +423,12 @@ struct GameFrame::Impl {
     size_t arenaUsed = 0;
     bool dumped = false;
     uint64_t lastLoadingFrame = 0;
+    // R4.6: the last precacheLevel's parts (ms), for AS3D_LEVEL_RENDERER.
+    struct PrecacheParts {
+        double scripts = 0, world = 0, tex = 0, mip = 0, swizzle = 0, upload = 0, mesh = 0, shadows = 0, frames = 0,
+               read = 0, decode = 0, ui = 0, sounds = 0, total = 0;
+        int textures = 0;
+    } lastPrecache;
     uint64_t loadingTicks = 0; // the load profile (AS3D_LOAD): loading screen frames
     int loadingFrames = 0;
     // dump_screens: the screen of the last frame, the pending dump.
@@ -771,8 +779,12 @@ struct GameFrame::Impl {
                   run.depth16 ? 1 : 0);
         // R4.6: the GPU cuts (docs/3ds-port.md "GPU cuts and the level start (round 4, R4.6)").
         pica::setWaterCover(run.waterCover);
-        AS3D_INFO("AS3D_R46 brightness_mode=%s water_cover=%d", run.brightnessMode == 1 ? "quad" : "fold",
-                  run.waterCover ? 1 : 0);
+        pica::setShadowFastHit(run.shadowFastHit);
+        setTexconvReference(!run.texFast);
+        setBaseTextureReference(!run.baseInt);
+        AS3D_INFO("AS3D_R46 brightness_mode=%s water_cover=%d shadow_fast_hit=%d tex_fast=%d base_int=%d",
+                  run.brightnessMode == 1 ? "quad" : "fold", run.waterCover ? 1 : 0, run.shadowFastHit ? 1 : 0,
+                  run.texFast ? 1 : 0, run.baseInt ? 1 : 0);
         AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d terrain_force_state=%d eye_replay=%d",
                   wash.enabled() ? 1 : 0, run.washInject, run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0,
                   run.terrainForceState ? 1 : 0, run.eyeReplay ? 1 : 0);
@@ -849,8 +861,10 @@ struct GameFrame::Impl {
         const u64 t3 = svcGetSystemTick();
         if (run.shadowCache) {
             const pica::ShadowCacheStats& cs = pica::shadowCacheStats();
-            AS3D_INFO("AS3D_SHADOW_CACHE loaded=%d (%.0f KB, %.0f ms) hits=%d misses=%d saved=%d (%.0f ms)", cs.loaded,
-                      static_cast<double>(cs.fileBytes) / 1024.0, cs.loadMs, cs.hits, cs.misses, saved, cs.saveMs);
+            AS3D_INFO("AS3D_SHADOW_CACHE loaded=%d (%.0f KB, %.0f ms) hits=%d misses=%d saved=%d (%.0f ms) key_ms=%.1f "
+                      "key_models=%d key_reuses=%d place_ms=%.1f fast_hit=%d",
+                      cs.loaded, static_cast<double>(cs.fileBytes) / 1024.0, cs.loadMs, cs.hits, cs.misses, saved,
+                      cs.saveMs, cs.keyMs, cs.keyModels, cs.keyReuses, cs.placeMs, run.shadowFastHit ? 1 : 0);
         }
         const as3d::ctr::StreamReadStats rd2 = as3d::ctr::streamReadStats();
         const LoadCounts before = LoadStats::lazyLoads();
@@ -887,6 +901,22 @@ struct GameFrame::Impl {
                       static_cast<double>(lp.texBytes - lp0.texBytes) / 1024.0, lp.meshCount - lp0.meshCount, meshMs,
                       shadowMs, framesMs, readMs, static_cast<unsigned long>(rd2.reads - rd1.reads),
                       static_cast<double>(rd2.bytes - rd1.bytes) / 1024.0, worldMs - texMs - meshMs - shadowMs - framesMs - readMs);
+            PrecacheParts& pp = lastPrecache;
+            pp.scripts = static_cast<double>(t1 - t0) / k;
+            pp.world = worldMs;
+            pp.tex = texMs;
+            pp.mip = static_cast<double>(lp.texMipTicks - lp0.texMipTicks) / k;
+            pp.swizzle = static_cast<double>(lp.texSwizzleTicks - lp0.texSwizzleTicks) / k;
+            pp.upload = static_cast<double>(lp.texUploadTicks - lp0.texUploadTicks) / k;
+            pp.textures = lp.texCount - lp0.texCount;
+            pp.mesh = meshMs;
+            pp.shadows = shadowMs;
+            pp.frames = framesMs;
+            pp.read = readMs;
+            pp.decode = worldMs - texMs - meshMs - shadowMs - framesMs - readMs;
+            pp.ui = static_cast<double>(t4 - t3) / k;
+            pp.sounds = static_cast<double>(t5 - t4) / k;
+            pp.total = static_cast<double>(t5 - t0) / k;
             AS3D_INFO("AS3D_LOAD phase=precache_ui ms=%.0f", static_cast<double>(t4 - t3) / k);
             if (t5 > t4) AS3D_INFO("AS3D_LOAD phase=precache_sounds ms=%.0f", static_cast<double>(t5 - t4) / k);
         }
@@ -1359,6 +1389,9 @@ bool GameFrame::begin(CtrContext& ctx, as3d_game::GameSession& session) {
     im.session = &session;
     im.mission = session.mission();
     LoadStats::PrecacheScope scope; // the level start's loads are not lazy ones (log_lazy)
+    const uint64_t tEntry = svcGetSystemTick();
+    const uint64_t frames0 = im.loadingTicks;
+    const int frameCount0 = im.loadingFrames;
     if (!im.initBackend()) return false;
     im.loadingFrame(0.0f, true);
     const uint64_t t0 = svcGetSystemTick();
@@ -1366,6 +1399,7 @@ bool GameFrame::begin(CtrContext& ctx, as3d_game::GameSession& session) {
     World& world = session.world();
     std::string err;
     if (!im.makeRenderer(session)) return false;
+    const uint64_t tMade = svcGetSystemTick();
     // The terrain first: its textures are the first VRAM tenants.
     if (!im.renderer->beginLevel(world, &err)) {
         AS3D_ERROR("WorldRenderer::beginLevel: %s", err.c_str());
@@ -1387,8 +1421,38 @@ bool GameFrame::begin(CtrContext& ctx, as3d_game::GameSession& session) {
               static_cast<double>(im.maxEyeOffset()), static_cast<double>(im.minFocal()));
     im.logStereoConfig();
     im.resetStereo();
+    const uint64_t t4 = svcGetSystemTick();
     im.prebuildTouch(session);
+    const uint64_t t5 = svcGetSystemTick();
     im.loadingFrame(1.0f, true);
+    {
+        // R4.6 (docs/3ds-port.md "GPU cuts and the level start (round 4, R4.6)"): the renderer's
+        // part of AS3D_LEVEL_START (from this call's entry to its end) by name. The loading frames
+        // are counted once (frames=) and taken out of the phases they fall in.
+        const uint64_t tEnd = svcGetSystemTick();
+        const double k = static_cast<double>(SYSCLOCK_ARM11) / 1000.0;
+        auto ms = [k](uint64_t a, uint64_t b) { return static_cast<double>(b - a) / k; };
+        const pica::TerrainPicaStats& ts = pica::terrainPicaStats();
+        const pica::ShadowCacheStats& cs = pica::shadowCacheStats();
+        const Impl::PrecacheParts& pp = im.lastPrecache;
+        const double framesMs = static_cast<double>(im.loadingTicks - frames0) / k;
+        const double total = ms(tEntry, tEnd);
+        const double beginLevel = ms(tMade, t1);
+        const double precache = ms(t2, t3);
+        const double named = ms(tEntry, tMade) + beginLevel + ms(t1, t2) + precache + ms(t3, t4) + ms(t4, t5) +
+                             ms(t5, tEnd);
+        AS3D_INFO("AS3D_LEVEL_RENDERER ms=%.0f | init_backend+make_renderer=%.0f | begin_level=%.0f (terrain=%.0f: "
+                  "generate_base=%.0f textures_create=%.0f geometry=%.0f read_decode_upload=%.0f; water+scene=%.0f) | "
+                  "ui=%.0f | precache=%.0f (scripts=%.0f; world=%.0f: textures=%.0f n=%d mip=%.0f swizzle=%.0f upload=%.0f "
+                  "meshes=%.0f shadows=%.0f [cache_load=%.0f key=%.0f place=%.0f (pages %d: %.0f) hits=%d misses=%d] read=%.0f "
+                  "decode_parse=%.0f; ui=%.0f sounds=%.0f) | logs+stereo=%.0f | prebuild_touch=%.0f | last_frame=%.0f | "
+                  "loading_frames=%d (%.0f ms, inside the phases) | unnamed=%.0f",
+                  total, ms(tEntry, tMade), beginLevel, ts.loadMs, ts.loadGenerateMs, ts.loadCreateMs,
+                  ts.loadGeometryMs, ts.loadRestMs, beginLevel - ts.loadMs, ms(t1, t2), precache, pp.scripts, pp.world,
+                  pp.tex, pp.textures, pp.mip, pp.swizzle, pp.upload, pp.mesh, pp.shadows, cs.loadMs, cs.keyMs, cs.placeMs,
+                  pica::shadowPicaStats().atlasPages, pica::shadowPicaStats().atlasPageMs, cs.hits, cs.misses, pp.read, pp.decode, pp.ui, pp.sounds, ms(t3, t4), ms(t4, t5), ms(t5, tEnd),
+                  im.loadingFrames - frameCount0, framesMs, total - named);
+    }
     return true;
 }
 

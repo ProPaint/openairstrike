@@ -324,3 +324,25 @@ TEST_CASE("water build: params, grid chunks and the CPU wave") {
     Mat4 away = lookAt(Vec3{240.0f, -200.0f, 300.0f}, Vec3{240.0f, -2000.0f, 0.0f}, Vec3{0, 0, 1});
     CHECK(visibleWaterChunks(wg, proj * away).empty());
 }
+
+TEST_CASE("terrain_build: the integer base texture equals the double reference") {
+    // Every height and every pair of texel bytes (the proof that the integer path is exact).
+    long long bad = 0;
+    for (int h = 0; h < 256; ++h)
+        for (int pa = 0; pa < 256; ++pa)
+            for (int pb = 0; pb < 256; ++pb)
+                if (baseBlendChannel(h, pa, pb, false) != baseBlendChannel(h, pa, pb, true)) ++bad;
+    CHECK(bad == 0);
+    // The height resample on random planes of the shapes a level has (a block's 32 rows and the
+    // row after it, the last block's fewer rows, odd widths).
+    std::mt19937 rng(4646);
+    const int shapes[][2] = {{128, 33}, {64, 32}, {97, 7}, {256, 2}, {3, 3}};
+    for (const auto& sh : shapes) {
+        std::vector<u8> plane(static_cast<size_t>(sh[0]) * static_cast<size_t>(sh[1]) + 64);
+        for (auto& v : plane) v = static_cast<u8>(rng() & 255);
+        std::vector<u8> a(256 * 256), b(256 * 256);
+        resampleHeightField(plane.data(), sh[0], sh[1], 64, a.data(), 256, 256);
+        resampleHeightFieldExact(plane.data(), sh[0], sh[1], 64, b.data(), 256, 256);
+        CHECK(a == b);
+    }
+}

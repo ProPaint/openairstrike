@@ -7,6 +7,73 @@
 
 namespace as3d {
 
+namespace {
+bool g_baseReference = false; // the integer path by default (the desktop; the 3DS app sets it per run.ini base_int)
+} // namespace
+
+void setBaseTextureReference(bool reference) { g_baseReference = reference; }
+
+void resampleHeightFieldExact(const u8* src, int sw, int sh, size_t srcOffset, u8* dst, int dw, int dh) {
+    if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) return;
+    if (dw == 1 || dh == 1) {
+        resampleHeightField(src, sw, sh, srcOffset, dst, dw, dh);
+        return;
+    }
+    // resampleHeightField's operations: fx = kx / 65536, top = a (1 - fx) + b fx, the same for
+    // bot, result = top (1 - fy) + bot fy, truncated. Every product and sum is exact in a double
+    // (8-bit values times 16-bit fractions), so result = (T (65536 - ky) + B ky) / 2^32 with the
+    // integers T = a (65536 - kx) + b kx and B likewise, and its truncation is the shift.
+    const std::uint64_t stepx = (static_cast<std::uint64_t>(sw - 1) * 65536ull) / static_cast<std::uint64_t>(dw - 1);
+    const std::uint64_t stepy = (static_cast<std::uint64_t>(sh - 1) * 65536ull) / static_cast<std::uint64_t>(dh - 1);
+    std::uint64_t fyAcc = 0;
+    size_t o = 0;
+    for (int j = 0; j < dh; j++) {
+        const int iy = static_cast<int>(fyAcc >> 16);
+        const std::uint64_t ky = fyAcc & 0xFFFFull;
+        std::uint64_t fxAcc = 0;
+        const size_t rowbase = srcOffset + static_cast<size_t>(iy) * static_cast<size_t>(sw);
+        const bool lastRow = iy >= sh - 1;
+        for (int i = 0; i < dw; i++) {
+            const int ix = static_cast<int>(fxAcc >> 16);
+            const std::uint64_t kx = fxAcc & 0xFFFFull;
+            const u8 a = src[rowbase + static_cast<size_t>(ix)];
+            u8 b, c, d;
+            if (ix < sw - 1) {
+                b = src[rowbase + static_cast<size_t>(ix) + 1];
+                if (!lastRow) {
+                    c = src[rowbase + static_cast<size_t>(sw) + static_cast<size_t>(ix)];
+                    d = src[rowbase + static_cast<size_t>(sw) + static_cast<size_t>(ix) + 1];
+                } else {
+                    c = a;
+                    d = b;
+                }
+            } else {
+                b = a;
+                c = !lastRow ? src[rowbase + static_cast<size_t>(sw) + static_cast<size_t>(ix)] : a;
+                d = c;
+            }
+            const std::uint64_t top = a * (65536ull - kx) + b * kx;
+            const std::uint64_t bot = c * (65536ull - kx) + d * kx;
+            dst[o++] = static_cast<u8>((top * (65536ull - ky) + bot * ky) >> 32);
+            fxAcc += stepx;
+        }
+        fyAcc += stepy;
+    }
+}
+
+u8 baseBlendChannel(int height, int pa, int pb, bool reference) {
+    const double t = static_cast<double>(height) / static_cast<double>(kTerrainHeightBand);
+    const double fr = t - std::floor(t), omf = 1.0 - fr;
+    if (!reference) {
+        const int m = height % 86;
+        const int n = pa * (86 - m) + pb * m;
+        const int q = n / 86;
+        if (n - q * 86 != 0) return static_cast<u8>(q & 0xFF);
+    }
+    const double v = static_cast<double>(pa) * omf + static_cast<double>(pb) * fr;
+    return static_cast<u8>(static_cast<int>(v) & 0xFF);
+}
+
 void generateBaseTextureRgb(const LevelData& level, const Image textures[4], int block, std::vector<u8>& rgb) {
     int w = static_cast<int>(level.width), h = static_cast<int>(level.height);
     int rowStart = block * kBaseTextureRows;
@@ -18,9 +85,12 @@ void generateBaseTextureRgb(const LevelData& level, const Image textures[4], int
     std::vector<u8> hs(static_cast<size_t>(kBaseTextureSize) * kBaseTextureSize);
     if (sh == 1) {
         for (auto& v : hs) v = plane[static_cast<size_t>(rowStart) * w];
-    } else {
+    } else if (g_baseReference) {
         resampleHeightField(plane.data(), w, sh, static_cast<size_t>(rowStart) * static_cast<size_t>(w), hs.data(),
                             kBaseTextureSize, kBaseTextureSize);
+    } else {
+        resampleHeightFieldExact(plane.data(), w, sh, static_cast<size_t>(rowStart) * static_cast<size_t>(w), hs.data(),
+                                 kBaseTextureSize, kBaseTextureSize);
     }
     // Per height value (a byte): the two textures and the blend factor, as the per-texel
     // formula t = h / band, i0 = clamp(floor t), i1 = clamp(ceil t), fr = t - floor t (tabulated:
@@ -28,7 +98,9 @@ void generateBaseTextureRgb(const LevelData& level, const Image textures[4], int
     struct Blend {
         int i0, i1;
         double fr, omf;
+        int m; // height mod 86 (the integer path, setBaseTextureReference)
     };
+    static_assert(kTerrainHeightBand == 86.0f, "the integer path divides by 86");
     Blend blend[256];
     for (int v = 0; v < 256; v++) {
         double t = static_cast<double>(v) / static_cast<double>(kTerrainHeightBand);
@@ -37,7 +109,9 @@ void generateBaseTextureRgb(const LevelData& level, const Image textures[4], int
         b.i1 = std::min(std::max(static_cast<int>(std::ceil(t)), 0), 3);
         b.fr = t - std::floor(t);
         b.omf = 1.0 - b.fr;
+        b.m = v % 86;
     }
+    const bool reference = g_baseReference;
     // The original reads TGA rows in file order, bottom row first (render-pipeline.md
     // section 0); Image row 0 is the top, so index from the bottom.
     std::vector<size_t> colOff[4];
@@ -59,6 +133,19 @@ void generateBaseTextureRgb(const LevelData& level, const Image textures[4], int
             const Blend& b = blend[hrow[c]];
             const u8* pa = textures[b.i0].rgba.data() + rowOff[b.i0] + colOff[b.i0][static_cast<size_t>(c)];
             const u8* pb = textures[b.i1].rgba.data() + rowOff[b.i1] + colOff[b.i1][static_cast<size_t>(c)];
+            if (!reference) {
+                for (int k = 0; k < 3; k++) {
+                    const int n = pa[k] * (86 - b.m) + pb[k] * b.m;
+                    const int q = n / 86;
+                    if (n - q * 86 != 0) {
+                        out[k] = static_cast<u8>(q & 0xFF);
+                    } else {
+                        const double v = static_cast<double>(pa[k]) * b.omf + static_cast<double>(pb[k]) * b.fr;
+                        out[k] = static_cast<u8>(static_cast<int>(v) & 0xFF);
+                    }
+                }
+                continue;
+            }
             for (int k = 0; k < 3; k++) {
                 double v = static_cast<double>(pa[k]) * b.omf + static_cast<double>(pb[k]) * b.fr;
                 out[k] = static_cast<u8>(static_cast<int>(v) & 0xFF);

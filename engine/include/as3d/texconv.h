@@ -60,4 +60,12 @@ bool swizzleInto(const Image& img, PicaFormat fmt, uint8_t* out, size_t outBytes
 // Inverse of swizzle (rows un-flipped, texels expanded to 8 bits per channel).
 Image unswizzle(const uint8_t* data, int w, int h, PicaFormat fmt);
 
+// The 3DS level start (docs/3ds-port.md "GPU cuts and the level start (round 4, R4.6)"):
+// swizzleInto walks each 8x8 tile from eight row pointers, downsampleBox2x2 sums the four
+// channels of a texel pair in one word; the same bytes as the reference loops (texel by texel,
+// channel by channel), which `reference` true selects again (apps/tests/texconv_test.cpp
+// compares the two; the 3DS run.ini tex_fast=0).
+void setTexconvReference(bool reference);
+bool texconvReference();
+
 } // namespace as3d

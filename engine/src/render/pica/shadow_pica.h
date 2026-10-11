@@ -95,8 +95,24 @@ struct ShadowCacheStats {
     int hits = 0, misses = 0;
     double loadMs = 0.0, saveMs = 0.0;
     size_t fileBytes = 0;
+    // R4.6 (docs/3ds-port.md "GPU cuts and the level start (round 4, R4.6)"): where a silhouette's
+    // time went: the key (the geometry part hashed once per model since the cache file was set:
+    // keyModels models hashed, keyReuses keys that reused one), the atlas placement (with
+    // shadow_fast_hit the alpha written straight into the page and its chain, no RGBA image).
+    int keyModels = 0, keyReuses = 0;
+    double keyMs = 0.0, placeMs = 0.0;
 };
 const ShadowCacheStats& shadowCacheStats();
+// run.ini shadow_fast_hit (R4.6, default on): the memoised geometry hash and the alpha-only atlas
+// placement of a cache hit; off = the key hashed in full every time and the RGBA image as before.
+// The same keys and texels either way.
+void setShadowFastHit(bool on);
+// With shadow_fast_hit, the precache's silhouettes are placed as one batch (WorldRenderer::precache):
+// between Begin and End a placement writes its cell's levels 0..3 only; End rebuilds the levels
+// past 3 of the pages written and flushes each page once (one cache flush per page instead of
+// seven per silhouette). Outside a batch (late silhouettes) each placement does both at once.
+void shadowAtlasBatchBegin();
+void shadowAtlasBatchEnd();
 // Writes the file when entries were added since it was loaded; returns the entries written.
 // With `write` (the 3DS app's writer thread, ctr_perf.h queueFileWrite) the bytes are handed to
 // it instead of being written here (the first start's write and fsync took 2.1 s on the
@@ -121,6 +137,7 @@ struct ShadowPicaStats {
     int atlasCells = 0;
     int atlasFull = 0;
     size_t atlasBytes = 0;
+    double atlasPageMs = 0.0;     // making the pages (R4.6: part of the placement time)
     // The last prepared frame (ShadowPass::begin .. draw).
     int drawn = 0;                // shadows with their silhouette
     int blobs = 0;                // shadows drawn as the blob

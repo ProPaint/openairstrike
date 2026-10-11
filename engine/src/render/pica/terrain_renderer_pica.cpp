@@ -782,6 +782,11 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
         const u64 tEnd = svcGetSystemTick();
         const u64 geo = tGeo1 - tGeo0;
         const u64 rest = (tEnd - tStart) - tGenerate - tCreate - geo; // reads, decodes, vertex upload
+        st.loadMs = static_cast<double>(tEnd - tStart) / k;
+        st.loadGenerateMs = static_cast<double>(tGenerate) / k;
+        st.loadCreateMs = static_cast<double>(tCreate) / k;
+        st.loadGeometryMs = static_cast<double>(geo) / k;
+        st.loadRestMs = static_cast<double>(rest) / k;
         AS3D_INFO("AS3D_LOAD phase=terrain ms=%.0f generate_base=%.0f (%d blocks) textures_create=%.0f geometry=%.0f "
                   "read_decode_upload=%.0f",
                   static_cast<double>(tEnd - tStart) / k, static_cast<double>(tGenerate) / k, blocks,

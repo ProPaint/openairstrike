@@ -30,6 +30,18 @@ namespace as3d {
 constexpr int kBaseTextureSize = 256;
 constexpr int kBaseTextureRows = 32;
 void generateBaseTextureRgb(const LevelData& level, const Image textures[4], int block, std::vector<u8>& rgb);
+// The 3DS level start (docs/3ds-port.md "GPU cuts and the level start (round 4, R4.6)"): by
+// default generateBaseTextureRgb computes in integers what the reference computes in doubles,
+// with the same bytes: the height resample's weights are k / 65536, so its double sums are exact
+// and equal the integer sums; a blended channel is (pa (86 - m) + pb m) / 86 with m = h mod 86,
+// whose floor the double formula gives whenever the quotient is not a whole number (the double
+// error is far below 1/86), and the double formula itself when it is (apps/tests checks every
+// height and texel pair). `reference` true selects the double loops again.
+void setBaseTextureReference(bool reference);
+// The reference's height resample (resampleHeightField, as3d/terrain.h) in integers.
+void resampleHeightFieldExact(const u8* src, int sw, int sh, size_t srcOffset, u8* dst, int dw, int dh);
+// One blended channel of the base texture, as generateBaseTextureRgb computes it (both ways).
+u8 baseBlendChannel(int height, int pa, int pb, bool reference);
 
 // Tile atlas UVs (docs/spec/hmap.md "Tile overlays"). Atlas is split into 64x64 tiles;
 // out[0..3] are the UVs of cell corners v00, v10, v11, v01 in this engine's texture

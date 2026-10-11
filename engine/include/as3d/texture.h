@@ -40,6 +40,11 @@ public:
     // Uploads `image` as-is (rows in Image order, no flip). The GL backend always
     // stores RGBA8; `image.hasAlpha` does not change the internal format.
     void create(const Image& image, const TextureOptions& options = {});
+#if defined(__3DS__)
+    // PICA only (gfx_pica.cpp): a w x h texture of `format` in linear memory whose every byte is
+    // zero (the shadow atlas's empty pages), without an image to convert.
+    void createZeroed(int w, int h, PicaFormat format, const TextureOptions& options = {});
+#endif
     void bind(unsigned unit = 0) const;
 
     bool valid() const { return handle_ != 0; }

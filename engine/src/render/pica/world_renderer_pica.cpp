@@ -340,6 +340,7 @@ PrecacheReport WorldRenderer::precache(const World& world, const DefDatabase& db
     // beginLevel's set), then the closure's planar ones (and projected rotations on request).
     const u64 tShadow0 = svcGetSystemTick();
     const pica::ShadowPicaStats ss0 = pica::shadowPicaStats();
+    pica::shadowAtlasBatchBegin(); // the silhouettes as one batch (shadow_pica.h), ended below
     auto shadowHook = [&im](const GpuMesh& mesh, const std::string&, const Material& mat, const ShadowSpec& ss,
                             int steps) {
         if (!pica::renderQuality().blobShadowsOnly) im.precacheShadow(mesh, mat, ss, steps);
@@ -377,6 +378,7 @@ PrecacheReport WorldRenderer::precache(const World& world, const DefDatabase& db
     hooks.particlesFirst = true;
     hooks.drawnFirst = true;
     PrecacheReport r = im.scene.precache(world, db, progress, hooks);
+    pica::shadowAtlasBatchEnd();
     r.shadows = static_cast<int>(im.shadowMaps.size() - shadowsBefore);
     {
         const double wallMs = static_cast<double>(svcGetSystemTick() - tShadow0) / (SYSCLOCK_ARM11 / 1000.0);

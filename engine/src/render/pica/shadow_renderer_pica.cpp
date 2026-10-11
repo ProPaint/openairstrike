@@ -72,6 +72,7 @@ struct AtlasShelf {
 
 struct AtlasPage {
     Texture2D tex;
+    bool batchDirty = false; // written inside a placement batch: levels past 3 and the flush owed
     int levels = 1;
     std::vector<AtlasShelf> shelves;
     int top = 0; // the first row no shelf uses
@@ -84,6 +85,9 @@ struct ShadowAtlas {
 };
 
 ShadowAtlasRef g_lastAtlasRef;
+bool g_fastHit = true;               // run.ini shadow_fast_hit (setShadowFastHit)
+bool g_atlasBatch = false;           // shadowAtlasBatchBegin .. End
+ShadowAtlas* g_batchAtlas = nullptr; // the atlas written in the batch
 
 // Finds room for a w x h cell (multiples of 8): (page, x, y). False when every page is full and
 // no more page may be made.
@@ -116,18 +120,25 @@ bool atlasFind(ShadowAtlas& a, int w, int h, bool mipmaps, AtlasPage** outPage, 
     }
     if (static_cast<int>(a.pages.size()) >= kShadowAtlasMaxPages) return false;
     // A new page: zero alpha, A8 in linear memory, the level chain of Texture2D::create.
+    const u64 tPage = svcGetSystemTick();
     auto pg = std::make_unique<AtlasPage>();
-    Image img;
-    img.width = img.height = kShadowAtlasSide;
-    img.hasAlpha = true;
-    img.rgba.assign(static_cast<size_t>(kShadowAtlasSide) * kShadowAtlasSide * 4, 0);
-    for (size_t i = 0; i < img.rgba.size(); i += 4) img.rgba[i] = img.rgba[i + 1] = img.rgba[i + 2] = 114;
     TextureOptions opts;
     opts.mipmaps = mipmaps;
     opts.wrapS = opts.wrapT = Wrap::ClampToEdge;
     opts.cls = TextureClass::Shadow;
     opts.res = TextureOptions::Residency::Linear;
-    pg->tex.create(img, opts);
+    if (g_fastHit) {
+        // shadow_fast_hit: the page's A8 bytes zeroed directly (what the grey image of zero alpha
+        // converts to at every level), no 1 MB image to fill, convert and filter.
+        pg->tex.createZeroed(kShadowAtlasSide, kShadowAtlasSide, PicaFormat::A8, opts);
+    } else {
+        Image img;
+        img.width = img.height = kShadowAtlasSide;
+        img.hasAlpha = true;
+        img.rgba.assign(static_cast<size_t>(kShadowAtlasSide) * kShadowAtlasSide * 4, 0);
+        for (size_t i = 0; i < img.rgba.size(); i += 4) img.rgba[i] = img.rgba[i + 1] = img.rgba[i + 2] = 114;
+        pg->tex.create(img, opts);
+    }
     PicaFormat fmt = PicaFormat::RGBA8;
     Placement place = Placement::Vram;
     int texW = 0, levels = 0;
@@ -138,6 +149,7 @@ bool atlasFind(ShadowAtlas& a, int w, int h, bool mipmaps, AtlasPage** outPage, 
         return false;
     }
     pg->levels = levels;
+    g_stats.atlasPageMs += msSince(tPage);
     a.mipmaps = mipmaps;
     g_stats.atlasBytes += pg->tex.bytes();
     ++g_stats.atlasPages;
@@ -179,6 +191,161 @@ void atlasWrite(AtlasPage& pg, const Image& img, int x, int y) {
     }
 }
 
+// One channel of a silhouette (the alpha), row 0 = the image's row 0.
+struct AlphaImage {
+    int width = 0, height = 0;
+    std::vector<u8> a;
+};
+
+// texconv's resizeNearest and downsampleBox2x2 on one channel: the same source texels and the
+// same rounding, so the bytes equal the RGBA path's alpha.
+AlphaImage alphaResizeNearest(const AlphaImage& src, int w, int h) {
+    AlphaImage out;
+    out.width = w;
+    out.height = h;
+    out.a.resize(static_cast<size_t>(w) * static_cast<size_t>(h));
+    std::vector<int> sxs(static_cast<size_t>(w)); // the source column per column, once
+    for (int x = 0; x < w; ++x) sxs[static_cast<size_t>(x)] = static_cast<int>(static_cast<long long>(x) * src.width / w);
+    for (int y = 0; y < h; ++y) {
+        const int sy = static_cast<int>(static_cast<long long>(y) * src.height / h);
+        const u8* row = &src.a[static_cast<size_t>(sy) * static_cast<size_t>(src.width)];
+        u8* o = &out.a[static_cast<size_t>(y) * static_cast<size_t>(w)];
+        for (int x = 0; x < w; ++x) o[x] = row[sxs[static_cast<size_t>(x)]];
+    }
+    return out;
+}
+
+AlphaImage alphaDownsample(const AlphaImage& src) {
+    AlphaImage out;
+    out.width = std::max(src.width / 2, 1);
+    out.height = std::max(src.height / 2, 1);
+    out.a.resize(static_cast<size_t>(out.width) * static_cast<size_t>(out.height));
+    const size_t sw = static_cast<size_t>(src.width);
+    for (int y = 0; y < out.height; ++y)
+        for (int x = 0; x < out.width; ++x) {
+            const size_t x0 = static_cast<size_t>(std::min(x * 2, src.width - 1));
+            const size_t x1 = static_cast<size_t>(std::min(x * 2 + 1, src.width - 1));
+            const size_t y0 = static_cast<size_t>(std::min(y * 2, src.height - 1));
+            const size_t y1 = static_cast<size_t>(std::min(y * 2 + 1, src.height - 1));
+            const int sum = src.a[y0 * sw + x0] + src.a[y0 * sw + x1] + src.a[y1 * sw + x0] + src.a[y1 * sw + x1];
+            out.a[static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)] =
+                static_cast<u8>((sum + 2) >> 2);
+        }
+    return out;
+}
+
+// a8Offset(x, y, side) as two table entries, one per axis (the Morton bits of x and of the memory
+// row interleave without overlap, so the offset is their sum), for each level's side.
+struct A8Tables {
+    std::vector<u32> col, row; // col[x] + row[y] = a8Offset(x, y, side)
+};
+const A8Tables& a8Tables(int level) {
+    static A8Tables t[10];
+    A8Tables& a = t[level];
+    if (a.col.empty()) {
+        const int side = kShadowAtlasSide >> level;
+        a.col.resize(static_cast<size_t>(side));
+        a.row.resize(static_cast<size_t>(side));
+        for (int x = 0; x < side; ++x) a.col[static_cast<size_t>(x)] = static_cast<u32>(a8Offset(x, side - 1, side));
+        for (int y = 0; y < side; ++y)
+            a.row[static_cast<size_t>(y)] = static_cast<u32>(a8Offset(0, y, side));
+    }
+    return a;
+}
+
+// Flushes the memory rows of `level` that a cell's rows [y0, y1) use (8x8 tiles, a tile row is
+// side * 8 contiguous bytes), not the whole level.
+void flushA8Rows(uint8_t* dst, int side, int y0, int y1) {
+    const int my0 = side - y1, my1 = side - 1 - y0; // memory rows, y flipped
+    const size_t a = static_cast<size_t>(my0 >> 3) * static_cast<size_t>(side) * 8;
+    const size_t b = (static_cast<size_t>(my1 >> 3) + 1) * static_cast<size_t>(side) * 8;
+    GSPGPU_FlushDataCache(dst + a, static_cast<u32>(b - a));
+}
+
+void rebuildUpperLevels(AtlasPage& pg, bool flushEach);
+
+// atlasWrite from the alpha alone (shadow_fast_hit): the same bytes, the offsets from tables, the
+// cache flushed over the rows written.
+void atlasWriteAlpha(AtlasPage& pg, const AlphaImage& img, int x, int y) {
+    C3D_Tex* tex = const_cast<C3D_Tex*>(c3dTexOf(pg.tex));
+    const AlphaImage* cur = &img;
+    AlphaImage bufs[2];
+    const int cellLevels = std::min(pg.levels, 4);
+    for (int level = 0; level < cellLevels; ++level) {
+        u32 size = 0;
+        auto* dst = static_cast<uint8_t*>(C3D_Tex2DGetImagePtr(tex, level, &size));
+        const int side = kShadowAtlasSide >> level;
+        const int lx = x >> level, ly = y >> level;
+        const A8Tables& t = a8Tables(level);
+        const u32* col = t.col.data() + lx;
+        const int w = std::min(cur->width, side - lx), h = std::min(cur->height, side - ly);
+        for (int yy = 0; yy < h; ++yy) {
+            const u8* row = &cur->a[static_cast<size_t>(yy) * static_cast<size_t>(cur->width)];
+            uint8_t* d = dst + t.row[static_cast<size_t>(ly + yy)];
+            for (int xx = 0; xx < w; ++xx) d[col[xx]] = row[xx];
+        }
+        if (h > 0 && !g_atlasBatch) flushA8Rows(dst, side, ly, ly + h);
+        if (level + 1 < cellLevels) {
+            AlphaImage& b = bufs[level & 1];
+            b = alphaDownsample(*cur);
+            cur = &b;
+        }
+    }
+    if (g_atlasBatch) {
+        pg.batchDirty = true;
+        return;
+    }
+    rebuildUpperLevels(pg, true);
+}
+
+// The levels past 3 of a page from its level 3 (the whole page), then flushed.
+void rebuildUpperLevels(AtlasPage& pg, bool flushEach) {
+    C3D_Tex* tex = const_cast<C3D_Tex*>(c3dTexOf(pg.tex));
+    for (int level = 4; level < pg.levels; ++level) {
+        u32 size = 0, prevSize = 0;
+        auto* dst = static_cast<uint8_t*>(C3D_Tex2DGetImagePtr(tex, level, &size));
+        const auto* src = static_cast<const uint8_t*>(C3D_Tex2DGetImagePtr(tex, level - 1, &prevSize));
+        const int side = kShadowAtlasSide >> level;
+        const A8Tables& t = a8Tables(level);
+        const A8Tables& s = a8Tables(level - 1);
+        for (int yy = 0; yy < side; ++yy) {
+            const uint8_t* r0 = src + s.row[static_cast<size_t>(2 * yy)];
+            const uint8_t* r1 = src + s.row[static_cast<size_t>(2 * yy + 1)];
+            uint8_t* d = dst + t.row[static_cast<size_t>(yy)];
+            for (int xx = 0; xx < side; ++xx) {
+                const u32 c0 = s.col[static_cast<size_t>(2 * xx)], c1 = s.col[static_cast<size_t>(2 * xx + 1)];
+                const int sum = r0[c0] + r0[c1] + r1[c0] + r1[c1];
+                d[t.col[static_cast<size_t>(xx)]] = static_cast<uint8_t>((sum + 2) >> 2);
+            }
+        }
+        if (flushEach) GSPGPU_FlushDataCache(dst, size);
+    }
+}
+
+bool atlasPlaceAlpha(ShadowAtlas& a, const AlphaImage& sil, bool mipmaps, ShadowAtlasRef& ref, size_t* cellBytes) {
+    const int w = std::min(roundUpPow2(std::max(sil.width, 8)), 512);
+    const int h = std::min(roundUpPow2(std::max(sil.height, 8)), 512);
+    if (w > kShadowAtlasSide / 2 || h > kShadowAtlasSide / 2) return false;
+    AtlasPage* pg = nullptr;
+    int x = 0, y = 0;
+    if (!atlasFind(a, w, h, mipmaps, &pg, &x, &y)) {
+        ++g_stats.atlasFull;
+        return false;
+    }
+    if (g_atlasBatch) g_batchAtlas = &a;
+    if (w != sil.width || h != sil.height) atlasWriteAlpha(*pg, alphaResizeNearest(sil, w, h), x, y);
+    else atlasWriteAlpha(*pg, sil, x, y);
+    const float P = static_cast<float>(kShadowAtlasSide);
+    ref.page = &pg->tex;
+    ref.u0 = static_cast<float>(x) / P;
+    ref.v0 = static_cast<float>(y) / P;
+    ref.su = static_cast<float>(w) / P;
+    ref.sv = static_cast<float>(h) / P;
+    ++g_stats.atlasCells;
+    *cellBytes = byteSize(w, h, PicaFormat::A8, mipmaps ? std::min(pg->levels, 4) : 1);
+    return true;
+}
+
 // Places a silhouette image (any size: resized as Texture2D::create would) in the atlas.
 bool atlasPlace(ShadowAtlas& a, const Image& sil, bool mipmaps, ShadowAtlasRef& ref, size_t* cellBytes) {
     const int w = std::min(roundUpPow2(std::max(sil.width, 8)), 512);
@@ -208,11 +375,13 @@ bool atlasPlace(ShadowAtlas& a, const Image& sil, bool mipmaps, ShadowAtlasRef& 
 ShadowAtlasRef lastShadowAtlasRef() { return g_lastAtlasRef; }
 
 void resetAtlas(ShadowAtlas& a) {
+    if (g_batchAtlas == &a) g_batchAtlas = nullptr;
     a.pages.clear(); // Texture2D::destroy defers the memory to the GPU fence
     a.broken = false;
     g_lastAtlasRef = ShadowAtlasRef();
     g_stats.atlasPages = g_stats.atlasCells = g_stats.atlasFull = 0;
     g_stats.atlasBytes = 0;
+    g_stats.atlasPageMs = 0.0;
 }
 
 const ShadowPicaStats& shadowPicaStats() { return g_stats; }
@@ -220,12 +389,14 @@ void resetShadowPicaStats() {
     const size_t blob = g_stats.blobBytes;
     const int pages = g_stats.atlasPages, cells = g_stats.atlasCells, full = g_stats.atlasFull;
     const size_t atlasBytes = g_stats.atlasBytes;
+    const double pageMs = g_stats.atlasPageMs;
     g_stats = ShadowPicaStats();
     g_stats.blobBytes = blob;
     g_stats.atlasPages = pages;
     g_stats.atlasCells = cells;
     g_stats.atlasFull = full;
     g_stats.atlasBytes = atlasBytes;
+    g_stats.atlasPageMs = pageMs;
 }
 ShadowGenInfo lastShadowGenInfo() { return g_lastGen; }
 void noteShadowFrame(int late, double placeMs) {
@@ -507,9 +678,20 @@ struct Fnv {
     template <class T> void value(const T& v) { bytes(&v, sizeof v); }
 };
 
-u64 silhouetteKey(const ModelData& model, const ShadowSkin* skin, ShadowKind kind, const Vec3& towardsSun,
-                  int rotationSteps, ShadowQuality quality, const RenderRules& rules) {
-    Fnv f;
+
+// The FNV state after the version and the model's geometry, per model since the cache file was
+// set (shadow_fast_hit): the same bytes in the same order as the full key, so the same keys. A
+// model is known by its address and its arrays' (the resource cache keeps a level's models).
+struct GeometryMemo {
+    const void* positions = nullptr;
+    const void* uvs = nullptr;
+    const void* faces = nullptr;
+    size_t np = 0, nu = 0, nf = 0;
+    u64 h = 0;
+};
+std::unordered_map<const ModelData*, GeometryMemo> g_geometryMemo;
+
+void hashGeometry(Fnv& f, const ModelData& model) {
     f.value(kShadowCacheVersion);
     f.value(static_cast<u32>(model.positions.size()));
     for (const Vec3& v : model.positions) {
@@ -528,6 +710,39 @@ u64 silhouetteKey(const ModelData& model, const ShadowSkin* skin, ShadowKind kin
             f.value(fc.v[k]);
             f.value(fc.uv[k]);
         }
+    }
+}
+
+u64 silhouetteKey(const ModelData& model, const ShadowSkin* skin, ShadowKind kind, const Vec3& towardsSun,
+                  int rotationSteps, ShadowQuality quality, const RenderRules& rules, ShadowCacheStats* stats) {
+    Fnv f;
+    GeometryMemo* memo = nullptr;
+    bool reused = false;
+    if (g_fastHit) {
+        GeometryMemo& m = g_geometryMemo[&model];
+        if (m.h != 0 && m.positions == model.positions.data() && m.uvs == model.uvs.data() &&
+            m.faces == model.faces.data() && m.np == model.positions.size() && m.nu == model.uvs.size() &&
+            m.nf == model.faces.size()) {
+            f.h = m.h;
+            reused = true;
+        } else {
+            memo = &m;
+        }
+    }
+    if (reused) {
+        if (stats) ++stats->keyReuses;
+    } else {
+        hashGeometry(f, model);
+        if (memo) {
+            memo->positions = model.positions.data();
+            memo->uvs = model.uvs.data();
+            memo->faces = model.faces.data();
+            memo->np = model.positions.size();
+            memo->nu = model.uvs.size();
+            memo->nf = model.faces.size();
+            memo->h = f.h;
+        }
+        if (stats) ++stats->keyModels;
     }
     f.value(skin ? skin->contentHash() : u64(0));
     f.value(static_cast<int>(kind));
@@ -558,8 +773,31 @@ template <class T> void writeValue(std::vector<u8>& out, const T& v) {
 
 } // namespace
 
+void setShadowFastHit(bool on) { g_fastHit = on; }
+
+void shadowAtlasBatchBegin() {
+    g_atlasBatch = g_fastHit;
+    g_batchAtlas = nullptr;
+}
+
+void shadowAtlasBatchEnd() {
+    const bool was = g_atlasBatch;
+    g_atlasBatch = false;
+    if (!was || !g_batchAtlas) return;
+    const u64 t0 = svcGetSystemTick();
+    for (auto& pg : g_batchAtlas->pages) {
+        if (!pg || !pg->batchDirty) continue;
+        rebuildUpperLevels(*pg, false);
+        if (C3D_Tex* tex = const_cast<C3D_Tex*>(c3dTexOf(pg->tex))) C3D_TexFlush(tex); // every level, one flush
+        pg->batchDirty = false;
+    }
+    g_batchAtlas = nullptr;
+    cache().stats.placeMs += msSince(t0); // the batch's share of the placement
+}
+
 void setShadowCacheFile(const std::string& path) {
     ShadowCache& c = cache();
+    g_geometryMemo.clear(); // a new level start: new models may sit at old addresses
     c.path = path;
     c.entries.clear();
     c.dirty = false;
@@ -670,9 +908,51 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
     u64 key = 0;
     const pica::CachedSilhouette* hit = nullptr;
     if (!sc.path.empty()) {
-        key = pica::silhouetteKey(model, cpuSkin, kind, towardsSun, rotationSteps, quality, impl_->rules);
+        const u64 k0 = svcGetSystemTick();
+        key = pica::silhouetteKey(model, cpuSkin, kind, towardsSun, rotationSteps, quality, impl_->rules, &sc.stats);
+        sc.stats.keyMs += pica::msSince(k0);
         auto it = sc.entries.find(key);
         if (it != sc.entries.end()) hit = &it->second;
+    }
+    // shadow_fast_hit: a hit goes into the atlas from its alpha, no RGBA image.
+    if (hit && pica::g_fastHit && pica::renderQuality().shadowAtlas) {
+        const u64 p0 = svcGetSystemTick();
+        pica::AlphaImage alpha;
+        alpha.width = hit->texW;
+        alpha.height = hit->texH;
+        alpha.a = hit->alpha; // a copy: the entry stays for the file
+        pica::g_lastAtlasRef = pica::ShadowAtlasRef();
+        size_t cellBytes = 0;
+        const bool placed =
+            pica::atlasPlaceAlpha(impl_->atlas, alpha, impl_->rules.shadowMipmaps, pica::g_lastAtlasRef, &cellBytes);
+        sc.stats.placeMs += pica::msSince(p0);
+        if (placed) {
+            ++sc.stats.hits;
+            out.texture = Texture2D();
+            out.image = Image();
+            out.bounds = hit->bounds;
+            out.kind = kind;
+            out.width = hit->width;
+            out.height = hit->height;
+            pica::ShadowGenInfo& gi = pica::g_lastGen;
+            gi.width = glW;
+            gi.height = glH;
+            gi.texWidth = hit->texW;
+            gi.texHeight = hit->texH;
+            gi.bytes = cellBytes;
+            gi.ms = pica::msSince(t0);
+            gi.skinAlpha = cpuSkin != nullptr;
+            ++st.generated;
+            if (capped) ++st.capped;
+            int k = 0;
+            while (k < 7 && (8 << k) < std::max(glW, glH)) ++k;
+            ++st.bySide[k];
+            st.textureBytes += gi.bytes;
+            st.generateMs += gi.ms;
+            st.maxGenerateMs = std::max(st.maxGenerateMs, gi.ms);
+            return true;
+        }
+        // The atlas is full: the RGBA path below (a texture of its own), as before.
     }
     if (hit) {
         // The cached texels: the alpha of the raster's image (its colour is the constant grey).
@@ -714,8 +994,22 @@ bool ShadowRenderer::generate(const ModelData& model, const Texture2D* skin, Sha
     pica::g_lastAtlasRef = pica::ShadowAtlasRef();
     size_t cellBytes = 0;
     out.texture = Texture2D();
-    if (!(pica::renderQuality().shadowAtlas &&
-          pica::atlasPlace(impl_->atlas, img, impl_->rules.shadowMipmaps, pica::g_lastAtlasRef, &cellBytes))) {
+    const u64 p0 = svcGetSystemTick();
+    bool placed = false;
+    if (pica::renderQuality().shadowAtlas) {
+        if (pica::g_fastHit) { // the alpha path for a rasterised one too (the same bytes)
+            pica::AlphaImage alpha;
+            alpha.width = img.width;
+            alpha.height = img.height;
+            alpha.a.resize(static_cast<size_t>(img.width) * static_cast<size_t>(img.height));
+            for (size_t i = 0; i < alpha.a.size(); ++i) alpha.a[i] = img.rgba[i * 4 + 3];
+            placed = pica::atlasPlaceAlpha(impl_->atlas, alpha, impl_->rules.shadowMipmaps, pica::g_lastAtlasRef, &cellBytes);
+        } else {
+            placed = pica::atlasPlace(impl_->atlas, img, impl_->rules.shadowMipmaps, pica::g_lastAtlasRef, &cellBytes);
+        }
+    }
+    sc.stats.placeMs += pica::msSince(p0);
+    if (!placed) {
         TextureOptions opts;
         opts.mipmaps = impl_->rules.shadowMipmaps;
         opts.wrapS = opts.wrapT = Wrap::ClampToEdge;

@@ -174,3 +174,35 @@ TEST_CASE("texconv: resize and mip chain") {
     REQUIRE(tiny.size() == 1);
     CHECK(tiny[0].width == 8);
 }
+
+TEST_CASE("texconv: the fast swizzle and box filter give the reference bytes") {
+    // Random texels (a fixed seed) at the sizes the 3DS converts; every format.
+    std::srand(4646);
+    const PicaFormat fmts[] = {PicaFormat::RGBA8, PicaFormat::RGB8, PicaFormat::RGBA5551, PicaFormat::RGB565,
+                               PicaFormat::RGBA4, PicaFormat::LA8, PicaFormat::L8, PicaFormat::A8,
+                               PicaFormat::LA4, PicaFormat::L4, PicaFormat::A4};
+    const int sizes[][2] = {{8, 8}, {16, 8}, {64, 32}, {128, 128}, {256, 64}};
+    for (const auto& sz : sizes) {
+        Image img;
+        img.width = sz[0];
+        img.height = sz[1];
+        img.hasAlpha = true;
+        img.rgba.resize(static_cast<size_t>(sz[0]) * sz[1] * 4);
+        for (auto& b : img.rgba) b = static_cast<uint8_t>(std::rand() & 255);
+        for (PicaFormat f : fmts) {
+            setTexconvReference(true);
+            const std::vector<uint8_t> ref = swizzle(img, f);
+            setTexconvReference(false);
+            const std::vector<uint8_t> fast = swizzle(img, f);
+            CHECK(ref == fast);
+        }
+        setTexconvReference(true);
+        const Image refHalf = downsampleBox2x2(img);
+        setTexconvReference(false);
+        const Image fastHalf = downsampleBox2x2(img);
+        CHECK(refHalf.width == fastHalf.width);
+        CHECK(refHalf.height == fastHalf.height);
+        CHECK(refHalf.rgba == fastHalf.rgba);
+    }
+    setTexconvReference(false);
+}

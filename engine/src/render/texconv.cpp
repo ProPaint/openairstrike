@@ -15,7 +15,12 @@ inline int e6(int v) { return (v << 2) | (v >> 4); }
 inline int e4(int v) { return v * 17; }
 inline int lum(const uint8_t* p) { return (p[0] * 77 + p[1] * 150 + p[2] * 29 + 128) >> 8; }
 
+bool g_reference = false; // setTexconvReference
+
 } // namespace
+
+void setTexconvReference(bool reference) { g_reference = reference; }
+bool texconvReference() { return g_reference; }
 
 int bitsPerTexel(PicaFormat f) {
     switch (f) {
@@ -101,6 +106,30 @@ Image downsampleBox2x2(const Image& src) {
     out.height = std::max(src.height / 2, 1);
     out.hasAlpha = src.hasAlpha;
     out.rgba.resize(static_cast<size_t>(out.width) * out.height * 4);
+    if (!g_reference && src.width >= 2 && src.height >= 2 && (src.width & 1) == 0 && (src.height & 1) == 0) {
+        // Even sides, four channels per word: the bytes of a texel as 16-bit lanes (R and B in
+        // `lo`, G and A in `hi`), the four texels summed lane by lane (at most 4 x 255 + 2, no
+        // carry between lanes), then (sum + 2) >> 2 per lane: the channel loop's result.
+        const size_t sw = static_cast<size_t>(src.width) * 4;
+        for (int y = 0; y < out.height; ++y) {
+            const uint8_t* r0 = &src.rgba[static_cast<size_t>(y) * 2 * sw];
+            const uint8_t* r1 = r0 + sw;
+            uint8_t* o = &out.rgba[static_cast<size_t>(y) * out.width * 4];
+            for (int x = 0; x < out.width; ++x, r0 += 8, r1 += 8, o += 4) {
+                uint32_t p[4];
+                std::memcpy(&p[0], r0, 4);
+                std::memcpy(&p[1], r0 + 4, 4);
+                std::memcpy(&p[2], r1, 4);
+                std::memcpy(&p[3], r1 + 4, 4);
+                const uint32_t m = 0x00FF00FFu;
+                const uint32_t lo = (p[0] & m) + (p[1] & m) + (p[2] & m) + (p[3] & m) + 0x00020002u;
+                const uint32_t hi = ((p[0] >> 8) & m) + ((p[1] >> 8) & m) + ((p[2] >> 8) & m) + ((p[3] >> 8) & m) + 0x00020002u;
+                const uint32_t v = ((lo >> 2) & m) | (((hi >> 2) & m) << 8);
+                std::memcpy(o, &v, 4);
+            }
+        }
+        return out;
+    }
     if (src.width >= 2 && src.height >= 2 && (src.width & 1) == 0 && (src.height & 1) == 0) {
         // Even sides (every power of two >= 2): no edge clamping, row pointers.
         const size_t sw = static_cast<size_t>(src.width) * 4;
@@ -181,6 +210,21 @@ template <class Put> void forEachTexel(const Image& img, Put put) {
     const TileOrder& to = tileOrder();
     const uint8_t* rgba = img.rgba.data();
     size_t idx = 0;
+    if (!g_reference) {
+        // The tile's eight source rows once per tile, the texel's offset in its row per texel.
+        uint8_t xo[64];
+        for (int i = 0; i < 64; ++i) xo[i] = static_cast<uint8_t>(to.x[i] * 4);
+        const size_t stride = static_cast<size_t>(w) * 4;
+        for (int ty = 0; ty < h; ty += 8) {
+            const uint8_t* rows[8];
+            for (int j = 0; j < 8; ++j) rows[j] = rgba + static_cast<size_t>(h - 1 - (ty + j)) * stride;
+            for (int tx = 0; tx < w; tx += 8) {
+                const size_t xb = static_cast<size_t>(tx) * 4;
+                for (int i = 0; i < 64; ++i, ++idx) put(idx, rows[to.y[i]] + xb + xo[i]);
+            }
+        }
+        return;
+    }
     for (int ty = 0; ty < h; ty += 8) {     // memory tile rows: ty = my of the tile's first row
         for (int tx = 0; tx < w; tx += 8) {
             for (int i = 0; i < 64; ++i, ++idx) {

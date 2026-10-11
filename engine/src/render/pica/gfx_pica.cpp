@@ -436,6 +436,37 @@ void Texture2D::create(const Image& image, const TextureOptions& options) {
     bytes_ = p->bytes;
 }
 
+void Texture2D::createZeroed(int w, int h, PicaFormat format, const TextureOptions& options) {
+    destroy();
+    pica::TextureBudget& budget = pica::textureBudget();
+    w = pica::textureSide(w);
+    h = pica::textureSide(h);
+    int levelCount = 1;
+    if (options.mipmaps)
+        for (int lw = w, lh = h; lw / 2 >= 8 && lh / 2 >= 8; lw /= 2, lh /= 2) ++levelCount;
+    auto* p = new PicaTexture;
+    p->format = format;
+    p->placement = pica::Placement::Linear;
+    const C3D_TexInitParams params{static_cast<u16>(w), static_cast<u16>(h), static_cast<u8>(levelCount - 1),
+                                   pica::toGpu(format), GPU_TEX_2D, false};
+    if (!C3D_TexInitWithParams(&p->tex, nullptr, params)) {
+        budget.noteFailure();
+        delete p;
+        return;
+    }
+    const size_t bytes = byteSize(w, h, format, levelCount);
+    std::memset(p->tex.data, 0, bytes);
+    C3D_TexFlush(&p->tex);
+    C3D_TexSetFilter(&p->tex, pica::toGpu(options.magFilter), pica::toGpu(options.minFilter));
+    if (levelCount > 1) C3D_TexSetFilterMipmap(&p->tex, pica::toGpu(options.minFilter));
+    C3D_TexSetWrap(&p->tex, pica::toGpu(options.wrapS), pica::toGpu(options.wrapT));
+    p->bytes = bytes;
+    budget.add(p->placement, bytes);
+    handle_ = reinterpret_cast<std::uintptr_t>(p);
+    width_ = w;
+    height_ = h;
+    bytes_ = bytes;
+}
 
 void Texture2D::bind(unsigned unit) const {
     if (!handle_ || unit > 2) return;

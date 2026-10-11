@@ -52,6 +52,8 @@ struct TerrainPicaStats {
     // the last update()
     int updatedChunks = 0;
     int deferredFrees = 0;      // linear buffers waiting for the GPU to finish with them
+    // build(): the load profile of AS3D_LOAD phase=terrain (ms), for AS3D_LEVEL_RENDERER
+    double loadMs = 0.0, loadGenerateMs = 0.0, loadCreateMs = 0.0, loadGeometryMs = 0.0, loadRestMs = 0.0;
 };
 
 // The counters of the live terrain renderer (there is one per level).
