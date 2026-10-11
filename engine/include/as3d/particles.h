@@ -115,6 +115,10 @@ private:
     bool stopped_ = false;
     float clock_ = 0.0f;
     int ring_ = 0;
+    // No particle was live at the last update and none was spawned since: the update loop
+    // has nothing to do (a dead particle only lives again through spawn). Not hashed: it
+    // follows from the particles.
+    bool allDead_ = false;
 
     void spawn(Particle& p);
 };

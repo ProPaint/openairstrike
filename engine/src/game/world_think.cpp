@@ -60,7 +60,7 @@ void World::attachToTag(int idx) {
     const Entity& p = ents_[static_cast<size_t>(e.parent)];
     Vec3 tag;
     bool found;
-    if (e.tagCacheValid && e.tagCacheModel == p.model && e.tagCacheName == e.tagName) {
+    if (e.tagCacheValid && e.tagCacheModel == p.model) {
         found = e.tagCacheFound; // tagLocal depends only on the tag name and the model
         tag = e.tagCachePos;
     } else {
@@ -68,7 +68,6 @@ void World::attachToTag(int idx) {
         e.tagCacheValid = true;
         e.tagCacheFound = found;
         e.tagCacheModel = p.model;
-        e.tagCacheName = e.tagName;
         e.tagCachePos = tag;
     }
     if (!found) {
@@ -106,7 +105,7 @@ void World::setupTransform(int idx) {
     bool root = e.parent < 0;
     if (root) snapToGround(e);
     float axis[9];
-    int fl = e.flagBits();
+    const int fl = root ? e.flagBits() : 0; // (read by the root branches only)
     if (root && (fl & 3) == 3 && terrainValid_) {
         // FL_ONGROUND_NORMAL: plane through three terrain samples (hmap.md "Spawning"),
         // combined with the yaw.
@@ -176,15 +175,20 @@ void World::think(int idx) {
     // For an attached pool entity the parent is thought first.
     if (e.inList && validIndex(e.parent)) {
         int r = rootOf(e.parent);
-        if (validIndex(r) && ents_[static_cast<size_t>(r)].inList) think(r);
+        // (think(r) returns at once for a root that has thought: not called then)
+        if (validIndex(r) && ents_[static_cast<size_t>(r)].inList && !(ents_[static_cast<size_t>(r)].rt & (RT_REMOVED | RT_THOUGHT)))
+            think(r);
     }
     if (!paused_) {
         e.setF(F_AGE, e.f(F_AGE) + frametime_);
         e.sinceDamage += frametime_;
         // The sequels' Lightning timer (as2/rcsl-vm.delta.md, entity update).
         if (e.lightningTimer < rules_->lightningTimerCap) e.lightningTimer += frametime_;
-        bool parentAllows = !validIndex(e.parent) || ents_[static_cast<size_t>(e.parent)].state != ES_DORMANT;
-        if ((e.rt & RT_ACTIVE) && e.state != ES_DORMANT && parentAllows) dispatch(idx, EntryPoint::Main);
+        // (dispatch does nothing for an entity without a thread: not called for those)
+        if (e.thread && (e.rt & RT_ACTIVE) && e.state != ES_DORMANT) {
+            const bool parentAllows = !validIndex(e.parent) || ents_[static_cast<size_t>(e.parent)].state != ES_DORMANT;
+            if (parentAllows) dispatch(idx, EntryPoint::Main);
+        }
     }
     if (validIndex(e.parent)) {
         if (ents_[static_cast<size_t>(e.parent)].rt & RT_COLLIDABLE) e.rt |= RT_COLLIDABLE;
@@ -192,8 +196,8 @@ void World::think(int idx) {
         attachToTag(idx);
     }
     setupTransform(idx);
+    if (e.emitter) return; // (computeScreenBounds does nothing for an emitter holder)
     if (!validIndex(e.parent) || (e.rt & RT_ATTACHED_ENTITY)) computeScreenBounds(idx);
-    if (e.emitter) return;
     for (size_t i = 0; i < e.children.size(); ++i) {
         int c = e.children[i];
         if (validIndex(c) && ents_[static_cast<size_t>(c)].parent == idx) think(c);
@@ -209,15 +213,68 @@ bool World::inActivationArea(const Entity& e) const {
 void World::freeRemoved() {
     std::vector<int>& doomed = doomedScratch_;
     doomed.clear();
-    for (int i = newest_; i != -1; i = ents_[static_cast<size_t>(i)].older) {
-        const Entity& e = ents_[static_cast<size_t>(i)];
-        if ((e.rt & RT_REMOVED) && e.attachRefCount < 1) doomed.push_back(i);
+    for (auto it = listOldest_.rbegin(); it != listOldest_.rend(); ++it) { // newest first
+        const Entity& e = ents_[static_cast<size_t>(*it)];
+        if ((e.rt & RT_REMOVED) && e.attachRefCount < 1) doomed.push_back(*it);
     }
+    if (doomed.empty()) return;
+    std::vector<int>& freed = freedScratch_;
+    freed.clear();
     for (int i : doomed) {
         unlink(i);
-        freeTree(i);
+        freeTree(i, freed);
         ++stats_.entitiesFreed; // pool entities (children are freed with them)
     }
+    // The list array without the unlinked entities (nothing was linked meanwhile).
+    listOldest_.erase(std::remove_if(listOldest_.begin(), listOldest_.end(),
+                                     [this](int i) { return !ents_[static_cast<size_t>(i)].inList; }),
+                      listOldest_.end());
+    // Pool entities attached (AttachEntity) to a freed slot lose their parent. Done once for
+    // all the slots freed above: the same links end up cleared as with a walk per freed
+    // slot, since nothing between the frees reads the parent of a list entity (an entity
+    // freed later in the loop is freed whatever its parent; see freeTree).
+    for (int i : freed) freedMark_[static_cast<size_t>(i)] = 1;
+    for (int i : listOldest_) {
+        Entity& o = ents_[static_cast<size_t>(i)];
+        if (o.parent >= 0 && freedMark_[static_cast<size_t>(o.parent)]) o.parent = -1;
+    }
+    for (int i : freed) freedMark_[static_cast<size_t>(i)] = 0;
+}
+
+namespace {
+// The lines of an entity the passes read (the hot members and the script fields 0..52,
+// see Entity): its first 128 bytes and the fields.
+inline void prefetchEntityHot(const Entity& e) {
+#if defined(__GNUC__) || defined(__clang__)
+    const char* p = reinterpret_cast<const char*>(&e);
+    __builtin_prefetch(p);
+    __builtin_prefetch(p + 64);
+    const char* f = reinterpret_cast<const char*>(e.fields);
+    __builtin_prefetch(f);
+    __builtin_prefetch(f + 64);
+    __builtin_prefetch(f + 128);
+    __builtin_prefetch(f + 192);
+#else
+    (void)e;
+#endif
+}
+} // namespace
+
+// The entity pass walks the list newest first and thinks each entity, then its definition
+// children (entity -> child array -> child: dependent loads). Late in a mission the slots in
+// use do not fit the caches, so the walk asks for them ahead: the hot lines of the entity 4
+// places ahead, the child array of the one 2 ahead (whose first line asked for itself two
+// places earlier). No value changes.
+void World::prefetchAhead(size_t k) const {
+#if defined(__GNUC__) || defined(__clang__)
+    if (k >= 4) prefetchEntityHot(ents_[static_cast<size_t>(listOldest_[k - 4])]);
+    if (k >= 2) {
+        const Entity& b = ents_[static_cast<size_t>(listOldest_[k - 2])];
+        if (!b.children.empty()) __builtin_prefetch(b.children.data());
+    }
+#else
+    (void)k;
+#endif
 }
 
 void World::runEntities() {
@@ -233,9 +290,12 @@ void World::runEntities() {
         if (e.inUse) e.rt &= ~RT_THOUGHT;
     }
     thoughtSlots_.clear();
-    for (int i = newest_; i != -1;) {
+    // Newest first over the list as it is now: entities linked during the pass are appended
+    // past `k` and not visited, and nothing is unlinked before the next freeRemoved.
+    for (size_t k = listOldest_.size(); k-- > 0;) {
+        const int i = listOldest_[k];
+        prefetchAhead(k);
         Entity& e = ents_[static_cast<size_t>(i)];
-        int older = e.older;
         if (!(e.rt & RT_REMOVED)) {
             bool skip = false;
             if (!paused_) {
@@ -255,7 +315,6 @@ void World::runEntities() {
             }
             if (!skip) think(i);
         }
-        i = older;
     }
     if (!phaseTiming_) {
         runCollisions();

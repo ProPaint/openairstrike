@@ -151,6 +151,53 @@ TEST_CASE("particles freeze with the pause and restart with the level") {
     CHECK(r.world.particles().emitterCount() == 0);
 }
 
+TEST_CASE("particle instances: a full pool refuses holders in walk order, once each") {
+    Rig r;
+    flameRig(r, nullptr);
+    // A second system with another life time tells the two holders of t_pair apart.
+    r.src->add("particles\\test2.ps",
+               "PS_U {\n blend_mode BLEND_ADD\n texture \"gfx\\\\t.tga\" 1 1\n emit_rate 60\n life_time 2\n"
+               " init_offset 0 0 0 0 0 0\n init_size 1 0\n init_color 1 1 1 1\n fade_mode FADE_LINEAR\n}\n");
+    r.obj("t_mid {\n attach PS_U \"origin\"\n}\n"
+          "t_pair {\n flag FL_TEMPORARY\n attach PS_T \"origin\"\n attach id \"mid\" \"t_mid\" \"origin\"\n}\n");
+    r.start(false);
+    for (int k = 0; k < kMaxWorldEmitters - 1; ++k) REQUIRE(r.create("t_flame", {640, 300, 0}) >= 0);
+    r.step();
+    REQUIRE(r.world.particles().emitterCount() == kMaxWorldEmitters - 1);
+    CHECK(r.world.particles().refused() == 0);
+    // One instance left: the walk meets t_pair's own PS_T before the PS_U of its child.
+    int pair = r.create("t_pair", {640, 300, 0});
+    REQUIRE(pair >= 0);
+    r.step();
+    CHECK(r.world.particles().emitterCount() == kMaxWorldEmitters);
+    CHECK(r.world.particles().refused() == 1);
+    std::vector<const ParticleEmitter*> ems;
+    r.world.particles().collect(ems); // newest first
+    REQUIRE(!ems.empty());
+    CHECK(ems.front()->desc().lifeTime == doctest::Approx(1.0f)); // PS_T
+    // The refused holder is not retried.
+    r.step(10);
+    CHECK(r.world.particles().refused() == 1);
+}
+
+TEST_CASE("particle instances: holders built while paused are picked up after the pause") {
+    Rig r;
+    flameRig(r, nullptr);
+    r.start(false);
+    r.world.setPaused(true);
+    REQUIRE(r.create("t_flame", {640, 300, 0}) >= 0);
+    r.step(3);
+    CHECK(r.world.particles().emitterCount() == 0);
+    r.world.setPaused(false);
+    r.step();
+    CHECK(r.world.particles().emitterCount() == 1);
+    // A level restart drops the instances; the next holders are picked up again.
+    r.world.startEmptyLevel(false);
+    REQUIRE(r.create("t_flame", {640, 300, 0}) >= 0);
+    r.step();
+    CHECK(r.world.particles().emitterCount() == 1);
+}
+
 TEST_CASE("particle damage: the shipped flamethrowers") {
     AS3D_REQUIRE_DATA(); AS3D_REQUIRE_PLAYABLE();
     AS3D_REQUIRE_FIRST_GAME("mission 1 emitters");

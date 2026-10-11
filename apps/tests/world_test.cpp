@@ -137,6 +137,87 @@ TEST_CASE("world: a root with AttachEntity children is freed only after they are
     CHECK_FALSE(r.e(child).inUse);
 }
 
+TEST_CASE("world: the list array and the list links agree through creates and frees") {
+    Rig r;
+    r.obj("t_plain {\n flag FL_TEMPORARY\n}\n");
+    r.start();
+    std::vector<int> made;
+    for (int k = 0; k < 12; ++k) made.push_back(r.create("t_plain"));
+    auto check = [&]() {
+        const std::vector<int> list = r.world.listEntities(); // newest first
+        REQUIRE(static_cast<int>(list.size()) == r.world.listCount());
+        for (size_t k = 0; k < list.size(); ++k) {
+            const Entity& e = r.e(list[k]);
+            CHECK(e.inList);
+            CHECK(e.older == (k + 1 < list.size() ? list[k + 1] : -1));
+            CHECK(e.newer == (k > 0 ? list[k - 1] : -1));
+            if (k > 0) CHECK(r.world.listOrder(list[k]) < r.world.listOrder(list[k - 1]));
+        }
+    };
+    check();
+    for (int k : {0, 3, 4, 11}) r.world.removeEntity(made[static_cast<size_t>(k)]);
+    r.step();
+    CHECK(r.world.listCount() == 8);
+    check();
+    for (int k = 0; k < 3; ++k) r.create("t_plain"); // reuses the freed slots
+    check();
+    r.world.removeEntity(r.world.listEntities().back());
+    r.world.removeEntity(r.world.listEntities().front());
+    r.step();
+    check();
+}
+
+TEST_CASE("world: a pool entity attached to a freed entity loses its parent") {
+    Rig r;
+    r.obj("t_plain {\n flag FL_TEMPORARY\n}\n"
+          "t_leaf {\n}\n"
+          "t_top {\n flag FL_TEMPORARY\n attach id \"leaf\" \"t_leaf\" \"origin\"\n}\n");
+    r.start();
+    int top = r.create("t_top");
+    REQUIRE(top >= 0);
+    REQUIRE(r.e(top).children.size() == 1);
+    const int leaf = r.e(top).children[0];
+    int onTop = r.create("t_plain");
+    int onLeaf = r.create("t_plain");
+    int other = r.create("t_plain");
+    r.world.attachEntity(onTop, top, "origin", false);
+    r.world.attachEntity(onLeaf, leaf, "origin", false);
+    r.world.attachEntity(other, onTop, "origin", false);
+    // Drop the counts on the root so that it goes while they still point at it and its child.
+    r.e(top).attachRefCount = 0;
+    r.world.removeEntity(top);
+    r.step();
+    CHECK_FALSE(r.e(top).inUse);
+    CHECK_FALSE(r.e(leaf).inUse);
+    CHECK(r.e(onTop).parent == -1);
+    CHECK(r.e(onLeaf).parent == -1);
+    CHECK(r.e(other).parent == onTop); // its parent lives on
+}
+
+TEST_CASE("world: an attached entity follows a new tag after a re-attach") {
+    // attachToTag keeps the tag it looked up; a change of tag name must drop it.
+    Rig r;
+    r.model("models\\gun.mdl", {-10, -10, -10}, {10, 10, 10}, {{"tag_a", {0, 5, 0}}, {"tag_b", {0, -7, 0}}});
+    r.obj("t_gun {\n flag FL_TEMPORARY\n model \"models\\gun.mdl\"\n}\n"
+          "t_plain {\n flag FL_TEMPORARY\n}\n");
+    r.start();
+    int gun = r.create("t_gun", {640, 300, 0});
+    int part = r.create("t_plain");
+    REQUIRE(gun >= 0);
+    REQUIRE(part >= 0);
+    r.world.attachEntity(part, gun, "tag_a", false);
+    r.step();
+    const float y0 = r.e(gun).f(F_ORIGIN + 1);
+    CHECK(r.e(part).f(F_ORIGIN + 1) == doctest::Approx(y0 + 5.0f));
+    r.world.attachEntity(part, gun, "tag_b", false);
+    r.step();
+    CHECK(r.e(part).f(F_ORIGIN + 1) == doctest::Approx(r.e(gun).f(F_ORIGIN + 1) - 7.0f));
+    r.world.detachEntity(part);
+    r.world.attachEntity(part, gun, "tag_a", false);
+    r.step();
+    CHECK(r.e(part).f(F_ORIGIN + 1) == doctest::Approx(r.e(gun).f(F_ORIGIN + 1) + 5.0f));
+}
+
 TEST_CASE("world: definition attachments build a child tree with ids") {
     Rig r;
     r.obj("t_leaf {\n}\n"

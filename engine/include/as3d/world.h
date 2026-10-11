@@ -10,10 +10,12 @@
 // as3d::BlendMode); definitions are forward-declared.
 #pragma once
 
+#include <cstdint>
 #include <cstring>
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "as3d/core.h"
@@ -164,40 +166,74 @@ struct ScreenRect {
     float max[3] = {0, 0, 0};
 };
 
+// Member order: what the per-step passes read for every entity (the list walks, think,
+// attachment, transform, collision, particles) comes first and next to the script fields,
+// so an entity costs a few cache lines per pass; names, paths and spawn-time data follow.
+// (Late in a mission the slots in use do not fit the caches: docs/3ds-port.md "Simulation
+// step growth".)
 struct Entity {
     // Slot bookkeeping.
     bool inUse = false;
-    u32 generation = 0;
-
     // Active list (pool entities only), newest-first iteration: `older` walks toward the
     // oldest entity. -1 terminates.
     bool inList = false;
+    bool absAttach = false;
+    bool countedInRoot = false;      // +0x11
+    bool scriptFaulted = false;
+    bool tagCacheValid = false;      // see tagCacheModel
+    bool tagCacheFound = false;
+    bool axisCacheValid = false;     // see axisCache
+    u32 generation = 0;
     int newer = -1;
     int older = -1;
 
     // Hierarchy (+0x08, +0x0C, +0x10, +0x11, +0x12, +0x1DB/+0x1DF).
     int parent = -1;
-    std::vector<int> children;       // definition attachments, in attach order
-    std::string tagName;             // parent tag ("origin" = parent origin)
-    // attachToTag's lookup of tagName in the parent's model (World::tagLocal), cached: it
-    // is reused while the parent's model and tagName are the ones it was made for (a
-    // world's models are never freed or replaced while it lives).
-    bool tagCacheValid = false;
-    bool tagCacheFound = false;
-    const ModelData* tagCacheModel = nullptr;
-    std::string tagCacheName;
-    Vec3 tagCachePos;
-    bool absAttach = false;
-    bool countedInRoot = false;      // +0x11
     int attachRefCount = 0;          // +0x12, roots only
-
-    std::string name;   // +0x16: definition name (roots) or attach id (children)
     int state = ES_ACTIVE;
     u32 rt = 0;         // runtime flags
+    int touchMode = 0;                       // +0x5B
+    int playerIndex = 0;                     // +0x77
+    float sinceDamage = 0.0f;                // +0x6F
+    // as2 + 0x78: seconds since Lightning last spawned its hit effect on this entity; grows
+    // by frametime while below GameRules::lightningTimerCap (as2/rcsl-vm.delta.md, entity
+    // update). Stays 0 in a game without the cap.
+    float lightningTimer = 0.0f;
+    float radius = 0.0f;                     // +0x1BF
+
+    const ParticleSystemDef* emitter = nullptr;  // +0x1BB: emitter holder
+    // Script thread (+0x57).
+    const script::ScriptProgram* program = nullptr;
+    std::unique_ptr<script::ScriptThread> thread;
+    const ModelData* model = nullptr;        // +0x153
+    std::vector<int> children;       // definition attachments, in attach order
+
+    // attachToTag's lookup of tagName in the parent's model (World::tagLocal), cached: it
+    // is reused while the parent's model is the one it was made for (a world's models are
+    // never freed or replaced while it lives); every change of tagName clears
+    // tagCacheValid (buildEntity, attachEntity, detachEntity).
+    const ModelData* tagCacheModel = nullptr;
+    Vec3 tagCachePos;
+
+    ScreenRect rect;                         // +0x1C3
+    bool hasPrevPoint = false;
+    float prevPoint[3] = {0, 0, 0};
+    float bboxScale[3] = {0.7f, 0.7f, 0.7f}; // +0x5F
+    Vec3 boundsMin, boundsMax;               // model (or sprite) box, model space
+
+    // setupTransform's anglesToAxisRows result for the angle field bits in axisCacheKey
+    // (a pure function of those bits; reused while the angles do not change).
+    u32 axisCacheKey[3] = {0, 0, 0};
+    float axisCache[9] = {};
+
+    u32 fields[kEntityFieldCount] = {};
+
+    // Less often read.
+    std::string tagName;             // parent tag ("origin" = parent origin)
+    std::string name;   // +0x16: definition name (roots) or attach id (children)
 
     const ObjectDef* def = nullptr;
     const ObjectDef* drop = nullptr;             // +0x22
-    const ParticleSystemDef* emitter = nullptr;  // +0x1BB: emitter holder
 
     // Waypoint path (+0x4B/+0x4F/+0x53).
     const GamePath* path = nullptr;
@@ -205,28 +241,13 @@ struct Entity {
     int pathLastNode = 0;
     bool pathFinished = false;
 
-    // Script thread (+0x57).
-    const script::ScriptProgram* program = nullptr;
-    std::unique_ptr<script::ScriptThread> thread;
     std::string scriptPath;
-    bool scriptFaulted = false;
 
-    int touchMode = 0;                       // +0x5B
-    float bboxScale[3] = {0.7f, 0.7f, 0.7f}; // +0x5F
     float maxHealth = 0.0f;                  // +0x6B
-    float sinceDamage = 0.0f;                // +0x6F
-    // as2 + 0x78: seconds since Lightning last spawned its hit effect on this entity; grows
-    // by frametime while below GameRules::lightningTimerCap (as2/rcsl-vm.delta.md, entity
-    // update). Stays 0 in a game without the cap.
-    float lightningTimer = 0.0f;
-    int playerIndex = 0;                     // +0x77
 
-    const ModelData* model = nullptr;        // +0x153
     std::string modelPath;
     std::string skinPath;                    // +0x157 (setskin; empty = definition skin)
     std::string loopSound;                   // +0x73 looping sample (empty = none)
-    Vec3 boundsMin, boundsMax;               // model (or sprite) box, model space
-    float radius = 0.0f;                     // +0x1BF
 
     // Rotation key of a projected shadow, in 30 degree steps (render-pipeline.md 5.3), fixed
     // at spawn: the placement byte for map objects, int(yaw in degrees) for `create` (the
@@ -234,23 +255,12 @@ struct Entity {
     // sees).
     bool hasShadowKey = false;
     int shadowKey = 0;
-    ScreenRect rect;                         // +0x1C3
-    bool hasPrevPoint = false;
-    float prevPoint[3] = {0, 0, 0};
 
     // as2 fields 88 and 89 (engine-behaviour.delta.md 3.2): the skid trails this entity
     // lays, one per skid_mark record of its definition (pool index, -1 when the pool was
     // empty).
     int skidTrailCount = 0;
     int skidTrails[kMaxEntitySkidTrails] = {-1, -1, -1, -1, -1, -1, -1, -1};
-
-    u32 fields[kEntityFieldCount] = {};
-
-    // setupTransform's anglesToAxisRows result for the angle field bits in axisCacheKey
-    // (a pure function of those bits; reused while the angles do not change).
-    bool axisCacheValid = false;
-    u32 axisCacheKey[3] = {0, 0, 0};
-    float axisCache[9] = {};
 
     // Field access by bit copy (defined inline below: these run hundreds of times per
     // entity per step).
@@ -501,6 +511,12 @@ public:
     };
     int listCount() const { return listCount_; }
     int slotsInUse() const { return slotsInUse_; }
+    // The list order of a pool entity: larger is newer (a count taken when it was linked;
+    // the list is always in decreasing order of it). Meaningless for other slots.
+    std::uint64_t listOrder(int idx) const { return linkSeq_[static_cast<size_t>(idx)]; }
+    // Emitter holders built since the last call (slot, generation), handed to the particle
+    // instances (WorldParticles::update) so they need not search the whole entity tree.
+    void takeNewHolders(std::vector<std::pair<int, u32>>& out);
 
     // --- script dispatch (rcsl-vm.md "Event dispatch") ----------------------------
     script::DispatchResult dispatch(int idx, script::EntryPoint ep);
@@ -688,7 +704,7 @@ private:
     void resetPools();
     int allocSlot();
     void freeSlot(int idx);
-    void freeTree(int idx);
+    void freeTree(int idx, std::vector<int>& freed);
     void linkNewest(int idx);
     void unlink(int idx);
     int buildEntity(const ObjectDef* def, int depth);
@@ -699,7 +715,11 @@ private:
     // FL_ONGROUND / FL_ONWATER placement; `spawn`: G_SpawnObject's, which puts every
     // FL_ONWATER object at the flat level (the first think moves it onto the waves).
     void snapToGround(Entity& e, bool spawn = false);
-    int rootOf(int idx) const;
+    int rootOf(int idx) const {
+        int guard = 0;
+        while (idx >= 0 && ents_[static_cast<size_t>(idx)].parent >= 0 && guard++ < 64) idx = ents_[static_cast<size_t>(idx)].parent;
+        return idx;
+    }
     void markRemoved(int idx);
 
     // Frame phases.
@@ -712,6 +732,7 @@ private:
     void respawnWatchdog();
     void onScriptFault(int idx);
     void runEntities();
+    void prefetchAhead(size_t k) const; // runEntities: cache hints for the walk ahead of k
     void updateParticles(); // step 7, not while paused
     void freeRemoved();
     bool inActivationArea(const Entity& e) const;
@@ -755,6 +776,15 @@ private:
     // only place that sets the bit; a slot may appear twice when it was reused).
     std::vector<int> thoughtSlots_;
     std::vector<int> doomedScratch_; // freeRemoved's list, kept to avoid an allocation per step
+    std::vector<int> freedScratch_;  // freeRemoved: every slot it freed (roots and children)
+    std::vector<u8> freedMark_;      // per slot, set while freeRemoved detaches from freed parents
+    // The active list as an array, oldest first (listOldest_.back() == newest_): linkNewest
+    // appends, freeRemoved compacts it after its unlinks (the only unlinks). The walks over
+    // the list read it instead of chasing the `older` links (same order, no dependent loads).
+    std::vector<int> listOldest_;
+    std::vector<std::uint64_t> linkSeq_; // per slot: listOrder()
+    std::uint64_t nextLinkSeq_ = 0;
+    std::vector<std::pair<int, u32>> newHolders_; // takeNewHolders()
     // EntityListScope's buffers, one per nesting depth (unique_ptr: stable addresses).
     mutable std::vector<std::unique_ptr<std::vector<int>>> listPool_;
     mutable size_t listDepth_ = 0;

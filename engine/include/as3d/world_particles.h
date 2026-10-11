@@ -68,8 +68,21 @@ public:
 
 private:
     struct Instance;
+    // A holder waiting for its instance: its slot, generation and, while it is a candidate
+    // this step, its place in the walk of step 2 (list order of its root, then the child
+    // index at each level down).
+    struct Pending {
+        int slot = -1;
+        u32 generation = 0;
+        std::vector<int> path;
+        std::uint64_t rootOrder = 0;
+    };
     const ParticleDesc* descOf(const ParticleSystemDef* def);
     void applyDamage(World& world, const Instance& inst);
+    // Step 2 for one holder in walk order: creates its instance or records the refusal.
+    void pickUp(World& world, int slot);
+    // The whole-tree walk of step 2 (after a reset); it also refills pending_.
+    void scanAll(World& world);
 
     std::vector<std::unique_ptr<Instance>> instances_; // creation order
     std::vector<std::pair<const ParticleSystemDef*, std::unique_ptr<ParticleDesc>>> descs_;
@@ -82,6 +95,13 @@ private:
     float damageToEnemies_ = 0.0f;
     // Scratch lists of update() and applyDamage(), kept to avoid allocations per step.
     std::vector<int> roots_, dfs_, damageList_;
+    // Holders without an instance or a refusal for their generation (World::takeNewHolders
+    // feeds it): the only slots step 2 can act on. A holder settles for good: an instance
+    // keeps its slot while the holder lives, a refusal is remembered per generation.
+    std::vector<Pending> pending_;
+    std::vector<std::pair<int, u32>> newHolders_;
+    std::vector<Pending*> candidates_;
+    bool rescan_ = true; // reset: walk the whole tree once (holders built before the reset)
 };
 
 } // namespace as3d

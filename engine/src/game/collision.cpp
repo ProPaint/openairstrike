@@ -196,7 +196,8 @@ void World::touchEntity(int idx) {
     // the live walk continues, as before.
     if (!touchSnapValid_) {
         touchSnap_.clear();
-        for (int c = newest_; c != -1; c = ents_[static_cast<size_t>(c)].older) {
+        for (size_t k = listOldest_.size(); k-- > 0;) {
+            const int c = listOldest_[k];
             const Entity& ce = ents_[static_cast<size_t>(c)];
             if (ce.rt & (RT_REMOVED | RT_HEALTH_FROZEN)) continue;
             if (!(ce.rt & RT_COLLIDABLE)) continue;
@@ -223,11 +224,11 @@ void World::runCollisions() {
     const bool outerPass = inCollisionPass_;
     inCollisionPass_ = true;
     touchSnapValid_ = false;
-    for (int i = newest_; i != -1;) {
-        Entity& e = ents_[static_cast<size_t>(i)];
-        int older = e.older;
+    // Newest first; entities a touch handler links are appended past `k` (not visited).
+    for (size_t k = listOldest_.size(); k-- > 0;) {
+        const int i = listOldest_[k];
+        const Entity& e = ents_[static_cast<size_t>(i)];
         if (e.touchMode != 0 && (e.rt & RT_COLLIDABLE) && !(e.rt & RT_REMOVED)) touchEntity(i);
-        i = older;
     }
     inCollisionPass_ = outerPass;
     touchSnapValid_ = false;

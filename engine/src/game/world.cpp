@@ -49,6 +49,8 @@ int sequelTouchMode(const ObjectDef& def) {
 World::World()
     : particles_(new WorldParticles()),
       ents_(static_cast<size_t>(kMaxEntitySlots)),
+      freedMark_(static_cast<size_t>(kMaxEntitySlots), 0u),
+      linkSeq_(static_cast<size_t>(kMaxEntitySlots), 0u),
       tombs_(static_cast<size_t>(kMaxEntitySlots), std::vector<u32>(static_cast<size_t>(kEntityFieldCount), 0u)) {}
 
 World::~World() {
@@ -112,6 +114,9 @@ void World::resetPools() {
     newest_ = -1;
     listCount_ = 0;
     slotsInUse_ = 0;
+    listOldest_.clear();
+    listOldest_.reserve(static_cast<size_t>(kMaxListEntities));
+    newHolders_.clear();
     thoughtSlots_.clear();
     thoughtSlots_.reserve(kMaxEntitySlots);
     current_ = -1;
@@ -154,19 +159,20 @@ void World::freeSlot(int idx) {
     --slotsInUse_;
 }
 
-void World::freeTree(int idx) {
+// Frees idx and its definition children (children first, in attach order) and appends every
+// freed slot to `freed`. The pool entities attached to a freed slot with AttachEntity lose
+// their parent: freeRemoved clears those links in one list walk for all the slots it freed
+// (only list entities can point at a freed slot that way, and nothing reads them between).
+void World::freeTree(int idx, std::vector<int>& freed) {
     Entity& e = ents_[static_cast<size_t>(idx)];
     if (!e.inUse) return;
-    std::vector<int> kids = e.children;
-    for (int c : kids) {
-        if (c >= 0 && c < kMaxEntitySlots && ents_[static_cast<size_t>(c)].parent == idx) freeTree(c);
-    }
-    // Pool entities attached to this one with AttachEntity lose their parent.
-    for (int i = newest_; i != -1; i = ents_[static_cast<size_t>(i)].older) {
-        Entity& o = ents_[static_cast<size_t>(i)];
-        if (o.parent == idx && i != idx) o.parent = -1;
+    // e.children does not change until freeSlot(idx) (a child's freeSlot clears its own).
+    for (size_t k = 0; k < e.children.size(); ++k) {
+        const int c = e.children[k];
+        if (c >= 0 && c < kMaxEntitySlots && ents_[static_cast<size_t>(c)].parent == idx) freeTree(c, freed);
     }
     freeSlot(idx);
+    freed.push_back(idx);
 }
 
 void World::linkNewest(int idx) {
@@ -176,6 +182,8 @@ void World::linkNewest(int idx) {
     e.older = newest_;
     if (newest_ >= 0) ents_[static_cast<size_t>(newest_)].newer = idx;
     newest_ = idx;
+    listOldest_.push_back(idx);
+    linkSeq_[static_cast<size_t>(idx)] = ++nextLinkSeq_;
     ++listCount_;
     stats_.maxListEntities = std::max(stats_.maxListEntities, listCount_);
 }
@@ -198,8 +206,12 @@ std::vector<int> World::listEntities() const {
 }
 
 void World::listEntitiesInto(std::vector<int>& out) const {
-    out.clear();
-    for (int i = newest_; i != -1; i = ents_[static_cast<size_t>(i)].older) out.push_back(i);
+    out.assign(listOldest_.rbegin(), listOldest_.rend());
+}
+
+void World::takeNewHolders(std::vector<std::pair<int, u32>>& out) {
+    out.insert(out.end(), newHolders_.begin(), newHolders_.end());
+    newHolders_.clear();
 }
 
 World::EntityListScope::EntityListScope(const World& w) : w_(w) {
@@ -243,14 +255,6 @@ bool World::readRefField(u32 ref, int k, u32& out) const {
     if (e.inUse && (e.generation & kRefGenMask) == gen) out = e.fields[k];
     else out = tombs_[static_cast<size_t>(slot)][static_cast<size_t>(k)];
     return true;
-}
-
-int World::rootOf(int idx) const {
-    int guard = 0;
-    while (idx >= 0 && ents_[static_cast<size_t>(idx)].parent >= 0 && guard++ < 64) {
-        idx = ents_[static_cast<size_t>(idx)].parent;
-    }
-    return idx;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -377,6 +381,7 @@ int World::buildEntity(const ObjectDef* def, int depth) {
             }
             Entity& ce = ents_[static_cast<size_t>(c)];
             ce.emitter = ps;
+            newHolders_.emplace_back(c, ce.generation);
             ce.rt = RT_ACTIVE;
             for (int k = 0; k < 4; ++k) ce.setF(F_COLOR + k, 1.0f);
             for (int k = 0; k < 9; ++k) ce.setF(F_AXIS + k, (k % 4 == 0) ? 1.0f : 0.0f);
@@ -389,6 +394,7 @@ int World::buildEntity(const ObjectDef* def, int depth) {
         Entity& ce = ents_[static_cast<size_t>(c)];
         ce.parent = idx;
         ce.tagName = at.tagName;
+        ce.tagCacheValid = false; // (every tagName change drops the tag cache)
         ce.absAttach = at.absolute;
         ce.name = at.idName;
         ents_[static_cast<size_t>(idx)].children.push_back(c);
@@ -499,6 +505,7 @@ void World::detachEntity(int idx) {
     // 3. A root from now on; runtime bit 0x20 stays set, as in the original.
     e.parent = -1;
     e.tagName.clear();
+    e.tagCacheValid = false;
     e.absAttach = false;
 }
 
@@ -507,6 +514,7 @@ void World::attachEntity(int child, int parent, const std::string& tag, bool abs
     Entity& c = ents_[static_cast<size_t>(child)];
     c.parent = validIndex(parent) ? parent : -1;
     c.tagName = tag;
+    c.tagCacheValid = false;
     c.absAttach = absolute;
     c.rt |= RT_ATTACHED_ENTITY | RT_ACTIVE;
     if (c.parent >= 0 && !c.countedInRoot) {

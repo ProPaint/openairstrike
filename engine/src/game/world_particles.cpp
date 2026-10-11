@@ -50,6 +50,8 @@ void WorldParticles::reset(u32 seed) {
     std::fill(refusedGen_.begin(), refusedGen_.end(), 0u);
     rng_ = Rng(seed);
     refused_ = 0;
+    pending_.clear();
+    rescan_ = true;
     damageToPlayers_ = damageToEnemies_ = 0.0f;
 }
 
@@ -78,43 +80,69 @@ void WorldParticles::update(World& world, float dt) {
     }
 
     // 2. New holders, oldest root first, parents before children (a deterministic order;
-    //    it only matters when the pool is full).
-    std::vector<int>& roots = roots_;
-    world.listEntitiesInto(roots);
-    std::vector<int>& stack = dfs_;
-    for (auto it = roots.rbegin(); it != roots.rend(); ++it) {
-        stack.clear();
-        stack.push_back(*it);
-        int guard = 0;
-        while (!stack.empty() && guard++ < kMaxEntitySlots) {
-            int i = stack.back();
-            stack.pop_back();
-            if (!world.validIndex(i)) continue;
-            const Entity& e = world.entity(i);
-            for (auto c = e.children.rbegin(); c != e.children.rend(); ++c) {
-                if (world.validIndex(*c) && world.entity(*c).parent == i) stack.push_back(*c);
-            }
-            if (!e.emitter || (e.rt & RT_REMOVED) || !(e.rt & RT_THOUGHT)) continue;
-            Instance* cur = bySlot_[static_cast<size_t>(i)];
-            if (cur && cur->generation == e.generation) continue;
-            if (refusedGen_[static_cast<size_t>(i)] == e.generation + 1u) continue;
-            if (static_cast<int>(instances_.size()) >= kMaxWorldEmitters) {
-                // An instance allocated from an empty pool is not created (6.1); the holder
-                // stays without one (it is not retried every frame).
-                ++refused_;
-                refusedGen_[static_cast<size_t>(i)] = e.generation + 1u;
-                continue;
-            }
-            std::unique_ptr<Instance> inst(new Instance());
-            inst->slot = i;
-            inst->generation = e.generation;
-            inst->damage = ParticleDamage::fromDef(*e.emitter);
-            inst->touchBits = e.emitter->hasDamage ? (static_cast<int>(e.emitter->damageTouch) & 0xF) : 0;
-            inst->emitter.reset(new ParticleEmitter(*descOf(e.emitter), rng_.next(), e.v3(F_BASE_ORIGIN), e.absAttach));
-            bySlot_[static_cast<size_t>(i)] = inst.get();
-            instances_.push_back(std::move(inst));
-        }
+    //    it only matters when the pool is full): the order of a walk of the whole entity
+    //    tree (scanAll), applied to the pending holders only.
+    newHolders_.clear();
+    world.takeNewHolders(newHolders_);
+    const bool rescan = rescan_;
+    rescan_ = false;
+    if (rescan) scanAll(world); // refills pending_ with the holders it saw still waiting
+    for (const auto& h : newHolders_) {
+        Pending p;
+        p.slot = h.first;
+        p.generation = h.second;
+        pending_.push_back(std::move(p));
     }
+    if (!rescan) {
+        candidates_.clear();
+        for (Pending& p : pending_) {
+            if (!world.validIndex(p.slot) || world.entity(p.slot).generation != p.generation) continue;
+            const Entity& e = world.entity(p.slot);
+            if (!e.emitter || (e.rt & RT_REMOVED) || !(e.rt & RT_THOUGHT)) continue;
+            // Where the walk meets it: up the parent links to a list entity (a walk root),
+            // each level through the first place in the parent's child array (the walk
+            // visits the children in attach order, a child whose parent link is elsewhere
+            // never). Not reached: the walk would not see it.
+            p.path.clear();
+            int n = p.slot;
+            bool reached = true;
+            for (int guard = 0; !world.entity(n).inList; ++guard) {
+                const int par = world.entity(n).parent;
+                if (guard > kMaxEntitySlots || !world.validIndex(par)) {
+                    reached = false;
+                    break;
+                }
+                const std::vector<int>& kids = world.entity(par).children;
+                const auto at = std::find(kids.begin(), kids.end(), n);
+                if (at == kids.end()) {
+                    reached = false;
+                    break;
+                }
+                p.path.push_back(static_cast<int>(at - kids.begin()));
+                n = par;
+            }
+            if (!reached) continue;
+            std::reverse(p.path.begin(), p.path.end());
+            p.rootOrder = world.listOrder(n);
+            candidates_.push_back(&p);
+        }
+        // Walk order: oldest root first, then preorder (a parent's path is a prefix of its
+        // descendants' and comes first).
+        std::sort(candidates_.begin(), candidates_.end(), [](const Pending* a, const Pending* b) {
+            if (a->rootOrder != b->rootOrder) return a->rootOrder < b->rootOrder;
+            return a->path < b->path;
+        });
+        for (Pending* p : candidates_) pickUp(world, p->slot);
+    }
+    // Drop the holders that are gone or settled (a holder settles once per generation).
+    pending_.erase(std::remove_if(pending_.begin(), pending_.end(),
+                                  [&](const Pending& p) {
+                                      if (!world.validIndex(p.slot) || world.entity(p.slot).generation != p.generation) return true;
+                                      const Instance* cur = bySlot_[static_cast<size_t>(p.slot)];
+                                      if (cur && cur->generation == p.generation) return true;
+                                      return refusedGen_[static_cast<size_t>(p.slot)] == p.generation + 1u;
+                                  }),
+                   pending_.end());
 
     // 3. Follow the holders; activation state (AttachActivate / AttachDeactivate, remove).
     for (auto& inst : instances_) {
@@ -144,6 +172,55 @@ void WorldParticles::update(World& world, float dt) {
                                         return in->slot < 0 && in->emitter->finished();
                                     }),
                      instances_.end());
+}
+
+void WorldParticles::pickUp(World& world, int i) {
+    const Entity& e = world.entity(i);
+    Instance* cur = bySlot_[static_cast<size_t>(i)];
+    if (cur && cur->generation == e.generation) return;
+    if (refusedGen_[static_cast<size_t>(i)] == e.generation + 1u) return;
+    if (static_cast<int>(instances_.size()) >= kMaxWorldEmitters) {
+        // An instance allocated from an empty pool is not created (6.1); the holder stays
+        // without one (it is not retried every frame).
+        ++refused_;
+        refusedGen_[static_cast<size_t>(i)] = e.generation + 1u;
+        return;
+    }
+    std::unique_ptr<Instance> inst(new Instance());
+    inst->slot = i;
+    inst->generation = e.generation;
+    inst->damage = ParticleDamage::fromDef(*e.emitter);
+    inst->touchBits = e.emitter->hasDamage ? (static_cast<int>(e.emitter->damageTouch) & 0xF) : 0;
+    inst->emitter.reset(new ParticleEmitter(*descOf(e.emitter), rng_.next(), e.v3(F_BASE_ORIGIN), e.absAttach));
+    bySlot_[static_cast<size_t>(i)] = inst.get();
+    instances_.push_back(std::move(inst));
+}
+
+void WorldParticles::scanAll(World& world) {
+    pending_.clear();
+    std::vector<int>& roots = roots_;
+    world.listEntitiesInto(roots);
+    std::vector<int>& stack = dfs_;
+    for (auto it = roots.rbegin(); it != roots.rend(); ++it) {
+        stack.clear();
+        stack.push_back(*it);
+        int guard = 0;
+        while (!stack.empty() && guard++ < kMaxEntitySlots) {
+            int i = stack.back();
+            stack.pop_back();
+            if (!world.validIndex(i)) continue;
+            const Entity& e = world.entity(i);
+            for (auto c = e.children.rbegin(); c != e.children.rend(); ++c) {
+                if (world.validIndex(*c) && world.entity(*c).parent == i) stack.push_back(*c);
+            }
+            if (!e.emitter) continue;
+            if (!(e.rt & RT_REMOVED) && (e.rt & RT_THOUGHT)) pickUp(world, i);
+            Pending p;
+            p.slot = i;
+            p.generation = e.generation;
+            pending_.push_back(std::move(p)); // the settled ones are dropped by update()
+        }
+    }
 }
 
 namespace {

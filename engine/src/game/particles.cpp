@@ -118,6 +118,7 @@ bool ParticleEmitter::finished() const {
 
 void ParticleEmitter::spawn(Particle& p) {
     const ParticleDesc& d = *desc_;
+    allDead_ = false;
     p.age = 0.0f;
     float base[3] = {d.initOffset[0], d.initOffset[1], d.initOffset[2]};
     if (d.coords == ParticleCoords::Decart) {
@@ -165,10 +166,13 @@ void ParticleEmitter::update(float dt) {
         prevOrigin_ = origin_; // see docs/spec/issues/010-particle-prev-origin.md
     }
 
+    if (allDead_) return;
     const float life = d.lifeTime;
     const int cells = d.texCols * d.texRows;
+    bool anyLive = false;
     for (Particle& p : particles_) {
         if (!(p.age <= life)) continue;
+        anyLive = true;
         p.size += d.sizeRate * dt;
         for (int i = 0; i < 3; i++) {
             p.v[i] += d.accel[i] * dt;
@@ -194,6 +198,7 @@ void ParticleEmitter::update(float dt) {
         }
         p.age += dt;
     }
+    allDead_ = !anyLive;
 }
 
 Vec3 ParticleEmitter::worldPosition(const Particle& p) const {
