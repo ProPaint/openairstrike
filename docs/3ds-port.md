@@ -11,12 +11,29 @@ seconds at a time; mono fell to 30 Hz from a half-second hiccup of the audio thr
 felt strong). The fixes went into `c314767` (clear=split, the terrain re-issuing its state, the
 voice mix outside the mixer lock, comfort defaults 3 / 6 px / 8 px). **Then the owner asked not
 to do QA any more, so the console tests itself (round 2, P7; see "Soak mode and the log push" at
-the end).** The latest drop is `out/3ds/drop-round2d-5192662/` (after the first console soak, below) (the package's `openairstrike.3dsx`,
+the end).** The drop of round 2d was `out/3ds/drop-round2d-5192662/` (after the first console soak, below) (the package's `openairstrike.3dsx`,
 `openairstrike.cia`, `run.ini` = `mode=soak report_to=192.168.1.86:7777 perf=1 state_check=1
 log_lazy=1`, `run-play.ini` = play with the same diagnostics), its 3dsx and run.ini uploaded to
 the card on 2026-10-11 (the card's run.ini is the soak one; the first soak's results are in
 "First console soak" at the end: no wash in 30-second stages, mono 60 Hz missed by bursts, the push
 failed on SO_ERROR, all three addressed in `5192662`).
+
+**Round 3 (2026-10-11) is merged: R3.1 "Simulation step growth" (dd1024e: the late step 38 to
+40% cheaper, bit-identical; the rest of the growth is the original's own muzzle flashes, an owner
+decision, see that section) and R3.2 "Stereo CPU path" (664fee3: the per-frame wash detector, the
+terrain priming draw, the right eye replaying the left eye's commands, indexed water, one shader
+binary, the touch band cached). The second console soak (below) had passed `wash` with 0 register
+mismatches in 1534 probes, yet the owner saw the wash during it: brief episodes, lower half of the
+top screen only. The periodic probe reads after the terrain's base draws, and since c314767 the
+terrain re-issues its state with its second draw, so a lost first state block hits only the first
+(nearest, lowest on screen) chunk and the probe never sees it; hence the detector that judges
+every frame from an asynchronous depth read-back (`wash_check`, on in soak; `AS3D_WASH` lines per
+episode; "Wash detector" in the R3.2 section). The latest drop is `out/3ds/drop-round3-664fee3/` (its build info says `664fee3-dirty`: only this docs edit was uncommitted)
+(`run.ini` = `mode=soak report_to=192.168.1.86:7777 perf=1 state_check=1 log_lazy=1
+wash_selftest=1`, `run-play.ini` = play with the same diagnostics). What its soak should show:
+`AS3D_WASH` episodes with their length (or none), `prime_mismatches` versus `mismatches`
+(whether the first state block is still lost), `AS3D_WASH_SELFTEST` 98/98, the step cost per
+window against R3.1's table, the stereo submit versus the 10 ms of 5192662, `eye_replay` counters.
 
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
