@@ -9,6 +9,7 @@
 
 #include <3ds.h>
 
+#include "as3d/console_menu.h"
 #include "as3d/console_pad.h"
 #include "as3d/input.h"
 #include "run_config.h"
@@ -33,9 +34,25 @@ public:
     as3d::FrameInput frame(bool paused);
 
     // The front end's input for this frame while a menu is up (padToUiInputs: D-pad = arrows
-    // with repeat while held, A = Enter, B / START = Escape) plus the touch as the pointer, with
-    // `bottom` the mapping of the 320x240 bottom screen to the virtual screen. Once per frame.
-    as3d::ui::UiInput uiInputs(const as3d::ui::Mapping& bottom);
+    // with repeat while held, A = Enter, B / START = Escape, L / R = PageUp / PageDown) plus the
+    // touch, with `bottom` the mapping of the 320x240 bottom screen to the virtual screen. Once
+    // per frame. With a console menu view that lays the front end's top menu out (R4.5,
+    // as3d/console_menu.h), the touch goes through the view (its bars and sub-targets), else it
+    // is the pointer through `bottom`.
+    // A touch seen here is the menu's until the finger is lifted (docs/3ds-ui-design.md problem
+    // 10): the touch buttons of play never see it, so a tap that closes a menu (Resume, a hint's
+    // OK, Restart) cannot reach the game as a pause on the next frame.
+    as3d::ui::UiInput uiInputs(const as3d::ui::Mapping& bottom, as3d::ui::ConsoleMenuView* view = nullptr,
+                               const as3d::ui::Frontend* frontend = nullptr);
+    // run.ini ui_taps (R4.4, R4.5): a scripted finger at (x, y) (touch-screen pixels) from the
+    // next readPad, held kScriptHoldFrames frames, through the same path as a real touch.
+    void queueTouch(int x, int y) {
+        tapX_ = x;
+        tapY_ = y;
+        tapFrames_ = kScriptHoldFrames;
+    }
+    // True while the current touch belongs to a menu (it was down while one was up).
+    bool menuTouch() const { return menuTouch_; }
     // The front end's input during play: Escape on the pause button's down edge, nothing else.
     as3d::ui::UiInput playingUiInputs() const;
 
@@ -67,6 +84,9 @@ private:
     bool firstStepOfFrame_ = true;
     uint32_t lastLogged_ = 0xFFFFFFFFu;
     int lastButton_ = -2;
+    bool menuTouch_ = false;  // the finger on the screen is a menu's: consumed until lifted
+    int tapX_ = 0, tapY_ = 0; // queueTouch
+    unsigned tapFrames_ = 0;
 };
 
 } // namespace ctrapp

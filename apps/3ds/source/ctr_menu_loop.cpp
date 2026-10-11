@@ -18,9 +18,11 @@
 #include <citro3d.h>
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <string>
 
+#include "as3d/console_menu.h"
 #include "as3d/console_pad.h"
 #include "as3d/core.h"
 #include "as3d/frontend.h"
@@ -203,6 +205,10 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     frame->setFlow(&flow);
     flow.setScreenSize(CtrInput::kTouchW, CtrInput::kTouchH);
     flow.frontend().setHudTarget(ui::HudTarget::Bottom320x240);
+    // R4.5: the console menus (null with ui_menus=0), and the tutorial hints' key names as the
+    // console's buttons ({Ctrl} -> {A}, ...).
+    ui::ConsoleMenuView* menuView = frame->menuView();
+    flow.frontend().setHintFilter([](const std::string& t) { return ui::consoleKeyNames(t); });
     bool levelLoaded = false;
     flow.loadingHook = [frame](float progress, bool intermission) { frame->loadingScreen(progress, intermission); };
     flow.levelLoadedHook = [&]() {
@@ -272,7 +278,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         float uiDt = lastUi ? static_cast<float>(std::min(0.1, ticksToMs(nowUi - lastUi) / 1000.0)) : 0.0f;
         if (run.uiFixedDt) uiDt = 1.0f / 60.0f;
         lastUi = nowUi;
-        ui::UiInput uin = flow.playing() ? input.playingUiInputs() : input.uiInputs(bottomMap);
+        if (menuView) menuView->applyHits(flow.frontend()); // the hit rectangles of the menu on screen
+        ui::UiInput uin = flow.playing() ? input.playingUiInputs() : input.uiInputs(bottomMap, menuView, &flow.frontend());
         if (queuedEscape) {
             queuedEscape = false;
             if (flow.playing()) uin.key(ui::keys::Escape);
@@ -282,6 +289,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
             if (as3d_game::nameEntryField(flow.frontend())) uin.key(ui::keys::Enter);
         }
         // run.ini ui_taps (R4.4): a tap at the centre of a menu item, wherever the layout put it.
+        // R4.5: with the console menus, a finger on the touch screen there from the next frame (the
+        // path of a real touch: the view's targets and the tap-through fix); else a virtual tap.
         for (const RunConfig::UiTap& t : run.uiTaps) {
             if (static_cast<unsigned>(t.frame) != frameNo) continue;
             const ui::Menu* top = flow.frontend().menus().top();
@@ -289,8 +298,16 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
             if (top && (t.screen.empty() || t.screen == screen))
                 for (const ui::MenuItem& it : top->items)
                     if (it.id == t.item && !it.hidden() && it.hit.w > 0 && it.hit.h > 0) hit = &it;
-            if (hit) uin.tap(hit->hit.x + hit->hit.w * 0.5f, hit->hit.y + hit->hit.h * 0.5f);
-            AS3D_INFO("AS3D_UI_TAP frame=%u screen=%s item=%d %s", frameNo, screen.c_str(), t.item, hit ? "tapped" : "not found");
+            int tx = -1, ty = -1;
+            if (hit && menuView) {
+                tx = static_cast<int>(std::lround(bottomMap.toFbX(hit->hit.x + hit->hit.w * 0.5f)));
+                ty = static_cast<int>(std::lround(bottomMap.toFbY(hit->hit.y + hit->hit.h * 0.5f)));
+                input.queueTouch(tx, ty);
+            } else if (hit) {
+                uin.tap(hit->hit.x + hit->hit.w * 0.5f, hit->hit.y + hit->hit.h * 0.5f);
+            }
+            AS3D_INFO("AS3D_UI_TAP frame=%u screen=%s item=%d %s touch=%d,%d", frameNo, screen.c_str(), t.item,
+                      hit ? "tapped" : "not found", tx, ty);
         }
         // run.ini cycle=: the memory growth check starts and leaves the missions itself.
         if (!run.cycle.empty()) {
@@ -327,6 +344,7 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         const int loads = flow.levelLoads();
         levelLoaded = false;
         flow.uiFrame(uiDt, uin);
+        if (menuView) menuView->applyHits(flow.frontend()); // a new menu: its rectangles for the log and the taps
         if (flow.quitRequested()) {
             AS3D_INFO("quit: the front end's Exit");
             break;

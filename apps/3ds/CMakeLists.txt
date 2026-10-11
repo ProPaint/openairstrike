@@ -53,6 +53,7 @@ add_executable(openairstrike
   source/audio_test.cpp
   source/music_test.cpp
   source/ctr_audio.cpp
+  source/key_glyphs.cpp
   ${AS3D_REPO_ROOT}/apps/game/game_session.cpp
   ${AS3D_REPO_ROOT}/apps/game/audio_bridge.cpp
   ${AS3D_REPO_ROOT}/apps/game/game_flow.cpp
@@ -66,6 +67,9 @@ target_include_directories(openairstrike PRIVATE source ${AS3D_REPO_ROOT}/apps/g
                                                  ${AS3D_REPO_ROOT}/engine/src/render/pica
                                                  ${AS3D_REPO_ROOT}/engine/src/ui/pica
                                                  ${AS3D_REPO_ROOT}/engine/src/audio/ndsp)
+# The console menus' key pictures: apps/3ds/assets/keys.inc (from keys.png, original art of this
+# project, by tools/3ds_key_glyphs.py), included by source/key_glyphs.cpp.
+target_include_directories(openairstrike PRIVATE assets)
 target_link_libraries(openairstrike PRIVATE scene_shbin_data ${AS3D_MODULES} ${AS3D_MODULES}
                                             citro3d ctru m)
 target_compile_options(openairstrike PRIVATE -fno-exceptions)

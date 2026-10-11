@@ -259,6 +259,8 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
                 t.screen = screen;
                 c.uiTaps.push_back(t);
             }
+        } else if (key == "ui_menus") { // R4.5
+            if (toInt(val, &n)) c.uiMenus = n != 0;
         } else if (key == "clear") {
             if (val == "split") c.clearMode = 0;
             else if (val == "joint") c.clearMode = 1;

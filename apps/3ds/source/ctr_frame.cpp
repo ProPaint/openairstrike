@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "as3d/console_menu.h"
 #include "as3d/console_pad.h"
 #include "as3d/core.h"
 #include "as3d/frontend.h"
@@ -29,6 +30,7 @@
 #include "ctr_mem.h"
 #include "ctr_perf.h"
 #include "ctr_wash.h"
+#include "key_glyphs.h"
 #include "eye_replay_pica.h"
 #include "flat_fill.h"
 #include "game_flow.h"
@@ -315,6 +317,11 @@ struct GameFrame::Impl {
     } listSum;
     std::unique_ptr<ui::UiAssets> assets;
     bool hudReady = false;
+    // R4.5: the first game's menus in the console layouts (run.ini ui_menus, docs/3ds-ui-design.md
+    // "AirStrike 3D menus on the console"), with the owner's key pictures in their footers.
+    ui::ConsoleMenuView menuView;
+    Texture2D keysTexture;
+    ui::KeyGlyphAtlas keyAtlas;
     bool precached = false;
     int mission = 0;
     // The front end (M2.1).
@@ -783,6 +790,8 @@ struct GameFrame::Impl {
         hudReady = r2d->init(&hudError) && r2dBottom->init(&hudError) && r2dTopOver->init(&hudError) &&
                    r2dTouch->init(&hudError) && r2dMenu->init(&hudError) && assets->load(ses.vfs(), &hudError, game);
         if (!hudReady) AS3D_WARN("HUD unavailable: %s", hudError.c_str());
+        if (run.uiMenus && !keysTexture.valid()) loadKeyGlyphs(keysTexture, keyAtlas);
+        menuView.setKeyGlyphs(keysTexture.valid() ? &keyAtlas : nullptr);
     }
 
     // The level-start precache (run.ini precache=1), then every later load counts as lazy.
@@ -975,7 +984,14 @@ struct GameFrame::Impl {
         // halves on the desktop) is the title on the top screen here; the sequels' model view
         // (between the halves as well) is prepared for the top screen (setModel).
         menuQuads = false;
-        if (ui::Frontend* fe = l.frontend) {
+        if (ui::Frontend* fe = l.frontend; fe && run.uiMenus && ui::ConsoleMenuView::handles(*fe)) {
+            // R4.5: the console layout of the menu (its hit rectangles written first).
+            ui::Renderer2D& m = *r2dMenu;
+            m.begin(kBottomW, kBottomH);
+            menuView.applyHits(*fe);
+            menuView.drawBottom(m, *assets, *fe);
+            menuQuads = true;
+        } else if (ui::Frontend* fe = l.frontend) {
             ui::Renderer2D& m = *r2dMenu;
             m.begin(kBottomW, kBottomH);
             fe->drawUnder(m, *assets);
@@ -1161,8 +1177,12 @@ struct GameFrame::Impl {
             title = fe && !modelActive && !bannerActive &&
                     (fe->bannerVisible() || (!worldDrawn && fe->state() != ui::FrontendState::Intro));
         }
-        if (!paused && !title && !modelActive && !run.perf) return;
+        // R4.5: the console menus' reading panel (titles, Information, scores, results).
+        const bool menuTop = flow && fe && run.uiMenus && ui::ConsoleMenuView::handles(*fe);
+        if (menuTop) title = false; // the main menu shows its banner; the panels their own titles
+        if (!paused && !title && !modelActive && !run.perf && !menuTop) return;
         r2d->begin(kTopW, kTopH);
+        if (menuTop) menuView.drawTop(*r2d, *assets, *fe);
         if (modelActive) {
             // The selection's dot grid, mapped as the model's rectangle: virtual v at pixel
             // model corner + kModelPxPerVirtual (v - viewport corner).
@@ -1279,6 +1299,8 @@ std::unique_ptr<as3d_game::FlowView> GameFrame::makeFlowView(CtrContext& ctx) {
 }
 
 void GameFrame::setFlow(as3d_game::GameFlow* flow) { impl_->flow = flow; }
+
+as3d::ui::ConsoleMenuView* GameFrame::menuView() { return impl_->run.uiMenus ? &impl_->menuView : nullptr; }
 
 void GameFrame::loadingScreen(float progress, bool intermission) {
     if (!impl_->ctx || !impl_->backend) return;
@@ -1955,6 +1977,9 @@ void GameFrame::end() {
     im.r2dTopOver.reset();
     im.r2dTouch.reset();
     im.r2dMenu.reset();
+    im.menuView.setKeyGlyphs(nullptr);
+    im.keyAtlas = ui::KeyGlyphAtlas();
+    im.keysTexture = Texture2D();
     if (im.backend) pica::shutdownBackend();
     im.backend = false;
 }

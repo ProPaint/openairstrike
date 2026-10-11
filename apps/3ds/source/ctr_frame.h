@@ -35,6 +35,7 @@
 #include <memory>
 #include <string>
 
+#include "as3d/console_menu.h"
 #include "ctr_loop.h"
 #include "flow_view.h"
 #include "run_config.h"
@@ -87,6 +88,9 @@ public:
     // The returned view must not outlive this object.
     std::unique_ptr<as3d_game::FlowView> makeFlowView(as3d::ctr::CtrContext& ctx);
     void setFlow(as3d_game::GameFlow* flow);
+    // R4.5: the console menu view (its layouts drawn here; the menu loop gives it the touch and
+    // writes its hit rectangles), null with run.ini ui_menus=0.
+    as3d::ui::ConsoleMenuView* menuView();
     // GameFlow::loadingHook: a standalone frame of the original's loading screen on both screens
     // (with a visible progress bar), at most every 100 ms unless progress is 1.
     void loadingScreen(float progress, bool intermission);

@@ -77,11 +77,11 @@ RUNS = [
              "end_at": "1500", "end_kind": "complete"},
      "inputs": [(40, "@main/3"), (140, "B"), (200, "@main/2"), (300, "B"), (360, "@main/4"), (440, "@info/10"),
                 (520, "@info/10"), (600, "@info/10"), (680, "B"), (740, "@main/5"), (840, "B"), (900, "@main/1"),
-                (1000, "@start/2"), (1200, "START"), (1300, "B")],
+                (1000, "@start/2"), (1200, "START"), (1300, "@ingame/1"), (1500, "@hint/1")],
      "keep": [("01_main_menu", ("screen", "main", 1)), ("02_options", ("screen", "options", 1)),
-              ("03_top_scores", ("screen", "scores", 1)), ("04_information_p1", ("screen", "info", 1)),
-              ("05_information_p2", ("after", "info", 1, 110)), ("06_information_p3", ("after", "info", 1, 190)),
-              ("07_information_p4", ("after", "info", 1, 270)), ("08_exit_dialog", ("screen", "exit", 1)),
+              ("03_top_scores", ("screen", "scores", 1)), ("04_information_1", ("screen", "info", 1)),
+              ("05_information_2", ("after", "info", 1, 110)), ("06_information_3", ("after", "info", 1, 190)),
+              ("07_information_4", ("after", "info", 1, 270)), ("08_exit_dialog", ("screen", "exit", 1)),
               ("09_start_game", ("screen", "start", 1)), ("10_loading", ("load", 2)),
               ("11_play_level_name", ("after", "playing", 1, 100)), ("12_play_early", ("after", "playing", 1, 50)),
               ("13_paused", ("screen", "ingame", 1)), ("14_hint", ("screen", "hint", 1)),
@@ -295,6 +295,30 @@ def screen_changes(logtext):
     return [(m.group(1), int(m.group(2))) for m in re.finditer(r"AS3D_SCREEN name=(\S+) frame=(\d+)", logtext)]
 
 
+def tap_through(logtext):
+    """The tap-through check (docs/3ds-ui-design.md problem 10): every return to play from a menu
+    closed by a tap (AS3D_UI_TAP on ingame, hint, gameover, complete) must not open the in-game menu
+    again within 30 frames. Returns lines to log."""
+    taps = [(m.group(2), int(m.group(1))) for m in re.finditer(r"AS3D_UI_TAP frame=(\d+) screen=(\S+) item=\d+ tapped", logtext)]
+    seq = screen_changes(logtext)
+    out = []
+    for screen, frame in taps:
+        if screen not in ("ingame", "hint", "gameover", "complete"):
+            continue
+        after = [(s, f) for s, f in seq if f >= frame]
+        if not after:
+            out.append("tap on %s at %d: no screen change after it" % (screen, frame))
+            continue
+        s1, f1 = after[0]
+        reopened = [(s, f) for s, f in after[1:] if f <= f1 + 30 and s in ("ingame", "hint")]
+        if s1 == "playing" and reopened:
+            out.append("TAP-THROUGH: tap on %s at %d -> playing at %d -> %s at %d" % (screen, frame, f1, reopened[0][0],
+                                                                                 reopened[0][1]))
+        else:
+            out.append("tap on %s at %d -> %s at %d, no menu within 30 frames: ok" % (screen, frame, s1, f1))
+    return out
+
+
 def pick(raw, prefix, logtext, sel):
     """The dump stem (path without _top.ppm) the selector names, or None."""
     files = sorted(f for f in os.listdir(raw) if f.endswith("_top.ppm"))
@@ -406,6 +430,8 @@ def main():
             log("%s: %s in %.0f s" % (run["name"], "ok" if ok else "TIMEOUT (killed)", time.time() - t))
         logtext = open(os.path.join(raw, "log.txt"), errors="replace").read() if os.path.exists(
             os.path.join(raw, "log.txt")) else ""
+        for line in tap_through(logtext):
+            log("  %s: %s" % (run["name"], line))
         game_dir = os.path.join(root, run["game"])
         os.makedirs(game_dir, exist_ok=True)
         for name, sel in run["keep"]:

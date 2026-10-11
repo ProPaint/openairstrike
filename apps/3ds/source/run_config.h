@@ -147,6 +147,11 @@ struct RunConfig {
         std::string screen; // empty: any screen
     };
     std::vector<UiTap> uiTaps;
+    // R4.5 (docs/3ds-ui-design.md "AirStrike 3D menus on the console (round 4, R4.5)"):
+    // ui_menus=1|0: the first game's menus in the console layouts (1, default) or the 0.4 copy of
+    // the desktop's screens (0, comparisons). With 1, ui_taps are fingers on the touch screen at
+    // the item's bar (they go the way of a real touch, the tap-through fix included).
+    bool uiMenus = true;
     int clearMode = 0;         // clear=split (0, default) | joint (1) | quad (2): how a target's colour and depth are cleared (pica_frame.h ClearMode)
     bool gpuKick = true;       // gpu_kick=0: no mid-frame start of the GPU (pica_frame.h kickGpu); default on
     bool cmdlistFlush = false; // end_flush=cmdlist: C3D_FrameEnd(GX_CMDLIST_FLUSH), no whole-heap flush (forced by gpu_kick=1)
