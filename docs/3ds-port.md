@@ -3250,3 +3250,133 @@ mono and stereo), every stage to Mission Complete, every end state identical to 
   merged 0. Round 3, R3.2.
 - Level start 3.2-3.4 s (gate 3.0); lazy loads 0; fence 0; GPU busy 0; textures in frame 0; the
   probe 2.2 ms mono / 4.0 ms stereo (max 10) every 30 frames.
+
+## Simulation step growth (round 3, R3.1)
+
+The second console soak measured the simulation step of AirStrike 3D mission 1 (bot with the
+weapon tour) at 0.9 ms per step in the first 1200 steps and 5.2 ms at step 12000, mission 2 1.2
+to 5.2 ms. The simulation is bit-identical to the desktop, so the growth was measured and
+worked on with `as3d_sim`.
+
+**Method.** `as3d_sim --step-times [N]` (new) prints one `steps:` row per window of N steps
+(default 1200): mean and p95 ms per step, the `World::step` phase means, the list entities and
+slots at the window's end. `perf` cannot run on this machine (`perf_event_paranoid` 4), so the
+profile came from a SIGPROF sampler preloaded into `as3d_sim` (100 us, the leaf PC and 11
+frames by `backtrace`, symbols from `nm`, lines from `addr2line`), the late window as the
+difference of a 13200-step and a 10800-step run, the early one as 2400 steps minus the load
+(4 runs each); rdtsc counters around `think` by entity name for the per-type costs (temporary,
+not committed). The before/after tables are the best of 5 to 7 interleaved runs of both
+binaries (desktop i7-7700HQ, RelWithDebInfo).
+
+**What grows.** The end state of mission 1 with the tour: 518 list entities, 1038 slots, of
+which 440 list entities are missile muzzle flashes (`missile_smoke` 261, `missile_smoke_small`
+179) and 445 slots their `PS_GUNSMOKE`/`PS_GUNSMOKE_SMALL` emitter holders. The flash is the
+`flash` object of the player's missile weapons (`weapons/player.wpn`), made by `Shoot` step 12
+as a linked pool entity on the launcher tag (`tag_rocket1`, `tag_rocket2`, ...). Its definition
+has no script (`flag FL_NODRAW`, `attach "PS_GUNSMOKE" "origin"`): nothing ever removes it.
+It goes to state 2 (leaving) but stays inside the view frustum with the player, and removing
+the player would not remove it either (rcsl-builtins-semantics.md B: linked pool entities stay
+in the list; `remove` step 5). The machine gun's `mgun_flash` has a script that removes itself
+and does not pile up. So this is the original's behaviour, not a port bug: every missile shot
+adds two entities for the rest of the mission. The weapon tour fires 440 missiles in mission 1;
+the plain bot (no tour) still leaves 80 flashes by step 10800; a human fires fewer. The other
+growth is the mission's own content: uncollected items (`FL_TEMPORARY`, their scripts remove
+them only when taken, so they drift behind the camera with their `flare` child for the rest of
+the mission; about 12 late in mission 1, 2000 to 3000 cycles per think each) and the busier
+second half of the mission. Without the tour the plain bot's step also grows 4.5x (0.017 to
+0.076 ms, desktop).
+
+A side effect worth knowing: the flashes' emitter instances never finish (their holder lives),
+so the 256-instance particle pool (render-pipeline.md 6.1) is full late in mission 1 with the
+tour and later systems are refused (`particles.refused` 1248 at the end). Same in the original
+if it behaves as specified; with fewer missiles (human play) the pool does not fill.
+
+**Profile, late window minus early (mission 1, before).** Per 2400 steps the late window took
+3.6 times the samples of the early one. Self time, late: `World::think` 14.2 % (early 5.6 %),
+`WorldParticles::update` 10.6 % (6.2 %: the step-2 walk of the whole entity tree, every step),
+`World::touchEntity` 7.4 % (1.5 %: the touch candidate snapshot rebuilt from the list after
+every hit), `ScriptThread::runInvocation` 6.9 % (16.5 %), `setupTransform` 6.2 %, `attachToTag`
+5.7 %, `listEntitiesInto` 5.1 % (2.8 %: particles 54 of its 86 samples, `EntityListScope` 26),
+`dispatch` 4.6 %, `runEntities` 4.4 %, `freeTree` 3.7 % (0.6 %: a list walk per freed slot to
+detach `AttachEntity` children), `freeRemoved` 3.0 %. The script VM is not what grows: its share
+falls. rdtsc by entity name, steps 10800 to 13200: the flash thinks (flash plus holder) took
+54 % of all think time; a flash think with its holder costs about 250 cycles (rdtsc included),
+about 200 when run a second time hot: the cost is instructions more than memory (a cache
+prefetch gains 6 %; a table of attach/transform results keyed by their input bits, 71 % hits,
+gained nothing and was dropped).
+
+**Changes** (commit 8f447d8; no value changes, see the proof below):
+- The active list is also an array, oldest first (`World::listOldest_`: `linkNewest` appends,
+  `freeRemoved` compacts after its unlinks, the only ones). The entity pass, the collision
+  pass, the touch candidate snapshot, `freeRemoved` and `listEntitiesInto`/`EntityListScope`
+  read it instead of chasing the `older` links; `World::listOrder` gives an entity's place.
+- `freeRemoved` clears the parent of the pool entities attached to the slots it freed in one
+  list walk for all of them (the same links end cleared: nothing between the frees reads the
+  parent of a list entity); `freeTree` no longer copies the child array.
+- `WorldParticles` step 2: the holders built since the last step (`World::takeNewHolders`) wait
+  in a pending list until they get an instance or a refusal (a holder settles for good per
+  generation); the step takes the pending holders that have thought in the order of the old
+  walk (list order of the root, then the child index at each level down), which itself only
+  runs after a reset (`scanAll`).
+- `ParticleEmitter::update` skips its particle loop once no particle is live and none was
+  spawned since (the gun smoke instances).
+- `Entity` members reordered: what the per-step passes read comes first, next to the script
+  fields (936 bytes, was 960); the tag cache no longer copies and compares the tag name (every
+  change of `tagName` clears it: `buildEntity`, `attachEntity`, `detachEntity`). The entity
+  pass prefetches the hot lines of the entity 4 places ahead and the child array of the one 2
+  ahead (`World::prefetchAhead`, `__builtin_prefetch`: PLD on the ARM11).
+- `think`: no `dispatch` call without a thread, no `think` call for a root that has thought,
+  no `computeScreenBounds` call for an emitter holder; `setupTransform` reads the flags only
+  for roots; `rootOf` inline.
+
+**Before / after, desktop** (mean / p95 ms per step per 1200 steps, `--bot --bot-weapons`):
+
+| steps to | m1 before | m1 after | m2 before | m2 after | m1 list / slots |
+|---|---|---|---|---|---|
+| 1200 | 0.0297 / 0.050 | 0.0261 / 0.044 | 0.0387 / 0.059 | 0.0340 / 0.052 | 78 / 166 |
+| 2400 | 0.0655 / 0.113 | 0.0535 / 0.089 | 0.0653 / 0.097 | 0.0528 / 0.079 | 206 / 350 |
+| 3600 | 0.0641 / 0.090 | 0.0477 / 0.063 | 0.0664 / 0.088 | 0.0516 / 0.070 | 188 / 394 |
+| 4800 | 0.0722 / 0.097 | 0.0510 / 0.069 | 0.0756 / 0.100 | 0.0558 / 0.074 | 204 / 410 |
+| 6000 | 0.0894 / 0.131 | 0.0636 / 0.098 | 0.0896 / 0.122 | 0.0628 / 0.084 | 346 / 627 |
+| 7200 | 0.0955 / 0.130 | 0.0652 / 0.097 | 0.0900 / 0.125 | 0.0596 / 0.081 | 310 / 625 |
+| 8400 | 0.1167 / 0.160 | 0.0773 / 0.110 | 0.1096 / 0.147 | 0.0718 / 0.098 | 325 / 667 |
+| 9600 | 0.1224 / 0.166 | 0.0768 / 0.103 | 0.1247 / 0.166 | 0.0767 / 0.103 | 443 / 817 |
+| 10800 | 0.1419 / 0.195 | 0.0885 / 0.119 | 0.1274 / 0.164 | 0.0816 / 0.105 | 528 / 1089 |
+| 12000 | 0.1630 / 0.216 | 0.0982 / 0.127 | 0.1567 / 0.208 | 0.0977 / 0.128 | 479 / 951 |
+| 13200 | 0.1564 / 0.211 | 0.0937 / 0.128 | 0.1578 / 0.212 | 0.0984 / 0.134 | 595 / 1111 |
+| end | 0.1143 / 0.178 | 0.0683 / 0.102 | 0.1166 / 0.177 | 0.0703 / 0.105 | 518 / 1038 |
+
+Worst late window: mission 1 0.163 to 0.098 ms (-40 %), late/early 5.5 to 3.8; mission 2 0.158
+to 0.098 (-38 %), 4.1 to 2.9. The sequels' mission 1 (6000 steps, tour):
+as2 0.147-0.200 to 0.119-0.163, gulf 0.098-0.164 to 0.086-0.133 (-15 to -20 % in every window;
+little growth to begin with). On the console the same work is about 35 times slower; the late mission 1 step
+should go from about 5.2 ms toward 3.2 ms if the ratio carries over (the memory-bound parts, the
+list array and the prefetch, may gain more on the ARM11; not measured yet).
+
+**Proof of identity.** `as3d_sim --dump-state` plus the summary, before (0c9c98a) and after,
+every mission of the three games (62) after 3600 steps in four configurations (`--bot`;
+`--pilot --god --upgrades 3 --items 5`; `--bot --players 2 --seed 7 --difficulty 3`; `--bot
+--bot-weapons`): 496 files byte-identical. The whole missions 1 and 2 of AirStrike 3D (13961 and
+14160 steps) and the sequels' mission 1 (6000 steps) with the tour: identical end states and
+dumps (mission 1: `list entities 518 (max 600), slots 1038 (max 1177), created 8413, freed
+7895`). New tests (world_test, world_particles_test): the list array and the links agree
+through creates and frees; a pool entity attached to a freed entity or to its definition child
+loses its parent; a re-attach to another tag follows the new tag; a full pool refuses holders
+in walk order, once each; holders built while paused are picked up after the pause and after a
+level restart. ci.sh passes for the three games.
+
+**What remains, and the targets.** The round's target (late/early at most 2.5, the late step
+halved) is not reached without changing the simulation: a flash and its holder still cost about
+200 to 250 cycles per step, and 440 pairs are about 0.035 ms of the 0.098 ms late step; the
+uncollected items and the busier end of the mission make the rest (without any flash the late
+step would still be about 2.4 times the first window). What would reach it, as owner decisions
+(each changes the simulation, so the goldens and the soak's end states would move):
+- Remove a muzzle flash once its emitter has finished (or after a few seconds): a deviation
+  from the original, which keeps them; the visible effect is none (the flash is FL_NODRAW and
+  its smoke is gone), the particle pool stops filling up.
+- Cap the flashes per shooter (the original's pool of 1024 list entities would crash after
+  about 900 missiles in one mission anyway, engine-behaviour.md 3.3).
+- The weapon tour itself fires missiles far faster than a player; a soak with the plain bot
+  grows less (80 flashes by step 10800).
+Next measurement: the console soak of this build; `perf.csv` step times per window against the
+table above.
