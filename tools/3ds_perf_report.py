@@ -47,6 +47,78 @@ def parse_log(path):
     return out
 
 
+def fv(r, k):
+    try:
+        return float(r[k])
+    except (KeyError, ValueError, TypeError):
+        return 0.0
+
+
+def cadence(rows, grace=300):
+    """R4.2 (docs/3ds-port.md "Mono at 60 and the level start"): the 60 Hz frames' cadence from the
+    columns. A frame's sync is late when the CPU path since the previous sync (the previous row's
+    wait + submit + end + after, this row's step + prepare + sync) is over 20.5 ms (it matches the
+    console's own count); a run is consecutive late frames; a frame is GPU-late when its GPU ended
+    after the next vblank (wait + submit + end + the next row's gpu_ms > 16.7 ms) although its sync was
+    on time; a stutter is a picture shown longer than one vblank (a late sync or a late GPU)."""
+    import math
+    n = len(rows)
+    vb = 1000.0 / 60.0
+    late = [False] * n
+    for i in range(1, n):
+        a, b = rows[i - 1], rows[i]
+        iv = sum(fv(a, k) for k in ("wait_ms", "submit_ms", "end_ms", "after_ms")) + sum(
+            fv(b, k) for k in ("step_ms", "prepare_ms", "sync_ms"))
+        late[i] = iv > 20.5
+    at60 = [i for i in range(max(1, grace), n - 1) if fv(rows[i], "render_hz") == 60 and fv(rows[i - 1], "render_hz") == 60
+            and int(fv(rows[i], "eyes") or 1) == 1]
+    if not at60:
+        return
+    t = 0.0
+    present_prev = None
+    sync = [0.0] * n
+    for i in range(1, n):
+        a, b = rows[i - 1], rows[i]
+        t += sum(fv(a, k) for k in ("wait_ms", "submit_ms", "end_ms", "after_ms")) + sum(
+            fv(b, k) for k in ("step_ms", "prepare_ms", "sync_ms"))
+        sync[i] = t
+    late_n = sum(late[i] for i in at60)
+    follow = sum(1 for i in at60 if late[i] and late[i - 1])
+    two = [i for i in at60 if int(fv(rows[i], "sim_steps")) >= 2]
+    gpu_late = hitch = 0
+    s60 = set(at60)
+    for i in range(1, n - 1):
+        ge = fv(rows[i], "wait_ms") + fv(rows[i], "submit_ms") + fv(rows[i], "end_ms") + fv(rows[i + 1], "gpu_ms")
+        present = sync[i] + max(1, int(math.ceil(ge / vb - 1e-6))) * vb
+        if i in s60:
+            if ge > vb and not late[i]:
+                gpu_late += 1
+            if present_prev is not None and present - present_prev > 1.5 * vb:
+                hitch += 1
+        present_prev = present
+    runs = []
+    i = 0
+    while i < n:
+        if i in s60 and late[i]:
+            j = i
+            while j + 1 in s60 and late[j + 1]:
+                j += 1
+            runs.append(j - i + 1)
+            i = j + 1
+        else:
+            i += 1
+    steps = {}
+    for r in rows:
+        k = int(fv(r, "sim_steps"))
+        steps[k] = steps.get(k, 0) + 1
+    print("mono cadence (60 Hz frames after the grace: %d): late syncs %d (%.2f%%), of them after a late frame %d; "
+          "runs %d (longest %d); frames with 2+ steps %d, late %d (%.0f%%); GPU-late %d (%.2f%%); stutters %d (%.2f%%)" % (
+              len(at60), late_n, 100.0 * late_n / len(at60), follow, len(runs), max(runs) if runs else 0, len(two),
+              sum(late[i] for i in two), 100.0 * sum(late[i] for i in two) / max(1, len(two)), gpu_late,
+              100.0 * gpu_late / len(at60), hitch, 100.0 * hitch / len(at60)))
+    print("steps per frame (all rows): %s" % ", ".join("%d=%d" % kv for kv in sorted(steps.items())))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("dir")
@@ -103,6 +175,13 @@ def main():
         print("heap high-water %d KB (arena %d KB)" % (log["heap_kb"].get("high", 0), log["heap_kb"].get("arena", 0)))
     if not log:
         print("no log.txt or no PERF_SUMMARY block in it")
+    if rows:
+        cadence(rows)
+    log_path = os.path.join(a.dir, "log.txt")
+    if os.path.exists(log_path):
+        for line in open(log_path, errors="replace"):
+            if "AS3D_LEVEL_START" in line or "PERF_SUMMARY catchup" in line:
+                print(line.strip().replace("[info] ", ""))
     print()
 
     # Checks.

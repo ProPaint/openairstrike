@@ -244,7 +244,7 @@ def report(d, sim, expect=None):
     if os.path.exists(log):
         lines = open(log, errors="replace").read().splitlines()
         for l in lines:
-            if "AS3D_SOAK_RESULT" in l or "AS3D_AUTO_MARK" in l or "AS3D_REPORT" in l:
+            if "AS3D_SOAK_RESULT" in l or "AS3D_SOAK_PACE" in l or "AS3D_AUTO_MARK" in l or "AS3D_REPORT" in l:
                 print(l)
     stages = split_stages(d) if os.path.exists(log) else []
     perf = os.path.join(ROOT, "tools/3ds_perf_report.py")
