@@ -3968,3 +3968,283 @@ Open after this soak: stereo at 60 (GPU), mono's last 1 to 1.7% of misses and th
 drops per mission, the level start over 3 s, the muzzle flashes (owner decision, R3.1 section),
 the owner's optional checks (the wash by eye in play, the name entry, the stereo feel at the new
 defaults).
+
+## Mono at 60 and the level start (round 4, R4.2)
+
+What the fourth soak's mono misses are made of, the deferred catch-up that cuts their cascades
+(`catchup=deferred`, the default), the pacer's rule after it, two new cadence counters (GPU-late
+frames and stutters), the level start's breakdown line, and the next soak's stages. The numbers are
+from `out/3ds/2026-10-11-d63fbbf/` (stages 01 and 03 the whole missions 1 and 2 in mono, 09 and 10
+the first minute of mission 1 with `wash_check=0` / `music=0`); the scripts are `tools/3ds_perf_report.py`
+(the "mono cadence" line, new) and `tools/3ds_pacer_replay.py` (the frame simulator, new).
+
+### How a frame is late (the model, checked on the soak)
+
+The loop is: steps, prepare, `C3D_FrameSync` (the vblank), `C3D_FrameBegin` (waits for the GPU of
+the previous frame: `wait_ms`), the recording (`submit_ms`), `C3D_FrameEnd`, `afterFrame`. A frame's
+sync is late when the CPU path since the previous sync, i.e. the previous row's
+`wait + submit + end + after` plus this row's `step + prepare`, passes **16.4 ms** (0 false alarms in
+mission 1, 10 of 191 late frames under it, all on the heap sample of every 600th frame). The
+interval between two syncs, these columns plus `sync_ms`, gives exactly the console's count: 191
+late frames in mission 1 = 170 counted misses + 21 excused. The `wait_ms` of a frame is what is left
+of the previous frame's GPU after the interval: `max(0, wait + submit + end + GPU tail of the
+previous frame - interval)` (|error| over 1 ms in 4 of 10053 frames). So the whole cadence can be
+replayed from the columns, which the frame simulator does.
+
+**The GPU starts late in mono.** `gpu_kick` starts the queue after each eye (ctr_frame.cpp
+`drawTop`); in mono that is the end of the whole top screen. `gpu_kick_ms - gpu_ms` (the GPU's run
+before `C3D_FrameEnd` returns) is 0.83 ms on average in both missions: the GPU does almost nothing
+while the CPU records, then 7 to 10 ms after it. A frame's GPU ends `wait + submit + end + tail`
+after its sync (about 5.5 + 7.5 = 13 ms on average, 17 to 19 ms in fights), and citro3d swaps the
+buffers when the queue finishes, so the screen shows that picture at the first vblank after it.
+
+### A. The misses, characterised
+
+| | mission 1 | mission 2 | first minute (09 / 10) |
+|---|---|---|---|
+| frames at 60 Hz after the grace | 10053 | 10927 | 2960 / 2956 |
+| late syncs (counted + excused) | 191 (1.90 %) | 85 (0.78 %) | 39 / 43 |
+| runs of late frames (length: count) | 38 (1: 26, 2: 2, 5 to 28: 10) | 25 (1: 19, 2: 3, 7/26/27) | 13 (12 single, one of 27) / 17 (16, one of 27) |
+| late frames whose previous frame was late | **153 (80 %)** | **60 (71 %)** | 26 / 26 |
+| frames with 2 steps, late among them | 186, 153 (**82 %**) | 83, 60 (72 %) | 38, 26 (68 %) / 42, 26 (62 %) |
+| frames with 1 step, late among them | 9868, 38 (0.39 %) | 10845, 25 (0.23 %) | 0.44 % / 0.58 % |
+| first late frame of a run that has 1 step | 38 of 38 | 25 of 25 | all |
+| GPU-late frames (sync on time, picture a vblank late) | 489 (4.9 %) | 266 (2.4 %) | 214 (7.2 %) / 311 (10.5 %) |
+| stutters (a picture on screen for 2+ vblanks) | 381 (3.8 %) | 194 (1.8 %) | 122 (4.1 %) / 159 (5.4 %) |
+
+- **Cascades.** Every late frame after the first of a run ran two steps (the clock's catch-up of
+  the vblank it lost), and a two-step frame misses 62 to 82 % of the time in the stretches where
+  misses happen (two heavy steps are 6 to 9 ms there). So one late frame becomes a pair or a run:
+  80 % of mission 1's late frames and 71 % of mission 2's are the second or later frame of a run.
+  The long runs (24 or more misses in 120 frames) are what trip the pacer to 30 Hz.
+- **The first late frame of a run** (mission 1, against the frames on time): the frame before it
+  waited **4.0 ms** for the GPU in `C3D_FrameBegin` (0.06 normally; 28 of the 38 over 0), recorded
+  7.5 ms (5.5), 187 draws (165), 23045 vertices (21564), arena 128 KB (98); its own step 3.2 ms (2.2)
+  and prepare 2.5 (1.6); the GPU of the frame before ran 10.6 ms from its kick (8.3), its tail 9.6
+  (7.5). Mission 2 the same (wait 4.6 ms, 189 draws, kick 11.1 ms). So the trigger is the GPU: a
+  heavy frame's GPU ends after the next vblank, the next frame starts its recording late by that
+  much, and the CPU path of the frame after it passes 16.4 ms.
+- **The GPU-late frames are stutters the pacer does not count**: the console's 1.69 % of misses in
+  mission 1 is 3.8 % of stutters on screen by the model (a run of GPU-late frames is one stutter,
+  then a steady one-vblank delay). From now on the console counts them too (`hitches60`, below).
+- **When.** Late frames per 30 s of mission time (steps / 60), mission 1: 0-30 s 4, 30-60 s 38,
+  60-90 s 0, 90-120 s 20, 120-150 s 27, 150-180 s 66, 180-210 s 9, 210-240 s 27; mission 2: 3, 5, 1,
+  1, 11, 35, 29, 0. The runs of 5 or more in mission 1 start at 34 s (28 frames), 100 and 101 s (7, 9),
+  125 s (21), 164 s (17), 172 and 173 s (9, 11), 179 s (27), 204 s (5), 212 s (27); mission 2 at
+  156 s (7), 172 s (26), 183 s (27). Those are the fights: in the 300-frame windows with most late
+  frames the mesh passes draw 93 to 113 times per frame (35 to 60 elsewhere), the `rest` pass 45 to
+  67 (15 to 35), the sprites 18 to 29, `prep_entities` counts 900 to 1090 entities late in the
+  mission, and a step costs 3.0 to 4.8 ms (2.2 on average: the late mission's step growth, R3.1).
+  None after the level's end (the Mission Complete screen is quiet).
+- **The instruments.** The probe frames (`state_check` read-backs every 30th frame, excused with the
+  next one) start 7 of mission 1's 38 runs and 6 of mission 2's 25 (they are 6.7 % of the frames:
+  the probe's 1.5 ms stall tips a borderline frame; the console excuses those two frames, not the
+  run that follows); the heap sample every 600 frames starts 4 and 3 (excused). The detector's
+  copies: `wash_check=0` 1.32 % late against 1.45 % with it on (`music=0` stage): no measurable
+  share. The writer thread: `after_ms` is 0.01 ms on the late frames, no SD write in them.
+
+### C. The heavy submits
+
+`submit_ms` against the frame's counts (the frames at 60 Hz after the grace):
+
+| | mission 1 | mission 2 |
+|---|---|---|
+| correlation with draws / vertices / arena KB | 0.62 / 0.40 / 0.57 | 0.57 / 0.49 / 0.64 |
+| ms per draw (one-variable fit) | 0.028 | 0.025 |
+| submit by draws: 140-159 / 180-199 / 220-239 / 260-279 | 5.04 / 6.15 / 7.06 / 9.01 ms | 5.10 / 6.09 / 6.74 / - |
+| frames over 8 ms: draws, arena (against the others) | 329: 206, 136 KB (165, 98) | 177: 181, 98 KB (159, 75) |
+
+The 8 ms submits are the fights' draw count at about 28 us per draw (the 70 extra draws are 2 ms),
+which the per-draw citro3d cost of many small meshes explains: **`mesh_merge=1`** (runs of tiny
+mesh records as one draw, off by default, never measured on the console) is in the next soak's
+list. What the counts do not explain (a residual of 1.9 to 2.6 ms on the 8 ms frames): the
+`AS3D_PASS_MS` windows show the **terrain pass at 1.2 to 2.4 ms of CPU in the windows with the late
+frames and 0.2 to 0.6 ms in quiet ones at the same 7 to 10 draws and 7.7k vertices**: work in the
+terrain pass that is not its draws. Nothing in R4.2's files: the log/perf writer is off the main
+thread (`after_ms` 0.01, its writes excused), `music=0` changes nothing (the audio thread's lock), no
+SD write on the late frames.
+
+**For R4.1 (renderer, ctr_frame.cpp), in order of effect:**
+
+1. **Kick the GPU earlier in mono.** The GPU starts after the whole top screen (0.83 ms before
+   `C3D_FrameEnd`): a `pica::kickGpu()` after the terrain pass (and perhaps after the opaque meshes)
+   lets it work while the CPU records the rest. The frame simulator's what-if (`--kick-at 2`: the GPU
+   starts 2 ms into the frame, ends at that plus its measured work, or 1 ms after the recording):
+   GPU-late frames 453 -> 14 (mission 1) and 247 -> 19 (mission 2), stutters 312 -> 133 and 169 -> 71
+   with the old catch-up, 85 and 26 with the deferred one, at the same rate rule. It removes the
+   trigger of most runs (the 4-6 ms waits in `C3D_FrameBegin`). Each kick is a GX entry; the
+   terrain's forced state block (`terrain_force_state=1`) must stay in the terrain's list.
+2. The terrain pass's CPU time that varies 8x at a constant draw count (above).
+3. The per-draw cost in fights (`mesh_merge=1` measured by the next soak; the per-pass items of
+   "Stereo CPU path, What remains").
+
+### B. Deferred catch-up (`catchup=deferred`, the default)
+
+`apps/3ds/source/catch_up.h` (header only, desktop-tested in `apps/tests/soak_report_test.cpp`),
+used by `FrameClock::due` (`ctr_loop.cpp`), so both the bot/soak loop and the front end's loop run it.
+The rules, per frame, with `owed` the steps due and not yet run:
+
+1. `owed += ` the vblanks since the last frame (at least 1).
+2. The frame runs its own steps: 1 at 60 Hz, 2 at 30 (`base`).
+3. One more owed step while the frame has room for it: the last frame's CPU path outside its steps
+   (`wait + submit + end + late textures + after`) plus its prepare plus (run + 1) x the last
+   frame's cost per step stays within `base x 16.7 ms - catchup_margin_ms` (2 ms). Never more than
+   `maxCatchUp()` steps (2 at 60 Hz, 4 at 30).
+4. If more than `catchup_lag` (3) steps would still be owed, steps run anyway (forced), up to the
+   cap; what is still over the bound after the cap is dropped (as the old clock dropped what was over
+   its cap: a long hitch, a breakpoint).
+5. `owed` is cleared at a level load and after a suspend (`FrameClock::reset`).
+
+`catchup=immediate` is the old clock: all due steps up to the cap, the rest dropped. The simulation
+runs the same steps in the same order with the same input either way (the bot's input and the weapon
+tour are functions of the step number, the pad is read per step), so the end state is the same;
+only the frame a step is drawn after changes, and the world's clock is at most 3 steps (50 ms)
+behind the vblanks, for as long as the frames have no room. A frame never runs 0 steps, and the
+pacer decides misses by the vblanks between two syncs as before: a frame on time with steps owed is
+not a miss.
+
+The counters (`PERF_SUMMARY catchup`, `AS3D_SOAK_PACE`): `behind_frames` (frames that ended with
+steps owed), `repaid` (owed steps run because the frame had room), `forced`, `dropped`, `lag_max`;
+`gpu_late60` (frames at 60 Hz whose sync was on time and whose GPU ended after the next vblank) and
+`hitches60` (pictures that stayed 2+ vblanks at 60 Hz: what the eye sees as a stutter), both after
+the grace; `soak.txt`'s mono60 line carries `hitches60=`, `gpu_late60=`, `behind=`. They are computed
+the way the simulator computes them (from the GPU end and the vblank), so they are a model's reading
+of the console's own clocks, not an independent measure of the screen.
+
+### D. The pacer after the catch-up (`tools/3ds_pacer_replay.py`, the frame simulator)
+
+The simulator replays the loop frame by frame with each row's costs (the rules above, the drop rule of
+`pace_rule.h`, the return rule of `updatePacer`), so a rule that changes a frame's steps or the rate
+changes when the next frames start. Checked against the console with the console's own rules
+(`immediate`, 24/120): mission 2 88.6 % at 60, 2 drops, 73 misses (console 88.5 %, 2 drops, 71);
+mission 1 79.2 %, 4 drops, 147 misses (console 85.5 %, 5 drops, 170: the 30 Hz rows replayed at 60
+are the model's weak part). `--legacy` prints R3.3's study. Results (lag 3, margin 2 ms; `stutters` =
+pictures shown 2+ vblanks while at 60 Hz):
+
+| catch-up, drop rule | mission 1: at 60 / drops / misses / stutters | mission 2 | first minute (stage 10) |
+|---|---|---|---|
+| immediate, 12/120 | 73.8 % / 5 / 77 / 234 | 88.4 % / 2 / 49 / 146 | 93.4 % / 1 / 26 / 131 |
+| immediate, 24/120 (the console's before R4.2) | 79.2 % / 4 / 147 / 312 | 88.6 % / 2 / 73 / 169 | 93.8 % / 1 / 38 / 143 |
+| immediate, never | 100 % / 0 / 516 / 685 | 100 % / 0 / 154 / 256 | 100 % / 0 / 65 / 177 |
+| **deferred, 24/120 (the new default)** | **82.1 % / 3 / 123 / 312** | **100 % / 0 / 27 / 143** | **93.9 % / 1 / 38 / 143** |
+| deferred, 12/120 | 79.0 % / 4 / 75 / 254 | 100 % / 0 / 27 / 143 | 93.4 % / 1 / 26 / 131 |
+| deferred, never | 100 % / 0 / 329 / 531 | 100 % / 0 / 27 / 143 | 100 % / 0 / 63 / 176 |
+| deferred, lag 2 / lag 4, 24/120 | 79.5 / 82.2 %, 132 / 119 misses | 98.6 / 100 % | the same |
+| deferred, margin 1 / 3 ms, 24/120 | 82.1 / 79.4 %, 126 / 123 misses | 100 % / 100 % | the same |
+
+- The deferred catch-up removes mission 2's drops and two thirds of its misses (73 -> 27), and the
+  cascades of mission 1's lighter stretches (misses 147 -> 123, a drop less, 82 % at 60). It does
+  nothing in the first minute of mission 1 or in mission 1's heaviest stretches: there every frame's
+  GPU ends after the vblank (`submit + tail` 17 to 19 ms) and one step per frame still misses: the
+  GPU kick of R4.1 is the lever there (with it, the simulator gives mission 1 41 misses at 12/120 and
+  77 at 24/120, 82 % at 60).
+- **The drop rule stays 24 misses in 120 frames** (`pace_rule=24`, R3.3's default). It already never
+  drops on isolated misses (24 in 2 seconds is 20 %); with the deferred catch-up it only trips in
+  mission 1's sustained stretches. Never dropping (`pace_rule=never`) would keep mission 1 at 60 Hz
+  throughout at the price of 219 more stutters, all inside the stretches the rule spends at 30 Hz
+  (about 2000 frames): one stutter every 9 frames there, 6 to 7 a second. A 33 ms frame once a second
+  reads better than 30 Hz; six a second do not: there 30 Hz is the smoother picture. The next soak
+  measures `pace_rule=never` in a one-minute stage anyway (the frame simulator cannot tell how a
+  stutter feels).
+- Counting GPU-late frames as misses in the drop rule was replayed too and rejected: 57 % at 60 in
+  mission 1 (a third of the 60 Hz time lost for 1.5 % of stutters instead of 3.5 %).
+
+### E. The level start (`AS3D_LEVEL_START`, new)
+
+The two measures: `mission N loaded in` (1.8 s) is the game session's start, `PERF_SUMMARY
+load_ms` / the report's "mission load" (3.2 to 3.4 s, the 3 s gate) runs on to the end of the
+renderer's level start (`FrameHook::begin`). The fourth soak's own lines already say where they go
+(mission 1 mono; mission 2 within 50 ms of it, stereo 3.4 s with a slower shadow and texture pass):
+
+| phase | ms | what |
+|---|---|---|
+| pak prefetch (read plan) | 1142 | 541 files, 7817 KB in 41 reads of 9169 KB: **8 MB/s from the SD card**, alone on the main thread |
+| mount, the rest | 131 | pak directories |
+| definitions | 184 | |
+| world init | 30 | |
+| level | 295 | the level's scripts and entities |
+| **= session ("loaded in")** | **1783** | |
+| terrain | 365 | base texture generation 245 (8 blocks, every start), textures 65, geometry 9, read/decode/upload 46 |
+| UI | 60 | fonts and HUD atlases |
+| precache: scripts | 40 | |
+| precache: textures | 311 | 159 textures, all converted at every start: mip 103, swizzle 157, upload 51 (5967 KB) |
+| precache: meshes | 84 | 176 meshes |
+| precache: shadows | 324 | 145 silhouettes, **all 145 from the cache** (750 KB loaded in 88 ms) and still 2.24 ms each |
+| precache: loading frames, decode/parse, UI | 26 + 61 + 16 | |
+| loading frames (the bar) | 71 | |
+| **= renderer level start** | **1394** (+28 between) | |
+| **gate measure** | **3205** | |
+| audio's level start | 178 | 22 sounds and the music (after the gate measure, before the first frame) |
+
+`AS3D_LEVEL_START` (once per mission, after its first frame, `ctr_loop.cpp` `logLevelStart`) puts
+it on one line from this side of the calls: `to_first_frame`, `gate_measure`, `session` (prefetch,
+the rest of the mount, defs, world init, level, the pak reads inside it), `renderer` (textures with
+their count, all conversions since no converted-texture cache exists, mip/swizzle/upload; meshes;
+shadows with the silhouettes, cache hits, misses and the cache's load; the pak reads inside it;
+`rest` = the terrain's base generation, the UI, decoding, the loading frames), `audio`,
+`read_plan_end`, `first_frame` (the first frame's steps, prepare, sync, wait, submit, end).
+
+What would bring the gate measure under 3 s (none of it in R4.2's files, so not done here):
+- the shadow precache with every silhouette cached costs as much as rasterising (2.2 to 2.6 ms
+  each): whatever `generateMs` times after a cache hit (texture creation, the atlas) is 230 ms that
+  should be the cache's 88 (shadow_pica.cpp, R4.1);
+- the terrain's base textures (245 ms per start, the same every time) could be cached like the
+  silhouettes (terrain_renderer_pica.cpp, R4.1);
+- the prefetch: 1.14 s of SD reads with the CPU idle, then 2 s of CPU with the card idle. A reader
+  thread filling the prefetch map while the main thread parses (a read of a file not yet in the map
+  waiting for it) would hide most of it (engine/src/vfs, pak_source.cpp: neither R4.1's nor R4.2's).
+  A converted-texture cache would not help: it trades 260 ms of conversion for 6 MB more to read at
+  8 MB/s.
+
+### F. The next soak's list (`run-soak-r42.ini`, about 9.6 minutes; R4.1's stages are merged into it)
+
+```
+soak=as3d:2:mono:soak_frames=11400:catchup=immediate,as3d:2:mono:soak_frames=11400:catchup=deferred,as3d:1:mono:soak_frames=3600,as3d:1:mono:soak_frames=3600:mesh_merge=1,as3d:1:mono:soak_frames=3600:pace_rule=never
+```
+
+- 1-2: mission 2 mono, its first 190 s (64 of its 85 late frames were at 150-190 s): the old catch-up
+  against the new one, the same stretch.
+- 3: mission 1 mono, the first minute, the new defaults: the baseline of 4 and 5 (and against the
+  fourth soak's stages 09/10).
+- 4: `mesh_merge=1`; 5: `pace_rule=never`.
+
+### How to read the next soak
+
+- `soak.txt` mono60 lines: `at60=`, `misses60=`, and now `hitches60= (x%) gpu_late60= behind=`.
+  Stages 1 and 2, the simulator on the fourth soak's same stretch: immediate 97.6 % at 60, 2 drops,
+  73 misses, 169 stutters; deferred 100 %, 0 drops, 22 misses, 128 stutters, about 330 frames
+  behind, 22 steps repaid, 3 forced, 0 dropped. The end states must equal the desktop's (the
+  receiver's comparison: a mismatch would mean a step ran with another input, which must not happen).
+  Stage 3 (and 5): the simulator gives the first minute 93.8 % at 60 with one drop, 38 misses and
+  153 stutters with either catch-up; with `pace_rule=never` 100 %, 66 misses, 184 stutters.
+- `AS3D_SOAK_PACE` per stage: `behind_frames repaid forced dropped lag_max`, the rules in force.
+- `tools/3ds_perf_report.py stages/<NN>`: the "mono cadence" line (late syncs, runs, two-step frames
+  and their late share, GPU-late, stutters) and `AS3D_LEVEL_START`. `tools/3ds_pacer_replay.py
+  stages/<NN>` replays the rules on the new stages (the simulator against the console's own count
+  is the check of the model).
+- Stage 4 against stage 3: submit per draw and the late share (`mesh_merge=1` cuts draws in the
+  mesh passes: `AS3D_MESH merged_draws=`). Stage 5 against 3: `pace_changes=0`, the stutters.
+- `AS3D_LEVEL_START` in every stage: the gate measure's parts on hardware (the table above from
+  one line).
+
+### Azahar runs (correctness; Azahar's timings are not the console's)
+
+| run | result |
+|---|---|
+| `mode=bot` mission 1 mono, 3600 steps, weapons, audio, `catchup=deferred` (default) | end state equal to `as3d_sim --level 1 --frames 3600 --bot --bot-weapons` (map_pos 2551.9, 188 entities, 394 slots, created 1498, freed 1310, 1700 points); steps per frame 1: 1361, 2: 1084 (at 30 Hz), 3+: 18, 0: 0; 225 frames behind, 9 steps repaid, 49 forced, 0 dropped, lag max 3 |
+| the same, `catchup=immediate` | the same end state; 0 behind; steps per frame 1: 452, 2: 1520, 3+: 27 (Azahar's slow frames dropped it to 30 Hz sooner) |
+| the same, `catchup=deferred catchup_lag=1 catchup_margin_ms=8` (deferral pushed) | the same end state; 906 frames behind, 3 repaid, 99 forced, 0 dropped, lag max 1 |
+| `mode=soak`, the next soak's list with the stages shortened to 900 / 600 steps (no `report_to`) | 5 of 5 stages run with their keys (`AS3D_PACING catchup=immediate` / `deferred(lag=3,margin=2.0)`, `pace_rule=never`: `pace_changes=0`), `AS3D_SOAK_PACE` per stage, `hitches60=` `gpu_late60=` `behind=` on the mono60 lines, `AS3D_LEVEL_START` per stage; `tools/3ds_soak_compare.py`: 5 of 5 end states equal to the desktop sim |
+| the same with `mesh_merge=1` | the stage ran with `merge=0` (`AS3D_TUNING`): the soak never applied the process-wide renderer switches per stage. Fixed (`ctr_soak.cpp` sets `mesh_merge`, `mesh_sort`, `depthmap`, `fog`, `water`, `water_tile` from each stage's keys); rerun: `mesh_merge=1`, merged draws 2.2 of 8.3 records per frame |
+
+Azahar's GPU times are not the console's (its `gpu_late60` counts nearly every frame), so only the
+counters' presence and the end states are read there.
+
+### What remains
+
+- Mono's heavy stretches are GPU-bound: the GPU kick in mono (R4.1, item 1 above) is the next step;
+  the deferred catch-up only stops the cascades.
+- The terrain pass's variable CPU and the per-draw cost (R4.1 items 2 and 3).
+- The level start: shadows with cache hits, the terrain base cache, an overlapped prefetch.
+- `hitches60` is the model's reading; a direct read of when the screen took a buffer
+  (`gspWaitForEvent` on the vblank with the present state) would make it a measure.
