@@ -60,6 +60,12 @@ struct TerrainPicaStats {
     // terrain_light_cache), the light-vertex evaluations made, the CPU ticks spent.
     size_t lightChunks = 0, lightReuses = 0, lightEvals = 0;
     uint64_t lightTicks = 0;
+    // R4.11: why a chunk's stream was computed instead of reused (the sequels' beacons on moving
+    // trucks, docs/3ds-port.md "The sequels on the console (round 4, R4.11)"): no stream yet (or
+    // the chunk's vertices moved), a different number of picked lights, a picked light that
+    // moved, one that only turned (a spot's direction or cone), one whose colour or radius
+    // changed.
+    size_t lightMissNew = 0, lightMissCount = 0, lightMissMoved = 0, lightMissTurned = 0, lightMissOther = 0;
     // build(): the load profile of AS3D_LOAD phase=terrain (ms), for AS3D_LEVEL_RENDERER
     double loadMs = 0.0, loadGenerateMs = 0.0, loadCreateMs = 0.0, loadGeometryMs = 0.0, loadRestMs = 0.0;
 };

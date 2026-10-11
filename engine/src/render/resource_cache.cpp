@@ -4,6 +4,7 @@
 // never a crash").
 #include "as3d/scene.h"
 
+#include <algorithm>
 #include <cstddef>
 
 #include "as3d/image.h"
@@ -37,6 +38,13 @@ Image makeMagentaChecker() {
 }
 
 } // namespace
+
+namespace {
+int g_skinHalfMinSide = 0;
+} // namespace
+
+void setSkinHalfMinSide(int minSide) { g_skinHalfMinSide = minSide > 0 ? minSide : 0; }
+int skinHalfMinSide() { return g_skinHalfMinSide; }
 
 ResourceCache::ResourceCache(Vfs& vfs) : vfs_(vfs) {}
 
@@ -72,7 +80,7 @@ bool ResourceCache::isPlaceholder(const Texture2D* texture) const {
     return texture && (texture == placeholderTexture_.get() || texture == whiteTexture_.get());
 }
 
-ResourceCache::LoadedTexture ResourceCache::texture(const std::string& gamePath, bool mipmaps) {
+ResourceCache::LoadedTexture ResourceCache::texture(const std::string& gamePath, bool mipmaps, bool skin) {
     if (gamePath.empty()) {
         // No skin/texture was ever declared (e.g. a light/mark/anchor ObjectDef with no
         // "skin" statement, see docs/spec/obj.md "type") -- not a load failure, so no
@@ -111,6 +119,10 @@ ResourceCache::LoadedTexture ResourceCache::texture(const std::string& gamePath,
     TextureOptions opts;
     opts.mipmaps = mipmaps; // trilinear (Linear min+mag with mipmaps) and repeat wrap
                              // are TextureOptions{}'s own defaults already.
+    // 3DS R4.11 (skin_half): a large skin from level 1 of its chain (the PICA backend; the GL
+    // ignores baseLevel).
+    if (skin && mipmaps && g_skinHalfMinSide > 0 && std::max(image.width, image.height) >= g_skinHalfMinSide)
+        opts.baseLevel = 1;
     tex->create(image, opts);
     LoadedTexture loaded;
     loaded.texture = tex.get();

@@ -44,5 +44,9 @@ void ui2dPicaResetStats();
 // 400x240 target) are not smeared by bilinear filtering across fractional positions. Shapes,
 // lines, rotated quads and untextured fills keep their exact coordinates.
 void ui2dPicaSetSnap(bool on);
+// R4.11 (run.ini ui_merge, default on): the quads of a list reordered into fewer runs where no
+// pixel is shared (Batch2DOptions::mergeRuns): the same picture, fewer draws per flush.
+void ui2dPicaSetMergeRuns(bool on);
+bool ui2dPicaMergeRuns();
 
 } // namespace as3d::ui

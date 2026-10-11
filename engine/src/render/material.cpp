@@ -43,7 +43,7 @@ Material Material::fromObjectDef(const ObjectDef& def, ResourceCache& cache) {
         const GpuMesh& mesh = cache.mesh(def.model);
         if (mesh.valid) skinPath = mesh.model.sourceTexturePath;
     }
-    ResourceCache::LoadedTexture tex = cache.texture(skinPath);
+    ResourceCache::LoadedTexture tex = cache.texture(skinPath, true, true);
     mat.texture = tex.texture;
     mat.textureHasAlpha = tex.hasAlpha;
     mat.texturePath = skinPath;

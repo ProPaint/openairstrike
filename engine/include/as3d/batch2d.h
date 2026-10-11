@@ -43,6 +43,14 @@ struct Batch2DOptions {
     bool tessellateShapes = false; // Ellipse quads become a CPU-tessellated fan/ring strip plus a feather band
     int circleSegments = 48;       // segments around the circle when tessellating (>= 8)
     bool halfPixelShift = false;   // Renderer2D::setHalfPixelShift
+    // 3DS R4.11 (docs/3ds-port.md "The sequels on the console (round 4, R4.11)"): fewer runs
+    // without a pixel changed: a quad is drawn with the last earlier quad of its state (blend,
+    // textures, combine, shape) when no quad between them touches its framebuffer rectangle, so
+    // the HUD's text, icons and panel pieces, which alternate textures, join into a few runs.
+    // Blending order only matters on shared pixels; the rectangles are the quads' corner boxes
+    // widened by a pixel (the PICA snaps textured quads by up to half a pixel). Off: the quads
+    // in list order, as before (the GL side).
+    bool mergeRuns = false;
 };
 
 // Colour sent to the GPU: additive quads use alpha as intensity (rgb premultiplied, alpha 1),

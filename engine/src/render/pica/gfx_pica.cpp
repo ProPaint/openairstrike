@@ -132,6 +132,9 @@ void unbindTexture(unsigned unit) {
 }
 } // namespace detail
 
+SkinHalfStats g_skinHalf;
+const SkinHalfStats& skinHalfStats() { return g_skinHalf; }
+
 TextureBudget& textureBudget() {
     static TextureBudget budget;
     return budget;
@@ -216,7 +219,17 @@ bool buildTexture(PicaTexture* p, const Image& image, const TextureOptions& opti
     pica::LoadProfile& lp = pica::loadProfile();
     const u64 t0 = svcGetSystemTick();
     const PicaFormat fmt = chooseFormat(image, options.cls);
-    const int w = pica::textureSide(image.width), h = pica::textureSide(image.height);
+    const int fullW = pica::textureSide(image.width), fullH = pica::textureSide(image.height);
+    // R4.11 (run.ini skin_half): the texture starts `baseLevel` levels down the full chain, so a
+    // 256 x 256 skin is made from the chain's 128 x 128 level (the same bytes the full chain
+    // would have sampled when minified); never below 8 a side.
+    int dropped = 0;
+    int w = fullW, h = fullH;
+    while (dropped < options.baseLevel && w / 2 >= 8 && h / 2 >= 8) {
+        w /= 2;
+        h /= 2;
+        ++dropped;
+    }
     // The levels of buildMipChain (texconv.h): halved while both sides stay >= 8.
     int levelCount = 1;
     if (options.mipmaps)
@@ -265,12 +278,21 @@ bool buildTexture(PicaTexture* p, const Image& image, const TextureOptions& opti
     // already the texture's.
     Image bufA, bufB;
     const Image* cur = &image;
-    if (w != image.width || h != image.height) {
+    if (fullW != image.width || fullH != image.height) {
         const u64 m0 = svcGetSystemTick();
-        bufA = resizeNearest(image, w, h);
+        bufA = resizeNearest(image, fullW, fullH);
         mipTicks += svcGetSystemTick() - m0;
         cur = &bufA;
     }
+    for (int k = 0; k < dropped; ++k) { // the dropped levels: the chain's own box filter
+        const u64 m0 = svcGetSystemTick();
+        Image& next = cur == &bufA ? bufB : bufA;
+        next = downsampleBox2x2(*cur);
+        cur = &next;
+        mipTicks += svcGetSystemTick() - m0;
+        ++pica::g_skinHalf.dropped;
+    }
+    if (dropped) ++pica::g_skinHalf.textures;
     size_t offset = 0;
     std::vector<size_t> offsets;
     for (int level = 0; level < levelCount; ++level) {

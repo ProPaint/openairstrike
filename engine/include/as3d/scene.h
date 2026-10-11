@@ -63,6 +63,15 @@ private:
     std::unique_ptr<GpuMeshBuffers> buffers_;
 };
 
+// 3DS R4.11 (docs/3ds-port.md "The sequels on the console (round 4, R4.11)", run.ini skin_half):
+// a model skin whose larger side is at least `minSide` texels is created from level 1 of its mip
+// chain (TextureOptions::baseLevel = 1: half the sides, a quarter of the bytes, the same texels
+// the minified levels had), so the sequels' skins fit the VRAM budget. 0 (the default, and the
+// desktop's GL backend in every case) leaves every skin at its size. Set before a level's
+// textures load; a process-wide setting read by every ResourceCache::texture call.
+void setSkinHalfMinSide(int minSide);
+int skinHalfMinSide();
+
 class ResourceCache {
 public:
     explicit ResourceCache(Vfs& vfs);
@@ -76,7 +85,8 @@ public:
     // warning (deduplicated per path) and returns the shared magenta-checker
     // placeholder -- never null, never a crash. Mipmapped trilinear filtering and
     // repeat wrap by default, matching the work package's defaults.
-    LoadedTexture texture(const std::string& gamePath, bool mipmaps = true);
+    // `skin`: a model skin (Material::fromObjectDef), the textures skinHalfMinSide() applies to.
+    LoadedTexture texture(const std::string& gamePath, bool mipmaps = true, bool skin = false);
 
     // Loads and caches a GPU mesh built (via buildRenderMesh) from a .mdl file. A
     // missing/corrupt/empty file logs one warning and returns an empty placeholder

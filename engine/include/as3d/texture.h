@@ -26,6 +26,11 @@ struct TextureOptions {
     // ignores both.
     TextureClass cls = TextureClass::Auto;
     enum class Residency { Auto, Vram, Linear } res = Residency::Auto;
+    // PICA only (3DS R4.11, run.ini skin_half): the texture starts at this level of the image's
+    // full mip chain (1 = half the sides, the chain's level 1 as the base, the same bytes the
+    // minified levels would have had); applied while both sides stay at least 8. The GL
+    // backend ignores it.
+    int baseLevel = 0;
 };
 
 class Texture2D {

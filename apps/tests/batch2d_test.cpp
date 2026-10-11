@@ -66,6 +66,59 @@ TEST_CASE("batch2d: consecutive quads of equal state merge into one run") {
     CHECK(total == static_cast<int>(v.size()));
 }
 
+// 3DS R4.11 (Batch2DOptions::mergeRuns): a quad joins the last earlier run of its state when no
+// quad drawn between touches its rectangle; a touching quad keeps the list order.
+TEST_CASE("batch2d: mergeRuns joins separated quads of one state and keeps touching ones in order") {
+    const Mapping m = computeMapping(800, 600);
+    Texture2D ta, tb;
+    Batch2DOptions opts;
+    opts.mergeRuns = true;
+    // A (ta) at x 0, B (tb) at x 100, C (ta) at x 200: nothing shares a pixel, so C joins A's run.
+    std::vector<Quad> qs;
+    Quad a = rectQuad(0, 0, 40, 40, {1, 1, 1, 1});
+    a.texture = &ta;
+    Quad b = rectQuad(100, 0, 40, 40, {1, 1, 1, 1});
+    b.texture = &tb;
+    Quad c = rectQuad(200, 0, 40, 40, {1, 1, 1, 1});
+    c.texture = &ta;
+    qs = {a, b, c};
+    std::vector<Vertex2D> v;
+    std::vector<Run2D> r;
+    buildBatch2D(qs, m, v, r, opts);
+    REQUIRE(r.size() == 2u);
+    CHECK(r[0].tex == &ta);
+    CHECK(r[0].count == 12);
+    CHECK(r[1].tex == &tb);
+    CHECK(r[1].count == 6);
+    CHECK(v.size() == 18u);
+    // The draw order is A, C, B: the second run's first vertex is B's top-left corner.
+    CHECK(v[static_cast<size_t>(r[1].first)].x == doctest::Approx(m.toFbX(100)));
+    CHECK(v[6].x == doctest::Approx(m.toFbX(200))); // C right after A
+    // Without the option: the list order, three runs.
+    buildBatch2D(qs, m, v, r);
+    CHECK(r.size() == 3u);
+    // C overlapping B: the order matters on their shared pixels, so C stays after B (three runs).
+    qs[2].x = 120;
+    buildBatch2D(qs, m, v, r, opts);
+    REQUIRE(r.size() == 3u);
+    CHECK(r[2].tex == &ta);
+    CHECK(v[static_cast<size_t>(r[2].first)].x == doctest::Approx(m.toFbX(120)));
+    // A quad a pixel away from B (its rectangle widened by one): touching, so not moved either.
+    qs[2].x = 140.5f;
+    buildBatch2D(qs, m, v, r, opts);
+    CHECK(r.size() == 3u);
+    // A fourth quad of tb far away joins B's run even though C (ta) lies between in the list.
+    qs[2].x = 200;
+    Quad d = rectQuad(300, 0, 40, 40, {1, 1, 1, 1});
+    d.texture = &tb;
+    qs.push_back(d);
+    buildBatch2D(qs, m, v, r, opts);
+    REQUIRE(r.size() == 2u);
+    CHECK(r[0].count == 12);
+    CHECK(r[1].count == 12);
+    CHECK(v.size() == 24u);
+}
+
 TEST_CASE("batch2d: shape, texture2 and combine mode split runs") {
     const Mapping m = computeMapping(800, 600);
     Texture2D ta, tb;

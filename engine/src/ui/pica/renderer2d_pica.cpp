@@ -42,6 +42,7 @@ namespace {
 
 Ui2dPicaStats g_stats;
 bool g_snap = true;
+bool g_mergeRuns = true; // R4.11 (ui_merge)
 
 // The vertex colour alone (RGB and alpha), for runs without a texture.
 pica::TevConfig tevPrimaryOnly() {
@@ -155,6 +156,8 @@ template <class T> T* growLinear(T* p, size_t& cap, size_t need) {
 const Ui2dPicaStats& ui2dPicaStats() { return g_stats; }
 void ui2dPicaResetStats() { g_stats = Ui2dPicaStats(); }
 void ui2dPicaSetSnap(bool on) { g_snap = on; }
+void ui2dPicaSetMergeRuns(bool on) { g_mergeRuns = on; }
+bool ui2dPicaMergeRuns() { return g_mergeRuns; }
 
 struct Renderer2D::Impl {
     Texture2D white;
@@ -383,6 +386,7 @@ int Renderer2D::flush() {
         opts.halfPixelShift = halfPixelShift_;
         opts.tessellateShapes = true;
         opts.circleSegments = segments_;
+        opts.mergeRuns = g_mergeRuns; // R4.11 (run.ini ui_merge)
         const bool whole = u.first == 0 && u.count == quads_.size();
         if (whole) {
             buildBatch2D(quads_, mapping_, im.verts, im.runs, opts);

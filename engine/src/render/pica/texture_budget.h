@@ -100,6 +100,14 @@ size_t lateTexturesPending();
 const LateTextureStats& lateTextureStats();
 // The budget of every PICA Texture2D (gfx_pica.cpp).
 TextureBudget& textureBudget();
+// R4.11: textures created from a lower level of their chain (TextureOptions::baseLevel: the
+// model skins with run.ini skin_half), and the levels dropped in all (cumulative).
+struct SkinHalfStats {
+    int textures = 0;
+    int dropped = 0;
+};
+extern SkinHalfStats g_skinHalf;
+const SkinHalfStats& skinHalfStats();
 // A copy of its counters (perf.csv: vram/linear texture bytes).
 TextureStats textureStats();
 // What a PICA Texture2D became (tests): placement, GPU size, format, mip levels. False when invalid.

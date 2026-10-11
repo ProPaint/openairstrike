@@ -221,6 +221,13 @@ struct ChunkGpu {
 
 namespace {
 bool g_lightCache = true;
+bool samePosition(const DynamicLight& a, const DynamicLight& b) {
+    return a.position.x == b.position.x && a.position.y == b.position.y && a.position.z == b.position.z;
+}
+bool sameCone(const DynamicLight& a, const DynamicLight& b) {
+    return a.spot == b.spot && a.direction.x == b.direction.x && a.direction.y == b.direction.y &&
+           a.direction.z == b.direction.z && a.cosOuter == b.cosOuter && a.cosInner == b.cosInner;
+}
 bool sameLight(const DynamicLight& a, const DynamicLight& b) {
     return a.position.x == b.position.x && a.position.y == b.position.y && a.position.z == b.position.z &&
            a.colour.x == b.colour.x && a.colour.y == b.colour.y && a.colour.z == b.colour.z && a.radius == b.radius &&
@@ -551,6 +558,7 @@ void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, 
     if (!lights || count == 0) return;
 
     const TerrainChunkGeometry& ch = geo.chunks[k];
+    pica::TerrainPicaStats& ls = pica::stats();
     lightPick.clear();
     for (size_t i = 0; i < count; ++i) {
         const DynamicLight& l = lights[i];
@@ -565,7 +573,6 @@ void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, 
         lightPick.resize(static_cast<size_t>(pica::kTerrainPicaLightsPerChunk));
     DynamicLight picked[pica::kTerrainPicaLightsPerChunk];
     for (size_t i = 0; i < lightPick.size(); ++i) picked[i] = *lightPick[i];
-    pica::TerrainPicaStats& ls = pica::stats();
     ++ls.lightChunks;
     const size_t n = ch.verts.size();
     // terrain_light_cache: the same lights as the last computed stream: that stream.
@@ -573,6 +580,16 @@ void TerrainRenderer::Impl::computeLights(size_t k, const DynamicLight* lights, 
     if (g_lightCache && cg.lightKeyValid && cg.lightKey.size() == lightPick.size() && cg.lightKeyStream.size() == n * 4) {
         reused = true;
         for (size_t i = 0; i < lightPick.size() && reused; ++i) reused = sameLight(cg.lightKey[i], picked[i]);
+        if (!reused) { // R4.11: the first differing light says why (AS3D_TERRAIN_LIGHTS miss_*)
+            size_t i = 0;
+            while (i < lightPick.size() && sameLight(cg.lightKey[i], picked[i])) ++i;
+            if (!samePosition(cg.lightKey[i], picked[i])) ++ls.lightMissMoved;
+            else if (!sameCone(cg.lightKey[i], picked[i])) ++ls.lightMissTurned;
+            else ++ls.lightMissOther;
+        }
+    } else if (g_lightCache) {
+        if (!cg.lightKeyValid || cg.lightKeyStream.size() != n * 4) ++ls.lightMissNew;
+        else ++ls.lightMissCount;
     }
     if (reused) {
         ++ls.lightReuses;

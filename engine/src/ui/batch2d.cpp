@@ -155,6 +155,82 @@ void quadCornersFb(const Quad& q, const Mapping& m, bool halfPixelShift, float p
     }
 }
 
+// The run state of a quad (Batch2DOptions::mergeRuns): two quads of the same state join a run.
+struct RunKey {
+    Blend blend;
+    const Texture2D* tex;
+    const Texture2D* tex2;
+    CombineMode combine2;
+    bool shape;
+    bool operator==(const RunKey& o) const {
+        return blend == o.blend && tex == o.tex && tex2 == o.tex2 && combine2 == o.combine2 && shape == o.shape;
+    }
+};
+
+// The draw order with mergeRuns: each quad goes after the last earlier quad of its state when no
+// quad drawn between them touches its rectangle (then the two orders put the same colour on every
+// pixel), else at the end. Quadratic in the list; lists over kMergeMaxQuads keep their order.
+constexpr size_t kMergeMaxQuads = 512;
+
+void mergeOrder(const std::vector<Quad>& quads, const Mapping& m, const Batch2DOptions& opts, std::vector<size_t>& order) {
+    const size_t n = quads.size();
+    order.resize(n);
+    for (size_t i = 0; i < n; ++i) order[i] = i;
+    if (!opts.mergeRuns || n < 3 || n > kMergeMaxQuads) return;
+    struct Box {
+        float x0, y0, x1, y1;
+    };
+    std::vector<Box> box(n);
+    std::vector<RunKey> key(n);
+    for (size_t i = 0; i < n; ++i) {
+        const Quad& q = quads[i];
+        float px[4], py[4];
+        quadCornersFb(q, m, opts.halfPixelShift, px, py);
+        Box b{px[0], py[0], px[0], py[0]};
+        for (int k = 1; k < 4; ++k) {
+            b.x0 = std::min(b.x0, px[k]);
+            b.y0 = std::min(b.y0, py[k]);
+            b.x1 = std::max(b.x1, px[k]);
+            b.y1 = std::max(b.y1, py[k]);
+        }
+        // A pixel of margin (the PICA's snapping, the rasteriser's edges); a feathered ellipse
+        // may soften past its inscribed edge by feather x radius.
+        float margin = 1.0f;
+        if (q.shape == QuadShape::Ellipse) margin += std::max(std::fabs(q.feather), 0.0f) * std::max(b.x1 - b.x0, b.y1 - b.y0);
+        b.x0 -= margin;
+        b.y0 -= margin;
+        b.x1 += margin;
+        b.y1 += margin;
+        box[i] = b;
+        key[i] = RunKey{q.blend, q.texture, combineOf(q) == CombineMode::None ? nullptr : q.texture2, combineOf(q),
+                        q.shape == QuadShape::Ellipse && !opts.tessellateShapes};
+    }
+    auto touches = [](const Box& a, const Box& b) { return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1; };
+    // Groups in draw order: each a list of quad indices sharing a key.
+    std::vector<std::vector<size_t>> groups;
+    for (size_t i = 0; i < n; ++i) {
+        size_t g = groups.size();
+        while (g > 0 && !(key[groups[g - 1].front()] == key[i])) --g;
+        if (g == 0) { // no earlier group of this state
+            groups.push_back(std::vector<size_t>(1, i));
+            continue;
+        }
+        // groups[g - 1] has the state: may quad i be drawn before everything in the later groups?
+        bool clear = true;
+        for (size_t h = g; h < groups.size() && clear; ++h)
+            for (size_t j : groups[h])
+                if (touches(box[i], box[j])) {
+                    clear = false;
+                    break;
+                }
+        if (clear) groups[g - 1].push_back(i);
+        else groups.push_back(std::vector<size_t>(1, i));
+    }
+    order.clear();
+    for (const std::vector<size_t>& g : groups)
+        for (size_t i : g) order.push_back(i);
+}
+
 void buildBatch2D(const std::vector<Quad>& quads, const Mapping& m, std::vector<Vertex2D>& verts,
                   std::vector<Run2D>& runs, const Batch2DOptions& opts) {
     verts.clear();
@@ -162,7 +238,10 @@ void buildBatch2D(const std::vector<Quad>& quads, const Mapping& m, std::vector<
     verts.reserve(quads.size() * 6);
     static const float kLx[4] = {-1, -1, 1, 1}, kLy[4] = {-1, 1, 1, -1};
     static const int order[6] = {0, 1, 2, 0, 2, 3};
-    for (const Quad& q : quads) {
+    std::vector<size_t> drawOrder;
+    mergeOrder(quads, m, opts, drawOrder);
+    for (size_t qi : drawOrder) {
+        const Quad& q = quads[qi];
         const Color c = effectiveColor(q);
         float px[4], py[4], ps[4], pt[4];
         quadCornersFb(q, m, opts.halfPixelShift, px, py);
