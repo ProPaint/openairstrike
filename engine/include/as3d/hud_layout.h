@@ -64,7 +64,17 @@ struct HudColumn {
     // touch tiles (hudElementRects: "missile0".., "powerup0"..). Off: packed in type order.
     bool fixedSlots = false;
     int slots = 0;
+    // Ours (the sequels' console HUD, R4.8): `slots` rows of the kinds owned, in kind order; with
+    // more kinds than rows a window of them that keeps the selected one in view
+    // (hudPackedFirst). The rows are the touch tiles ("powerup0".. by row); hudPackedKind says
+    // which kind a row shows. Off: fixedSlots or the original packing.
+    bool packedRows = false;
 };
+// The packed rows (HudColumn::packedRows) of `n` kinds with counts `counts` (a kind is owned when
+// its count is not 0), `rows` rows: the first owned kind's index shown, and the kind of row `row`
+// (-1: an empty row).
+int hudPackedFirst(const int* counts, int n, int selected, int rows);
+int hudPackedKind(const int* counts, int n, int selected, int rows, int row);
 
 // Positions of one player's elements.
 struct HudSide {
@@ -172,6 +182,18 @@ struct HudLayout {
     float scoreDigits = 10;              // the score field: digits reserved left of scoreX (right-aligned)
     float weaponTextX = -1, weaponTextY = 0; // "WEAPON" / "LEVEL n" (S) beside the weapon box (x < 0: none)
     RectF keysArea;                      // the pad reminder's room (drawConsoleHudExtras; w 0: none)
+    // R4.8 (the sequels' console HUD): the boxes drawn from this texel rectangle of barAtlas in nine
+    // pieces (corners 1:1, sides and middle stretched to box.w x box.h; sliceL/T/R/B the corner
+    // sizes in texels), and each game's colours of the console's own pieces.
+    RectF boxSlice;
+    float sliceL = 0, sliceT = 0, sliceR = 0, sliceB = 0;
+    Color outlineColor{1.0f, 0.55f, 0.15f, 1};   // selectOutline
+    Color tileFill{0.21f, 0.035f, 0.02f, 0.92f}; // the pause tile
+    Color tileEdge{0.55f, 0.16f, 0.06f, 1};
+    Color tileMark{0.96f, 0.84f, 0.70f, 1};
+    Color consoleText{1.0f, 0.70f, 0.30f, 1};    // "WEAPON" / "LEVEL n"
+    Color keysColor{0.96f, 0.84f, 0.70f, 1};     // the pad reminder's keys and labels
+    Color keysLabel{0.78f, 0.62f, 0.46f, 1};
 
     HudSide onePlayer;
     HudSide twoPlayers[2];

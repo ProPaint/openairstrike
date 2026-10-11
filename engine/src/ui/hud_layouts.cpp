@@ -347,52 +347,133 @@ HudLayout makeGulf() {
 
 
 // ---------------------------------------------------------------------------
-// The sequels on the 3DS bottom screen (HudTarget::Bottom320x240): the same elements, atlases
-// and icon tables as Main, laid out for a 320x240 screen at the 0.4 scale, one player. Bars
-// and score at 1.5 times, boxes, icons, counts and pips at 1.1 times (a box is 38 x 26 px on
-// that screen: the left column is the weapon box and the five missile boxes, which at 1.5
-// would not fit above the touch band). Rows, top to bottom: health bar (left) and score frame
-// (right) at y 6, the life icons at y 62, then at the left the weapon box (with its level
-// pips) at y 102 and the missile column under it, at the right the power-up column from y 62
-// (no frames, as in Main; packed closer, step 42, so that all ten kinds fit above the band), the
-// level name and the cheat message in the free middle. The second player's tables are not
-// made (the screen belongs to one player).
+// The sequels on the 3DS bottom screen (HudTarget::Bottom320x240; docs/3ds-ui-design.md
+// "Sequels, selector, loading and name entry on the console (round 4, R4.8)"): the first game's
+// console grid (makeV170Bottom) with the sequels' own art, every value a whole screen pixel times
+// 2.5, one player:
+//   pause tile        touch area (0, 0, 40, 36), drawn inset by 4, in the game's colours
+//   health bar        mainbar2's bar and its segmented fill at exactly 1/2: (44, 10), 116 x 17
+//   score             the score rule: right-aligned at x 312, 10 digits x 14 px (L), y 11
+//   lives             at 1/2 (16 x 16), (6, 40), step 18, at most 5
+//   weapon box        (4, 60) 70 x 38: mainbar2's box in nine pieces (its corners 1:1, the pin
+//                     left out), the icon 66 x 35 1:1 at (6, 62); the level pips 1:1 under it at
+//                     (6, 101); "WEAPON" / "LEVEL n" at S from (80, 64)
+//   power-up column   x 170, five rows 70 x 38 at y 36 + 40 i: the kinds owned (up to ten) in kind
+//                     order, a window that keeps the selected one in view when more than five
+//   missile column    x 246, the five kinds in fixed slots, empty ones dimmed
+//   pad reminder      (4, 166) 162 x 72, the game's colours
+// Counts at L on a dark patch, the selected tile double-framed and outlined; the level name, the
+// cheat message and the hint on the top screen. The tiles are the touch controls
+// (TouchLayoutOptions::hudTiles).
 // ---------------------------------------------------------------------------
 void makeSequelBottom(HudLayout& L, const char* name) {
     L.name = name;
-    const float B = 1.5f, S = 1.1f; // bars and score; boxes, icons, counts, pips
-    L.barFrame.w = 232 * B; L.barFrame.h = 34 * B;
-    L.scoreFrame.w = 232 * B; L.scoreFrame.h = 34 * B;
-    L.fill.w = 227 * B; L.fill.h = 34 * B;
-    L.fillDrawScale = B;
-    L.box.w = 96; L.box.h = 66;
-    L.levelOn.w = 8; L.levelOn.h = 7;
-    L.levelMax.w = 8; L.levelMax.h = 7;
-    L.selLine.w = 58; L.selLine.h = 1;
-    L.life.w = 36; L.life.h = 36;
-    L.iconW = 72; L.iconH = 39;
-    L.countScale = 1.0f;
-    L.scoreScale = B;
-    L.levelNameY = 250; L.levelNameScale = 1.5f;
-    L.messageY = 400; L.messageScale = 1.5f;
-    L.hintScale = 1.5f; // the tutorial panel's text; its Ok button above the touch band (layoutHint)
+    // The bar (232 x 34 texels) and its segmented fill at exactly 1/2.
+    const float barX = 44, barY = 10;
+    L.barFrame.w = 116 * kPx; L.barFrame.h = 17 * kPx;
+    L.scoreFrame.w = L.barFrame.w; L.scoreFrame.h = L.barFrame.h;
+    L.fill.w = 227 * 0.5f * kPx; L.fill.h = 17 * kPx;
+    L.fillDrawScale = 0.5f * kPx;
+    // The boxes: texels (13, 106) .. (87, 160) of mainbar2 (the box without its pin and most of its
+    // top strip), corners 8 / 7 / 18 / 19 texels 1:1, into 70 x 38.
+    L.box.w = kTileW * kPx; L.box.h = kTileH * kPx;
+    L.boxSlice = {13, 106, 74, 54};
+    L.sliceL = 8; L.sliceT = 7; L.sliceR = 18; L.sliceB = 19;
+    L.levelOn.w = 7 * kPx; L.levelOn.h = 6 * kPx; // 1:1
+    L.levelMax.w = 7 * kPx; L.levelMax.h = 6 * kPx;
+    L.selLine.w = 0; // the console's outline instead of the selection line
+    L.life.w = 16 * kPx; L.life.h = 16 * kPx;
+    L.lifeIconsMax = 5;
+    L.iconW = 66 * kPx; L.iconH = 35 * kPx;
+    L.countScale = kPx;
+    L.scoreScale = kPx;
+    L.selection = HudSelection::DoubleFrame;
+    L.dimUnselected = 1.0f; // the outline says which is selected; every icon at full strength
+    L.levelNameY = -1; // on the top screen
+    L.messageY = -1;
+    L.hintScale = 1.5f; // the legacy panel (direct modes); the console view draws the front end's hint
+    L.pauseTile = {0, 0, 40 * kPx, 36 * kPx};
+    L.pauseInset = 4 * kPx;
+    L.emptyDim = 0.3f;
+    L.countPatch = true;
+    L.selectOutline = true;
+    L.scoreDigits = 10;
+    L.weaponTextX = 80 * kPx; L.weaponTextY = 64 * kPx;
+    L.keysArea = {4 * kPx, 166 * kPx, 162 * kPx, 72 * kPx};
+    if (L.game == GameId::GulfThunder) {
+        // Light grey and red (gulf/frontend.delta.md 2.5) on green.
+        L.scoreColor = Color{0.86f, 0.90f, 0.86f, 1};
+        L.countOther = Color{0.80f, 0.84f, 0.80f, 1};
+        L.countSelected = Color{1.0f, 1.0f, 1.0f, 1};
+        L.outlineColor = Color{1.0f, 0.25f, 0.18f, 1};
+        L.tileFill = Color{0.07f, 0.11f, 0.07f, 0.92f};
+        L.tileEdge = Color{0.60f, 0.62f, 0.60f, 1};
+        L.tileMark = Color{0.92f, 0.96f, 0.90f, 1};
+        L.consoleText = Color{0.84f, 0.95f, 0.84f, 1};
+        L.keysColor = Color{0.92f, 0.96f, 0.90f, 1};
+        L.keysLabel = Color{0.62f, 0.70f, 0.62f, 1};
+    } else {
+        // AirStrike 2: green ink, orange accent (as2/frontend.md 2.5).
+        L.scoreColor = Color{1.0f, 0.63f, 0.0f, 1};
+        L.countOther = Color{0.80f, 0.88f, 0.78f, 1};
+        L.countSelected = Color{1.0f, 0.75f, 0.25f, 1};
+        L.outlineColor = Color{1.0f, 0.63f, 0.0f, 1};
+        L.tileFill = Color{0.085f, 0.09f, 0.085f, 0.94f};
+        L.tileEdge = Color{0.52f, 0.54f, 0.52f, 1};
+        L.tileMark = Color{0.88f, 0.94f, 0.86f, 1};
+        L.consoleText = Color{0.10f, 0.85f, 0.10f, 1};
+        L.keysColor = Color{0.88f, 0.94f, 0.86f, 1};
+        L.keysLabel = Color{0.10f, 0.80f, 0.10f, 1};
+    }
 
     HudSide& s = L.onePlayer;
-    s.livesX = 4; s.livesStep = 38; s.livesY = 62;
-    s.barX = 0; s.barY = 6;
-    s.fillX = 0; s.fillY = 6;
-    s.scoreFrameX = 452; s.scoreFrameY = 6; s.scoreFrameMirror = true;
-    s.scoreX = 500; s.scoreY = 22;
-    s.weaponBoxX = 0; s.weaponBoxY = 102;
-    s.weaponIconX = 16.5f; s.weaponIconY = 102 + 17 * S;
-    s.levelX = 20; s.levelY = 102 + 11 * S;
-    const float step = 66;
+    s.order = {HudElement::Lives,     HudElement::HealthFrame, HudElement::HealthFill, HudElement::WeaponBox,
+               HudElement::WeaponLevel, HudElement::WeaponIcon, HudElement::Missiles,  HudElement::Score,
+               HudElement::Powerups};
+    s.livesX = 6 * kPx; s.livesStep = 18 * kPx; s.livesY = 40 * kPx;
+    s.barX = barX * kPx; s.barY = barY * kPx; s.barMirror = false;
+    s.fillX = barX * kPx; s.fillY = barY * kPx; s.fillFromRight = false;
+    s.scoreFrame = false;
+    s.scoreX = 312 * kPx; s.scoreY = 11 * kPx; s.scoreRightAligned = true;
+    s.weaponBoxX = 4 * kPx; s.weaponBoxY = 60 * kPx; s.weaponBoxMirror = false;
+    s.weaponIconX = 6 * kPx; s.weaponIconY = 62 * kPx;
+    s.levelX = 6 * kPx; s.levelY = 101 * kPx; s.levelFromRight = false;
     // frameX, firstY, step, mirror, followsMissiles, iconX, iconDy, countRight, countDy, lineX, lineDy, frames, line, iconAfterCount
-    s.missiles = {0, 168, step, false, false, 15 * S, 17 * S, 80 * S, 13 * S, 22 * S, 5 * S, true, true};
-    s.powerups = {704, 62, 42, true, false, 704 + 8 * S, 17 * S, 704 + 69 * S, 13 * S, 704 + 12 * S, 5 * S, false, false, true};
+    s.missiles = {kMissileColX * kPx, kTileTop * kPx, kTilePitch * kPx, false, false, (kMissileColX + 2) * kPx, 2 * kPx,
+                  (kMissileColX + kTileW - 10) * kPx, 21 * kPx, 0, 0, true, false};
+    s.missiles.fixedSlots = true;
+    s.missiles.slots = kMissileTypes;
+    s.powerups = {kPowerupColX * kPx, kTileTop * kPx, kTilePitch * kPx, false, false, (kPowerupColX + 2) * kPx, 2 * kPx,
+                  (kPowerupColX + kTileW - 10) * kPx, 21 * kPx, 0, 0, true, false};
+    s.powerups.packedRows = true;
+    s.powerups.slots = 5;
 }
 
 } // namespace
+
+int hudPackedFirst(const int* counts, int n, int selected, int rows) {
+    int owned = 0, selIndex = -1;
+    for (int k = 0; k < n; ++k) {
+        if (counts[k] == 0) continue;
+        if (k == selected) selIndex = owned;
+        ++owned;
+    }
+    if (owned <= rows || rows <= 0) return 0;
+    // The selected kind in the window's middle row where it can be, the window inside the list.
+    const int first = selIndex < 0 ? 0 : selIndex - rows / 2;
+    return std::clamp(first, 0, owned - rows);
+}
+
+int hudPackedKind(const int* counts, int n, int selected, int rows, int row) {
+    if (row < 0 || row >= rows) return -1;
+    const int want = hudPackedFirst(counts, n, selected, rows) + row;
+    int owned = 0;
+    for (int k = 0; k < n; ++k) {
+        if (counts[k] == 0) continue;
+        if (owned++ == want) return k;
+    }
+    return -1;
+}
 
 const HudLayout& hudLayout(GameId game) { return hudLayout(game, HudTarget::Main); }
 
@@ -457,7 +538,7 @@ std::vector<HudElementRect> hudElementRects(const HudLayout& L, int powerupEntri
         v.push_back({"missiles", s.missiles.frameX, s.missiles.firstY, L.box.w,
                      s.missiles.step * static_cast<float>(kMissileTypes - 1) + L.box.h});
     }
-    if (s.powerups.fixedSlots) {
+    if (s.powerups.fixedSlots || s.powerups.packedRows) {
         for (int k = 0; k < std::min(s.powerups.slots, kPowerupSlots); ++k)
             v.push_back({kPowerupNames[k], s.powerups.frameX, s.powerups.firstY + s.powerups.step * static_cast<float>(k),
                          L.box.w, L.box.h});
@@ -468,6 +549,9 @@ std::vector<HudElementRect> hudElementRects(const HudLayout& L, int powerupEntri
                      s.powerups.step * static_cast<float>(powerupEntries - 1) + last});
     }
     if (L.keysArea.w > 0) v.push_back({"keys", L.keysArea.x, L.keysArea.y, L.keysArea.w, L.keysArea.h});
+    // The console's level pips under the weapon box (the sequels, R4.8): up to 8.
+    if (L.pauseTile.w > 0 && L.levelOn.w > 0 && !L.weaponLevelMax.empty())
+        v.push_back({"weapon_pips", s.levelX, s.levelY, L.levelOn.w * 8, L.levelOn.h});
     if (L.levelNameY >= 0) v.push_back({"level_name", 140, L.levelNameY, 520, 18.0f * L.levelNameScale});
     if (L.messageY >= 0) v.push_back({"message", 140, L.messageY, 520, 18.0f * L.messageScale});
     return v;

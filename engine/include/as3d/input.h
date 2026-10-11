@@ -258,6 +258,10 @@ enum class TouchTileKind : u8 { Pause, Weapon, Missile, PowerUp };
 struct TouchTile {
     TouchTileKind kind = TouchTileKind::Pause;
     int index = 0;
+    // R4.8: a power-up row of a packed column (HudColumn::packedRows, the sequels): `index` is the
+    // row; the kind it shows comes from the inventory (ui::hudPackedKind over `rows` rows).
+    bool packed = false;
+    int rows = 0;
     float x = 0, y = 0, w = 0, h = 0;
     bool contains(float px, float py) const { return px >= x && px < x + w && py >= y && py < y + h; }
 };

@@ -17,8 +17,6 @@ namespace {
 using consolepx::Px;
 using consolepx::textTopIn;
 
-constexpr Color kKeyColor{0.96f, 0.84f, 0.70f, 1.0f};
-constexpr Color kKeyLabel{0.78f, 0.62f, 0.46f, 1.0f};
 constexpr Color kHeadColor{0.96f, 0.84f, 0.70f, 1.0f};
 constexpr float kVirtualPerPx = 2.5f; // the bottom screen's 0.4 mapping, inverted
 constexpr int kKeyPitch = 18;         // the reminder's rows (the key pictures are 15 px high)
@@ -55,8 +53,8 @@ void drawConsoleHudExtras(Renderer2D& r, const UiAssets& a, const KeyGlyphAtlas*
     int y = static_cast<int>(std::lround(L.keysArea.y / kVirtualPerPx));
     KeyHintStyle st;
     st.size = FontSize::S;
-    st.keyColor = kKeyColor;
-    st.labelColor = kKeyLabel;
+    st.keyColor = L.keysColor; // each game's (R4.8): the first game's are kKeyColor / kKeyLabel
+    st.labelColor = L.keysLabel;
     int n = 0;
     const ConsoleHudKey* k = consoleHudKeys(&n);
     for (int i = 0; i < n; ++i, y += kKeyPitch) drawKeyHint(r, p.font, keys, x + 2, y + 2, k[i].key, k[i].label, st);

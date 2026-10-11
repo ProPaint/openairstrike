@@ -8,7 +8,9 @@
 #include <cstdio>
 #include <cstring>
 
+#include "as2_screens.h"
 #include "console_px.h"
+#include "launcher_marquee.h"
 
 namespace as3d::ui {
 
@@ -18,21 +20,51 @@ namespace {
 // The AirStrike 3D skin (docs/3ds-ui-design.md "Per game": dark red bars, rust edge, the game's
 // label pictures at 1/2). The sequels' skins replace these in the next package.
 // ---------------------------------------------------------------------------
-constexpr Color kBarFill{0.21f, 0.035f, 0.02f, 0.92f};
-constexpr Color kBarFillFocus{0.42f, 0.075f, 0.035f, 0.95f};
-constexpr Color kBarFillOff{0.10f, 0.02f, 0.015f, 0.85f};
-constexpr Color kBarEdge{0.55f, 0.16f, 0.06f, 1.0f};
-constexpr Color kBarEdgeFocus{1.0f, 0.45f, 0.15f, 1.0f};
-constexpr Color kLabel{0.93f, 0.24f, 0.16f, 1.0f};
-constexpr Color kLabelFocus{1.0f, 0.62f, 0.42f, 1.0f};
-constexpr Color kLabelOff{0.40f, 0.12f, 0.09f, 1.0f};
-constexpr Color kValue{0.96f, 0.84f, 0.70f, 1.0f};
-constexpr Color kArrow{0.95f, 0.38f, 0.12f, 1.0f};
-constexpr Color kBody{1.0f, 0.70f, 0.30f, 1.0f};   // reading text (additive, over a dark band)
-constexpr Color kTitle{1.0f, 0.30f, 0.18f, 1.0f};
-constexpr Color kHintKey{0.96f, 0.84f, 0.70f, 1.0f};
-constexpr Color kHintLabel{0.78f, 0.62f, 0.46f, 1.0f};
-constexpr Color kGreyText{0.55f, 0.55f, 0.55f, 1.0f};
+// Each game's look (docs/3ds-ui-design.md "Per game"): AirStrike 3D dark red bars with a rust
+// edge and its label pictures at 1/2; AirStrike 2 grey chrome bars with a notched corner and green
+// text on black; Gulf Thunder grey chrome on its green scan lines, white-green text, red titles.
+struct ConsoleSkin {
+    Color barFill, barFillFocus, barFillOff, barEdge, barEdgeFocus;
+    Color label, labelFocus, labelOff, value, arrow, body, title, hintKey, hintLabel, greyText;
+    Color ground;          // the bottom screen's ground (Opaque)
+    bool scanLines;        // Gulf Thunder: its scan lines over the ground
+    bool chamfer;          // the sequels: the bars' top-right corner notched
+    bool labelPictures;    // the first game: its Button pictures at 1/2
+};
+constexpr ConsoleSkin kSkinAs3d{
+    {0.21f, 0.035f, 0.02f, 0.92f}, {0.42f, 0.075f, 0.035f, 0.95f}, {0.10f, 0.02f, 0.015f, 0.85f},
+    {0.55f, 0.16f, 0.06f, 1.0f}, {1.0f, 0.45f, 0.15f, 1.0f},
+    {0.93f, 0.24f, 0.16f, 1.0f}, {1.0f, 0.62f, 0.42f, 1.0f}, {0.40f, 0.12f, 0.09f, 1.0f}, {0.96f, 0.84f, 0.70f, 1.0f},
+    {0.95f, 0.38f, 0.12f, 1.0f}, {1.0f, 0.70f, 0.30f, 1.0f}, {1.0f, 0.30f, 0.18f, 1.0f}, {0.96f, 0.84f, 0.70f, 1.0f},
+    {0.78f, 0.62f, 0.46f, 1.0f}, {0.55f, 0.55f, 0.55f, 1.0f},
+    {0, 0, 0, 1}, false, false, true};
+// AirStrike 2: the ink green (0xFF00B000) and the orange accent (0xFF00A0FF) of its menus.
+constexpr ConsoleSkin kSkinAs2{
+    {0.085f, 0.09f, 0.085f, 0.94f}, {0.16f, 0.27f, 0.16f, 0.96f}, {0.05f, 0.05f, 0.05f, 0.85f},
+    {0.52f, 0.54f, 0.52f, 1.0f}, {0.62f, 0.95f, 0.55f, 1.0f},
+    {0.10f, 0.80f, 0.10f, 1.0f}, {0.62f, 1.0f, 0.55f, 1.0f}, {0.25f, 0.30f, 0.25f, 1.0f}, {0.88f, 0.94f, 0.86f, 1.0f},
+    {0.30f, 0.90f, 0.25f, 1.0f}, {0.10f, 0.80f, 0.10f, 1.0f}, {1.0f, 0.63f, 0.0f, 1.0f}, {0.88f, 0.94f, 0.86f, 1.0f},
+    {0.58f, 0.66f, 0.56f, 1.0f}, {0.55f, 0.55f, 0.55f, 1.0f},
+    {0, 0, 0, 1}, false, true, false};
+// Gulf Thunder: light grey (0xFFBFBFBF) and red (0xFF0000FF) on green scan lines.
+constexpr ConsoleSkin kSkinGulf{
+    {0.07f, 0.11f, 0.07f, 0.92f}, {0.20f, 0.30f, 0.20f, 0.96f}, {0.04f, 0.06f, 0.04f, 0.85f},
+    {0.60f, 0.62f, 0.60f, 1.0f}, {0.92f, 1.0f, 0.90f, 1.0f},
+    {0.84f, 0.95f, 0.84f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.30f, 0.36f, 0.30f, 1.0f}, {0.92f, 0.96f, 0.90f, 1.0f},
+    {0.85f, 0.95f, 0.85f, 1.0f}, {0.80f, 0.86f, 0.80f, 1.0f}, {1.0f, 0.15f, 0.10f, 1.0f}, {0.92f, 0.96f, 0.90f, 1.0f},
+    {0.62f, 0.70f, 0.62f, 1.0f}, {0.55f, 0.55f, 0.55f, 1.0f},
+    {0.0f, 0.03f, 0.0f, 1}, true, true, false};
+const ConsoleSkin* g_skin = &kSkinAs3d;
+const ConsoleSkin& sk() { return *g_skin; }
+bool gulfGame(const Frontend& fe) {
+    const Frontend::Facts f = fe.facts();
+    return f.content && f.content->game && f.content->game->id == GameId::GulfThunder;
+}
+// Sets the skin of the front end being laid out or drawn (and the sequels' look of their tables).
+void useSkin(const Frontend& fe) {
+    g_skin = !fe.sequel() ? &kSkinAs3d : gulfGame(fe) ? &kSkinGulf : &kSkinAs2;
+    if (fe.sequel()) SequelScreens::applyLook(fe);
+}
 
 constexpr int kMargin = 4;
 constexpr int kFooterTop = 204;            // the bottom row: BACK / corner buttons and the footer
@@ -68,16 +100,40 @@ std::string conText(const Texts& t, const std::string& key, const char* fallback
 bool focusedItem(const Menu& m, int i) { return m.focused == i; }
 
 void drawBar(const Px& p, const RectF& b, bool focused, bool disabled) {
-    p.rect(b, disabled ? kBarFillOff : focused ? kBarFillFocus : kBarFill);
-    p.frame(b, focused ? kBarEdgeFocus : kBarEdge, focused ? 2 : 1);
+    const Color fill = disabled ? sk().barFillOff : focused ? sk().barFillFocus : sk().barFill;
+    const Color edge = focused ? sk().barEdgeFocus : sk().barEdge;
+    const int t = focused ? 2 : 1;
+    if (!sk().chamfer || b.w < 40 || b.h < 24) {
+        p.rect(b, fill);
+        p.frame(b, edge, t);
+        return;
+    }
+    // The sequels' bar: the top-right corner notched by 8 px (their HUD boxes' and buttons' cut).
+    const float c = 8, ft = static_cast<float>(t);
+    p.rect(b.x, b.y + c, b.w, b.h - c, fill);
+    for (int i = 0; i < static_cast<int>(c); ++i) p.rect(b.x, b.y + static_cast<float>(i), b.w - (c - static_cast<float>(i)), 1, fill);
+    p.rect(b.x, b.y, b.w - c, ft, edge);
+    p.rect(b.x, b.y + b.h - ft, b.w, ft, edge);
+    p.rect(b.x, b.y + ft, ft, b.h - 2 * ft, edge);
+    p.rect(b.x + b.w - ft, b.y + c, ft, b.h - c - ft, edge);
+    for (int i = 0; i < static_cast<int>(c); ++i) p.rect(b.x + b.w - c + static_cast<float>(i), b.y + static_cast<float>(i), ft, ft, edge);
+}
+// The bottom screen's ground: the skin's colour (Gulf Thunder: its scan lines over it, one texel of
+// lines_gulf.tga per pixel).
+void drawGround(const Px& p) {
+    p.rect(0, 0, kConsoleBottomW, kConsoleBottomH, sk().ground, Blend::Opaque);
+    if (!sk().scanLines) return;
+    if (const Texture2D* lines = p.a.textureRepeat("gfx\\logo\\lines_gulf.tga"))
+        p.r.quadSpec(p.vx(0), p.vy(0), p.vw(kConsoleBottomW), p.vh(kConsoleBottomH), 0, 0, kConsoleBottomW / 4.0f,
+                     kConsoleBottomH / 4.0f, lines, Color{}, Blend::Alpha);
 }
 // The focus markers either side of a centred label.
 void drawMarkers(const Px& p, const RectF& b, float labelW) {
     // At the bar's ends (the mockups), when they clear the label by 8 px.
     const float lx = b.x + 6, rx = b.x + b.w - 18;
     if (lx + 12 + 8 > std::floor(b.x + b.w * 0.5f - labelW * 0.5f)) return;
-    p.triangle({lx, b.y, 12, b.h}, true, kBarEdgeFocus);
-    p.triangle({rx, b.y, 12, b.h}, false, kBarEdgeFocus);
+    p.triangle({lx, b.y, 12, b.h}, true, sk().barEdgeFocus);
+    p.triangle({rx, b.y, 12, b.h}, false, sk().barEdgeFocus);
 }
 
 // The helicopter icons of menu\icons_1..3.tga (menu_widgets.cpp drawGrid), `size` pixels
@@ -201,7 +257,16 @@ int indexOf(const Menu& m, int id) {
     return -1;
 }
 
+// The sequels' captions keep their padding spaces (they set the desktop's button widths): trimmed.
+std::string tidy(std::string s) {
+    while (!s.empty() && s.front() == ' ') s.erase(s.begin());
+    while (!s.empty() && s.back() == ' ') s.pop_back();
+    return s;
+}
+bool g_sequel = false; // the front end being laid out is a sequel's (their captions, not the first game's)
+
 std::string itemLabel(const Texts& t, Screen s, const MenuItem& it) {
+    if (g_sequel) return tidy(it.label);
     if (it.type == ItemType::Button) return buttonLabel(t, s, it.id);
     return it.label;
 }
@@ -266,12 +331,19 @@ void layoutExit(ConsoleLayout& L, const Menu& m, const Texts& t) {
 
 void backButton(ConsoleLayout& L, const Menu& m, const Texts& t, Screen s, int id = 1) {
     const int i = indexOf(m, id);
-    if (i >= 0) L.boxes.push_back(bar(i, {kMargin, kFooterTop, kBackW, kCornerH}, buttonLabel(t, s, id)));
+    if (i >= 0) L.boxes.push_back(bar(i, {kMargin, kFooterTop, kBackW, kCornerH}, itemLabel(t, s, m.items[static_cast<size_t>(i)])));
 }
 
+// A spinner row's label: the first game's in capitals, the sequels' as they write it.
+std::string spinLabel(const MenuItem& it) { return g_sequel ? stripColon(tidy(it.label)) : upper(stripColon(it.label)); }
+
 void layoutStart(ConsoleLayout& L, const Menu& m, const Texts& t) {
+    // The ids: the first game's list 3, spinners 4, 5 and the helicopter row 6; the sequels' list
+    // 5 and spinners 3 (difficulty), 4 (game mode) (screens_as2_start.cpp).
+    const int listId = g_sequel ? 5 : 3;
+    const std::vector<int> rows = g_sequel ? std::vector<int>{3, 4} : std::vector<int>{4, 5, 6};
     // The mission list: three rows of 36 px with the scroll arrows right of them.
-    const int li = indexOf(m, 3);
+    const int li = indexOf(m, listId);
     if (li >= 0) {
         const MenuItem& list = m.items[static_cast<size_t>(li)];
         const int n = static_cast<int>(list.entries.size());
@@ -289,27 +361,46 @@ void layoutStart(ConsoleLayout& L, const Menu& m, const Texts& t) {
     // Difficulty and helicopter: spinner rows.
     float y = 122;
     float arrows = 0;
-    for (int id : {4, 5, 6}) {
+    for (int id : rows) {
         const int i = indexOf(m, id);
         if (i < 0) continue;
         const MenuItem& it = m.items[static_cast<size_t>(i)];
-        const std::string label = id == 6 ? conText(t, "start.heli", "HELICOPTER") : upper(stripColon(it.label));
+        const std::string label = !g_sequel && id == 6 ? conText(t, "start.heli", "HELICOPTER") : spinLabel(it);
         arrows = std::max(arrows, static_cast<float>(12 + measureTextPx(fm(), label, FontSize::L) + 8));
     }
-    for (int id : {4, 5, 6}) {
+    // The rows' labels at L, unless the values (at S) would not fit between the arrows then: the
+    // labels at S and the arrows nearer (the sequels' "Game mode" with "Single Player").
+    float arrowsAt = std::max(arrows, 120.0f);
+    FontSize rowSize = FontSize::L;
+    if (g_sequel) {
+        float need = 0, labelsS = 0;
+        for (int id : rows) {
+            const int i = indexOf(m, id);
+            if (i < 0) continue;
+            const MenuItem& it = m.items[static_cast<size_t>(i)];
+            for (const std::string& v : it.values) need = std::max(need, static_cast<float>(measureTextPx(fm(), upper(v), FontSize::S) + 4));
+            labelsS = std::max(labelsS, static_cast<float>(12 + measureTextPx(fm(), spinLabel(it), FontSize::S) + 8));
+        }
+        const float zone = (312 + kMargin - 36) - (arrowsAt + 36);
+        if (zone < need) {
+            arrowsAt = std::floor(labelsS);
+            rowSize = FontSize::S;
+        }
+    }
+    for (int id : rows) {
         const int i = indexOf(m, id);
         if (i < 0) continue;
         const MenuItem& it = m.items[static_cast<size_t>(i)];
-        const std::string label = id == 6 ? conText(t, "start.heli", "HELICOPTER") : upper(stripColon(it.label));
+        const std::string label = !g_sequel && id == 6 ? conText(t, "start.heli", "HELICOPTER") : spinLabel(it);
         const RectF row{kMargin, y, 312, 36};
-        L.boxes.push_back(bar(i, row, label));
-        spinnerRow(L, i, row, std::max(arrows, 120.0f));
+        L.boxes.push_back(bar(i, row, label, rowSize));
+        spinnerRow(L, i, row, arrowsAt);
         y += 38;
         if (y + 36 > kFooterTop) break;
     }
     backButton(L, m, t, Screen::StartGame, 1);
     const int s = indexOf(m, 2);
-    if (s >= 0) L.boxes.push_back(bar(s, {216, kFooterTop, 100, kCornerH}, buttonLabel(t, Screen::StartGame, 2)));
+    if (s >= 0) L.boxes.push_back(bar(s, {216, kFooterTop, 100, kCornerH}, itemLabel(t, Screen::StartGame, m.items[static_cast<size_t>(s)])));
     footerHints(L, kMargin + kBackW + 8, {{HintKey::A, conText(t, "hint.ok", "OK")}});
     L.hintRight = 216 - 4;
 }
@@ -346,7 +437,7 @@ void layoutOptions(ConsoleLayout& L, const Menu& m, const Texts& t) {
     }
     backButton(L, m, t, Screen::Options, kOptBack);
     const int ap = indexOf(m, kOptApply);
-    if (ap >= 0) L.boxes.push_back(bar(ap, {216, kFooterTop, 100, kCornerH}, buttonLabel(t, Screen::Options, kOptApply)));
+    if (ap >= 0) L.boxes.push_back(bar(ap, {216, kFooterTop, 100, kCornerH}, itemLabel(t, Screen::Options, m.items[static_cast<size_t>(ap)])));
     footerHints(L, kMargin + kBackW + 8, {{HintKey::DPad, conText(t, "hint.change", "Change")}, {HintKey::B, conText(t, "hint.back", "Back")}});
     if (ap >= 0) L.hintRight = 216 - 4;
 }
@@ -447,13 +538,117 @@ void layoutNameEntry(ConsoleLayout& L, const Menu& m, const Texts& t) {
     setHints(L, 8, 225, {{HintKey::A, conText(t, "hint.type", "Type")}, {HintKey::Y, conText(t, "hint.keyboard", "Keyboard")}});
 }
 
+// ---------------------------------------------------------------------------
+// The sequels' screens (R4.8; docs/3ds-ui-design.md "Sequels, selector, loading and name entry
+// on the console"): the same boxes, footers and hit write-back with their own items and ids
+// (screens_as2_*.cpp).
+// ---------------------------------------------------------------------------
+// Main menu: six buttons in two columns of three (Start Game, Top Scores, Options |
+// Information, Credits, Quit: the pad's Up / Down walk the item order, a column at a time),
+// 154 x 56 each; GAMES and the footer on the bottom row as the first game's.
+void layoutSequelMain(ConsoleLayout& L, const Menu& m, const Texts& t) {
+    int k = 0;
+    for (int id : {1, 2, 3, 4, 7, 5}) {
+        const int i = indexOf(m, id);
+        if (i < 0) continue;
+        const float x = static_cast<float>(kMargin + 158 * (k / 3)), y = static_cast<float>(kMargin + 64 * (k % 3));
+        L.boxes.push_back(bar(i, {x, y, 154, 56}, tidy(m.items[static_cast<size_t>(i)].label)));
+        ++k;
+    }
+    int hx = 8;
+    const int g = indexOf(m, kChangeGameItem);
+    if (g >= 0) {
+        L.boxes.push_back(bar(g, {kMargin, kFooterTop, 84, kCornerH}, conText(t, "games", "GAMES")));
+        hx = kMargin + 84 + 8;
+    }
+    footerHints(L, hx, {{HintKey::A, conText(t, "hint.select", "Select")}, {HintKey::DPad, conText(t, "hint.move", "Move")}});
+}
+
+// Helicopter selection: the model is on the top screen; here the previous / next arrows (the
+// screen's own picture items 7 and 6) either side of the name and the speed and armour bars, the
+// player spinner (two players), BACK and Start / Continue / Accept.
+constexpr RectF kHeliPrev{kMargin, 26, 56, 104}, kHeliNext{320 - kMargin - 56, 26, 56, 104};
+void layoutHeli(ConsoleLayout& L, const Menu& m, const Texts& t) {
+    L.titleY = 6; // the screen's title: drawn by drawBottom (the game's caption)
+    const int prev = indexOf(m, 7), next = indexOf(m, 6);
+    if (prev >= 0) L.boxes.push_back(bar(prev, kHeliPrev));
+    if (next >= 0) L.boxes.push_back(bar(next, kHeliNext));
+    const int sp = indexOf(m, 5);
+    if (sp >= 0) {
+        const RectF row{kMargin, 150, 312, 36};
+        L.boxes.push_back(bar(sp, row, spinLabel(m.items[static_cast<size_t>(sp)])));
+        spinnerRow(L, sp, row, 150);
+    }
+    backButton(L, m, t, Screen::HeliSelect, 2);
+    int go = indexOf(m, 1);
+    if (go < 0) go = indexOf(m, 8); // Accept (opened from Mission Complete)
+    const bool back = indexOf(m, 2) >= 0;
+    if (go >= 0) L.boxes.push_back(bar(go, {204, kFooterTop, 112, kCornerH}, tidy(m.items[static_cast<size_t>(go)].label)));
+    footerHints(L, back ? kMargin + kBackW + 8 : 8, {{HintKey::DPad, conText(t, "hint.choose", "Choose")}});
+    L.hintRight = 204 - 4;
+}
+
+void layoutCredits(ConsoleLayout& L, const Menu& m, const Texts& t) {
+    L.title = conText(t, "credits.title", "CREDITS");
+    L.titleY = 48;
+    L.subtitle = conText(t, "credits.sub", "The names are on the top screen");
+    L.subtitleY = 112;
+    backButton(L, m, t, Screen::Credits);
+    footerHints(L, kMargin + kBackW + 8, {{HintKey::B, conText(t, "hint.back", "Back")}});
+}
+
+// In-game menu: Resume, Options, Restart, Quit (ids 1, 2, 4, 3).
+void layoutSequelInGame(ConsoleLayout& L, const Menu& m, const Texts& t) {
+    int row = 0;
+    for (int id : {1, 2, 4, 3}) {
+        const int i = indexOf(m, id);
+        if (i < 0) continue;
+        L.boxes.push_back(bar(i, {40, static_cast<float>(10 + 46 * row), 240, 40}, tidy(m.items[static_cast<size_t>(i)].label)));
+        ++row;
+    }
+    footerHints(L, 8, {{HintKey::A, conText(t, "hint.select", "Select")}, {HintKey::B, conText(t, "hint.resume", "Resume")}});
+}
+
+// The portrait dialogue: its page on the top screen; here one NEXT (a key: Enter completes the
+// page being typed, or turns it) over the dimmed HUD.
+void layoutDialogue(ConsoleLayout& L, const Texts& t) {
+    L.boxes.push_back(keyBox(keys::Enter, {80, 100, 160, 56}, conText(t, "dialogue.next", "NEXT")));
+}
+
+// Game over: QUIT and RESTART at once (the sequels' are usable at once), under GAME OVER.
+void layoutSequelGameOver(ConsoleLayout& L, const Menu& m, const Texts& t) {
+    L.title = conText(t, "gameover.title", "GAME OVER");
+    L.titleY = 60;
+    buttonRow(L, m, t, Screen::GameOver, {2, 1}, 128, 44, {138, 138});
+    footerHints(L, 8, {{HintKey::A, conText(t, "hint.select", "Select")}, {HintKey::DPad, conText(t, "hint.move", "Move")}});
+}
+
+// Mission complete: Choose Helicopter across the screen, Restart / Quit / Next under it.
+void layoutSequelComplete(ConsoleLayout& L, const Menu& m, const Texts& t) {
+    L.title = conText(t, "complete.sub", "MISSION COMPLETE");
+    L.titleY = 14;
+    const int ch = indexOf(m, 4);
+    if (ch >= 0) L.boxes.push_back(bar(ch, {kMargin, 48, 312, 44}, tidy(m.items[static_cast<size_t>(ch)].label)));
+    buttonRow(L, m, t, Screen::MissionComplete, {2, 1, 3}, 108, 44, {102, 102, 102});
+    footerHints(L, 8, {{HintKey::A, conText(t, "hint.select", "Select")}, {HintKey::DPad, conText(t, "hint.move", "Move")}});
+}
+
+// The sequels' intro (their logo pages, AirStrike 2's comic pages): the page on the top screen;
+// here FASTER (any key: the page runs four times as fast) and SKIP (the comic's touch Skip: the
+// intro ends).
+void layoutIntro(ConsoleLayout& L, const Texts& t) {
+    L.boxes.push_back(keyBox(keys::Enter, {8, 92, 148, 56}, conText(t, "intro.faster", "FASTER")));
+    L.boxes.push_back(keyBox(keys::Escape, {164, 92, 148, 56}, conText(t, "intro.skip", "SKIP")));
+    footerHints(L, 8, {{HintKey::A, conText(t, "hint.faster", "Faster")}, {HintKey::B, conText(t, "hint.skip", "Skip")}});
+}
+
 // The icons of an Information page's paragraphs (screens_main.cpp buildInformation).
-struct InfoIcon {
+struct PageIcon {
     int atlas = 0; // 0 weapons, 1 missiles, 2 items
     int index = 0;
 };
-std::vector<InfoIcon> infoIcons(int page1) {
-    std::vector<InfoIcon> v;
+std::vector<PageIcon> infoIcons(int page1) {
+    std::vector<PageIcon> v;
     auto add = [&](int atlas, std::initializer_list<int> l) {
         for (int i : l) v.push_back({atlas, i});
     };
@@ -466,9 +661,26 @@ std::vector<InfoIcon> infoIcons(int page1) {
     return v;
 }
 
+// Information of the game on screen: the pages of its spinner, the texts page of the one shown
+// (the sequels' spinner pages are their table's texts pages: Gulf Thunder has no page 4), the
+// paragraphs' icons and the page as the top screen shows it.
+int infoPageCount(const Frontend::Facts& f) { return f.sequel ? layout().infoPages : 10; }
+int infoTextsPage(const Frontend::Facts& f) {
+    if (!f.sequel) return f.infoPage + 1;
+    const Layout& lay = layout();
+    return lay.infoKey[std::clamp(f.infoPage, 0, lay.infoPages - 1)];
+}
+std::vector<PageIcon> pageIcons(const Frontend::Facts& f) {
+    if (!f.sequel) return infoIcons(f.infoPage + 1);
+    std::vector<PageIcon> v;
+    for (const InfoIcon& ic : layout().infoIcons(infoTextsPage(f))) v.push_back({ic.kind, ic.slot});
+    return v;
+}
+InfoPage infoPageOf(const Frontend::Facts& f);
+
 int infoSheetCount(const Frontend::Facts& f) {
     if (!f.texts || !f.texts->installed()) return 1;
-    const InfoPage p = consoleInfoPage(*f.texts, fm(), f.infoPage + 1, kInfoTextW, kInfoTextBottom - kInfoTextTop);
+    const InfoPage p = infoPageOf(f);
     return std::max(1, static_cast<int>(p.sheets.size()));
 }
 
@@ -593,13 +805,14 @@ std::vector<std::string> wrapText(const FontMetrics& m, std::string_view text, F
     return out;
 }
 
-InfoPage consoleInfoPage(const Texts& texts, const FontMetrics& m, int page, int width, int height) {
+// One Information page of the texts page `page` with its paragraphs' icons (the first game's or a
+// sequel's table) and the credits' centred lines.
+static InfoPage infoPageImpl(const Texts& texts, const FontMetrics& m, int page, int width, int height,
+                             const std::vector<PageIcon>& icons, bool credits) {
     InfoPage out;
     char k[32];
     std::snprintf(k, sizeof k, "info.%d.title", page);
     out.title = texts.get(k);
-    const bool credits = page == 10;
-    const std::vector<InfoIcon> icons = infoIcons(page);
     const int textW = icons.empty() ? width : width - kInfoIconIndent;
     const int pitch = fontLinePitchPx(FontSize::S);
     constexpr int kParaGap = 5;
@@ -666,6 +879,17 @@ InfoPage consoleInfoPage(const Texts& texts, const FontMetrics& m, int page, int
     if (!sheet.empty() || out.sheets.empty()) out.sheets.push_back(sheet);
     return out;
 }
+
+InfoPage consoleInfoPage(const Texts& texts, const FontMetrics& m, int page, int width, int height) {
+    return infoPageImpl(texts, m, page, width, height, infoIcons(page), page == 10);
+}
+
+namespace {
+InfoPage infoPageOf(const Frontend::Facts& f) {
+    return infoPageImpl(*f.texts, fm(), infoTextsPage(f), kInfoTextW, kInfoTextBottom - kInfoTextTop, pageIcons(f),
+                        !f.sequel && f.infoPage + 1 == 10);
+}
+} // namespace
 
 FontSize consoleGroupSize(const FontMetrics& m, const std::vector<std::string>& texts, const std::vector<float>& room,
                           FontSize from) {
@@ -778,13 +1002,21 @@ void applySizeRule(ConsoleLayout& L, const Menu& m) {
 // ---------------------------------------------------------------------------
 // The view
 // ---------------------------------------------------------------------------
+bool ConsoleMenuView::introShown(const Frontend& fe) {
+    return fe.sequel() && fe.state() == FrontendState::Intro && fe.introPage() >= 0;
+}
+
 bool ConsoleMenuView::handles(const Frontend& fe) {
-    if (fe.sequel() || fe.plain() || !fe.menuOpen()) return false;
+    if (fe.plain()) return false;
+    if (introShown(fe)) return true; // R4.8: the sequels' logo and comic pages on the top screen
+    if (!fe.menuOpen()) return false;
     switch (fe.topScreen()) {
         case Screen::MainMenu: case Screen::Exit: case Screen::StartGame: case Screen::TopScores: case Screen::NameEntry:
         case Screen::Options: case Screen::Information: case Screen::InGame: case Screen::GameOver:
         case Screen::MissionComplete: case Screen::GameComplete: case Screen::Hint:
             return true;
+        // The sequels' own screens (R4.8).
+        case Screen::HeliSelect: case Screen::Credits: case Screen::Dialogue: return fe.sequel();
         default: return false;
     }
 }
@@ -792,13 +1024,36 @@ bool ConsoleMenuView::handles(const Frontend& fe) {
 ConsoleLayout ConsoleMenuView::layout(const Frontend& fe) const {
     ConsoleLayout L;
     if (!handles(fe)) return L;
-    const Menu* m = fe.menus().top();
-    if (!m) return L;
+    useSkin(fe);
+    g_sequel = fe.sequel();
     const Frontend::Facts f = fe.facts();
     const Texts& t = *f.texts;
+    if (introShown(fe)) {
+        L.valid = true;
+        L.intro = true;
+        layoutIntro(L, t);
+        applySizeRule(L, Menu{});
+        return L;
+    }
+    const Menu* m = fe.menus().top();
+    if (!m) return L;
     L.valid = true;
     L.screen = fe.topScreen();
-    switch (L.screen) {
+    bool done = false; // the sequels' own layouts; the others are the first game's with their items
+    if (g_sequel) {
+        done = true;
+        switch (L.screen) {
+            case Screen::MainMenu: layoutSequelMain(L, *m, t); break;
+            case Screen::HeliSelect: layoutHeli(L, *m, t); break;
+            case Screen::Credits: layoutCredits(L, *m, t); break;
+            case Screen::InGame: layoutSequelInGame(L, *m, t); break;
+            case Screen::Dialogue: layoutDialogue(L, t); break;
+            case Screen::GameOver: layoutSequelGameOver(L, *m, t); break;
+            case Screen::MissionComplete: layoutSequelComplete(L, *m, t); break;
+            default: done = false; break;
+        }
+    }
+    if (!done) switch (L.screen) {
         case Screen::MainMenu: layoutMain(L, *m, t); break;
         case Screen::Exit: layoutExit(L, *m, t); break;
         case Screen::StartGame: layoutStart(L, *m, t); break;
@@ -820,7 +1075,8 @@ ConsoleLayout ConsoleMenuView::layout(const Frontend& fe) const {
     }
     if (L.valid) applySizeRule(L, *m);
     // Titles: T where it fits the screen (the end screens' and the exit's), else L.
-    const bool big = L.screen == Screen::GameOver || L.screen == Screen::GameComplete || L.screen == Screen::Exit;
+    const bool big = L.screen == Screen::GameOver || L.screen == Screen::GameComplete || L.screen == Screen::Exit ||
+                     (g_sequel && L.screen == Screen::MissionComplete);
     L.titleSize = big && measureTextPx(fm(), L.title, FontSize::T) <= kConsoleBottomW - 16 ? FontSize::T : FontSize::L;
     return L;
 }
@@ -855,6 +1111,22 @@ void ConsoleMenuView::applyHits(Frontend& fe) {
 }
 
 void ConsoleMenuView::filterKeys(const Frontend& fe, UiInput& in) {
+    if (introShown(fe)) {
+        // B (Escape) is the comic's Skip: the pointer on the touch Skip and a click there.
+        UiInput out;
+        for (const UiEvent& e : in.events) {
+            if (e.code == keys::Escape && e.type == UiEvent::Type::Press) {
+                const RectF r = SequelScreens::touchSkipRect();
+                out.move(r.x + r.w * 0.5f, r.y + r.h * 0.5f);
+                out.key(keys::Mouse1);
+                continue;
+            }
+            if (e.code == keys::Escape) continue;
+            out.events.push_back(e);
+        }
+        in.events = std::move(out.events);
+        return;
+    }
     if (!handles(fe) || fe.topScreen() != Screen::Information) return;
     const Frontend::Facts f = fe.facts();
     const int sheets = infoSheetCount(f);
@@ -899,7 +1171,21 @@ void ConsoleMenuView::touchInput(const Frontend& fe, bool touching, bool wasTouc
     }
     const Menu* m = fe.menus().top();
     const ConsoleLayout L = layout(fe);
-    if (!m || !L.valid) return;
+    if (!L.valid || (!m && !L.intro)) return;
+    if (L.intro) {
+        // FASTER: a key; SKIP: the comic's touch Skip (the pointer on it and a click).
+        if (!touching || wasTouching) return;
+        const ConsoleBox* b = L.boxAt(static_cast<float>(px), static_cast<float>(py));
+        if (!b || b->kind != ConsoleBoxKind::Key) return;
+        if (b->arg == keys::Escape) {
+            const RectF r = SequelScreens::touchSkipRect();
+            out.move(r.x + r.w * 0.5f, r.y + r.h * 0.5f);
+            out.key(keys::Mouse1);
+        } else {
+            out.key(b->arg);
+        }
+        return;
+    }
     auto pointAt = [&](int item) {
         if (item < 0 || item >= static_cast<int>(m->items.size())) return;
         const RectF& h = m->items[static_cast<size_t>(item)].hit;
@@ -997,8 +1283,8 @@ void drawFooter(const Px& p, const ConsoleLayout& L, const KeyGlyphAtlas* keys) 
     int x = L.hintX;
     KeyHintStyle st;
     st.size = FontSize::S;
-    st.keyColor = kHintKey;
-    st.labelColor = kHintLabel;
+    st.keyColor = sk().hintKey;
+    st.labelColor = sk().hintLabel;
     for (const ConsoleHint& h : L.hints) {
         drawKeyHint(p.r, p.font, keys, x, L.hintY, h.key, h.label, st);
         x += hintWidth(fm(), h) + 8;
@@ -1018,7 +1304,7 @@ void drawLabelOrPicture(const Px& p, const MenuItem& it, const ConsoleBox& b, bo
         }
     }
     const FontSize size = b.size; // the size rule's (applySizeRule)
-    p.textIn(r, b.label, size, disabled ? kLabelOff : focused ? kLabelFocus : kLabel);
+    p.textIn(r, b.label, size, disabled ? sk().labelOff : focused ? sk().labelFocus : sk().label);
     if (focused && r.w >= 160) drawMarkers(p, r, static_cast<float>(measureTextPx(fm(), b.label, size)));
 }
 
@@ -1031,12 +1317,12 @@ void drawSpinnerValue(const Px& p, const ConsoleLayout& L, int item, const std::
         if (b.kind == ConsoleBoxKind::SpinNext) next = &b;
     }
     if (!prev || !next) return;
-    p.triangle(prev->r, false, kArrow);
-    p.triangle(next->r, true, kArrow);
+    p.triangle(prev->r, false, sk().arrow);
+    p.triangle(next->r, true, sk().arrow);
     const RectF zone{prev->r.x + prev->r.w, prev->r.y, next->r.x - prev->r.x - prev->r.w, prev->r.h};
     const FontSize size = L.valueSize; // one size for the screen's values (applySizeRule)
     const std::string v = fitLabel(fm(), upper(value), size, zone.w - 4);
-    p.textIn(zone, v, size, focused ? Color{1, 1, 1, 1} : kValue);
+    p.textIn(zone, v, size, focused ? Color{1, 1, 1, 1} : sk().value);
 }
 
 void drawSlider(const Px& p, const MenuItem& it, const RectF& row, bool focused) {
@@ -1046,9 +1332,9 @@ void drawSlider(const Px& p, const MenuItem& it, const RectF& row, bool focused)
     const float f = range > 0 ? std::clamp((it.value - static_cast<float>(it.min)) / range, 0.0f, 1.0f) : 0.0f;
     const float fill = std::floor(w * f);
     p.rect(kSliderFrom, y, w, 6, Color{0.08f, 0.02f, 0.01f, 1});
-    p.frame({kSliderFrom - 1, y - 1, w + 2, 8}, kBarEdge);
-    p.rect(kSliderFrom, y, fill, 6, focused ? kBarEdgeFocus : kArrow);
-    p.rect(kSliderFrom + fill - 4, std::floor(row.y + row.h * 0.5f) - 11, 9, 22, focused ? Color{1, 1, 1, 1} : kValue);
+    p.frame({kSliderFrom - 1, y - 1, w + 2, 8}, sk().barEdge);
+    p.rect(kSliderFrom, y, fill, 6, focused ? sk().barEdgeFocus : sk().arrow);
+    p.rect(kSliderFrom + fill - 4, std::floor(row.y + row.h * 0.5f) - 11, 9, 22, focused ? Color{1, 1, 1, 1} : sk().value);
 }
 
 void drawList(const Px& p, const ConsoleLayout& L, const MenuItem& list, int item, bool focused) {
@@ -1059,11 +1345,11 @@ void drawList(const Px& p, const ConsoleLayout& L, const MenuItem& list, int ite
             const bool enabled = list.entries[static_cast<size_t>(b.arg)].enabled;
             const bool sel = b.arg == list.selected;
             drawBar(p, b.r, sel && focused, !enabled);
-            if (sel && !focused) p.frame(b.r, kBarEdgeFocus, 1);
-            p.textIn(b.r, b.label, b.size, !enabled ? kLabelOff : sel ? kLabelFocus : kLabel, Align::Left, 10);
+            if (sel && !focused) p.frame(b.r, sk().barEdgeFocus, 1);
+            p.textIn(b.r, b.label, b.size, !enabled ? sk().labelOff : sel ? sk().labelFocus : sk().label, Align::Left, 10);
         } else if (b.kind == ConsoleBoxKind::ListUp || b.kind == ConsoleBoxKind::ListDown) {
             drawBar(p, b.r, false, false);
-            p.triangleUpDown(b.r, b.kind == ConsoleBoxKind::ListDown, kArrow);
+            p.triangleUpDown(b.r, b.kind == ConsoleBoxKind::ListDown, sk().arrow);
         }
     }
     // The scroll position between the arrows.
@@ -1071,17 +1357,17 @@ void drawList(const Px& p, const ConsoleLayout& L, const MenuItem& list, int ite
         const float top = kMargin + 40, h = 112 - 80;
         const float y = top + std::floor(h * static_cast<float>(list.selected) / static_cast<float>(std::max(n - 1, 1)));
         p.rect(284, top, 28, h + 4, Color{0.08f, 0.02f, 0.01f, 1});
-        p.rect(286, std::min(y, top + h - 2), 24, 6, kArrow);
+        p.rect(286, std::min(y, top + h - 2), 24, 6, sk().arrow);
     }
 }
 
 void drawEdit(const Px& p, const MenuItem& it, const RectF& r, bool focused, long long ms) {
     p.rect(r, Color{0.06f, 0.01f, 0.01f, 0.95f});
-    p.frame(r, focused ? kBarEdgeFocus : kBarEdge, 1);
+    p.frame(r, focused ? sk().barEdgeFocus : sk().barEdge, 1);
     const int ty = textTopIn(r.y, r.h, FontSize::L);
     const int w = measureTextPx(fm(), it.text, FontSize::L);
-    p.text(r.x + 8, static_cast<float>(ty), it.text, FontSize::L, kValue);
-    if ((ms / 400) % 2 == 0) p.rect(r.x + 8 + static_cast<float>(w) + 1, r.y + 6, 2, r.h - 12, kValue);
+    p.text(r.x + 8, static_cast<float>(ty), it.text, FontSize::L, sk().value);
+    if ((ms / 400) % 2 == 0) p.rect(r.x + 8 + static_cast<float>(w) + 1, r.y + 6, 2, r.h - 12, sk().value);
 }
 
 void drawGridCells(const Px& p, const ConsoleLayout& L, const MenuItem& g, int item, bool focused) {
@@ -1091,11 +1377,44 @@ void drawGridCells(const Px& p, const ConsoleLayout& L, const MenuItem& g, int i
         const bool locked = g.grid.locked && g.grid.locked[b.arg];
         const bool sel = b.arg == chosen;
         p.rect(b.r, Color{0.05f, 0.01f, 0.01f, 0.9f});
-        p.frame(b.r, sel ? (focused ? Color{1, 1, 1, 1} : kBarEdgeFocus) : kBarEdge, sel ? 2 : 1);
+        p.frame(b.r, sel ? (focused ? Color{1, 1, 1, 1} : sk().barEdgeFocus) : sk().barEdge, sel ? 2 : 1);
         const float size = 42;
         drawHeli(p, b.arg, std::floor(b.r.x + (b.r.w - size) * 0.5f + heliShift(b.arg, size)), std::floor(b.r.y + (b.r.h - size) * 0.5f), size,
                  locked, sel);
     }
+}
+
+// The helicopter selection's panel between its arrows: the screen's title, the helicopter's name
+// and number, its speed and armour bars (the desktop's: speed / 1.5, health / 800), "not
+// available" for a locked one.
+void drawHeliPanel(const Px& p, const Frontend& fe, const Frontend::Facts& f, const ConsoleLayout& L) {
+    const int h = SequelScreens::shownHeli(fe);
+    const bool locked = SequelScreens::heliLocked(fe, h);
+    p.text(160, static_cast<float>(L.titleY), fitLabel(fm(), SequelScreens::tr(fe, "title.heli"), FontSize::L, 312), FontSize::L,
+           sk().title, Align::Center);
+    const float x0 = kHeliPrev.x + kHeliPrev.w + 6, x1 = kHeliNext.x - 6, w = x1 - x0;
+    const std::string name = SequelScreens::heliName(fe, h);
+    const FontSize ns = measureTextPx(fm(), name, FontSize::L) <= w ? FontSize::L : FontSize::S;
+    p.text(160, 32, fitLabel(fm(), name, ns, w), ns, locked ? sk().labelOff : sk().value, Align::Center);
+    char line[64];
+    std::snprintf(line, sizeof line, "%d / %d", h + 1, f.rules ? f.rules->helicopterCount : 1);
+    p.text(160, 50, line, FontSize::S, sk().hintLabel, Align::Center);
+    const FrontendContent::HeliInfo info = f.content ? f.content->heli[h] : FrontendContent::HeliInfo{};
+    const float speed = info.known && info.hasSpeed ? info.speed : 1.0f;
+    const float armor = info.known ? static_cast<float>(info.health) : 0.0f;
+    const std::string sl = tidy(SequelScreens::tr(fe, "heli.speed")), al = tidy(SequelScreens::tr(fe, "heli.armor"));
+    const float lw = static_cast<float>(std::max(measureTextPx(fm(), sl, FontSize::S), measureTextPx(fm(), al, FontSize::S)));
+    const float bx = x0 + lw + 6, bw = std::floor(x1 - bx);
+    const float fr[2] = {std::clamp(speed / 1.5f, 0.0f, 1.0f), std::clamp(armor / 800.0f, 0.0f, 1.0f)};
+    for (int k = 0; k < 2; ++k) {
+        const float y = 70.0f + 20.0f * static_cast<float>(k);
+        p.text(x0, y, k == 0 ? sl : al, FontSize::S, sk().body);
+        p.rect(bx, y + 2, bw, 8, Color{0, 0, 0, 0.8f});
+        p.frame({bx - 1, y + 1, bw + 2, 10}, sk().barEdge);
+        if (!locked) p.rect(bx, y + 2, std::floor(bw * fr[k]), 8, sk().arrow);
+    }
+    if (locked) p.text(160, 112, fitLabel(fm(), tidy(SequelScreens::tr(fe, "heli.na")), FontSize::L, w), FontSize::L,
+                       Color{1, 0.2f, 0.15f, 1}, Align::Center);
 }
 
 } // namespace
@@ -1103,37 +1422,50 @@ void drawGridCells(const Px& p, const ConsoleLayout& L, const MenuItem& g, int i
 void ConsoleMenuView::drawBottom(Renderer2D& r, const UiAssets& a, const Frontend& fe) const {
     const ConsoleLayout L = layout(fe);
     const Menu* m = fe.menus().top();
-    if (!L.valid || !m) return;
+    if (!L.valid || (!m && !L.intro)) return;
     const Px p(r, a);
+    const Frontend::Facts f = fe.facts();
+    if (L.intro) {
+        drawGround(p);
+        p.text(160, 40, f.content && f.content->game ? f.content->game->title : "", FontSize::L, sk().title, Align::Center);
+        p.text(160, 64, conText(*f.texts, "intro.top", "The story is on the top screen"), FontSize::S, sk().hintLabel, Align::Center);
+        for (const ConsoleBox& b : L.boxes) {
+            drawBar(p, b.r, false, false);
+            p.textIn(b.r, b.label, b.size, sk().label);
+        }
+        drawFooter(p, L, keys_);
+        return;
+    }
     const float mt = fe.menus().menuTime();
     const long long ms = fe.menus().clockMs();
-    const Frontend::Facts f = fe.facts();
-    // The tutorial hint leaves the HUD under it, dimmed; every other screen is on black.
-    if (L.screen == Screen::Hint) p.rect(0, 0, kConsoleBottomW, kConsoleBottomH, Color{0, 0, 0, 0.6f});
-    else p.rect(0, 0, kConsoleBottomW, kConsoleBottomH, Color{0, 0, 0, 1}, Blend::Opaque);
+    // The tutorial hint and the sequels' dialogue leave the HUD under them, dimmed; every other
+    // screen is on the game's ground.
+    if (L.screen == Screen::Hint || L.screen == Screen::Dialogue) p.rect(0, 0, kConsoleBottomW, kConsoleBottomH, Color{0, 0, 0, 0.6f});
+    else drawGround(p);
+    if (L.screen == Screen::HeliSelect) drawHeliPanel(p, fe, f, L);
     if (L.screen == Screen::TopScores) {
-        if (p.halfPicture("menu\\topscores_1.tga", {0, 0, 1, 1}, 160, static_cast<float>(L.titleY) + 8, 300, 40, Color{}, Blend::Alpha) == 0)
-            p.text(160, static_cast<float>(L.titleY), L.title, FontSize::T, kTitle, Align::Center, false, TextEffect::None);
+        if (f.sequel || p.halfPicture("menu\\topscores_1.tga", {0, 0, 1, 1}, 160, static_cast<float>(L.titleY) + 8, 300, 40, Color{}, Blend::Alpha) == 0)
+            p.text(160, static_cast<float>(L.titleY), L.title, FontSize::T, sk().title, Align::Center, false, TextEffect::None);
         const HighScore& best = f.profile->progress.scores[0];
         char line[192];
         std::snprintf(line, sizeof line, "%s  %lld", best.name.c_str(), static_cast<long long>(best.score));
-        p.text(160, 80, conText(*f.texts, "scores.best", "BEST PILOT"), FontSize::S, kHintLabel, Align::Center);
-        p.text(160, 96, line, FontSize::L, kValue, Align::Center);
+        p.text(160, 80, conText(*f.texts, "scores.best", "BEST PILOT"), FontSize::S, sk().hintLabel, Align::Center);
+        p.text(160, 96, line, FontSize::L, sk().value, Align::Center);
     } else if (!L.title.empty()) {
-        p.text(160, static_cast<float>(L.titleY), L.title, L.titleSize, kTitle, Align::Center);
+        p.text(160, static_cast<float>(L.titleY), L.title, L.titleSize, sk().title, Align::Center);
     }
-    if (!L.subtitle.empty()) p.text(160, static_cast<float>(L.subtitleY), L.subtitle, FontSize::S, kHintLabel, Align::Center);
+    if (!L.subtitle.empty()) p.text(160, static_cast<float>(L.subtitleY), L.subtitle, FontSize::S, sk().hintLabel, Align::Center);
     if (L.screen == Screen::Information) {
-        // The page dots (10 pages) and the sheet.
-        const int pages = 10;
+        // The page dots (10 pages, the sequels' 7 or 8) and the sheet.
+        const int pages = infoPageCount(f);
         const float x0 = 160 - (pages * 12 - 4) * 0.5f;
         for (int i = 0; i < pages; ++i)
-            p.rect(std::floor(x0 + 12.0f * static_cast<float>(i)), 118, 8, 8, i == f.infoPage ? kBarEdgeFocus : kBarFill);
+            p.rect(std::floor(x0 + 12.0f * static_cast<float>(i)), 118, 8, 8, i == f.infoPage ? sk().barEdgeFocus : sk().barFill);
     }
     for (const ConsoleBox& b : L.boxes) {
         if (b.kind == ConsoleBoxKind::Key) {
             drawBar(p, b.r, false, false);
-            p.textIn(b.r, b.label, b.size, kLabel);
+            p.textIn(b.r, b.label, b.size, sk().label);
             continue;
         }
         if (b.kind != ConsoleBoxKind::Bar || b.item < 0) continue;
@@ -1145,7 +1477,7 @@ void ConsoleMenuView::drawBottom(Renderer2D& r, const UiAssets& a, const Fronten
             case ItemType::HeliGrid:
                 if (L.screen == Screen::StartGame) {
                     drawBar(p, b.r, focused, disabled);
-                    p.textIn(b.r, b.label, b.size, focused ? kLabelFocus : kLabel, Align::Left, 8);
+                    p.textIn(b.r, b.label, b.size, focused ? sk().labelFocus : sk().label, Align::Left, 8);
                     char v[96];
                     const int c = it.grid.choice ? it.grid.choice[0] : 0;
                     std::snprintf(v, sizeof v, "%d %s %d", c + 1, conText(*f.texts, "of", "OF").c_str(), std::clamp(it.grid.count, 0, kHelicopters));
@@ -1156,17 +1488,21 @@ void ConsoleMenuView::drawBottom(Renderer2D& r, const UiAssets& a, const Fronten
                 break;
             case ItemType::Spinner: {
                 drawBar(p, b.r, focused, disabled);
-                p.textIn(b.r, b.label, b.size, disabled ? kLabelOff : focused ? kLabelFocus : kLabel, Align::Left, 8);
+                p.textIn(b.r, b.label, b.size, disabled ? sk().labelOff : focused ? sk().labelFocus : sk().label, Align::Left, 8);
                 const std::string v = it.values.empty() ? std::string() : it.values[static_cast<size_t>(std::clamp(it.index, 0, static_cast<int>(it.values.size()) - 1))];
                 drawSpinnerValue(p, L, b.item, v, focused);
                 break;
             }
             case ItemType::Slider:
                 drawBar(p, b.r, focused, disabled);
-                p.textIn(b.r, b.label, b.size, disabled ? kLabelOff : focused ? kLabelFocus : kLabel, Align::Left, 8);
+                p.textIn(b.r, b.label, b.size, disabled ? sk().labelOff : focused ? sk().labelFocus : sk().label, Align::Left, 8);
                 drawSlider(p, it, b.r, focused);
                 break;
             case ItemType::Edit: drawEdit(p, it, b.r, focused, ms); break;
+            case ItemType::Picture: // the helicopter selection's arrows (7 previous, 6 next)
+                drawBar(p, b.r, focused, disabled);
+                p.triangle(b.r, it.id == 6, focused ? sk().barEdgeFocus : sk().arrow);
+                break;
             default:
                 drawBar(p, b.r, focused, disabled);
                 drawLabelOrPicture(p, it, b, focused, disabled, mt);
@@ -1195,9 +1531,9 @@ bool halfHeader(const Px& p, const std::string& base, float cx, float cy) {
 
 void titleBand(const Px& p, const std::string& header, const std::string& text) {
     p.rect(0, 0, kConsoleTopW, 34, Color{0, 0, 0, 0.88f});
-    p.rect(0, 34, kConsoleTopW, 1, kBarEdge);
-    if (header.empty() || !halfHeader(p, header, 200, 17))
-        p.text(200, static_cast<float>(textTopIn(0, 34, FontSize::L)), text, FontSize::L, kTitle, Align::Center);
+    p.rect(0, 34, kConsoleTopW, 1, sk().barEdge);
+    if (g_sequel || header.empty() || !halfHeader(p, header, 200, 17)) // the sequels: their title in text
+        p.text(200, static_cast<float>(textTopIn(0, 34, FontSize::L)), text, FontSize::L, sk().title, Align::Center);
 }
 
 std::string number(std::int64_t v) {
@@ -1221,8 +1557,8 @@ void resultsPanel(const Px& p, const Frontend::Facts& f, float y, float mt, bool
     float ry = y + 8;
     for (const Row& row : rows) {
         if (mt >= row.at) {
-            p.text(56, ry, row.k, FontSize::L, kBody);
-            p.text(344, ry, row.v, FontSize::L, kValue, Align::Right);
+            p.text(56, ry, row.k, FontSize::L, sk().body);
+            p.text(344, ry, row.v, FontSize::L, sk().value, Align::Right);
         }
         ry += 22;
     }
@@ -1232,39 +1568,43 @@ void drawInfoTop(const Px& p, const Frontend::Facts& f, int sheet) {
     p.rect(0, 0, kConsoleTopW, kConsoleTopH, kDim);
     const Texts& t = *f.texts;
     if (!t.installed()) {
-        p.text(12, 8, t.get("info.missing.title"), FontSize::L, kTitle);
+        p.text(12, 8, t.get("info.missing.title"), FontSize::L, sk().title);
         float y = 40;
         for (int i = 0; i < 3; i++) {
             for (const std::string& l : wrapText(fm(), t.get("info.missing." + std::to_string(i)), FontSize::S, kInfoTextW))
-                p.text(12, y, l, FontSize::S, kBody, Align::Left, true), y += 13;
+                p.text(12, y, l, FontSize::S, sk().body, Align::Left, true), y += 13;
         }
         return;
     }
-    const InfoPage page = consoleInfoPage(t, fm(), f.infoPage + 1, kInfoTextW, kInfoTextBottom - kInfoTextTop);
+    const InfoPage page = infoPageOf(f);
     const int n = static_cast<int>(page.sheets.size());
     const int s = std::clamp(sheet, 0, n - 1);
     std::string title = page.title;
     const size_t paren = title.find(" (");
     if (paren != std::string::npos) title.erase(paren); // "(Page 1 of 2)": the counter says it
-    p.text(12, 5, title, FontSize::L, kTitle);
+    p.text(12, 5, title, FontSize::L, sk().title);
     char counter[64];
-    if (n > 1) std::snprintf(counter, sizeof counter, "%d/10 (%d/%d)", f.infoPage + 1, s + 1, n);
-    else std::snprintf(counter, sizeof counter, "%d/10", f.infoPage + 1);
-    p.text(388, 7, counter, FontSize::S, kHintLabel, Align::Right);
-    p.rect(12, 22, 376, 1, kBarEdge);
-    const std::vector<InfoIcon> icons = infoIcons(f.infoPage + 1);
+    const int pages = infoPageCount(f);
+    if (n > 1) std::snprintf(counter, sizeof counter, "%d/%d (%d/%d)", f.infoPage + 1, pages, s + 1, n);
+    else std::snprintf(counter, sizeof counter, "%d/%d", f.infoPage + 1, pages);
+    p.text(388, 7, counter, FontSize::S, sk().hintLabel, Align::Right);
+    p.rect(12, 22, 376, 1, sk().barEdge);
+    const std::vector<PageIcon> icons = pageIcons(f);
+    const GameId game = f.content && f.content->game ? f.content->game->id : GameId::AirStrike3D;
     const float x = icons.empty() ? 12.0f : 12.0f + kInfoIconIndent;
     float y = kInfoTextTop;
     for (const InfoLine& l : page.sheets[static_cast<size_t>(s)]) {
         y += static_cast<float>(l.gapBefore);
         if (l.icon >= 0 && l.icon < static_cast<int>(icons.size())) {
-            const InfoIcon& ic = icons[static_cast<size_t>(l.icon)];
+            const PageIcon& ic = icons[static_cast<size_t>(l.icon)];
             const Texture2D* atlas = ic.atlas == 0 ? &p.a.weapons : ic.atlas == 1 ? &p.a.missiles : &p.a.items;
-            const SpecUv uv = ic.atlas == 0 ? weaponIconUv(ic.index) : ic.atlas == 1 ? missileIconUv(ic.index) : powerupIconUv(ic.index);
-            if (atlas->valid()) p.r.quadSpec(p.vx(12), p.vy(y + 1), p.vw(33), p.vh(18), uv.s0, uv.t0, uv.s1, uv.t1, atlas, Color{}, Blend::Add);
+            const SpecUv uv = ic.atlas == 0 ? weaponIconUv(ic.index, game)
+                              : ic.atlas == 1 ? missileIconUv(ic.index, game) : powerupIconUv(ic.index, game);
+            if (atlas->valid() && !uv.empty())
+                p.r.quadSpec(p.vx(12), p.vy(y + 1), p.vw(33), p.vh(18), uv.s0, uv.t0, uv.s1, uv.t1, atlas, Color{}, Blend::Add);
         }
-        if (l.centred) p.text(200, y, l.text, FontSize::S, kBody, Align::Center, true);
-        else p.text(x, y, l.text, FontSize::S, kBody, Align::Left, true);
+        if (l.centred) p.text(200, y, l.text, FontSize::S, sk().body, Align::Center, true);
+        else p.text(x, y, l.text, FontSize::S, sk().body, Align::Left, true);
         y += static_cast<float>(fontLinePitchPx(FontSize::S));
     }
 }
@@ -1272,17 +1612,17 @@ void drawInfoTop(const Px& p, const Frontend::Facts& f, int sheet) {
 void drawScoresTop(const Px& p, const Frontend::Facts& f) {
     p.rect(0, 0, kConsoleTopW, kConsoleTopH, kDim);
     const Texts& t = *f.texts;
-    p.text(200, 3, conText(t, "scores.title", "TOP SCORES"), FontSize::L, kTitle, Align::Center);
+    p.text(200, 3, conText(t, "scores.title", "TOP SCORES"), FontSize::L, sk().title, Align::Center);
     const float y0 = 21;
     p.rect(8, y0, 384, 13, Color{0.38f, 0.0f, 0.0f, 0.6f});
-    p.text(34, y0, t.get("scores.number"), FontSize::S, kBody, Align::Right);
-    p.text(44, y0, t.get("scores.name"), FontSize::S, kBody);
-    p.text(272, y0, t.get("scores.score"), FontSize::S, kBody, Align::Right);
-    p.text(284, y0, t.get("scores.rank"), FontSize::S, kBody);
+    p.text(34, y0, t.get("scores.number"), FontSize::S, sk().body, Align::Right);
+    p.text(44, y0, t.get("scores.name"), FontSize::S, sk().body);
+    p.text(272, y0, t.get("scores.score"), FontSize::S, sk().body, Align::Right);
+    p.text(284, y0, t.get("scores.rank"), FontSize::S, sk().body);
     for (int i = 0; i < kHighScoreCount; i++) {
         const HighScore& h = f.profile->progress.scores[i];
         const float y = y0 + 14 + 13.0f * static_cast<float>(i);
-        const Color c = i == 0 ? kValue : kBody;
+        const Color c = i == 0 ? sk().value : sk().body;
         p.text(34, y, std::to_string(i + 1), FontSize::S, c, Align::Right);
         p.text(44, y, h.name, FontSize::S, c);
         p.text(272, y, number(h.score), FontSize::S, c, Align::Right);
@@ -1294,13 +1634,13 @@ void highScorePanel(const Px& p, const Frontend::Facts& f, float y) {
     const Texts& t = *f.texts;
     p.rect(40, y, 320, f.endSlot >= 0 ? 62 : 40, Color{0, 0, 0, 0.7f});
     const std::string head = f.endSlot >= 0 ? conText(t, "highscore", "NEW HIGH SCORE") : conText(t, "score", "SCORE");
-    p.text(56, y + 9, head, FontSize::L, kBody);
-    p.text(344, y + 9, number(f.endScore), FontSize::L, kValue, Align::Right);
+    p.text(56, y + 9, head, FontSize::L, sk().body);
+    p.text(344, y + 9, number(f.endScore), FontSize::L, sk().value, Align::Right);
     if (f.endSlot >= 0) {
         char line[192];
         std::snprintf(line, sizeof line, "%s %d %s %d  -  %s", conText(t, "rankpos", "Place").c_str(), f.endSlot + 1,
                       conText(t, "of", "of").c_str(), kHighScoreCount, t.get("rank." + std::to_string(f.endRank)).c_str());
-        p.text(200, y + 36, line, FontSize::S, kHintLabel, Align::Center);
+        p.text(200, y + 36, line, FontSize::S, sk().hintLabel, Align::Center);
     }
 }
 
@@ -1308,59 +1648,317 @@ void highScorePanel(const Px& p, const Frontend::Facts& f, float y) {
 // The tutorial hint on the top screen (R4.7): the world dimmed 35 %, a box at the bottom of the
 // screen sized to its text: TUTORIAL (L), the hint re-flowed at S to 356 px (the original's '^'
 // breaks are its box's line ends, not paragraphs: joined with spaces), "A OK" at its lower right.
-void drawHintTop(const Px& p, const Frontend::Facts& f, const KeyGlyphAtlas* keys) {
+void drawHintTop(const Px& p, const Frontend::Facts& f, const KeyGlyphAtlas* keys, const std::string& title) {
     constexpr int kHintTextW = 356;
     p.rect(0, 0, kConsoleTopW, kConsoleTopH, Color{0, 0, 0, 0.35f});
     std::string joined = f.hintText;
     for (char& ch : joined)
-        if (ch == '^') ch = ' ';
+        if (ch == '^' || ch == '\n') ch = ' ';
     std::vector<std::string> lines = wrapText(fm(), joined, FontSize::S, kHintTextW);
     const int maxLines = (kConsoleTopH - 8 - 44) / 13;
     if (static_cast<int>(lines.size()) > maxLines) lines.resize(static_cast<size_t>(maxLines));
     const float h = 28.0f + 13.0f * static_cast<float>(lines.size()) + 22.0f;
     const RectF box{14, std::floor(static_cast<float>(kConsoleTopH) - 8 - h), kConsoleTopW - 28, h};
     p.rect(box, Color{0, 0, 0, 0.78f});
-    p.frame(box, kBarEdge);
-    p.text(box.x + 12, box.y + 6, f.texts ? conText(*f.texts, "hint.title", "TUTORIAL") : std::string("TUTORIAL"), FontSize::L, kTitle);
+    p.frame(box, sk().barEdge);
+    p.text(box.x + 12, box.y + 6, fitLabel(fm(), title, FontSize::L, box.w - 24), FontSize::L, sk().title);
     float y = box.y + 28;
     for (const std::string& l : lines) {
-        p.text(box.x + 12, y, l, FontSize::S, kBody, Align::Left, true);
+        p.text(box.x + 12, y, l, FontSize::S, sk().body, Align::Left, true);
         y += 13;
     }
     KeyHintStyle st;
     st.size = FontSize::S;
-    st.keyColor = kHintKey;
-    st.labelColor = kHintKey;
+    st.keyColor = sk().hintKey;
+    st.labelColor = sk().hintKey;
     const std::string ok = f.texts ? conText(*f.texts, "hint.ok", "OK") : std::string("OK");
     const int w = hintWidth(fm(), {HintKey::A, ok});
     drawKeyHint(p.r, p.font, keys, static_cast<int>(box.x + box.w) - 12 - w, static_cast<int>(box.y + box.h) - 19, HintKey::A, ok, st);
+}
+
+// ---------------------------------------------------------------------------
+// The sequels' top screens (R4.8)
+// ---------------------------------------------------------------------------
+// The intro page on the top screen: AirStrike 2's comic pages fitted to the screen by their drawn
+// part (pages 1 and 2: the 800 x 320 panorama at 1/2; page 3 the whole page at 0.4; page 4 its
+// 800 x 512 at 15/32), the logo pages (a picture centred on a coloured page) at 1/2.
+bool drawIntroTop(const Px& p, const Frontend& fe, Renderer2D& scratch) {
+    const auto* run = SequelScreens::introRun(fe);
+    if (!run || run->index >= run->pages.size()) return false;
+    const IntroPage& page = run->pages[run->index];
+    Mapping m;
+    struct Fit { float x0, y0, w, h; };
+    const Fit fit = page.comic == 1 || page.comic == 2 ? Fit{0, 150, 800, 320}
+                    : page.comic == 3                   ? Fit{0, 0, 800, 600}
+                    : page.comic == 4                   ? Fit{0, 90, 800, 512}
+                                                        : Fit{0, 60, 800, 480};
+    const float s = std::min(static_cast<float>(kConsoleTopW) / fit.w, static_cast<float>(kConsoleTopH) / fit.h);
+    m.scaleX = m.scaleY = s;
+    m.offsetX = std::floor((static_cast<float>(kConsoleTopW) - fit.w * s) * 0.5f - fit.x0 * s);
+    m.offsetY = std::floor((static_cast<float>(kConsoleTopH) - fit.h * s) * 0.5f - fit.y0 * s);
+    scratch.beginMapped(kConsoleTopW, kConsoleTopH, m);
+    if (page.comic) SequelScreens::drawComicPage(scratch, p.a, page.comic, run->clock);
+    else const_cast<Frontend&>(fe).drawUnder(scratch, p.a); // the logo page (Frontend::drawIntro)
+    p.r.appendMapped(scratch);
+    return true;
+}
+
+// The main menu's title on the top screen, over the attract level: AirStrike 2's logo (with its
+// clouds, glow and the spinning "2") and Gulf Thunder's emblem (tinted, with its clouds), each at
+// exactly 1/2; the version and copyright band at the bottom as the first game's.
+void drawSequelLogoTop(const Px& p, const Frontend& fe, const Frontend::Facts& f) {
+    const auto* st = SequelScreens::state(fe);
+    const float T = st ? st->logoClock : 0.0f;
+    if (!gulfGame(fe)) {
+        p.rect(0, 0, kConsoleTopW, 34, Color{0, 0, 0, 0.72f});
+        p.rect(0, 34, kConsoleTopW, 1, sk().barEdge);
+        as2::TitleLogoPictures pics;
+        pics.glow = p.a.texture("gfx\\logo\\glow.tga");
+        pics.two = p.a.texture("gfx\\logo\\two3.tga");
+        pics.logo = p.a.texture("gfx\\logo\\logo.tga");
+        pics.clouds = pics.logo ? p.a.textureRepeat("gfx\\logo\\clouds.tga") : nullptr;
+        // logo.tga's letters are rows 46..93 of 128: at 1/2 they sit at y 2..26.
+        const float k = 0.5f / p.m.scaleX;
+        as2::titleLogoAt(p.r, pics, T, T, p.vx(50) - 124 * k, p.vy(-21), k, 1.0f);
+    } else if (const Texture2D* logo = p.a.texture("gfx\\logo\\logo_gulf.tga")) {
+        // logo_gulf.tga's emblem is rows 22..233 of 256: at 1/2 from y 2.
+        p.rect(0, 0, kConsoleTopW, 112, Color{0, 0, 0, 0.35f});
+        Quad q;
+        q.x = p.vx(72);
+        q.y = p.vy(-9);
+        q.w = p.vw(256);
+        q.h = p.vh(128);
+        q.texture = logo;
+        q.blend = Blend::Alpha;
+        q.color = st ? Color{st->tint[0], st->tint[1], st->tint[2], st->tint[3]} : Color{};
+        if (const Texture2D* clouds = p.a.textureRepeat("gfx\\logo\\clouds.tga")) {
+            q.texture2 = clouds;
+            q.s0b = 0.1f * T;
+            q.s1b = 0.1f * T + 2.0f;
+            q.t0b = 0;
+            q.t1b = 1;
+            q.combine2 = 2;
+        }
+        p.r.add(q);
+    }
+    const FrontendContent& c = *f.content;
+    if (c.version.empty() && c.copyright.empty()) return;
+    p.rect(0, 224, kConsoleTopW, 16, Color{0, 0, 0, 0.85f});
+    p.text(6, 226, c.version, FontSize::S, sk().greyText);
+    p.text(394, 226, c.copyright, FontSize::S, sk().greyText, Align::Right);
+}
+
+// Start Game: the chosen mission (L), the difficulty and the game mode (S) under the title.
+void drawSequelStartTop(const Px& p, const Frontend& fe, const Menu& m) {
+    titleBand(p, "", tidy(SequelScreens::tr(fe, "title.start_game")));
+    p.rect(8, 44, 384, 76, Color{0, 0, 0, 0.72f});
+    p.frame({8, 44, 384, 76}, sk().barEdge);
+    float y = 52;
+    for (const MenuItem& it : m.items) {
+        if (it.id != 5 || it.type != ItemType::List || it.entries.empty()) continue;
+        const std::string name = it.entries[static_cast<size_t>(std::clamp(it.selected, 0, static_cast<int>(it.entries.size()) - 1))].text;
+        const FontSize ns = measureTextPx(fm(), name, FontSize::L) <= 368 ? FontSize::L : FontSize::S;
+        p.text(200, y, fitLabel(fm(), name, ns, 368), ns, sk().value, Align::Center);
+    }
+    y += 24;
+    for (int id : {3, 4}) {
+        for (const MenuItem& it : m.items) {
+            if (it.id != id || it.type != ItemType::Spinner || it.hidden() || it.values.empty()) continue;
+            const std::string v = it.values[static_cast<size_t>(std::clamp(it.index, 0, static_cast<int>(it.values.size()) - 1))];
+            p.text(200, y, stripColon(tidy(it.label)) + ": " + v, FontSize::S, sk().body, Align::Center);
+            y += 16;
+        }
+    }
+}
+
+// Credits: the names centred at S over the dimmed attract level, a gap of 5 px where the texts
+// leave a line out; more than the screen holds: in sheets that turn every 6 s.
+void drawCreditsTop(const Px& p, const Frontend::Facts& f, float mt) {
+    p.rect(0, 0, kConsoleTopW, kConsoleTopH, kDim);
+    struct Line { std::string text; int gap; };
+    std::vector<Line> lines;
+    int last = -1;
+    const Texts& t = *f.texts;
+    for (int i = 0; i <= 30; ++i) {
+        const std::string k = "credits." + std::to_string(i);
+        if (!t.loaded(k)) continue;
+        lines.push_back({t.get(k), lines.empty() ? 0 : (i - last > 1 ? 5 : 0)});
+        last = i;
+    }
+    if (lines.empty()) {
+        p.text(200, 100, t.get("info.missing.0"), FontSize::S, sk().body, Align::Center, true);
+        return;
+    }
+    std::vector<std::vector<Line>> sheets(1);
+    int used = 0;
+    for (Line l : lines) {
+        const int need = (sheets.back().empty() ? 0 : l.gap) + 13;
+        if (!sheets.back().empty() && used + need > kConsoleTopH - 12) {
+            sheets.emplace_back();
+            used = 0;
+        }
+        if (sheets.back().empty()) l.gap = 0;
+        used += l.gap + 13;
+        sheets.back().push_back(l);
+    }
+    const size_t s = sheets.size() > 1 ? static_cast<size_t>(mt / 6.0f) % sheets.size() : 0;
+    float y = std::floor((static_cast<float>(kConsoleTopH) - static_cast<float>(used)) * 0.5f);
+    if (sheets.size() > 1) y = 6;
+    for (const Line& l : sheets[s]) {
+        y += static_cast<float>(l.gap);
+        p.text(200, y, fitLabel(fm(), l.text, FontSize::S, 392), FontSize::S, sk().body, Align::Center, true);
+        y += 13;
+    }
+}
+
+// The portrait dialogue on the top screen: a box at the bottom, the speaker's portrait 1:1
+// (portraits2.tga, 80 x 120) and the page re-flowed at S beside it, typed as the desktop types it.
+void drawDialogueTop(const Px& p, const Frontend& fe) {
+    const auto* st = SequelScreens::state(fe);
+    p.rect(0, 0, kConsoleTopW, kConsoleTopH, Color{0, 0, 0, 0.3f});
+    if (!st || st->fade < 1.0f || st->closing || st->page >= st->pages.size()) return;
+    const auto& page = st->pages[st->page];
+    const RectF box{8, kConsoleTopH - 8 - 132, kConsoleTopW - 16, 132};
+    p.rect(box, Color{0, 0, 0, 0.8f});
+    p.frame(box, sk().barEdge);
+    if (const Texture2D* t = p.a.texture("gfx\\ui\\portraits2.tga")) {
+        const SpecUv uv = as2::pieceUv(*t, as2::Piece{page.speaker == 1 ? 80.0f : 0.0f, 8, 80, 120});
+        p.r.quadSpec(p.vx(box.x + 6), p.vy(box.y + 6), p.vw(80), p.vh(120), uv.s0, uv.t0, uv.s1, uv.t1, t, Color{}, Blend::Alpha);
+    }
+    std::string text = page.text;
+    for (char& c : text)
+        if (c == '\n') c = ' ';
+    const float tx = box.x + 6 + 80 + 10, tw = box.x + box.w - 8 - tx;
+    std::vector<std::string> lines = wrapText(fm(), text, FontSize::S, static_cast<int>(tw), false);
+    if (lines.size() > 9) lines.resize(9);
+    // The typed characters: the wrapped lines take the page's characters in order (a line break
+    // stands for the space it replaced).
+    int left = std::max(st->typed, 0);
+    float y = box.y + 8;
+    for (const std::string& l : lines) {
+        if (left <= 0) break;
+        const int n = std::min(left, static_cast<int>(l.size()));
+        p.text(tx, y, l.substr(0, static_cast<size_t>(n)), FontSize::S, sk().value);
+        left -= n + 1;
+        y += 13;
+    }
+}
+
+// Game over: the game's comic (the three columns of gameover_k_1 / _2 and the "GAME OVER"
+// picture) at 1/2, fading in, the score panel over its foot.
+void drawSequelGameOverTop(const Px& p, const Frontend::Facts& f, float mt) {
+    const float fade = std::min(mt, 1.0f);
+    p.rect(0, 0, kConsoleTopW, kConsoleTopH, Color{0, 0, 0, fade});
+    char name[64];
+    for (int k = 1; k <= 3; ++k)
+        for (int row = 1; row <= 2; ++row) {
+            std::snprintf(name, sizeof name, "gfx\\ui\\comix\\gameover_%d_%d.tga", k, row);
+            if (const Texture2D* t = p.a.texture(name))
+                p.r.quad(p.vx(8.0f + 128.0f * static_cast<float>(k - 1)), p.vy(row == 1 ? 0.0f : 128.0f), p.vw(128), p.vh(128), 0, 0, 1, 1,
+                         t, Color{1, 1, 1, fade}, Blend::Alpha);
+        }
+    if (const Texture2D* g = p.a.texture("gfx\\ui\\comix\\gamov.tga"))
+        p.r.quad(p.vx(72), p.vy(76), p.vw(256), p.vh(32), 0, 0, 1, 1, g, grey(fade), Blend::Add);
+    if (mt >= 1.0f) highScorePanel(p, f, 172);
+}
+
+// Mission complete: the title (T, else L) outlined over the world dimmed 35 %, the statistics in L
+// as they appear, the new helicopter's line.
+void drawSequelCompleteTop(const Px& p, const Frontend& fe, const Frontend::Facts& f, float mt) {
+    p.rect(0, 0, kConsoleTopW, kConsoleTopH, Color{0, 0, 0, 0.35f});
+    const std::string title = tidy(SequelScreens::tr(fe, "title.mission_complete"));
+    const FontSize ts = measureTextPx(fm(), title, FontSize::T) <= kConsoleTopW - 8 ? FontSize::T : FontSize::L;
+    p.text(200, 14, title, ts, sk().title, Align::Center, false, TextEffect::Outline);
+    if (fe.twoPlayers()) return;
+    resultsPanel(p, f, 60, mt, false);
+    const int mission = std::clamp(f.mission, 0, kMaxMissions - 1);
+    const int heli = f.content ? f.content->enableHelic[mission] : -1;
+    if (heli >= 0 && f.rules && heli < f.rules->helicopterCount && mt > 2.2f)
+        p.text(200, 150, fitLabel(fm(), tidy(SequelScreens::tr(fe, "msg.new_heli")), FontSize::L, 384), FontSize::L, sk().value,
+               Align::Center, false, TextEffect::Outline);
+}
+
+// Game complete: the eleven congratulation lines typed from 4 s at 8 characters a second.
+void drawSequelGameCompleteTop(const Px& p, const Frontend::Facts& f, float mt) {
+    p.rect(0, 0, kConsoleTopW, kConsoleTopH, Color{0, 0, 0, std::min(mt / 2.0f, 1.0f) * 0.85f});
+    const Texts& t = *f.texts;
+    std::vector<std::string> lines;
+    for (int i = 0; i <= 10; i++) lines.push_back(t.loaded("congrats." + std::to_string(i)) ? t.get("congrats." + std::to_string(i)) : " ");
+    if (!t.loaded("congrats.2")) {
+        lines[0] = t.get("congrats.0");
+        lines[2] = t.get("congrats.missing");
+    }
+    float start = 4.0f, y = 18;
+    for (const std::string& l : lines) {
+        const float dt = mt - start;
+        start += static_cast<float>(l.size()) / 8.0f;
+        const int k = dt < 0 ? 0 : std::min(static_cast<int>(8.0f * dt) + 1, static_cast<int>(l.size()));
+        if (k > 0) {
+            // Each line types out from its final left edge.
+            const std::string full = fitLabel(fm(), l, FontSize::S, 392);
+            const int w = measureTextPx(fm(), full, FontSize::S, true);
+            p.text(std::floor(200.0f - static_cast<float>(w) * 0.5f), y, full.substr(0, static_cast<size_t>(k)), FontSize::S, sk().body,
+                   Align::Left, true);
+        }
+        y += 18;
+    }
 }
 
 } // namespace
 
 bool ConsoleMenuView::drawTop(Renderer2D& r, const UiAssets& a, const Frontend& fe) const {
     if (!handles(fe)) return false;
+    useSkin(fe);
+    g_sequel = fe.sequel();
+    const Px p(r, a);
+    if (introShown(fe)) {
+        if (!scratch_) scratch_.reset(new Renderer2D());
+        return drawIntroTop(p, fe, *scratch_);
+    }
     const Menu* m = fe.menus().top();
     if (!m) return false;
-    const Px p(r, a);
     const Frontend::Facts f = fe.facts();
     const Texts& t = *f.texts;
     const float mt = fe.menus().menuTime();
+    if (f.sequel) {
+        switch (fe.topScreen()) {
+            case Screen::MainMenu: drawSequelLogoTop(p, fe, f); return true;
+            case Screen::StartGame: drawSequelStartTop(p, fe, *m); return true;
+
+            case Screen::HeliSelect: {
+                // The model view is the frame's (on the top screen, over the selection's dot grid);
+                // a locked helicopter has none: its "not available" over the dimmed attract level.
+                const int h = SequelScreens::shownHeli(fe);
+                if (!SequelScreens::heliLocked(fe, h)) return false;
+                p.rect(0, 0, kConsoleTopW, kConsoleTopH, kDim);
+                p.text(200, static_cast<float>(textTopIn(100, 40, FontSize::T)), fitLabel(fm(), tidy(SequelScreens::tr(fe, "heli.na")), FontSize::L, 384),
+                       FontSize::L, Color{1, 0.2f, 0.15f, 1}, Align::Center, false, TextEffect::Outline);
+                return true;
+            }
+            case Screen::Credits: drawCreditsTop(p, f, mt); return true;
+            case Screen::Hint: drawHintTop(p, f, keys_, tidy(SequelScreens::tr(fe, "title.hint"))); return true;
+            case Screen::Dialogue: drawDialogueTop(p, fe); return true;
+            case Screen::GameOver: drawSequelGameOverTop(p, f, mt); return true;
+            case Screen::MissionComplete: drawSequelCompleteTop(p, fe, f, mt); return true;
+            case Screen::GameComplete: drawSequelGameCompleteTop(p, f, mt); return true;
+            default: break; // Exit, Top Scores, Information, name entry: the first game's panels
+        }
+    }
     switch (fe.topScreen()) {
         case Screen::MainMenu: {
             const FrontendContent& c = *f.content;
             if (c.version.empty() && c.copyright.empty()) return false;
             p.rect(0, 224, kConsoleTopW, 16, Color{0, 0, 0, 0.85f});
-            p.text(6, 226, c.version, FontSize::S, kGreyText);
-            p.text(394, 226, c.copyright, FontSize::S, kGreyText, Align::Right);
+            p.text(6, 226, c.version, FontSize::S, sk().greyText);
+            p.text(394, 226, c.copyright, FontSize::S, sk().greyText, Align::Right);
             return true;
         }
         case Screen::Exit:
             p.rect(0, 92, kConsoleTopW, 56, Color{0, 0, 0, 0.75f});
-            p.text(200, static_cast<float>(textTopIn(92, 56, FontSize::L)), t.get("label.exit"), FontSize::L, kBody, Align::Center);
+            p.text(200, static_cast<float>(textTopIn(92, 56, FontSize::L)), t.get("label.exit"), FontSize::L, sk().body, Align::Center);
             return true;
         case Screen::Options: {
-            titleBand(p, "menu\\optionsh", conText(t, "options.title", "OPTIONS"));
+            titleBand(p, "menu\\optionsh", f.sequel ? tidy(SequelScreens::tr(fe, "title.options")) : conText(t, "options.title", "OPTIONS"));
             if (m->focused >= 0) {
                 const MenuItem& it = m->items[static_cast<size_t>(m->focused)];
                 std::string help;
@@ -1375,11 +1973,11 @@ bool ConsoleMenuView::drawTop(Renderer2D& r, const UiAssets& a, const Frontend& 
                 }
                 if (!help.empty()) {
                     p.rect(0, 196, kConsoleTopW, 44, Color{0, 0, 0, 0.72f});
-                    p.text(200, 201, help, FontSize::S, kBody, Align::Center);
+                    p.text(200, 201, help, FontSize::S, sk().body, Align::Center);
                     const std::string how = it.type == ItemType::Slider ? conText(t, "help.slider", "Left / Right or drag the slider.")
                                             : it.type == ItemType::Spinner ? conText(t, "help.spinner", "Left / Right or tap the arrows.")
                                                                            : conText(t, "help.button", "A or tap.");
-                    p.text(200, 218, how, FontSize::S, kHintLabel, Align::Center);
+                    p.text(200, 218, how, FontSize::S, sk().hintLabel, Align::Center);
                 }
             }
             return true;
@@ -1390,7 +1988,7 @@ bool ConsoleMenuView::drawTop(Renderer2D& r, const UiAssets& a, const Frontend& 
             for (const MenuItem& it : m->items)
                 if (it.type == ItemType::List) list = &it;
             p.rect(8, 44, 384, 101, Color{0, 0, 0, 0.72f});
-            p.frame({12, 52, 86, 86}, kBarEdge);
+            p.frame({12, 52, 86, 86}, sk().barEdge);
             const int heli = f.helicopter;
             const bool locked = f.heliLocked && heli >= 0 && heli < f.rules->helicopterCount && f.heliLocked[heli];
             drawHeli(p, heli, 13 + heliShift(heli, 85), 53, 85, locked, true);
@@ -1398,25 +1996,27 @@ bool ConsoleMenuView::drawTop(Renderer2D& r, const UiAssets& a, const Frontend& 
             if (list && !list->entries.empty())
                 name = list->entries[static_cast<size_t>(std::clamp(list->selected, 0, static_cast<int>(list->entries.size()) - 1))].text;
             const FontSize ns = measureTextPx(fm(), name, FontSize::L) <= 280 ? FontSize::L : FontSize::S;
-            p.text(108, 56, name, ns, kValue);
+            p.text(108, 56, name, ns, sk().value);
             char line[192];
             std::snprintf(line, sizeof line, "%s %s", t.get("label.difficulty").c_str(),
                           t.get("difficulty." + std::to_string(f.difficulty)).c_str());
-            p.text(108, 80, line, FontSize::S, kBody);
+            p.text(108, 80, line, FontSize::S, sk().body);
             std::snprintf(line, sizeof line, "%s %d %s %d", conText(t, "heli", "Helicopter").c_str(), heli + 1,
                           conText(t, "of", "of").c_str(), f.rules->helicopterCount);
-            p.text(108, 96, line, FontSize::S, kBody);
+            p.text(108, 96, line, FontSize::S, sk().body);
             int open = 0;
             for (int i = 0; i < f.rules->helicopterCount; ++i) open += f.heliLocked && !f.heliLocked[i] ? 1 : 0;
             std::snprintf(line, sizeof line, "%d %s %d %s", open, conText(t, "of", "of").c_str(), f.rules->helicopterCount,
                           conText(t, "helis_open", "helicopters open").c_str());
-            p.text(108, 112, line, FontSize::S, kHintLabel);
+            p.text(108, 112, line, FontSize::S, sk().hintLabel);
             return true;
         }
         case Screen::TopScores: drawScoresTop(p, f); return true;
         case Screen::Information: drawInfoTop(p, f, infoSheetPage_ == f.infoPage ? infoSheet_ : 0); return true;
         case Screen::InGame: return false; // PAUSED (the host's top list: drawConsolePlayTop)
-        case Screen::Hint: drawHintTop(p, f, keys_); return true;
+        case Screen::Hint:
+            drawHintTop(p, f, keys_, f.texts ? conText(*f.texts, "hint.title", "TUTORIAL") : std::string("TUTORIAL"));
+            return true;
         case Screen::GameOver: {
             p.rect(0, 0, kConsoleTopW, kConsoleTopH, Color{0, 0, 0, std::min(mt, 1.0f) * 0.45f});
             const float alpha = mt < 2.0f ? 0.5f * mt : 1.0f;
@@ -1433,9 +2033,9 @@ bool ConsoleMenuView::drawTop(Renderer2D& r, const UiAssets& a, const Frontend& 
         }
         case Screen::NameEntry:
             p.rect(0, 0, kConsoleTopW, kConsoleTopH, Color{0, 0, 0, 0.45f});
-            p.text(200, 50, conText(t, "name.top", "WELL DONE, PILOT"), FontSize::T, kTitle, Align::Center, false, TextEffect::Outline);
+            p.text(200, 50, conText(t, "name.top", "WELL DONE, PILOT"), FontSize::T, sk().title, Align::Center, false, TextEffect::Outline);
             highScorePanel(p, f, 110);
-            p.text(200, 196, conText(t, "name.help", "Tap the keys, or Y for the keyboard."), FontSize::S, kHintLabel,
+            p.text(200, 196, conText(t, "name.help", "Tap the keys, or Y for the keyboard."), FontSize::S, sk().hintLabel,
                    Align::Center, false, TextEffect::Outline);
             return true;
         case Screen::MissionComplete: {
@@ -1463,7 +2063,7 @@ bool ConsoleMenuView::drawTop(Renderer2D& r, const UiAssets& a, const Frontend& 
                 const float dt = mt - start;
                 start += static_cast<float>(l.size()) / 8.0f;
                 const int k = dt < 0 ? 0 : std::min(static_cast<int>(8.0f * dt) + 1, static_cast<int>(l.size()));
-                if (k > 0) p.text(200, y, l.substr(0, static_cast<size_t>(k)), FontSize::S, kBody, Align::Center);
+                if (k > 0) p.text(200, y, l.substr(0, static_cast<size_t>(k)), FontSize::S, sk().body, Align::Center);
                 y += 15;
             }
             if (!fe.twoPlayers()) resultsPanel(p, f, 104, mt, true);
@@ -1473,5 +2073,295 @@ bool ConsoleMenuView::drawTop(Renderer2D& r, const UiAssets& a, const Frontend& 
     }
     return false;
 }
+
+// ---------------------------------------------------------------------------
+// The loading screen (R4.8)
+// ---------------------------------------------------------------------------
+namespace {
+
+// The console's controls card (the default pad bindings, consoleKeyNames): a key picture or the
+// key's name, then what it does.
+struct ControlRow {
+    bool picture;
+    HintKey key;
+    const char* name;  // without a picture
+    const char* label;
+};
+constexpr ControlRow kControls[] = {
+    {false, HintKey::A, "Circle Pad", "fly"},    {true, HintKey::A, "", "fire"},
+    {true, HintKey::B, "", "missile"},           {true, HintKey::X, "", "power-up"},
+    {true, HintKey::Y, "", "next weapon"},       {true, HintKey::R, "", "next missile"},
+    {false, HintKey::A, "ZR", "next power-up"},  {true, HintKey::Start, "", "pause"},
+    {false, HintKey::A, "touch", "tiles: select, use"},
+};
+
+} // namespace
+
+void drawConsoleLoading(Renderer2D& top, Renderer2D& bottom, const UiAssets& a, float progress, bool intermission,
+                        const KeyGlyphAtlas* keys) {
+    const LoadingInfo info = loadingInfo();
+    g_skin = !info.sequel ? &kSkinAs3d : info.gulf ? &kSkinGulf : &kSkinAs2;
+    const Px t(top, a);
+    const Px b(bottom, a);
+    t.rect(0, 0, kConsoleTopW, kConsoleTopH, Color{0, 0, 0, 1}, Blend::Opaque);
+    b.rect(0, 0, kConsoleBottomW, kConsoleBottomH, Color{0, 0, 0, 1}, Blend::Opaque);
+    if (intermission) return; // the attract level: black, as the desktop's
+    const float p = std::clamp(progress, 0.0f, 1.0f);
+    // Top: the picture at 1:1 (the first game's) or exactly 1/2 (the sequels' comics), the
+    // mission's name and the bar under it.
+    constexpr float kPicBottom = 206;
+    if (!info.sequel) {
+        if (const Texture2D* pic = a.texture("menu\\loading.tga")) {
+            const float w = static_cast<float>(pic->width()), h = static_cast<float>(pic->height());
+            const float rows = std::min(h, kPicBottom);
+            const float cut = std::floor((h - rows) * 0.5f);
+            const float x = std::floor((kConsoleTopW - w) * 0.5f);
+            // quad(): t = 0 the top row.
+            t.r.quad(t.vx(x), t.vy(0), t.vw(w), t.vh(rows), 0, cut / h, 1, (cut + rows) / h, pic, Color{}, Blend::Alpha);
+        }
+    } else {
+        char name[64];
+        const float half = 0.5f;
+        if (!info.gulf) {
+            // AirStrike 2: the comic of the mission's third of the campaign, three columns of 267
+            // virtual pixels (as2/frontend.md 3.16) at 1/2: 400 x 165 from y 4.
+            const int m = info.missionIndex;
+            const int set = m <= 6 ? 1 : m <= 12 ? 2 : 3;
+            for (int k = 1; k <= 3; k++) {
+                const float x = std::floor(267.0f * half * static_cast<float>(k - 1));
+                const float w = (k == 3 ? static_cast<float>(kConsoleTopW) : std::floor(267.0f * half * static_cast<float>(k))) - x;
+                std::snprintf(name, sizeof name, "gfx\\ui\\comix\\loading%d_%d_1.tga", set, k);
+                if (const Texture2D* c = a.texture(name)) t.r.quad(t.vx(x), t.vy(4), t.vw(w), t.vh(132), 0, 0, 1, 1, c, Color{}, Blend::Alpha);
+                std::snprintf(name, sizeof name, "gfx\\ui\\comix\\loading%d_%d_2.tga", set, k);
+                if (const Texture2D* c = a.texture(name)) t.r.quad(t.vx(x), t.vy(136), t.vw(w), t.vh(33), 0, 0, 1, 1, c, Color{}, Blend::Alpha);
+            }
+        } else {
+            // Gulf Thunder: its one comic, two rows of four 256-texel tiles, at 1/2 (the first 400
+            // pixels of it, its top 206 rows).
+            for (int row = 0; row < 2; row++)
+                for (int col = 0; col < 4; col++) {
+                    const float x = 128.0f * static_cast<float>(col), y = 128.0f * static_cast<float>(row);
+                    if (x >= kConsoleTopW || y >= kPicBottom) continue;
+                    std::snprintf(name, sizeof name, "gfx\\ui\\comix\\loading1_%d_%d.tga", row, col);
+                    const Texture2D* c = a.texture(name);
+                    if (!c) continue;
+                    const float h = std::min(128.0f, kPicBottom - y);
+                    t.r.quad(t.vx(x), t.vy(y), t.vw(128), t.vh(h), 0, 0, 1, h / 128.0f, c, Color{1, 1, 1, 0.812f}, Blend::Alpha);
+                }
+        }
+    }
+    if (!info.name.empty()) {
+        const FontSize ns = measureTextPx(fm(), info.name, FontSize::L, true) <= kConsoleTopW - 16 ? FontSize::L : FontSize::S;
+        t.text(200, kPicBottom + 4, fitLabel(fm(), info.name, ns, kConsoleTopW - 16), ns, sk().value, Align::Center, true);
+    }
+    const float bx = 100, bw = 200, by = 228;
+    t.rect(bx, by, bw, 6, Color{sk().barFill.r, sk().barFill.g, sk().barFill.b, 1});
+    t.rect(bx, by, std::floor(bw * p), 6, sk().arrow);
+    // Bottom: the controls card (the original's controls page names the keyboard's keys).
+    b.text(160, 8, "CONTROLS", FontSize::L, sk().title, Align::Center);
+    std::vector<std::string> labels;
+    for (const ControlRow& c : kControls) labels.push_back(c.label);
+    const FontSize ls = consoleGroupSize(fm(), labels, {kConsoleBottomW - 140.0f}, FontSize::L);
+    KeyHintStyle st;
+    st.size = FontSize::S;
+    st.keyColor = sk().hintKey;
+    st.labelColor = sk().hintKey;
+    float y = 32;
+    for (const ControlRow& c : kControls) {
+        const RectF row{0, y, kConsoleBottomW, 20};
+        if (c.picture) {
+            const KeyGlyphAtlas::Rect kr = consoleKeyRect(c.key);
+            const int kw = kr.empty() ? measureTextPx(fm(), hintKeyName(c.key), FontSize::S) + 4 : kr.w;
+            drawKeyHint(b.r, b.font, keys, 120 - kw, static_cast<int>(y) + 2, c.key, "", st);
+        } else {
+            b.text(120, static_cast<float>(textTopIn(row.y, row.h, FontSize::L)), c.name, FontSize::L, sk().hintKey, Align::Right);
+        }
+        b.text(132, static_cast<float>(textTopIn(row.y, row.h, ls)), fitLabel(fm(), c.label, ls, kConsoleBottomW - 140.0f), ls,
+               sk().body);
+        y += 22;
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// The game selector (R4.8)
+// ---------------------------------------------------------------------------
+static std::string consoleCardTitle(const GameCard& card) {
+    // "AirStrike II: Gulf Thunder" -> "Gulf Thunder": the part a card has room for.
+    const size_t c = card.title.find(": ");
+    return c == std::string::npos ? card.title : card.title.substr(c + 2);
+}
+
+ConsoleSelectorLayout consoleSelectorLayout(const GameSelector& sel) {
+    ConsoleSelectorLayout L;
+    const int n = std::min(static_cast<int>(sel.cards().size()), 3);
+    L.count = n;
+    if (n > 0) {
+        const float w = std::floor((312.0f - 4.0f * static_cast<float>(n - 1)) / static_cast<float>(n));
+        const float total = w * static_cast<float>(n) + 4.0f * static_cast<float>(n - 1);
+        const float x0 = std::floor((kConsoleBottomW - total) * 0.5f);
+        for (int i = 0; i < n; ++i) L.cards[i] = {x0 + (w + 4.0f) * static_cast<float>(i), 22, w, 166};
+    }
+    L.exit = {kMargin, 198, 92, 38};
+    L.play = {kConsoleBottomW - kMargin - 92, 198, 92, 38};
+    // One size for the cards' titles and one for their lines (the size rule), L else S.
+    std::vector<std::string> titles, lines;
+    for (int i = 0; i < n; ++i) {
+        titles.push_back(consoleCardTitle(sel.cards()[static_cast<size_t>(i)]));
+        lines.push_back(sel.cards()[static_cast<size_t>(i)].brief);
+    }
+    const float room = n > 0 ? L.cards[0].w - 8 : 0;
+    L.titleSize = consoleGroupSize(fm(), titles, {room}, FontSize::L);
+    L.lineSize = consoleGroupSize(fm(), lines, {room}, FontSize::L);
+    return L;
+}
+
+void consoleSelectorApplyHits(GameSelector& sel) {
+    const ConsoleSelectorLayout L = consoleSelectorLayout(sel);
+    Menu* m = sel.menus().top();
+    if (!m) return;
+    auto virt = [](const RectF& r) {
+        return RectF{r.x * kConsoleVirtualPerPx, r.y * kConsoleVirtualPerPx, r.w * kConsoleVirtualPerPx, r.h * kConsoleVirtualPerPx};
+    };
+    // The cards are the first items, then Exit and Play (screens_launcher.cpp).
+    for (size_t i = 0; i < m->items.size(); ++i) {
+        MenuItem& it = m->items[i];
+        if (static_cast<int>(i) < L.count) it.hit = virt(L.cards[i]);
+        else if (it.id == 1) it.hit = virt(L.exit);
+        else if (it.id == 2) it.hit = virt(L.play);
+        else it.hit = {};
+    }
+}
+
+void drawConsoleSelectorBottom(Renderer2D& r, const UiAssets& a, const GameSelector& sel) {
+    g_skin = &kSkinAs3d;
+    const Px p(r, a);
+    const ConsoleSelectorLayout L = consoleSelectorLayout(sel);
+    const Menu* m = const_cast<GameSelector&>(sel).menus().top();
+    const int focused = m ? m->focused : -1;
+    const float clock = sel.clock();
+    p.rect(0, 0, kConsoleBottomW, kConsoleBottomH, Color{0, 0, 0, 1}, Blend::Opaque);
+    p.rect(0, 0, kConsoleBottomW, 20, Color{0.10f, 0.02f, 0.015f, 1});
+    p.rect(0, 20, kConsoleBottomW, 1, sk().barEdge);
+    p.text(160, static_cast<float>(textTopIn(0, 20, FontSize::L)), "CHOOSE A GAME", FontSize::L, Color{1.0f, 0.63f, 0.20f, 1}, Align::Center);
+    const float pl = 0.5f + 0.5f * std::sin(clock * 6.0f);
+    for (int i = 0; i < L.count; ++i) {
+        const GameCard& card = sel.cards()[static_cast<size_t>(i)];
+        const RectF& b = L.cards[i];
+        const bool cur = i == sel.current();
+        p.rect(b, cur ? Color{0.30f, 0.05f, 0.03f, 0.95f} : Color{0.10f, 0.02f, 0.015f, 0.9f});
+        p.frame(b, cur ? Color{1.0f, 0.45f + 0.2f * pl, 0.15f, 1} : sk().barEdge, cur ? 2 : 1);
+        // The marquee: the game's own animated title in a box 8 px inside the card, 56 px high; the
+        // first game's (its 3D banner is not drawn here) as its name in large text.
+        const RectF mq{b.x + 4, b.y + 6, b.w - 8, 56};
+        bool drawn = false;
+        if (card.marquee != Marquee::Banner && card.marquee != Marquee::None)
+            drawn = drawMarquee(r, card, RectF{p.vx(mq.x), p.vy(mq.y), p.vw(mq.w), p.vh(mq.h)}, clock, false);
+        if (!drawn) {
+            const size_t sp = card.title.rfind(' ');
+            const std::string head = sp == std::string::npos ? card.title : card.title.substr(0, sp);
+            const std::string tail = sp == std::string::npos ? std::string() : card.title.substr(sp + 1);
+            const Color c = cur ? Color{1.0f, 0.55f, 0.20f, 1} : Color{0.85f, 0.35f, 0.15f, 1};
+            p.text(mq.x + mq.w * 0.5f, mq.y + 4, fitLabel(fm(), head, FontSize::L, mq.w), FontSize::L, c, Align::Center);
+            if (!tail.empty())
+                p.text(mq.x + mq.w * 0.5f, mq.y + 20, fitLabel(fm(), tail, measureTextPx(fm(), tail, FontSize::T) <= mq.w ? FontSize::T : FontSize::L, mq.w),
+                       measureTextPx(fm(), tail, FontSize::T) <= mq.w ? FontSize::T : FontSize::L, c, Align::Center);
+        }
+        float y = b.y + 72;
+        const float room = b.w - 8;
+        p.text(b.x + b.w * 0.5f, y, fitLabel(fm(), consoleCardTitle(card), L.titleSize, room), L.titleSize,
+               cur ? Color{1, 0.95f, 0.85f, 1} : Color{1.0f, 0.55f, 0.30f, 1}, Align::Center);
+        y += 20;
+        if (!card.brief.empty())
+            p.text(b.x + b.w * 0.5f, y, fitLabel(fm(), card.brief, L.lineSize, room), L.lineSize, sk().value, Align::Center);
+        y += 20;
+        if (!card.saveLines.empty() && card.missing)
+            p.text(b.x + b.w * 0.5f, y, fitLabel(fm(), card.saveLines[0], FontSize::S, room), FontSize::S, Color{1, 0.35f, 0.3f, 1}, Align::Center);
+        if (cur && !card.missing)
+            p.text(b.x + b.w * 0.5f, b.y + b.h - 22, fitLabel(fm(), "TAP: PLAY", FontSize::S, room), FontSize::S,
+                   Color{1.0f, 0.63f * (0.75f + 0.25f * pl), 0.2f, 1}, Align::Center);
+    }
+    const struct { const RectF* r; const char* label; int id; } buttons[] = {{&L.exit, "EXIT", 1}, {&L.play, "PLAY", 2}};
+    for (const auto& bt : buttons) {
+        bool foc = false;
+        if (m && focused >= 0 && focused < static_cast<int>(m->items.size())) foc = m->items[static_cast<size_t>(focused)].id == bt.id;
+        drawBar(p, *bt.r, foc, false);
+        p.textIn(*bt.r, bt.label, FontSize::L, foc ? sk().labelFocus : sk().label);
+    }
+}
+
+void drawConsoleSelectorTop(Renderer2D& r, const UiAssets& a, const GameSelector& sel, const KeyGlyphAtlas* keys,
+                            const std::string& missing) {
+    g_skin = &kSkinAs3d;
+    const Px p(r, a);
+    // A dark red ground, darker towards the bottom.
+    for (int k = 0; k < 8; ++k)
+        p.rect(0, 30.0f * static_cast<float>(k), kConsoleTopW, 30, Color{0.16f - 0.016f * static_cast<float>(k), 0.04f - 0.004f * static_cast<float>(k), 0.02f, 1},
+               Blend::Opaque);
+    if (sel.cards().empty()) return;
+    const GameCard& card = sel.cards()[static_cast<size_t>(std::clamp(sel.current(), 0, static_cast<int>(sel.cards().size()) - 1))];
+    const float T = sel.clock();
+    float y = 30;
+    if (card.marquee == Marquee::TitleLogo && card.logo) {
+        // AirStrike 2's logo at exactly 1/2, its letters at y 30..54.
+        as2::TitleLogoPictures pics;
+        pics.glow = card.glow;
+        pics.two = card.two;
+        pics.logo = card.logo;
+        pics.clouds = card.clouds;
+        const float k = 0.5f / p.m.scaleX;
+        as2::titleLogoAt(p.r, pics, T, T, p.vx(50) - 124 * k, p.vy(7), k, 1.0f);
+        y = 92;
+    } else if (card.marquee == Marquee::Emblem && card.logo) {
+        // Gulf Thunder's emblem at exactly 1/2 (its drawn part 152 x 106).
+        Quad q;
+        q.x = p.vx(72);
+        q.y = p.vy(-9);
+        q.w = p.vw(256);
+        q.h = p.vh(128);
+        q.texture = card.logo;
+        q.blend = Blend::Alpha;
+        if (card.clouds) {
+            q.texture2 = card.clouds;
+            q.s0b = 0.1f * T;
+            q.s1b = 0.1f * T + 2.0f;
+            q.t0b = 0;
+            q.t1b = 1;
+            q.combine2 = 2;
+        }
+        p.r.add(q);
+        y = 104;
+    }
+    const FontSize ts = measureTextPx(fm(), card.title, FontSize::T) <= kConsoleTopW - 16 ? FontSize::T : FontSize::L;
+    p.text(200, y, card.title, ts, Color{1.0f, 0.55f, 0.20f, 1}, Align::Center, false, TextEffect::Outline);
+    y += ts == FontSize::T ? 30 : 20;
+    if (!card.version.empty()) p.text(200, y, "Version " + card.version, FontSize::S, Color{0.92f, 0.86f, 0.80f, 1}, Align::Center);
+    y += 20;
+    if (!missing.empty()) {
+        for (const std::string& l : wrapText(fm(), "Missing: " + missing, FontSize::S, 384, false)) {
+            p.text(200, y, l, FontSize::S, Color{1, 0.4f, 0.3f, 1}, Align::Center);
+            y += 13;
+        }
+    } else {
+        for (const std::string& l : card.saveLines) {
+            p.text(200, y, fitLabel(fm(), l, FontSize::L, 384), FontSize::L, Color{0.96f, 0.90f, 0.82f, 1}, Align::Center);
+            y += 18;
+        }
+    }
+    // The keys: A Play, B Exit, START + SELECT Quit (the owner's key pictures).
+    std::vector<ConsoleHint> hints = {{HintKey::A, "Play"}, {HintKey::B, "Exit"}, {HintKey::Start, ""}, {HintKey::Select, "Quit"}};
+    int w = consoleHintsWidth(fm(), hints);
+    int x = static_cast<int>((kConsoleTopW - w) / 2);
+    p.rect(0, 216, kConsoleTopW, 24, Color{0, 0, 0, 0.6f});
+    KeyHintStyle st;
+    st.size = FontSize::S;
+    st.keyColor = sk().hintKey;
+    st.labelColor = sk().hintLabel;
+    for (const ConsoleHint& h : hints) {
+        drawKeyHint(p.r, p.font, keys, x, 220, h.key, h.label, st);
+        x += hintWidth(fm(), h) + 8;
+    }
+}
+
 
 } // namespace as3d::ui

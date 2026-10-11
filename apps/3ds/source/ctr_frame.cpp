@@ -582,7 +582,14 @@ struct GameFrame::Impl {
         } count{*this, now};
         const float p = std::clamp(progress, 0.0f, 1.0f);
         const bool original = flow && hudReady;
-        if (original) {
+        // R4.8: the console's loading screen (the picture 1:1 or 1/2 on top with the name and the
+        // bar, the controls card on the bottom); ui_menus=0: the desktop's on both screens at 0.4.
+        const bool consoleLoading = original && run.uiMenus;
+        if (consoleLoading) {
+            r2d->begin(kTopW, kTopH);
+            r2dBottom->begin(kBottomW, kBottomH);
+            ui::drawConsoleLoading(*r2d, *r2dBottom, *assets, p, intermission, keyGlyphs());
+        } else if (original) {
             r2d->begin(kTopW, kTopH);
             ui::drawLoadingScreen(*r2d, *assets, p, intermission);
             r2dBottom->begin(kBottomW, kBottomH);
@@ -595,7 +602,7 @@ struct GameFrame::Impl {
             clear(Vec4{original ? 0.0f : 0.02f, original ? 0.0f : 0.03f, original ? 0.0f : 0.06f, 1.0f}, depth, 1.0f);
             if (original) {
                 list->flush();
-                if (intermission) return; // the attract level: black, as the desktop
+                if (intermission || consoleLoading) return; // the attract level: black, as the desktop; the console's bar is in the list
                 const float x0 = 8.0f, x1 = static_cast<float>(w) - 8.0f, y0 = static_cast<float>(h) - 8.0f, y1 = y0 + 3.0f;
                 pica::fillRect(x0, y0, x1, y1, 48, 0, 0);
                 pica::fillRect(x0, y0, x0 + (x1 - x0) * p, y1, 230, 120, 20);
@@ -1135,6 +1142,8 @@ struct GameFrame::Impl {
             m.begin(kBottomW, kBottomH);
             menuView.applyHits(*fe);
             menuView.drawBottom(m, *assets, *fe);
+            // R4.8: the sequels' helicopter selection keeps its model view on the top screen.
+            if (fe->modelViewVisible()) fe->drawModelViews();
             menuQuads = true;
         } else if (ui::Frontend* fe = l.frontend) {
             ui::Renderer2D& m = *r2dMenu;

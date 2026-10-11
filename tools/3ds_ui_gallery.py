@@ -65,6 +65,7 @@ LEGACY_RECTS = {
 #   ("screen", name, k)        the k-th dump_screens dump of that screen (k from 1)
 #   ("after", name, k, frames) the first dump_every dump at or after the k-th change to that screen + frames
 #   ("load", k)                the k-th loading-screen dump (dump_loading)
+#   ("frame", f)               the first dump_every dump at or after frame f (R4.8)
 #   ("sel", key)               the selector with that game's card focused
 RUNS = [
     {"name": "selector", "game": "selector", "fresh": [], "frames": 200,
@@ -82,7 +83,7 @@ RUNS = [
               ("03_top_scores", ("screen", "scores", 1)), ("04_information_1", ("screen", "info", 1)),
               ("05_information_2", ("after", "info", 1, 110)), ("06_information_3", ("after", "info", 1, 190)),
               ("07_information_4", ("after", "info", 1, 270)), ("08_exit_dialog", ("screen", "exit", 1)),
-              ("09_start_game", ("screen", "start", 1)), ("10_loading", ("load", 2)),
+              ("09_start_game", ("screen", "start", 1)), ("10_loading", ("load", -1)),
               ("11_play_level_name", ("after", "playing", 1, 100)), ("12_play_early", ("after", "playing", 1, 50)),
               ("13_paused", ("screen", "ingame", 1)), ("14_hint", ("screen", "hint", 1)),
               ("15_play_midfight", ("after", "playing", 1, 1100)), ("16_mission_complete", ("after", "complete", 1, 150))]},
@@ -111,24 +112,44 @@ RUNS = [
      "keep": [("01_intro_logo", ("screen", "intro1", 1)), ("02_intro_page2", ("screen", "intro2", 1)),
               ("03_intro_page3", ("screen", "intro3", 1)), ("04_intro_page4", ("screen", "intro4", 1)),
               ("05_intro_page4_late", ("after", "intro4", 1, 250))]},
-    {"name": "as2_menus", "game": "as2", "fresh": [], "frames": 2900,
+    # R4.8: the sequels' runs on a fresh profile (the SD's profiles keep earlier runs' checkpoints,
+    # which start mission 3: no start dialogue, no early hint); the profiles are restored after.
+    {"name": "as2_menus", "game": "as2", "fresh": ["as2"], "frames": 3000,
      "ini": {"game": "as2", "logo": "0", "menu_bot": "1", "hint_hold": "150", "unlock_heli": "1", "dump_every": "50",
              "dump_loading": "1", "end_at": "1100", "end_kind": "complete"},
-     "inputs": [(40, "@main/3"), (140, "B"), (200, "@main/2"), (300, "B"), (360, "@main/4"), (460, "B"),
-                (520, "@main/1"), (620, "@start/2"), (720, "@heli/1")] +
-               [(f, "A") for f in range(820, 1021, 20)] + [(1250, "START"), (1350, "B")],
+     "inputs": [(40, "@main/3"), (140, "B"), (200, "@main/2"), (300, "B"), (360, "@main/4"), (440, "R"), (500, "B"),
+                (540, "@main/7"), (600, "B"), (640, "@main/5"), (700, "B"),
+                (740, "@main/1"), (840, "@start/2"), (940, "@heli/6"), (1000, "@heli/1")] +
+               [(f, "A") for f in range(1140, 1341, 20)] + [(1550, "START"), (1650, "B")],
      "keep": [("06_main_menu", ("screen", "main", 1)), ("07_options", ("screen", "options", 1)),
               ("08_top_scores", ("screen", "scores", 1)), ("09_information", ("screen", "info", 1)),
+              ("09b_information_2", ("after", "info", 1, 90)), ("09c_credits", ("screen", "credits", 1)),
+              ("09d_exit", ("screen", "exit", 1)),
               ("10_start_game", ("screen", "start", 1)), ("11_helicopter_select", ("screen", "heli", 1)),
-              ("12_loading", ("load", 1)), ("13_start_dialogue", ("screen", "dialogue", 1)),
+              ("11b_helicopter_next", ("after", "heli", 1, 70)),
+              ("12_loading", ("load", -1)), ("13_start_dialogue", ("after", "dialogue", 1, 60)),
               ("14_play_early", ("after", "playing", 1, 60)), ("15_paused", ("screen", "ingame", 1)),
               ("16_hint", ("screen", "hint", 1)), ("17_play_midfight", ("after", "playing", 1, 900)),
               ("18_mission_complete", ("after", "complete", 1, 150))]},
+    {"name": "as2_gameover", "game": "as2", "fresh": ["as2"], "frames": 1500,
+     "ini": {"game": "as2", "logo": "0", "menu_bot": "1", "end_at": "300", "end_kind": "gameover", "end_score": "60000",
+             "name_entry": "touch", "dump_every": "50"},
+     "inputs": [(40, "@main/1"), (140, "@start/2"), (240, "@heli/1")] + [(f, "A") for f in range(380, 581, 20)] +
+               [(f, "@gameover/2") for f in range(700, 1301, 50)],
+     "keep": [("19_game_over", ("screen", "gameover", 1)), ("20_name_entry", ("screen", "name", 1))]},
+    {"name": "as2_play", "game": "as2", "fresh": ["as2"], "frames": 1500,
+     "ini": {"game": "as2", "logo": "0", "hud_stock": "5", "dump_every": "10", "log_input": "1"},
+     "inputs": [(40, "@main/1"), (140, "@start/2"), (240, "@heli/1")] + [(f, "A") for f in range(380, 581, 20)] +
+               [(800, "T281/175"), (830, "A"), (860, "T281/175"), (900, "A"), (920, "T205/95"), (950, "A"),
+                (980, "T39/79"), (1020, "A"), (1060, "T20/18"), (1140, "B")],
+     "keep": [("21_play_stocked", ("frame", 790)), ("22_tap_select_missile", ("frame", 850)),
+              ("23_tap_fire_missile", ("frame", 880)), ("24_tap_select_powerup", ("frame", 970)),
+              ("25_tap_next_weapon", ("frame", 1010)), ("26_tap_pause", ("screen", "ingame", 1))]},
     {"name": "gulf_intro", "game": "gulf", "fresh": ["gulf"], "frames": 600,
      "ini": {"game": "gulf", "logo": "1"},
      "inputs": [],
      "keep": [("01_intro_logo", ("screen", "intro1", 1))]},
-    {"name": "gulf_menus", "game": "gulf", "fresh": [], "frames": 2700,
+    {"name": "gulf_menus", "game": "gulf", "fresh": ["gulf"], "frames": 2700,
      "ini": {"game": "gulf", "logo": "0", "menu_bot": "1", "hint_hold": "150", "unlock_heli": "1", "dump_every": "50",
              "dump_loading": "1", "end_at": "900", "end_kind": "gameover", "end_score": "60000", "name_entry": "touch"},
      "inputs": [(40, "@main/2"), (140, "B"), (200, "@main/3"), (300, "B"), (360, "@main/4"), (460, "B"),
@@ -137,10 +158,15 @@ RUNS = [
      "keep": [("02_main_menu", ("screen", "main", 1)), ("03_top_scores", ("screen", "scores", 1)),
               ("04_options", ("screen", "options", 1)), ("05_information", ("screen", "info", 1)),
               ("06_credits", ("screen", "credits", 1)), ("07_start_game", ("screen", "start", 1)),
-              ("08_helicopter_select", ("screen", "heli", 1)), ("09_loading", ("load", 1)),
+              ("08_helicopter_select", ("screen", "heli", 1)), ("09_loading", ("load", -1)),
               ("10_play_level_name", ("after", "playing", 1, 120)), ("11_paused", ("screen", "ingame", 1)),
               ("12_hint", ("screen", "hint", 1)), ("13_play_midfight", ("after", "playing", 1, 350)),
               ("14_game_over", ("screen", "gameover", 1)), ("15_game_over_menu", ("after", "gameover", 1, 300))]},
+    {"name": "gulf_gameover", "game": "gulf", "fresh": ["gulf"], "frames": 1300,
+     "ini": {"game": "gulf", "logo": "0", "menu_bot": "1", "end_at": "300", "end_kind": "gameover", "end_score": "60000",
+             "name_entry": "touch", "dump_every": "50"},
+     "inputs": [(40, "@main/1"), (140, "@start/2"), (240, "@heli/1")] + [(f, "@gameover/2") for f in range(600, 1101, 50)],
+     "keep": [("16_name_entry", ("screen", "name", 1))]},
 ]
 
 KILL_PATTERNS = ["^/bin/bash -e /app/bin/azahar-launcher .*{tag}\\.3dsx", "^azahar .*{tag}\\.3dsx"]
@@ -352,9 +378,19 @@ def pick(raw, prefix, logtext, sel):
             if m and int(m.group(1)) >= want and (best is None or int(m.group(1)) < best[0]):
                 best = (int(m.group(1)), f)
         return os.path.join(raw, best[1][:-8]) if best else None
+    if kind == "frame":  # R4.8: the first dump_every dump at or after an absolute frame
+        _, want = sel
+        best = None
+        for f in files:
+            m = re.match(re.escape(prefix) + r"f(\d+)_top\.ppm$", f)
+            if m and int(m.group(1)) >= want and (best is None or int(m.group(1)) < best[0]):
+                best = (int(m.group(1)), f)
+        return os.path.join(raw, best[1][:-8]) if best else None
     if kind == "load":
         _, k = sel
         hits = [f for f in files if re.match(re.escape(prefix) + r"load\d\d_top\.ppm$", f)]
+        if k < 0:  # R4.8: from the end (-1: the last, the mission's own at 1.00)
+            return os.path.join(raw, hits[k][:-8]) if len(hits) >= -k else None
         return os.path.join(raw, hits[k - 1][:-8]) if len(hits) >= k else None
     if kind == "sel":
         _, key = sel

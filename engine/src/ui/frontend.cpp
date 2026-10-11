@@ -218,6 +218,9 @@ void Frontend::startLevel(bool restart, bool carryUpgrades) {
     if (plain()) loadingState().mission = missionLabel(campaign_.mission);
     loadingState().missionIndex = campaign_.mission;
     if (sequel()) loadingState().name = SequelScreens::loadingName(*this);
+    else loadingState().name = content_.missionNames[std::clamp(campaign_.mission, 0, kMaxMissions - 1)].empty()
+                                   ? missionLabel(campaign_.mission)
+                                   : content_.missionNames[std::clamp(campaign_.mission, 0, kMaxMissions - 1)];
     ms.difficulty = campaign_.difficulty;
     ms.players = campaign_.players;
     ms.restart = restart;
@@ -502,6 +505,16 @@ void Frontend::drawOver(Renderer2D& r, const UiAssets& a) {
     if (state_ == FrontendState::Intro) return;
     if (state_ == FrontendState::Playing && menus_.empty() && touch_ && content_.touchMenuButton) drawTouchPlayButtons(r, a);
     menus_.drawItems(r, a);
+}
+
+LoadingInfo loadingInfo() {
+    LoadingInfo i;
+    i.plain = loadingState().plain;
+    i.sequel = loadingState().sequel;
+    i.gulf = loadingState().gulf;
+    i.missionIndex = loadingState().missionIndex;
+    i.name = loadingState().name;
+    return i;
 }
 
 void drawLoadingScreen(Renderer2D& r, const UiAssets& a, float progress, bool intermission) {

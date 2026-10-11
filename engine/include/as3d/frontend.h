@@ -473,6 +473,15 @@ private:
 // Loading screen (S9, frontend.md 3.16): black, menu\loading.tga unless an intermission level
 // loads, and a progress line. The host calls it at each loading step.
 void drawLoadingScreen(Renderer2D& r, const UiAssets& a, float progress, bool intermission);
+// Ours (the 3DS console loading screen, R4.8: ConsoleMenuView's drawConsoleLoading): what the
+// loading screen shows, as the front ends left it: the look (the sequels', Gulf Thunder's, the
+// plain one's), the mission (0-based) and its name ("" before the first mission).
+struct LoadingInfo {
+    bool plain = false, sequel = false, gulf = false;
+    int missionIndex = 0;
+    std::string name;
+};
+LoadingInfo loadingInfo();
 
 // ---------------------------------------------------------------------------
 // The game selector (ours, docs/spec/issues/163): one card per game whose data is present, in
@@ -497,6 +506,10 @@ struct GameCard {
     std::string key;                     // the game's key
     std::string title, version;          // "AirStrike 2", "2.51"
     std::vector<std::string> saveLines;  // the player's save of that game (as3d/launcher.h)
+    // Ours (the 3DS console selector, R4.8): a short line for the card ("24 missions") and whether
+    // files are missing (saveLines then name them).
+    std::string brief;
+    bool missing = false;
     Marquee marquee = Marquee::None;
     // The marquee's pictures (the ones its kind names), or null.
     const Texture2D *logo = nullptr, *glow = nullptr, *two = nullptr, *clouds = nullptr;

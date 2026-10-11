@@ -8,6 +8,7 @@
 // unlocks) as2_flow.cpp. Internal to engine/src/ui.
 #pragma once
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -138,6 +139,19 @@ struct SequelScreens {
     static void drawLoading(Renderer2D& r, const UiAssets& a, float progress, bool intermission, int mission,
                             const std::string& name = std::string());
     // The title logo (AirStrike 2) or the title bar (Gulf Thunder) of the front screens.
-    static void header(MenuDrawContext& c, Frontend& f);};
+    static void header(MenuDrawContext& c, Frontend& f);
+
+    // Ours, read-only, for the console menu view (console_menu.cpp, docs/3ds-ui-design.md R4.8):
+    // the sequels' state behind their screens (dialogue, helicopter selection, logo clock and
+    // tint, intro pages).
+    static const Frontend::SequelState* state(const Frontend& f) { return f.sq_.get(); }
+    static const Frontend::IntroRun* introRun(const Frontend& f) { return f.intro_.get(); }
+    // The helicopter the selection shows (the shown player's choice, clamped).
+    static int shownHeli(const Frontend& f) {
+        const int count = std::max(f.rules().helicopterCount, 1);
+        const int player = f.sq_ ? std::clamp(f.sq_->heliShown, 0, 1) : 0;
+        return std::clamp(f.heli_[player], 0, count - 1);
+    }
+};
 
 } // namespace as3d::ui

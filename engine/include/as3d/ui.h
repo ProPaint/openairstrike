@@ -127,6 +127,12 @@ public:
     // target's own pixels, scale 1, no 4:3 field (the 3DS console layouts: 320x240 bottom, 400x240
     // top; docs/3ds-ui-design.md section 4).
     void beginPixels(int fbWidth, int fbHeight, int originX = 0, int originY = 0);
+    // Ours (the 3DS console screens, R4.8): a list laid out through any mapping `m` (a picture of
+    // the virtual 800x600 screen at a chosen scale and offset), and the quads of such a list
+    // appended to this one, re-expressed in this list's mapping (the same framebuffer pixels). The
+    // two lists' targets are the same size.
+    void beginMapped(int fbWidth, int fbHeight, const Mapping& m);
+    void appendMapped(const Renderer2D& src);
     const Mapping& mapping() const { return mapping_; }
 
     // Returns false (and counts a drop) once kMaxQuads is reached.

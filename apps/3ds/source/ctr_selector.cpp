@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "as3d/console_menu.h"
 #include "as3d/core.h"
 #include "as3d/frontend.h"
 #include "as3d/game_data.h"
@@ -29,6 +30,7 @@
 #include "ctr_perf.h"
 #include "flat_fill.h"
 #include "game_session.h"
+#include "key_glyphs.h"
 #include "pica_frame.h"
 
 namespace ctrapp {
@@ -152,6 +154,8 @@ Selection runSelector(CtrContext& ctx, CtrInput& input, const RunConfig& run, co
             card.title = gi->game->title;
             card.version = gi->game->version;
             card.saveLines = cardLines(*gi);
+            card.missing = !gi->complete();
+            card.brief = std::to_string(gi->game->rules.missionCount) + " missions";
             card.marquee = marqueeOf(gi->game->id);
             if ((card.marquee == ui::Marquee::TitleLogo || card.marquee == ui::Marquee::Emblem) && gi->paksPresent) {
                 std::string e2;
@@ -177,6 +181,13 @@ Selection runSelector(CtrContext& ctx, CtrInput& input, const RunConfig& run, co
     }
 
     const ui::Mapping map = ui::computeMapping(kBottomW, kBottomH);
+    // R4.8: the console layout (run.ini ui_menus, docs/3ds-ui-design.md "Sequels, selector, loading
+    // and name entry on the console"), with the owner's key pictures; ui_menus=0: the desktop's
+    // selector at 0.4.
+    const bool console = run.uiMenus;
+    Texture2D keysTexture;
+    ui::KeyGlyphAtlas keyAtlas;
+    const bool keysOk = console && ready && loadKeyGlyphs(keysTexture, keyAtlas);
     int pre = 0;
     for (size_t i = 0; i < offered.size(); ++i)
         if (last == offered[i]->game->key) pre = static_cast<int>(i);
@@ -203,6 +214,7 @@ Selection runSelector(CtrContext& ctx, CtrInput& input, const RunConfig& run, co
         const float dt = lastT ? static_cast<float>(std::min(0.1, ticksToMs(now - lastT) / 1000.0)) : 0.0f;
         lastT = now;
         if (sel) {
+            if (console) ui::consoleSelectorApplyHits(*sel); // the taps land on the drawn cards
             sel->update(dt, input.uiInputs(map));
             if (sel->exitRequested()) {
                 AS3D_INFO("selector: Exit");
@@ -231,7 +243,13 @@ Selection runSelector(CtrContext& ctx, CtrInput& input, const RunConfig& run, co
 
         // The lists, outside the frame.
         const bool shown = sel != nullptr;
-        if (shown) {
+        if (shown && console) {
+            bottom->begin(kBottomW, kBottomH);
+            ui::drawConsoleSelectorBottom(*bottom, *assets, *sel);
+            top->begin(kTopW, kTopH);
+            const GameInstall& cur = *offered[static_cast<size_t>(sel->current())];
+            ui::drawConsoleSelectorTop(*top, *assets, *sel, keysOk ? &keyAtlas : nullptr, cur.complete() ? std::string() : missingList(cur));
+        } else if (shown) {
             bottom->begin(kBottomW, kBottomH);
             sel->draw(*bottom, *assets);
             top->begin(kTopW, kTopH);
@@ -286,6 +304,7 @@ Selection runSelector(CtrContext& ctx, CtrInput& input, const RunConfig& run, co
 
     // Release: the GPU done with the textures first.
     emptyFrames(ctx);
+    keysTexture = Texture2D();
     sel.reset();
     pictures.clear();
     assets.reset();

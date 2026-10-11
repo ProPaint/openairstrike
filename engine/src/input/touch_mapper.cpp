@@ -230,6 +230,8 @@ static TouchLayout hudTilesLayout(const TouchLayoutOptions& o, int fbWidth, int 
         } else if (n.size() >= 8 && n.substr(0, 7) == "powerup" && n[7] >= '0' && n[7] <= '9') {
             t.kind = TouchTileKind::PowerUp;
             t.index = std::atoi(std::string(n.substr(7)).c_str());
+            t.packed = H.onePlayer.powerups.packedRows;
+            t.rows = H.onePlayer.powerups.slots;
         } else {
             continue;
         }
@@ -426,7 +428,11 @@ bool TouchMapper::tileDown(int finger, int t) {
                 latched_ |= use;
                 break;
             }
-            const int i = tile.index;
+            // A packed row (the sequels): the kind it shows now (the HUD's own window).
+            const int i = tile.packed && !missile
+                              ? ui::hudPackedKind(inv.powerups, 16, inv.powerupSelected, tile.rows, tile.index)
+                              : tile.index;
+            if (i < 0) break; // an empty row: nothing
             const int have = missile ? (i >= 0 && i < 5 ? inv.missiles[i] : 0) : (i >= 0 && i < 16 ? inv.powerups[i] : 0);
             if (have <= 0) break; // an empty slot: nothing
             if ((missile ? inv.missileSelected : inv.powerupSelected) == i) {

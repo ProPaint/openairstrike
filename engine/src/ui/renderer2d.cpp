@@ -63,6 +63,27 @@ void Renderer2D::beginPixels(int fbWidth, int fbHeight, int originX, int originY
     mapping_ = pixelMapping(fbWidth, fbHeight);
 }
 
+void Renderer2D::beginMapped(int fbWidth, int fbHeight, const Mapping& m) {
+    begin(fbWidth, fbHeight);
+    mapping_ = m;
+    mapping_.fbWidth = fbWidth;
+    mapping_.fbHeight = fbHeight;
+}
+
+void Renderer2D::appendMapped(const Renderer2D& src) {
+    const Mapping& a = src.mapping_;
+    const Mapping& b = mapping_;
+    const float kx = a.scaleX / b.scaleX, ky = a.scaleY / b.scaleY;
+    for (const Quad& q0 : src.quads_) {
+        Quad q = q0;
+        q.x = b.toVirtX(a.toFbX(q0.x));
+        q.y = b.toVirtY(a.toFbY(q0.y));
+        q.w = q0.w * kx;
+        q.h = q0.h * ky;
+        add(q);
+    }
+}
+
 bool Renderer2D::add(const Quad& q) {
     if (static_cast<int>(quads_.size()) >= kMaxQuads) {
         dropped_++;

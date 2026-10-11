@@ -27,6 +27,27 @@ struct Hud {
     void draw(const HudPiece& p, float x, float y, bool mirror) const {
         piece(a.mainbar, x, y, p.w, p.h, p.uv, mirror, p.color, p.blend);
     }
+    // A box (L.box), in nine pieces from L.boxSlice when the layout has one (the sequels' console
+    // HUD, R4.8): its corners at one texel per 2.5 virtual pixels (1:1 on the 3DS bottom screen),
+    // the sides and the middle stretched.
+    void box(const HudPiece& p, float x, float y, bool mirror) const {
+        const RectF& sl = L.boxSlice;
+        if (sl.w <= 0 || mirror || !a.mainbar.valid()) {
+            draw(p, x, y, mirror);
+            return;
+        }
+        const float k = 2.5f;
+        const float tx[4] = {sl.x, sl.x + L.sliceL, sl.x + sl.w - L.sliceR, sl.x + sl.w};
+        const float ty[4] = {sl.y, sl.y + L.sliceT, sl.y + sl.h - L.sliceB, sl.y + sl.h};
+        const float dx[4] = {x, x + L.sliceL * k, x + p.w - L.sliceR * k, x + p.w};
+        const float dy[4] = {y, y + L.sliceT * k, y + p.h - L.sliceB * k, y + p.h};
+        for (int j = 0; j < 3; ++j)
+            for (int i = 0; i < 3; ++i) {
+                if (dx[i + 1] <= dx[i] || dy[j + 1] <= dy[j]) continue;
+                const SpecUv uv = texelUv(tx[i], ty[j], tx[i + 1] - tx[i], ty[j + 1] - ty[j], L.barAtlasW, L.barAtlasH);
+                piece(a.mainbar, dx[i], dy[j], dx[i + 1] - dx[i], dy[j + 1] - dy[j], uv, false, p.color, p.blend);
+            }
+    }
     // The health frame in three pieces (HudLayout::barCapLeft / barCapRight, the console HUD):
     // its ends at one texel per 2.5 virtual pixels (1:1 on the 3DS bottom screen), the middle
     // stretched over the rest of p.w.
@@ -137,14 +158,15 @@ struct Hud {
         if (c.drawFrames) {
             if (empty) {
                 HudPiece b = L.box;
-                b.color = {b.color.r * dim, b.color.g * dim, b.color.b * dim, b.color.a};
-                draw(b, c.frameX, F, c.mirror);
+                // ADD frames darken by their colour, ALPHA ones by their alpha.
+                if (b.blend == Blend::Add) b.color = {b.color.r * dim, b.color.g * dim, b.color.b * dim, b.color.a};
+                else b.color = {b.color.r, b.color.g, b.color.b, b.color.a * (0.4f + 0.6f * dim)};
+                box(b, c.frameX, F, c.mirror);
             } else {
-                draw(L.box, c.frameX, F, c.mirror);
+                box(L.box, c.frameX, F, c.mirror);
             }
-            if (selected && L.selection == HudSelection::DoubleFrame) draw(L.box, c.frameX, F, c.mirror);
-            if (selected && L.selectOutline)
-                r.outline(c.frameX, F, L.box.w, L.box.h, Color{1.0f, 0.55f, 0.15f, 1});
+            if (selected && L.selection == HudSelection::DoubleFrame) box(L.box, c.frameX, F, c.mirror);
+            if (selected && L.selectOutline) r.outline(c.frameX, F, L.box.w, L.box.h, L.outlineColor);
         }
         if (!c.iconAfterCount) icon(atlas, table, i, c.iconX, F + c.iconDy, selected, dim);
         if (selected && L.selection == HudSelection::LineAndAlpha && c.drawLine && L.selLine.w > 0)
@@ -185,6 +207,18 @@ struct Hud {
                       k == p.powerupSelected);
             return;
         }
+        if (c.packedRows) {
+            // The kinds owned, a window of `slots` rows (hudPackedKind); a row without one: an
+            // empty, dimmed frame.
+            HudColumn fixed = c;
+            fixed.fixedSlots = true;
+            for (int row = 0; row < c.slots; row++) {
+                const int k = hudPackedKind(p.powerups, kPowerupSlots, p.powerupSelected, c.slots, row);
+                entry(fixed, c.firstY + c.step * static_cast<float>(row), a.items, L.powerups, k, k >= 0 ? p.powerups[k] : 0,
+                      L.powerupCountMin, k >= 0 && k == p.powerupSelected);
+            }
+            return;
+        }
         for (int k = 0; k < kPowerupSlots; k++) {
             if (p.powerups[k] == 0) continue;
             const float F = first + c.step * static_cast<float>(n++);
@@ -214,12 +248,12 @@ struct Hud {
         if (t.w <= 0) return;
         const float px = 2.5f, in = L.pauseInset;
         const float x = t.x + in, y = t.y + in, w = t.w - 2 * in, h = t.h - 2 * in;
-        r.rect(x, y, w, h, Color{0.21f, 0.035f, 0.02f, 0.92f}, Blend::Alpha);
-        r.outline(x, y, w, h, Color{0.55f, 0.16f, 0.06f, 1});
+        r.rect(x, y, w, h, L.tileFill, Blend::Alpha);
+        r.outline(x, y, w, h, L.tileEdge);
         const float bw = 4 * px, bh = h - 12 * px, gap = 4 * px;
         const float bx = x + std::floor((w - 2 * bw - gap) / px * 0.5f) * px, by = y + 6 * px;
-        r.rect(bx, by, bw, bh, Color{0.96f, 0.84f, 0.70f, 1}, Blend::Alpha);
-        r.rect(bx + bw + gap, by, bw, bh, Color{0.96f, 0.84f, 0.70f, 1}, Blend::Alpha);
+        r.rect(bx, by, bw, bh, L.tileMark, Blend::Alpha);
+        r.rect(bx + bw + gap, by, bw, bh, L.tileMark, Blend::Alpha);
     }
     // "WEAPON" / "LEVEL n" beside the weapon box (HudLayout::weaponTextX), at S.
     void weaponText(const HudPlayer& p) const {
@@ -230,7 +264,7 @@ struct Hud {
         st.scale = 2.0f; // 0.8 px per texel through the 0.4 mapping
         st.size = FontSize::S;
         st.effect = TextEffect::None;
-        st.color = Color{1.0f, 0.70f, 0.30f, 1};
+        st.color = L.consoleText;
         drawText(r, a.uiFont(), L.weaponTextX, L.weaponTextY, "WEAPON", st);
         drawText(r, a.uiFont(), L.weaponTextX, L.weaponTextY + 13 * 2.5f, "LEVEL " + std::to_string(std::max(level, 1)), st);
     }
@@ -249,7 +283,7 @@ struct Hud {
                     if (s.scoreFrame) draw(L.scoreFrame, s.scoreFrameX, s.scoreFrameY, s.scoreFrameMirror);
                     break;
                 case HudElement::Score: score(s, p.score); break;
-                case HudElement::WeaponBox: draw(L.box, s.weaponBoxX, s.weaponBoxY, s.weaponBoxMirror); break;
+                case HudElement::WeaponBox: box(L.box, s.weaponBoxX, s.weaponBoxY, s.weaponBoxMirror); break;
                 case HudElement::WeaponLevel: weaponLevel(s, p); break;
                 case HudElement::WeaponIcon: icon(a.weapons, L.weapons, p.weapon, s.weaponIconX, s.weaponIconY, true); break;
                 case HudElement::Missiles: missileEntries = missiles(s, p); break;

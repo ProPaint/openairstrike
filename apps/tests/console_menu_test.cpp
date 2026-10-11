@@ -13,6 +13,7 @@
 
 #include "as3d/console_menu.h"
 #include "as3d/frontend.h"
+#include "as3d/game_profile.h"
 
 using namespace as3d;
 using namespace as3d::ui;
@@ -31,8 +32,9 @@ struct Host : GameHost {
 };
 
 // The console's front end (game_flow.cpp with FlowConfig::consoleOptions and touch).
-FrontendContent consoleContent(bool changeGame) {
+FrontendContent consoleContent(bool changeGame, GameId game = GameId::AirStrike3D) {
     FrontendContent c;
+    if (game != GameId::AirStrike3D) c.game = &gameProfile(game);
     for (int i = 0; i < kMissionCount; i++) c.missionNames[i] = "Mission " + std::to_string(i + 1) + ": Somewhere Far Away";
     c.videoOptions = false;
     c.twoPlayerMode = false;
@@ -62,6 +64,34 @@ Texts consoleTexts() {
     t.set("info.10.title", "CREDITS");
     t.set("info.10.4", "PROGRAMMING");
     t.set("info.10.5", "Somebody");
+    // The sequels' (R4.8): their own captions with the desktop's padding spaces, credits, a start
+    // dialogue for mission 1.
+    t.set("button.start_game", "Start Game");
+    t.set("button.top_scores", "Top Scores");
+    t.set("button.options", "Options");
+    t.set("button.information", "Information");
+    t.set("button.credits", "Credits");
+    t.set("button.quit", "Quit");
+    t.set("button.back", "   Back   ");
+    t.set("button.next", "   Next   ");
+    t.set("button.start", "  Start  ");
+    t.set("button.choose_heli", "  Choose Helicopter  ");
+    t.set("button.restart", "   Restart   ");
+    t.set("button.quit_wide", "   Quit   ");
+    t.set("button.next_wide", "   Next   ");
+    t.set("button.resume", "Resume");
+    t.set("label.difficulty", "Difficulty:");
+    t.set("label.game_mode", "Game mode:");
+    for (int i = 0; i < 12; ++i) t.set("credits." + std::to_string(i), i % 3 == 0 ? "{SOMETHING DONE}" : "A Person Of Renown");
+    t.set("dialog.1.start.0", "Listen to me, pilot. The enemy has taken the island and we need you there.\nGood luck.");
+    t.set("dialog.1.start.0.speaker", "0");
+    t.set("dialog.1.start.1", "Yes, sir.");
+    t.set("dialog.1.start.1.speaker", "1");
+    for (int p : {2, 3, 5, 6, 7, 8}) {
+        t.set("info." + std::to_string(p) + ".title", "Weapons page");
+        t.set("info." + std::to_string(p) + ".0", "{Machine gun}");
+        t.set("info." + std::to_string(p) + ".1", "Not very powerful, this weapon has a very high rate of fire.");
+    }
     return t;
 }
 
@@ -70,10 +100,18 @@ struct Rig {
     Profile profile;
     Frontend fe;
     ConsoleMenuView view;
-    explicit Rig(bool changeGame = false) : fe(host, profile, consoleContent(changeGame), consoleTexts()) {
+    explicit Rig(bool changeGame = false, GameId game = GameId::AirStrike3D, bool intro = false)
+        : profile(introProfile(intro)), fe(host, profile, consoleContent(changeGame, game), consoleTexts()) {
         fe.setTouchMode(true);
         fe.boot();
+        if (intro) return; // the sequels' intro pages
         fe.setState(FrontendState::Attract);
+        if (!fe.menuOpen()) fe.open(Screen::MainMenu);
+    }
+    static Profile introProfile(bool intro) {
+        Profile p;
+        p.settings.showLogo = intro;
+        return p;
     }
     ConsoleLayout layout() { return view.layout(fe); }
     // One frame of a finger: down at (x, y) and up the next frame, through the view.
@@ -240,6 +278,101 @@ void checkLayout(Rig& rig, const char* what) {
 }
 
 } // namespace
+
+TEST_CASE("console menus: the sequels' screens keep the rules (R4.8)") {
+    for (GameId game : {GameId::AirStrike2, GameId::GulfThunder}) {
+        for (bool games : {false, true}) {
+            Rig rig(games, game);
+            CAPTURE(gameProfile(game).key);
+            REQUIRE(rig.fe.sequel());
+            REQUIRE(rig.fe.menuOpen());
+            REQUIRE(ConsoleMenuView::handles(rig.fe));
+            checkLayout(rig, games ? "sequel main menu (with GAMES)" : "sequel main menu");
+            // Six buttons of at least 36 px in two columns, GAMES in the corner.
+            int bars = 0;
+            for (const ConsoleBox& b : rig.layout().boxes) bars += b.kind == ConsoleBoxKind::Bar ? 1 : 0;
+            CHECK(bars == (games ? 7 : 6));
+            for (Screen s : {Screen::Exit, Screen::StartGame, Screen::HeliSelect, Screen::TopScores, Screen::Options,
+                             Screen::Credits, Screen::NameEntry}) {
+                rig.fe.open(s);
+                REQUIRE(ConsoleMenuView::handles(rig.fe));
+                checkLayout(rig, screenName(s));
+                rig.fe.menus().pop();
+            }
+            // Information, every page (the sequels' seven or eight).
+            rig.fe.open(Screen::Information);
+            for (int page = 0; page < 8; ++page) {
+                checkLayout(rig, "sequel information");
+                rig.key(keys::PageDown);
+            }
+            rig.fe.menus().pop();
+        }
+        Rig rig(false, game);
+        rig.fe.setState(FrontendState::Playing);
+        for (Screen s : {Screen::InGame, Screen::GameOver, Screen::MissionComplete, Screen::GameComplete}) {
+            rig.fe.open(s);
+            checkLayout(rig, screenName(s));
+            rig.fe.menus().clear();
+        }
+        rig.fe.showTutorialHint("Press the {Ctrl} key to fire.");
+        checkLayout(rig, "sequel hint");
+        rig.fe.menus().clear();
+        // The start dialogue: one NEXT; a tap completes the page being typed.
+        REQUIRE(rig.fe.debugSet("dialogue", "start"));
+        REQUIRE(rig.fe.topScreen() == Screen::Dialogue);
+        checkLayout(rig, "sequel dialogue");
+        const ConsoleBox* next = rig.box(ConsoleBoxKind::Key, keys::Enter);
+        REQUIRE(next);
+        rig.fe.update(0.3f, UiInput{}); // the panel opens
+        rig.tapBox(*next);
+        CHECK(ConsoleMenuView::handles(rig.fe));
+    }
+}
+
+TEST_CASE("console menus: the sequels by touch (R4.8)") {
+    Rig rig(false, GameId::AirStrike2);
+    // Main menu: Options.
+    const ConsoleBox* opt = rig.bar(3);
+    REQUIRE(opt);
+    rig.tapBox(*opt);
+    CHECK(rig.fe.topScreen() == Screen::Options);
+    rig.fe.menus().pop();
+    // Start Game, Next: the helicopter selection; its arrows turn the helicopter.
+    rig.tapBox(*rig.bar(1));
+    REQUIRE(rig.fe.topScreen() == Screen::StartGame);
+    rig.tapBox(*rig.bar(2));
+    REQUIRE(rig.fe.topScreen() == Screen::HeliSelect);
+    const int before = rig.fe.helicopters()[0];
+    rig.tapBox(*rig.bar(6));
+    CHECK(rig.fe.helicopters()[0] != before);
+    rig.tapBox(*rig.bar(7));
+    CHECK(rig.fe.helicopters()[0] == before);
+    // Back twice: the main menu.
+    rig.tapBox(*rig.bar(2));
+    CHECK(rig.fe.topScreen() == Screen::StartGame);
+}
+
+TEST_CASE("console menus: the sequels' intro is the view's: FASTER and SKIP (R4.8)") {
+    Rig rig(false, GameId::AirStrike2, true);
+    REQUIRE(rig.fe.state() == FrontendState::Intro);
+    REQUIRE(ConsoleMenuView::introShown(rig.fe));
+    const ConsoleLayout L = rig.layout();
+    REQUIRE(L.valid);
+    CHECK(L.intro);
+    REQUIRE(L.boxes.size() == 2u);
+    for (const ConsoleBox& b : L.boxes) {
+        CHECK(b.r.w >= kConsoleMinBar);
+        CHECK(b.r.h >= kConsoleMinBar);
+        CHECK(measureTextPx(FontMetrics::original(), b.label, b.size) <= b.r.w - 8);
+    }
+    // B is the comic's Skip: the intro ends, the main menu opens.
+    rig.key(keys::Escape);
+    CHECK(rig.fe.state() != FrontendState::Intro);
+    CHECK(rig.fe.menuOpen());
+    // The first game has no console intro.
+    Rig first(false, GameId::AirStrike3D, true);
+    CHECK_FALSE(ConsoleMenuView::introShown(first.fe));
+}
 
 TEST_CASE("console menus: every screen's layout keeps the rules") {
     for (bool games : {false, true}) {

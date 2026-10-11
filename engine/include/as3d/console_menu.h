@@ -18,12 +18,17 @@
 // Covered: the first game's screens (FrontendStyle::Original): main menu, exit, start game, top
 // scores, name entry, options, information, in-game menu, game over, mission complete, game
 // complete, the tutorial hint (R4.7: its box on the top screen, its OK on the bottom one over the
-// dimmed HUD). Not covered (the legacy drawing stays):
-// Configure controls (not offered on the console), the sequels and the plain front end (the
-// next package: ConsoleSkin and the screen table are the places to extend).
+// dimmed HUD); R4.8: the sequels' screens (FrontendStyle::SequelMenus) in their own skins (main
+// menu in two columns with their logo on the top screen, exit, start game, helicopter selection
+// with the model on the top screen, top scores, options, Information, credits, name entry,
+// in-game menu, hint, portrait dialogue, game over, mission and game complete) and their intro
+// pages (on the top screen, FASTER / SKIP on the bottom), the game selector and the loading
+// screen. Not covered (the legacy drawing stays): Configure controls (not offered on the
+// console) and the plain front end.
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -78,6 +83,7 @@ struct ConsoleHint {
 struct ConsoleLayout {
     bool valid = false;
     Screen screen = Screen::MainMenu;
+    bool intro = false;              // the sequels' intro pages (no menu: `screen` unused)
     std::vector<ConsoleBox> boxes;   // drawn in this order; a touch takes the last box under it
     std::vector<ConsoleHint> hints;  // the footer, drawn at (hintX, hintY), S text
     int hintX = 0, hintY = 0;
@@ -133,11 +139,41 @@ InfoPage consoleInfoPage(const Texts& texts, const FontMetrics& m, int page, int
 std::vector<std::string> wrapText(const FontMetrics& m, std::string_view text, FontSize size, int width,
                                   bool markup = true);
 
+// The loading screen on the console (R4.8, docs/3ds-ui-design.md "Sequels, selector, loading and
+// name entry on the console"): on the top screen the game's loading picture 1:1 (the first game's
+// menu loading.tga) or its comic at exactly 1/2 (the sequels'), the mission's name and a 6-px bar;
+// on the bottom screen the console's controls card (the key pictures of `keys`, or their names).
+// An intermission (the attract level) is black on both. The look follows loadingInfo().
+void drawConsoleLoading(Renderer2D& top, Renderer2D& bottom, const UiAssets& a, float progress, bool intermission,
+                        const KeyGlyphAtlas* keys);
+
+// The game selector on the console (R4.8): GameSelector's model (its cards, focus, Exit and Play)
+// in the bottom screen's pixels: "CHOOSE A GAME", up to three cards of 101 x 166 (the game's
+// marquee, its title and its line at one size for all the cards, "TAP TO PLAY" on the current one),
+// EXIT and PLAY 92 x 38 in the bottom corners; on the top screen the current game's logo at 1/2,
+// its name (T), version, save lines (or its missing files) and the keys.
+struct ConsoleSelectorLayout {
+    int count = 0;
+    RectF cards[3];
+    RectF exit, play;
+    FontSize titleSize = FontSize::L, lineSize = FontSize::L;
+};
+ConsoleSelectorLayout consoleSelectorLayout(const GameSelector& sel);
+// Writes the items' hit rectangles (virtual units, 2.5 x the pixels): taps through the bottom
+// screen's 0.4 mapping land on the drawn cards and buttons.
+void consoleSelectorApplyHits(GameSelector& sel);
+void drawConsoleSelectorBottom(Renderer2D& r, const UiAssets& a, const GameSelector& sel);
+void drawConsoleSelectorTop(Renderer2D& r, const UiAssets& a, const GameSelector& sel, const KeyGlyphAtlas* keys,
+                            const std::string& missing);
+
 class ConsoleMenuView {
 public:
     // True when this view draws the front end's top menu (else the host keeps Frontend::drawUnder
     // / drawOver and the linear touch mapping).
     static bool handles(const Frontend& fe);
+    // The sequels' intro pages are up (their logo pages and AirStrike 2's comic): the page on the
+    // top screen, FASTER and SKIP on the bottom one (R4.8).
+    static bool introShown(const Frontend& fe);
 
     // The layout of the top menu (invalid when not handled).
     ConsoleLayout layout(const Frontend& fe) const;
@@ -167,6 +203,9 @@ public:
 
 private:
     const KeyGlyphAtlas* keys_ = nullptr;
+    // A list for pictures of the virtual screen drawn at another scale (the intro pages), appended
+    // to the top screen's list (Renderer2D::appendMapped); never flushed itself.
+    mutable std::unique_ptr<Renderer2D> scratch_;
     // The touch in progress: the box it went down on (kind, item, arg), -1 none.
     int pressKind_ = -1, pressItem_ = -1;
     bool pressMouse_ = false; // Mouse1 was pressed for it (released with the finger)
