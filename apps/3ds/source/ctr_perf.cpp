@@ -199,7 +199,8 @@ void Perf::open(bool csv) {
         if (csv_ && header) {
             std::lock_guard<std::mutex> lock(g_logMutex);
             g_csvBuf += "frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,"
-                        "linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz,stage\n";
+                        "linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz,stage,"
+                        "draws_r,verts_r,gpu_kick_ms\n";
         } else if (!csv_) {
             AS3D_WARN("cannot open perf.csv");
         }
@@ -241,13 +242,20 @@ void Perf::record(const FrameSample& s) {
     }
     lazyMax_ = std::max(lazyMax_, s.stats.lazyLoads);
     arenaMax_ = std::max(arenaMax_, s.stats.arenaKb);
+    // gpu_ms is the previous frame's tail after its C3D_FrameEnd; with its kick-to-end time it is
+    // that frame's GPU time from the first command list.
+    const float gpuKickMs =
+        prevEnd_ > prevGpuStart_ && prevGpuStart_ ? static_cast<float>(ticksToMs(prevEnd_ - prevGpuStart_)) + s.gpuMs : s.gpuMs;
+    prevGpuStart_ = s.stats.gpuStartTick ? s.stats.gpuStartTick : s.endTick;
+    prevEnd_ = s.endTick;
     if (csv_) {
         char row[256];
-        const int n = std::snprintf(row, sizeof row, "%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%u,%u,%u,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%d\n",
+        const int n = std::snprintf(row, sizeof row, "%u,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%u,%u,%u,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%.3f\n",
                                     s.frame, s.stepMs, s.stats.prepareMs, s.cpuMs, s.gpuMs, s.stats.eyes, s.stats.verts,
                                     s.stats.draws, s.stats.texVramKb, s.stats.texLinearKb,
                                     static_cast<unsigned>(linearFree / 1024), s.stats.lazyLoads, s.stats.arenaKb,
-                                    s.simSteps, s.submitMs, s.waitMs, s.endMs, s.afterMs, s.syncMs, s.renderHz, stage_);
+                                    s.simSteps, s.submitMs, s.waitMs, s.endMs, s.afterMs, s.syncMs, s.renderHz, stage_,
+                                    s.stats.drawsRight, s.stats.vertsRight, gpuKickMs);
         if (n > 0) {
             std::lock_guard<std::mutex> lock(g_logMutex);
             g_csvBuf.append(row, static_cast<size_t>(std::min(n, static_cast<int>(sizeof row) - 1)));

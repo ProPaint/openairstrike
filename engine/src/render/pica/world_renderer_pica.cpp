@@ -144,6 +144,9 @@ const SceneDepth& sceneDepth() { return g_sceneDepth; }
 } // namespace pica
 
 struct WorldRenderer::Impl {
+    // The draw calls and vertices the left eye recorded for the right eye's replay (R3.3: a replayed
+    // eye counts its draws, so the perf log's verts/draws hold both eyes again).
+    int replayDraws = 0, replayVerts = 0;
     Vfs* vfs = nullptr;
     const DefDatabase* db = nullptr;
     std::unique_ptr<ResourceCache> cache;
@@ -738,6 +741,8 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     if (replayRight) {
         // (its time counts in "clear"; eyeReplayStats has the copy's own)
         if (pica::eyeReplayRun()) {
+            stats_.drawCalls += im.replayDraws;
+            stats_.vertices += im.replayVerts;
             meter.stop();
             setBlend(GlBlend::Off);
             setDepth(true, true);
@@ -749,6 +754,7 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
         levelDepthAndFog();
     }
     const bool recording = !replayRight && pica::eyeReplayArmed() && pica::eyeReplayRecordBegin();
+    const int recordDraws0 = stats_.drawCalls, recordVerts0 = stats_.vertices;
     if (recording) {
         // The priming draw changed the shader and buffers behind the tracked state: issue it again.
         setBlend(GlBlend::Off);
@@ -878,7 +884,11 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     setDepth(true, true);
     setCull(CullMode::Back);
     pica::disableFog();
-    if (recording) pica::eyeReplayRecordEnd();
+    if (recording) {
+        pica::eyeReplayRecordEnd();
+        im.replayDraws = stats_.drawCalls - recordDraws0;
+        im.replayVerts = stats_.vertices - recordVerts0;
+    }
 }
 
 void WorldRenderer::drawBrightness(int width, int height, float brightness) { drawBrightness(0, 0, width, height, brightness); }

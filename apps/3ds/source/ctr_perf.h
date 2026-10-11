@@ -3,8 +3,16 @@
 // second) and, with perf=1, perf.csv with one row per displayed frame:
 //
 //   frame,step_ms,prepare_ms,cpu_ms,gpu_ms,eyes,verts,draws,tex_vram_kb,tex_linear_kb,
-//   linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz,stage
+//   linear_free_kb,lazy_loads,arena_kb,sim_steps,submit_ms,wait_ms,end_ms,after_ms,sync_ms,render_hz,stage,
+//   draws_r,verts_r,gpu_kick_ms
 //
+// (draws_r/verts_r: of draws/verts, the right eye's world passes, drawn or replayed from the left
+// eye's commands (eye_replay): the right eye's share of a stereo frame, 0 in mono. Since R3.3 a
+// replayed eye counts the replayed draws, so verts/draws hold both eyes in stereo again.
+// gpu_kick_ms: the GPU time of the same frame as gpu_ms (the previous one) from its first command
+// list (gpu_kick, at the left eye's end) to the end of the queue: gpu_ms is only the tail after
+// C3D_FrameEnd, which grows when the CPU records faster (the third console soak: the stereo
+// "+2 ms GPU" of the eye replay was the 2.3 ms the CPU saved, see docs/3ds-port.md).)
 // (stage: the soak's stage number, 0 outside mode=soak; a soak's stages append to one perf.csv,
 // the frame column restarting at each stage.)
 // The frame's CPU, in order (ctr_loop.cpp): step_ms (the simulation steps), prepare_ms (the
@@ -41,6 +49,7 @@ struct FrameStats {
     unsigned lazyLoads = 0;
     unsigned arenaKb = 0;  // frame arena bytes used by this frame
     uint64_t gpuStartTick = 0; // when the GPU got the frame's first command list (gpu_kick), 0: at C3D_FrameEnd
+    int drawsRight = 0, vertsRight = 0; // the right eye's world passes (drawn or replayed), 0 in mono
 };
 
 struct FrameSample {
@@ -116,6 +125,7 @@ private:
     unsigned framesAt30_ = 0;
     unsigned splitCount_ = 0;
     std::vector<float> gpus_;
+    uint64_t prevGpuStart_ = 0, prevEnd_ = 0; // the last frame's first kick and C3D_FrameEnd (gpu_kick_ms)
     double stepSum_ = 0, periodSum_ = 0, stepMax_ = 0, periodMax_ = 0, loadMs_ = 0;
     unsigned over_ = 0, periodCount_ = 0, lazyMax_ = 0, arenaMax_ = 0;
     size_t heapHigh_ = 0, heapArenaHigh_ = 0, linearFreeMin_ = SIZE_MAX;

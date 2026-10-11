@@ -311,6 +311,10 @@ struct GameFrame::Impl {
     // The wash detector (ctr_wash.h, run.ini wash_check): the frame's central view, a mark due.
     ctrapp::WashDetector wash;
     pica::EyeReplayStats replaySeen; // the eye replay's totals at the last AS3D_EYE_REPLAY line
+    // R3.3: the world's draws/vertices after the left eye (the right eye's share is the rest), and
+    // the terrain's per-eye chunk sums at the last AS3D_STEREO60 line.
+    int worldDrawsLeft = 0, worldVertsLeft = 0, worldDrawsRight = 0, worldVertsRight = 0;
+    pica::TerrainEyeChunks eyeChunksSeen;
     bool washMarkPending = false;
     const Terrain* washTopOf = nullptr; // the terrain whose highest point washTop holds
     float washTop = 0.0f;
@@ -652,6 +656,8 @@ struct GameFrame::Impl {
         pica::setTerrainPrime(run.terrainPrime);
         pica::setTerrainForceState(run.terrainForceState);
         pica::setEyeReplayEnabled(run.eyeReplay);
+        replaySeen = pica::eyeReplayStats(); // this composer's AS3D_EYE_REPLAY lines count from here (a soak stage)
+        eyeChunksSeen = pica::terrainEyeChunks();
         pica::setTerrainWashInject(run.washInject);
         AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d terrain_force_state=%d eye_replay=%d",
                   wash.enabled() ? 1 : 0, run.washInject, run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0,
@@ -1378,7 +1384,18 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
                 pica::eyeReplayRequest(right);
             }
         }
+        const WorldRenderStats& ws0 = im.renderer->lastStats();
+        const int d0 = ws0.drawCalls, v0 = ws0.vertices;
         im.renderer->draw(ev); // pass 0 clears to the level's clear colour
+        const WorldRenderStats& ws1 = im.renderer->lastStats();
+        if (eye == 0) {
+            im.worldDrawsLeft = ws1.drawCalls;
+            im.worldVertsLeft = ws1.vertices;
+            im.worldDrawsRight = im.worldVertsRight = 0;
+        } else {
+            im.worldDrawsRight = ws1.drawCalls - d0;
+            im.worldVertsRight = ws1.vertices - v0;
+        }
     } else {
         clear(Vec4{0, 0, 0, 1}, true, 1.0f);
     }
@@ -1533,6 +1550,8 @@ void GameFrame::stats(FrameStats& out) {
     out.lazyLoads = im.precached ? static_cast<unsigned>(LoadStats::lazyLoads().total()) : 0u;
     out.arenaKb = static_cast<unsigned>(im.arenaUsed / 1024);
     out.gpuStartTick = im.kickTick;
+    out.drawsRight = im.worldDrawn && out.eyes == 2 ? im.worldDrawsRight : 0;
+    out.vertsRight = im.worldDrawn && out.eyes == 2 ? im.worldVertsRight : 0;
     // The per-pass CPU table (pass_profile.h), every kPassReportFrames displayed frames.
     pica::PassProfile& pp = pica::passProfile();
     pp.endFrame();
@@ -1590,6 +1609,23 @@ void GameFrame::stats(FrameStats& out) {
             ts.lodSwitchFrames >= im.lodSwitchFramesSeen ? ts.lodSwitchFrames - im.lodSwitchFramesSeen : ts.lodSwitchFrames;
         im.lodSwitchSeen = ts.lodSwitches;
         im.lodSwitchFramesSeen = ts.lodSwitchFrames;
+        // The terrain's chunks per eye: those the eye's own frustum sees and those drawn (the union
+        // of both eyes' while the left eye records for the replay), per render (R3.3).
+        const pica::TerrainEyeChunks& ec = pica::terrainEyeChunks();
+        double own[2] = {0, 0}, drawn[2] = {0, 0};
+        for (int e = 0; e < 2; ++e) {
+            // (the sums restart at a level's build: then from zero)
+            const bool restarted = ec.renders[e] < im.eyeChunksSeen.renders[e];
+            const size_t renders = restarted ? ec.renders[e] : ec.renders[e] - im.eyeChunksSeen.renders[e];
+            if (renders == 0) continue;
+            own[e] = static_cast<double>(restarted ? ec.own[e] : ec.own[e] - im.eyeChunksSeen.own[e]) / static_cast<double>(renders);
+            drawn[e] = static_cast<double>(restarted ? ec.drawn[e] : ec.drawn[e] - im.eyeChunksSeen.drawn[e]) /
+                       static_cast<double>(renders);
+        }
+        im.eyeChunksSeen = ec;
+        AS3D_INFO("AS3D_EYE_CHUNKS eyes=%d own=%.2f/%.2f drawn=%.2f/%.2f (left/right; a replayed right eye draws "
+                  "the left's union and renders nothing itself)",
+                  out.eyes, own[0], own[1], drawn[0], drawn[1]);
         AS3D_INFO("AS3D_STEREO60 eyes=%d terrain_lod=%d coarse_chunks=%zu/%zu (per terrain render) lod_switches=%zu "
                   "(in %zu frames) shadow_atlas=%d "
                   "pages=%d cells=%d full=%d atlas_kb=%.1f mesh_vertices=%zu->%zu mesh_indices=%zu->%zu",
