@@ -35,6 +35,16 @@ wash_selftest=1`, `run-play.ini` = play with the same diagnostics). What its soa
 (whether the first state block is still lost), `AS3D_WASH_SELFTEST` 98/98, the step cost per
 window against R3.1's table, the stereo submit versus the 10 ms of 5192662, `eye_replay` counters.
 
+**The owner launches from the HOME menu, not the Homebrew Launcher** (every soak log says
+`from=none`: argv is empty, which only the installed CIA does). So a new build reaches the console
+only when its CIA is reinstalled with FBI (the drop's `openairstrike.cia` is uploaded next to the
+3dsx, FBI > SD > 3ds/openairstrike/openairstrike.cia > Install), or when the owner starts the 3dsx
+from the Homebrew Launcher instead. The run of 2026-10-11 16:23 (`out/3ds/2026-10-11-5192662-2/`)
+was the old CIA again, a second soak of 5192662: same end states, `wash` PASS by the blind probe
+again, mono60 29.7%/62.5% with that build's 6-miss pacer, stereo 30 Hz; it tests nothing of round
+3. The receiver now takes `--expect <commit>` and prints a warning at the top of its report when
+the run's build differs (the agent starts it with the drop's commit).
+
 **The owner's procedure is now:** start OpenAirStrike from the Homebrew Launcher, wait until the
 launcher comes back (five to ten minutes), nothing else. The soak runs bot stages of every
 installed game (missions 1 and 2, mono and stereo at slider 0.5, the weapon tour, audio on, the

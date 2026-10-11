@@ -205,8 +205,26 @@ def split_stages(d):
     return out
 
 
-def report(d, sim):
+def build_of(d):
+    """(build, launched-from) of a run from its log's first mode line, or (None, None)."""
+    log = os.path.join(d, "log.txt")
+    if not os.path.exists(log):
+        return None, None
+    m = re.search(r"build=([\w.-]+) from=(\S+)", open(log, errors="replace").read())
+    return (m.group(1), m.group(2)) if m else (None, None)
+
+
+def report(d, sim, expect=None):
     print("== %s" % d)
+    build, launched = build_of(d)
+    if build:
+        how = ("the HOME menu title (a CIA installed with FBI; argv is empty)" if launched == "none"
+               else "the Homebrew Launcher or 3dslink (%s)" % launched)
+        print("-- build %s, launched from %s" % (build, how))
+        if expect and build.split("-")[0] != expect.split("-")[0]:
+            print("!! WARNING: this run is build %s, not the expected %s: the console ran an older copy "
+                  "(an old CIA in the HOME menu? the 3dsx not uploaded?); its numbers do not test the drop"
+                  % (build, expect))
     soak = os.path.join(d, "soak.txt")
     if os.path.exists(soak):
         print("-- soak.txt (the console's verdict)")
@@ -237,7 +255,7 @@ def report(d, sim):
         subprocess.run(cmd)
 
 
-def serve(port, bind, out_root, once, sim, do_report=True):
+def serve(port, bind, out_root, once, sim, do_report=True, expect=None):
     os.makedirs(out_root, exist_ok=True)
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -260,7 +278,7 @@ def serve(port, bind, out_root, once, sim, do_report=True):
                                                                   "" if complete else "  INCOMPLETE: %s" % err),
                   flush=True)
             if do_report:
-                report(dest, sim)
+                report(dest, sim, expect)
             if once:
                 return dest
     except KeyboardInterrupt:
@@ -322,10 +340,12 @@ def main():
     ap.add_argument("--once", action="store_true", help="stop after one run")
     ap.add_argument("--sim", default=None, help="as3d_sim for the end-state comparison (tools/3ds_soak_compare.py)")
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--expect", default=None, metavar="COMMIT",
+                    help="the drop's commit: a run of another build is flagged (an old CIA in the HOME menu)")
     a = ap.parse_args()
     if a.self_test:
         return self_test()
-    serve(a.port, a.bind, a.out, a.once, a.sim)
+    serve(a.port, a.bind, a.out, a.once, a.sim, expect=a.expect)
     return 0
 
 
