@@ -317,6 +317,7 @@ struct TerrainRenderer::Impl {
     std::vector<Texture2D> atlases; // parallel to geo.tiles
     float detailScale[2] = {0.25f / kHmapCellSize, 0.25f / kHmapCellSize};
     float detailOrigin[2] = {0.0f, 0.0f}; // grid vertex (0, 0)
+    uint8_t detailMean[3] = {128, 128, 128}; // the detail texture's mean colour (terrain_far_tev)
     std::vector<Retired> retired;
     std::vector<uint8_t> lightScratch;
     std::vector<const DynamicLight*> lightPick;
@@ -628,6 +629,15 @@ bool TerrainRenderer::build(const Terrain& terrain, Vfs& vfs, std::string* error
     for (Image& s : src) s = Image();
     if (pica::renderQuality().terrainDetail) { // M4.1: the Old 3DS profile has no detail texture
         Image det = loadTexture(vfs, def.texturesDir + "\\detail.tga", &missing_);
+        // Its mean colour: what the mip chain converges to far away (the far chunks' constant,
+        // RenderQuality::terrainFarTev).
+        if (det.width > 0 && det.height > 0 && det.rgba.size() >= static_cast<size_t>(det.width) * det.height * 4) {
+            const size_t n = static_cast<size_t>(det.width) * static_cast<size_t>(det.height);
+            uint64_t sum[3] = {0, 0, 0};
+            for (size_t i = 0; i < n; ++i)
+                for (int c = 0; c < 3; ++c) sum[c] += det.rgba[i * 4 + static_cast<size_t>(c)];
+            for (int c = 0; c < 3; ++c) im.detailMean[c] = static_cast<uint8_t>((sum[c] + n / 2) / n);
+        }
         im.detail.create(det, topts);
     }
 
@@ -889,6 +899,12 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
     const bool useDetail = options.detail && pica::renderQuality().terrainDetail && im.detail.valid();
     pica::applyTev(useDetail ? pica::tevTerrain2Stage() : pica::tevModulateTexColor());
     if (useDetail) im.detail.bind(1);
+    // run.ini terrain_far_tev (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"): the coarse far
+    // chunks take the detail texture's mean colour as a constant instead of sampling it (unit 1 off).
+    const bool farTev = useDetail && pica::renderQuality().terrainFarTev;
+    const pica::TevConfig farTevConfig =
+        farTev ? pica::tevTerrainFar(im.detailMean[0], im.detailMean[1], im.detailMean[2]) : pica::TevConfig();
+    bool farTevOn = false;
     if (pica::stateCheck()) {
         pica::PassExpect e;
         e.pass = "terrain";
@@ -1041,6 +1057,17 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
         sh.setTerrainDetail(im.detailScale[0], im.detailScale[1], -im.detailOrigin[0] * im.detailScale[0],
                             -im.detailOrigin[1] * im.detailScale[1] - rowUv);
         int n = c.rows * W * 6;
+        if (farTev && (im.coarseOf[k] != 0) != farTevOn) {
+            farTevOn = im.coarseOf[k] != 0;
+            if (farTevOn) {
+                pica::applyTev(farTevConfig);
+                pica::detail::unbindTexture(1);
+            } else {
+                pica::applyTev(pica::tevTerrain2Stage());
+                im.detail.bind(1);
+            }
+        }
+        if (farTevOn) ++st.farTevChunks;
         if (im.coarseOf[k]) {
             // The seam fill towards a fine neighbour (above: chunk k - 1, below: k + 1).
             const bool top = k > 0 && !im.coarseOf[k - 1];

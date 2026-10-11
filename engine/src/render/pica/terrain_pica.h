@@ -42,6 +42,7 @@ struct TerrainPicaStats {
     size_t indicesDrawn = 0;    // chunk indices + overlay vertices submitted
     size_t arenaBytes = 0;      // light streams written to the frame arena
     int coarseChunks = 0;       // of visibleChunks: drawn from the coarse level (far-chunk LOD)
+    size_t farTevChunks = 0;    // since start: coarse chunks drawn without the detail texture (terrain_far_tev)
     size_t primeDraws = 0;      // since start: the priming draws (setTerrainPrime)
     // build(): chunks with a coarse level; since build(): coarse and visible chunks over all renders
     int coarseBuilt = 0;

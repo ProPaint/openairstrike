@@ -75,6 +75,14 @@ TevConfig tevTerrain2Stage() {
     return c;
 }
 
+TevConfig tevTerrainFar(uint8_t r, uint8_t g, uint8_t b) {
+    TevConfig c = tevTerrain2Stage();
+    c.stages[1] = stage(TevFunc::AddSigned, TevSrc::Previous, TevSrc::Constant);
+    setAlpha(c.stages[1], TevFunc::Replace, TevSrc::Previous);
+    setConstant(c.stages[1], r, g, b, 255);
+    return c;
+}
+
 TevConfig tevCombine2(int combineMode) {
     TevConfig c = tevModulateTexColor();
     if (combineMode == 0) return c;

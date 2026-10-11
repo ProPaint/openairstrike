@@ -75,6 +75,10 @@ TevConfig tevModulateTexConstant(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 // vertex), stage 1 ADD_SIGNED(PREVIOUS, TEX1) = base * vColor + detail - 0.5 (alpha passed on).
 // Without a detail texture use tevModulateTexColor.
 TevConfig tevTerrain2Stage();
+// The far terrain chunks without the detail texture (run.ini terrain_far_tev, docs/3ds-port.md
+// "Stereo GPU budget (round 4, R4.1)"): stage 1 ADD_SIGNED(PREVIOUS, CONSTANT) with the detail
+// texture's mean colour, what its mip chain converges to far away; texture unit 1 is unbound.
+TevConfig tevTerrainFar(uint8_t r, uint8_t g, uint8_t b);
 // The 2D layer's second texture (as3d/batch2d.h CombineMode, values as there): stage 0 is
 // texture * vertex colour, stage 1 combines TEXTURE1 with it: 1 Blend (by the second
 // texture's alpha, RGB only), 2 Add (RGB only), 3 Modulate (RGBA), 4 Replace (RGBA by the

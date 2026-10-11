@@ -76,6 +76,7 @@
 #include "mesh_renderer_pica.h"
 #include "pass_profile.h"
 #include "eye_replay_pica.h"
+#include "gpu_passes_pica.h"
 #include "pica_frame.h"
 #include "shadow_pica.h"
 #include "state_check_pica.h"
@@ -112,6 +113,7 @@ public:
         if (!active_) return;
         active_ = false;
         passProfile().add(p_, svcGetSystemTick() - t0_, s_.drawCalls - d0_, s_.vertices - v0_);
+        gpuPassMark(p_); // run.ini gpu_passes: the pass's GPU time in a timed frame (gpu_passes_pica.h)
     }
 
 private:
@@ -712,7 +714,7 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     // state-check read-back splits the command list this frame.
     {
         EyeView right;
-        if (pica::eyeReplayRequested(&right) && !pica::stateCheckSplitsThisFrame()) {
+        if (pica::eyeReplayRequested(&right) && !pica::stateCheckSplitsThisFrame() && !pica::gpuPassTimedFrame()) {
             float k1 = 0.0f, k2 = 0.0f;
             if (pica::eyeShiftOf(proj, pica::picaEyeProjection(wv, right, fr.aspect), &k1, &k2)) pica::eyeReplayArm(k1, k2);
         }
@@ -783,6 +785,13 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
         stats_.drawCalls += ts.drawCalls;
         stats_.vertices += static_cast<int>(ts.indicesDrawn);
         levelDepthAndFog();
+        // run.ini gpu_kick_at=terrain (pica_frame.h): the GPU starts on the terrain while the CPU records
+        // the rest (not inside the eye replay's recorded region: a split there turns the replay off).
+        if (!recording) {
+            meter.stop();
+            pica::kickAfterTerrain();
+            meter.start(Pass::Terrain); // (the kick's own CPU time counts in the terrain pass)
+        }
     }
     setDepth(true, true);
     setCull(CullMode::Back);

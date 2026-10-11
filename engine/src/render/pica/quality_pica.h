@@ -27,6 +27,9 @@ struct RenderQuality {
     float terrainLodBand = 40.0f;
     // The silhouettes packed into A8 atlas pages, one draw per page (shadow_renderer_pica.cpp).
     bool shadowAtlas = true;
+    // The coarse far chunks without the detail texture: its mean colour as a TEV constant, texture
+    // unit 1 off (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)", run.ini terrain_far_tev).
+    bool terrainFarTev = false;
 };
 
 void setRenderQuality(const RenderQuality& q);

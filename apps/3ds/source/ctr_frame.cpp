@@ -34,6 +34,7 @@
 #include "game_flow.h"
 #include "game_session.h"
 #include "gpu_mesh_pica.h"
+#include "gpu_passes_pica.h"
 #include "mesh_renderer_pica.h"
 #include "model_view.h"
 #include "pass_profile.h"
@@ -195,6 +196,7 @@ public:
     ~UiMeter() {
         const ui::Ui2dPicaStats& s = ui::ui2dPicaStats();
         pica::passProfile().add(p_, svcGetSystemTick() - t0_, s.runs - d0_ + extraDraws, s.vertices - v0_ + extraVerts);
+        pica::gpuPassMark(p_); // run.ini gpu_passes: the pass's GPU time in a timed frame
     }
     int extraDraws = 0, extraVerts = 0; // draws that are not 2D runs (the model view, the brightness quad)
 
@@ -255,6 +257,14 @@ TouchKey touchKeyOf(const TouchMapper& t, const ui::TouchControlsState& ts) {
 }
 constexpr int kSlowSubmitLogs = 60;
 
+// The AS3D_GPU_LEAN counters (over the frames since the last line).
+struct LeanSums {
+    unsigned frames = 0;
+    unsigned bottomSkipped = 0, bottomDrawn = 0;
+    unsigned eyeSkipped[2] = {0, 0};
+    unsigned brightnessSkipped = 0;
+};
+
 } // namespace
 
 struct GameFrame::Impl {
@@ -277,6 +287,13 @@ struct GameFrame::Impl {
     bool touchPrebuild = false; // r2dTouch holds the band's first list, for the next forced loading frame
     TouchKey touchKey{};        // what r2dTouch's list was built from in play (touchKeyValid)
     bool touchKeyValid = false;
+    // R4.1 (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"): bottom_hz=30: the bottom screen was drawn last frame; right_eye_rate: the eyes this frame skips
+    // (their targets keep the last picture), the stereo frames since both eyes were drawn.
+    bool bottomDrawnLast = false;
+    bool eyeSkip[2] = {false, false};
+    unsigned stereoFrames = 0;
+    LeanSums lean;
+    unsigned kicksSeen = 0; // pica::gpuKicks() at the last AS3D_GPU_LEAN line
     uint64_t kickTick = 0; // the first gpu_kick of the frame (the pacer's GPU time)
     // The slow-submit log: the pass totals and the late-texture count when the frame began.
     uint64_t submitTick = 0;
@@ -599,7 +616,7 @@ struct GameFrame::Impl {
         const World& world = info.session->world();
         const Terrain* terrain = world.terrain();
         if (!terrain) return false;
-        if (eye == 0) washView = worldViewOf(world, kAspect);
+        if (eye == 0 || eyeSkip[0]) washView = worldViewOf(world, kAspect); // (right_eye_rate: the left eye skipped)
         EyeView ev;
         if (stereo.eyes == 2) {
             ev.eyeOffset = eye == 0 ? -stereo.eyeOffset : stereo.eyeOffset;
@@ -631,6 +648,54 @@ struct GameFrame::Impl {
         wash.queue(c.topTarget(eye), eye, v, s, terrain, info.frame);
     }
 
+    // R4.1 (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"): the effective settings.
+    int bottomHz() const { return run.bottomHz > 0 ? run.bottomHz : (run.gpuLean ? 30 : 60); }
+    bool brightnessSkip() const { return run.brightnessSkip >= 0 ? run.brightnessSkip != 0 : true; }
+
+    // run.ini depth16=1 (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"): the top eyes' depth
+    // buffers as D16 instead of D24S8 (the stencil is never used): half the depth bytes the clears
+    // fill and every depth test reads and writes, and 2 x 188 KB of VRAM more for the textures
+    // (the texture budget grows by as much). The depth precision of the W-buffer mapping drops from
+    // 2^-24 to 2^-16 of the depth range. The wash detector and the depth dumps read D24S8 only: off.
+    // Swapped outside the frames, both ways (a soak stage without the key gets D24S8 back).
+    void applyDepthFormat(bool d16) {
+        if (!ctx) return;
+        const GPU_DEPTHBUF want = d16 ? GPU_RB_DEPTH16 : GPU_RB_DEPTH24_STENCIL8;
+        bool waited = false;
+        int changed = 0, failed = 0;
+        for (int eye = 0; eye < 2; ++eye) {
+            C3D_RenderTarget* t = ctx->topTarget(eye);
+            if (!t || !t->frameBuf.depthBuf || t->frameBuf.depthFmt == want) continue;
+            if (!waited) {
+                pica::waitGpuIdle();
+                waited = true;
+            }
+            void* old = t->frameBuf.depthBuf;
+            const GPU_DEPTHBUF had = static_cast<GPU_DEPTHBUF>(t->frameBuf.depthFmt);
+            vramFree(old);
+            const size_t bytes = C3D_CalcDepthBufSize(t->frameBuf.width, t->frameBuf.height, want);
+            void* buf = vramAlloc(bytes);
+            GPU_DEPTHBUF fmt = want;
+            if (!buf) { // the old format back (its block was just freed)
+                ++failed;
+                fmt = had;
+                buf = vramAlloc(C3D_CalcDepthBufSize(t->frameBuf.width, t->frameBuf.height, had));
+            }
+            C3D_FrameBufDepth(&t->frameBuf, buf, fmt); // citro3d frees it with the target (ownsDepth)
+            if (fmt == want) ++changed;
+        }
+        bool allD16 = d16;
+        for (int eye = 0; eye < 2; ++eye) {
+            C3D_RenderTarget* t = ctx->topTarget(eye);
+            if (t && t->frameBuf.depthFmt != GPU_RB_DEPTH16) allD16 = false;
+        }
+        const size_t saved = allD16 ? 2u * (240u * 400u * 4u - 240u * 400u * 2u) : 0u;
+        pica::textureBudget().setVramLimit(pica::TextureBudget::kDefaultVramLimit + saved);
+        if (d16 || changed)
+            AS3D_INFO("AS3D_DEPTH16 on=%d changed=%d failed=%d texture_vram_limit_kb=%u", allD16 ? 1 : 0, changed, failed,
+                      static_cast<unsigned>(pica::textureBudget().vramLimit() / 1024));
+    }
+
     bool initBackend() {
         if (!pica::initBackend()) {
             AS3D_ERROR("pica::initBackend failed");
@@ -651,7 +716,8 @@ struct GameFrame::Impl {
         pica::setProbeEvery(run.effectiveProbeEvery()); // docs/3ds-port.md "Soak mode and the log push"
         pica::setProbeInject(run.probeInject);
         // The wash detector and the terrain's priming draw (docs/3ds-port.md "Wash detector").
-        wash.setEnabled(run.effectiveWashCheck());
+        applyDepthFormat(run.depth16); // R4.1 depth16=
+        wash.setEnabled(run.effectiveWashCheck() && !run.depth16);
         wash.logEvals = run.washLog;
         pica::setTerrainPrime(run.terrainPrime);
         pica::setTerrainForceState(run.terrainForceState);
@@ -659,6 +725,15 @@ struct GameFrame::Impl {
         replaySeen = pica::eyeReplayStats(); // this composer's AS3D_EYE_REPLAY lines count from here (a soak stage)
         eyeChunksSeen = pica::terrainEyeChunks();
         pica::setTerrainWashInject(run.washInject);
+        // R4.1: the per-pass GPU timing and the mid-frame kick after the terrain.
+        pica::setGpuPassEvery(run.gpuPasses == 1 ? 10 : run.gpuPasses);
+        pica::setGpuKickAfterTerrain(run.gpuKickAt == 1);
+        AS3D_INFO("AS3D_GPU_LEAN gpu_lean=%d gpu_kick_at=%s bottom_hz=%d terrain_far_tev=%d brightness_skip=%d "
+                  "right_eye_rate=%s gpu_passes=%d depth16=%d",
+                  run.gpuLean ? 1 : 0, pica::gpuKickAfterTerrain() ? "terrain" : "eye", bottomHz(),
+                  pica::renderQuality().terrainFarTev ? 1 : 0, brightnessSkip() ? 1 : 0,
+                  run.rightEyeRate == 1 ? "half" : run.rightEyeRate == 2 ? "alternate" : "full", pica::gpuPassEvery(),
+                  run.depth16 ? 1 : 0);
         AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d terrain_force_state=%d eye_replay=%d",
                   wash.enabled() ? 1 : 0, run.washInject, run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0,
                   run.terrainForceState ? 1 : 0, run.eyeReplay ? 1 : 0);
@@ -1370,15 +1445,51 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
         im.submitTick = svcGetSystemTick();
         for (int p = 0; p < pica::kPassCount; ++p) im.passTicks0[p] = pica::passProfile().totals(static_cast<pica::Pass>(p)).ticks;
         im.lateQueued0 = pica::lateTextureStats().queued;
+        // run.ini right_eye_rate (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"): in a mission
+        // in stereo, the right eye every other frame (half) or the two eyes in turn (alternate); a
+        // skipped eye's target keeps its last picture and is transferred again. The first stereo frame
+        // after mono, a level start or a menu draws both.
+        im.eyeSkip[0] = im.eyeSkip[1] = false;
+        const bool rated = im.run.rightEyeRate != 0 && info.eyes == 2 && im.stereo.eyes == 2 && im.worldDrawn &&
+                           !im.modelActive && !im.bannerActive;
+        if (!rated) {
+            im.stereoFrames = 0;
+        } else {
+            if (im.stereoFrames > 0) {
+                const bool odd = (im.stereoFrames & 1u) != 0;
+                if (im.run.rightEyeRate == 1) im.eyeSkip[1] = odd;
+                else im.eyeSkip[odd ? 0 : 1] = true;
+            }
+            ++im.stereoFrames;
+        }
+        ++im.lean.frames;
     }
+    pica::gpuPassScreen(eye);
     pica::drawOn(pica::FrameTarget{ctx.topTarget(eye), kTopW, kTopH, true});
+    if (im.eyeSkip[eye]) {
+        // Nothing drawn: C3D_FrameDrawOn marked the target used, so C3D_FrameEnd transfers its last
+        // picture again (the top screen stays in 3D: citro3d swaps it as stereo only when the right
+        // target was transferred).
+        ++im.lean.eyeSkipped[eye];
+        if (eye == 0) {
+            im.worldDrawsLeft = im.worldVertsLeft = 0;
+            im.worldDrawsRight = im.worldVertsRight = 0;
+        } else {
+            im.worldDrawsRight = im.worldVertsRight = 0;
+        }
+        pica::gpuPassMark(pica::GpuExtra::Other);
+        pica::kickGpu();
+        if (eye == 0) im.kickTick = pica::gpuKick() ? pica::firstKickTick() : 0;
+        return;
+    }
     if (im.worldDrawn) {
         EyeView ev;
         if (im.stereo.eyes == 2) {
             ev.eyeOffset = eye == 0 ? -im.stereo.eyeOffset : im.stereo.eyeOffset;
             ev.focalDistance = im.stereo.focal;
-            // The right eye's world from the left eye's commands (eye_replay_pica.h).
-            if (eye == 0) {
+            // The right eye's world from the left eye's commands (eye_replay_pica.h), unless the
+            // right eye is skipped this frame (right_eye_rate).
+            if (eye == 0 && !im.eyeSkip[1]) {
                 EyeView right = ev;
                 right.eyeOffset = im.stereo.eyeOffset;
                 pica::eyeReplayRequest(right);
@@ -1398,6 +1509,7 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
         }
     } else {
         clear(Vec4{0, 0, 0, 1}, true, 1.0f);
+        pica::gpuPassMark(pica::Pass::Clear);
     }
     if (im.topQuads && pica::passEnabled(pica::Pass::Top2d)) {
         UiMeter m(pica::Pass::Top2d);
@@ -1410,8 +1522,12 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
         m.extraDraws = im.modelPass.lastStats().draws;
         m.extraVerts = im.modelPass.lastStats().vertices;
     }
-    // Pass 14 (0.5 is neutral: dst * 0.5 + 0.5 * dst).
-    if (im.worldDrawn && im.topBrightness != 0.5f && pica::passEnabled(pica::Pass::Brightness)) {
+    // Pass 14 (0.5 is neutral: dst * 0.5 + 0.5 * dst). run.ini brightness_skip (default on): no pass
+    // within 1/255 of neutral either (the quad at 128/255 would scale by 256/255).
+    const bool neutralBrightness =
+        im.topBrightness == 0.5f || (im.brightnessSkip() && std::fabs(im.topBrightness - 0.5f) <= 1.0f / 255.0f);
+    if (im.worldDrawn && neutralBrightness && im.topBrightness != 0.5f) ++im.lean.brightnessSkipped;
+    if (im.worldDrawn && !neutralBrightness && pica::passEnabled(pica::Pass::Brightness)) {
         UiMeter m(pica::Pass::Brightness);
         im.renderer->drawBrightness(kTopW, kTopH, im.topBrightness);
         m.extraDraws = 1;
@@ -1429,78 +1545,95 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
         m.extraVerts = im.bannerPass.lastStats().vertices;
     }
     im.cmdUsageMax = std::max(im.cmdUsageMax, C3D_GetCmdBufUsage());
-    if (im.wash.enabled() && im.worldDrawn) im.queueWashCopy(ctx, eye, info);
+    pica::gpuPassMark(pica::GpuExtra::Other);
+    if (im.wash.enabled() && im.worldDrawn) {
+        im.queueWashCopy(ctx, eye, info);
+        pica::gpuPassMark(pica::GpuExtra::Wash);
+    }
     // gpu_kick=1: the GPU draws this eye while the CPU records the next (pica_frame.h).
-    if (eye == 0) im.kickTick = pica::gpuKick() ? svcGetSystemTick() : 0;
     pica::kickGpu();
+    if (eye == 0) im.kickTick = pica::gpuKick() ? pica::firstKickTick() : 0;
 }
 
 void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
     Impl& im = *impl_;
-    pica::drawOn(pica::FrameTarget{ctx.bottomTarget(), kBottomW, kBottomH, false});
-    clear(Vec4{0, 0, 0, 1}, false, 1.0f);
-    if (im.hudReady && im.flow) {
-        UiMeter m(pica::Pass::Bottom2d);
-        for (int k = 0; k < 3; ++k) {
-            im.listMs[k] = 0.0;
-            im.listHit[k] = -1;
-            im.listVerts[k] = 0;
-        }
-        if (im.haveLayers) {
-            ui::Renderer2D* lists[3] = {im.r2dBottom.get(), im.touchQuads ? im.r2dTouch.get() : nullptr,
-                                        im.menuQuads ? im.r2dMenu.get() : nullptr};
+    pica::gpuPassScreen(2);
+    // run.ini bottom_hz=30 (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"): in a mission every
+    // other frame leaves the bottom screen alone. Its target is not drawn on, so C3D_FrameEnd neither
+    // transfers nor swaps it and the screen keeps showing its last picture. The menus stay at 60.
+    const bool inMission = im.hudReady && (im.flow ? (im.haveLayers && im.layers.hud && info.playing) : im.showHud);
+    const bool skipBottom = im.bottomHz() == 30 && inMission && im.bottomDrawnLast;
+    im.bottomDrawnLast = !skipBottom;
+    if (skipBottom) ++im.lean.bottomSkipped;
+    else ++im.lean.bottomDrawn;
+    if (!skipBottom) {
+        pica::drawOn(pica::FrameTarget{ctx.bottomTarget(), kBottomW, kBottomH, false});
+        clear(Vec4{0, 0, 0, 1}, false, 1.0f);
+        pica::gpuPassMark(pica::Pass::Clear);
+        if (im.hudReady && im.flow) {
+            UiMeter m(pica::Pass::Bottom2d);
             for (int k = 0; k < 3; ++k) {
-                if (!lists[k]) continue;
-                const ui::Ui2dPicaStats s0 = ui::ui2dPicaStats();
-                const u64 t0 = svcGetSystemTick();
-                lists[k]->flush();
-                im.listMs[k] = static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11;
-                const ui::Ui2dPicaStats& s1 = ui::ui2dPicaStats();
-                im.listHit[k] = s1.cacheHits > s0.cacheHits ? 1 : 0;
-                im.listVerts[k] = s1.vertices - s0.vertices;
-                // The AS3D_UI_LISTS sums.
-                im.listSum.ms[k] += im.listMs[k];
-                im.listSum.units[k] += s1.units - s0.units;
-                im.listSum.built[k] += s1.unitsBuilt - s0.unitsBuilt;
-                im.listSum.draws[k] += s1.runs - s0.runs;
-                ++im.listSum.flushes[k];
+                im.listMs[k] = 0.0;
+                im.listHit[k] = -1;
+                im.listVerts[k] = 0;
             }
-            ++im.listSum.frames;
-        }
-    } else if (im.hudReady) {
-        const World& world = info.session->world();
-        im.assets->hudTarget = ui::HudTarget::Bottom320x240;
-        ui::Renderer2D& r = *im.r2d;
-        if (im.showHud && pica::passEnabled(pica::Pass::Hud)) {
-            UiMeter m(pica::Pass::Hud);
-            ui::Renderer2D& h = *im.r2dBottom;
-            h.begin(kBottomW, kBottomH);
-            ui::drawHud(h, *im.assets, im.hud);
-            h.flush();
-        }
-        // The hint box over the HUD (render-pipeline.md 1.1 pass 13).
-        if (info.session->hasLevel() && world.hintShowing() && pica::passEnabled(pica::Pass::Hint)) {
-            UiMeter m(pica::Pass::Hint);
-            r.begin(kBottomW, kBottomH);
-            ui::drawHint(r, *im.assets, world.hintText());
-            r.flush();
-        }
-        if (info.touch && im.showHud && pica::passEnabled(pica::Pass::Touch)) {
-            UiMeter m(pica::Pass::Touch);
-            ui::TouchControlsState ts;
-            ts.assets = im.assets.get();
-            ts.player = &im.hud.players[0];
-            ts.rules = &world.rules();
-            ui::Renderer2D& t = *im.r2dTouch;
-            const TouchKey key = touchKeyOf(*info.touch, ts);
-            if (!im.touchKeyValid || std::memcmp(&key, &im.touchKey, sizeof key) != 0) {
-                t.begin(kBottomW, kBottomH);
-                ui::drawTouchControls(t, *info.touch, ts);
-                im.touchKey = key;
-                im.touchKeyValid = true;
+            if (im.haveLayers) {
+                ui::Renderer2D* lists[3] = {im.r2dBottom.get(), im.touchQuads ? im.r2dTouch.get() : nullptr,
+                                            im.menuQuads ? im.r2dMenu.get() : nullptr};
+                for (int k = 0; k < 3; ++k) {
+                    if (!lists[k]) continue;
+                    const ui::Ui2dPicaStats s0 = ui::ui2dPicaStats();
+                    const u64 t0 = svcGetSystemTick();
+                    lists[k]->flush();
+                    im.listMs[k] = static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11;
+                    const ui::Ui2dPicaStats& s1 = ui::ui2dPicaStats();
+                    im.listHit[k] = s1.cacheHits > s0.cacheHits ? 1 : 0;
+                    im.listVerts[k] = s1.vertices - s0.vertices;
+                    // The AS3D_UI_LISTS sums.
+                    im.listSum.ms[k] += im.listMs[k];
+                    im.listSum.units[k] += s1.units - s0.units;
+                    im.listSum.built[k] += s1.unitsBuilt - s0.unitsBuilt;
+                    im.listSum.draws[k] += s1.runs - s0.runs;
+                    ++im.listSum.flushes[k];
+                }
+                ++im.listSum.frames;
             }
-            t.flush();
+        } else if (im.hudReady) {
+            const World& world = info.session->world();
+            im.assets->hudTarget = ui::HudTarget::Bottom320x240;
+            ui::Renderer2D& r = *im.r2d;
+            if (im.showHud && pica::passEnabled(pica::Pass::Hud)) {
+                UiMeter m(pica::Pass::Hud);
+                ui::Renderer2D& h = *im.r2dBottom;
+                h.begin(kBottomW, kBottomH);
+                ui::drawHud(h, *im.assets, im.hud);
+                h.flush();
+            }
+            // The hint box over the HUD (render-pipeline.md 1.1 pass 13).
+            if (info.session->hasLevel() && world.hintShowing() && pica::passEnabled(pica::Pass::Hint)) {
+                UiMeter m(pica::Pass::Hint);
+                r.begin(kBottomW, kBottomH);
+                ui::drawHint(r, *im.assets, world.hintText());
+                r.flush();
+            }
+            if (info.touch && im.showHud && pica::passEnabled(pica::Pass::Touch)) {
+                UiMeter m(pica::Pass::Touch);
+                ui::TouchControlsState ts;
+                ts.assets = im.assets.get();
+                ts.player = &im.hud.players[0];
+                ts.rules = &world.rules();
+                ui::Renderer2D& t = *im.r2dTouch;
+                const TouchKey key = touchKeyOf(*info.touch, ts);
+                if (!im.touchKeyValid || std::memcmp(&key, &im.touchKey, sizeof key) != 0) {
+                    t.begin(kBottomW, kBottomH);
+                    ui::drawTouchControls(t, *info.touch, ts);
+                    im.touchKey = key;
+                    im.touchKeyValid = true;
+                }
+                t.flush();
+            }
         }
+        pica::gpuPassMark(pica::GpuExtra::Other);
     }
     im.arenaUsed = pica::frameArena().used();
     pica::frameEnd();
@@ -1633,6 +1766,19 @@ void GameFrame::stats(FrameStats& out) {
                   pica::renderQuality().shadowAtlas ? 1 : 0,
                   ss.atlasPages, ss.atlasCells, ss.atlasFull, static_cast<double>(ss.atlasBytes) / 1024.0,
                   ms.sourceVertices, ms.mergedVertices, ms.sourceIndices, ms.keptIndices);
+        // R4.1 (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"): the GPU cuts over the same frames,
+        // and the per-pass GPU timing (gpu_passes) when frames were timed.
+        {
+            LeanSums& l = im.lean;
+            AS3D_INFO("AS3D_GPU_LEAN frames=%u kicks=%u bottom_drawn=%u bottom_skipped=%u "
+                      "eye_skipped=%u/%u brightness_skipped=%u far_tev_chunks=%zu",
+                      l.frames, pica::gpuKicks() - im.kicksSeen, l.bottomDrawn, l.bottomSkipped, l.eyeSkipped[0],
+                      l.eyeSkipped[1], l.brightnessSkipped, ts.farTevChunks);
+            l = LeanSums();
+            im.kicksSeen = pica::gpuKicks();
+            const std::string gp = pica::gpuPassReport();
+            if (!gp.empty()) AS3D_INFO("AS3D_GPU_PASS %s", gp.c_str());
+        }
         // Stereo comfort over the same frames (docs/3ds-port.md "Stereo comfort and frame polish").
         im.logStereoSums();
         // The front end's bottom lists: ms, cache units and units rebuilt, draws per flush.

@@ -174,6 +174,16 @@ struct RunConfig {
     bool terrainPrime = true;
     bool terrainForceState = true; // terrain_force_state=0|1: the effect block as direct words after the priming draw (terrain_pica.h)
     bool eyeReplay = true; // eye_replay=0|1: the right eye's world from the left eye's commands (eye_replay_pica.h)
+    // R4.1: the stereo GPU budget (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"; apps/3ds/README.md).
+    int gpuPasses = 0;      // gpu_passes=N: every N-th frame timed pass by pass on the GPU (AS3D_GPU_PASS); 1 = every 10th; 0 off
+    int gpuKickAt = 1;      // gpu_kick_at=terrain|eye: with gpu_kick, the GPU also starts after the left (or only) eye's terrain pass (1, default) or only after each eye (0)
+    int bottomHz = 0;       // bottom_hz=60|30: the bottom screen every frame or every other in a mission; 0 = default (60, 30 with gpu_lean)
+    int terrainFarTev = -1; // terrain_far_tev=0|1: the coarse far chunks without the detail texture; -1 = default (off, on with gpu_lean)
+    int brightnessSkip = -1; // brightness_skip=0|1: no brightness pass within 1/255 of neutral; -1 = default (on)
+    int rightEyeRate = 0;   // right_eye_rate=full|half|alternate: the right eye every frame, every other, or the eyes in turn
+    bool depth16 = false;   // depth16=1: D16 depth buffers on the top eyes (wash_check off), +375 KB of texture VRAM
+    bool gpuLean = false;   // gpu_lean=1: bottom_hz=30 terrain_far_tev=1 brightness_skip=1 (each key still overrides)
+    // R4.1 end
     bool effectiveWashCheck() const { return washCheck >= 0 ? washCheck != 0 : mode == Mode::Soak; }
     int effectiveProbeEvery() const { return probeEvery >= 0 ? probeEvery : (mode == Mode::Soak ? 30 : 0); }
     int effectiveFrames() const { return frames > 0 ? frames : (mode == Mode::Sim ? 600 : 0); }

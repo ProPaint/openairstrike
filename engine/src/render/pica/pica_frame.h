@@ -68,6 +68,16 @@ void setGpuKick(bool on);
 bool gpuKick();
 void kickGpu();
 unsigned gpuKicks(); // kicks since start
+// The tick of the frame's first kick (0 before it): the pacer's and perf.csv's GPU start.
+uint64_t firstKickTick();
+// run.ini gpu_kick_at=terrain (R4.1, the default; docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"):
+// the world renderer also kicks right after the first terrain pass of a frame that is not recorded for
+// the eye replay (mono, or stereo without the replay), so the GPU starts about 2 ms into the frame
+// instead of after the whole top screen. kickAfterTerrain() is that kick (a no-op when off, when gpu_kick
+// is off or when the frame was kicked already).
+void setGpuKickAfterTerrain(bool on);
+bool gpuKickAfterTerrain();
+void kickAfterTerrain();
 // The arena's new vertices flushed, then C3D_FrameSplit(GX_CMDLIST_FLUSH) (render_state's clears).
 void splitCommandList();
 
@@ -220,6 +230,8 @@ uint32_t* c3dFlagsPointer();
 // Texture2D::bind skips C3D_TexBind of the texture already bound to the unit (gfx_pica.cpp; a
 // destroyed texture is forgotten). initBackend forgets every binding.
 void forgetTextureBindings();
+// Unbinds texture unit `unit` (C3D_TexBind(unit, NULL): citro3d disables it with the next draw).
+void unbindTexture(unsigned unit);
 // render_state_pica.cpp: forget the viewport/scissor of the previous target (drawOn) and
 // re-issue the tracked blend/depth/cull state (initBackend).
 void resetViewState();

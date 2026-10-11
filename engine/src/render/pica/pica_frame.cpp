@@ -12,6 +12,7 @@
 
 #include "as3d/core.h"
 #include "eye_replay_pica.h"
+#include "gpu_passes_pica.h"
 #include "state_check_pica.h"
 
 // citro3d's context (internal.h: C3D_Context __C3D_Context). Its first member is the GX command
@@ -167,6 +168,7 @@ void frameBegin() {
     }
     stateCheckFrameBegin();
     eyeReplayFrameBegin();
+    gpuPassFrameBegin(); // run.ini gpu_passes (gpu_passes_pica.h): after the state check's frame start
     // Each frame issues its fragment state and texture bindings at least once (the shadow copies
     // of render_state_pica.cpp only skip repeats inside a frame and a target).
     detail::c3dInvalidate();
@@ -285,7 +287,18 @@ void frameEnd() {
 namespace {
 bool g_kick = false;
 unsigned g_kicks = 0;
+bool g_kickAfterTerrain = true;
+uint64_t g_firstKickTick = 0;
+uint32_t g_firstKickSerial = 0;
 } // namespace
+
+uint64_t firstKickTick() { return g_firstKickSerial == backend().serial ? g_firstKickTick : 0; }
+void setGpuKickAfterTerrain(bool on) { g_kickAfterTerrain = on; }
+bool gpuKickAfterTerrain() { return g_kickAfterTerrain; }
+void kickAfterTerrain() {
+    if (!g_kick || !g_kickAfterTerrain || !backend().inFrame || firstKickTick() != 0) return;
+    kickGpu();
+}
 
 void setGpuKick(bool on) { g_kick = on; }
 bool gpuKick() { return g_kick; }
@@ -306,6 +319,10 @@ void kickGpu() {
     // queue's completion callback does nothing until C3D_FrameEnd sets the swap flags.
     gxCmdQueueRun(&__C3D_Context);
     ++g_kicks;
+    if (g_firstKickSerial != backend().serial) {
+        g_firstKickSerial = backend().serial;
+        g_firstKickTick = svcGetSystemTick();
+    }
 }
 
 LinearArena& frameArena() { return backend().arena; }

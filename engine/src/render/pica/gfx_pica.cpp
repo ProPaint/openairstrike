@@ -120,6 +120,11 @@ const C3D_Tex* c3dTexOf(const Texture2D& t) {
 
 namespace detail {
 void forgetTextureBindings() { g_bound[0] = g_bound[1] = g_bound[2] = nullptr; }
+void unbindTexture(unsigned unit) {
+    if (unit > 2) return;
+    g_bound[unit] = nullptr;
+    C3D_TexBind(static_cast<int>(unit), nullptr); // the unit is disabled with the next draw
+}
 } // namespace detail
 
 TextureBudget& textureBudget() {

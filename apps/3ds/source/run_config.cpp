@@ -252,6 +252,27 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
             if (toInt(val, &n)) c.eyeReplay = n != 0;
         } else if (key == "terrain_prime") {
             if (toInt(val, &n)) c.terrainPrime = n != 0;
+        // R4.1 (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)")
+        } else if (key == "gpu_passes") {
+            if (toInt(val, &n) && n >= 0) c.gpuPasses = n;
+        } else if (key == "gpu_kick_at") {
+            if (val == "terrain") c.gpuKickAt = 1;
+            else if (val == "eye") c.gpuKickAt = 0;
+        } else if (key == "bottom_hz") {
+            if (toInt(val, &n) && (n == 60 || n == 30)) c.bottomHz = n;
+        } else if (key == "terrain_far_tev") {
+            if (toInt(val, &n)) c.terrainFarTev = n != 0 ? 1 : 0;
+        } else if (key == "brightness_skip") {
+            if (toInt(val, &n)) c.brightnessSkip = n != 0 ? 1 : 0;
+        } else if (key == "right_eye_rate") {
+            if (val == "full") c.rightEyeRate = 0;
+            else if (val == "half") c.rightEyeRate = 1;
+            else if (val == "alternate") c.rightEyeRate = 2;
+        } else if (key == "depth16") {
+            if (toInt(val, &n)) c.depth16 = n != 0;
+        } else if (key == "gpu_lean") {
+            if (toInt(val, &n)) c.gpuLean = n != 0;
+        // R4.1 end
         } else if (key == "terrain_force_state") {
             if (toInt(val, &n)) c.terrainForceState = n != 0;
         } else if (key == "probe_inject") {

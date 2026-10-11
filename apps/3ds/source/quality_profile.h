@@ -24,6 +24,9 @@ struct QualityProfile {
     float terrainLodDistance = 520.0f;
     float terrainLodBand = 40.0f; // hysteresis: coarse beyond distance + band, fine again under distance - band
     bool shadowAtlas = true;
+    // R4.1 (docs/3ds-port.md "Stereo GPU budget (round 4, R4.1)"): the coarse far chunks without
+    // the detail texture (run.ini terrain_far_tev; on with gpu_lean=1).
+    bool terrainFarTev = false;
 
     // Simulation steps one drawn frame may catch up (the loops' bounded catch-up).
     int maxCatchUp() const { return renderHz == 30 ? 4 : 2; }
@@ -33,7 +36,7 @@ QualityProfile newProfile();
 QualityProfile oldProfile();
 // `mode` is run.ini quality=: Auto picks by `isNew3ds`.
 QualityProfile selectQuality(QualityMode mode, bool isNew3ds);
-// run.ini terrain_lod=, terrain_lod_dist=, shadow_atlas= over the profile's values.
+// run.ini terrain_lod=, terrain_lod_dist=, shadow_atlas=, terrain_far_tev= (gpu_lean=) over the profile's values.
 void applyRunOverrides(QualityProfile& q, const RunConfig& run);
 // Sets pica::RenderQuality and the target frame rate (C3D_FrameRate); call after the graphics
 // context exists and before the level starts. Logs the AS3D_QUALITY line.
