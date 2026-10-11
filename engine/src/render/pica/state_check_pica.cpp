@@ -1,4 +1,5 @@
 // The render-state self-check (state_check_pica.h).
+#include <cstddef>
 #include "state_check_pica.h"
 
 #include <3ds.h>
@@ -72,6 +73,23 @@ constexpr u32 kFlagActive = 1u << 0;
 constexpr u32 kFlagEffect = 1u << 4;
 
 const C3dContextMirror* ctxMirror() { return static_cast<const C3dContextMirror*>(detail::c3dContextAddress()); }
+
+// citro3d 1.7.1's C3D_TexBind(unit, NULL) reads the texture's type for units 1 and 2 before it
+// accepts the pointer (texture.c: "if (unitId > 0 && C3D_TexGetType(tex) == GPU_TEX_CUBE_MAP)"), so a
+// null bind of those units is a data abort on the console (the fifth console soak, 2026-10-11:
+// terrain_far_tev's unbind of unit 1 at the first frame; Azahar reads 0 from an unmapped address
+// and never faulted). The disassembly of C3D_TexBind: the slot is written at context + (70 + unit) * 4
+// and the flag is bit 23 + unit of the flags word at context + 32; C3Di_UpdateContext then disables
+// the unit whose slot is null. The same two writes through the mirror.
+static_assert(offsetof(C3dContextMirror, flags) == 32, "citro3d context: flags moved");
+static_assert(offsetof(C3dContextMirror, tex) == 280, "citro3d context: tex[] moved");
+void setTextureSlotNullImpl(unsigned unit) {
+    if (unit > 2) return;
+    auto* m = static_cast<C3dContextMirror*>(detail::c3dContextAddress());
+    if (!m || !(m->flags & kFlagActive)) return;
+    m->tex[unit] = nullptr;
+    m->flags |= 1u << (23 + unit);
+}
 
 // The mirror's layout check (as setStateCheck's): the frame buffer where citro3d's accessor says,
 // the context active, the GX queue of 32 entries. C3D_GetFrameBuf marks the frame buffer dirty.
@@ -263,6 +281,8 @@ struct QueueSnap {
 };
 
 } // namespace
+
+void c3dSetTextureSlotNull(unsigned unit) { setTextureSlotNullImpl(unit); }
 
 void setStateCheck(int level) {
     State& s = st();

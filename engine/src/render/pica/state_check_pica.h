@@ -110,6 +110,9 @@ StateCheckCounts stateCheckCounts();
 // ended, `maxWashed` samples at most.
 void stateCheckNoteWashEval(double ms, int judged);
 void stateCheckNoteWashEpisode(unsigned startFrame, unsigned frames, int maxWashed);
+// Sets citro3d's texture slot of a unit to null through the context mirror (the unit is disabled
+// with the next draw); C3D_TexBind(unit, NULL) faults for units 1 and 2 on the console.
+void c3dSetTextureSlotNull(unsigned unit);
 // The register read-back of every probed pass during the next `frames` frames (the current one
 // included when called before its passes), as after a mark.
 void stateCheckArmProbe(int frames);

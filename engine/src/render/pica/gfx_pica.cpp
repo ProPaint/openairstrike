@@ -37,6 +37,7 @@
 #include "as3d/texconv.h"
 #include "as3d/texture.h"
 #include "pass_profile.h"
+#include "state_check_pica.h"
 #include "texture_budget.h"
 
 namespace as3d {
@@ -123,7 +124,11 @@ void forgetTextureBindings() { g_bound[0] = g_bound[1] = g_bound[2] = nullptr; }
 void unbindTexture(unsigned unit) {
     if (unit > 2) return;
     g_bound[unit] = nullptr;
-    C3D_TexBind(static_cast<int>(unit), nullptr); // the unit is disabled with the next draw
+    // The unit is disabled with the next draw. Unit 0 may be bound to null directly; for units 1
+    // and 2 citro3d 1.7.1 reads the texture's type first (a data abort on the console), so the
+    // slot is cleared through the context mirror (state_check_pica.cpp).
+    if (unit == 0) C3D_TexBind(0, nullptr);
+    else c3dSetTextureSlotNull(unit);
 }
 } // namespace detail
 
