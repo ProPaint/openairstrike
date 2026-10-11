@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <string>
@@ -28,6 +29,7 @@
 #include "ctr_mem.h"
 #include "ctr_perf.h"
 #include "ctr_wash.h"
+#include "eye_replay_pica.h"
 #include "flat_fill.h"
 #include "game_flow.h"
 #include "game_session.h"
@@ -206,6 +208,49 @@ constexpr unsigned kPassReportFrames = 300;
 // its own per-pass split (the owner's drop 5 play session: 18-24 ms submits every 9-11 frames
 // with fire held, no load at those frames). At most kSlowSubmitLogs lines per level.
 constexpr double kSlowSubmitMs = 15.0;
+
+// Everything drawTouchControls reads (input/touch_controls.cpp): the layout's circles and alpha,
+// the held buttons, the drag target, the HUD fields of the faces, the rules and assets. Equal to
+// the last frame's: the list is not built again (round 3, R3.2), its flush replays the last one.
+struct TouchKey {
+    float circles[kTouchButtonCount * 3];
+    float layoutAlpha, alpha, targetX, targetY;
+    int32_t held, dragging, targetValid;
+    int32_t weapon, missileSelected, powerupSelected;
+    int32_t upgrades[ui::kWeaponSlots], missiles[ui::kMissileTypes], powerups[ui::kPowerupSlots];
+    const void* rules;
+    const void* assets;
+};
+TouchKey touchKeyOf(const TouchMapper& t, const ui::TouchControlsState& ts) {
+    TouchKey k;
+    std::memset(&k, 0, sizeof k);
+    const TouchLayout& L = t.layout();
+    for (int i = 0; i < kTouchButtonCount; ++i) {
+        k.circles[i * 3] = L.circles[i].x;
+        k.circles[i * 3 + 1] = L.circles[i].y;
+        k.circles[i * 3 + 2] = L.circles[i].r;
+        if (t.buttonHeld(static_cast<TouchButton>(i))) k.held |= 1 << i;
+    }
+    k.layoutAlpha = L.alpha;
+    k.alpha = ts.alpha;
+    k.dragging = t.dragging() ? 1 : 0;
+    k.targetValid = t.targetValid() ? 1 : 0;
+    k.targetX = t.targetX();
+    k.targetY = t.targetY();
+    if (const ui::HudPlayer* p = ts.player) {
+        k.weapon = p->weapon;
+        k.missileSelected = p->missileSelected;
+        k.powerupSelected = p->powerupSelected;
+        for (int i = 0; i < ui::kWeaponSlots; ++i) k.upgrades[i] = p->upgrades[i];
+        for (int i = 0; i < ui::kMissileTypes; ++i) k.missiles[i] = p->missiles[i];
+        for (int i = 0; i < ui::kPowerupSlots; ++i) k.powerups[i] = p->powerups[i];
+    } else {
+        k.weapon = -1;
+    }
+    k.rules = ts.rules;
+    k.assets = ts.assets;
+    return k;
+}
 constexpr int kSlowSubmitLogs = 60;
 
 } // namespace
@@ -228,6 +273,8 @@ struct GameFrame::Impl {
     std::unique_ptr<ui::Renderer2D> r2dMenu;
     bool touchQuads = false, menuQuads = false; // the front end's frame filled them
     bool touchPrebuild = false; // r2dTouch holds the band's first list, for the next forced loading frame
+    TouchKey touchKey{};        // what r2dTouch's list was built from in play (touchKeyValid)
+    bool touchKeyValid = false;
     uint64_t kickTick = 0; // the first gpu_kick of the frame (the pacer's GPU time)
     // The slow-submit log: the pass totals and the late-texture count when the frame began.
     uint64_t submitTick = 0;
@@ -260,6 +307,7 @@ struct GameFrame::Impl {
     bool worldDrawn = true;
     // The wash detector (ctr_wash.h, run.ini wash_check): the frame's central view, a mark due.
     ctrapp::WashDetector wash;
+    pica::EyeReplayStats replaySeen; // the eye replay's totals at the last AS3D_EYE_REPLAY line
     bool washMarkPending = false;
     const Terrain* washTopOf = nullptr; // the terrain whose highest point washTop holds
     float washTop = 0.0f;
@@ -412,6 +460,7 @@ struct GameFrame::Impl {
         r2dTouch->begin(kBottomW, kBottomH);
         ui::drawTouchControls(*r2dTouch, t, ts);
         touchPrebuild = true;
+        touchKeyValid = false;
     }
 
     // A level start: the filters take the first frame's values at once, the sums start again.
@@ -598,6 +647,7 @@ struct GameFrame::Impl {
         wash.setEnabled(run.effectiveWashCheck());
         wash.logEvals = run.washLog;
         pica::setTerrainPrime(run.terrainPrime);
+        pica::setEyeReplayEnabled(run.eyeReplay);
         pica::setTerrainWashInject(run.washInject);
         AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d", wash.enabled() ? 1 : 0, run.washInject,
                   run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0);
@@ -626,6 +676,7 @@ struct GameFrame::Impl {
         r2dBottom.reset(new ui::Renderer2D());
         r2dTopOver.reset(new ui::Renderer2D());
         r2dTouch.reset(new ui::Renderer2D());
+        touchKeyValid = false;
         // The touch band's circles (docs/3ds-port.md "Stereo at 60"): 48 segments made it 16k
         // vertices a frame, more than the terrain; at the band's radii 24 keep the edge within
         // a quarter pixel of the circle (run.ini touch_segments=).
@@ -824,6 +875,7 @@ struct GameFrame::Impl {
             r2dTouch->begin(kBottomW, kBottomH);
             ui::drawTouchControls(*r2dTouch, *info->touch, ts);
             touchQuads = true;
+            touchKeyValid = false;
         }
         // frontend.md 4.1: the menus after the HUD. The main menu's 3D banner (between the two
         // halves on the desktop) is the title on the top screen here; the sequels' model view
@@ -1314,6 +1366,12 @@ void GameFrame::drawTop(CtrContext& ctx, int eye, const FrameInfo& info) {
         if (im.stereo.eyes == 2) {
             ev.eyeOffset = eye == 0 ? -im.stereo.eyeOffset : im.stereo.eyeOffset;
             ev.focalDistance = im.stereo.focal;
+            // The right eye's world from the left eye's commands (eye_replay_pica.h).
+            if (eye == 0) {
+                EyeView right = ev;
+                right.eyeOffset = im.stereo.eyeOffset;
+                pica::eyeReplayRequest(right);
+            }
         }
         im.renderer->draw(ev); // pass 0 clears to the level's clear colour
     } else {
@@ -1412,8 +1470,13 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
             ts.player = &im.hud.players[0];
             ts.rules = &world.rules();
             ui::Renderer2D& t = *im.r2dTouch;
-            t.begin(kBottomW, kBottomH);
-            ui::drawTouchControls(t, *info.touch, ts);
+            const TouchKey key = touchKeyOf(*info.touch, ts);
+            if (!im.touchKeyValid || std::memcmp(&key, &im.touchKey, sizeof key) != 0) {
+                t.begin(kBottomW, kBottomH);
+                ui::drawTouchControls(t, *info.touch, ts);
+                im.touchKey = key;
+                im.touchKeyValid = true;
+            }
             t.flush();
         }
     }
@@ -1493,6 +1556,18 @@ void GameFrame::stats(FrameStats& out) {
     if (pp.frames() >= kPassReportFrames)
         AS3D_INFO("AS3D_PREP_MS (ms/items per frame) %s", pp.reportPrepare(static_cast<double>(SYSCLOCK_ARM11) / 1000.0).c_str());
     if (pp.frames() >= kPassReportFrames && im.wash.enabled()) AS3D_INFO("%s", im.wash.statsLine().c_str());
+    if (pp.frames() >= kPassReportFrames && out.eyes == 2) {
+        // The second eye from the first eye's commands (eye_replay_pica.h), over the same frames.
+        const pica::EyeReplayStats& rs = pica::eyeReplayStats();
+        const unsigned replayed = rs.replayed - im.replaySeen.replayed;
+        AS3D_INFO("AS3D_EYE_REPLAY enabled=%d eye_register=%d frames=%u armed=%u recorded=%u replayed=%u failed=%u last=%s "
+                  "words_per_replay=%.0f replay_ms=%.3f",
+                  pica::eyeReplayEnabled() ? 1 : 0, pica::shaders().eyeRegister(), pp.frames(), rs.armed - im.replaySeen.armed,
+                  rs.recorded - im.replaySeen.recorded, replayed, rs.failed - im.replaySeen.failed, rs.lastFailure,
+                  replayed ? static_cast<double>(rs.words - im.replaySeen.words) / replayed : 0.0,
+                  replayed ? static_cast<double>(rs.replayTicks - im.replaySeen.replayTicks) * 1000.0 / SYSCLOCK_ARM11 / replayed : 0.0);
+        im.replaySeen = rs;
+    }
     if (pp.frames() >= kPassReportFrames) {
         AS3D_INFO("AS3D_PASS_MS eyes=%d (ms/draws/verts per frame) %s", out.eyes,
                   pp.report(static_cast<double>(SYSCLOCK_ARM11) / 1000.0).c_str());

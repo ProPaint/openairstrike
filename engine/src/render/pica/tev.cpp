@@ -165,8 +165,29 @@ static_assert(static_cast<int>(TevFunc::Subtract) == GPU_SUBTRACT, "TevFunc");
 static_assert(static_cast<int>(TevFunc::MultiplyAdd) == GPU_MULTIPLY_ADD, "TevFunc");
 static_assert(static_cast<int>(TevFunc::AddMultiply) == GPU_ADD_MULTIPLY, "TevFunc");
 
+namespace {
+bool sameStage(const TevStage& a, const TevStage& b) {
+    for (int k = 0; k < 3; ++k)
+        if (a.srcRgb[k] != b.srcRgb[k] || a.srcA[k] != b.srcA[k] || a.opRgb[k] != b.opRgb[k] || a.opA[k] != b.opA[k])
+            return false;
+    return a.funcRgb == b.funcRgb && a.funcA == b.funcA && a.constant[0] == b.constant[0] &&
+           a.constant[1] == b.constant[1] && a.constant[2] == b.constant[2] && a.constant[3] == b.constant[3];
+}
+TevConfig g_lastTev;
+bool g_lastTevValid = false;
+} // namespace
+
+void tevInvalidate() { g_lastTevValid = false; }
+
 void applyTev(const TevConfig& cfg) {
     static int lastCount = kMaxTevStages; // unknown at start: reset everything once
+    if (g_lastTevValid && cfg.count == g_lastTev.count) {
+        bool same = true;
+        for (int i = 0; i < cfg.count && i < kMaxTevStages && same; ++i) same = sameStage(cfg.stages[i], g_lastTev.stages[i]);
+        if (same) return;
+    }
+    g_lastTev = cfg;
+    g_lastTevValid = true;
     for (int i = 0; i < cfg.count && i < kMaxTevStages; ++i) {
         const TevStage& s = cfg.stages[i];
         C3D_TexEnv* env = C3D_GetTexEnv(i);

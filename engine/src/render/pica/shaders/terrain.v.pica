@@ -11,6 +11,7 @@
 ; Outputs: position, texcoord0 = uv0, texcoord1 = detail uv, colour = clamp(colour + dynamic).
 ; The TEV preset is tevTerrain2Stage (base * colour + detail - 0.5).
 
+.fvec eye ; c0 in every program: the eye shift (x, y; see eye_replay_pica.h)
 .fvec mvp[4]
 .fvec detail
 
@@ -28,13 +29,20 @@
 .alias indyn v2
 .alias intex v3
 
-.proc main
+.entry main_terrain
+.proc main_terrain
 	mov r0.xyz, inpos
 	mov r0.w, ones
-	dp4 outpos.x, mvp[0], r0
-	dp4 outpos.y, mvp[1], r0
-	dp4 outpos.z, mvp[2], r0
-	dp4 outpos.w, mvp[3], r0
+	dp4 r15.x, mvp[0], r0
+	dp4 r15.y, mvp[1], r0
+	dp4 r15.z, mvp[2], r0
+	dp4 r15.w, mvp[3], r0
+	; The second eye's shift (eye_replay_pica.h): clip y += eye.x * w + eye.y. eye is 0 but while
+	; the right eye replays the left eye's commands, and adding 0 leaves y exactly as it was.
+	mul r14.y, eye.xxxx, r15.wwww
+	add r15.y, r14.yyyy, r15.yyyy
+	add r15.y, eye.yyyy, r15.yyyy
+	mov outpos, r15
 	mov outtc0, intex
 
 	; detail uv = position.xy * detail.xy + detail.zw

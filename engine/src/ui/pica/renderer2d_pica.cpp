@@ -162,6 +162,21 @@ struct Renderer2D::Impl {
     std::vector<Quad> unitQuads; // a cache unit's quads (flush)
     unsigned useStamp = 0;
     int allHitFlushes = 0; // flushes in a row whose units all hit (consolidation)
+    struct Replay { // the last flush's list and draw list (flush)
+        bool valid = false;
+        std::vector<Quad> quads;
+        std::vector<size_t> breaks;
+        Mapping mapping;
+        bool halfPixel = false, snap = true;
+        int segments = 0;
+        struct U {
+            const std::vector<Run2D>* runs = nullptr;
+            const pica::FlatVertex* flat = nullptr;
+            const pica::Flat2Vertex* flat2 = nullptr;
+            CacheSlot* slot = nullptr;
+        };
+        std::vector<U> units;
+    } replay;
     ~Impl() {
         for (CacheSlot& c : slots) {
             pica::deferLinearFree(c.flat);
@@ -208,6 +223,35 @@ int Renderer2D::flush() {
         const CacheSlot* slot = nullptr; // the slot it was drawn from (hits)
     };
     std::vector<Unit> units;
+    std::vector<std::vector<Run2D>> arenaRuns; // the runs of units drawn from the frame arena
+    // The same list as the last flush (the touch band, a static HUD, the second eye): its units are
+    // still in their cache slots (only this list's own flushes rewrite them), so the last flush's
+    // draw list is replayed without matching the units against the slots (round 3, R3.2).
+    Impl::Replay& rp = im.replay;
+    bool replayed = rp.valid && rp.quads.size() == quads_.size() && rp.breaks == breaks_ && rp.halfPixel == halfPixelShift_ &&
+                    rp.snap == g_snap && rp.segments == segments_ && sameMapping(rp.mapping, mapping_);
+    for (size_t i = 0; replayed && i < quads_.size(); ++i) replayed = sameQuad(rp.quads[i], quads_[i]);
+    if (replayed) {
+        for (const Impl::Replay::U& r : rp.units) {
+            Unit u;
+            u.runs = r.runs;
+            u.flat = r.flat;
+            u.flat2 = r.flat2;
+            u.hit = true;
+            u.slot = r.slot;
+            if (r.slot) {
+                r.slot->usedFrame = frame;
+                r.slot->lastUse = ++im.useStamp;
+            }
+            units.push_back(u);
+            ++g_stats.cacheHits;
+        }
+        g_stats.units += static_cast<int>(units.size());
+        ++g_stats.replays;
+        // A split list replayed unchanged counts towards its consolidation (the next flush then
+        // takes the matching path, which joins it).
+        if (units.size() > 1 && ++im.allHitFlushes >= kConsolidateFlushes) rp.valid = false;
+    } else {
     {
         size_t from = 0;
         for (size_t b : breaks_) {
@@ -327,7 +371,6 @@ int Renderer2D::flush() {
             }
         }
     }
-    std::vector<std::vector<Run2D>> arenaRuns; // the runs of units drawn from the frame arena
     arenaRuns.reserve(units.size());
     g_stats.units += static_cast<int>(units.size());
     for (Unit& u : units) {
@@ -432,6 +475,7 @@ int Renderer2D::flush() {
             slot->usedFrame = frame;
             slot->lastUse = ++im.useStamp;
             u.runs = &slot->runs;
+            u.slot = slot;
         } else {
             arenaRuns.push_back(im.runs);
             u.runs = &arenaRuns.back();
@@ -439,6 +483,26 @@ int Renderer2D::flush() {
         u.flat = outFlat;
         u.flat2 = outFlat2;
         pica::passProfile().add(pica::Pass::Ui2dCopy, svcGetSystemTick() - tCopy, 0, static_cast<int>(count));
+    }
+    // What the next flush may replay: every unit in a cache slot (none in the frame arena).
+    rp.valid = arenaRuns.empty();
+    if (rp.valid) {
+        rp.quads = quads_;
+        rp.breaks = breaks_;
+        rp.mapping = mapping_;
+        rp.halfPixel = halfPixelShift_;
+        rp.snap = g_snap;
+        rp.segments = segments_;
+        rp.units.clear();
+        for (const Unit& u : units) {
+            Impl::Replay::U r;
+            r.runs = u.runs;
+            r.flat = u.flat;
+            r.flat2 = u.flat2;
+            r.slot = const_cast<CacheSlot*>(u.slot);
+            rp.units.push_back(r);
+        }
+    }
     }
 
     // The matrix: our pixel (x, y) is target pixel (x + originX, y + yTop), see the header.
@@ -454,6 +518,11 @@ int Renderer2D::flush() {
     pica::detail::c3dAlphaTest(false, GPU_ALWAYS, 0);
 
     int calls = 0;
+    // The shader, its matrix and the vertex buffer are issued when they change, not per run (round
+    // 3, R3.2: C3D_BindProgram reloads the program's constants and attribute layout even for the
+    // bound program, and every buffer setup is re-emitted with the next draw).
+    int boundShader = -1;
+    const void* boundVertices = nullptr;
     for (const Unit& u : units) {
         if (!u.runs) continue;
         size_t flat2Used = 0;
@@ -469,15 +538,18 @@ int Renderer2D::flush() {
             }
             if (two && !tex) tex = &im.white;
             setBlendFor(run.blend);
-            const void* vertices = u.flat;
-            if (two) {
-                sh.bind(pica::Shader::Flat2);
-                vertices = u.flat2 + flat2Used;
-            } else {
-                sh.bind(pica::Shader::Flat);
+            const void* vertices = two ? static_cast<const void*>(u.flat2 + flat2Used) : static_cast<const void*>(u.flat);
+            const int want = two ? 1 : 0;
+            if (want != boundShader) {
+                sh.bind(two ? pica::Shader::Flat2 : pica::Shader::Flat);
+                sh.setMvp(mvp);
+                boundShader = want;
+                boundVertices = nullptr;
             }
-            sh.setMvp(mvp);
-            sh.setVertices(vertices);
+            if (vertices != boundVertices) {
+                sh.setVertices(vertices);
+                boundVertices = vertices;
+            }
             if (two) {
                 pica::applyTev(pica::tevCombine2(static_cast<int>(run.combine2)));
                 const Texture2D* t2 = run.tex2->valid() ? run.tex2 : &im.white;

@@ -40,12 +40,14 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <iterator>
 #include <map>
 
 #include "as3d/core.h"
 #include "as3d/material_key.h"
 #include "as3d/render_state.h"
 #include "as3d/terrain_render.h"
+#include "eye_replay_pica.h"
 #include "pica_frame.h"
 #include "state_check_pica.h"
 #include "quality_pica.h"
@@ -810,7 +812,26 @@ void TerrainRenderer::render(const TerrainViewParams& params, const TerrainRende
     fr.p[5][1] = -vp.at(1, 2);
     fr.p[5][2] = -vp.at(2, 2);
     fr.p[5][3] = -vp.at(3, 2);
-    const std::vector<int> visible = visibleTerrainChunks(im.geo, fr);
+    std::vector<int> visible = visibleTerrainChunks(im.geo, fr);
+    // While this eye records for both eyes (eye_replay_pica.h): the chunks either eye sees. The
+    // right eye's projection is this one with row 1's columns 2 and 3 moved by the eye shift.
+    float shiftK1 = 0.0f, shiftK2 = 0.0f;
+    if (pica::eyeReplayRecording() && pica::eyeReplayShift(&shiftK1, &shiftK2)) {
+        Mat4 right = params.projection;
+        right.at(2, 1) -= shiftK1;
+        right.at(3, 1) += shiftK2;
+        const Mat4 vpR = right * params.view;
+        TerrainFrustum frR = extractTerrainFrustum(vpR);
+        frR.p[5][0] = -vpR.at(0, 2);
+        frR.p[5][1] = -vpR.at(1, 2);
+        frR.p[5][2] = -vpR.at(2, 2);
+        frR.p[5][3] = -vpR.at(3, 2);
+        const std::vector<int> visibleR = visibleTerrainChunks(im.geo, frR);
+        std::vector<int> both;
+        both.reserve(visible.size() + visibleR.size());
+        std::set_union(visible.begin(), visible.end(), visibleR.begin(), visibleR.end(), std::back_inserter(both));
+        visible.swap(both);
+    }
     lastVisible_ = static_cast<int>(visible.size());
     st.visibleChunks = lastVisible_;
     if (visible.empty()) return;

@@ -264,7 +264,10 @@ void c3dDepthMap(bool zBuffer, float zScale, float zOffset) {
     C3D_DepthMap(zBuffer, zScale, zOffset);
 }
 
-void c3dInvalidate() { g_c3d = C3dShadow(); }
+void c3dInvalidate() {
+    g_c3d = C3dShadow();
+    tevInvalidate(); // the TEV is issued in full again too (tev.h)
+}
 
 void resetViewState() {
     RenderState& s = state();

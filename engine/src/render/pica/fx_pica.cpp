@@ -102,7 +102,13 @@ FlatVertex* uploadBuilderVertices(const float* v, size_t count) {
 }
 
 int drawFlatRuns(const FlatVertex* verts, const std::vector<DrawRun>& runs, const FxEyeParams& eye) {
-    if (!verts || runs.empty() || !backendReady()) return 0;
+    return drawFlatRunsIndexed(verts, nullptr, 0, DrawRun(), runs, eye);
+}
+
+int drawFlatRunsIndexed(const FlatVertex* verts, const uint16_t* indices, int indexCount, const DrawRun& indexed,
+                        const std::vector<DrawRun>& runs, const FxEyeParams& eye) {
+    const bool withIndexed = indices && indexCount > 0;
+    if (!verts || (runs.empty() && !withIndexed) || !backendReady()) return 0;
     const Mat4 vp = eye.projection * eye.view;
     float nearPlane, farPlane;
     detail::planesOfProjection(eye.projection.m, &nearPlane, &farPlane);
@@ -117,7 +123,7 @@ int drawFlatRuns(const FlatVertex* verts, const std::vector<DrawRun>& runs, cons
     sh.setVertices(verts);
     int draws = 0;
     MaterialKey last;
-    for (const DrawRun& r : runs) {
+    auto style = [&](const DrawRun& r) {
         applyMaterialState(r.key);
         last = r.key;
         if (r.texture && r.texture->valid()) {
@@ -127,6 +133,14 @@ int drawFlatRuns(const FlatVertex* verts, const std::vector<DrawRun>& runs, cons
             applyTev(tevPrimaryOnly());
         }
         if (eye.check && draws == 0) checkPassState(*eye.check);
+    };
+    if (withIndexed) {
+        style(indexed);
+        C3D_DrawElements(GPU_TRIANGLES, indexCount, C3D_UNSIGNED_SHORT, indices);
+        ++draws;
+    }
+    for (const DrawRun& r : runs) {
+        style(r);
         C3D_DrawArrays(r.strip ? GPU_TRIANGLE_STRIP : GPU_TRIANGLES, r.first, r.count);
         ++draws;
     }

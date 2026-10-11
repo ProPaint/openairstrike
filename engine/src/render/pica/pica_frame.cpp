@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "as3d/core.h"
+#include "eye_replay_pica.h"
 #include "state_check_pica.h"
 
 // citro3d's context (internal.h: C3D_Context __C3D_Context). Its first member is the GX command
@@ -165,6 +166,7 @@ void frameBegin() {
         ++b.fence.poisonedHalves;
     }
     stateCheckFrameBegin();
+    eyeReplayFrameBegin();
     // Each frame issues its fragment state and texture bindings at least once (the shadow copies
     // of render_state_pica.cpp only skip repeats inside a frame and a target).
     detail::c3dInvalidate();

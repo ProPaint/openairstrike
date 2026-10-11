@@ -75,8 +75,10 @@
 #include "quality_pica.h"
 #include "mesh_renderer_pica.h"
 #include "pass_profile.h"
+#include "eye_replay_pica.h"
 #include "pica_frame.h"
 #include "shadow_pica.h"
+#include "state_check_pica.h"
 #include "stereo_comfort.h"
 #include "lightning_renderer_pica.h"
 #include "terrain_pica.h"
@@ -677,6 +679,17 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
 
     // The eye: the central view with the eye's stereo projection (pica_frame.h).
     const Mat4 proj = pica::picaEyeProjection(wv, eye, fr.aspect);
+    // The right eye from the left eye's commands (eye_replay_pica.h): the composer asked for it
+    // before this left eye; arm it when the two projections differ by the eye shift alone and no
+    // state-check read-back splits the command list this frame.
+    {
+        EyeView right;
+        if (pica::eyeReplayRequested(&right) && !pica::stateCheckSplitsThisFrame()) {
+            float k1 = 0.0f, k2 = 0.0f;
+            if (pica::eyeShiftOf(proj, pica::picaEyeProjection(wv, right, fr.aspect), &k1, &k2)) pica::eyeReplayArm(k1, k2);
+        }
+    }
+    const bool replayRight = pica::eyeReplayRecorded();
     const Mat4 viewProj = proj * wv.view;
     auto levelDepthAndFog = [&]() {
         pica::setDepthMapping(FogDepthMap::WBuffer, wv.nearPlane);
@@ -697,6 +710,27 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     setDepth(true, true);
     setCull(CullMode::Back);
     levelDepthAndFog();
+    if (replayRight) {
+        // (its time counts in "clear"; eyeReplayStats has the copy's own)
+        if (pica::eyeReplayRun()) {
+            meter.stop();
+            setBlend(GlBlend::Off);
+            setDepth(true, true);
+            setCull(CullMode::Back);
+            pica::disableFog();
+            return;
+        }
+        // Not replayed: this eye draws itself (the left eye's culling covered it too).
+        levelDepthAndFog();
+    }
+    const bool recording = !replayRight && pica::eyeReplayArmed() && pica::eyeReplayRecordBegin();
+    if (recording) {
+        // The priming draw changed the shader and buffers behind the tracked state: issue it again.
+        setBlend(GlBlend::Off);
+        setDepth(true, true);
+        setCull(CullMode::Back);
+        levelDepthAndFog();
+    }
 
     // Pass 2: terrain.
     meter.start(Pass::Terrain);
@@ -819,6 +853,7 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
     setDepth(true, true);
     setCull(CullMode::Back);
     pica::disableFog();
+    if (recording) pica::eyeReplayRecordEnd();
 }
 
 void WorldRenderer::drawBrightness(int width, int height, float brightness) { drawBrightness(0, 0, width, height, brightness); }

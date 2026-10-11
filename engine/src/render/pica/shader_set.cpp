@@ -1,12 +1,7 @@
 // ShaderSet (shader_set.h): the embedded shbins, attribute layouts and uniform locations.
 #include "shader_set.h"
 
-#include "env_shbin.h"
-#include "flat2_shbin.h"
-#include "flat_shbin.h"
-#include "mesh_shbin.h"
-#include "terrain_shbin.h"
-#include "water_shbin.h"
+#include "pica_all_shbin.h"
 
 namespace as3d::pica {
 
@@ -30,12 +25,10 @@ Mat4 fromC3D(const C3D_Mtx& m) {
     return o;
 }
 
-bool ShaderSet::loadOne(Shader s, const void* shbin, uint32_t size) {
+bool ShaderSet::loadOne(Shader s, DVLE_s* dvle) {
     Program& p = programs_[static_cast<int>(s)];
-    p.dvlb = DVLB_ParseFile(const_cast<u32*>(static_cast<const u32*>(shbin)), size);
-    if (!p.dvlb) return false;
     shaderProgramInit(&p.program);
-    if (shaderProgramSetVsh(&p.program, &p.dvlb->DVLE[0]) < 0) return false;
+    if (shaderProgramSetVsh(&p.program, dvle) < 0) return false;
     shaderInstance_s* vsh = p.program.vertexShader;
     p.loc.mvp = shaderInstanceGetUniformLocation(vsh, "mvp");
     p.loc.cube = shaderInstanceGetUniformLocation(vsh, "cube");
@@ -48,6 +41,7 @@ bool ShaderSet::loadOne(Shader s, const void* shbin, uint32_t size) {
     p.loc.worig = shaderInstanceGetUniformLocation(vsh, "worig");
     p.loc.wbase = shaderInstanceGetUniformLocation(vsh, "wbase");
     p.loc.wshine = shaderInstanceGetUniformLocation(vsh, "wshine");
+    p.loc.eye = shaderInstanceGetUniformLocation(vsh, "eye");
 
     AttrInfo_Init(&p.attr);
     switch (s) {
@@ -99,25 +93,26 @@ bool ShaderSet::loadOne(Shader s, const void* shbin, uint32_t size) {
 
 bool ShaderSet::load() {
     unload();
-    bool ok = loadOne(Shader::Flat, flat_shbin, flat_shbin_size);
-    ok = loadOne(Shader::Flat2, flat2_shbin, flat2_shbin_size) && ok;
-    ok = loadOne(Shader::Mesh, mesh_shbin, mesh_shbin_size) && ok;
-    ok = loadOne(Shader::Terrain, terrain_shbin, terrain_shbin_size) && ok;
-    ok = loadOne(Shader::Env, env_shbin, env_shbin_size) && ok;
-    ok = loadOne(Shader::Water, water_shbin, water_shbin_size) && ok;
+    // One binary, one DVLE per program in the Shader enum's order (engine/src/render/module.cmake).
+    dvlb_ = DVLB_ParseFile(const_cast<u32*>(reinterpret_cast<const u32*>(pica_all_shbin)), pica_all_shbin_size);
+    bool ok = dvlb_ && dvlb_->numDVLE == static_cast<u32>(kShaderCount);
+    for (int i = 0; ok && i < kShaderCount; ++i) ok = loadOne(static_cast<Shader>(i), &dvlb_->DVLE[i]);
     loaded_ = ok;
+    eyeRegister_ = ok ? programs_[0].loc.eye : -1;
+    for (int i = 0; ok && i < kShaderCount; ++i)
+        if (programs_[i].loc.eye != eyeRegister_) eyeRegister_ = -1;
+    if (eyeRegister_ >= 0) setEye(0.0f, 0.0f);
     if (!ok) unload();
     return ok;
 }
 
 void ShaderSet::unload() {
     for (Program& p : programs_) {
-        if (p.dvlb) {
-            shaderProgramFree(&p.program);
-            DVLB_Free(p.dvlb);
-        }
+        if (p.program.vertexShader) shaderProgramFree(&p.program);
         p = Program();
     }
+    if (dvlb_) DVLB_Free(dvlb_);
+    dvlb_ = nullptr;
     loaded_ = false;
 }
 
@@ -138,6 +133,10 @@ void ShaderSet::setMvp(const Mat4& m) {
     C3D_Mtx c;
     toC3D(m, &c);
     setMvp(c);
+}
+
+void ShaderSet::setEye(float x, float y) {
+    if (eyeRegister_ >= 0) C3D_FVUnifSet(GPU_VERTEX_SHADER, eyeRegister_, x, y, 0.0f, 0.0f);
 }
 
 void ShaderSet::setMeshCube(const Vec3 colors[6]) {

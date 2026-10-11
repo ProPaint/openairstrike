@@ -234,6 +234,8 @@ RunConfig parseRunConfig(const std::string& text) {
             if (toInt(val, &n)) c.washLog = n != 0;
         } else if (key == "wash_selftest") {
             if (toInt(val, &n)) c.washSelftest = n != 0;
+        } else if (key == "eye_replay") {
+            if (toInt(val, &n)) c.eyeReplay = n != 0;
         } else if (key == "terrain_prime") {
             if (toInt(val, &n)) c.terrainPrime = n != 0;
         } else if (key == "probe_inject") {

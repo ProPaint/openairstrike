@@ -106,6 +106,10 @@ TevConfig tevShadow(uint8_t alpha = 102);
 // Writes `cfg` to the citro3d texture environment: stages 0..count-1 from the config, the
 // stages the previous call used beyond count reset to pass-through.
 void applyTev(const TevConfig& cfg);
+// applyTev skips a configuration equal to the last one applied (round 3, R3.2: each call marked
+// the stages dirty, so every draw re-emitted them); detail::c3dInvalidate() calls this so a pass
+// start or a new target still issues its TEV in full.
+void tevInvalidate();
 #endif
 
 } // namespace as3d::pica

@@ -16,6 +16,7 @@
 #include "as3d/material_key.h"
 #include "as3d/render_state.h"
 #include "fx_draw_pica.h"
+#include "eye_replay_pica.h"
 #include "fx_pica.h"
 #include "pica_frame.h"
 #include "state_check_pica.h"
@@ -66,6 +67,18 @@ bool g_waterEnabled = true;
 float g_waterTile = kDefaultWaterTile;
 unsigned g_drawCount = 0; // plane draws since start (one per eye), for the periodic log line
 std::vector<FlatVertex> g_tileVerts; // the tiled plane of one eye, before the copy to the arena
+// The tiled plane's corner grid of one quad (draw()): clip position, outcode, NDC, vertex index.
+struct GridVertex {
+    Vec4 c;
+    uint8_t out = 0;
+    bool ndc = false;
+    int index = -1;
+    float ndcX = 0.0f, ndcY = 0.0f;
+};
+std::vector<GridVertex> g_grid;
+std::vector<float> g_gridX, g_gridY;
+std::vector<FlatVertex> g_gridVerts;  // the grid corners the tiles use, in first-use order
+std::vector<uint16_t> g_gridIndices; // six per tile
 
 // The tiled plane: a tile is split in four while it spans more than this in NDC (2 = the screen),
 // at most kMaxTileSplits times and not below kMinTileSize world units.
@@ -263,6 +276,17 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
 
     // The GL's conservative clip-space test of a rectangle's 4 corners against this eye's matrix.
     const Mat4 m = projection * view;
+    // While this eye records for both eyes (eye_replay_pica.h), a corner is outside a y plane only
+    // when it is outside in both eyes: the right eye's clip y is c.y + k1 * c.w + k2 (the x, z and w
+    // of the two eyes are equal).
+    float shiftK1 = 0.0f, shiftK2 = 0.0f;
+    const bool bothEyes = eyeReplayRecording() && eyeReplayShift(&shiftK1, &shiftK2);
+    auto yOutLow = [&](const Vec4& c) {
+        return c.y < -c.w && (!bothEyes || c.y + shiftK1 * c.w + shiftK2 < -c.w);
+    };
+    auto yOutHigh = [&](const Vec4& c) {
+        return c.y > c.w && (!bothEyes || c.y + shiftK1 * c.w + shiftK2 > c.w);
+    };
     float minW = 1.0e30f, maxW = -1.0e30f;
     // Diagnostics of the emitted tiles: the largest span in NDC (2 = the whole screen) after the cut,
     // the tiles cut at the near plane, the tiles split, the smallest w emitted.
@@ -278,8 +302,8 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
             hi = std::max(hi, c.w);
             if (c.x < -c.w) outs[0]++;
             if (c.x > c.w) outs[1]++;
-            if (c.y < -c.w) outs[2]++;
-            if (c.y > c.w) outs[3]++;
+            if (yOutLow(c)) outs[2]++;
+            if (yOutHigh(c)) outs[3]++;
             if (c.z < -c.w) outs[4]++;
             if (c.z > c.w) outs[5]++;
         }
@@ -293,6 +317,8 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
     };
     std::vector<DrawRun> runs;
     const MaterialKey key = blendKey(RenderBlend::Alpha, true, true, CullMode::Off);
+    const uint16_t* gridIndices = nullptr; // the tiled plane's indexed part (its grid)
+    int gridIndexCount = 0;
     int drawn = 0, tiles = 0;
     const FlatVertex* verts = g_arena;
     if (!tiled) {
@@ -334,8 +360,8 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
                 lo = std::min(lo, c.w);
                 if (c.x < -c.w) outs[0]++;
                 if (c.x > c.w) outs[1]++;
-                if (c.y < -c.w) outs[2]++;
-                if (c.y > c.w) outs[3]++;
+                if (yOutLow(c)) outs[2]++;
+                if (yOutHigh(c)) outs[3]++;
                 if (c.z < -c.w) outs[4]++;
                 if (c.z > c.w) outs[5]++;
             }
@@ -390,31 +416,137 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
         const int nx = std::max(1, static_cast<int>(std::ceil(width_ / g_waterTile)));
         const int ny = std::max(1, static_cast<int>(std::ceil(kQuadHeight / g_waterTile)));
         const float tx = width_ / static_cast<float>(nx), ty = kQuadHeight / static_cast<float>(ny);
+        // The tiles as an indexed grid (round 3, R3.2: the per-tile path cost the console 1.2 ms
+        // of CPU per eye for ~230 tiles of 6 vertices): each corner of a visible quad's tile grid is
+        // transformed once (clip position, outcode), its NDC and its vertex made once when a tile
+        // uses them, and a tile adds six 16-bit indices. The corner values are the per-tile path's
+        // bit for bit (the same expressions on the same coordinates) and the triangles the same (a b
+        // c, a c d per tile, in tile order), so the picture is the same; tiles cut at the near plane
+        // or split still go through the per-tile path (`tile`, non-indexed, drawn after the indexed
+        // part: the tiles never overlap). A grid whose shared corners would not
+        // equal the per-tile corners exactly (x0 + tx != tx * (i + 1) in floats) takes the
+        // per-tile path throughout.
+        std::vector<FlatVertex>& gridVerts = g_gridVerts;
+        std::vector<uint16_t>& indices = g_gridIndices;
+        gridVerts.clear();
+        indices.clear();
+        g_gridX.resize(static_cast<size_t>(nx) + 1);
+        for (int i = 0; i <= nx; ++i) g_gridX[i] = i == nx ? width_ : tx * static_cast<float>(i);
+        bool exactX = true;
+        for (int i = 0; i + 1 < nx; ++i) exactX = exactX && g_gridX[i] + tx == g_gridX[i + 1];
+        g_gridY.resize(static_cast<size_t>(ny) + 1);
+        g_grid.resize(static_cast<size_t>(nx + 1) * static_cast<size_t>(ny + 1));
         for (int k = 0; k < quads_; ++k) {
             const float qy = kQuadHeight * static_cast<float>(k);
             if (!visible(0.0f, width_, qy, qy + kQuadHeight, true)) continue;
             ++drawn;
-            for (int j = 0; j < ny; ++j)
-                for (int i = 0; i < nx; ++i) {
-                    const float x0 = tx * static_cast<float>(i), y0 = qy + ty * static_cast<float>(j);
-                    // The last tiles end exactly on the quad's edges.
-                    const float x1 = i + 1 == nx ? width_ : x0 + tx;
-                    const float y1 = j + 1 == ny ? qy + kQuadHeight : y0 + ty;
-                    tile(x0, x1, y0, y1, qy, 0);
+            for (int j = 0; j <= ny; ++j) g_gridY[j] = j == ny ? qy + kQuadHeight : qy + ty * static_cast<float>(j);
+            bool exact = exactX && gridVerts.size() + static_cast<size_t>((nx + 1) * (ny + 1)) < 65536u;
+            for (int j = 0; j + 1 < ny; ++j) exact = exact && g_gridY[j] + ty == g_gridY[j + 1];
+            if (!exact) {
+                for (int j = 0; j < ny; ++j)
+                    for (int i = 0; i < nx; ++i) {
+                        const float x0 = tx * static_cast<float>(i), y0 = qy + ty * static_cast<float>(j);
+                        // The last tiles end exactly on the quad's edges.
+                        const float x1 = i + 1 == nx ? width_ : x0 + tx;
+                        const float y1 = j + 1 == ny ? qy + kQuadHeight : y0 + ty;
+                        tile(x0, x1, y0, y1, qy, 0);
+                    }
+                continue;
+            }
+            GridVertex* g = g_grid.data();
+            for (int j = 0; j <= ny; ++j)
+                for (int i = 0; i <= nx; ++i, ++g) {
+                    g->c = clipOf(g_gridX[i], g_gridY[j]);
+                    const Vec4& c = g->c;
+                    g->out = static_cast<uint8_t>((c.x < -c.w ? 1 : 0) | (c.x > c.w ? 2 : 0) | (yOutLow(c) ? 4 : 0) |
+                                                  (yOutHigh(c) ? 8 : 0) | (c.z < -c.w ? 16 : 0) | (c.z > c.w ? 32 : 0));
+                    g->ndc = false;
+                    g->index = -1;
                 }
+            const int stride = nx + 1;
+            for (int j = 0; j < ny; ++j) {
+                GridVertex* row0 = &g_grid[static_cast<size_t>(j) * stride];
+                GridVertex* row1 = row0 + stride;
+                for (int i = 0; i < nx; ++i) {
+                    GridVertex* q[4] = {&row0[i], &row0[i + 1], &row1[i + 1], &row1[i]};
+                    if ((q[0]->out & q[1]->out & q[2]->out & q[3]->out) != 0) continue; // outside one plane
+                    float hi = q[0]->c.w, lo = q[0]->c.w;
+                    for (int n = 1; n < 4; ++n) {
+                        hi = std::max(hi, q[n]->c.w);
+                        lo = std::min(lo, q[n]->c.w);
+                    }
+                    if (hi <= wCut) continue; // wholly behind the near plane
+                    const float x0 = g_gridX[i], x1 = g_gridX[i + 1], y0 = g_gridY[j], y1 = g_gridY[j + 1];
+                    if (lo < wCut) { // cut at the near plane: the per-tile path
+                        tile(x0, x1, y0, y1, qy, 0);
+                        continue;
+                    }
+                    float nx0 = 1.0e30f, nx1 = -1.0e30f, ny0 = 1.0e30f, ny1 = -1.0e30f;
+                    for (GridVertex* v : q) {
+                        if (!v->ndc) {
+                            v->ndcX = v->c.x / v->c.w;
+                            v->ndcY = v->c.y / v->c.w;
+                            v->ndc = true;
+                        }
+                        nx0 = std::min(nx0, v->ndcX);
+                        nx1 = std::max(nx1, v->ndcX);
+                        ny0 = std::min(ny0, v->ndcY);
+                        ny1 = std::max(ny1, v->ndcY);
+                    }
+                    const float span = std::max(nx1 - nx0, ny1 - ny0);
+                    if (span > kMaxTileSpan && 0 < kMaxTileSplits && x1 - x0 > kMinTileSize) { // split: the per-tile path
+                        tile(x0, x1, y0, y1, qy, 0);
+                        continue;
+                    }
+                    maxSpan = std::max(maxSpan, span);
+                    static const int kCol[4] = {0, 1, 1, 0}, kRow[4] = {0, 0, 1, 1};
+                    uint16_t id[4];
+                    for (int n = 0; n < 4; ++n) {
+                        GridVertex* v = q[n];
+                        if (v->index < 0) {
+                            v->index = static_cast<int>(gridVerts.size());
+                            gridVerts.emplace_back();
+                            put(gridVerts.back(), g_gridX[i + kCol[n]], g_gridY[j + kRow[n]], qy);
+                        }
+                        minCutW = std::min(minCutW, v->c.w);
+                        id[n] = static_cast<uint16_t>(v->index);
+                    }
+                    indices.push_back(id[0]);
+                    indices.push_back(id[1]);
+                    indices.push_back(id[2]);
+                    indices.push_back(id[0]);
+                    indices.push_back(id[2]);
+                    indices.push_back(id[3]);
+                    ++tiles;
+                }
+            }
         }
-        if (!out.empty()) {
-            auto* v = static_cast<FlatVertex*>(allocVertices(out.size() * sizeof(FlatVertex), 4));
-            if (!v) return 0;
-            std::copy(out.begin(), out.end(), v);
-            GSPGPU_FlushDataCache(v, static_cast<u32>(out.size() * sizeof(FlatVertex)));
-            g_stats.arenaBytes += out.size() * sizeof(FlatVertex);
-            DrawRun r;
-            r.key = key;
-            r.texture = &texture_;
-            r.first = 0;
-            r.count = static_cast<int>(out.size());
-            appendDrawRun(runs, r);
+        // One block of the water buffer: the grid's vertices, the per-tile path's after them, then
+        // the indices.
+        const size_t vertexCount = gridVerts.size() + out.size();
+        if (vertexCount > 0) {
+            const size_t vbytes = vertexCount * sizeof(FlatVertex);
+            const size_t ibytes = indices.size() * sizeof(uint16_t);
+            auto* block = static_cast<uint8_t*>(allocVertices(vbytes + ibytes, 4));
+            if (!block) return 0;
+            auto* v = reinterpret_cast<FlatVertex*>(block);
+            std::copy(gridVerts.begin(), gridVerts.end(), v);
+            std::copy(out.begin(), out.end(), v + gridVerts.size());
+            auto* idx = reinterpret_cast<uint16_t*>(block + vbytes);
+            std::copy(indices.begin(), indices.end(), idx);
+            GSPGPU_FlushDataCache(block, static_cast<u32>(vbytes + ibytes));
+            g_stats.arenaBytes += vbytes + ibytes;
+            if (!out.empty()) {
+                DrawRun r;
+                r.key = key;
+                r.texture = &texture_;
+                r.first = static_cast<int>(gridVerts.size());
+                r.count = static_cast<int>(out.size());
+                appendDrawRun(runs, r);
+            }
+            gridIndices = indices.empty() ? nullptr : idx;
+            gridIndexCount = static_cast<int>(indices.size());
             verts = v;
         }
     }
@@ -433,7 +565,7 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
                   static_cast<double>(g_waterTile), splitTiles, static_cast<double>(g_stats.minW),
                   static_cast<double>(g_stats.maxW), nearTiles, static_cast<double>(tiles ? minCutW : 0.0f),
                   static_cast<double>(maxSpan));
-    if (runs.empty()) return 0;
+    if (runs.empty() && gridIndexCount == 0) return 0;
     // The water's state is issued in full right before its draw, whatever the previous passes
     // left (docs/3ds-port.md "Frame synchronisation"): the shadow copies and the texture bindings
     // are forgotten, so drawFlatRuns' depth map, depth test, blend, cull, fog and texture calls all
@@ -459,7 +591,10 @@ int WaterPass::draw(const Mat4& view, const Mat4& projection, const Vec3& fogCol
         eye.check = &expect;
         eye.probe = "water";
     }
-    g_stats.draws = drawFlatRuns(verts, runs, eye);
+    DrawRun gridStyle;
+    gridStyle.key = key;
+    gridStyle.texture = &texture_;
+    g_stats.draws = drawFlatRunsIndexed(verts, gridIndices, gridIndexCount, gridStyle, runs, eye);
     MaterialKey plain;
     applyMaterialState(plain);
     return g_stats.draws;

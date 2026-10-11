@@ -213,6 +213,10 @@ struct C3dShadow {
 const C3dShadow& c3dShadow();
 // citro3d's context (__C3D_Context; its first member is the GX queue): the self-check reads it.
 void* c3dContextAddress();
+// citro3d's context flags word (the dirty bits; citro3d 1.7.1 internal.h C3DiF_*), through the
+// state check's mirror of the context, or null when the mirror's layout check fails
+// (state_check_pica.cpp). eye_replay_pica.cpp marks the state dirty with it.
+uint32_t* c3dFlagsPointer();
 // Texture2D::bind skips C3D_TexBind of the texture already bound to the unit (gfx_pica.cpp; a
 // destroyed texture is forgotten). initBackend forgets every binding.
 void forgetTextureBindings();

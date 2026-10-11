@@ -32,6 +32,7 @@ struct Ui2dPicaStats {
     int units = 0;           // cache units flushed (a list without breaks is one)
     int unitsBuilt = 0;      // of them, converted again (buildBatch2D) because their quads changed
     int consolidations = 0;  // split lists joined into one cached unit after staying unchanged
+    int replays = 0;         // flushes of the same list as the list's last flush (its draw list replayed)
 };
 
 // Counters since the last reset (the app resets them once per frame, or reads the totals).

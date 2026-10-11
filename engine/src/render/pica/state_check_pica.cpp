@@ -71,6 +71,21 @@ constexpr u32 kFlagActive = 1u << 0;
 constexpr u32 kFlagEffect = 1u << 4;
 
 const C3dContextMirror* ctxMirror() { return static_cast<const C3dContextMirror*>(detail::c3dContextAddress()); }
+
+// The mirror's layout check (as setStateCheck's): the frame buffer where citro3d's accessor says,
+// the context active, the GX queue of 32 entries. C3D_GetFrameBuf marks the frame buffer dirty.
+bool mirrorLayoutOk() {
+    static int ok = -1;
+    if (ok < 0) {
+        const C3dContextMirror* m = ctxMirror();
+        C3D_FrameBuf* fb = C3D_GetFrameBuf();
+        ok = fb && static_cast<const void*>(&m->fb) == static_cast<const void*>(fb) && (m->flags & kFlagActive) &&
+                     m->gxQueue.maxEntries == 32
+                 ? 1
+                 : 0;
+    }
+    return ok == 1;
+}
 gxCmdQueue_s* gxQueue() { return static_cast<gxCmdQueue_s*>(detail::c3dContextAddress()); }
 
 struct State {
@@ -361,6 +376,18 @@ void probeGpuState(const char* pass) {
         gpuMismatch("color_loc", osConvertVirtToPhys(fb.colorBuf) >> 3, r100[0x1D]);
     if (tex0 && tex0->data && (r80[5] & 0x0FFFFFFFu) != (osConvertVirtToPhys(tex0->data) >> 3))
         gpuMismatch("texture0_addr", osConvertVirtToPhys(tex0->data) >> 3, r80[5]);
+}
+
+namespace detail {
+uint32_t* c3dFlagsPointer() {
+    if (!mirrorLayoutOk()) return nullptr;
+    return &const_cast<C3dContextMirror*>(ctxMirror())->flags;
+}
+} // namespace detail
+
+bool stateCheckSplitsThisFrame() {
+    const State& s = st();
+    return s.level && s.ctxOk && (s.level >= 2 || s.fullFrames > 0 || s.probeNow);
 }
 
 void stateCheckFrameBegin() {

@@ -37,5 +37,9 @@ struct FxEyeParams {
 // C3D_DrawArrays. Leaves blend off and depth test + write on, as the GL renderers do. Returns
 // the number of draw calls.
 int drawFlatRuns(const FlatVertex* verts, const std::vector<DrawRun>& runs, const FxEyeParams& eye);
+// The same with an indexed part drawn first: `indexCount` 16-bit indices into `verts` drawn as one
+// triangle list with `indexed`'s state and texture (its first/count unused), then `runs`.
+int drawFlatRunsIndexed(const FlatVertex* verts, const uint16_t* indices, int indexCount, const DrawRun& indexed,
+                        const std::vector<DrawRun>& runs, const FxEyeParams& eye);
 
 } // namespace as3d::pica

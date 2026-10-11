@@ -5,6 +5,7 @@
 ;   v2 colour    u8 x4     (0..255, scaled to 0..1 here)
 ; Uniform: mvp (4 rows), clip = mvp * (position, 1). Outputs position, texcoord0, colour.
 
+.fvec eye ; c0 in every program: the eye shift (x, y; see eye_replay_pica.h)
 .fvec mvp[4]
 
 .constf consts(0.0, 1.0, 0.00392156862, 0.0)
@@ -19,13 +20,20 @@
 .alias intex v1
 .alias inclr v2
 
-.proc main
+.entry main_flat
+.proc main_flat
 	mov r0.xyz, inpos
 	mov r0.w, ones
-	dp4 outpos.x, mvp[0], r0
-	dp4 outpos.y, mvp[1], r0
-	dp4 outpos.z, mvp[2], r0
-	dp4 outpos.w, mvp[3], r0
+	dp4 r15.x, mvp[0], r0
+	dp4 r15.y, mvp[1], r0
+	dp4 r15.z, mvp[2], r0
+	dp4 r15.w, mvp[3], r0
+	; The second eye's shift (eye_replay_pica.h): clip y += eye.x * w + eye.y. eye is 0 but while
+	; the right eye replays the left eye's commands, and adding 0 leaves y exactly as it was.
+	mul r14.y, eye.xxxx, r15.wwww
+	add r15.y, r14.yyyy, r15.yyyy
+	add r15.y, eye.yyyy, r15.yyyy
+	mov outpos, r15
 	mov outtc0, intex
 	mul outclr, inv255, inclr
 	end

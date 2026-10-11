@@ -169,6 +169,7 @@ start a comment line, unknown keys are ignored, no file (or no `mode=`) means `m
 | `fixed_steps` | N (1..8), default 0 (the clock) | N simulation steps per displayed frame whatever the clock: two builds profile and dump (`dump_at`) at the same steps (docs/3ds-port.md "Sequels' CPU (round 2, P4)") |
 | `mesh_sort` | `1` (default) or `0` | the opaque mesh records without blending (depth test and write on) in shader / skin / TEV / state order, ties in submission order; `0` = submission order |
 | `mesh_merge` | `0` (default) or `1` | runs of tiny mesh records (32 vertices, 48 corners at most) with the same skin and state baked into the frame arena in world space and drawn as one flat draw; off: under Azahar the bake costs as much as the draws saved (a console A/B) |
+| `eye_replay` | `1` (default) or `0` | stereo: the right eye's world is a copy of the left eye's recorded command words with an eye-shift uniform (docs/3ds-port.md "Stereo CPU path (round 3, R3.2)"; `engine/src/render/pica/eye_replay_pica.h`); `0` records both eyes as before. Off by itself in frames with a state_check GPU read-back. `AS3D_EYE_REPLAY` every 300 frames |
 | `pak_cache_kb` | N, default 0 | a block cache of N KB (64 KB blocks) per pak stream; the paks are read with FSFILE_Read at an offset either way (`AS3D_LOAD ... read_ms`) |
 
 `mode=bot level=1 frames=3600 perf=1` is the M1 acceptance run. START+SELECT held together quits

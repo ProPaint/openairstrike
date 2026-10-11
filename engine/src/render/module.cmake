@@ -15,16 +15,19 @@ if(NOT NINTENDO_3DS)
 endif()
 
 # 3DS (PICA backend, engine/src/render/pica): picasso assembles the vertex shaders of
-# src/render/pica/shaders and bin2s embeds them into as3d_render (flat_shbin.h,
-# flat2_shbin.h, mesh_shbin.h, terrain_shbin.h, env_shbin.h, water_shbin.h: `<name>_shbin` and `<name>_shbin_size`). The functions come
-# from the devkitPro 3DS toolchain; the object library is linked straight into as3d_render.
+# src/render/pica/shaders into one binary and bin2s embeds it into as3d_render
+# (pica_all_shbin.h: `pica_all_shbin` and `pica_all_shbin_size`). The functions come from the
+# devkitPro 3DS toolchain; the object library is linked straight into as3d_render.
 if(NINTENDO_3DS AND AS3D_RENDER_BACKEND STREQUAL "pica")
   set(_as3d_pica_shaders ${CMAKE_CURRENT_SOURCE_DIR}/src/render/pica/shaders)
-  foreach(_s flat flat2 mesh terrain env water)
-    ctr_add_shader_library(as3d_pica_${_s}_shbin OUTPUT ${_s}.shbin ${_as3d_pica_shaders}/${_s}.v.pica)
-  endforeach()
-  dkp_add_embedded_binary_library(as3d_pica_shaders as3d_pica_flat_shbin as3d_pica_flat2_shbin as3d_pica_mesh_shbin
-                                  as3d_pica_terrain_shbin as3d_pica_env_shbin as3d_pica_water_shbin)
+  # One binary with one entry point (DVLE) per program, in the order of shader_set.h's Shader enum
+  # (Flat, Mesh, Terrain, Flat2, Env, Water): the programs share the code blob, so switching
+  # programs uploads no shader code (round 3, R3.2). Embedded as pica_all_shbin.h.
+  ctr_add_shader_library(as3d_pica_all_shbin OUTPUT pica_all.shbin
+                         ${_as3d_pica_shaders}/flat.v.pica ${_as3d_pica_shaders}/mesh.v.pica
+                         ${_as3d_pica_shaders}/terrain.v.pica ${_as3d_pica_shaders}/flat2.v.pica
+                         ${_as3d_pica_shaders}/env.v.pica ${_as3d_pica_shaders}/water.v.pica)
+  dkp_add_embedded_binary_library(as3d_pica_shaders as3d_pica_all_shbin)
   target_link_libraries(as3d_render PRIVATE as3d_pica_shaders)
   target_link_libraries(as3d_render PUBLIC citro3d ctru)
 endif()

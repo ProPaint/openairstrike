@@ -7,6 +7,7 @@
 ;   v3 texcoord2 float x2   -> texcoord1
 ; Uniform: mvp (4 rows).
 
+.fvec eye ; c0 in every program: the eye shift (x, y; see eye_replay_pica.h)
 .fvec mvp[4]
 
 .constf consts(0.0, 1.0, 0.00392156862, 0.0)
@@ -23,7 +24,8 @@
 .alias inclr v2
 .alias intex2 v3
 
-.proc main
+.entry main_flat2
+.proc main_flat2
 	mov r0.xyz, inpos
 	mov r0.w, ones
 	dp4 outpos.x, mvp[0], r0

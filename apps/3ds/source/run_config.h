@@ -160,6 +160,7 @@ struct RunConfig {
     bool washSelftest = false;
     bool washLog = false; // wash_log=1: one AS3D_WASH_EVAL line per judged eye-frame
     bool terrainPrime = true;
+    bool eyeReplay = true; // eye_replay=0|1: the right eye's world from the left eye's commands (eye_replay_pica.h)
     bool effectiveWashCheck() const { return washCheck >= 0 ? washCheck != 0 : mode == Mode::Soak; }
     int effectiveProbeEvery() const { return probeEvery >= 0 ? probeEvery : (mode == Mode::Soak ? 30 : 0); }
     int effectiveFrames() const { return frames > 0 ? frames : (mode == Mode::Sim ? 600 : 0); }

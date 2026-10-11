@@ -2,8 +2,8 @@
 // and uniform locations. 3DS only.
 //
 // The .v.pica sources are assembled by picasso in the 3DS build (engine/src/render/module.cmake,
-// ctr_add_shader_library) and embedded into as3d_render as flat_shbin, flat2_shbin, mesh_shbin,
-// terrain_shbin, env_shbin and water_shbin (dkp_add_embedded_binary_library).
+// ctr_add_shader_library) into one binary, one entry point (DVLE) per program in the Shader
+// enum's order, embedded into as3d_render as pica_all_shbin (dkp_add_embedded_binary_library).
 //
 // PICA float uniforms are global registers, not per program: after bind() set every uniform
 // of the newly bound shader again (setMvp etc.) before drawing.
@@ -93,6 +93,11 @@ public:
 
     // Uniforms of the bound shader (ignored when it has no such uniform).
     void setMvp(const Mat4& m);
+    // The eye shift uniform `eye` (every program declares it first, so it is the same register in
+    // all of them; eye_replay_pica.h): clip y += x * w + y in the world shaders. (0, 0) but while
+    // the right eye replays the left eye's commands. eyeRegister() is -1 when the programs disagree.
+    void setEye(float x, float y);
+    int eyeRegister() const { return eyeRegister_; }
     void setMvp(const C3D_Mtx& m);
     void setMeshCube(const Vec3 colors[6]);  // mesh: slots +X, +Y, +Z, -X, -Y, -Z
     void setMeshTint(const Vec4& rgba);      // mesh
@@ -119,22 +124,27 @@ public:
         int mvp = -1, cube = -1, tint = -1, detail = -1;
         int mv = -1, nmat = -1, envsel = -1, envrot = -1;
         int worig = -1, wbase = -1, wshine = -1;
+        int eye = -1;
     };
     const Locations& locations(Shader s) const { return programs_[static_cast<int>(s)].loc; }
 
 private:
     struct Program {
-        DVLB_s* dvlb = nullptr;
         shaderProgram_s program{};
         C3D_AttrInfo attr{};
         int stride = 0;
         Locations loc;
         bool ok = false;
     };
-    bool loadOne(Shader s, const void* shbin, uint32_t size);
+    bool loadOne(Shader s, DVLE_s* dvle);
+    // The six programs are entry points (DVLEs) of one shader binary (round 3, R3.2): they share
+    // its code blob, so switching programs no longer uploads the vertex shader's code (citro3d
+    // uploads it whenever the new program's DVLP differs from the old one's).
+    DVLB_s* dvlb_ = nullptr;
     Program programs_[kShaderCount];
     Shader bound_ = Shader::Flat;
     bool loaded_ = false;
+    int eyeRegister_ = -1;
 };
 
 } // namespace as3d::pica

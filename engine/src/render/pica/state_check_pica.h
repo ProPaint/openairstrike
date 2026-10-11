@@ -77,6 +77,9 @@ bool stateCheckTakeAutoMark();
 // (field=inject), the self-test of the soak's mark, verdict and push path on a GPU that never
 // loses its state (Azahar). 0 = never (default).
 void setProbeInject(int nthProbe);
+// True when this frame's probes may submit the command list mid-pass (level 2, the frames after a
+// mark, a probe_every frame): the eye replay is off for such a frame (eye_replay_pica.h).
+bool stateCheckSplitsThisFrame();
 // Probes run since the start (the pacer excuses a frame that stalled for one).
 unsigned stateCheckProbes();
 
