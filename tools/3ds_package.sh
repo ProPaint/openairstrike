@@ -15,6 +15,7 @@
 # network. Usage:
 #   tools/3ds_package.sh [--no-build] [--no-cia]
 #   AS3D_VERSION=0.3.0 tools/3ds_package.sh      (default: 0.3.0-dev; the commit is appended)
+#   AS3D_TITLE_VERSION=N                         (the CIA's title version; default: the commit count)
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="$(sed -n 's/^IMAGE=\(.*\)$/\1/p' "${REPO_ROOT}/tools/3ds_build.sh" | head -1 | tr -d '"')"
@@ -30,6 +31,10 @@ done
 
 COMMIT="$(git -C "${REPO_ROOT}" rev-parse --short HEAD)"
 VERSION="${AS3D_VERSION:-0.3.0-dev}-${COMMIT}"
+# The CIA's title version (makerom -ver, a 16-bit number in the TMD and the NCCH): the commit count,
+# so every build installed over the HOME menu title carries a higher version than the one before
+# (the installed title's version then says which build it is, and FBI never sees a downgrade).
+TITLE_VER="${AS3D_TITLE_VERSION:-$(git -C "${REPO_ROOT}" rev-list --count HEAD)}"
 OUT_ROOT="${REPO_ROOT}/out/3ds/package"
 OUT="${OUT_ROOT}/${VERSION}"
 BUILD_DIR="${REPO_ROOT}/build-3ds/apps/3ds"
@@ -67,7 +72,7 @@ EOF
 
 # A file list for INSTALL.txt, from the game profiles (engine/src/game/game_profiles.cpp).
 cat > "${OUT}/INSTALL.txt" <<EOF
-OpenAirStrike for the Nintendo 3DS, version ${VERSION}
+OpenAirStrike for the Nintendo 3DS, version ${VERSION} (title version ${TITLE_VER})
 =====================================================
 
 An open source engine for AirStrike 3D (v1.70), AirStrike 2 (v2.51) and AirStrike II: Gulf
@@ -190,7 +195,7 @@ w.close()' "${WORK}/silence.wav"
     set -e
     /tools/bannertool makebanner -i banner.png -a silence.wav -o banner.bnr
     /tools/makerom -f cia -o openairstrike.cia -target t -exefslogo -rsf openairstrike.rsf \
-        -elf openairstrike.elf -icon openairstrike.smdh -banner banner.bnr'
+        -ver '"${TITLE_VER}"' -elf openairstrike.elf -icon openairstrike.smdh -banner banner.bnr'
   cp "${WORK}/openairstrike.cia" "${OUT}/openairstrike.cia"
 fi
 
