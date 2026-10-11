@@ -328,3 +328,135 @@ Size: steps 1-2 about 800 lines (with the gallery and tests), step 3 about 1500,
 step 5 about 1200: **about 4500 lines in four packages** (foundation + gallery; AirStrike 3D menus;
 in play; sequels and the rest), each ending with a gallery for the owner, one console photo session at
 the end.
+
+## UI foundation and the screen gallery (round 4, R4.4)
+
+Steps 1 and 2 of the plan (section 4). No layout moved; only the text sizes changed, and only on the
+3DS. The desktop, Android and the web are untouched: everything below is off on the GL backend
+(`UiAssets::consoleTextDefault()` is false there), and `tools/ci.sh` passes with the goldens unchanged.
+
+### What the foundation does
+
+- **Text in console pixels at three sizes** (`as3d/ui.h` `FontSize`, `engine/src/ui/font.cpp`). A
+  console font (`Font::consoleSizes`, set by `UiAssets::uiFont()` when `UiAssets::consoleText` is on)
+  draws the game's font one atlas texel per screen pixel: **S** (font.tga resampled once at load to
+  exactly 0.8: each glyph's 30 x 15 texels area-averaged onto 24 x 12, contrast x 1.25 so a one-texel
+  stroke keeps full intensity; its own 256 x 256 LA8 atlas, cap 8 px), **L** (font.tga as is, cap
+  10 px), **T** (font.tga at 2x nearest, cap 20 px). Pen advances are whole pixels per size
+  (`glyphAdvancePx`: L the table's, T twice it, S the table's x 0.8 rounded; the number routine 11 /
+  14 / 28 px). `TextStyle::size` chooses one; `Auto` (every existing call) takes the size nearest the
+  text's scale on screen (`consoleSizeFor`: below 0.7 px per texel S, below 1.1 L, else T): today's
+  body text at 0.4 and the HUD counts at 0.6 become S, items at 0.8 L, PAUSED and the titles at 1.2 T.
+  The text keeps its anchor (left, centre or right edge) and the vertical centre of its glyph box; an
+  `Auto` line that would leave the screen steps down (T to L to S), and a line still too wide at S is
+  cut at the screen edge. One LA8 atlas serves both kinds (RGB for the additive font, alpha for the
+  alpha font and shadows). Run.ini `ui_text=0` gives back the scaled, bilinear text (comparisons).
+- **Outline pass** (`TextStyle::effect`): `Outline` draws the glyphs of the alpha font in black at the
+  eight one-pixel offsets under the text, `Shadow` once at (+1, +1). `Auto` outlines additive T text
+  (the banners over the world: PAUSED, the titles) and nothing else.
+- **Nearest filtering per texture class** (`UiAssets::load`): the font textures and the S atlas are
+  nearest-filtered (they are drawn 1:1 or 2x); the HUD atlases and the menu pictures stay bilinear
+  while they are drawn at fractional scales (0.4 to 0.8): the layout packages switch them as they draw
+  them 1:1 or 1/2.
+- **Console pixel mapping**: `Renderer2D::beginPixels(w, h)` (and `pixelMapping`) lays quads out in
+  the target's own pixels, scale 1. The existing screens keep `begin()` and the 0.4 mapping of the
+  800 x 600 virtual screen until their layouts are redone; the new console layouts start from
+  `beginPixels(320, 240)` / `(400, 240)`.
+- **Half-size pictures**: `UiAssets::textureHalf(path)` makes, on first use, a copy at exactly 1/2
+  (2 x 2 blocks averaged with the colour weighted by alpha, so transparent texels do not darken the
+  edges), padded with transparent texels to power-of-two sides and nearest-filtered;
+  `drawHalfPicture` draws it 1:1. Chosen over sampling mip level 1: the PICA picks the level from
+  screen derivatives, and at exactly 1/2 the LOD is exactly 1.0, where it can land on level 0 (no LOD
+  clamp without changing the render module); a mip chain costs a third more for every picture; and the
+  render module stretches a non-power-of-two picture to power-of-two sides (nearest) before mipping,
+  which breaks 1:1. The copy is exact and costs memory only for the pictures a layout asks for
+  (about 0.2 MB for the first game's menus, none in play).
+- **Key hints** (`drawKeyHint`): a key from a swappable atlas (`KeyGlyphAtlas`: one small texture and
+  a rectangle per `HintKey`; no art built in), or, without one, the key's name in the font inside a
+  one-pixel frame, then the label. The owner's chosen set (candidate 4, "HUD plate") is wired by the
+  menus package, the first one to draw hints.
+
+Memory: the S atlas is LA8 256 x 256 = 128 KB, built in `UiAssets::load` right after font.tga, so
+with the font and before the level's terrain. Logged on every load:
+
+    AS3D_UI_FONT console=1 font=256x256_LA8_128KB_vram alpha=256x256_LA8_128KB_vram small=256x256_LA8_128KB_vram vram_used_kb=648
+
+(all 12 loads of the gallery runs: the three font textures in VRAM, 647 to 968 KB of VRAM in use at
+that point). It moves 128 KB of model skins of the level from VRAM to linear memory.
+
+Desktop tests (`apps/tests/ui_console_text_test.cpp`, synthetic font only): the sizes and advances,
+the S atlas from a synthetic font (no ink outside the glyph cells, RGB = alpha, a one-texel stroke at
+full intensity, FNV-1a checksum), the quads on whole pixels at the 0.4 mapping and their sizes, the
+step-down of a too-wide line, the scaled path for a desktop font, the number routine, the outline
+rendered on a synthetic glyph (headless GL: the stroke white, the columns either side black, two
+away the background), half-size pictures, key hints.
+
+### The screen gallery
+
+    tools/3ds_ui_gallery.sh [BINARY.3dsx] [LABEL] [--only run,...] [--tag NAME] [--convert-only]
+
+Default binary `build-3ds/apps/3ds/openairstrike.3dsx`, default label the current commit. It runs
+seven run.ini scripts on Azahar (`selector`; `as3d_menus`: main, options, scores, four Information
+pages, exit, start, loading, the mission with the bot: level name, early, paused, hint, mid-fight,
+mission complete; `as3d_gameover`: game over, its menu, name entry; `as2_intro` and `gulf_intro` on a
+fresh profile; `as2_menus` and `gulf_menus` through helicopter selection, the start dialogue, play,
+pause, hint, mission complete or game over), one at a time, each through the serialised recipe (waits
+until no Azahar runs, checks twice; installs `<tag>.3dsx` and the run.ini; saves and restores the SD's
+run.ini, unless another run replaced it meanwhile, and the profiles a fresh run deletes; kills only
+its own launcher and emulator; a run whose log is someone else's is run again). It writes
+`out/ui3ds/gallery/<label>/<game>/<NN>_<screen>_{top,bottom,both}.png` and `@2x` (nearest), and
+`out/ui3ds/gallery/<label>/<game>_sheet.png` (+ `@2x`), the raw dumps and logs under `raw/`.
+The whole set takes about 9 minutes (509 s for `52e1544`) and leaves no Azahar process.
+
+New run.ini keys (apps/3ds/README.md): `dump_loading=1` (the loading frames, a few lines in
+`ctr_frame.cpp` `loadingFrame`), `ui_taps=F:@SCREEN/ID` (a tap at the centre of a menu item wherever
+the layout put it: the scripts survive layout moves), `hint_hold=N` (the bot leaves a hint up N steps
+so it can be dumped), `ui_text=0|1`. A binary without `ui_taps` (the drops) gets pixel taps from the
+item rectangles those builds log (`LEGACY_RECTS` in the script), and has no loading or hint pictures.
+
+The desktop fast path was not added: `as3d_game --dual-screen --headless --ui-script` exists, but its
+front end is not the console's (the 3D banner on the bottom screen, GL bilinear filtering, the scaled
+text, one ui-script per screen to write); the Azahar set is the real output and fits in 9 minutes.
+
+### Before and after
+
+`out/ui3ds/gallery/before/` (the drop `d63fbbf`, unchanged) and `out/ui3ds/gallery/52e1544/` (this
+package), one sheet per game (`selector`, `as3d`, `as2`, `gulf`).
+
+| screen | before | after |
+|---|---|---|
+| selector, top | title 1.2 px/texel bilinear, version and key line 0.4-0.6 | title T outlined (Gulf Thunder's long title stepped down to L), version and key line S: crisp |
+| selector, cards | card text 0.4 (cap 4 px) | S; the card text is now wider than the 94-px cards and overlaps the next card: the selector layout (menus package) |
+| main menus | as3d: label pictures (unchanged), version line 0.4; sequels: button labels 0.4 | sequels' button labels S inside their 12-px buttons, readable; the version/copyright line S, full width |
+| options | labels 0.4 | S, crisp; on the sequels the stacked rows (Sound / Music volume) touch each other |
+| top scores | 15 rows at 0.4 | S: the columns overlap (name, score, rank were laid out for 0.4) and rows touch: the table needs its own layout |
+| Information pages | 80-character lines at 0.4, 7.2-px pitch | titles and the page control crisp at S/L; the paragraphs overlap (S needs a 13-px pitch) and are cut at the right edge: the re-flow of the menus package |
+| exit dialog | question 0.4 | S, readable |
+| start game | mission list 0.4 | S; list rows overlap, "Difficulty" runs into the list (as3d) |
+| loading | not dumped | dumped now; the picture unchanged; the sequels' "Loading" sits on its bar |
+| in play, HUD | score L-ish 0.8 bilinear, counts 0.6, level name 0.6 | score L, counts and level name S, crisp; the touch-band counts S in the rings |
+| PAUSED | 1.2 bilinear, no outline, over the world | T with the one-pixel outline: readable over the desert and the water |
+| hint box | not dumped (bot) / 0.6 text | S; the first game's lines are cut at the box's edges (the box was sized for 0.6) |
+| start dialogue (sequels) | portrait and text 0.4 | S, the line cut at the panel ("Listen t"): the dialogue's top-screen layout |
+| mission complete | results 0.4 | S; label and value columns overlap ("Enemies destroyed" / count) |
+| game over, name entry | 0.4 / key labels 0.4 | S; the touch keys' letters run together (keys 15 px wide) |
+| credits (Gulf) | 0.4 | S, readable; headings and names touch |
+
+In short: every glyph is now drawn at a whole size on whole pixels (no more grey half-pixel strokes),
+headings, buttons, PAUSED and single lines read well; anything laid out as dense 0.4 text (paragraphs,
+tables, lists, cards, results) overlaps or is cut, as expected without moving layouts.
+
+### What the menus package starts from
+
+- Lay the console screens out with `beginPixels` in pixels, text by `FontSize` (S body, line pitch
+  13; L items and values, pitch 16; T banners) and `measureTextPx` for widths; the `Auto` step-down
+  and edge cut then never trigger.
+- Pictures at 1/2 through `textureHalf` + `drawHalfPicture`; switch a picture's class to nearest only
+  where it is drawn 1:1 or 1/2.
+- Key hints through `drawKeyHint` with the owner's set 4 loaded as a `KeyGlyphAtlas`.
+- Text over the world: `TextEffect::Outline` (or `Auto` for T).
+- Check every iteration with `tools/3ds_ui_gallery.sh` (scripts tap by item id, so they follow the
+  new layouts; a new screen needs a `keep` entry in `RUNS`).
+- Seen in the gallery and not addressed here: a tap on the in-game menu's Resume falls through to a
+  new pause on the drop (problem 10; the gallery resumes with B); with `ui_text=1` the sequels' hint
+  panel and Gulf's credits are readable as they are.

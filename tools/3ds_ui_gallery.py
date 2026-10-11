@@ -77,11 +77,11 @@ RUNS = [
              "end_at": "1500", "end_kind": "complete"},
      "inputs": [(40, "@main/3"), (140, "B"), (200, "@main/2"), (300, "B"), (360, "@main/4"), (440, "@info/10"),
                 (520, "@info/10"), (600, "@info/10"), (680, "B"), (740, "@main/5"), (840, "B"), (900, "@main/1"),
-                (1000, "@start/2"), (1200, "START"), (1300, "@ingame/1")],
+                (1000, "@start/2"), (1200, "START"), (1300, "B")],
      "keep": [("01_main_menu", ("screen", "main", 1)), ("02_options", ("screen", "options", 1)),
               ("03_top_scores", ("screen", "scores", 1)), ("04_information_p1", ("screen", "info", 1)),
-              ("05_information_p2", ("after", "info", 1, 130)), ("06_information_p3", ("after", "info", 1, 210)),
-              ("07_information_p4", ("after", "info", 1, 290)), ("08_exit_dialog", ("screen", "exit", 1)),
+              ("05_information_p2", ("after", "info", 1, 110)), ("06_information_p3", ("after", "info", 1, 190)),
+              ("07_information_p4", ("after", "info", 1, 270)), ("08_exit_dialog", ("screen", "exit", 1)),
               ("09_start_game", ("screen", "start", 1)), ("10_loading", ("load", 2)),
               ("11_play_level_name", ("after", "playing", 1, 100)), ("12_play_early", ("after", "playing", 1, 50)),
               ("13_paused", ("screen", "ingame", 1)), ("14_hint", ("screen", "hint", 1)),
@@ -103,7 +103,7 @@ RUNS = [
              "dump_loading": "1", "end_at": "1100", "end_kind": "complete"},
      "inputs": [(40, "@main/3"), (140, "B"), (200, "@main/2"), (300, "B"), (360, "@main/4"), (460, "B"),
                 (520, "@main/1"), (620, "@start/2"), (720, "@heli/1")] +
-               [(f, "A") for f in range(820, 1021, 20)] + [(1250, "START"), (1350, "@ingame/1")],
+               [(f, "A") for f in range(820, 1021, 20)] + [(1250, "START"), (1350, "B")],
      "keep": [("06_main_menu", ("screen", "main", 1)), ("07_options", ("screen", "options", 1)),
               ("08_top_scores", ("screen", "scores", 1)), ("09_information", ("screen", "info", 1)),
               ("10_start_game", ("screen", "start", 1)), ("11_helicopter_select", ("screen", "heli", 1)),
@@ -120,13 +120,13 @@ RUNS = [
              "dump_loading": "1", "end_at": "900", "end_kind": "gameover", "end_score": "60000", "name_entry": "touch"},
      "inputs": [(40, "@main/2"), (140, "B"), (200, "@main/3"), (300, "B"), (360, "@main/4"), (460, "B"),
                 (520, "@main/7"), (620, "B"), (680, "@main/1"), (780, "@start/2"), (880, "@heli/1"),
-                (1150, "START"), (1250, "@ingame/1")],
+                (1150, "START"), (1250, "B")],
      "keep": [("02_main_menu", ("screen", "main", 1)), ("03_top_scores", ("screen", "scores", 1)),
               ("04_options", ("screen", "options", 1)), ("05_information", ("screen", "info", 1)),
               ("06_credits", ("screen", "credits", 1)), ("07_start_game", ("screen", "start", 1)),
               ("08_helicopter_select", ("screen", "heli", 1)), ("09_loading", ("load", 1)),
               ("10_play_level_name", ("after", "playing", 1, 120)), ("11_paused", ("screen", "ingame", 1)),
-              ("12_hint", ("screen", "hint", 1)), ("13_play_midfight", ("after", "playing", 1, 700)),
+              ("12_hint", ("screen", "hint", 1)), ("13_play_midfight", ("after", "playing", 1, 350)),
               ("14_game_over", ("screen", "gameover", 1)), ("15_game_over_menu", ("after", "gameover", 1, 300))]},
 ]
 
@@ -413,10 +413,13 @@ def main():
             if not stem or not os.path.exists(stem + "_bottom.ppm"):
                 log("  %s/%s: no dump (%s)" % (run["game"], name, sel))
                 continue
-            both = write_screen(Image, stem, os.path.join(game_dir, name))
-            sheets.setdefault(run["game"], []).append((name, both))
-    for game, cells in sheets.items():
-        cells.sort(key=lambda c: c[0])
+            write_screen(Image, stem, os.path.join(game_dir, name))
+            sheets[run["game"]] = True
+    # One sheet per game from every screen in its folder (runs of earlier invocations included).
+    for game in sheets:
+        game_dir = os.path.join(root, game)
+        cells = [(f[:-len("_both.png")], Image.open(os.path.join(game_dir, f)).convert("RGB"))
+                 for f in sorted(os.listdir(game_dir)) if f.endswith("_both.png")]
         contact_sheet(Image, ImageDraw, cells, "%s  %s  (top 400x240 over bottom 320x240, 1x)" % (game, label),
                       os.path.join(root, game + "_sheet"))
         log("%s: %d screens, sheet %s" % (game, len(cells), os.path.join(root, game + "_sheet.png")))
