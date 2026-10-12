@@ -5232,5 +5232,9 @@ there, and the GX texture copy that fills a VRAM texture (`C3D_TexLoadImage`) le
 Azahar: the quad draws nothing. `gfx_pica.cpp`: a texture under `kMinVramBytes` (4 KB) is always
 placed in linear memory, where VRAM gains nothing anyway. With it the Gulf menus are pixel-identical
 to the R4.8 gallery again (out/ui3ds/gallery/tinyfix). Whether hardware shares the emulator's
-behaviour is moot: the rule costs nothing.
+behaviour is moot: the rule costs nothing. The drop's own gallery, out/ui3ds/gallery/drop-4f5b28c,
+diffed against the references (as3d drop-08613d6, the sequels c708b4f, the selector banner4): every
+bottom screen identical; on top only the live level's frame timing, the half-size skins' texels and
+the R4.8 loading layout (the as3d reference predates it). From now on a drop's gallery is diffed this
+way before the upload.
 
