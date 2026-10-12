@@ -167,6 +167,68 @@ TEST_CASE("particles: emitter bounds hold every live particle, the cull keeps wh
     }
 }
 
+TEST_CASE("particles: the description's reach bounds a still emitter and the radial ones without a walk") {
+    // Offsets, velocity ranges, acceleration and growth all in play.
+    ParticleDesc d = particleDesc("a", ParticleBlend::Alpha, false);
+    d.emitRate = 60;
+    d.lifeTime = 0.5f;
+    d.initOffset[0] = 4.0f, d.initOffset[1] = -3.0f, d.initOffset[2] = 2.0f;
+    d.initOffset[3] = 10.0f, d.initOffset[4] = 5.0f, d.initOffset[5] = 1.0f;
+    d.initVelocity[0] = 30.0f, d.initVelocity[1] = -20.0f, d.initVelocity[2] = 50.0f;
+    d.initVelocity[3] = 15.0f, d.initVelocity[4] = 15.0f, d.initVelocity[5] = 5.0f;
+    d.accel[2] = -100.0f;
+    d.initSize[0] = 3.0f, d.initSize[1] = 2.0f;
+    d.sizeRate = 4.0f;
+    auto holds = [](const ParticleEmitter& e, const Vec3& c, float r) {
+        int checked = 0;
+        for (const Particle& p : e.particles()) {
+            if (!e.isLive(p)) continue;
+            const Vec3 w = e.worldPosition(p);
+            const float dx = w.x - c.x, dy = w.y - c.y, dz = w.z - c.z;
+            CHECK(std::sqrt(dx * dx + dy * dy + dz * dz) + std::fabs(p.size) * 1.4142f <= r + 1e-3f);
+            ++checked;
+        }
+        return checked;
+    };
+    // Still for three lives: the analytic sphere around the origin plus the mean offset.
+    ParticleEmitter still(d, 11, {100.0f, 200.0f, 10.0f});
+    runFor(still, 1.5f);
+    REQUIRE(still.stillSeconds() >= d.lifeTime);
+    Vec3 c;
+    float r = 0.0f;
+    REQUIRE(particleEmitterBounds(still, c, r));
+    CHECK(c.x == doctest::Approx(104.0f));
+    CHECK(c.y == doctest::Approx(197.0f));
+    CHECK(c.z == doctest::Approx(12.0f));
+    CHECK(holds(still, c, r) > 0);
+    // Moving every step: the exact walk, which still holds every particle.
+    ParticleEmitter moving(d, 12, {0.0f, 0.0f, 0.0f});
+    for (int i = 0; i < 90; i++) {
+        moving.setOrigin({static_cast<float>(i) * 3.0f, 0.0f, 0.0f});
+        moving.update(1.0f / 60.0f);
+    }
+    REQUIRE(moving.stillSeconds() < d.lifeTime);
+    Vec3 cm;
+    float rm = 0.0f;
+    REQUIRE(particleEmitterBounds(moving, cm, rm));
+    CHECK(holds(moving, cm, rm) > 0);
+    // Cilinder and Sphere with radial velocity and growth: the origin plus the radial reach.
+    for (ParticleCoords coords : {ParticleCoords::Cilinder, ParticleCoords::Sphere}) {
+        ParticleDesc dc = d;
+        dc.coords = coords;
+        ParticleEmitter ec(dc, 13, {-7.0f, 8.0f, 9.0f});
+        for (int i = 0; i < 90; i++) { // moving too: radial particles follow the origin
+            ec.setOrigin({-7.0f + static_cast<float>(i), 8.0f, 9.0f});
+            ec.update(1.0f / 60.0f);
+        }
+        Vec3 cc;
+        float rc = 0.0f;
+        REQUIRE(particleEmitterBounds(ec, cc, rc));
+        CHECK(cc.x == ec.origin().x);
+        CHECK(holds(ec, cc, rc) > 0);
+    }
+}
+
 TEST_CASE("particles: thinning spreads the cap over every emitter") {
     ParticleDesc d = particleDesc("a", ParticleBlend::Alpha, false);
     ParticleEmitter e1(d, 1), e2(d, 2), e3(d, 3);

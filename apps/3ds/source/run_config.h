@@ -229,6 +229,7 @@ struct RunConfig {
     int skinHalf = -1;      // skin_half=auto|0|1: the model skins of at least skin_half_min a side made from level 1 of their chain; -1 = auto (the sequels only)
     int skinHalfMin = 128;  // skin_half_min=N: the smallest larger side (texels) skin_half halves (128, default: a 128 skin becomes 64)
     bool particleCull = true; // particle_cull=0|1: emitters entirely off screen are not built or drawn (1, default)
+    bool stepPhases = true;   // step_phases=0|1: AS3D_STEP_PHASES every 300 frames, the simulation step's phases in ms per step (1, default; R4.15)
     bool fireFade = true;     // fire_fade=0|1: an emitter that stands still fades to a quarter of its particles between 5 and 12 s (1, default; R4.14)
     bool uiMerge = true;    // ui_merge=0|1: the 2D lists' quads reordered into fewer runs where no pixel is shared, the same picture (1, default)
     // R4.11 end

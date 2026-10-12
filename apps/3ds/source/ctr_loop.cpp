@@ -758,6 +758,7 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         ++steps;
     };
 
+    as3d::StepPhaseTimes phasesPrev; // AS3D_STEP_PHASES (R4.15)
     bool looping = true;
     while ((looping = aptMainLoop())) {
         const PadState& pad = input.readPad();
@@ -796,12 +797,31 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         if (run.fixedSteps > 0) due = run.fixedSteps;
         int n = 0;
         const uint64_t s0 = nowTicks();
+        if (run.stepPhases && session->hasLevel()) session->world().setPhaseTiming(true); // R4.15 (a store)
         while (n < due && !(maxSteps && steps >= maxSteps)) {
             stepOnce();
             ++n;
         }
         sample.stepMs = static_cast<float>(ticksToMs(nowTicks() - s0));
         sample.simSteps = n;
+        // R4.15: the step's phases (World::StepPhaseTimes, the desktop's as3d_sim --time) every 300
+        // frames, ms per step: where the sequels' 6 to 9 ms steps go (docs/3ds-port.md "Tenth
+        // console soak").
+        if (run.stepPhases && session->hasLevel() && frame > 0 && frame % 300 == 0) {
+            const as3d::World& w = session->world();
+            const as3d::StepPhaseTimes& ph = w.phaseTimes();
+            const long ds = ph.steps - phasesPrev.steps;
+            if (ds > 0) {
+                const double k = 1000.0 / static_cast<double>(ds);
+                AS3D_INFO("AS3D_STEP_PHASES frames=300 steps=%ld (ms per step) camera=%.2f spawn=%.2f player=%.2f entities=%.2f "
+                          "collisions=%.2f after=%.2f list=%d slots=%d",
+                          ds, (ph.camera - phasesPrev.camera) * k, (ph.spawn - phasesPrev.spawn) * k,
+                          (ph.player - phasesPrev.player) * k, (ph.entities - phasesPrev.entities) * k,
+                          (ph.collisions - phasesPrev.collisions) * k, (ph.after - phasesPrev.after) * k, w.listCount(),
+                          w.slotsInUse());
+            }
+            phasesPrev = ph;
+        }
         audio.followPause(session->world().paused());
         // A whole-mission stage (mode=soak, soak_frames=0): the level's end, then the margin of
         // frames on the Mission Complete / Game Over screen (the wash was once seen there).

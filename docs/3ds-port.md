@@ -122,8 +122,12 @@ fade" at the end): the owner saw the fires never go out; they are the original's
 does); on the console a still emitter now fades to a quarter of its particles between 5 and 12 s
 (`fire_fade=0|1`, the simulation untouched). Drop round4h-c571d31 (title version 671) replaces round4g,
 out/3ds/drop-round4h-c571d31/ with `run-soak-r4h.ini` (the round4g list plus `as2:1:mono:3600:fire_fade=0`
-as the control, 9 stages, about 15 minutes); the upload waits for the console's ftpd, retried every
-five minutes; the receiver expects c571d31.** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
+as the control, 9 stages, about 15 minutes); soaked the same day = "Tenth console soak" at the end: 9 of 9 end states equal, the
+particle pass 2.4 ms (R4.13 confirmed), AirStrike 2 mono still 2.3 % at 60: the simulation step itself is
+6 to 9 ms in the fights (30 to 47x the desktop) and with prepare at 6 to 10 the 30 Hz frames spill into
+four-step frames (258 of them in bursts). R4.15 (next commit): `step_phases=1` prints the step's phases
+on the console, the particle update's and the emitter bounds' walks removed, the HUD list timed in play;
+drop round4i follows with `run-soak-r4i.ini`.** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
 the sequels' picture cuts (a lower cap in stereo, blob shadows for small casters).**
 
 **R4.11 (section "The sequels on the console (round 4, R4.11)" at the end): the seventh soak's sequel
@@ -5472,3 +5476,63 @@ The round4g list with the control stage: `as3d:1:mono:1800`, `as3d:1:stereo:3600
 `as2:1:mono:3600:fire_fade=0` (the same build without the fade: the R4.13 fix alone),
 `as2:1:stereo:3600`, `as2:1:stereo:1800:gpu_passes=1`, `as2:2:mono:3600`, `gulf:1:mono:3600`,
 `gulf:1:stereo:3600`. Drop round4h-c571d31, title version 671.
+
+## Tenth console soak (drop round4h-c571d31, 2026-10-12, 9 stages)
+
+**End states 9 of 9 equal to the desktop sim**; no wash, no fence, no in-frame texture; lazy loads 0.
+AirStrike 3D mono at 60 **100 %** over its minute (hitches 0.8 %); AirStrike 3D stereo held 60 for
+873 frames (the ninth: 868) then settled at 30 (GPU 11.2 avg / 15.0 p95).
+
+**R4.13 did what it promised:** AirStrike 2's particle pass **2.35 to 2.56 ms** (the ninth 4.6 to 4.8,
+the eighth 3.8), the per-pass sum 8.07 against 9.98 in the same window; with `fire_fade=0` 2.5 to 3.1.
+The fade removes 130 to 1674 live particles per frame by window (`faded`), the emitters 142 to 189.
+In the first fight (frames 200 to 330) a one-step frame costs step 2.9 + prepare 1.65 + submit 8.0
+= 12.5 ms of CPU, the GPU 9.4 (the GPU's own span `gpu_kick` 16.7: it starts at the kicks and runs
+7 to 9 ms after the submit), so the frame lands past 16.7 ms and the pace rule drops to 30 Hz at
+frame 331, as in the ninth. **AirStrike 2 mono at 60 is still 2.3 %** (2.6 without the fade): the
+fade is worth 0.2 ms of submit here; the submit's remaining 8 ms are terrain 0.85, shadows 1.04,
+opaque 0.32, rest 0.66, particles 2.5, top2d 1.5, hud 0.87, ui 1.1.
+
+**The real finding: the simulation step.** The per-step cost over the mission (perf.csv `step_ms` /
+`sim_steps`, per 100 frames): 1.3, 1.9, 3.0, 3.7, 6.0, **6.8**, 5.1, 3.8, 4.5, 4.8, 6.6, **9.0**, 6.3,
+4.9, 4.3 ms; identical in the eighth and ninth soaks (the sim is untouched). The desktop sim
+(`as3d_sim --game as2 --level 1 --bot --bot-weapons --time --step-times 100`) grows the same way,
+0.04 to 0.20 ms per step: entities (the scripts) 65 %, `after` (particles, skid, the render pass)
+30 %, collisions 3 %; 178 to 345 list entities, up to 649 slots. The console is 30x the desktop at
+the start and 47x in the fights. At 30 Hz a frame does two steps: in the fights that is 12 to 18 ms
+of step plus 4.5 to 10 of prepare (`AS3D_PREP_MS` window 5: scene 2.05, shadows 1.65 for 90 casters,
+drape 1.49 for 15, marks 1.26 for 18, entities 1.04 for 555, meshes 0.87 for 159) plus 12 of submit:
+over the 33 ms, so the catch-up asks four steps (27 ms of step alone, 51 ms of CPU) and the frame
+spans two 30 Hz periods: **258 four-step frames** in bursts at frames 511 to 600 and 1100 to 1250
+(`behind=390`). That is the stutter the owner cannot see as fps but feels. The same bursts in the
+ninth (291) and in mission 2 (159), Gulf Thunder 51.
+
+**`AS3D_SLOW_SUBMIT` in those bursts:** 15 to 16 ms submits with `hud=3.1 to 3.8` (0.9 in the window
+average) and particles 3.5, terrain 2.3 to 5.7, 300 to 329 draws, 38k vertices. The HUD list's cost
+is not understood (its flush alone? the touch band? a cache rebuild?): instrumented by R4.15.
+
+### R4.15: the step's phases on the console, two walks removed, the HUD list measured in play
+
+- run.ini `step_phases=0|1` (default 1): `World::setPhaseTiming` on, `AS3D_STEP_PHASES frames=300
+  steps=N (ms per step) camera= spawn= player= entities= collisions= after= list= slots=` every 300
+  frames (the desktop's `--time` phases on the console). The next soak says whether the fights' 9 ms
+  steps are the scripts (entities) or the particles (after).
+- `ParticleEmitter::update()` stops its walk once every live particle was seen (the visitor's trick
+  of R4.13, now in the simulation: 12k pool slots a step became the live ones; the results are the
+  same, the test "the live count kept by spawn and update equals the walk" covers it).
+- `particleEmitterBounds` no longer walks a still Decart emitter (still for at least one particle
+  life, `stillSeconds()`: every fire) nor any Cilinder or Sphere emitter: the description's reach
+  (offset range + fastest velocity x life + acceleration x life^2 / 2 + the largest quad) around the
+  origin bounds them; moving Decart emitters (trails) keep the exact walk. Test "the description's
+  reach bounds a still emitter and the radial ones without a walk". The cull's walk of every live
+  particle per frame (190 emitters, 3500 particles) is gone.
+  The gallery's `as2_fire` run (out/ui3ds/gallery/r415): the looser sphere culls 10.5 emitters per frame
+  in the peak window against 17.3 with the walked one, the quads drawn 1181 against 1168, every fire on.
+- `AS3D_SLOW_SUBMIT` prints `lists hud=ms/hit/vertices built=N` in play and bot mode (before: the front
+  end only), so the 3.7 ms HUD frames can be read.
+
+### The next soak's list (`run-soak-r4i.ini`, 8 stages, about 14 minutes)
+
+`as3d:1:mono:1800`, `as3d:1:stereo:3600`, `as2:1:mono:3600` (AS3D_STEP_PHASES in the fights; the
+four-step bursts against 258; SLOW_SUBMIT's hud list), `as2:1:stereo:3600`, `as2:1:stereo:1800:gpu_passes=1`,
+`as2:2:mono:3600`, `gulf:1:mono:3600`, `gulf:1:stereo:3600`.

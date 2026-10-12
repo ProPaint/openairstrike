@@ -12,13 +12,53 @@ void particleBillboardAxes(const Mat4& view, Vec3& right, Vec3& up) {
     up = {view.at(0, 1), view.at(1, 1), view.at(2, 1)};
 }
 
+namespace {
+
+// The farthest a live particle of the description can be from its spawn base along axis k
+// after `life` seconds: the offset range, the fastest velocity for the whole life, the
+// acceleration's share. p = base + off + v t + a t^2 / 2 with |t| <= life.
+float particleReach(const ParticleDesc& d, int k) {
+    const float life = std::max(d.lifeTime, 0.0f);
+    const float v = std::fabs(d.initVelocity[k]) + std::fabs(d.initVelocity[3 + k]);
+    return std::fabs(d.initOffset[3 + k]) + v * life + 0.5f * std::fabs(d.accel[k]) * life * life;
+}
+
+// The largest half extent of a quad of the description over a particle's life.
+float particleMaxSize(const ParticleDesc& d) {
+    const float life = std::max(d.lifeTime, 0.0f);
+    const float s0 = std::fabs(d.initSize[0]) + std::fabs(d.initSize[1]);
+    return s0 + std::max(0.0f, d.sizeRate) * life;
+}
+
+} // namespace
+
 bool particleEmitterBounds(const ParticleEmitter& emitter, Vec3& centre, float& radius) {
     const ParticleDesc& d = emitter.desc();
     const float kDiag = 1.4142136f;
     const int live = emitter.liveCount();
     if (live <= 0) return false;
+    // R4.15: no walk where the description bounds the particles. Cilinder and Sphere particles
+    // are relative to the origin whatever its motion; Decart ones were spawned at the origin
+    // once it has stood still for a whole particle life (the sequels' fires: every one), so
+    // the description's reach from the origin holds them all. A moving Decart emitter (a
+    // trail) keeps the exact walk, its live particles are few.
+    const float maxSize = particleMaxSize(d) * kDiag;
+    if (d.coords != ParticleCoords::Decart) {
+        const float r1 = std::fabs(d.initOffset[1]) + particleReach(d, 1);
+        const float r2 = std::fabs(d.initOffset[2]) + particleReach(d, 2);
+        centre = emitter.origin();
+        radius = (d.coords == ParticleCoords::Cilinder ? r1 + r2 : r2) + maxSize;
+        return true;
+    }
+    if (emitter.stillSeconds() >= d.lifeTime) {
+        const Vec3& o = emitter.origin();
+        centre = {o.x + d.initOffset[0], o.y + d.initOffset[1], o.z + d.initOffset[2]};
+        const float ex = particleReach(d, 0), ey = particleReach(d, 1), ez = particleReach(d, 2);
+        radius = std::sqrt(ex * ex + ey * ey + ez * ez) + maxSize;
+        return true;
+    }
     int seen = 0;
-    if (d.coords == ParticleCoords::Decart) {
+    {
         bool any = false;
         float lo[3] = {0, 0, 0}, hi[3] = {0, 0, 0};
         for (const Particle& p : emitter.particles()) {
@@ -39,20 +79,6 @@ bool particleEmitterBounds(const ParticleEmitter& emitter, Vec3& centre, float& 
         radius = std::sqrt(ex * ex + ey * ey + ez * ez);
         return true;
     }
-    bool any = false;
-    float far = 0.0f;
-    for (const Particle& p : emitter.particles()) {
-        if (seen == live) break;
-        if (!emitter.isLive(p)) continue;
-        ++seen;
-        const float reach = d.coords == ParticleCoords::Cilinder ? std::fabs(p.p[1]) + std::fabs(p.p[2]) : std::fabs(p.p[2]);
-        far = std::max(far, reach + std::fabs(p.size) * kDiag);
-        any = true;
-    }
-    if (!any) return false;
-    centre = emitter.origin();
-    radius = far;
-    return true;
 }
 
 RenderBlend particleRenderBlend(ParticleBlend b) {

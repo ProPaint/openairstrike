@@ -291,6 +291,7 @@ struct GameFrame::Impl {
     // The front end's three bottom lists this frame (HUD, touch band, menus): flush ms, and
     // whether the flush reused its cached vertices (1) or rebuilt them (0); -1 = not flushed.
     double listMs[3] = {0, 0, 0};
+    int listBuilt0 = 0; // the HUD list's units rebuilt in the frame (R4.15, SLOW_SUBMIT)
     pica::MeshDrawStats meshSum; // the mesh passes since the last AS3D_MESH line
     double culledSum = 0.0;      // model records culled in prepare over the same frames
     int listHit[3] = {-1, -1, -1};
@@ -1797,7 +1798,15 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
                 h.begin(kBottomW, kBottomH);
                 ui::drawHud(h, *im.assets, im.hud);
                 if (Impl::tilesOn(info.touch)) im.hudExtras(h, info.touch);
+                // R4.15: the HUD list's own time and vertices (AS3D_SLOW_SUBMIT lists hud=) in play too.
+                const ui::Ui2dPicaStats s0 = ui::ui2dPicaStats();
+                const u64 t0 = svcGetSystemTick();
                 h.flush();
+                im.listMs[0] = static_cast<double>(svcGetSystemTick() - t0) * 1000.0 / SYSCLOCK_ARM11;
+                const ui::Ui2dPicaStats& s1 = ui::ui2dPicaStats();
+                im.listHit[0] = s1.cacheHits > s0.cacheHits ? 1 : 0;
+                im.listVerts[0] = s1.vertices - s0.vertices;
+                im.listBuilt0 = s1.unitsBuilt - s0.unitsBuilt;
             }
             // The hint box over the HUD (render-pipeline.md 1.1 pass 13).
             if (info.session->hasLevel() && world.hintShowing() && pica::passEnabled(pica::Pass::Hint)) {
@@ -1846,11 +1855,14 @@ void GameFrame::drawBottom(CtrContext& ctx, const FrameInfo& info) {
         }
         const WorldRenderStats& ws = im.renderer->lastStats();
         // The front end's bottom lists: ms/cached/vertices of the HUD, the touch band, the menus.
-        char lists[128] = "";
+        char lists[160] = "";
         if (im.flow)
             std::snprintf(lists, sizeof lists, " lists hud=%.1f/%d/%d touch=%.1f/%d/%d menu=%.1f/%d/%d", im.listMs[0],
                           im.listHit[0], im.listVerts[0], im.listMs[1], im.listHit[1], im.listVerts[1], im.listMs[2],
                           im.listHit[2], im.listVerts[2]);
+        else // in play: the HUD list alone (ms/cache hit/vertices, units rebuilt this frame; R4.15)
+            std::snprintf(lists, sizeof lists, " lists hud=%.1f/%d/%d built=%d", im.listMs[0], im.listHit[0], im.listVerts[0],
+                          im.listBuilt0);
         AS3D_INFO("AS3D_SLOW_SUBMIT frame=%u step=%u ms=%.1f eyes=%d draws=%d verts=%d late_tex=%d lazy=%lld%s other=%.1f%s",
                   info.frame, info.step, submitMs, im.stereo.eyes, ws.drawCalls, ws.vertices,
                   pica::lateTextureStats().queued - im.lateQueued0, static_cast<long long>(LoadStats::lazyLoads().total()),

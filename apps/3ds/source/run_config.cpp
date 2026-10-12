@@ -339,6 +339,8 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
             if (toInt(val, &n)) c.particleCull = n != 0;
         } else if (key == "fire_fade") {
             if (toInt(val, &n)) c.fireFade = n != 0;
+        } else if (key == "step_phases") {
+            if (toInt(val, &n)) c.stepPhases = n != 0;
         } else if (key == "ui_merge") {
             if (toInt(val, &n)) c.uiMerge = n != 0;
         // R4.11 end

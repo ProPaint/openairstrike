@@ -174,8 +174,12 @@ void ParticleEmitter::update(float dt) {
     const float life = d.lifeTime;
     const int cells = d.texCols * d.texRows;
     bool anyLive = false;
+    const int liveBefore = live_; // the walk stops once every live particle was seen (R4.15)
+    int seen = 0;
     for (Particle& p : particles_) {
+        if (seen == liveBefore) break;
         if (!(p.age <= life)) continue;
+        ++seen;
         anyLive = true;
         p.size += d.sizeRate * dt;
         for (int i = 0; i < 3; i++) {
