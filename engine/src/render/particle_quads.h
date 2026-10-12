@@ -43,18 +43,23 @@ int visitParticleQuads(const ParticleEmitter* const* emitters, size_t count, con
     particleBillboardAxes(view, R, U);
     int built = 0;
     const bool thinning = thin.keep > 0 && thin.of > thin.keep;
-    long long index = 0; // running index of the live particles visited
+    int acc = 0; // Bresenham: a particle is kept when acc + keep reaches of (no division)
     for (size_t e = 0; e < count; e++) {
         const ParticleEmitter& em = *emitters[e];
         const ParticleDesc& d = em.desc();
         const size_t first = vertices();
         const float du = 1.0f / static_cast<float>(d.texCols);
         const float dv = 1.0f / static_cast<float>(d.texRows);
+        const int live = em.liveCount();
+        int seen = 0; // the walk stops once every live particle has been seen
         for (const Particle& p : em.particles()) {
+            if (seen == live) break;
             if (!em.isLive(p)) continue;
+            ++seen;
             if (thinning) {
-                const long long i = index++;
-                if (((i + 1) * thin.keep) / thin.of == (i * thin.keep) / thin.of) continue;
+                acc += thin.keep;
+                if (acc < thin.of) continue;
+                acc -= thin.of;
             }
             const Vec3 P = em.worldPosition(p);
             Vec3 X = R, Y = U;
@@ -103,9 +108,7 @@ int visitParticleQuads(const ParticleEmitter* const* emitters, size_t count, con
 // The live particles of the emitters (an upper bound of the quads before visiting them).
 inline size_t liveParticleCount(const ParticleEmitter* const* emitters, size_t count) {
     size_t n = 0;
-    for (size_t e = 0; e < count; e++)
-        for (const Particle& p : emitters[e]->particles())
-            if (emitters[e]->isLive(p)) ++n;
+    for (size_t e = 0; e < count; e++) n += static_cast<size_t>(std::max(emitters[e]->liveCount(), 0));
     return n;
 }
 

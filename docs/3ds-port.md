@@ -5363,3 +5363,53 @@ prepare cost (the ground marks re-cut after every crater).
 5. `as2:2:mono:3600`: mission 2 with its plan and shadow cache warm: to_first_frame against 13.3 s.
 6. `gulf:1:mono:3600`, `gulf:1:mono:3600:particle_cull=0`, `gulf:1:stereo:3600`: at60 against 29.8 %.
 7. `as2:1:mono:3600:prefetch_thread=0` is not repeated: R4.10 is read.
+
+## Ninth console soak (drop round4f-da9d546, 2026-10-12)
+
+`run-soak-r4f.ini` (10 stages, build da9d546, title 667), out/3ds/2026-10-12-da9d546/, **10 of 10 end
+states equal**, 10 of 10 finished, verdict FAIL (the sequels). Wash 0/701, canary 701/701, lazy 0.
+
+**AirStrike 3D:** the one-minute mono stage 100 % at 60 (2 misses); the one-minute stereo stage ran
+**868 frames at 60** of about 1000 after the grace (GPU 10.2 avg / 13.5 p95; the window had less
+fighting than the eighth's 11.3) and settled at 30 at its end.
+
+**AirStrike 2 mono stayed at 2.1 %**, with the cull on and off alike (the cull takes 11 to 17 of 166 to
+218 emitters a frame, 7 to 8 %, as the desktop predicted). The perf rows show how the pacer gives up:
+from the level's first frame to about frame 200 the frames are one step each (step 1.8 to 3.0 ms,
+prepare 1.5 to 1.8, submit 6 to 9, GPU 8 to 12) and fit with 4 to 7 ms of sync to spare; the first fight
+(frames 207 to 260) raises the GPU to 10 to 14 ms and the submit to 8 to 10, the frame misses its vblank
+(sync 15 to 16), the deferred catch-up makes the next frames two-step ones (step 6, submit 11 to 14,
+prepare 2.3 to 2.6), those miss too, and at frame 328 the 24th miss in 120 sends the pacer to 30 Hz,
+where nothing brings it back. So AirStrike 2 at 60 needs both halves: a one-step frame's CPU (11 to 13
+ms) and its GPU (8 to 14) overlap only from the terrain kick on. The per-frame CPU of the three games
+in one-step frames: as3d step 1.0 / prepare 1.0 / submit 5.6; as2 2.4 / 1.6 / 7.4; gulf 2.4 / 2.2 / 6.8.
+
+**The thinning cost more than it saved on the CPU:** AS3D_PASS_MS `particles` **4.6 to 4.8 ms** (cull
+on; 3.9 to 6.2 with it off) against the eighth's 3.8. The Bresenham test did two 64-bit divisions per
+live particle (no divider on the ARM11: about a microsecond each, 5500 times), more than the corner
+math it skipped, and the visit's real cost was never the math: it walks every emitter's whole pool
+(190 emitters of 64 slots, 12k particles, 56 bytes each) twice a frame, once to count the live ones and
+once to build. **R4.13** fixes both: `ParticleEmitter::liveCount()` is a counter kept by `spawn()` (a
+ring overwrite of a live particle keeps it) and `update()` (a death decrements it), not hashed, equal to
+the walk by test "particles: the live count kept by spawn and update equals the walk"; the visitor, the
+live count and the emitter bounds stop each pool walk once every live particle was seen; the thinning
+is an accumulator (`acc += keep; if (acc < of) skip; acc -= of`), no division. Expected: the pass
+near 1.5 to 2 ms.
+
+**AirStrike 2 stereo:** GPU **18.9 avg / 27.4 p95** (the eighth: 19.4 / 30.5); the per-pass table per eye
+7.8 to 8.1 (terrain 1.4 to 1.5, shadows 1.7 to 1.8, particles 1.5, rest 1.2, opaque 0.8, marks 0.6,
+sprites 0.25; the sum 18.9). The thinned particles cost the GPU what the capped ones did, as expected:
+the quads are the same 1536. **Mission 2 with its plan and shadow cache warm:** to_first_frame **3.62 s**
+(gate measure 3.03; renderer 1.89: textures 328, meshes 238, shadows 160 with every cache hit) against
+13.3 s cold. **Gulf Thunder:** mono 29.0 / 29.1 % (cull on / off), stereo 18.5 / 38.9: unchanged.
+
+**The picture** (the gallery's `as2_fire` run, Azahar, step 2300 of the bot with the weapon tour, sent
+to the owner): the old cap showed three fires on a map of 68 burning wrecks; the thinning shows every
+one, each with about a quarter of its particles. The owner's verdict is pending.
+
+### The next soak's list (`run-soak-r4g.ini`, 8 stages, about 14 minutes)
+
+`as3d:1:mono:1800`, `as3d:1:stereo:3600` (does stereo hold 60 over a whole minute of fighting),
+`as2:1:mono:3600` (AS3D_PASS_MS `particles` against 4.7; the frames 207 to 330 of its perf.csv against
+the ninth's), `as2:1:stereo:3600`, `as2:1:stereo:1800:gpu_passes=1`, `as2:2:mono:3600`,
+`gulf:1:mono:3600`, `gulf:1:stereo:3600`.

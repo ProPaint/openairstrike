@@ -95,7 +95,10 @@ public:
     const std::vector<Particle>& particles() const { return particles_; }
     int capacity() const { return static_cast<int>(particles_.size()); }
     bool isLive(const Particle& p) const { return p.age <= desc_->lifeTime; }
-    int liveCount() const;
+    // The live particles, kept by spawn() and update() (the renderer asks every frame for every
+    // emitter: a walk of the pool would cost more than the draw). Not hashed: it follows from
+    // the particles.
+    int liveCount() const { return live_; }
     // Stopped (or EMIT_ONCE) and every particle dead: the instance can be freed.
     bool finished() const;
 
@@ -119,6 +122,7 @@ private:
     // has nothing to do (a dead particle only lives again through spawn). Not hashed: it
     // follows from the particles.
     bool allDead_ = false;
+    int live_ = 0;
 
     void spawn(Particle& p);
 };

@@ -89,6 +89,8 @@ ParticleEmitter::ParticleEmitter(const ParticleDesc& desc, u32 seed, const Vec3&
     } else {
         for (Particle& p : particles_) p.age = desc.lifeTime + 1.0f; // dead
     }
+    live_ = 0;
+    for (const Particle& p : particles_) live_ += isLive(p) ? 1 : 0;
 }
 
 void ParticleEmitter::setOrigin(const Vec3& origin) { origin_ = origin; }
@@ -105,12 +107,6 @@ void ParticleEmitter::activate() {
     prevOrigin_ = origin_;
 }
 
-int ParticleEmitter::liveCount() const {
-    int n = 0;
-    for (const Particle& p : particles_) n += isLive(p) ? 1 : 0;
-    return n;
-}
-
 bool ParticleEmitter::finished() const {
     if (!(stopped_ || desc_->emitOnce)) return false;
     return liveCount() == 0;
@@ -119,7 +115,9 @@ bool ParticleEmitter::finished() const {
 void ParticleEmitter::spawn(Particle& p) {
     const ParticleDesc& d = *desc_;
     allDead_ = false;
+    const bool wasLive = isLive(p); // the ring overwrites live particles too
     p.age = 0.0f;
+    if (isLive(p) != wasLive) live_ += isLive(p) ? 1 : -1;
     float base[3] = {d.initOffset[0], d.initOffset[1], d.initOffset[2]};
     if (d.coords == ParticleCoords::Decart) {
         base[0] += prevOrigin_.x;
@@ -197,6 +195,7 @@ void ParticleEmitter::update(float dt) {
             p.frame = static_cast<int>(ratio * static_cast<float>(cells));
         }
         p.age += dt;
+        if (!(p.age <= life)) --live_; // died this step
     }
     allDead_ = !anyLive;
 }

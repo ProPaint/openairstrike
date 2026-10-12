@@ -262,3 +262,41 @@ TEST_CASE("particles: a shipped explosion renders non-black pixels headless") {
         if (img.rgba[i] > 24 || img.rgba[i + 1] > 24 || img.rgba[i + 2] > 24) lit++;
     CHECK(lit > 200);
 }
+
+TEST_CASE("particles: the live count kept by spawn and update equals the walk") {
+    auto walk = [](const ParticleEmitter& e) {
+        int n = 0;
+        for (const Particle& p : e.particles()) n += e.isLive(p) ? 1 : 0;
+        return n;
+    };
+    ParticleDesc d = continuousDesc();
+    ParticleEmitter e(d, 5);
+    CHECK(e.liveCount() == walk(e));
+    for (int i = 0; i < 400; i++) { // the ring overwrites live particles once the pool is full
+        e.update(1.0f / 60.0f);
+        REQUIRE(e.liveCount() == walk(e));
+    }
+    e.stop();
+    for (int i = 0; i < 200; i++) {
+        e.update(1.0f / 60.0f);
+        REQUIRE(e.liveCount() == walk(e));
+    }
+    CHECK(e.liveCount() == 0);
+    e.activate();
+    for (int i = 0; i < 50; i++) {
+        e.update(1.0f / 60.0f);
+        REQUIRE(e.liveCount() == walk(e));
+    }
+    e.update(100.0f); // the guard against a huge dt
+    CHECK(e.liveCount() == walk(e));
+    ParticleDesc once = continuousDesc();
+    once.emitOnce = true;
+    ParticleEmitter o(once, 9);
+    CHECK(o.liveCount() == walk(o));
+    CHECK(o.liveCount() == o.capacity());
+    for (int i = 0; i < 300; i++) {
+        o.update(1.0f / 60.0f);
+        REQUIRE(o.liveCount() == walk(o));
+    }
+    CHECK(o.finished());
+}

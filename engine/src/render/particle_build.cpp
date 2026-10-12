@@ -15,11 +15,16 @@ void particleBillboardAxes(const Mat4& view, Vec3& right, Vec3& up) {
 bool particleEmitterBounds(const ParticleEmitter& emitter, Vec3& centre, float& radius) {
     const ParticleDesc& d = emitter.desc();
     const float kDiag = 1.4142136f;
+    const int live = emitter.liveCount();
+    if (live <= 0) return false;
+    int seen = 0;
     if (d.coords == ParticleCoords::Decart) {
         bool any = false;
         float lo[3] = {0, 0, 0}, hi[3] = {0, 0, 0};
         for (const Particle& p : emitter.particles()) {
+            if (seen == live) break;
             if (!emitter.isLive(p)) continue;
+            ++seen;
             const float r = std::fabs(p.size) * kDiag;
             for (int k = 0; k < 3; k++) {
                 const float a = p.p[k] - r, b = p.p[k] + r;
@@ -37,7 +42,9 @@ bool particleEmitterBounds(const ParticleEmitter& emitter, Vec3& centre, float& 
     bool any = false;
     float far = 0.0f;
     for (const Particle& p : emitter.particles()) {
+        if (seen == live) break;
         if (!emitter.isLive(p)) continue;
+        ++seen;
         const float reach = d.coords == ParticleCoords::Cilinder ? std::fabs(p.p[1]) + std::fabs(p.p[2]) : std::fabs(p.p[2]);
         far = std::max(far, reach + std::fabs(p.size) * kDiag);
         any = true;
