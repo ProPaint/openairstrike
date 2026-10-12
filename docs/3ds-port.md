@@ -127,7 +127,7 @@ particle pass 2.4 ms (R4.13 confirmed), AirStrike 2 mono still 2.3 % at 60: the 
 6 to 9 ms in the fights (30 to 47x the desktop) and with prepare at 6 to 10 the 30 Hz frames spill into
 four-step frames (258 of them in bursts). R4.15 (next commit): `step_phases=1` prints the step's phases
 on the console, the particle update's and the emitter bounds' walks removed, the HUD list timed in play;
-drop round4i follows with `run-soak-r4i.ini`.** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
+drop round4i-281f16f (title version 673) is built under out/3ds/drop-round4i-281f16f/ with `run-soak-r4i.ini` (8 stages); the receiver expects 281f16f.** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
 the sequels' picture cuts (a lower cap in stereo, blob shadows for small casters).**
 
 **R4.11 (section "The sequels on the console (round 4, R4.11)" at the end): the seventh soak's sequel
@@ -5535,4 +5535,4 @@ is not understood (its flush alone? the touch band? a cache rebuild?): instrumen
 
 `as3d:1:mono:1800`, `as3d:1:stereo:3600`, `as2:1:mono:3600` (AS3D_STEP_PHASES in the fights; the
 four-step bursts against 258; SLOW_SUBMIT's hud list), `as2:1:stereo:3600`, `as2:1:stereo:1800:gpu_passes=1`,
-`as2:2:mono:3600`, `gulf:1:mono:3600`, `gulf:1:stereo:3600`.
+`as2:2:mono:3600`, `gulf:1:mono:3600`, `gulf:1:stereo:3600`. Drop round4i-281f16f, title version 673.
