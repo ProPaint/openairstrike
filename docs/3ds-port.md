@@ -108,10 +108,14 @@ whole mission 85.9 %; the halved skins are worth 0.5 ms (as3d) and 0.3 ms (as2) 
 fail 60 Hz on the CPU in mono (AirStrike 2: 16 to 18 ms a frame, 3.8 of them visiting 5500 live
 particles for a cap of 1536: 68 burning wrecks on screen under the weapon tour) and on the GPU in
 stereo (8.2 ms per eye: shadows, particles, sprites and the translucent list a millisecond each).
-R4.12 (in progress, on main): the particles over the cap thinned evenly across the emitters (the CPU
-visits only the kept ones, every fire draws), the off-screen emitters and skid trails culled,
-`particle_cull=0|1`, `as3d_sim --particle-stats`. Next drop: round4f with `run-soak-r4f.ini`
-(10 stages). Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
+R4.12 (ee4e2eb, da9d546): the particles over the cap thinned evenly across the emitters (the CPU
+visits only the kept ones, every fire draws: the gallery's `as2_fire` run shows three fires on the old
+build against every burning wreck on the new), the off-screen emitters and skid trails culled,
+`particle_cull=0|1`, `as3d_sim --particle-stats`. Drop round4f-da9d546 (title version 667) is built
+under out/3ds/drop-round4f-da9d546/ with `run-soak-r4f.ini` (10 stages, about 16 minutes); its gallery
+diffed clean against drop-4f5b28c's (every bottom screen identical, the top differences the live level's
+timing); the upload waits for the console's ftpd (down after the eighth soak), retried every five minutes;
+the receiver expects da9d546. Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
 the sequels' picture cuts (a lower cap in stereo, blob shadows for small casters).**
 
 **R4.11 (section "The sequels on the console (round 4, R4.11)" at the end): the seventh soak's sequel
