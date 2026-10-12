@@ -100,9 +100,19 @@ R4.10 (prefetch overlap, vfs) and R4.11 (the sequels' cuts). Unread: the owner's
 663) is built under out/3ds/drop-round4e-4f5b28c/ with `run-soak-r4e.ini` (18 stages, about 22
 minutes: the prefetch thread off/on pairs for missions 1 and 2, as3d stereo with and without skin_half,
 the sequels mono/stereo/skins at full size/per-pass GPU table/2D merge off, AirStrike 2's mission 2);
-the upload waits for the console's ftpd (down after the seventh soak: the app replaced it), retried every
-five minutes by a background loop; the receiver expects 4f5b28c. Read with the R4.10 and R4.11 sections'
-"what the soak should check" lists.**
+uploaded on 2026-10-12 once the owner started ftpd, and soaked the same morning.**
+
+**The eighth soak is read ("Eighth console soak" at the end): the prefetch overlap took the level start
+from 3.1 to 2.4 s (session 1.84 → 0.86 s); AirStrike 3D's one-minute mono stages are 100 % at 60, the
+whole mission 85.9 %; the halved skins are worth 0.5 ms (as3d) and 0.3 ms (as2) of GPU; the sequels
+fail 60 Hz on the CPU in mono (AirStrike 2: 16 to 18 ms a frame, 3.8 of them visiting 5500 live
+particles for a cap of 1536: 68 burning wrecks on screen under the weapon tour) and on the GPU in
+stereo (8.2 ms per eye: shadows, particles, sprites and the translucent list a millisecond each).
+R4.12 (in progress, on main): the particles over the cap thinned evenly across the emitters (the CPU
+visits only the kept ones, every fire draws), the off-screen emitters and skid trails culled,
+`particle_cull=0|1`, `as3d_sim --particle-stats`. Next drop: round4f with `run-soak-r4f.ini`
+(10 stages). Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
+the sequels' picture cuts (a lower cap in stereo, blob shadows for small casters).**
 
 **R4.11 (section "The sequels on the console (round 4, R4.11)" at the end): the seventh soak's sequel
 numbers read (as2 stereo GPU 20.1 ms, 4 to 6 MB of skins in linear memory, 400 draws, the scripts' 1.7 s,
@@ -5238,3 +5248,114 @@ bottom screen identical; on top only the live level's frame timing, the half-siz
 the R4.8 loading layout (the as3d reference predates it). From now on a drop's gallery is diffed this
 way before the upload.
 
+
+## Eighth console soak (drop round4e-4f5b28c, 2026-10-12)
+
+`run-soak-r4e.ini` (18 stages, build 4f5b28c, HOME-menu title 663, New 3DS with the speed-up),
+out/3ds/2026-10-12-4f5b28c/, **18 of 18 end states equal to the desktop sim**, 18 of 18 stages
+finished, verdict FAIL (the mono gate of the whole mission, the sequels). Wash: 0 mismatches in 1759
+probes, canary 1759/1759, no washed frame. lazy_loads 0 (the 33 TerraMorph stamps excused), fence 0,
+gpu_busy 0, tex_in_frame 0.
+
+**R4.10, the prefetch overlap (stages 2 to 5, the thread off then on, missions 1 and 2):** the session
+phase fell from **1840 ms to 858** (its prefetch from 1185 ms to 8: the thread on core 1 read the plan's
+41 runs in 1568 ms while the defs and the level loaded; the session waited 275 to 301 ms in 10 to 12
+waits for runs not yet in), to_first_frame **3111 → 2382 ms** for mission 1 and 3120 → 2382 for mission
+2, the gate measure 2.16 s (the gate is 3). The renderer's 1.3 s is now the largest part (textures 260
+ms, meshes 105, shadows 40 with every cache hit, pak reads 849 ms inside it, rest 52).
+
+**AirStrike 3D, mono at 60:** the whole mission 1 (stage 1, 11857 frames after the grace) **85.9 %**
+(100 misses = 0.98 %, 135 hitches, 6 pace changes, 474 behind), against 89.7 in the seventh; the
+one-minute stages of missions 1 and 2 **100 %** with the thread off and on alike (2 misses, 0 pace
+changes). The pace rule (24/120 against never) stays the owner's call.
+
+**AirStrike 3D, stereo (stages 6 and 7):** GPU **11.27 avg / 15.22 p95** (the seventh: 11.0 / 15.0),
+settles at 30 Hz; `skin_half=1` (65 skins halved) 10.75 / 14.03: **0.5 ms**, the owner's call on the
+look (the gallery's as3d_play shows the halved skins).
+
+**AirStrike 2 (stages 8 to 13):** mono at 60 **2.4 %** (settles at 30: 410 behind, 595 forced); GPU
+mono 9.1 avg / 14.3 p95; stereo **19.4 avg / 30.5 p95** (the seventh: 20.1 / 31.7); the skins at full
+size (stage 10) 19.7 / 31.0: the halved skins are worth **0.3 ms** of GPU, not the 10 the first spike's
+linear textures suggested; `ui_merge=0` (stage 12) changes nothing at 60 (2.5 %): the HUD's draws were
+never the limit. Textures: VRAM 4186 KB (115), **linear 3047 KB (109)** against 6995 in the seventh
+(model skins: VRAM 1110 KB (77), linear 490 KB (47); the linear ones are items, the helicopter skins
+of the other players, the fences). Mission 2's first run on the console (stage 13, no read plan, no
+shadow cache): to_first_frame **13.3 s** (renderer 10.7: shadows 3969 ms for 260 misses, pak reads
+5064 ms, scripts 1892 ms); its plan and 260 silhouettes are on the card now.
+
+The per-pass GPU table (stage 11, `gpu_passes=1`, timed frames 10 to 30 of each window, ms per eye):
+terrain 1.3 to 1.4, **shadows 1.5 to 1.7**, opaque 0.6 to 0.9, **rest 1.1 to 1.2**, **particles 1.2 to
+1.9**, **sprites 0.7 to 1.1**, top2d 0 to 0.8, marks 0.2 to 0.7, clear 0.2; one eye **8.1 to 8.4** (as3d
+4.2); the bottom's HUD 1.1, tail 1.8, sum 19.2 to 19.5. Against AirStrike 3D the sequels pay a
+millisecond per eye each for the draped shadows (7000 vertices against 2800), the particles (at the
+cap), the translucent list (100 draws against 46) and the sprites.
+
+The CPU of an AirStrike 2 mono frame (the AS3D_PASS_MS and AS3D_PREP_MS windows): step 2.7 ms,
+prepare 3 to 5 (entities 1.0 for 500, marks 0.45 to 1.2, shadows 0.7 to 1.4 for 88, drape 0.5 to 1.3
+for 12, meshes 0.6 to 0.8 for 150), submit 9 to 10 (**particles 3.8**, terrain 1.4 to 1.6, shadows
+1.4, rest 0.9, hud 0.9): 16 to 18 ms, so mono misses 60 on the CPU before the GPU (9 ms) is asked.
+
+**Where AirStrike 2's particles come from.** AS3D_FX: particle_quads at the cap (1536) in every
+window after the first, dropped 1700 to 2300 per frame, **max 4036** in a frame, so frames of 5572
+live particles. The desktop sim with the soak's bot (`as3d_sim --game as2 --level 1 --bot
+--bot-weapons --particle-stats 1`, the new option) reproduces it: the peak is **5666 live** at frame
+2293, 3930 of them `PS_POZHAR_BIG` (68 burning wrecks of 64 particles each, rate 30, life 2 s), 857
+`PS_POZHAR_SMALL` (49), 261 `PS_POZHAR_MEDIUM` (44); over the mission 2247 big-fire particles per
+frame on average; without the weapon tour the peak is 1217. A headless desktop run at 400 x 240
+(`as3d_game --headless --size 400x240 --screenshot-every 30`, which now prints the culled counts)
+shows those fires **on screen**: of the live emitters only 8 % lie entirely outside the eye cull
+volume (gulf 5 %). The cost on the console is twofold: the CPU visits every one of the 5500 particles
+(the corner math and the colour conversion) and writes the first 1536 (3.8 ms of submit), and the cap
+takes whole emitters: in the visit order (the newest emitters first) the oldest fires vanish entirely.
+
+**Gulf Thunder (stages 14 to 18):** mono at 60 **29.8 %** (settles at 30), GPU stereo **18.5 avg /
+38.7 p95**; full-size skins 18.7; `gpu_passes=1` per eye 8.8 to 9.4 (**particles 1.9 to 2.5**, terrain
+1.4 to 1.5, opaque 1.1, shadows 1.0 to 1.3, water 0.4 to 1.0, sprites 0.4 to 0.9, top2d 0.1 to 0.8);
+linear textures 3618 KB (149) against 8454; level start 3.4 s (renderer 2.0 of which pak reads 1.36 s).
+
+**The terrain light cache (R4.11's classes):** the sequels still reuse nothing (reused=0 in every
+window): `miss_other` 395 to 535 per 300 frames (the first differing light has the same position and
+cone: its colour or radius changed, which is the fires' flicker), `miss_moved` 180 to 570 (the moving
+beacon); 0.65 to 1.4 ms per frame. AirStrike 3D mono reuses 157 to 372 of about 1000 chunk frames at
+0.5 to 1.1 ms.
+
+### R4.12: the particles over the cap thinned evenly, the emitters and skid trails culled
+
+- **`ParticleThin` (engine/src/render/particle_quads.h):** `visitParticleQuads` takes `{keep, of}`;
+  when the live count exceeds the cap the PICA renderer passes `{cap, live}` and the visit keeps the
+  particle with running index i only when `((i + 1) keep) / of` advances (Bresenham over all emitters
+  in visit order), skipping the rest before the position and corner math. Exactly `cap` quads are
+  built, every emitter keeps the same share of its particles (a fire of 60 draws 17 of them at 5500
+  live), and the CPU visits only the kept ones. `particleQuadsDropped` is `live - built`. Test:
+  "particles: thinning spreads the cap over every emitter".
+- **Emitter cull (`WorldRenderOptions::cullEmitters`, default on; run.ini `particle_cull=0|1`):**
+  `WorldScene::prepare` drops, right after collecting them, the emitters whose live particles all lie
+  outside the eye cull volume (`particleEmitterBounds`: Decart particles are world positions, their
+  box widened by size x sqrt 2; Cilinder and Sphere ones lie within |p1| + |p2| (|p2|) of the origin,
+  no trigonometry). No backend builds their quads. `WorldRenderStats::emittersCulled`; AS3D_FX prints
+  `emitters=.. culled=..`. Test: "particles: emitter bounds hold every live particle".
+- **Skid trail cull:** the same volume, a trail's xy box widened by half its width over the heights
+  sampled at three sections (slack 96): 0 to 3 % of the trails in the desktop runs, kept because it
+  is free. `skidTrailsCulled`, AS3D_FX `skids=.. skids_culled=..`.
+- **Tools:** `as3d_sim --particle-stats [N]` prints the live particles by emitter def every N frames
+  (the heaviest first, with the emitter count, rate, life and pool); `as3d_game`'s screenshot line
+  prints the culled emitters and trails.
+
+What this does not change: the GPU cost of the 1536 quads (the fires' overdraw, 1.2 to 2.5 ms per
+eye), the draped shadows, the sprites and the translucent list of the sequels, all picture decisions
+for the owner (a lower cap in stereo, blob shadows for small casters, half-rate sprites); the light
+cache's flicker misses (a per-light weight cache would turn them into multiplies: next); the marks'
+prepare cost (the ground marks re-cut after every crater).
+
+### The next soak's list (`run-soak-r4f.ini`, 10 stages, about 16 minutes) and how to read it
+
+1. `as3d:1:mono:1800` and `as3d:1:stereo:1800`: unchanged (no as3d frame reaches the cap).
+2. `as2:1:mono:3600` then `as2:1:mono:3600:particle_cull=0`: at60 against 2.4 %; AS3D_PASS_MS
+   `particles` against 3.8 ms; AS3D_FX `particle_quads` 1536 with `dropped` now `live - 1536`,
+   `emitters` and `culled` (8 % expected); the A/B says what the cull alone is worth.
+3. `as2:1:stereo:3600`: GPU against 19.4 / 30.5 (the thinning changes the CPU only; the GPU should
+   stay, which confirms the fill cost is the cap's quads, not the visit).
+4. `as2:1:stereo:1800:gpu_passes=1`: the per-pass table with the thinning (particles per eye).
+5. `as2:2:mono:3600`: mission 2 with its plan and shadow cache warm: to_first_frame against 13.3 s.
+6. `gulf:1:mono:3600`, `gulf:1:mono:3600:particle_cull=0`, `gulf:1:stereo:3600`: at60 against 29.8 %.
+7. `as2:1:mono:3600:prefetch_thread=0` is not repeated: R4.10 is read.

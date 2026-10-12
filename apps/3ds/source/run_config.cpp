@@ -335,6 +335,8 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
             else if (toInt(val, &n)) c.skinHalf = n != 0 ? 1 : 0;
         } else if (key == "skin_half_min") {
             if (toInt(val, &n) && n >= 8) c.skinHalfMin = n;
+        } else if (key == "particle_cull") {
+            if (toInt(val, &n)) c.particleCull = n != 0;
         } else if (key == "ui_merge") {
             if (toInt(val, &n)) c.uiMerge = n != 0;
         // R4.11 end

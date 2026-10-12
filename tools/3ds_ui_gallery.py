@@ -145,6 +145,12 @@ RUNS = [
      "keep": [("21_play_stocked", ("frame", 790)), ("22_tap_select_missile", ("frame", 850)),
               ("23_tap_fire_missile", ("frame", 880)), ("24_tap_select_powerup", ("frame", 970)),
               ("25_tap_next_weapon", ("frame", 1010)), ("26_tap_pause", ("screen", "ingame", 1))]},
+    # The bot with the weapon tour (the soak's), where AirStrike 2's burning wreckage floods the
+    # particle cap (docs/3ds-port.md "Eighth console soak"): the thinning's picture, two frames.
+    {"name": "as2_fire", "game": "as2", "fresh": ["as2"], "frames": 2320,
+     "ini": {"game": "as2", "level": "1", "mode": "bot", "bot_weapons": "1", "logo": "0", "dump_every": "10"},
+     "inputs": [],
+     "keep": [("30_fire_2000", ("frame", 2000)), ("31_fire_2300", ("frame", 2300))]},
     {"name": "gulf_intro", "game": "gulf", "fresh": ["gulf"], "frames": 600,
      "ini": {"game": "gulf", "logo": "1"},
      "inputs": [],
@@ -230,7 +236,7 @@ def run_ini(run, new_taps, prefix):
     keys = dict(COMMON)
     keys.update(run["ini"])
     keys.update(EXTRA_INI)
-    keys["mode"] = "play"
+    if "mode" not in run["ini"]: keys["mode"] = "play"  # a run may be the bot (as2_fire)
     keys["frames"] = str(run["frames"])
     keys["dump_prefix"] = prefix
     pad, taps = [], []

@@ -453,6 +453,8 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
         pv.fogEnd = light.fogEnd;
         if (!sc.emitters.empty()) im.particles.draw(sc.emitters.data(), sc.emitters.size(), pv);
         stats_.emitters = static_cast<int>(sc.emitters.size());
+        stats_.emittersCulled = sc.emittersCulled;
+        stats_.skidTrailsCulled = sc.skidTrailsCulled;
         stats_.particles = im.particles.lastParticleCount();
     }
     // Pass 12: sprites.

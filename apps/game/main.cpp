@@ -367,9 +367,9 @@ int runHeadless(const Args& a, GameSession& session, const InputScript* script) 
             }
             if (!a.quiet) {
                 const WorldRenderStats& rs = view->renderer().lastStats();
-                std::printf("wrote %s: models %d shadows %d sprites %d marks %d lights %d emitters %d particles %d\n",
+                std::printf("wrote %s: models %d shadows %d sprites %d marks %d lights %d emitters %d (culled %d) particles %d skids %d (culled %d)\n",
                             path.c_str(), rs.models, rs.shadows, rs.sprites, rs.marks, rs.lights, rs.emitters,
-                            rs.particles);
+                            rs.emittersCulled, rs.particles, rs.skidTrails, rs.skidTrailsCulled);
             }
         }
     }

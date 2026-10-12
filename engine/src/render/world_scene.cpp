@@ -10,6 +10,7 @@
 #include "as3d/load_stats.h"
 #include "as3d/script.h"
 #include "as3d/particles.h"
+#include "as3d/particle_render.h"
 #include "as3d/terrain.h"
 #include "as3d/vfs.h"
 
@@ -216,13 +217,43 @@ const std::vector<VertexRect>& WorldScene::terrainChanges(const World& world, co
     return rects_;
 }
 
-void WorldScene::collectSkidTrails(const World& world) {
+void WorldScene::collectSkidTrails(const World& world, const CullFrustum* cull, const Terrain* terrain) {
     const size_t n = world.liveSkidTrailCount();
     if (skidTrails.size() < n) skidTrails.resize(n);
     skidTrailCount = 0;
+    skidTrailsCulled = 0;
+    // The sequels keep a trail for its whole life while the map scrolls on: one entirely outside
+    // the cull volume is not collected (nor cut against the terrain, nor drawn). The sphere holds
+    // every section's xy box (the drawn ones are among them) widened by half the mark width,
+    // over the terrain heights sampled at the first, middle and last section with a slack for
+    // the ground between them.
+    constexpr float kHeightSlack = 96.0f;
     for (size_t i = 0; i < n; ++i) {
         const WorldSkidTrail& src = world.liveSkidTrail(i);
         if (src.nodeCount < 2) continue; // a strip needs two sections
+        if (cull && terrain) {
+            const int first = 0;
+            float x0 = 0, x1 = 0, y0 = 0, y1 = 0;
+            for (int k = first; k < src.nodeCount; ++k) {
+                const Vec2& p = src.nodes[static_cast<size_t>(k)].position;
+                if (k == first) { x0 = x1 = p.x; y0 = y1 = p.y; }
+                x0 = std::min(x0, p.x); x1 = std::max(x1, p.x);
+                y0 = std::min(y0, p.y); y1 = std::max(y1, p.y);
+            }
+            const float hw = std::fabs(src.width) * 0.5f;
+            x0 -= hw; x1 += hw; y0 -= hw; y1 += hw;
+            const Vec2& pa = src.nodes[static_cast<size_t>(first)].position;
+            const Vec2& pm = src.nodes[static_cast<size_t>((first + src.nodeCount - 1) / 2)].position;
+            const Vec2& pz = src.nodes[static_cast<size_t>(src.nodeCount - 1)].position;
+            const float za = terrain->heightAt(pa.x, pa.y), zm = terrain->heightAt(pm.x, pm.y), zz = terrain->heightAt(pz.x, pz.y);
+            const float z0 = std::min(za, std::min(zm, zz)) - kHeightSlack, z1 = std::max(za, std::max(zm, zz)) + kHeightSlack;
+            const Vec3 centre{(x0 + x1) * 0.5f, (y0 + y1) * 0.5f, (z0 + z1) * 0.5f};
+            const float ex = (x1 - x0) * 0.5f, ey = (y1 - y0) * 0.5f, ez = (z1 - z0) * 0.5f;
+            if (!cull->sphereVisible(centre, std::sqrt(ex * ex + ey * ey + ez * ez))) {
+                skidTrailsCulled++;
+                continue;
+            }
+        }
         SkidTrail& t = skidTrails[skidTrailCount++];
         t.texture = src.texture ? *src.texture : std::string();
         t.nodes.resize(static_cast<size_t>(src.nodeCount));
@@ -476,7 +507,7 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
     mark(profile.entities);
 
     // The sequels' skid marks (as2 delta 1.1 pass 5).
-    if (terrain && withSkids && rules_.skidMarkPass && options.marks) collectSkidTrails(world);
+    if (terrain && withSkids && rules_.skidMarkPass && options.marks) collectSkidTrails(world, options.cullEmitters ? &fr.cull : nullptr, terrain);
     else skidTrailCount = 0;
     // Lightning bolts: effect-list records (sort 3) submitted by the Lightning builtin during
     // the entity pass (7.1).
@@ -491,6 +522,23 @@ void WorldScene::prepare(const World& world, const Viewport& viewport, const Wor
     // Particles: the world's live emitters.
     if (options.particles) world.particles().collect(emitters);
     else emitters.clear();
+    // Emitters entirely outside the cull volume (every eye's frustum) are dropped here, so no
+    // backend builds their quads; an emitter without a live particle is kept (nothing to test,
+    // the builder skips it anyway).
+    emittersCulled = 0;
+    if (options.cullEmitters && !emitters.empty()) {
+        size_t kept = 0;
+        for (size_t i = 0; i < emitters.size(); i++) {
+            Vec3 centre;
+            float radius = 0.0f;
+            if (particleEmitterBounds(*emitters[i], centre, radius) && !fr.cull.sphereVisible(centre, radius)) {
+                emittersCulled++;
+                continue;
+            }
+            emitters[kept++] = emitters[i];
+        }
+        emitters.resize(kept);
+    }
 
     mark(profile.tail);
     stats.models = static_cast<int>(opaque.size() + trans.size() + effect.size());

@@ -154,6 +154,10 @@ struct WorldRenderOptions {
     bool marks = true;     // ground marks and the sequels' skid trails
     bool water = true;     // pass 7 (needs terrain too)
     bool lightning = true; // lightning bolts (7.1)
+    // Particle emitters whose live particles all lie outside the cull volume are left out of
+    // the frame (no quads built, nothing drawn): the same picture, less work for the burning
+    // wreckage the sequels leave behind the camera (docs/3ds-port.md "Eighth console soak").
+    bool cullEmitters = true;
 };
 
 // The rectangle of the bound framebuffer the world is drawn into (GL convention, y from the
@@ -185,6 +189,8 @@ struct WorldRenderStats {
     // last prepare(), so a stereo frame counts both eyes (the 3DS perf log).
     int drawCalls = 0;
     int vertices = 0;
+    int emittersCulled = 0; // live emitters left out by WorldRenderOptions::cullEmitters
+    int skidTrailsCulled = 0; // skid trails left out by the same cull
 };
 
 class WorldRenderer {

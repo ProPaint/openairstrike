@@ -24,14 +24,26 @@ struct ParticleQuad {
 
 RenderBlend particleRenderBlend(ParticleBlend b);
 
+// A thinning of the visit: of every `of` live particles (counted across all emitters, in visit
+// order) only `keep` are built, spread evenly (Bresenham over the running index), so every
+// emitter keeps about the same fraction of its particles instead of the last emitters losing
+// all of theirs to a cap. `keep` 0 or >= `of`: every particle.
+struct ParticleThin {
+    int keep = 0;
+    int of = 0;
+};
+
 // `sink(const ParticleQuad&)` per particle; `vertices()` (six per quad, counted by the caller's
-// sink) gives the run boundaries. Runs as buildParticleQuads. Returns the particles visited.
+// sink) gives the run boundaries. Runs as buildParticleQuads. Returns the particles built.
 template <class Sink, class Count>
 int visitParticleQuads(const ParticleEmitter* const* emitters, size_t count, const Mat4& view,
-                       const ParticleTextureResolver& resolve, Sink&& sink, Count&& vertices, std::vector<DrawRun>& runs) {
+                       const ParticleTextureResolver& resolve, Sink&& sink, Count&& vertices, std::vector<DrawRun>& runs,
+                       ParticleThin thin = {}) {
     Vec3 R, U;
     particleBillboardAxes(view, R, U);
     int built = 0;
+    const bool thinning = thin.keep > 0 && thin.of > thin.keep;
+    long long index = 0; // running index of the live particles visited
     for (size_t e = 0; e < count; e++) {
         const ParticleEmitter& em = *emitters[e];
         const ParticleDesc& d = em.desc();
@@ -40,6 +52,10 @@ int visitParticleQuads(const ParticleEmitter* const* emitters, size_t count, con
         const float dv = 1.0f / static_cast<float>(d.texRows);
         for (const Particle& p : em.particles()) {
             if (!em.isLive(p)) continue;
+            if (thinning) {
+                const long long i = index++;
+                if (((i + 1) * thin.keep) / thin.of == (i * thin.keep) / thin.of) continue;
+            }
             const Vec3 P = em.worldPosition(p);
             Vec3 X = R, Y = U;
             if (d.drawMode != ParticleDrawMode::Billboard) {

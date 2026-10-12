@@ -130,10 +130,17 @@ void ParticleRenderer::draw(const ParticleEmitter* const* emitters, size_t count
         im.runs.clear();
         // The quads straight into the frame arena as FlatVertex (the neutral visitor of
         // buildParticleQuads, the colour converted once per quad), at most the quality cap: the
-        // live particles first give the size.
+        // live particles first give the size. Over the cap the visit is thinned evenly across
+        // the emitters (ParticleThin), so every fire still draws with a share of its particles
+        // (docs/3ds-port.md "Eighth console soak": the sequels' burning wreckage).
         const int cap = pica::renderQuality().particleCap;
         const size_t live = liveParticleCount(emitters, count);
         const size_t room = std::min(live, static_cast<size_t>(cap > 0 ? cap : 0)) * 6;
+        ParticleThin thin;
+        if (cap > 0 && live > static_cast<size_t>(cap)) {
+            thin.keep = cap;
+            thin.of = static_cast<int>(live);
+        }
         pica::FlatVertex* out = room ? pica::frameArena().allocArray<pica::FlatVertex>(room) : nullptr;
         if (room && !out) ++pica::detail::fxStats().arenaFailures;
         size_t vertices = 0; // counted for every quad, written while there is room
@@ -168,9 +175,10 @@ void ParticleRenderer::draw(const ParticleEmitter* const* emitters, size_t count
                 }
                 vertices += 6;
             },
-            [&]() { return vertices; }, im.runs);
-        if (built > cap) {
-            st.particleQuadsDropped = built - cap;
+            [&]() { return vertices; }, im.runs, thin);
+        st.particleQuadsDropped = static_cast<int>(live) - built;
+        if (built > cap) { // never with the thinning; kept as the guard of the arena
+            st.particleQuadsDropped = static_cast<int>(live) - cap;
             pica::capRuns(im.runs, static_cast<int>(vertices), cap * 6);
             built = cap;
         }

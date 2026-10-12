@@ -13,6 +13,7 @@
 #include "as3d/level.h"
 #include "as3d/lightning_render.h"
 #include "as3d/particle_render.h"
+#include "../../engine/src/render/particle_quads.h"
 #include "as3d/skid_render.h"
 #include "as3d/sprite_render.h"
 #include "as3d/terrain.h"
@@ -125,6 +126,85 @@ TEST_CASE("particles: quads, runs and keys") {
         sum += r.count;
     }
     CHECK(sum == static_cast<int>(verts.size()));
+}
+
+TEST_CASE("particles: emitter bounds hold every live particle, the cull keeps what touches the view") {
+    // Decart: the sphere holds every live world position plus the rotated quad's reach.
+    ParticleDesc d = particleDesc("a", ParticleBlend::Alpha, false);
+    ParticleEmitter e(d, 7, {100.0f, -20.0f, 5.0f});
+    Vec3 c;
+    float r = -1.0f;
+    CHECK_FALSE(particleEmitterBounds(e, c, r)); // nothing live yet
+    runFor(e, 0.5f);
+    REQUIRE(liveCount(e) > 0);
+    REQUIRE(particleEmitterBounds(e, c, r));
+    CHECK(r > 0.0f);
+    for (const Particle& p : e.particles()) {
+        if (!e.isLive(p)) continue;
+        const Vec3 w = e.worldPosition(p);
+        const float dx = w.x - c.x, dy = w.y - c.y, dz = w.z - c.z;
+        CHECK(std::sqrt(dx * dx + dy * dy + dz * dz) + std::fabs(p.size) * 1.4142f <= r + 1e-3f);
+    }
+    // Cilinder and Sphere: around the origin, within the radial reach.
+    for (ParticleCoords coords : {ParticleCoords::Cilinder, ParticleCoords::Sphere}) {
+        ParticleDesc dc = d;
+        dc.coords = coords;
+        ParticleEmitter ec(dc, 3, {-7.0f, 8.0f, 9.0f});
+        runFor(ec, 0.5f);
+        REQUIRE(liveCount(ec) > 0);
+        Vec3 cc;
+        float rc = 0.0f;
+        REQUIRE(particleEmitterBounds(ec, cc, rc));
+        CHECK(cc.x == -7.0f);
+        CHECK(cc.y == 8.0f);
+        CHECK(cc.z == 9.0f);
+        for (const Particle& p : ec.particles()) {
+            if (!ec.isLive(p)) continue;
+            const Vec3 w = ec.worldPosition(p);
+            const float dx = w.x - cc.x, dy = w.y - cc.y, dz = w.z - cc.z;
+            CHECK(std::sqrt(dx * dx + dy * dy + dz * dz) + std::fabs(p.size) * 1.4142f <= rc + 1e-3f);
+        }
+    }
+}
+
+TEST_CASE("particles: thinning spreads the cap over every emitter") {
+    ParticleDesc d = particleDesc("a", ParticleBlend::Alpha, false);
+    ParticleEmitter e1(d, 1), e2(d, 2), e3(d, 3);
+    for (ParticleEmitter* e : {&e1, &e2, &e3}) runFor(*e, 0.5f);
+    const ParticleEmitter* list[] = {&e1, &e2, &e3};
+    const int live = liveCount(e1) + liveCount(e2) + liveCount(e3);
+    REQUIRE(live >= 9);
+    const int keep = live / 3;
+    std::vector<ParticleVertex> verts;
+    std::vector<DrawRun> runs;
+    int quads = 0;
+    // One run for all three (same key).
+    int built = visitParticleQuads(
+        list, 3, Mat4::identity(), resolveTex,
+        [&](const ParticleQuad&) { verts.insert(verts.end(), 6, ParticleVertex{}); quads++; },
+        [&]() { return verts.size(); }, runs, ParticleThin{keep, live});
+    CHECK(built == keep);
+    CHECK(quads == keep);
+    CHECK(verts.size() == static_cast<size_t>(keep) * 6);
+    REQUIRE(runs.size() == 1);
+    CHECK(runs[0].count == keep * 6);
+    // Each emitter alone keeps about a third of its particles (within one).
+    for (const ParticleEmitter* e : list) {
+        std::vector<ParticleVertex> v1;
+        std::vector<DrawRun> r1;
+        const int n = liveCount(*e);
+        int b = visitParticleQuads(
+            &e, 1, Mat4::identity(), resolveTex, [&](const ParticleQuad&) { v1.insert(v1.end(), 6, ParticleVertex{}); },
+            [&]() { return v1.size(); }, r1, ParticleThin{n / 3, n});
+        CHECK(b == n / 3);
+    }
+    // keep 0 or keep >= of: no thinning.
+    verts.clear();
+    runs.clear();
+    built = visitParticleQuads(
+        list, 3, Mat4::identity(), resolveTex, [&](const ParticleQuad&) { verts.insert(verts.end(), 6, ParticleVertex{}); },
+        [&]() { return verts.size(); }, runs, ParticleThin{live, live});
+    CHECK(built == live);
 }
 
 TEST_CASE("particles: billboard and flat corners") {

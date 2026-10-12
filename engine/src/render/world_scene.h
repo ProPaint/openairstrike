@@ -180,6 +180,8 @@ public:
     std::vector<const ParticleEmitter*> emitters;
     DynamicLightList lights;
     int dropped = 0;
+    int emittersCulled = 0; // emitters with live particles left out by the cull volume
+    int skidTrailsCulled = 0; // skid trails entirely outside the cull volume (not collected)
 
     // Optional profile of prepare() (the PICA pass profile): with `clock` set, each prepare adds
     // the clock's ticks of its parts. No effect on what prepare() produces.
@@ -222,7 +224,7 @@ private:
     void precacheObject(const ObjectDef& def, const std::string& swapped, const PrecacheHooks& hooks);
     void precacheDrawn(const World& world);
     void precachePlaced(const ObjectDef* def, bool night, int depth);
-    void collectSkidTrails(const World& world);
+    void collectSkidTrails(const World& world, const CullFrustum* cull, const Terrain* terrain);
 
     ResourceCache* cache_ = nullptr;
     Vfs* vfs_ = nullptr;

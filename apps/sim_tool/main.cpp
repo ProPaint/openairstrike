@@ -54,6 +54,9 @@
 #include "as3d/script_host.h"
 #include "as3d/vfs.h"
 #include "as3d/world.h"
+#include "as3d/world_particles.h"
+#include "as3d/particles.h"
+#include <map>
 
 using namespace as3d;
 
@@ -114,6 +117,7 @@ int main(int argc, char** argv) {
     bool bot = false, pilot = false, timeSteps = false, botWeapons = false;
     long stepWindow = 0; // --step-times: window length in steps (0: off)
     int upgrades = -1, items = -1, powerupType = -1, missileType = -1; long pauseEvery = 0, faultPlayerAt = -1; // developer options (see --help)
+    long particleStats = 0; // --particle-stats [N]: live particles by emitter def every N frames
     WorldConfig cfg;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -154,6 +158,10 @@ int main(int argc, char** argv) {
         else if (a == "--powerup" && next(v)) powerupType = std::atoi(v);
         else if (a == "--missile" && next(v)) missileType = std::atoi(v);
         else if (a == "--pause-every" && next(v)) pauseEvery = std::strtol(v, nullptr, 10);
+        else if (a == "--particle-stats") {
+            particleStats = 300;
+            if (i + 1 < argc && argv[i + 1][0] != '-') particleStats = std::strtol(argv[++i], nullptr, 10);
+        }
         else if (a == "--fault-player" && next(v)) faultPlayerAt = std::strtol(v, nullptr, 10);
         else return usage();
     }
@@ -298,6 +306,32 @@ int main(int argc, char** argv) {
             world.step(input);
         }
         if (trace) tracePlayer(trace, world);
+        if (particleStats > 0 && (f + 1) % particleStats == 0) {
+            // Live particles by emitter def (what a renderer would draw as quads this frame),
+            // the heaviest defs first, with the emitter count and the def's rate and life.
+            std::vector<const ParticleEmitter*> ems;
+            world.particles().collect(ems);
+            struct Row { int live = 0, emitters = 0; const ParticleDesc* d = nullptr; };
+            std::map<std::string, Row> rows;
+            int total = 0;
+            for (const ParticleEmitter* e : ems) {
+                Row& r = rows[e->desc().name];
+                r.d = &e->desc();
+                r.emitters++;
+                r.live += e->liveCount();
+                total += e->liveCount();
+            }
+            std::vector<const std::pair<const std::string, Row>*> order;
+            for (const auto& kv : rows) order.push_back(&kv);
+            std::sort(order.begin(), order.end(), [](const auto* a, const auto* b) { return a->second.live > b->second.live; });
+            std::printf("particles: frame %ld live %d emitters %d\n", f + 1, total, world.particles().emitterCount());
+            for (size_t k = 0; k < order.size() && k < 8; ++k) {
+                const Row& r = order[k]->second;
+                if (r.live == 0) break;
+                std::printf("  %6d  %3d x %-36s rate %d life %.2f pool %d%s\n", r.live, r.emitters, order[k]->first.c_str(),
+                            r.d->emitRate, r.d->lifeTime, r.d->poolSize(), r.d->emitOnce ? " once" : "");
+            }
+        }
         if (completeFrame < 0 && world.levelComplete()) completeFrame = f + 1;
         if (gameOverFrame < 0 && world.gameOver()) gameOverFrame = f + 1;
         maxList = std::max(maxList, world.listCount());

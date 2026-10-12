@@ -12,6 +12,42 @@ void particleBillboardAxes(const Mat4& view, Vec3& right, Vec3& up) {
     up = {view.at(0, 1), view.at(1, 1), view.at(2, 1)};
 }
 
+bool particleEmitterBounds(const ParticleEmitter& emitter, Vec3& centre, float& radius) {
+    const ParticleDesc& d = emitter.desc();
+    const float kDiag = 1.4142136f;
+    if (d.coords == ParticleCoords::Decart) {
+        bool any = false;
+        float lo[3] = {0, 0, 0}, hi[3] = {0, 0, 0};
+        for (const Particle& p : emitter.particles()) {
+            if (!emitter.isLive(p)) continue;
+            const float r = std::fabs(p.size) * kDiag;
+            for (int k = 0; k < 3; k++) {
+                const float a = p.p[k] - r, b = p.p[k] + r;
+                if (!any || a < lo[k]) lo[k] = a;
+                if (!any || b > hi[k]) hi[k] = b;
+            }
+            any = true;
+        }
+        if (!any) return false;
+        centre = {(lo[0] + hi[0]) * 0.5f, (lo[1] + hi[1]) * 0.5f, (lo[2] + hi[2]) * 0.5f};
+        const float ex = (hi[0] - lo[0]) * 0.5f, ey = (hi[1] - lo[1]) * 0.5f, ez = (hi[2] - lo[2]) * 0.5f;
+        radius = std::sqrt(ex * ex + ey * ey + ez * ez);
+        return true;
+    }
+    bool any = false;
+    float far = 0.0f;
+    for (const Particle& p : emitter.particles()) {
+        if (!emitter.isLive(p)) continue;
+        const float reach = d.coords == ParticleCoords::Cilinder ? std::fabs(p.p[1]) + std::fabs(p.p[2]) : std::fabs(p.p[2]);
+        far = std::max(far, reach + std::fabs(p.size) * kDiag);
+        any = true;
+    }
+    if (!any) return false;
+    centre = emitter.origin();
+    radius = far;
+    return true;
+}
+
 RenderBlend particleRenderBlend(ParticleBlend b) {
     switch (b) {
     case ParticleBlend::Alpha: return RenderBlend::Alpha;

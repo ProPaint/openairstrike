@@ -41,6 +41,12 @@ struct ParticleVertex {
 // Camera right and up as the original derives them (rows 0 and 1 of the view rotation).
 void particleBillboardAxes(const Mat4& view, Vec3& right, Vec3& up);
 
+// A sphere holding every live particle of the emitter, each with its half extent (a quad of
+// any orientation fits in size * sqrt 2): the frustum cull of emitters. Decart particles are
+// world positions; Cilinder and Sphere ones lie within |p1| + |p2| (respectively |p2|) of the
+// emitter's origin, which bounds them without trigonometry. False when no particle is live.
+bool particleEmitterBounds(const ParticleEmitter& emitter, Vec3& centre, float& radius);
+
 // Resolves ParticleDesc::texture to a texture (null is allowed); called once per emitter that
 // has live particles, in emitter order.
 using ParticleTextureResolver = std::function<const Texture2D*(const std::string& path)>;
