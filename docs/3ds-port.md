@@ -111,11 +111,14 @@ stereo (8.2 ms per eye: shadows, particles, sprites and the translucent list a m
 R4.12 (ee4e2eb, da9d546): the particles over the cap thinned evenly across the emitters (the CPU
 visits only the kept ones, every fire draws: the gallery's `as2_fire` run shows three fires on the old
 build against every burning wreck on the new), the off-screen emitters and skid trails culled,
-`particle_cull=0|1`, `as3d_sim --particle-stats`. Drop round4f-da9d546 (title version 667) is built
-under out/3ds/drop-round4f-da9d546/ with `run-soak-r4f.ini` (10 stages, about 16 minutes); its gallery
-diffed clean against drop-4f5b28c's (every bottom screen identical, the top differences the live level's
-timing); the upload waits for the console's ftpd (down after the eighth soak), retried every five minutes;
-the receiver expects da9d546. Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
+`particle_cull=0|1`, `as3d_sim --particle-stats`. Drop round4f-da9d546 (title 667) was soaked the same day
+("Ninth console soak" at the end): AirStrike 2 mono unchanged at 2.1 %, the particle pass slower (4.7 ms
+against 3.8: the thinning's divisions, and the pool walks were the real cost), AirStrike 3D stereo 868
+frames at 60 in its minute, mission 2 warm start 3.6 s. **R4.13 (073688e): the emitters' live count kept
+by the simulation, the pool walks stopped early, the thinning without divisions. Drop round4g-073688e
+(title version 669) is built under out/3ds/drop-round4g-073688e/ with `run-soak-r4g.ini` (8 stages, about
+14 minutes), its gallery clean against drop-4f5b28c's; the upload waits for the console's ftpd, retried
+every five minutes; the receiver expects 073688e.** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
 the sequels' picture cuts (a lower cap in stereo, blob shadows for small casters).**
 
 **R4.11 (section "The sequels on the console (round 4, R4.11)" at the end): the seventh soak's sequel
