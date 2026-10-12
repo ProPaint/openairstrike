@@ -127,7 +127,12 @@ particle pass 2.4 ms (R4.13 confirmed), AirStrike 2 mono still 2.3 % at 60: the 
 6 to 9 ms in the fights (30 to 47x the desktop) and with prepare at 6 to 10 the 30 Hz frames spill into
 four-step frames (258 of them in bursts). R4.15 (next commit): `step_phases=1` prints the step's phases
 on the console, the particle update's and the emitter bounds' walks removed, the HUD list timed in play;
-drop round4i-281f16f (title version 673) is built under out/3ds/drop-round4i-281f16f/ with `run-soak-r4i.ini` (8 stages); the receiver expects 281f16f.** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
+drop round4i-281f16f (title version 673) is on the card in **play mode** (run.ini = run-play.ini; the soak list parked as run-soak.ini): the owner
+closed the soak campaign on 2026-10-12 ("I am done with all those soaks"); the receiver is stopped. To
+soak again: swap run.ini for run-soak.ini on the card, start `tools/3ds_receive.py --port 7777 --out
+out/3ds --expect <commit>`, launch. Open items: the sequels' simulation step in the fights (AS3D_STEP_PHASES
+will say scripts or particles), prepare's shadows/drape/marks, the HUD list's 3 ms submits, the pace
+rule's return to 60, the picture calls (stereo cap, blob shadows, sprites, alternate-eye stereo).** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
 the sequels' picture cuts (a lower cap in stereo, blob shadows for small casters).**
 
 **R4.11 (section "The sequels on the console (round 4, R4.11)" at the end): the seventh soak's sequel
