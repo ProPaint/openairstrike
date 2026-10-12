@@ -120,9 +120,10 @@ by the simulation, the pool walks stopped early, the thinning without divisions.
 fade" at the end): the owner saw the fires never go out; they are the original's burning trees
 (three fire objects per tree, no script, no lifetime, removed once behind the camera, as the engine
 does); on the console a still emitter now fades to a quarter of its particles between 5 and 12 s
-(`fire_fade=0|1`, the simulation untouched). Drop round4h (see the commit list) replaces round4g:
-the same `run-soak-r4g.ini` list; the upload waits for the console's ftpd, retried every five
-minutes; the receiver expects the drop's commit.** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
+(`fire_fade=0|1`, the simulation untouched). Drop round4h-c571d31 (title version 671) replaces round4g,
+out/3ds/drop-round4h-c571d31/ with `run-soak-r4h.ini` (the round4g list plus `as2:1:mono:3600:fire_fade=0`
+as the control, 9 stages, about 15 minutes); the upload waits for the console's ftpd, retried every
+five minutes; the receiver expects c571d31.** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
 the sequels' picture cuts (a lower cap in stereo, blob shadows for small casters).**
 
 **R4.11 (section "The sequels on the console (round 4, R4.11)" at the end): the seventh soak's sequel
@@ -5463,3 +5464,11 @@ is the same in Azahar (its timing is not the console's).
 particles; a quarter of those is 1000, so the whole scene fits the cap (1536) more often and the
 fresh explosions and the young fires keep their full density. The particle pass's CPU falls with
 the quads built (the skipped particles cost one accumulator step each).
+
+### The next soak's list (`run-soak-r4h.ini`, 9 stages, about 15 minutes)
+
+The round4g list with the control stage: `as3d:1:mono:1800`, `as3d:1:stereo:3600`, `as2:1:mono:3600`
+(the fade on: AS3D_PASS_MS `particles` against 4.7, at60 against 2.1 %, AS3D_FX `faded`),
+`as2:1:mono:3600:fire_fade=0` (the same build without the fade: the R4.13 fix alone),
+`as2:1:stereo:3600`, `as2:1:stereo:1800:gpu_passes=1`, `as2:2:mono:3600`, `gulf:1:mono:3600`,
+`gulf:1:stereo:3600`. Drop round4h-c571d31, title version 671.
