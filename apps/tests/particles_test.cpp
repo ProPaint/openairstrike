@@ -263,6 +263,25 @@ TEST_CASE("particles: a shipped explosion renders non-black pixels headless") {
     CHECK(lit > 200);
 }
 
+TEST_CASE("particles: the still time counts the seconds since the origin last moved") {
+    ParticleDesc d = continuousDesc();
+    ParticleEmitter e(d, 3);
+    CHECK(e.stillSeconds() == 0.0f);
+    for (int i = 0; i < 60; i++) e.update(1.0f / 60.0f);
+    CHECK(e.stillSeconds() == doctest::Approx(1.0f).epsilon(0.01));
+    e.setOrigin({0.0f, 0.0f, 0.0f}); // the same origin: still
+    e.update(1.0f / 60.0f);
+    CHECK(e.stillSeconds() > 1.0f);
+    e.setOrigin({1.0f, 0.0f, 0.0f}); // moved: the count restarts
+    e.update(1.0f / 60.0f);
+    CHECK(e.stillSeconds() == 0.0f);
+    for (int i = 0; i < 30; i++) e.update(1.0f / 60.0f);
+    CHECK(e.stillSeconds() == doctest::Approx(0.5f).epsilon(0.01));
+    const u32 h = e.stateHash(); // not part of the state
+    e.update(0.0f);
+    CHECK(e.stateHash() == h);
+}
+
 TEST_CASE("particles: the live count kept by spawn and update equals the walk") {
     auto walk = [](const ParticleEmitter& e) {
         int n = 0;

@@ -82,4 +82,48 @@ int buildParticleQuads(const ParticleEmitter* const* emitters, size_t count, con
         [&]() { return verts.size(); }, runs);
 }
 
+int particleThinShares(const ParticleEmitter* const* emitters, size_t count, const ParticleFade& fade, int cap,
+                       std::vector<int>& shares, int* faded) {
+    shares.resize(count);
+    const bool fading = fade.enabled && fade.stillEnd > fade.stillStart && fade.floor < 1.0f;
+    const float floorW = std::max(0.0f, fade.floor);
+    const float slope = fading ? (1.0f - floorW) / (fade.stillEnd - fade.stillStart) : 0.0f;
+    // Pass 1: the fade's weight per emitter and the weighted total (one float per emitter).
+    float weighted = 0.0f;
+    int live = 0;
+    float weightsStack[64];
+    std::vector<float> weightsHeap;
+    float* weights = weightsStack;
+    if (count > 64) {
+        weightsHeap.resize(count);
+        weights = weightsHeap.data();
+    }
+    for (size_t e = 0; e < count; e++) {
+        const ParticleEmitter& em = *emitters[e];
+        const int n = std::max(em.liveCount(), 0);
+        float we = 1.0f;
+        if (fading && n > 0 && !em.desc().emitOnce && em.desc().emitRate > 0) {
+            const float still = em.stillSeconds();
+            if (still >= fade.stillEnd) we = floorW;
+            else if (still > fade.stillStart) we = 1.0f - slope * (still - fade.stillStart);
+        }
+        weights[e] = we;
+        weighted += we * static_cast<float>(n);
+        live += n;
+    }
+    // Pass 2: the cap's scale (one division per frame, never per particle: the ARM11 has no divider).
+    float scale = 1.0f;
+    if (cap > 0 && weighted > static_cast<float>(cap)) scale = static_cast<float>(cap) / weighted;
+    int built = 0;
+    for (size_t e = 0; e < count; e++) {
+        const int n = std::max(emitters[e]->liveCount(), 0);
+        const float f = std::min(1.0f, weights[e] * scale);
+        const int share = static_cast<int>(f * static_cast<float>(kParticleThinUnit) + 0.5f);
+        shares[e] = share;
+        built += static_cast<int>((static_cast<long long>(share) * n) / kParticleThinUnit);
+    }
+    if (faded) *faded = live - static_cast<int>(weighted + 0.5f);
+    return built;
+}
+
 } // namespace as3d

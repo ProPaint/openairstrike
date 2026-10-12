@@ -207,6 +207,82 @@ TEST_CASE("particles: thinning spreads the cap over every emitter") {
     CHECK(built == live);
 }
 
+TEST_CASE("particles: the still emitters fade to the floor, the moving and one-shot ones keep every particle") {
+    ParticleDesc d = particleDesc("a", ParticleBlend::Alpha, false);
+    d.emitRate = 60;
+    d.lifeTime = 1.0f;
+    ParticleDesc once = d;
+    once.emitOnce = true;
+    ParticleEmitter still(d, 1), young(d, 2), moving(d, 3), burst(once, 4);
+    runFor(still, 15.0f); // stood still for 15 s: past stillEnd
+    runFor(young, 2.0f);  // 2 s: before stillStart
+    for (int i = 0; i < 15 * 60; i++) { // moves every step: never still
+        moving.setOrigin({static_cast<float>(i), 0.0f, 0.0f});
+        moving.update(1.0f / 60.0f);
+    }
+    CHECK(still.stillSeconds() > 14.0f);
+    CHECK(young.stillSeconds() < 3.0f);
+    CHECK(moving.stillSeconds() < 0.02f);
+    const ParticleEmitter* list[] = {&still, &young, &moving, &burst};
+    ParticleFade fade;
+    fade.enabled = true;
+    std::vector<int> shares;
+    int faded = -1;
+    int built = particleThinShares(list, 4, fade, 0, shares, &faded);
+    REQUIRE(shares.size() == 4);
+    CHECK(shares[0] == kParticleThinUnit / 4);
+    CHECK(shares[1] == kParticleThinUnit);
+    CHECK(shares[2] == kParticleThinUnit);
+    CHECK(shares[3] == kParticleThinUnit);
+    const int liveStill = liveCount(still);
+    CHECK(faded == liveStill - liveStill / 4 - (liveStill % 4 >= 2 ? 1 : 0)); // round(0.75 * live)
+    CHECK(built == liveStill / 4 + liveCount(young) + liveCount(moving) + liveCount(burst));
+    // The visitor builds exactly what the shares say, per emitter.
+    std::vector<ParticleVertex> verts;
+    std::vector<DrawRun> runs;
+    ParticleThin thin;
+    thin.shares = shares.data();
+    int visited = visitParticleQuads(
+        list, 4, Mat4::identity(), resolveTex, [&](const ParticleQuad&) { verts.insert(verts.end(), 6, ParticleVertex{}); },
+        [&]() { return verts.size(); }, runs, thin);
+    CHECK(visited == built);
+    // Midway between stillStart and stillEnd the share is between the floor and one.
+    ParticleEmitter mid(d, 5);
+    runFor(mid, 8.5f);
+    const ParticleEmitter* one[] = {&mid};
+    particleThinShares(one, 1, fade, 0, shares);
+    CHECK(shares[0] > kParticleThinUnit / 4);
+    CHECK(shares[0] < kParticleThinUnit);
+    // The fade off: every share one; a cap scales every share by the same factor and the total
+    // built fits the cap.
+    fade.enabled = false;
+    built = particleThinShares(list, 4, fade, 0, shares, &faded);
+    CHECK(faded == 0);
+    for (int s : shares) CHECK(s == kParticleThinUnit);
+    const int total = liveCount(still) + liveCount(young) + liveCount(moving) + liveCount(burst);
+    CHECK(built == total);
+    built = particleThinShares(list, 4, fade, total / 2, shares, &faded);
+    CHECK(built <= total / 2);
+    CHECK(built >= total / 2 - 4);
+    for (int s : shares) CHECK(s == shares[0]);
+    // The fade and the cap together: the still emitter keeps a quarter of the others' share.
+    fade.enabled = true;
+    built = particleThinShares(list, 4, fade, total / 2, shares, &faded);
+    CHECK(built <= total / 2);
+    CHECK(shares[1] == shares[2]);
+    CHECK(shares[0] * 4 <= shares[1] + 4);
+    CHECK(shares[0] * 4 >= shares[1] - 4);
+    // A share of zero leaves the emitter out of the runs.
+    shares = {0, kParticleThinUnit, kParticleThinUnit, kParticleThinUnit};
+    verts.clear();
+    runs.clear();
+    thin.shares = shares.data();
+    visited = visitParticleQuads(
+        list, 4, Mat4::identity(), resolveTex, [&](const ParticleQuad&) { verts.insert(verts.end(), 6, ParticleVertex{}); },
+        [&]() { return verts.size(); }, runs, thin);
+    CHECK(visited == total - liveCount(still));
+}
+
 TEST_CASE("particles: billboard and flat corners") {
     // Frame 1 of a 2x2 sheet; the original's row index divides by rows: u0 = 0.5, v0 = 0.5 (1 / 2 rows = 0).
     ParticleDesc d = particleDesc("a", ParticleBlend::Alpha, false);

@@ -28,9 +28,13 @@ RenderBlend particleRenderBlend(ParticleBlend b);
 // order) only `keep` are built, spread evenly (Bresenham over the running index), so every
 // emitter keeps about the same fraction of its particles instead of the last emitters losing
 // all of theirs to a cap. `keep` 0 or >= `of`: every particle.
+// With `shares` (one per emitter, in 1/kParticleThinUnit, particleThinShares): each emitter
+// keeps that share of its live particles (its own Bresenham, so emitter e builds exactly
+// floor(shares[e] * live / kParticleThinUnit)); keep/of are then ignored.
 struct ParticleThin {
     int keep = 0;
     int of = 0;
+    const int* shares = nullptr;
 };
 
 // `sink(const ParticleQuad&)` per particle; `vertices()` (six per quad, counted by the caller's
@@ -42,7 +46,7 @@ int visitParticleQuads(const ParticleEmitter* const* emitters, size_t count, con
     Vec3 R, U;
     particleBillboardAxes(view, R, U);
     int built = 0;
-    const bool thinning = thin.keep > 0 && thin.of > thin.keep;
+    const bool globalThin = !thin.shares && thin.keep > 0 && thin.of > thin.keep;
     int acc = 0; // Bresenham: a particle is kept when acc + keep reaches of (no division)
     for (size_t e = 0; e < count; e++) {
         const ParticleEmitter& em = *emitters[e];
@@ -51,15 +55,24 @@ int visitParticleQuads(const ParticleEmitter* const* emitters, size_t count, con
         const float du = 1.0f / static_cast<float>(d.texCols);
         const float dv = 1.0f / static_cast<float>(d.texRows);
         const int live = em.liveCount();
+        int keep = thin.keep, of = thin.of;
+        bool thinning = globalThin;
+        if (thin.shares) {
+            keep = thin.shares[e];
+            of = kParticleThinUnit;
+            if (keep <= 0) continue; // nothing of this emitter
+            thinning = keep < of;
+            acc = 0;
+        }
         int seen = 0; // the walk stops once every live particle has been seen
         for (const Particle& p : em.particles()) {
             if (seen == live) break;
             if (!em.isLive(p)) continue;
             ++seen;
             if (thinning) {
-                acc += thin.keep;
-                if (acc < thin.of) continue;
-                acc -= thin.of;
+                acc += keep;
+                if (acc < of) continue;
+                acc -= of;
             }
             const Vec3 P = em.worldPosition(p);
             Vec3 X = R, Y = U;

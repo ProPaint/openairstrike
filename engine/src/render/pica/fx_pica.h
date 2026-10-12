@@ -38,7 +38,8 @@ constexpr int kMaxSpriteQuadsPica = 768;    // plan: sprite cap (the builder's o
 struct FxPicaStats {
     // The last build (the first eye of a frame).
     int particleQuads = 0;          // quads drawn
-    int particleQuadsDropped = 0;   // quads built beyond the cap and cut
+    int particleQuadsDropped = 0;   // live particles not built (the fade and the cap)
+    int particleQuadsFaded = 0;     // of those, the ones the still-emitter fade removed (ParticleFade)
     size_t particleArenaBytes = 0;  // FlatVertex bytes written to the frame arena
     int spriteQuads = 0;
     int spriteQuadsDropped = 0;

@@ -114,11 +114,15 @@ build against every burning wreck on the new), the off-screen emitters and skid 
 `particle_cull=0|1`, `as3d_sim --particle-stats`. Drop round4f-da9d546 (title 667) was soaked the same day
 ("Ninth console soak" at the end): AirStrike 2 mono unchanged at 2.1 %, the particle pass slower (4.7 ms
 against 3.8: the thinning's divisions, and the pool walks were the real cost), AirStrike 3D stereo 868
-frames at 60 in its minute, mission 2 warm start 3.6 s. **R4.13 (073688e): the emitters' live count kept
+frames at 60 in its minute, mission 2 warm start 3.6 s. R4.13 (073688e): the emitters' live count kept
 by the simulation, the pool walks stopped early, the thinning without divisions. Drop round4g-073688e
-(title version 669) is built under out/3ds/drop-round4g-073688e/ with `run-soak-r4g.ini` (8 stages, about
-14 minutes), its gallery clean against drop-4f5b28c's; the upload waits for the console's ftpd, retried
-every five minutes; the receiver expects 073688e.** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
+(title version 669) never reached the card (ftpd off). **R4.14 (section "R4.14: the standing fires
+fade" at the end): the owner saw the fires never go out; they are the original's burning trees
+(three fire objects per tree, no script, no lifetime, removed once behind the camera, as the engine
+does); on the console a still emitter now fades to a quarter of its particles between 5 and 12 s
+(`fire_fade=0|1`, the simulation untouched). Drop round4h (see the commit list) replaces round4g:
+the same `run-soak-r4g.ini` list; the upload waits for the console's ftpd, retried every five
+minutes; the receiver expects the drop's commit.** Open owner calls: the mono pace rule, the alternate-eye stereo look, the halved skins,
 the sequels' picture cuts (a lower cap in stereo, blob shadows for small casters).**
 
 **R4.11 (section "The sequels on the console (round 4, R4.11)" at the end): the seventh soak's sequel
@@ -5416,3 +5420,46 @@ one, each with about a quarter of its particles. The owner's verdict is pending.
 `as2:1:mono:3600` (AS3D_PASS_MS `particles` against 4.7; the frames 207 to 330 of its perf.csv against
 the ninth's), `as2:1:stereo:3600`, `as2:1:stereo:1800:gpu_passes=1`, `as2:2:mono:3600`,
 `gulf:1:mono:3600`, `gulf:1:stereo:3600`.
+
+## R4.14: the standing fires fade (2026-10-12)
+
+**The owner's observation** after the playtest of round4f: "Airstrike 2 has a lot of particles
+because fire particles seem to never fade on the ground after an explosion, is that intended?"
+
+**It is the original's behaviour.** The fires are burning trees, not explosion leftovers:
+`scripts/mapobjects/tree/tree.scr` (as2) creates three fire objects (`pozhar_small`, `_medium`,
+`_big`: `effects.obj`, an FL_NODRAW holder with the particle system attached, no script, no lifetime)
+at random offsets when the tree's health reaches zero. The original removes an entity made by
+`create` only once it falls behind the activation area and leaves the view frustum
+(docs/spec/engine-behaviour.md, state 2), which `World::runEntities` implements; the desktop run with
+the soak's bot shows the big fires climb to 74 after the napalm pass through the forest and fall to
+21 as the level scrolls past them, so each burns for the 10 to 20 s the camera takes to pass it.
+The weapon tour lights a whole forest at once (three fires per tree); normal play lights fewer.
+
+**The lever, render-side only (the console's end state still matches the desktop):**
+`ParticleEmitter::stillSeconds()`, the seconds since the emitter's origin last moved (kept by
+`update()`, not hashed); `ParticleFade` (as3d/particle_render.h, `WorldRenderOptions::particleFade`,
+`ParticleViewParams::fade`, the PICA renderer only): a continuous emitter that has stood still for
+`stillStart` 5 s draws a falling share of its live particles, down to `floor` 0.25 at `stillEnd`
+12 s and after; moving emitters (trails, exhausts: the player's move with the map every frame) and
+EMIT_ONCE bursts keep every particle. `particleThinShares()` (particle_build.cpp) gives every emitter
+its share in 1/4096 (the fade's weight, then one scale for the cap: a single division per frame),
+and `visitParticleQuads` applies the share with a Bresenham per emitter, so emitter e builds exactly
+floor(share * live / 4096) and the arena room is exact. Over the cap the old even thinning is the
+special case of equal weights. run.ini `fire_fade=0|1` (default 1; `AS3D_R411` prints it), `AS3D_FX`
+prints `faded` (the particles the fade alone removed, per frame). Tests: "particles: the still time
+counts the seconds since the origin last moved", "particles: the still emitters fade to the floor,
+the moving and one-shot ones keep every particle" (the shares, the visitor's exact counts, the fade
+with and without a cap, a zero share leaves the emitter out).
+
+**The picture** (the gallery's `as2_fire` run under Azahar, `fire_fade=0` against `1`,
+out/ui3ds/gallery/fade0 and fade): in the last 300-frame window of the weapon tour the quads drawn fall
+from 1461 to 1168 per frame (the fade removes 1179 live particles per frame, `faded`), the emitters
+189 in both; at the fires' peak most fires are younger than 5 s so the scene still burns, the older
+ones are embers; the first window (62 emitters, nothing old) is untouched (faded 3). The CPU per pass
+is the same in Azahar (its timing is not the console's).
+
+**What it buys on the console:** under the weapon tour the fires hold about 4000 of the 5500 live
+particles; a quarter of those is 1000, so the whole scene fits the cap (1536) more often and the
+fresh explosions and the young fires keep their full density. The particle pass's CPU falls with
+the quads built (the skipped particles cost one accumulator step each).

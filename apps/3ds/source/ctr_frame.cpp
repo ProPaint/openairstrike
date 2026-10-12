@@ -403,7 +403,7 @@ struct GameFrame::Impl {
     // sequels fill the particle cap, docs/3ds-port.md "The sequels on the console").
     struct FxSums {
         unsigned frames = 0;
-        long particles = 0, particlesDropped = 0, sprites = 0, spritesDropped = 0;
+        long particles = 0, particlesDropped = 0, particlesFaded = 0, sprites = 0, spritesDropped = 0;
         int particlesMax = 0, particlesDroppedMax = 0, spritesMax = 0;
         long emitters = 0, emittersCulled = 0; // the scene's live emitters and those its cull volume left out
         long skids = 0, skidsCulled = 0;        // the skid trails collected and those left out
@@ -837,7 +837,7 @@ struct GameFrame::Impl {
                   run.texFast ? 1 : 0, run.baseInt ? 1 : 0, run.terrainLightCache ? 1 : 0, run.terrainBaseCache ? 1 : 0);
         // R4.11: the sequels on the console (the skin rule is applied per level, applySkinHalf).
         ui::ui2dPicaSetMergeRuns(run.uiMerge);
-        AS3D_INFO("AS3D_R411 ui_merge=%d particle_cull=%d skin_half=%s skin_half_min=%d", run.uiMerge ? 1 : 0, run.particleCull ? 1 : 0,
+        AS3D_INFO("AS3D_R411 ui_merge=%d particle_cull=%d fire_fade=%d skin_half=%s skin_half_min=%d", run.uiMerge ? 1 : 0, run.particleCull ? 1 : 0, run.fireFade ? 1 : 0,
                   run.skinHalf < 0 ? "auto" : run.skinHalf ? "1" : "0", run.skinHalfMin);
         AS3D_INFO("AS3D_WASH_CHECK on=%d inject=%d selftest=%d terrain_prime=%d terrain_force_state=%d eye_replay=%d",
                   wash.enabled() ? 1 : 0, run.washInject, run.washSelftest ? 1 : 0, run.terrainPrime ? 1 : 0,
@@ -1578,6 +1578,7 @@ void GameFrame::prepare(const FrameInfo& info) {
         pica::setFrameEyes(im.stereo.eyes); // the stereo-only quality knobs (quality_pica.h)
         WorldRenderOptions wo;
         wo.cullEmitters = im.run.particleCull;
+        wo.particleFade.enabled = im.run.fireFade;
         im.renderer->prepare(world, vp, wo);
         // The comfort clamp only lowers the eye offset: the cull volume prepared for the slider's
         // offset holds both eyes.
@@ -1895,6 +1896,7 @@ void GameFrame::stats(FrameStats& out) {
         ++fs.frames;
         fs.particles += fx.particleQuads;
         fs.particlesDropped += fx.particleQuadsDropped;
+        fs.particlesFaded += fx.particleQuadsFaded;
         fs.sprites += fx.spriteQuads;
         fs.spritesDropped += fx.spriteQuadsDropped;
         fs.particlesMax = std::max(fs.particlesMax, fx.particleQuads);
@@ -1909,10 +1911,10 @@ void GameFrame::stats(FrameStats& out) {
     if (pp.frames() >= kPassReportFrames && im.fxSum.frames > 0) {
         const Impl::FxSums& fs = im.fxSum;
         const double n = static_cast<double>(fs.frames);
-        AS3D_INFO("AS3D_FX frames=%u particle_quads=%.0f (max %d, cap %d) dropped=%.0f (max %d) sprite_quads=%.0f (max %d) "
+        AS3D_INFO("AS3D_FX frames=%u particle_quads=%.0f (max %d, cap %d) dropped=%.0f (max %d, faded %.0f) sprite_quads=%.0f (max %d) "
                   "sprites_dropped=%.0f late_textures=%d emitters=%.1f culled=%.1f skids=%.1f skids_culled=%.1f",
                   fs.frames, fs.particles / n, fs.particlesMax, pica::renderQuality().particleCap, fs.particlesDropped / n,
-                  fs.particlesDroppedMax, fs.sprites / n, fs.spritesMax, fs.spritesDropped / n,
+                  fs.particlesDroppedMax, fs.particlesFaded / n, fs.sprites / n, fs.spritesMax, fs.spritesDropped / n,
                   pica::fxPicaStats().particleLateTextures, fs.emitters / n, fs.emittersCulled / n, fs.skids / n, fs.skidsCulled / n);
         im.fxSum = Impl::FxSums();
     }

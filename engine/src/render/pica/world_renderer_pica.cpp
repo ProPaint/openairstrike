@@ -867,6 +867,7 @@ void WorldRenderer::draw(const EyeView& eye, int vx, int vy) {
         pv.fogColour = light.fogColor;
         pv.fogStart = light.fogStart;
         pv.fogEnd = light.fogEnd;
+        pv.fade = options.particleFade;
         if (!sc.emitters.empty()) {
             im.particles.draw(sc.emitters.data(), sc.emitters.size(), pv);
             const pica::FxPicaStats& fs = pica::fxPicaStats();

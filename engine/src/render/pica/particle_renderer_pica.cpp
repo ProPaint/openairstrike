@@ -29,6 +29,7 @@ namespace as3d {
 struct ParticleRenderer::Impl {
     Vfs* vfs = nullptr;
     std::vector<DrawRun> runs;
+    std::vector<int> shares; // per emitter, particleThinShares (the fade and the cap)
     std::unordered_map<std::string, std::unique_ptr<Texture2D>> textures;
     std::unordered_map<std::string, bool> warned;
     Texture2D fallback;
@@ -133,14 +134,21 @@ void ParticleRenderer::draw(const ParticleEmitter* const* emitters, size_t count
         // live particles first give the size. Over the cap the visit is thinned evenly across
         // the emitters (ParticleThin), so every fire still draws with a share of its particles
         // (docs/3ds-port.md "Eighth console soak": the sequels' burning wreckage).
+        // R4.14: the still emitters (the sequels' fires) fade first (ParticleFade), then the cap
+        // scales every emitter's share; the shares give the exact count built, so the arena
+        // room is exact too.
         const int cap = pica::renderQuality().particleCap;
         const size_t live = liveParticleCount(emitters, count);
-        const size_t room = std::min(live, static_cast<size_t>(cap > 0 ? cap : 0)) * 6;
         ParticleThin thin;
-        if (cap > 0 && live > static_cast<size_t>(cap)) {
-            thin.keep = cap;
-            thin.of = static_cast<int>(live);
+        size_t expected = live;
+        int faded = 0;
+        if (params.fade.enabled || (cap > 0 && live > static_cast<size_t>(cap))) {
+            expected = static_cast<size_t>(std::max(0, particleThinShares(emitters, count, params.fade, cap, im.shares, &faded)));
+            thin.shares = im.shares.data();
         }
+        if (cap > 0) expected = std::min(expected, static_cast<size_t>(cap));
+        const size_t room = expected * 6;
+        st.particleQuadsFaded = std::max(0, faded);
         pica::FlatVertex* out = room ? pica::frameArena().allocArray<pica::FlatVertex>(room) : nullptr;
         if (room && !out) ++pica::detail::fxStats().arenaFailures;
         size_t vertices = 0; // counted for every quad, written while there is room

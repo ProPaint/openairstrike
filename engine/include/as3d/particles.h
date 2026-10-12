@@ -99,6 +99,9 @@ public:
     // emitter: a walk of the pool would cost more than the draw). Not hashed: it follows from
     // the particles.
     int liveCount() const { return live_; }
+    // Seconds the origin has not moved (over the updates): the renderer's fade of the fires the
+    // sequels leave standing (as3d/particle_render.h ParticleFade). Not part of the state.
+    float stillSeconds() const { return still_; }
     // Stopped (or EMIT_ONCE) and every particle dead: the instance can be freed.
     bool finished() const;
 
@@ -123,6 +126,8 @@ private:
     // follows from the particles.
     bool allDead_ = false;
     int live_ = 0;
+    Vec3 stillOrigin_;   // the origin the still time counts from
+    float still_ = 0.0f; // seconds since the origin last moved (stillSeconds)
 
     void spawn(Particle& p);
 };

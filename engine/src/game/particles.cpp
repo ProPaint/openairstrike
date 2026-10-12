@@ -79,7 +79,7 @@ u32 fnv(u32 h, const void* data, size_t n) {
 } // namespace
 
 ParticleEmitter::ParticleEmitter(const ParticleDesc& desc, u32 seed, const Vec3& origin, bool oriented)
-    : desc_(&desc), rng_(seed), origin_(origin), prevOrigin_(origin), oriented_(oriented) {
+    : desc_(&desc), rng_(seed), origin_(origin), prevOrigin_(origin), oriented_(oriented), stillOrigin_(origin) {
     axis_[0] = {1, 0, 0};
     axis_[1] = {0, 1, 0};
     axis_[2] = {0, 0, 1};
@@ -146,6 +146,12 @@ void ParticleEmitter::update(float dt) {
     const ParticleDesc& d = *desc_;
     if (!(dt > 0.0f) || particles_.empty()) return;
     const int cap = capacity();
+    if (origin_.x == stillOrigin_.x && origin_.y == stillOrigin_.y && origin_.z == stillOrigin_.z) {
+        still_ += dt;
+    } else {
+        still_ = 0.0f;
+        stillOrigin_ = origin_;
+    }
 
     clock_ += dt;
     if (!stopped_ && !d.emitOnce && d.emitRate > 0) {

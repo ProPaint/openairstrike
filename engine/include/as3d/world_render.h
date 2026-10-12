@@ -26,6 +26,7 @@
 
 #include "as3d/core.h"
 #include "as3d/math.h"
+#include "as3d/particle_render.h"
 #include "as3d/particles.h"
 #include "as3d/render_rules.h"
 #include "as3d/skid_render.h"
@@ -158,6 +159,9 @@ struct WorldRenderOptions {
     // the frame (no quads built, nothing drawn): the same picture, less work for the burning
     // wreckage the sequels leave behind the camera (docs/3ds-port.md "Eighth console soak").
     bool cullEmitters = true;
+    // The fade of the emitters that stand still (the sequels' fires), PICA only; off by default
+    // so the desktop pictures stay the originals'.
+    ParticleFade particleFade;
 };
 
 // The rectangle of the bound framebuffer the world is drawn into (GL convention, y from the
