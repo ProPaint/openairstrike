@@ -5217,3 +5217,19 @@ first game's stages are unchanged.
 - The terrain lights' per-chunk fixed cost (a persistent stream per chunk).
 - The sequels' first start (the vfs prefetch, R4.10) - the 1.7 s of "scripts" and the 2.4 s of pak
   reads were the cold start's random reads.
+
+### R4.11 follow-up: tiny textures never in VRAM (the gallery caught it)
+
+The drop gallery of 8321814 (out/ui3ds/gallery/drop-8321814) lost Gulf Thunder's scan lines on every
+bottom screen (`lines_gulf.tga`, a 4 x 4 RGBA picture repeated over the screen, docs/3ds-ui-design.md
+R4.8). Bisected on Azahar with `tools/3ds_ui_gallery.sh ... --only gulf_menus --ini key=value` (the new
+`--ini` option puts extra run.ini keys into every run): not `ui_merge=0`, not `prefetch_thread=0`, not
+`prefetch=0`, not `brightness_mode=quad`, not `tex_fast=0`, not the merge hard-disabled in code; present
+at 36f0226 (R4.10) and at R4.11's engine commit, gone at its app commit, back with `skin_half=0`. The
+halved skins leave room in VRAM, so the tiny picture (padded to 8 x 8 RGBA4 = 128 bytes) is created
+there, and the GX texture copy that fills a VRAM texture (`C3D_TexLoadImage`) leaves it empty on
+Azahar: the quad draws nothing. `gfx_pica.cpp`: a texture under `kMinVramBytes` (4 KB) is always
+placed in linear memory, where VRAM gains nothing anyway. With it the Gulf menus are pixel-identical
+to the R4.8 gallery again (out/ui3ds/gallery/tinyfix). Whether hardware shares the emulator's
+behaviour is moot: the rule costs nothing.
+

@@ -223,9 +223,13 @@ def legacy_tap(game, screen, item):
     return "T%d/%d" % (round((x + w / 2) * 0.4), round((y + h / 2) * 0.4))
 
 
+EXTRA_INI = {}  # --ini: extra keys for every run
+
+
 def run_ini(run, new_taps, prefix):
     keys = dict(COMMON)
     keys.update(run["ini"])
+    keys.update(EXTRA_INI)
     keys["mode"] = "play"
     keys["frames"] = str(run["frames"])
     keys["dump_prefix"] = prefix
@@ -439,10 +443,14 @@ def main():
     ap.add_argument("--label", default=None, help="gallery folder name (default: the binary's build commit)")
     ap.add_argument("--out", default=os.path.join(REPO, "out", "ui3ds", "gallery"))
     ap.add_argument("--only", default="", help="comma-separated run names")
+    ap.add_argument("--ini", default="", help="extra run.ini keys for every run, comma-separated key=value (e.g. ui_merge=0)")
     ap.add_argument("--tag", default="gallery", help="the SD file name of the binary (<tag>.3dsx)")
     ap.add_argument("--timeout", type=int, default=240, help="seconds per run")
     ap.add_argument("--convert-only", action="store_true", help="pick and convert the existing raw dumps again")
     a = ap.parse_args()
+    for kv in [x for x in a.ini.split(",") if x]:
+        k, _, v = kv.partition("=")
+        EXTRA_INI[k.strip()] = v.strip()
     from PIL import Image, ImageDraw  # noqa: E402 (PIL only where pictures are made)
 
     binary = os.path.abspath(a.bin)

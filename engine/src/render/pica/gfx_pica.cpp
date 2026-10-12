@@ -214,6 +214,8 @@ namespace {
 
 // The texture of `image` into `p` (fresh: no C3D texture yet). False on failure (the budget
 // noted it). Inside a frame: linear memory, no GX copy (the header).
+constexpr size_t kMinVramBytes = 4096; // below this a texture is never placed in VRAM (see buildTexture)
+
 bool buildTexture(PicaTexture* p, const Image& image, const TextureOptions& options) {
     pica::TextureBudget& budget = pica::textureBudget();
     pica::LoadProfile& lp = pica::loadProfile();
@@ -241,6 +243,11 @@ bool buildTexture(PicaTexture* p, const Image& image, const TextureOptions& opti
     if (!pica::inFrame()) pica::collectDeferred(true);
     p->format = fmt;
     p->placement = budget.choose(bytes, options.res);
+    // A tiny texture stays in linear memory: the GX texture copy that fills a VRAM texture
+    // (C3D_TexLoadImage) leaves one of a few hundred bytes empty (Azahar, the 3DS R4.11 soak's
+    // build: Gulf Thunder's 4 x 4 scan-line picture, 8 x 8 RGBA4 = 128 bytes, drawn as nothing
+    // once the halved skins left room in VRAM), and VRAM gains nothing on it.
+    if (bytes < kMinVramBytes) p->placement = Placement::Linear;
     if (pica::inFrame()) { // no GX copy inside a frame (the header)
         p->placement = Placement::Linear;
         pica::TextureInFrameStats& tf = pica::g_texInFrame;
