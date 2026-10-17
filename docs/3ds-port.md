@@ -128,7 +128,9 @@ particle pass 2.4 ms (R4.13 confirmed), AirStrike 2 mono still 2.3 % at 60: the 
 four-step frames (258 of them in bursts). R4.15 (next commit): `step_phases=1` prints the step's phases
 on the console, the particle update's and the emitter bounds' walks removed, the HUD list timed in play;
 drop round4i-281f16f (title version 673) is on the card in **play mode** (run.ini = run-play.ini; the soak list parked as run-soak.ini): the owner
-closed the soak campaign on 2026-10-12 ("I am done with all those soaks"); the receiver is stopped. To
+closed the soak campaign on 2026-10-12 ("I am done with all those soaks"); the receiver is stopped.
+2026-10-17: drop round4j-9f2a6f8 (title 676) with the owner's four items (section "2026-10-17: the
+owner's four items after the playtests" at the end) waits for the console's ftpd, play mode. To
 soak again: swap run.ini for run-soak.ini on the card, start `tools/3ds_receive.py --port 7777 --out
 out/3ds --expect <commit>`, launch. Open items: the sequels' simulation step in the fights (AS3D_STEP_PHASES
 will say scripts or particles), prepare's shadows/drape/marks, the HUD list's 3 ms submits, the pace
@@ -5578,5 +5580,5 @@ mission 12 never loses life after killing left and right motors."
   value), and the hull itself never has health. Open question to the owner: does the hull crash and
   explode after the second motor, and does the cabin show a bar when hit?
 
-Drop round4j (see the commit list) carries the first three items; the gallery's menus and loading
+Drop round4j-9f2a6f8 (title version 676, out/3ds/drop-round4j-9f2a6f8/, run.ini in play mode) carries the first three items; the gallery's menus and loading
 screens were diffed against drop-4f5b28c's (the controls card and the footers changed as intended).
