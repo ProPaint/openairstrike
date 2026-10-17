@@ -523,6 +523,11 @@ The key pictures: the owner's set 4 ("HUD plate", original art of this project) 
 index per pixel, `tools/3ds_key_glyphs.py`; the engine decodes no PNG and `*.tga` is never
 committed), made into a 256 x 32 nearest texture by `apps/3ds/source/key_glyphs.cpp`; the
 rectangles are `consoleKeyRect` (set_4.json). Without it the hints draw the keys' names in a frame.
+Since 2026-10-17 (the owner: "controls icons for all the buttons") the sheet has a second row,
+composed from the first row's plates in the same style: **ZL** and **ZR** on the shoulder plate, the
+**circle pad** (a ring and its nub) and the **touch screen** (a stylus), `HintKey::CPad` and
+`HintKey::Touch` added (names "PAD" and "TOUCH" without the pictures). The controls card and the
+footers now draw every key as a picture (before: "Circle Pad", "ZR" and "touch" as words).
 
 ### The tap-through fix (problem 10)
 

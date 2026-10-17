@@ -13,6 +13,7 @@
 #include "as3d/core.h"
 #include "as3d/game_data.h"
 #include "as3d/game_profile.h"
+#include "fps_counter.h"
 #include "as3d/input.h"
 #include "as3d/fs_util.h"
 #include "as3d/load_stats.h"
@@ -759,6 +760,8 @@ int runCtrLoop(const CtrLoopOptions& opts) {
     };
 
     as3d::StepPhaseTimes phasesPrev; // AS3D_STEP_PHASES (R4.15)
+    as3d_game::FpsCounter fpsCounter; // the options' Show FPS (FrameInfo::fps)
+    unsigned droppedShown = 0;
     bool looping = true;
     while ((looping = aptMainLoop())) {
         const PadState& pad = input.readPad();
@@ -849,6 +852,10 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         info.lastCpuMs = lastCpu;
         info.lastGpuMs = lastGpu;
         info.padDown = pad.down;
+        if (fpsCounter.valid()) {
+            info.fps = static_cast<float>(fpsCounter.fps());
+            info.fpsDropped = fpsCounter.dropped();
+        }
 
         drawFrame(*ctx, *hook, info, sample);
         if (frame == 0) logLevelStart(lst, sample);
@@ -857,6 +864,10 @@ int runCtrLoop(const CtrLoopOptions& opts) {
         const uint64_t end = nowTicks();
         sample.periodMs = lastFrame ? static_cast<float>(ticksToMs(end - lastFrame)) : 0.0f;
         lastFrame = end;
+        if (sample.periodMs > 0.0f) {
+            fpsCounter.frame(static_cast<double>(sample.periodMs) / 1000.0, static_cast<int>(dropped - droppedShown));
+            droppedShown = dropped;
+        }
         perf.record(sample);
         ++frame;
         if (maxSteps && steps >= maxSteps) break;

@@ -701,6 +701,12 @@ KeyGlyphAtlas::Rect consoleKeyRect(HintKey k) {
         case HintKey::Start: return {112, 3, 39, 13};
         case HintKey::Select: return {153, 3, 45, 13};
         case HintKey::DPad: return {200, 2, 15, 15};
+        // The second row (2026-10-17): ZL and ZR on the shoulder plate, the circle pad (a ring
+        // and its nub), the touch screen (a stylus).
+        case HintKey::ZL: return {2, 17, 19, 15};
+        case HintKey::ZR: return {23, 17, 19, 15};
+        case HintKey::CPad: return {44, 17, 15, 15};
+        case HintKey::Touch: return {61, 17, 15, 15};
         default: break;
     }
     return {};
@@ -2088,11 +2094,11 @@ struct ControlRow {
     const char* label;
 };
 constexpr ControlRow kControls[] = {
-    {false, HintKey::A, "Circle Pad", "fly"},    {true, HintKey::A, "", "fire"},
+    {true, HintKey::CPad, "", "fly"},            {true, HintKey::A, "", "fire"},
     {true, HintKey::B, "", "missile"},           {true, HintKey::X, "", "power-up"},
     {true, HintKey::Y, "", "next weapon"},       {true, HintKey::R, "", "next missile"},
-    {false, HintKey::A, "ZR", "next power-up"},  {true, HintKey::Start, "", "pause"},
-    {false, HintKey::A, "touch", "tiles: select, use"},
+    {true, HintKey::ZR, "", "next power-up"},    {true, HintKey::Start, "", "pause"},
+    {true, HintKey::Touch, "", "tiles: select, use"},
 };
 
 } // namespace

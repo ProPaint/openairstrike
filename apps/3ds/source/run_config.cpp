@@ -86,6 +86,10 @@ void applyRunConfig(RunConfig& c, const std::string& text) {
             }
         } else if (key == "frames") {
             if (toInt(val, &n) && n >= 0) c.frames = n;
+        } else if (key == "perf_overlay") {
+            if (toInt(val, &n)) c.perfOverlay = n != 0;
+        } else if (key == "mark_key") {
+            if (toInt(val, &n)) c.markKey = n != 0;
         } else if (key == "perf") {
             if (toInt(val, &n)) c.perf = n != 0;
         } else if (key == "log_input") {

@@ -128,6 +128,7 @@ int runSoak(const RunConfig& base, const std::string& previousCrash) {
         sr.botWeapons = true;                // the player's weapons fire as in play
         sr.perf = true;
         sr.stateCheck = std::max(1, stageBase.stateCheck);
+        sr.markKey = true; // L marks the wash in a soak (run.ini mark_key; off in play)
         sr.probeEvery = stageBase.effectiveProbeEvery();
         sr.washCheck = stageBase.effectiveWashCheck() ? 1 : 0; // the wash detector: on in the soak unless wash_check=0
         sr.soakStage = n;

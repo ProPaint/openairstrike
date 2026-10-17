@@ -1320,7 +1320,18 @@ struct GameFrame::Impl {
             st.align = ui::Align::Left;
             ui::drawText(*r2d, assets->uiFont(), 290, 260, "PAUSED", st);
         }
-        if (run.perf) {
+        // The options' Show FPS (Profile::Settings::showFps): the top right corner of the top
+        // screen, as the desktop's counter; nothing until the first whole second.
+        if (flow && flow->profile().settings.showFps && session && session->hasLevel()) {
+            char line[32];
+            if (fi.fps >= 0.0f) std::snprintf(line, sizeof line, "%d FPS", static_cast<int>(fi.fps + 0.5f));
+            else std::snprintf(line, sizeof line, "-- FPS");
+            st.scale = 1.0f;
+            st.color = ui::Color{1, 1, 1, 0.85f};
+            st.align = ui::Align::Right;
+            ui::drawTextShadowed(*r2d, assets->uiFont(), 788, 8, line, st, 0.85f);
+        }
+        if (run.perfOverlay) { // run.ini perf_overlay=1 (2026-10-17: off for the player)
             char line[96];
             std::snprintf(line, sizeof line, "cpu %.1f gpu %.1f prep %.1f", static_cast<double>(fi.lastCpuMs),
                           static_cast<double>(fi.lastGpuMs), static_cast<double>(prepareMs));
@@ -2079,7 +2090,7 @@ void GameFrame::afterFrame(CtrContext& ctx, const FrameInfo& info) {
         const Terrain* terrain = nullptr;
         if (im.washInputs(0, info, &v, &s, &terrain)) im.wash.selfTest(ctx.topTarget(0), v, s);
     }
-    if (pica::stateCheck() && ((info.padDown & as3d::pad::L) || autoMark)) {
+    if (pica::stateCheck() && (((info.padDown & as3d::pad::L) && im.run.markKey) || autoMark)) {
         static int markFiles = 0;
         char base[32];
         std::snprintf(base, sizeof base, "mark%02d", ++markFiles);

@@ -435,7 +435,7 @@ float numberWidth(std::string_view digits, float scale) {
 namespace as3d::ui {
 
 const char* hintKeyName(HintKey k) {
-    static const char* const kNames[] = {"A", "B", "X", "Y", "L", "R", "ZL", "ZR", "START", "SELECT", "+"};
+    static const char* const kNames[] = {"A", "B", "X", "Y", "L", "R", "ZL", "ZR", "START", "SELECT", "+", "PAD", "TOUCH"};
     const int i = static_cast<int>(k);
     return i >= 0 && i < static_cast<int>(HintKey::Count) ? kNames[i] : "?";
 }

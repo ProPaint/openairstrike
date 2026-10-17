@@ -38,6 +38,8 @@ struct RunConfig {
     bool levelGiven = false;   // level= is in the file (mode=play without it runs the front end)
     int frames = 0;            // frames=N: simulation steps, then quit; 0 = 600 in sim, unlimited otherwise
     bool perf = false;         // perf=1: write perf.csv
+    bool perfOverlay = false;  // perf_overlay=1: the cpu/gpu/prep line on the top screen (0, default: the player sees no numbers)
+    bool markKey = false;      // mark_key=1: L dumps the screens and marks the log (state_check); the soak turns it on, play leaves it off
     bool logInput = false;     // log_input=1: an AS3D_INPUT line per change of held bits / touch button
     bool logLazy = false;      // log_lazy=1: an AS3D_LAZY line per first-use load after a precache (as3d/load_stats.h)
     bool botWeapons = false;   // bot_weapons=1: the weapon tour (as3d/input.h applyWeaponTour) over the input

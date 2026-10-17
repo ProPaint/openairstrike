@@ -5541,3 +5541,42 @@ is not understood (its flush alone? the touch band? a cache rebuild?): instrumen
 `as3d:1:mono:1800`, `as3d:1:stereo:3600`, `as2:1:mono:3600` (AS3D_STEP_PHASES in the fights; the
 four-step bursts against 258; SLOW_SUBMIT's hud list), `as2:1:stereo:3600`, `as2:1:stereo:1800:gpu_passes=1`,
 `as2:2:mono:3600`, `gulf:1:mono:3600`, `gulf:1:stereo:3600`. Drop round4i-281f16f, title version 673.
+
+## 2026-10-17: the owner's four items after the playtests
+
+The owner (2026-10-17): "controls icons for all the buttons (including ZR ZL circle pad touch etc.),
+remove debug number screenshot etc., add fps counter when option is active. In AirStrike 2 the boss of
+mission 12 never loses life after killing left and right motors."
+
+- **Key pictures for every key** (docs/3ds-ui-design.md, the key pictures): `keys.png` has a second row
+  composed from the first row's plates in the owner's style: ZL and ZR on the shoulder plate, the circle
+  pad (a ring and its nub), the touch screen (a stylus). `HintKey::CPad` and `HintKey::Touch` added; the
+  controls card of the loading screen and the footers draw every key as a picture. Test "console menus:
+  the footers' key widths are the owner's set 4" covers the whole set.
+- **No numbers on screen in play:** the `cpu / gpu / prep` line is behind run.ini `perf_overlay=1`
+  (`perf=1` alone writes perf.csv), and L no longer dumps the screens in play (`mark_key=1`; the soak
+  sets it for its stages). apps/3ds/README.md has both keys.
+- **The options' Show FPS:** `FrameInfo::fps` from an `FpsCounter` (apps/game/fps_counter.h, the
+  desktop's) fed with the frame period and the dropped steps; "60 FPS" (or "-- FPS" in the first second)
+  at the top right of the top screen while a level runs and `Profile::Settings::showFps` is on.
+- **The boss of mission 12 ("Flying Beast", `level_boss2.hsc`): not reproduced.** The data: `boss_2`
+  (the hull, class 0, no health) creates the cabin `boss_2_kabina` (13000 health, deactivated, attached)
+  and two turbines `boss_2_base_turbina_l/r` (enemies, 7000 each); a dead turbine sends
+  `ParentCallback(1, 1|2, 0)`, the hull's callback detaches it and counts; once both are counted the hull's
+  main detaches the cabin, writes its class field to 2 (the enemy class) through the entity reference,
+  activates it and crashes itself (three latent phases with explosions), and the cabin's own script flies
+  it until `EndLevel`. The engine does all of it: `as3d_sim --game as2 --level 12 --bot --bot-weapons
+  --god` completes the level at step 4274; the gun-only bot (`--bot --god`, the new `--watch
+  boss_2_kabina` option prints an entity's class, health, flags, origin and collision rectangle) kills
+  the right turbine by step 6000 and the left at 7950, and within 100 steps the cabin is class 2, collidable
+  with a screen rectangle, and loses health to bullets (13000 -> 10300 by step 8400); the same with the
+  camera pitch options 0 and 2, helicopters 0, 3 and 5, difficulty 4 (`--camera N` added to as3d_sim).
+  **The console's build runs the level identically:** the gallery's new `as2_boss12` run (mode=sim,
+  4600 steps, the bot with the weapon tour) ends at map_pos 3896.2, 155 list entities, 305 slots, 6327
+  created, 6172 freed, kills 5 of 8, the desktop's numbers to the digit. What is left: the cabin's health
+  bar appears only for a second after each hit and a gun bullet is 1/1000 of its 13000 (the original's
+  value), and the hull itself never has health. Open question to the owner: does the hull crash and
+  explode after the second motor, and does the cabin show a bar when hit?
+
+Drop round4j (see the commit list) carries the first three items; the gallery's menus and loading
+screens were diffed against drop-4f5b28c's (the controls card and the footers changed as intended).

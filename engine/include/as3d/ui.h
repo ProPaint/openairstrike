@@ -324,8 +324,8 @@ int numberAdvancePx(FontSize size);
 // Key hints (the console layouts' footers: "[A] Select  [B] Back")
 // ---------------------------------------------------------------------------
 // The pad keys a hint can name.
-enum class HintKey : u8 { A, B, X, Y, L, R, ZL, ZR, Start, Select, DPad, Count };
-const char* hintKeyName(HintKey k); // "A", "B", ..., "START", "SELECT", "+"
+enum class HintKey : u8 { A, B, X, Y, L, R, ZL, ZR, Start, Select, DPad, CPad, Touch, Count };
+const char* hintKeyName(HintKey k); // "A", "B", ..., "START", "SELECT", "+", "PAD", "TOUCH"
 // A swappable picture set for the keys: one small texture and a rectangle per key (texels, the
 // texture's v = 0 at the top). No set is built in: the owner chooses the art; a host loads it
 // and fills `rects`. A key whose rectangle is empty, or a null texture, falls back to text.

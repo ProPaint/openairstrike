@@ -4,7 +4,7 @@
 //            [--dump-state state.json] [--builtin-report report.json] [--data ROOT]
 //            [--bot | --pilot | --input-script FILE] [--bot-weapons] [--record FILE] [--god] [--trace-player FILE]
 //            [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]
-//            [--time] [--step-times [N]]
+//            [--time] [--step-times [N]] [--watch NAME [N]]
 //
 // Game data comes from ROOT/assets_extracted, ROOT from --data or $AS3D_DATA_ROOT; --game KEY
 // (as3d, as2, gulf; default $AS3D_GAME, then as3d) picks the game, --paks DIR mounts its paks
@@ -80,12 +80,12 @@ bool writeFile(const std::string& path, const std::string& text) {
 
 int usage() {
     std::fprintf(stderr,
-                 "usage: as3d_sim --level N --frames N [--seed S] [--difficulty 0..4] [--players 1|2] [--heli 0..9]\n"
+                 "usage: as3d_sim --level N --frames N [--seed S] [--difficulty 0..4] [--camera 0..3] [--players 1|2] [--heli 0..9]\n"
                  "                [--dump-state FILE] [--builtin-report FILE] [--data ROOT]\n"
                  "                [--bot | --pilot | --input-script FILE] [--bot-weapons] [--record FILE] [--god]\n"
                  "                [--trace-player FILE] [--game as3d|as2|gulf] [--paks DIR] [--list-games]\n"
                  "                [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]\n"
-                 "                [--time] [--step-times [N]]\n");
+                 "                [--time] [--step-times [N]] [--watch NAME [N]]\n");
     return 2;
 }
 
@@ -116,6 +116,8 @@ int main(int argc, char** argv) {
     long frames = 600;
     bool bot = false, pilot = false, timeSteps = false, botWeapons = false;
     long stepWindow = 0; // --step-times: window length in steps (0: off)
+    std::string watchName; // --watch NAME [N]: every N frames, the entities of that definition name
+    long watchEvery = 60;
     int upgrades = -1, items = -1, powerupType = -1, missileType = -1; long pauseEvery = 0, faultPlayerAt = -1; // developer options (see --help)
     long particleStats = 0; // --particle-stats [N]: live particles by emitter def every N frames
     WorldConfig cfg;
@@ -131,6 +133,7 @@ int main(int argc, char** argv) {
         else if (a == "--frames" && next(v)) frames = std::strtol(v, nullptr, 10);
         else if (a == "--seed" && next(v)) cfg.seed = static_cast<u32>(std::strtoul(v, nullptr, 10));
         else if (a == "--difficulty" && next(v)) cfg.difficulty = std::atoi(v);
+        else if (a == "--camera" && next(v)) cfg.cameraMode = std::atoi(v); // the options' camera pitch 0..3
         else if (a == "--players" && next(v)) cfg.players = std::atoi(v);
         else if (a == "--heli" && next(v)) cfg.heli[0] = std::atoi(v);
         else if (a == "--dump-state" && next(v)) dumpPath = v;
@@ -147,6 +150,11 @@ int main(int argc, char** argv) {
         else if (a == "--bot-weapons") botWeapons = true;
         else if (a == "--god") cfg.godMode = true;
         else if (a == "--time") timeSteps = true;
+        else if (a == "--watch" && next(v)) {
+            watchName = v;
+            if (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9') watchEvery = std::strtol(argv[++i], nullptr, 10);
+            if (watchEvery <= 0) return usage();
+        }
         else if (a == "--step-times") {
             timeSteps = true;
             stepWindow = 1200;
@@ -306,6 +314,20 @@ int main(int argc, char** argv) {
             world.step(input);
         }
         if (trace) tracePlayer(trace, world);
+        if (!watchName.empty() && (f + 1) % watchEvery == 0) {
+            // The entities of the name: class, health, dead, runtime bits, state, origin and the
+            // screen rectangle of the collision pass (a boss's part that should take hits).
+            for (int i = 0; i < kMaxEntitySlots; ++i) {
+                const Entity& e = world.entity(i);
+                if (!e.inUse || e.name != watchName) continue;
+                std::printf("watch: frame %d %s slot %d cls %g hp %g dead %g rt 0x%x state %d parent %d radius %.1f origin (%.1f, %.1f, %.1f) rect (%.1f, %.1f)-(%.1f, %.1f)\n",
+                            f + 1, e.name.c_str(), i, static_cast<double>(e.f(F_CLASS)), static_cast<double>(e.f(F_HEALTH)),
+                            static_cast<double>(e.f(F_DEAD)), e.rt, static_cast<int>(e.state), e.parent, static_cast<double>(e.radius),
+                            static_cast<double>(e.f(F_ORIGIN)), static_cast<double>(e.f(F_ORIGIN + 1)), static_cast<double>(e.f(F_ORIGIN + 2)),
+                            static_cast<double>(e.rect.min[0]), static_cast<double>(e.rect.min[1]), static_cast<double>(e.rect.max[0]),
+                            static_cast<double>(e.rect.max[1]));
+            }
+        }
         if (particleStats > 0 && (f + 1) % particleStats == 0) {
             // Live particles by emitter def (what a renderer would draw as quads this frame),
             // the heaviest defs first, with the emitter count and the def's rate and life.

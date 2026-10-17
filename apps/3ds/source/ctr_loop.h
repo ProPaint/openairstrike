@@ -53,6 +53,8 @@ struct FrameInfo {
     const char* screen = "";
     bool playing = true;
     uint32_t padDown = 0; // pad:: bits pressed this frame (run.ini state_check: L marks the water wash)
+    float fps = -1.0f;    // the displayed frames per second over the last whole second (the options' Show FPS), < 0 until known
+    int fpsDropped = 0;   // simulation steps dropped in that second
 };
 
 // The frame composer's slot (ctr_frame.h). The loop brackets the frame (beginFrame / endFrame)

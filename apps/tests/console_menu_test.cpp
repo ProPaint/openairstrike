@@ -612,7 +612,14 @@ TEST_CASE("console menus: the footers' key widths are the owner's set 4") {
     CHECK(consoleKeyRect(HintKey::A).w == 15);
     CHECK(consoleKeyRect(HintKey::L).w == 19);
     CHECK(consoleKeyRect(HintKey::Start).w == 39);
-    CHECK(consoleKeyRect(HintKey::ZL).empty()); // not in the set: the key's name in a frame
+    // The second row (2026-10-17): ZL and ZR on the shoulder plate, the circle pad and the touch
+    // screen at the small size; every key of the set has a picture.
+    CHECK(consoleKeyRect(HintKey::ZL).w == 19);
+    CHECK(consoleKeyRect(HintKey::ZR).w == 19);
+    CHECK(consoleKeyRect(HintKey::CPad).w == 15);
+    CHECK(consoleKeyRect(HintKey::Touch).w == 15);
+    CHECK(consoleKeyRect(HintKey::ZL).y == 17);
+    for (int k = 0; k < static_cast<int>(HintKey::Count); ++k) CHECK_FALSE(consoleKeyRect(static_cast<HintKey>(k)).empty());
     const std::vector<ConsoleHint> h{{HintKey::A, "Select"}, {HintKey::B, "Back"}};
     const FontMetrics& m = FontMetrics::original();
     CHECK(consoleHintsWidth(m, h) == 15 + 4 + measureTextPx(m, "Select", FontSize::S) + 8 + 15 + 4 + measureTextPx(m, "Back", FontSize::S));

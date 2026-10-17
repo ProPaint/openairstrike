@@ -153,6 +153,13 @@ RUNS = [
      "ini": {"game": "as2", "level": "1", "mode": "bot", "bot_weapons": "1", "logo": "0", "dump_every": "10"},
      "inputs": [],
      "keep": [("30_fire_peak", ("last",))]},
+    # The boss of mission 12 under the console's build (no picture: the end-state lines of the log
+    # against the desktop's as3d_sim, tools/3ds_soak_compare.py): the owner saw the cabin keep its
+    # health after both turbines; the desktop bot kills it at step 4274.
+    {"name": "as2_boss12", "game": "as2", "fresh": ["as2"], "frames": 4600,
+     "ini": {"game": "as2", "level": "12", "mode": "sim", "bot_weapons": "1", "logo": "0", "dump_every": "100000"},
+     "inputs": [],
+     "keep": []},
     {"name": "gulf_intro", "game": "gulf", "fresh": ["gulf"], "frames": 600,
      "ini": {"game": "gulf", "logo": "1"},
      "inputs": [],
