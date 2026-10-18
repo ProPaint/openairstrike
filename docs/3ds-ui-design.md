@@ -529,6 +529,17 @@ composed from the first row's plates in the same style: **ZL** and **ZR** on the
 `HintKey::Touch` added (names "PAD" and "TOUCH" without the pictures). The controls card and the
 footers now draw every key as a picture (before: "Circle Pad", "ZR" and "touch" as words).
 
+**The comic pages read at 1:1 (2026-10-18, the owner: "the comic text is not readable, too small").**
+AirStrike 2's four intro pages were fitted whole to the top screen (1/2 to 0.4): the speech bubbles of
+pages 3 and 4 came out at four pixels of lettering. `SequelScreens::comicWindow(page, t, w, h, x, y)`
+(as2_comics.cpp) gives a 400 x 240 window over the page's 800 x 600 space that shows it at 1:1 and pans
+by keyframes: pages 1 and 2 along the panorama left to right; page 3 the control room, the first
+general, the first bubble as it appears at 5 s, the second general at 10 s, the second bubble from
+12.5 s; page 4 the cockpit from the right, then both bubbles from 3 s. `drawIntroTop` maps the page
+with scale 1 and the window's offset (the logo pages stay at 1/2). The loading, game-over and
+campaign-end comics carry no lettering and stay at 1/2. Test "console menus: the comic pages' reading
+window stays on the page and reaches the bubbles".
+
 ### The tap-through fix (problem 10)
 
 `CtrInput::uiInputs` makes a finger on the screen while a menu is up the menu's until it is

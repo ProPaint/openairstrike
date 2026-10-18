@@ -133,6 +133,11 @@ struct SequelScreens {
     // Intro comic pages and loading comic (as2_comics.cpp).
     static float comicDuration(int page);
     static void drawComicPage(Renderer2D& r, const UiAssets& a, int page, float t);
+    // The console's reading window over a comic page (2026-10-18, the owner: the lettering at 1/2
+    // is unreadable): the top-left corner, in the page's 800 x 600 space, of a window `w` x `h`
+    // that shows the page at 1:1 and pans along the panels and to each speech bubble as it
+    // appears (keyframes per page, linear between them, whole pixels). Always inside the page.
+    static void comicWindow(int page, float t, float w, float h, float& x, float& y);
     static void drawTouchSkip(Renderer2D& r, const UiAssets& a);
     static RectF touchSkipRect();
     static RectF touchMenuRect();

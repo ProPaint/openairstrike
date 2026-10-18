@@ -1685,23 +1685,29 @@ void drawHintTop(const Px& p, const Frontend::Facts& f, const KeyGlyphAtlas* key
 // ---------------------------------------------------------------------------
 // The sequels' top screens (R4.8)
 // ---------------------------------------------------------------------------
-// The intro page on the top screen: AirStrike 2's comic pages fitted to the screen by their drawn
-// part (pages 1 and 2: the 800 x 320 panorama at 1/2; page 3 the whole page at 0.4; page 4 its
-// 800 x 512 at 15/32), the logo pages (a picture centred on a coloured page) at 1/2.
+// The intro page on the top screen: AirStrike 2's comic pages at 1:1 through a 400 x 240 window
+// that pans along the panels and to each speech bubble as it appears (SequelScreens::comicWindow;
+// before 2026-10-18 the pages were fitted whole, at 1/2 to 0.4, and their lettering unreadable),
+// the logo pages (a picture centred on a coloured page) at 1/2.
 bool drawIntroTop(const Px& p, const Frontend& fe, Renderer2D& scratch) {
     const auto* run = SequelScreens::introRun(fe);
     if (!run || run->index >= run->pages.size()) return false;
     const IntroPage& page = run->pages[run->index];
     Mapping m;
     struct Fit { float x0, y0, w, h; };
-    const Fit fit = page.comic == 1 || page.comic == 2 ? Fit{0, 150, 800, 320}
-                    : page.comic == 3                   ? Fit{0, 0, 800, 600}
-                    : page.comic == 4                   ? Fit{0, 90, 800, 512}
-                                                        : Fit{0, 60, 800, 480};
-    const float s = std::min(static_cast<float>(kConsoleTopW) / fit.w, static_cast<float>(kConsoleTopH) / fit.h);
-    m.scaleX = m.scaleY = s;
-    m.offsetX = std::floor((static_cast<float>(kConsoleTopW) - fit.w * s) * 0.5f - fit.x0 * s);
-    m.offsetY = std::floor((static_cast<float>(kConsoleTopH) - fit.h * s) * 0.5f - fit.y0 * s);
+    if (page.comic) {
+        float wx = 0, wy = 0;
+        SequelScreens::comicWindow(page.comic, run->clock, static_cast<float>(kConsoleTopW), static_cast<float>(kConsoleTopH), wx, wy);
+        m.scaleX = m.scaleY = 1.0f;
+        m.offsetX = -wx;
+        m.offsetY = -wy;
+    } else {
+        const Fit fit{0, 60, 800, 480};
+        const float s = std::min(static_cast<float>(kConsoleTopW) / fit.w, static_cast<float>(kConsoleTopH) / fit.h);
+        m.scaleX = m.scaleY = s;
+        m.offsetX = std::floor((static_cast<float>(kConsoleTopW) - fit.w * s) * 0.5f - fit.x0 * s);
+        m.offsetY = std::floor((static_cast<float>(kConsoleTopH) - fit.h * s) * 0.5f - fit.y0 * s);
+    }
     scratch.beginMapped(kConsoleTopW, kConsoleTopH, m);
     if (page.comic) SequelScreens::drawComicPage(scratch, p.a, page.comic, run->clock);
     else const_cast<Frontend&>(fe).drawUnder(scratch, p.a); // the logo page (Frontend::drawIntro)

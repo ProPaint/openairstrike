@@ -28,6 +28,7 @@
 #include "as3d/frontend.h"
 #include "as3d/game_data.h"
 #include "as3d/game_profile.h"
+#include "fps_counter.h"
 #include "as3d/input.h"
 #include "as3d/world.h"
 #include "build_info.h"
@@ -248,6 +249,8 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
     uint64_t lastFrame = 0, lastUi = 0;
     float lastCpu = 0.0f, lastGpu = 0.0f;
     bool queuedEscape = false;
+    as3d_game::FpsCounter fpsCounter; // the options' Show FPS (FrameInfo::fps); the HOME-menu play runs here, not in runCtrLoop
+    unsigned droppedShown = 0;
     bool queuedEnter = false; // the name entry: the keyboard's name is in the field, Enter commits it
     bool nameAsked = false;   // the keyboard was shown for this name entry
     int cycleState = 0; // run.ini cycle=: 0 waiting for the main menu, 1 in a mission, 2 back in the attract level
@@ -502,6 +505,10 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         info.lastCpuMs = lastCpu;
         info.lastGpuMs = lastGpu;
         info.padDown = pad.down;
+        if (fpsCounter.valid()) {
+            info.fps = static_cast<float>(fpsCounter.fps());
+            info.fpsDropped = fpsCounter.dropped();
+        }
         info.screen = screen.c_str();
         info.playing = flow.playing();
 
@@ -511,6 +518,10 @@ int runCtrMenuLoop(const CtrLoopOptions& opts) {
         const uint64_t end = nowTicks();
         sample.periodMs = lastFrame ? static_cast<float>(ticksToMs(end - lastFrame)) : 0.0f;
         lastFrame = end;
+        if (sample.periodMs > 0.0f) {
+            fpsCounter.frame(static_cast<double>(sample.periodMs) / 1000.0, static_cast<int>(dropped - droppedShown));
+            droppedShown = dropped;
+        }
         perf.record(sample);
         ++frameNo;
         if (maxFrames && frameNo >= maxFrames) break;

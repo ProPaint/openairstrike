@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "../../engine/src/ui/as2_screens.h"
 #include "as3d/console_menu.h"
 #include "as3d/frontend.h"
 #include "as3d/game_profile.h"
@@ -606,6 +607,62 @@ TEST_CASE("console menus: the hints' key names on the console") {
     CHECK(consoleKeyNames("pressing^{X} key (by default).") == "pressing^{R} button (by default).");
     CHECK(consoleKeyNames("{Space} then {X}") == "{X} then {R}");
     CHECK(consoleKeyNames("{Health Bar} and {Missiles}") == "{Health Bar} and {Missiles}");
+}
+
+TEST_CASE("console menus: the comic pages' reading window stays on the page and reaches the bubbles") {
+    for (int page = 1; page <= 4; ++page) {
+        const float d = SequelScreens::comicDuration(page);
+        float px = -1, py = -1;
+        for (float t = -1.0f; t <= d + 1.0f; t += 0.1f) {
+            float x = 0, y = 0;
+            SequelScreens::comicWindow(page, t, 400, 240, x, y);
+            CHECK(x >= 0);
+            CHECK(x <= 400);
+            CHECK(y >= 0);
+            CHECK(y <= 360);
+            CHECK(x == std::floor(x));
+            CHECK(y == std::floor(y));
+            px = x;
+            py = y;
+        }
+        (void)px;
+        (void)py;
+    }
+    float x = 0, y = 0;
+    // Page 3: the first bubble (x 215..520, y 150..300) in the window from 5 to 10 s, the second
+    // (x 290..580, y 405..545) from 12.5 s to the end.
+    for (float t : {5.0f, 7.0f, 10.0f}) {
+        SequelScreens::comicWindow(3, t, 400, 240, x, y);
+        CHECK(x <= 215);
+        CHECK(x + 400 >= 520);
+        CHECK(y <= 150);
+        CHECK(y + 240 >= 300);
+    }
+    for (float t : {12.5f, 15.0f, 20.0f}) {
+        SequelScreens::comicWindow(3, t, 400, 240, x, y);
+        CHECK(x <= 290);
+        CHECK(x + 400 >= 580);
+        CHECK(y <= 405);
+        CHECK(y + 240 >= 545);
+    }
+    // Page 4: both bubbles (x 40..420, y 125..300) from 3 s on.
+    for (float t : {3.0f, 6.0f, 11.0f}) {
+        SequelScreens::comicWindow(4, t, 400, 240, x, y);
+        CHECK(x <= 40);
+        CHECK(x + 400 >= 420);
+        CHECK(y <= 125);
+        CHECK(y + 240 >= 300);
+    }
+    // Pages 1 and 2: a pan along the panorama rows (y 150..470 centred), left to right.
+    SequelScreens::comicWindow(1, 0.0f, 400, 240, x, y);
+    CHECK(x == 0);
+    CHECK(y == 190);
+    SequelScreens::comicWindow(2, 7.0f, 400, 240, x, y);
+    CHECK(x == 400);
+    // A larger window (the desktop's preview) is clamped to the page.
+    SequelScreens::comicWindow(3, 15.0f, 800, 600, x, y);
+    CHECK(x == 0);
+    CHECK(y == 0);
 }
 
 TEST_CASE("console menus: the footers' key widths are the owner's set 4") {

@@ -96,6 +96,37 @@ void SequelScreens::drawComicPage(Renderer2D& r, const UiAssets& a, int page, fl
     }
 }
 
+void SequelScreens::comicWindow(int page, float t, float w, float h, float& x, float& y) {
+    struct Key { float t, x, y; };
+    // Pages 1 and 2: the panorama (rows at y 150 and 406) read left to right, centred on it.
+    // Page 3: the control room, then the first general (left), the first bubble (x 215..520,
+    // y 150..300, in at 5 s), the second general (right, in at 10 s), the second bubble
+    // (x 290..580, y 405..545, in at 12 s). Page 4: the cockpit from the right, then the two
+    // bubbles (x 40..420, y 125..300, in at 3 s).
+    static const Key k12[] = {{0.0f, 0, 190}, {0.5f, 0, 190}, {6.5f, 400, 190}, {7.0f, 400, 190}};
+    static const Key k3[] = {{0.0f, 0, 0},      {3.0f, 0, 180},     {5.0f, 200, 120},  {10.0f, 200, 120},
+                             {11.0f, 400, 160}, {12.5f, 260, 340},  {20.0f, 260, 340}};
+    static const Key k4[] = {{0.0f, 400, 90}, {3.0f, 20, 90}, {11.0f, 20, 90}};
+    const Key* keys = page == 3 ? k3 : page == 4 ? k4 : k12;
+    const size_t n = page == 3 ? sizeof k3 / sizeof k3[0] : page == 4 ? sizeof k4 / sizeof k4[0] : sizeof k12 / sizeof k12[0];
+    float fx = keys[n - 1].x, fy = keys[n - 1].y;
+    if (t <= keys[0].t) {
+        fx = keys[0].x;
+        fy = keys[0].y;
+    } else {
+        for (size_t i = 1; i < n; ++i) {
+            if (t > keys[i].t) continue;
+            const float span = keys[i].t - keys[i - 1].t;
+            const float u = span > 0.0f ? (t - keys[i - 1].t) / span : 1.0f;
+            fx = keys[i - 1].x + (keys[i].x - keys[i - 1].x) * u;
+            fy = keys[i - 1].y + (keys[i].y - keys[i - 1].y) * u;
+            break;
+        }
+    }
+    x = std::floor(std::clamp(fx, 0.0f, std::max(0.0f, 800.0f - w)));
+    y = std::floor(std::clamp(fy, 0.0f, std::max(0.0f, 600.0f - h)));
+}
+
 RectF SequelScreens::touchSkipRect() {
     const float w = measureText(FontMetrics::original(), " Skip ", 1.0f, true) + skin().buttonMargin;
     return {780.0f - w, 560.0f, w, skin().buttonHeight};
