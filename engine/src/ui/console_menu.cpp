@@ -1685,8 +1685,8 @@ void drawHintTop(const Px& p, const Frontend::Facts& f, const KeyGlyphAtlas* key
 // ---------------------------------------------------------------------------
 // The sequels' top screens (R4.8)
 // ---------------------------------------------------------------------------
-// The intro page on the top screen: AirStrike 2's comic pages at 1:1 through a 400 x 240 window
-// that pans along the panels and to each speech bubble as it appears (SequelScreens::comicWindow;
+// The intro page on the top screen: AirStrike 2's comic pages through a reading camera that opens on
+// the whole picture and zooms to 1:1 on each speech bubble as it appears (SequelScreens::comicWindow;
 // before 2026-10-18 the pages were fitted whole, at 1/2 to 0.4, and their lettering unreadable),
 // the logo pages (a picture centred on a coloured page) at 1/2.
 bool drawIntroTop(const Px& p, const Frontend& fe, Renderer2D& scratch) {
@@ -1696,11 +1696,11 @@ bool drawIntroTop(const Px& p, const Frontend& fe, Renderer2D& scratch) {
     Mapping m;
     struct Fit { float x0, y0, w, h; };
     if (page.comic) {
-        float wx = 0, wy = 0;
-        SequelScreens::comicWindow(page.comic, run->clock, static_cast<float>(kConsoleTopW), static_cast<float>(kConsoleTopH), wx, wy);
-        m.scaleX = m.scaleY = 1.0f;
-        m.offsetX = -wx;
-        m.offsetY = -wy;
+        float wx = 0, wy = 0, zoom = 1.0f;
+        SequelScreens::comicWindow(page.comic, run->clock, static_cast<float>(kConsoleTopW), static_cast<float>(kConsoleTopH), wx, wy, zoom);
+        m.scaleX = m.scaleY = zoom;
+        m.offsetX = -wx * zoom;
+        m.offsetY = -wy * zoom;
     } else {
         const Fit fit{0, 60, 800, 480};
         const float s = std::min(static_cast<float>(kConsoleTopW) / fit.w, static_cast<float>(kConsoleTopH) / fit.h);

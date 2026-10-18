@@ -531,12 +531,15 @@ footers now draw every key as a picture (before: "Circle Pad", "ZR" and "touch" 
 
 **The comic pages read at 1:1 (2026-10-18, the owner: "the comic text is not readable, too small").**
 AirStrike 2's four intro pages were fitted whole to the top screen (1/2 to 0.4): the speech bubbles of
-pages 3 and 4 came out at four pixels of lettering. `SequelScreens::comicWindow(page, t, w, h, x, y)`
-(as2_comics.cpp) gives a 400 x 240 window over the page's 800 x 600 space that shows it at 1:1 and pans
-by keyframes: pages 1 and 2 along the panorama left to right; page 3 the control room, the first
-general, the first bubble as it appears at 5 s, the second general at 10 s, the second bubble from
-12.5 s; page 4 the cockpit from the right, then both bubbles from 3 s. `drawIntroTop` maps the page
-with scale 1 and the window's offset (the logo pages stay at 1/2). The loading, game-over and
+pages 3 and 4 came out at four pixels of lettering. `SequelScreens::comicWindow(page, t, w, h, x, y, zoom)`
+(as2_comics.cpp) is a reading camera over the page's 800 x 600 space: keyframes of centre and zoom,
+eased between them (the owner's second note the same day: "display the scaled down version before
+zooming on text"). Pages 1 and 2 open on the whole panorama (1/2) and move in slowly to 0.8; page 3
+opens on the whole control room (0.4, the page centred with black sides), zooms to 1:1 on the first
+bubble as it appears (5.5 s), back out to the room at 10 s, 1:1 on the second bubble from 13 s, out at
+the end; page 4 opens on the whole cockpit (0.47) and zooms to 1:1 on both bubbles from 4 s. At 1:1
+the window lands on whole pixels so the lettering stays crisp. `drawIntroTop` maps the page with the
+zoom as the scale and the window's offset (the logo pages stay at 1/2). The loading, game-over and
 campaign-end comics carry no lettering and stay at 1/2. Test "console menus: the comic pages' reading
 window stays on the page and reaches the bubbles".
 

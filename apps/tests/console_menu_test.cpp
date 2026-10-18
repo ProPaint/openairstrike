@@ -609,60 +609,68 @@ TEST_CASE("console menus: the hints' key names on the console") {
     CHECK(consoleKeyNames("{Health Bar} and {Missiles}") == "{Health Bar} and {Missiles}");
 }
 
-TEST_CASE("console menus: the comic pages' reading window stays on the page and reaches the bubbles") {
+TEST_CASE("console menus: the comic pages' reading camera opens whole, zooms to the bubbles and stays on the page") {
+    auto within = [](float x, float y, float zoom) { // the window inside the 800 x 600 page, or the page centred in a wider window
+        const float ww = 400.0f / zoom, wh = 240.0f / zoom;
+        const bool okX = ww <= 800.0f ? x >= 0 && x + ww <= 800.0f + 1e-3f : std::fabs(x - (800.0f - ww) * 0.5f) < 1e-3f;
+        const bool okY = wh <= 600.0f ? y >= 0 && y + wh <= 600.0f + 1e-3f : std::fabs(y - (600.0f - wh) * 0.5f) < 1e-3f;
+        return okX && okY;
+    };
     for (int page = 1; page <= 4; ++page) {
         const float d = SequelScreens::comicDuration(page);
-        float px = -1, py = -1;
         for (float t = -1.0f; t <= d + 1.0f; t += 0.1f) {
-            float x = 0, y = 0;
-            SequelScreens::comicWindow(page, t, 400, 240, x, y);
-            CHECK(x >= 0);
-            CHECK(x <= 400);
-            CHECK(y >= 0);
-            CHECK(y <= 360);
-            CHECK(x == std::floor(x));
-            CHECK(y == std::floor(y));
-            px = x;
-            py = y;
+            float x = 0, y = 0, z = 0;
+            SequelScreens::comicWindow(page, t, 400, 240, x, y, z);
+            CHECK(within(x, y, z));
+            CHECK(z >= 0.4f);
+            CHECK(z <= 1.0f);
         }
-        (void)px;
-        (void)py;
+        // The opening: the whole drawn picture on screen (pages 1 and 2 the panorama, 3 the page, 4 its 800 x 512).
+        float x = 0, y = 0, z = 0;
+        SequelScreens::comicWindow(page, 0.0f, 400, 240, x, y, z);
+        CHECK(z <= 0.5f);
+        CHECK(within(x, y, z));
+        if (page == 3) CHECK(y == 0);
     }
-    float x = 0, y = 0;
-    // Page 3: the first bubble (x 215..520, y 150..300) in the window from 5 to 10 s, the second
-    // (x 290..580, y 405..545) from 12.5 s to the end.
-    for (float t : {5.0f, 7.0f, 10.0f}) {
-        SequelScreens::comicWindow(3, t, 400, 240, x, y);
+    float x = 0, y = 0, z = 0;
+    // Page 3: 1:1 on the first bubble (x 215..520, y 150..300) from 5.5 to 10 s, on the second
+    // (x 290..580, y 405..545) from 13 to 18 s, the whole page between and at the end.
+    for (float t : {5.5f, 7.0f, 10.0f}) {
+        SequelScreens::comicWindow(3, t, 400, 240, x, y, z);
+        CHECK(z == 1.0f);
         CHECK(x <= 215);
         CHECK(x + 400 >= 520);
         CHECK(y <= 150);
         CHECK(y + 240 >= 300);
     }
-    for (float t : {12.5f, 15.0f, 20.0f}) {
-        SequelScreens::comicWindow(3, t, 400, 240, x, y);
+    for (float t : {13.0f, 15.0f, 18.0f}) {
+        SequelScreens::comicWindow(3, t, 400, 240, x, y, z);
+        CHECK(z == 1.0f);
         CHECK(x <= 290);
         CHECK(x + 400 >= 580);
         CHECK(y <= 405);
         CHECK(y + 240 >= 545);
     }
-    // Page 4: both bubbles (x 40..420, y 125..300) from 3 s on.
-    for (float t : {3.0f, 6.0f, 11.0f}) {
-        SequelScreens::comicWindow(4, t, 400, 240, x, y);
+    SequelScreens::comicWindow(3, 11.5f, 400, 240, x, y, z);
+    CHECK(z == doctest::Approx(0.4f));
+    SequelScreens::comicWindow(3, 20.0f, 400, 240, x, y, z);
+    CHECK(z == doctest::Approx(0.4f));
+    // Page 4: 1:1 on both bubbles (x 40..420, y 125..300) from 4 to 9 s.
+    for (float t : {4.0f, 6.0f, 9.0f}) {
+        SequelScreens::comicWindow(4, t, 400, 240, x, y, z);
+        CHECK(z == 1.0f);
         CHECK(x <= 40);
         CHECK(x + 400 >= 420);
         CHECK(y <= 125);
         CHECK(y + 240 >= 300);
     }
-    // Pages 1 and 2: a pan along the panorama rows (y 150..470 centred), left to right.
-    SequelScreens::comicWindow(1, 0.0f, 400, 240, x, y);
-    CHECK(x == 0);
-    CHECK(y == 190);
-    SequelScreens::comicWindow(2, 7.0f, 400, 240, x, y);
-    CHECK(x == 400);
-    // A larger window (the desktop's preview) is clamped to the page.
-    SequelScreens::comicWindow(3, 15.0f, 800, 600, x, y);
-    CHECK(x == 0);
-    CHECK(y == 0);
+    // The zoom eases: half way into the first move of page 3 it is strictly between the ends.
+    SequelScreens::comicWindow(3, 4.75f, 400, 240, x, y, z);
+    CHECK(z > 0.4f);
+    CHECK(z < 1.0f);
+    // A larger screen is clamped to the page.
+    SequelScreens::comicWindow(3, 15.0f, 800, 600, x, y, z);
+    CHECK(within(x, y, z));
 }
 
 TEST_CASE("console menus: the footers' key widths are the owner's set 4") {
