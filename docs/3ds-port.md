@@ -5577,8 +5577,9 @@ mission 12 never loses life after killing left and right motors."
   4600 steps, the bot with the weapon tour) ends at map_pos 3896.2, 155 list entities, 305 slots, 6327
   created, 6172 freed, kills 5 of 8, the desktop's numbers to the digit. What is left: the cabin's health
   bar appears only for a second after each hit and a gun bullet is 1/1000 of its 13000 (the original's
-  value), and the hull itself never has health. Open question to the owner: does the hull crash and
-  explode after the second motor, and does the cabin show a bar when hit?
+  value), and the hull itself never has health. The owner (2026-10-18) played the mission again
+  without the symptom: a one-off, left as such (the watch option and the gallery's sim run stay for
+  a recurrence).
 
 Drop round4j-9f2a6f8 (title version 676, out/3ds/drop-round4j-9f2a6f8/, run.ini in play mode) carries the first three items; the gallery's menus and loading
 screens were diffed against drop-4f5b28c's (the controls card and the footers changed as intended).
