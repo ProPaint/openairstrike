@@ -130,7 +130,10 @@ on the console, the particle update's and the emitter bounds' walks removed, the
 drop round4i-281f16f (title version 673) is on the card in **play mode** (run.ini = run-play.ini; the soak list parked as run-soak.ini): the owner
 closed the soak campaign on 2026-10-12 ("I am done with all those soaks"); the receiver is stopped.
 2026-10-17: drop round4j-9f2a6f8 (title 676) with the owner's four items (section "2026-10-17: the
-owner's four items after the playtests" at the end) waits for the console's ftpd, play mode. To
+owner's four items after the playtests" at the end) went to the card on 2026-10-18; the same day drop
+round4k-63df7e0 (title 679) replaced it: the comic pages read at 1:1 through a panning window
+(docs/3ds-ui-design.md) and the Show FPS counter fed in the HOME-menu play loop (it showed "--").
+The mission 12 boss did not recur for the owner. To
 soak again: swap run.ini for run-soak.ini on the card, start `tools/3ds_receive.py --port 7777 --out
 out/3ds --expect <commit>`, launch. Open items: the sequels' simulation step in the fights (AS3D_STEP_PHASES
 will say scripts or particles), prepare's shadows/drape/marks, the HUD list's 3 ms submits, the pace
