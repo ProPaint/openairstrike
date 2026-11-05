@@ -796,3 +796,218 @@ TEST_CASE("import (real data): the original download's zip, all three games at o
     }
     CHECK(there(games / "as3d/logo2s.tga"));
 }
+
+// ---- texts by hash dictionary (docs/spec/issues/170, section 3)
+
+namespace {
+
+// tools/exe_texts/<key>.hashes.json as "key|sha256|len|value" lines, in file order (json.dump
+// with indent=1: each key on its own line, its fields below it).
+std::vector<std::string> jsonHashList(const std::string& key) {
+    const std::string json = readBytes(std::string(AS3D_REPO_ROOT) + "/tools/exe_texts/" + key + ".hashes.json");
+    std::vector<std::string> out;
+    std::string cur, sha, len = "0", value = "0";
+    size_t p = 0;
+    while (p < json.size()) {
+        size_t e = json.find('\n', p);
+        if (e == std::string::npos) e = json.size();
+        const std::string line = json.substr(p, e - p);
+        p = e + 1;
+        if (line.compare(0, 3, "  \"") == 0 && line.size() > 7 && line.substr(line.size() - 4) == "\": {") {
+            cur = line.substr(3, line.size() - 7);
+            sha.clear();
+            len = "0";
+            value = "0";
+        } else if (line.find("   \"sha256\": \"") == 0) {
+            sha = line.substr(std::strlen("   \"sha256\": \""), 64);
+        } else if (line.find("   \"len\": ") == 0) {
+            len = line.substr(std::strlen("   \"len\": "));
+        } else if (line.find("   \"value\": ") == 0) {
+            value = line.substr(std::strlen("   \"value\": "));
+        } else if (line == "  }" || line == "  },") {
+            if (!cur.empty()) out.push_back(cur + "|" + sha + "|" + len + "|" + value);
+            cur.clear();
+        }
+    }
+    return out;
+}
+
+// The HashedText layout of exe_texts.cpp (setExeTextHashesForTest).
+struct TestHashedText {
+    const char* key;
+    const char* sha256;
+    std::uint16_t len;
+    std::uint32_t value;
+};
+
+struct HashTableGuard {
+    ~HashTableGuard() { setExeTextHashesForTest(GameId::AirStrike3D, nullptr, 0); }
+};
+
+// A fake executable: junk, the strings NUL-terminated and padded as a linker does, more junk.
+std::vector<std::uint8_t> fakeExe(const std::vector<std::string>& strings, bool withLongRun) {
+    std::vector<std::uint8_t> exe;
+    const std::string junk("MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00", 15); // ends with the NUL a linker leaves
+    exe.insert(exe.end(), junk.begin(), junk.end());
+    for (const std::string& s : strings) {
+        exe.insert(exe.end(), s.begin(), s.end());
+        exe.push_back(0);
+        while (exe.size() % 4) exe.push_back(0);
+        exe.push_back(0x01); // a non-text byte between strings now and then
+        exe.push_back(0);
+    }
+    if (withLongRun) exe.insert(exe.end(), 2500, 'x'), exe.push_back(0);
+    exe.insert(exe.end(), 300, 0xCC);
+    return exe;
+}
+
+} // namespace
+
+TEST_CASE("exe texts: the compiled-in hash dictionaries are tools/exe_texts/<key>.hashes.json's") {
+    for (const char* key : {"as3d", "as2", "gulf"}) {
+        INFO(key);
+        const std::vector<std::string> mine = exeTextHashListForTest(key);
+        const std::vector<std::string> json = jsonHashList(key);
+        REQUIRE_FALSE(json.empty());
+        for (size_t i = 0; i < mine.size() && i < json.size(); ++i) {
+            INFO("entry " << i << ": engine " << mine[i] << " json " << json[i]);
+            REQUIRE(mine[i] == json[i]);
+        }
+        CHECK(mine.size() == json.size());
+        // The same keys as the address list, in the same order (as3d's address table is
+        // built in; its 131 keys are the v1.70 extraction's).
+        if (std::string(key) != "as3d") {
+            const std::vector<std::string> addresses = exeTextListForTest(key);
+            REQUIRE(addresses.size() == mine.size());
+            for (size_t i = 0; i < mine.size(); ++i) {
+                CHECK(addresses[i].substr(0, addresses[i].find('|')) == mine[i].substr(0, mine[i].find('|')));
+                // u32 entries carry a value and no hash; texts a hash and a length.
+                const bool u32 = addresses[i].substr(addresses[i].rfind('|') + 1) == "2";
+                const bool noSha = mine[i].find("||") != std::string::npos;
+                CHECK(u32 == noSha);
+            }
+        } else {
+            CHECK(mine.size() == 131);
+        }
+        for (const std::string& m : mine) {
+            const size_t a = m.find('|'), b = m.find('|', a + 1);
+            const std::string sha = m.substr(a + 1, b - a - 1);
+            CHECK((sha.empty() || sha.size() == 64));
+            if (!sha.empty()) CHECK(std::stoi(m.substr(b + 1)) > 0);
+        }
+    }
+    // The web page carries the same dictionaries (generated between the same markers).
+    const std::string js = readBytes(std::string(AS3D_REPO_ROOT) + "/apps/web/site/files.js");
+    for (const char* key : {"as3d", "as2", "gulf"}) {
+        const size_t b = js.find(std::string("BEGIN ") + key + " hash list");
+        const size_t e = js.find(std::string("END ") + key + " hash list");
+        REQUIRE(b != std::string::npos);
+        REQUIRE(e != std::string::npos);
+        std::vector<std::string> fromJs;
+        for (size_t p = js.find("['", b); p != std::string::npos && p < e; p = js.find("['", p + 1)) {
+            const size_t q = js.find('\'', p + 2);
+            const std::string k = js.substr(p + 2, q - p - 2);
+            const size_t s1 = js.find('\'', q + 1), s2 = js.find('\'', s1 + 1);
+            const std::string sha = js.substr(s1 + 1, s2 - s1 - 1);
+            const size_t c = js.find(']', s2);
+            std::string rest = js.substr(s2 + 1, c - s2 - 1); // ", 23" or ", 3, 'u'"
+            const long n = std::stol(rest.substr(rest.find(',') + 1));
+            fromJs.push_back(k + "|" + sha + "|" + (sha.empty() ? "0" : std::to_string(n)) + "|" + (sha.empty() ? std::to_string(n) : "0"));
+        }
+        CHECK(fromJs == exeTextHashListForTest(key));
+    }
+}
+
+TEST_CASE("exe texts by hash: a synthetic executable, the 60 % floor, the best game, missing keys left out") {
+    HashTableGuard guard;
+    // Two games' dictionaries that share one string.
+    static const std::string texts[6] = {"Start Game", "Options", "Line one\nline two", "Hard", "Nightmare", "Quit \"now\"\\"};
+    static std::string shas[6];
+    for (int i = 0; i < 6; ++i) shas[i] = sha256Hex(texts[i].data(), texts[i].size());
+    static const TestHashedText as2[] = {
+        {"title.start_game", shas[0].c_str(), 10, 0}, {"title.options", shas[1].c_str(), 7, 0},
+        {"dialog.1.start.0", shas[2].c_str(), 17, 0}, {"dialog.1.start.0.speaker", "", 0, 3},
+        {"difficulty.3", shas[3].c_str(), 4, 0}, {"difficulty.4", shas[4].c_str(), 9, 0},
+    };
+    static const TestHashedText gulf[] = {
+        {"title.options", shas[1].c_str(), 7, 0}, {"button.quit", shas[5].c_str(), 11, 0}, {"heli.0", shas[3].c_str(), 4, 0},
+    };
+    setExeTextHashesForTest(GameId::AirStrike2, as2, 6);
+    setExeTextHashesForTest(GameId::GulfThunder, gulf, 3);
+    static const TestHashedText none[1] = {{"", "", 0, 0}};
+    setExeTextHashesForTest(GameId::AirStrike3D, none, 0);
+
+    // All of AirStrike 2's strings, in another order, with a long run and junk around.
+    std::vector<std::uint8_t> exe = fakeExe({texts[4], texts[1], texts[3], texts[0], texts[2]}, true);
+    const GameProfile* g = nullptr;
+    std::string text, err;
+    double share = 0;
+    REQUIRE(extractExeTexts(exe, std::string(64, 'f'), &g, &text, &err));
+    CHECK(g == &gameProfile(GameId::AirStrike2));
+    CHECK(text == "# AirStrike 2 v2.51 front-end texts, read from the user's executable by\n"
+                  "# tools/extract_exe_texts.py. Do not commit. Format: key = \"value\".\n"
+                  "title.start_game = \"Start Game\"\n"
+                  "title.options = \"Options\"\n"
+                  "dialog.1.start.0 = \"Line one\\nline two\"\n"
+                  "dialog.1.start.0.speaker = \"3\"\n"
+                  "difficulty.3 = \"Hard\"\n"
+                  "difficulty.4 = \"Nightmare\"\n");
+    REQUIRE(extractExeTextsByHash(exe, &g, &text, &err, &share));
+    CHECK(share == 1.0);
+
+    // Three of five strings: 60 %, taken; a missing key gets no line. Two of five: refused.
+    exe = fakeExe({texts[0], texts[3], texts[2]}, false);
+    REQUIRE(extractExeTextsByHash(exe, &g, &text, &err, &share));
+    CHECK(g == &gameProfile(GameId::AirStrike2));
+    CHECK(share == doctest::Approx(0.6));
+    CHECK(text.find("title.options") == std::string::npos);
+    CHECK(text.find("difficulty.3 = \"Hard\"\n") != std::string::npos);
+    CHECK(text.find("dialog.1.start.0.speaker = \"3\"\n") != std::string::npos);
+    exe = fakeExe({texts[0], texts[3]}, false);
+    CHECK_FALSE(extractExeTextsByHash(exe, &g, &text, &err, &share));
+    CHECK(share == doctest::Approx(0.4));
+    CHECK(err.find("40 %") != std::string::npos);
+    CHECK_FALSE(extractExeTexts(exe, std::string(64, 'f'), &g, &text, &err));
+    // Gulf Thunder's strings: the best share wins, with the string both games have.
+    exe = fakeExe({texts[5], texts[1], texts[3]}, false);
+    REQUIRE(extractExeTexts(exe, std::string(64, 'e'), &g, &text, &err));
+    CHECK(g == &gameProfile(GameId::GulfThunder));
+    CHECK(text.find("button.quit = \"Quit \\\"now\\\"\\\\\"\n") != std::string::npos);
+    CHECK(text.find("heli.0 = \"Hard\"\n") != std::string::npos);
+    // A string is only found as a whole NUL-terminated run: "Options" glued to another text
+    // is not it; "Hard" ending the file without a NUL neither.
+    std::vector<std::uint8_t> glued = fakeExe({"Start Game", "xOptions", "Nightmare"}, false);
+    glued.insert(glued.end(), {'H', 'a', 'r', 'd'});
+    CHECK_FALSE(extractExeTextsByHash(glued, &g, &text, &err, &share));
+    CHECK(share == doctest::Approx(0.4));
+    // Nothing: no crash.
+    CHECK_FALSE(extractExeTextsByHash(std::vector<std::uint8_t>(), &g, &text, &err, &share));
+    CHECK(share == 0.0);
+}
+
+TEST_CASE("exe texts (real data): by hash and by address, the same file for the owner's executables") {
+    int ran = 0;
+    for (const RealGame& rg : realGames()) {
+        const GameProfile& g = *findGameProfile(rg.key);
+        const std::string exe = rg.install + "/" + g.exeName;
+        if (!there(exe)) continue;
+        ++ran;
+        std::vector<std::uint8_t> bytes;
+        const std::string raw = readBytes(exe);
+        bytes.assign(raw.begin(), raw.end());
+        const std::string sha = sha256Hex(bytes.data(), bytes.size());
+        REQUIRE(gameOfExecutable(sha) == &g);
+        const GameProfile* byAddress = nullptr;
+        const GameProfile* byHash = nullptr;
+        std::string a, h, err;
+        double share = 0;
+        REQUIRE(extractExeTexts(bytes, sha, &byAddress, &a, &err));
+        REQUIRE(extractExeTextsByHash(bytes, &byHash, &h, &err, &share));
+        CHECK(byAddress == &g);
+        CHECK(byHash == &g);
+        CHECK(share == 1.0);
+        CHECK(a == h);
+        if (there(rg.texts)) CHECK(h == readBytes(rg.texts));
+    }
+    if (!ran) std::fprintf(stderr, "SKIPPED (no game executable under %s): %s\n", dataRoot().c_str(), __FILE__);
+}
