@@ -458,6 +458,66 @@
     }
   }
 
+  // AirStrike 3D's banner card in the bring-your-own build (marquee.js fromEngine, docs/web.md):
+  // the engine draws the loop from the stored paks that hold the banner (`paks`, written into
+  // MEMFS under /banner/ and removed afterwards) in a WebGL 2 context of its own, on a hidden
+  // canvas of this page's, current only during its calls (as3d_banner_* in web_main.cpp), so the
+  // game's own context is untouched. The frames are taken a few at a time, the page stays
+  // responsive meanwhile; choosing a game stops it. Resolves to { width, height, ms, frames:
+  // [Uint8ClampedArray RGBA] } or null.
+  async function renderBanner(files, paks) {
+    await runtimeReady;
+    if (GAME) return null;
+    const FS = Module.FS, t0 = performance.now();
+    rmTree('/banner');
+    FS.mkdirTree('/banner');
+    const gl = document.createElement('canvas');
+    gl.id = 'as3d-banner-gl';
+    gl.width = gl.height = 1;
+    gl.hidden = true;
+    document.body.appendChild(gl);
+    try {
+      for (const n of paks) FS.writeFile('/banner/' + n, new Uint8Array(await files[n].arrayBuffer()));
+      if (GAME) return null;
+      const info = JSON.parse(Module.ccall('as3d_banner_begin', 'string', ['string', 'string'],
+                                           ['#' + gl.id, paks.map((n) => '/banner/' + n).join('\n')]));
+      if (info.error) {
+        log('AS3D_WEB banner_render failed: ' + info.error);
+        return null;
+      }
+      const t1 = performance.now(), size = info.width * info.height * 4, frames = [];
+      let slice = t1;
+      for (let i = 0; i < info.frames; i++) {
+        if (GAME) {
+          log('AS3D_WEB banner_render stopped: a game was chosen');
+          return null;
+        }
+        const ptr = Module.ccall('as3d_banner_frame', 'number', ['number'], [i]);
+        if (!ptr) {
+          log('AS3D_WEB banner_render failed at frame ' + i);
+          return null;
+        }
+        frames.push(new Uint8ClampedArray(Module.HEAPU8.slice(ptr, ptr + size).buffer));
+        if (performance.now() - slice > 25) { // let the page breathe
+          await new Promise((ok) => setTimeout(ok, 0));
+          slice = performance.now();
+        }
+      }
+      const t2 = performance.now();
+      log(`AS3D_WEB banner_render frames=${frames.length} size=${info.width}x${info.height} paks=${paks.join(',')} ` +
+          `setup_ms=${Math.round(t1 - t0)} frames_ms=${Math.round(t2 - t1)} total_ms=${Math.round(t2 - t0)}`);
+      state.bannerRenderMs = Math.round(t2 - t0);
+      return { width: info.width, height: info.height, ms: info.ms, frames };
+    } finally {
+      try { Module.ccall('as3d_banner_end', null, [], []); } catch (e) { /* the runtime stopped */ }
+      const ctx = gl.getContext('webgl2');
+      const lose = ctx && ctx.getExtension('WEBGL_lose_context');
+      if (lose) lose.loseContext();
+      gl.remove();
+      rmTree('/banner');
+    }
+  }
+
   const bar = $('bar');
   function progress(f) {
     lwProgress(0.05 + 0.75 * f);   // game data download: 5..80%
@@ -526,8 +586,11 @@
   }
   const mbOf = (def) => Object.values(def.files).filter((f) => f.required).reduce((s, f) => s + (f.size || 0), 0) / 1048576;
   // The marquee of a game's card: the build-time render (bundled) or a drawing from the
-  // player's stored files (bring your own).
-  const marqueeOf = (g) => (BUILD.mode === 'bundled' ? AS3DMarquee.fromRender(g) : AS3DMarquee.fromFiles(g, chosen[g]));
+  // player's stored files (bring your own: AirStrike 3D's banner by the engine, the logos by
+  // the page).
+  const marqueeOf = (g) => (BUILD.mode === 'bundled' ? AS3DMarquee.fromRender(g)
+    : g === 'as3d' ? AS3DMarquee.fromEngine(chosen[g], { render: (paks) => renderBanner(chosen[g], paks), log })
+    : AS3DMarquee.fromFiles(g, chosen[g]));
 
   // `avail`: the games this page can start; resolves with the one to start.
   function chooseGame(avail, kn) {

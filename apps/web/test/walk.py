@@ -39,8 +39,10 @@ as2 and gulf (tools/web_build.sh); every scenario but `choose`, `gulf` and `byo`
   byo        the bring-your-own site: text cards until files are dropped, the owner's files through the file input, stored,
              used again after a reload, removed; files of AirStrike 2 told apart by their
              contents, stored under their own key, and started; with both games' files the
-             page lists and offers both; files stored by the first version of the page (no
-             game key) still found.
+             page lists and offers both, AirStrike 2's logo drawn by the page and AirStrike
+             3D's banner by the engine from the stored paks (a moving canvas), kept and shown
+             again after a reload without a new render, gone with "Remove them"; files stored
+             by the first version of the page (no game key) still found.
   migration  a version 1 profile at the old path /persist/profile.bin (Screen 4:3 and Show
              FPS set): after a reload the settings are in effect, /persist/as3d/profile.bin
              and /persist/profile.v1.bak exist and /persist/profile.bin is gone; the same
@@ -668,6 +670,18 @@ IDB_KEYS = """() => new Promise((ok, fail) => {
     r.onerror = () => fail(r.error);
 })"""
 
+# The keys of the page's cache beside the files (files.js: AirStrike 3D's banner frames); [] when
+# the store is not there.
+IDB_CACHE_KEYS = """() => new Promise((ok, fail) => {
+    const r = indexedDB.open('as3d-game-files');
+    r.onsuccess = () => {
+        if (!r.result.objectStoreNames.contains('cache')) { r.result.close(); ok([]); return; }
+        const q = r.result.transaction('cache').objectStore('cache').getAllKeys();
+        q.onsuccess = () => { r.result.close(); ok(q.result); };
+    };
+    r.onerror = () => fail(r.error);
+})"""
+
 # Renames every stored "as3d/<name>" to "<name>", as the first version of the page stored them.
 IDB_MAKE_LEGACY = """() => new Promise((ok, fail) => {
     const r = indexedDB.open('as3d-game-files');
@@ -781,20 +795,47 @@ def byo(w, b):
             offered = p.page.evaluate("Array.from(document.querySelectorAll('#game-list button')).map((b) => b.dataset.game)")
             r["byo_offered"] = offered
             assert offered[:2] == ["as3d", "as2"] and "gulf" not in offered, offered
-            w.step("byo: the stored files draw the marquees in the browser: AirStrike 2's logo with its emblem, animated; the 3D banner stays text")
+            w.step("byo: the stored files draw the marquees in the browser: AirStrike 2's logo with its emblem, animated; AirStrike 3D's banner by the engine")
             p.page.wait_for_function("document.querySelector('#game-list button[data-game=as2]').dataset.marquee === 'canvas'", timeout=30000)
-            assert p.page.evaluate("document.querySelector('#game-list button[data-game=as3d]').dataset.marquee") is None
-            assert "stage text" == p.page.get_attribute("#game-list button[data-game=as3d] .stage", "class")
-            grab = """() => { const c = document.querySelector('#game-list button[data-game=as2] canvas');
+            grab = """(g) => { const c = document.querySelector('#game-list button[data-game=' + g + '] canvas');
                 const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let lit = 0, sum = 0;
                 for (let i = 0; i < d.length; i += 4) { const v = d[i] + d[i + 1] + d[i + 2]; if (v > 90) lit++; sum += v; }
-                return [lit, sum]; }"""
-            a1 = p.page.evaluate(grab)
+                return [lit, sum, c.width, c.height]; }"""
+            a1 = p.page.evaluate(grab, "as2")
             p.page.wait_for_timeout(1500)
-            a2 = p.page.evaluate(grab)
+            a2 = p.page.evaluate(grab, "as2")
             r["byo_marquee"] = [a1, a2]
             assert a1[0] > 1500, "AirStrike 2's logo is not drawn: %s" % a1
             assert a1[1] != a2[1], "the byo marquee does not move"
+            # The text card first, the engine's loop once rendered (the page is not held up).
+            p.page.wait_for_function("document.querySelector('#game-list button[data-game=as3d]').dataset.marquee === 'canvas'", timeout=180000)
+            m = p.wait_line(r"AS3D_WEB banner_render frames=(\d+) .*total_ms=(\d+)", 10)
+            r["byo_banner_render"] = m.group(0)
+            r["byo_banner_render_ms"] = int(m.group(2))
+            assert int(m.group(1)) == 75, m.group(0)
+            b1 = p.page.evaluate(grab, "as3d")
+            p.page.wait_for_timeout(700)
+            b2 = p.page.evaluate(grab, "as3d")
+            r["byo_banner"] = [b1, b2]
+            assert b1[2:] == [352, 162], "the banner loop is not the bundled build's size: %s" % b1
+            assert b1[0] > 1500, "AirStrike 3D's banner is not drawn: %s" % b1
+            assert b1[1] != b2[1], "the banner does not move: %s %s %s %s" % (b1, b2, p.page.evaluate("document.querySelector('#game-list button[data-game=as3d] canvas').dataset.shown"), [t for t in p.texts() if "banner" in t])
+            p.wait_line(r"AS3D_WEB banner_stored frames=75", 60)
+            assert p.page.evaluate(IDB_CACHE_KEYS) == ["as3d/marquee"], p.page.evaluate(IDB_CACHE_KEYS)
+            assert not any(k.startswith("as3d/marquee") for k in p.page.evaluate(IDB_KEYS)), "the banner is not a game file"
+            w.step("byo: reload: the banner comes from the cache, without a new render")
+            mk = p.mark()
+            p.goto("")
+            p.page.wait_for_selector("#games:not([hidden])", timeout=60000)
+            p.page.wait_for_function("document.querySelector('#game-list button[data-game=as3d]').dataset.marquee === 'canvas'", timeout=30000)
+            p.wait_line(r"AS3D_WEB banner_cached frames=75", 10, after=mk)
+            assert not [t for t in p.texts()[mk:] if "AS3D_WEB banner_render" in t], "rendered again despite the cache"
+            p.page.wait_for_timeout(300)
+            c1 = p.page.evaluate(grab, "as3d")
+            p.page.wait_for_timeout(700)
+            c2 = p.page.evaluate(grab, "as3d")
+            r["byo_banner_cached"] = [c1, c2]
+            assert c1[0] > 1500 and c1[1] != c2[1], "the cached banner is not drawn or does not move: %s %s" % (c1, c2)
             stored = p.page.locator("#stored-text").text_content()
             assert "AirStrike 3D" in stored and "AirStrike 2" in stored, stored
             w.shot(p, "byo_chooser")
@@ -807,6 +848,9 @@ def byo(w, b):
             p.page.once("dialog", lambda d: d.accept())
             p.page.click("#forget")
             p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
+            assert p.page.evaluate(IDB_CACHE_KEYS) == [], "the banner frames stayed after removing the files"
+            assert p.page.evaluate("document.querySelectorAll('#files-cards canvas').length") == 0
+            r["byo_banner_removed"] = True
         else:
             r["as2"] = "skipped: no AirStrike 2 data"
         r["errors"] = p.errors()

@@ -72,8 +72,12 @@ chosen, and `?game=` and "Change game" (which reloads the page without it) keep 
   text ("Files needed", shown small in the drop panel). Once a game's files are stored, the
   selector shows its cards with marquees drawn in the browser from those files (`marquee.js`
   reads the pak table and the TGAs, draws AirStrike 2's and Gulf Thunder's logos with the
-  engine's arithmetic). **Difference**: AirStrike 3D's card keeps its title in large text (the
-  banner is a 3D mesh only the engine draws).
+  engine's arithmetic). AirStrike 3D's banner is drawn by the engine, whose runtime is up before
+  the choice (since issue 170's `as3d_unpack`): the page writes the paks holding the banner into
+  MEMFS and the `as3d_banner_*` exports render the bundled build's loop (same code,
+  `drawBannerInBox`, same size, frames and loop fit) in a WebGL 2 context of their own on a
+  hidden canvas; the page plays the frames on the card's canvas and keeps them (WebP) in
+  IndexedDB beside the files, removed with them (docs/web.md). The text card shows meanwhile.
 * The page lays the cards out in the engine's virtual units (`--u`: one of them, by height or by
   width), with the engine's colours and proportions, Left/Right/Enter, a pulsing current card.
   Its text is in a system font (the engine's is the games' bitmap font, which the byo site
@@ -89,4 +93,6 @@ inside the screen and the field, one row, equal gaps, equal marquees, vertically
 band, buttons in the bar); cutouts; pixel checks of the drawn marquees of every game present
 (lit, moving over time, nothing past the stage's frame), the pulse of the focus, and the exact
 loops. `apps/web/test/walk.py`: the selector's cards and marquees (only renders fetched, no
-game file), the pulse, the arrows, byo text cards, byo marquees from stored files.
+game file), the pulse, the arrows, byo text cards, byo marquees from stored files (the banner
+rendered once, moving, then from the cache after a reload without a new render, gone with the
+files).

@@ -1153,24 +1153,28 @@ window.AS3DFiles = (function () {
   }
 
   // ---------------------------------------------------------------------------------------
-  // IndexedDB: one store, "<game key>/<file name>" -> Blob. Files stored by the first version
-  // of the page have no game key (they were AirStrike 3D's): loadStored renames them.
+  // IndexedDB: the store "files", "<game key>/<file name>" -> Blob. Files stored by the first
+  // version of the page have no game key (they were AirStrike 3D's): loadStored renames them.
+  // Beside it (version 2) the store "cache", what the page made from the stored files (the
+  // AirStrike 3D card's banner frames, marquee.js): never game files, removed with them.
   // ---------------------------------------------------------------------------------------
-  const DB = 'as3d-game-files', STORE = 'files';
+  const DB = 'as3d-game-files', STORE = 'files', CACHE = 'cache';
   function openDb() {
     return new Promise((ok, fail) => {
-      const r = indexedDB.open(DB, 1);
-      r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+      const r = indexedDB.open(DB, 2);
+      r.onupgradeneeded = () => {
+        for (const n of [STORE, CACHE]) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n);
+      };
       r.onsuccess = () => ok(r.result);
       r.onerror = () => fail(r.error);
     });
   }
-  async function tx(mode, fn) {
+  async function tx(mode, fn, stores = STORE) {
     const db = await openDb();
     try {
       return await new Promise((ok, fail) => {
-        const t = db.transaction(STORE, mode);
-        const res = fn(t.objectStore(STORE));
+        const t = db.transaction(stores, mode);
+        const res = fn(Array.isArray(stores) ? stores.map((n) => t.objectStore(n)) : t.objectStore(stores));
         t.oncomplete = () => ok(res && 'result' in res ? res.result : undefined);
         t.onerror = () => fail(t.error);
         t.onabort = () => fail(t.error || new Error('storage transaction aborted'));
@@ -1223,7 +1227,11 @@ window.AS3DFiles = (function () {
   const store = (games) => tx('readwrite', (s) => {
     for (const [g, files] of Object.entries(games)) for (const [k, v] of Object.entries(files)) s.put(v, g + '/' + k);
   });
-  const clearStored = () => tx('readwrite', (s) => s.clear());
+  // The files and what was made from them.
+  const clearStored = () => tx('readwrite', (all) => all.forEach((s) => s.clear()), [STORE, CACHE]);
+  // The cache: key -> a value of the page's (structured clone: Blobs, arrays, numbers).
+  const loadCache = (key) => tx('readonly', (s) => s.get(key), CACHE);
+  const storeCache = (key, value) => tx('readwrite', (s) => { s.put(value, key); }, CACHE);
 
   // ---------------------------------------------------------------------------------------
   // Checking what the player gave.
@@ -1454,6 +1462,6 @@ window.AS3DFiles = (function () {
     return out;
   }
 
-  return { sha256, sha256Js, extractExeTexts, textsFromExe, textsByHash, loadStored, store, clearStored, check, missing, canonical,
+  return { sha256, sha256Js, extractExeTexts, textsFromExe, textsByHash, loadStored, store, clearStored, loadCache, storeCache, check, missing, canonical,
            droppedFiles, fetchBundled, knownFiles };
 })();

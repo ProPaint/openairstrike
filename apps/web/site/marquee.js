@@ -1,15 +1,18 @@
 // The game selector's marquees on the web page (docs/web.md, docs/spec/issues/164).
 //
 // The engine draws each card's marquee: the first game's flaming 3D banner, AirStrike 2's logo
-// with its "2" emblem, Gulf Thunder's logo. The page cannot run the engine before a game is
-// chosen (its 25 to 48 MB of data are fetched only then), so:
+// with its "2" emblem, Gulf Thunder's logo. The page draws the selector itself (the engine
+// starts a game only once it is chosen, with that game's files), so:
 //  * bundled build: tools/web_build.sh renders the marquees with the engine at build time
 //    (marquee/<key>.webp, one looping animation per game, marquee/marquees.json);
 //  * bring-your-own build: there is nothing of any game in the site. Once the player's files
 //    are stored the page reads the logo pictures out of them, in the browser, and draws the two
 //    logos with the same arithmetic as the engine (engine/src/ui/as2_widgets.cpp
-//    titleLogoAt). The first game's banner is a 3D mesh only the engine can draw: that card
-//    keeps its title in large text.
+//    titleLogoAt). The first game's banner is a 3D mesh: the engine's runtime, up before a
+//    game is chosen, draws its loop from the stored paks (fromEngine: the as3d_banner_*
+//    exports of apps/web/web_main.cpp, the code and loop of the bundled render) and the frames
+//    are kept in IndexedDB beside the files (AS3DFiles' cache, removed with them), so later
+//    visits show it at once. Nothing of it leaves the browser.
 // Until there is a picture the card shows its title in text.
 window.AS3DMarquee = (function () {
   'use strict';
@@ -233,5 +236,97 @@ window.AS3DMarquee = (function () {
     return canvas;
   }
 
-  return { fromRender, fromFiles };
+  // ---------------------------------------------------------------------------------------
+  // Bring your own, AirStrike 3D: the banner drawn by the engine from the stored paks.
+  // ---------------------------------------------------------------------------------------
+  // The cached loop: { print, width, height, ms, frames: [Blob] } (one still WebP per frame, as
+  // the bundled build's animated WebP at quality 82). `print` names the paks it was drawn from
+  // (and this format): other paks, another render.
+  const BANNER_CACHE = 'as3d/marquee', BANNER_FORMAT = 1;
+  const AS3D_PAKS = ['pak0.apk', 'pak1.apk', 'pak2.apk', 'pak3.apk'];
+  const bannerPrint = (files) =>
+    [BANNER_FORMAT].concat(AS3D_PAKS.filter((n) => files[n]).map((n) => n + ':' + files[n].size)).join(' ');
+  // The paks that hold the banner's object or model (pak0.apk in every known copy): only these
+  // go to the engine.
+  async function bannerPaks(files) {
+    const out = [];
+    for (const n of AS3D_PAKS) {
+      const idx = files[n] && await pakIndex(files[n]);
+      if (idx && [...idx.entries.keys()].some((k) => k === 'objects\\banner.obj' || k.startsWith('models\\banner\\'))) out.push(n);
+    }
+    return out;
+  }
+  // The loop on a canvas of the frames' size: frame i from i * ms on, as the animated WebP
+  // shows it.
+  function loopCanvas(bitmaps, ms, w, h) {
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.dataset.frames = String(bitmaps.length);
+    const ctx = canvas.getContext('2d');
+    const t0 = performance.now();
+    let shown = -1;
+    const tick = (now) => {
+      if (shown >= 0 && !canvas.isConnected) return; // the card is gone
+      // (a frame time may be a little before t0)
+      const i = Math.floor(Math.max(0, now - t0) / ms) % bitmaps.length;
+      if (i !== shown) {
+        shown = i;
+        canvas.dataset.shown = String(i); // the frame on show (tests)
+        ctx.drawImage(bitmaps[i], 0, 0);
+      }
+      requestAnimationFrame(tick);
+    };
+    tick(t0);
+    return canvas;
+  }
+  async function encodeFrames(frames, w, h) {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    const out = [];
+    for (const f of frames) {
+      ctx.putImageData(new ImageData(f, w, h), 0, 0);
+      out.push(await new Promise((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error('no picture'))), 'image/webp', 0.82)));
+    }
+    return out;
+  }
+  // `files`: AirStrike 3D's stored files. `opts.render(paks)`: the engine's render of the loop
+  // from those paks, { width, height, ms, frames: [Uint8ClampedArray RGBA] } or null (app.js).
+  // `opts.log`: the page's log. Resolves to the card's canvas, or null (the title stays).
+  async function fromEngine(files, opts) {
+    if (!files || !opts || !opts.render) return null;
+    const log = opts.log || (() => {});
+    const print = bannerPrint(files);
+    try {
+      const c = await AS3DFiles.loadCache(BANNER_CACHE);
+      if (c && c.print === print && c.frames && c.frames.length) {
+        const bitmaps = await Promise.all(c.frames.map((b) => createImageBitmap(b)));
+        log(`AS3D_WEB banner_cached frames=${bitmaps.length} ms=${c.ms}`);
+        return loopCanvas(bitmaps, c.ms, c.width, c.height);
+      }
+    } catch (e) {
+      log('AS3D_WEB banner_cache unreadable: ' + e);
+    }
+    let r = null;
+    try {
+      const paks = await bannerPaks(files);
+      if (!paks.length) return null;
+      r = await opts.render(paks);
+    } catch (e) {
+      log('AS3D_WEB banner_render failed: ' + e);
+      return null;
+    }
+    if (!r || !r.frames.length) return null;
+    const bitmaps = await Promise.all(r.frames.map((f) => createImageBitmap(new ImageData(f, r.width, r.height))));
+    // Kept for the next visits; the card does not wait for it.
+    encodeFrames(r.frames, r.width, r.height)
+      .then((blobs) => AS3DFiles.storeCache(BANNER_CACHE, { print, width: r.width, height: r.height, ms: r.ms, frames: blobs })
+        .then(() => log(`AS3D_WEB banner_stored frames=${blobs.length} kb=${Math.round(blobs.reduce((s, b) => s + b.size, 0) / 1024)}`)))
+      .catch((e) => log('AS3D_WEB banner_cache not kept: ' + e));
+    return loopCanvas(bitmaps, r.ms, r.width, r.height);
+  }
+
+  return { fromRender, fromFiles, fromEngine };
 })();

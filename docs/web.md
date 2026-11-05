@@ -85,10 +85,11 @@ selector shows (the engine reads the saves, and it is not running yet).
 
 *Why the page draws the selector and not the engine* (issue 164): the engine needs a game's
 files before it starts, and only the chosen game's should be downloaded; the 3D banner is a mesh
-and textures inside AirStrike 3D's 25 MB pak, so an engine that draws the marquees before the
-choice would fetch that pak, and in the byo build the files are the player's Blobs in
-IndexedDB. So the marquees are made differently in the two builds, and each is the engine's
-own picture:
+and textures inside AirStrike 3D's 25 MB pak, so in the bundled build an engine that draws the
+marquees before the choice would fetch that pak. In the byo build the files are already in the
+browser (the player's Blobs in IndexedDB), and the engine's runtime is up before the choice (it
+unpacks archives), but the game itself starts only once one is chosen. So the marquees are made
+differently in the two builds, and each is the engine's own picture:
 
 * **bundled**: `tools/web_build.sh` runs the desktop engine headless (`as3d_game --headless
   --selector-marquees`, the very code that draws the selector on desktop and Android, with the
@@ -101,8 +102,31 @@ own picture:
   drop zone shows the same cards small ("Files needed"). Once a game's files are stored, the
   page reads its logo pictures out of the stored paks in the browser (`marquee.js`: the pak's
   table and the TGAs, nothing leaves the browser) and animates AirStrike 2's and Gulf Thunder's
-  logos with the engine's arithmetic. AirStrike 3D's banner is a 3D mesh that only the engine
-  can draw: its card keeps the title in large text (known difference).
+  logos with the engine's arithmetic. AirStrike 3D's banner is a 3D mesh, so the engine draws
+  it: its runtime is up before a game is chosen (it also unpacks archives), and the page asks
+  it for the banner loop from the stored files. The card shows the title in text meanwhile and
+  the loop once it is there; the same 75 frames of 84 ms at 352x162 as the bundled
+  `marquee/as3d.webp`, drawn by the same code (`drawBannerInBox` in
+  `apps/game/launcher_screen.cpp`, loop fit on, an 800x600 target cropped to the card's
+  marquee box, as `--selector-marquees` does).
+
+  How: `app.js` writes the paks that hold the banner (`marquee.js` looks in their tables for
+  `objects\banner.obj` and `models\banner\`: pak0.apk, 16 MB) into MEMFS under `/banner/`, puts
+  a hidden canvas of its own in the page and calls `as3d_banner_begin(canvas, paks)`,
+  `as3d_banner_frame(i)` for each frame and `as3d_banner_end()` (`apps/web/web_main.cpp`). The
+  engine makes a WebGL 2 context on that canvas (`emscripten_webgl_create_context`), current
+  only during each call: the context that was current before (none, or the game's SDL window
+  context) is current again on return, and `as3d_banner_end` deletes the GL objects in their
+  context, destroys it, and the page drops the canvas (its context lost) and `/banner/`. The
+  frames are taken a few at a time (the page yields every 25 ms); choosing a game stops the
+  render. About 1 s in headless Chromium (0.2 to 0.6 s of it the set-up), once per browser:
+  `marquee.js` encodes the frames as WebP (quality 82, as the bundled loop; about 290 KB) and keeps them in
+  IndexedDB beside the files (store `cache` of `as3d-game-files`, key `as3d/marquee`, with the
+  names and sizes of the paks they come from), so later visits show the loop at once with no
+  render (`AS3D_WEB banner_cached` in the console; a render logs `AS3D_WEB banner_render ...
+  total_ms=`). "Remove them" removes them with the files. They are never uploaded, and nothing
+  of them is in the site or the repository. The selector is shown only with two games or more
+  stored, and so is the render.
 
 **Keys** (a new profile on the web; change them in Options, Controls):
 
@@ -254,6 +278,7 @@ with each:
 |---|---|---|
 | The profile: settings, key bindings, unlocked missions and helicopters, high scores | IndexedDB, database `/persist` (Emscripten's IDBFS), written after every save; the file is `/persist/as3d/profile.bin`, one directory per game | 1 KB |
 | The game files (byo build only) | IndexedDB, database `as3d-game-files`, key `<game key>/<file name>` (files stored by the first version of the page, without a key, are renamed to `as3d/...` when found) | 25 MB for AirStrike 3D (paks, optional files, the texts; not the executable) |
+| The selector's AirStrike 3D banner, rendered by the engine from those files (byo build only) | IndexedDB, database `as3d-game-files`, store `cache`, key `as3d/marquee` (75 WebP frames); removed with the files | about 290 KB |
 
 The profile is saved at the same moments as on the other platforms (leaving Options, after a
 name entry, at the end of a mission, when the game goes to the background), and also when the
