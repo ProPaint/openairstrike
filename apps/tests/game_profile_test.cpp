@@ -125,5 +125,15 @@ TEST_CASE("game profiles agree with tools/games.json") {
         for (int k = 0; p.paks[k]; ++k) paks += std::string(k ? ", " : "") + "\"" + p.paks[k] + "\"";
         paks += "]";
         CHECK(g.find(paks) != std::string::npos);
+        std::string optional = "\"optional_paks\": [";
+        for (int k = 0; p.optionalPaks[k]; ++k) optional += std::string(k ? ", " : "") + "\"" + p.optionalPaks[k] + "\"";
+        optional += "]";
+        CHECK(g.find(optional) != std::string::npos);
+        // An optional pak is one of the profile's paks.
+        for (int k = 0; p.optionalPaks[k]; ++k) {
+            bool listed = false;
+            for (int j = 0; p.paks[j]; ++j) listed = listed || std::string(p.paks[j]) == p.optionalPaks[k];
+            CHECK(listed);
+        }
     }
 }
