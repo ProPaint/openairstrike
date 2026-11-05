@@ -242,7 +242,9 @@ int runSpike() {
     for (const char* const* p = game->paks; *p; ++p) {
         std::string path = std::string(kDir) + "/as3d/" + *p;
         std::unique_ptr<IFileSource> src;
-        if (auto stream = openFileStream(path)) src = makePakSource(std::move(stream));
+        auto stream = openFileStream(path);
+        if (!stream && pakIsOptional(*game, *p)) continue; // pak3.apk: a patch's override pak, seldom there
+        if (stream) src = makePakSource(std::move(stream));
         if (!src) {
             out("cannot mount %s\n", path.c_str());
             if (g_log) std::fclose(g_log);
