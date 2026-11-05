@@ -26,10 +26,16 @@ namespace {
 bool sameBits(const Mat4& a, const Mat4& b) { return std::memcmp(a.m, b.m, sizeof a.m) == 0; }
 
 // A camera like the game's: tilted down, a little yaw, somewhere over a level.
+// The field of view is read from a volatile so that the reference projection's tangent is
+// computed at run time by the C library, as the engine's is (worldViewOf, eyeProjection): a
+// literal lets the compiler fold std::tan at build time, correctly rounded, which differs by a
+// bit from an older glibc's tanf, and the bit-for-bit checks below then fail on that machine.
+volatile float g_testFovY = 60.0f;
+
 WorldView testView(float aspect) {
     WorldView v;
     v.eye = Vec3{320.0f, 1200.0f, 420.0f};
-    v.fovY = 60.0f;
+    v.fovY = g_testFovY;
     v.view = rotationX(-50.0f) * rotationY(0.0f) * rotationZ(7.0f) * translation(-v.eye);
     v.projection = perspective(v.fovY, aspect, v.nearPlane, v.farPlane);
     return v;
