@@ -124,6 +124,14 @@ EMSCRIPTEN_KEEPALIVE const char* as3d_unpack(const char* inDir) {
     std::error_code ec;
     fs::remove_all(out, ec);
     fs::create_directories(out, ec);
+    // The reference entry lists are embedded in the module at /pak_entries (apps/web/CMakeLists.txt):
+    // the source-tree path the desktop build reads them from does not exist in the browser.
+    static bool namesLoaded = false;
+    if (!namesLoaded) {
+        std::string err;
+        namesLoaded = as3d::loadPakEntryNames("/pak_entries", &err);
+        if (!namesLoaded) AS3D_WARN("as3d_unpack: %s", err.c_str());
+    }
     const as3d::ImportResult r = as3d::importGameFiles(inDir ? inDir : "/unpack/in", out);
     json = "{\"imported\": [";
     for (size_t i = 0; i < r.imported.size(); ++i) json += (i ? ", " : "") + quote(r.imported[i]);

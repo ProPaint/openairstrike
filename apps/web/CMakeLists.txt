@@ -58,6 +58,9 @@ set(AS3D_WEB_LINK
   -sENVIRONMENT=web
   -fwasm-exceptions
   -lidbfs.js
+  # The paks' reference entry lists (tools/pak_entries/: names only, no data), for the importer
+  # of as3d_unpack: a pak of another build and a copy without pak0.apk (issue 170 section 2).
+  "--embed-file=${AS3D_REPO_ROOT}/tools/pak_entries@/pak_entries"
   "-sEXPORTED_RUNTIME_METHODS=['callMain','FS','HEAPU8','addRunDependency','removeRunDependency','ccall']"
 )
 if(AS3D_WEB_FULL_ES3)
