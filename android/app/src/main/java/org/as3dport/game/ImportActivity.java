@@ -36,7 +36,8 @@ import java.util.Set;
  * (GameActivity) at once when the app holds a game, bundled in the APK or imported earlier.
  * Otherwise, and when asked with the extra {@code import}, it shows the import screen: the
  * player picks the files of their own copy of a game (the paks, the executable for the menu
- * texts, Settings.xml and the logo; or a zip of the game folder), which are copied into
+ * texts, Settings.xml and the logo; or the archive or installer they downloaded: zip, RAR, 7z,
+ * CAB, Inno Setup), which are copied into
  * {@code <files>/games/incoming/} and handed to the native import
  * (apps/game/android_import.cpp, as3d::importGameFiles), which installs each game under
  * {@code <files>/games/<key>/}.
@@ -182,8 +183,9 @@ public class ImportActivity extends Activity {
             + "Only the texts are kept.\n"
             + "• Optional: data/Settings.xml (intro pages, version line) and data/gfx/logo2s.tga "
             + "(the main menu's logo).\n"
-            + "• Or a single zip of the game folder, or of the original download: every game in it "
-            + "is imported.\n\n"
+            + "• Or the file you downloaded, as it is: a zip, RAR, 7z or CAB archive of the game, "
+            + "or its Inno Setup installer (setup.exe). Every game in it is imported. NSIS and other "
+            + "installers cannot be opened here: install those on a PC and choose the game's files.\n\n"
             + "Loose files: choose the files of one game at a time (the games' files have the same names). "
             + "You can come back here later to add another game.", 15);
 

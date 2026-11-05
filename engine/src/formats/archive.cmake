@@ -132,6 +132,10 @@ if(NOT TARGET as3d_libarchive)
   target_compile_definitions(as3d_libarchive
     PUBLIC LIBARCHIVE_STATIC
     PRIVATE PLATFORM_CONFIG_H="libarchive_config.h" __LIBARCHIVE_BUILD=1)
+  if(ANDROID)
+    # archive.h includes android_lf.h (64-bit file offsets on bionic) from libarchive's tree.
+    target_include_directories(as3d_libarchive PUBLIC "${AS3D_LIBARCHIVE_SRC}/contrib/android/include")
+  endif()
   target_compile_options(as3d_libarchive PRIVATE -w)
   set_target_properties(as3d_libarchive PROPERTIES POSITION_INDEPENDENT_CODE ON)
   target_link_libraries(as3d_libarchive PUBLIC liblzma as3d_zlib)
