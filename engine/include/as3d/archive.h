@@ -70,6 +70,8 @@ public:
     static std::unique_ptr<ArchiveReader> open(const std::string& path, std::string* error);
     static std::unique_ptr<ArchiveReader> open(std::unique_ptr<IStream> stream, const std::string& name, std::string* error);
 
+    static constexpr std::uint64_t kNestedMemoryLimit = 64u << 20;
+
     virtual ArchiveKind kind() const = 0;
     const std::string& name() const { return name_; }
     const std::vector<ArchiveEntry>& entries() const { return entries_; }
@@ -83,12 +85,14 @@ public:
     // The kind of an entry that may itself be a container, from its first bytes (the kinds
     // that need the whole file are found by openEntry).
     ArchiveKind entryKind(const ArchiveEntry& e);
-    // Opens an entry that is itself a container: extracted to memory below
-    // kNestedMemoryLimit bytes, else to a temporary file under `tempDir` (empty: the
-    // system's), which the returned reader removes when it is destroyed. The returned
-    // reader's name is "<this name>: <entry name>".
-    std::unique_ptr<ArchiveReader> openEntry(const ArchiveEntry& e, std::string* error, const std::string& tempDir = "");
-    static constexpr std::uint64_t kNestedMemoryLimit = 64u << 20;
+    // Opens an entry that is itself a container: extracted to memory up to `memoryLimit`
+    // bytes, else to a temporary file under `tempDir` (empty: the system's), which the
+    // returned reader removes when it is destroyed. The returned reader's name is
+    // "<this name>: <entry name>".
+    std::unique_ptr<ArchiveReader> openEntry(const ArchiveEntry& e, std::string* error, const std::string& tempDir = "",
+                                             std::uint64_t memoryLimit = kNestedMemoryLimit);
+    // The temporary file behind a reader made by openEntry (empty: in memory).
+    const std::string& tempFile() const { return tempFile_; }
 
 protected:
     ArchiveReader() = default;

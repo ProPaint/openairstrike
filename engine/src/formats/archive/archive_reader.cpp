@@ -57,6 +57,15 @@ private:
     size_t n_;
 };
 
+std::uint32_t crc32Of(const std::uint8_t* p, size_t n) {
+    std::uint32_t c = 0xFFFFFFFFu;
+    for (size_t i = 0; i < n; ++i) {
+        c ^= p[i];
+        for (int k = 0; k < 8; ++k) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+    }
+    return ~c;
+}
+
 bool startsWith(const std::uint8_t* p, size_t n, const char* sig, size_t len) {
     return n >= len && std::memcmp(p, sig, len) == 0;
 }
@@ -287,6 +296,16 @@ public:
             return false;
         }
         archive_read_free(a);
+        // libarchive's RAR 5 reader ends the listing quietly where a cut file ends; a complete
+        // RAR 5 volume ends with its end-of-archive block (CRC-32, size 3, type 5, flags, end flags).
+        std::uint8_t sig[8], tail[8];
+        const size_t n = stream_->size();
+        if (kind_ == ArchiveKind::Rar && n >= 16 && stream_->readAt(0, sig, 8) && std::memcmp(sig, "Rar!\x1A\x07\x01\x00", 8) == 0) {
+            if (!stream_->readAt(n - 8, tail, 8) || tail[4] != 3 || tail[5] != 5 || crc32Of(tail + 4, 4) != le32(tail)) {
+                if (error) *error = "truncated: the RAR archive ends early (no end-of-archive block)";
+                return false;
+            }
+        }
         return true;
     }
 
@@ -551,11 +570,12 @@ ArchiveKind ArchiveReader::entryKind(const ArchiveEntry& e) {
     return archiveKind(head.data(), head.size(), head.size() == e.size, nullptr);
 }
 
-std::unique_ptr<ArchiveReader> ArchiveReader::openEntry(const ArchiveEntry& e, std::string* error, const std::string& tempDir) {
+std::unique_ptr<ArchiveReader> ArchiveReader::openEntry(const ArchiveEntry& e, std::string* error, const std::string& tempDir,
+                                                       std::uint64_t memoryLimit) {
     const std::string nested = name_ + ": " + e.name;
-    if (e.size <= kNestedMemoryLimit) {
+    if (e.size != 0 && e.size <= memoryLimit) {
         std::vector<std::uint8_t> bytes;
-        if (!extractToMemory(e, &bytes, static_cast<size_t>(kNestedMemoryLimit), error)) return nullptr;
+        if (!extractToMemory(e, &bytes, static_cast<size_t>(memoryLimit), error)) return nullptr;
         return open(makeMemoryStream(std::move(bytes)), nested, error);
     }
     std::error_code ec;
