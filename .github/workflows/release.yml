@@ -8,8 +8,11 @@
 #     imports the player's files on first start. Signing uses the repository secrets
 #     ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and
 #     ANDROID_KEY_PASSWORD; the keystore only ever exists in the runner's temporary directory.
+#   * Nintendo 3DS: the package of tools/3ds_package.sh (the .3dsx for the Homebrew Launcher,
+#     the CIA for the HOME menu, run.ini and INSTALL.txt), built in the pinned devkitPro image
+#     with makerom and bannertool fetched by tools/fetch_third_party.sh (SHA-256 pinned).
 #
-# The release is created as a draft with the three files attached, so it can be checked and
+# The release is created as a draft with the four files attached, so it can be checked and
 # given release notes before it is published.
 name: release
 
@@ -141,9 +144,36 @@ jobs:
           path: openairstrike-*-android.apk
           if-no-files-found: error
 
+  nintendo-3ds:
+    name: Nintendo 3DS package
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the CIA's title version is the commit count (tools/3ds_package.sh)
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl unzip python3
+      - name: Fetch libopenmpt, makerom and bannertool
+        run: |
+          tools/fetch_third_party.sh openmpt
+          tools/fetch_third_party.sh ctrtools
+      - name: Build and package
+        run: |
+          v="${AS3D_VERSION#v}"
+          AS3D_VERSION="$v" AS3D_BUILD_JOBS="$(nproc)" tools/3ds_package.sh
+          cp out/3ds/package/openairstrike-3ds-"$v"-*.zip "openairstrike-$v-3ds.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nintendo-3ds
+          path: openairstrike-*-3ds.zip
+          if-no-files-found: error
+
   release:
     name: Draft release
-    needs: [linux, web, android]
+    needs: [linux, web, android, nintendo-3ds]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -159,7 +189,7 @@ jobs:
         run: |
           ls -la dist
           # No pak archive, no original texts file, no copy of a game executable.
-          ! (cd dist && (unzip -l openairstrike-*-web.zip; tar tzf openairstrike-*-linux-x86_64.tar.gz; unzip -l openairstrike-*-android.apk) | grep -Ei 'pak[0-9]\.apk|texts_(v170|as2|gulf)\.txt|AirStrike3D.*\.exe|Settings\.xml')
+          ! (cd dist && (unzip -l openairstrike-*-web.zip; tar tzf openairstrike-*-linux-x86_64.tar.gz; unzip -l openairstrike-*-android.apk; unzip -l openairstrike-*-3ds.zip) | grep -Ei 'pak[0-9]\.apk|texts_(v170|as2|gulf)\.txt|AirStrike3D.*\.exe|Settings\.xml')
       - uses: softprops/action-gh-release@v2
         with:
           draft: true

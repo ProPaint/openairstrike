@@ -12,7 +12,7 @@ felt strong). The fixes went into `c314767` (clear=split, the terrain re-issuing
 voice mix outside the mixer lock, comfort defaults 3 / 6 px / 8 px). **Then the owner asked not
 to do QA any more, so the console tests itself (round 2, P7; see "Soak mode and the log push" at
 the end).** The drop of round 2d was `out/3ds/drop-round2d-5192662/` (after the first console soak, below) (the package's `openairstrike.3dsx`,
-`openairstrike.cia`, `run.ini` = `mode=soak report_to=192.168.1.86:7777 perf=1 state_check=1
+`openairstrike.cia`, `run.ini` = `mode=soak report_to=<pc-ip>:7777 perf=1 state_check=1
 log_lazy=1`, `run-play.ini` = play with the same diagnostics), its 3dsx and run.ini uploaded to
 the card on 2026-10-11 (the card's run.ini is the soak one; the first soak's results are in
 "First console soak" at the end: no wash in 30-second stages, mono 60 Hz missed by bursts, the push
@@ -29,7 +29,7 @@ terrain re-issues its state with its second draw, so a lost first state block hi
 (nearest, lowest on screen) chunk and the probe never sees it; hence the detector that judges
 every frame from an asynchronous depth read-back (`wash_check`, on in soak; `AS3D_WASH` lines per
 episode; "Wash detector" in the R3.2 section). The drop of round 3 was `out/3ds/drop-round3-664fee3/` (its build info says `664fee3-dirty`: only a docs edit was uncommitted); the drop round3b was `out/3ds/drop-round3b-d63fbbf/` (R3.3; its soak is "Fourth console soak" at the end); the drop round4 `out/3ds/drop-round4-8577ef9/` (R4.1 + R4.2; the CIA carries a title version = the commit count, `tools/3ds_package.sh -ver`) CRASHED on the console at the first frame of its stage 10 (`terrain_far_tev=1`): a data abort in `C3D_TexBind(1, NULL)`, citro3d 1.7.1 reads the texture's type for units above 0 (fixed in cb763ba through the context mirror; Azahar reads 0 from unmapped memory, so a null dereference never faults there: a blind spot to remember). Its nine completed stages are in `out/3ds/crash-round4-8577ef9/` (the Luma dumps under `dumps/`, parsed in the "Fifth console soak" section at the end); the drop round4b `out/3ds/drop-round4b-227dd60/` ran the 23 stages ("Sixth console soak" at the end); **the latest drop is `out/3ds/drop-round4c-08613d6/`**: the first build with the new UI (R4.4 foundation, R4.5 menus, R4.7 in play; docs/3ds-ui-design.md) plus R4.6's GPU cuts and level-start caches (brightness fold, water coverage, shadow/texture/base caches); title version 647; `run.ini` = R4.6's 13-stage list (about 22 minutes); `run-play.ini` for the owner's look at the UI; the receiver runs with `--expect 08613d6`; the gallery of this binary is `out/ui3ds/gallery/drop-08613d6/`
-(`run.ini` = `mode=soak report_to=192.168.1.86:7777 perf=1 state_check=1 log_lazy=1
+(`run.ini` = `mode=soak report_to=<pc-ip>:7777 perf=1 state_check=1 log_lazy=1
 wash_selftest=1`, `run-play.ini` = play with the same diagnostics). What its soak should show:
 `AS3D_WASH` episodes with their length (or none), `prime_mismatches` versus `mismatches`
 (whether the first state block is still lost), `AS3D_WASH_SELFTEST` 98/98, the step cost per
@@ -160,7 +160,7 @@ GPU read-back of the terrain every 30 frames so the water wash is caught without
 verdict to `soak.txt` and pushes every file of the run to the PC. **The agent's side:** before the
 owner launches, `tools/3ds_receive.py --port 7777` must be listening in the main checkout (it needs
 `build/apps/sim_tool/as3d_sim` and the data at the repo root, or `--sim` / `AS3D_DATA_ROOT`); the
-PC's address on the route is `ip route get 192.168.1.133` (`src`, 192.168.1.86 on 2026-10-11). Never
+PC's address on the route is `ip route get <console-ip>` (`src`, <pc-ip> on 2026-10-11). Never
 probe the port to check it (a connection is a run: with `--once` the receiver files an empty
 `-partial` run and quits; `ss -ltnp | grep 7777` says whether it listens). It
 files the run under `out/3ds/<date>-<commit>/`, prints the verdict and the `AS3D_SOAK_RESULT`
@@ -254,9 +254,9 @@ needed: see "Packaging and launch (round 2, P6)"). For a development build: `too
 upload it with `run.ini` over ftpd (port 5000) to `sdmc:/3ds/openairstrike/` (the paks,
 `Settings.xml`, `texts_v170.txt`, `music/*.ogg` from `audio_tool render-music --all` and
 `sdmc:/3ds/dspfirm.cdc` are already on the owner's card); quit ftpd, Homebrew Launcher, Y, then
-`tools/3ds_netload.sh 192.168.1.133 <file.3dsx>` (never `3ds_build.sh netload` for an agent's
+`tools/3ds_netload.sh <console-ip> <file.3dsx>` (never `3ds_build.sh netload` for an agent's
 binary: it rebuilds and sends the main checkout's); afterwards ftpd again and
-`tools/3ds_fetch_logs.sh 192.168.1.133` + `tools/3ds_perf_report.py`. `run.ini` keys are in
+`tools/3ds_fetch_logs.sh <console-ip>` + `tools/3ds_perf_report.py`. `run.ini` keys are in
 [apps/3ds/README.md](../apps/3ds/README.md); `mode=play` is the game, `mode=bot level=1
 frames=3600 perf=1` the acceptance run. Azahar (emulator) is for correctness only; it never
 showed the two water bugs (large triangles, state copies) that the console did.
@@ -426,7 +426,7 @@ Notes for reading the numbers:
    (`mode=spike`, or deleting the file, gives the spike again. Optional keys: `hold=N` keeps
    drawing N frames after each variant; `only=CH` runs just those variants.)
 3. Start the Homebrew Launcher, press Y, and from this machine `tools/3ds_build.sh netload
-   192.168.1.133` (builds, then 3dslink). Or copy `openairstrike.3dsx` to `sdmc:/3ds/` and start it.
+   <console-ip>` (builds, then 3dslink). Or copy `openairstrike.3dsx` to `sdmc:/3ds/` and start it.
 4. The probe runs unattended (about 15 s), prints the table on the bottom screen and appends it
    to `sdmc:/3ds/openairstrike/probe_log.txt`. START quits. Fetch the log with ftpd.
 

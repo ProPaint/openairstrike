@@ -30,6 +30,10 @@ never be shared or published.
   own game files). It plays one player at a time and
   was tested in Chromium and on Android Chrome and Edge; Safari, iPhone and Firefox are
   untested.
+- Nintendo 3DS: the three games play on a New 3DS (an Old 3DS runs a 30 Hz profile) with
+  stereoscopic 3D, the HUD and the menus on the touch screen, and the game's own font at
+  readable sizes. One player; no keyboard, so no cheat codes. See `docs/3ds-port.md`.
+- The original cheat codes work on the desktop and the web (typed during play).
 
 The detailed table is "Implementation status" in `docs/spec/README.md`.
 
@@ -132,10 +136,25 @@ files of your own copy and keeps them in the browser's storage. `tools/web_build
 copies your data into the site instead; never host that build publicly. Details in
 `docs/web.md`.
 
+### Nintendo 3DS
+
+Needs a console with custom firmware (Luma3DS) and the Homebrew Launcher, or FBI for the CIA.
+The build runs in the pinned devkitPro Docker image, so only Docker is needed on your machine:
+
+```
+tools/3ds_build.sh            # -> build-3ds/apps/3ds/openairstrike.3dsx
+tools/3ds_package.sh          # the .3dsx, the CIA, run.ini and INSTALL.txt as a zip
+```
+
+Copy the package's `3ds/` folder to the SD card's root and your game files under
+`sdmc:/3ds/openairstrike/<game>/` as `INSTALL.txt` says; the DSP firmware dump
+(`sdmc:/3ds/dspfirm.cdc`) is needed for sound. Details in `apps/3ds/README.md` and
+`docs/3ds-port.md`.
+
 ## Releases
 
 A version tag (`v1.2.3`) builds a draft GitHub release (`.github/workflows/release.yml`) with
-three data-free artifacts and notes made by `tools/release_notes.sh` from `CHANGELOG.md`:
+four data-free artifacts and notes made by `tools/release_notes.sh` from `CHANGELOG.md`:
 
 - `openairstrike-<version>-linux-x86_64.tar.gz`: `as3d_game` and `as3d_sim` built on Ubuntu
   22.04 (needs `libsdl2-2.0-0`, `libgles2` and `libegl1`); point them at your data with
@@ -146,6 +165,8 @@ three data-free artifacts and notes made by `tools/release_notes.sh` from `CHANG
   for your game files on first start (`docs/android.md`). Its application id is
   `io.github.propaint.openairstrike`, so it installs beside a personal build with bundled data
   (`org.as3dport.game`).
+- `openairstrike-<version>-3ds.zip`: the Nintendo 3DS package (`.3dsx`, CIA, `run.ini`,
+  `INSTALL.txt`); the game files go on the SD card as `INSTALL.txt` says.
 
 ## Tests
 

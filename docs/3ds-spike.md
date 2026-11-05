@@ -168,7 +168,7 @@ on the terrain.
 The emulator answered correctness and memory. It cannot answer speed. With the paks in
 `sdmc:/3ds/openairstrike/as3d/`, the Homebrew Launcher waiting (press Y):
 
-    tools/3ds_build.sh netload 192.168.0.151
+    tools/3ds_build.sh netload <console-ip>
 
 Then read `sdmc:/3ds/openairstrike/spike_log.txt`. It gives the real step time per mission,
 the real level load time (SD reads), and the real `C3D_GetDrawingTime`. If missions on the

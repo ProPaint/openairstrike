@@ -21,6 +21,10 @@ Needs Docker and the pinned devkitARM image (no native devkitPro). From the repo
     tools/3ds_build.sh clean
     tools/3ds_ci.sh             # compile-only check
 
+GitHub Actions runs the same build on every push (`.github/workflows/ci.yml`, job "Nintendo 3DS
+build", the `.3dsx` kept as an artifact) and `tools/3ds_package.sh` on a version tag
+(`.github/workflows/release.yml`), both in the pinned image through Docker on the runner.
+
 It is a CMake build (3ds-cmake's `3DS.cmake` toolchain, `NINTENDO_3DS`): the root
 `CMakeLists.txt` adds only `apps/3ds` on that platform, and `engine/CMakeLists.txt` builds the
 engine modules with the pica/ndsp/ctr backend defaults (the backend directories are still
@@ -85,9 +89,9 @@ Installed: the package (above) on the card, then the Homebrew Launcher or the HO
 a development build, put the paks on the console's SD card as above, open the Homebrew Launcher,
 press Y (netload), then from this machine:
 
-    tools/3ds_build.sh netload 192.168.0.151
+    tools/3ds_build.sh netload <console-ip>
 
-(equivalently `3dslink -a 192.168.0.151 build-3ds/apps/3ds/openairstrike.3dsx`, port 17491). Or copy
+(equivalently `3dslink -a <console-ip> build-3ds/apps/3ds/openairstrike.3dsx`, port 17491). Or copy
 `openairstrike.3dsx` to `sdmc:/3ds/` and start it from the launcher. Afterwards
 `sdmc:/3ds/openairstrike/spike_log.txt` holds the real numbers; the questions they settle are
 listed under "Open on hardware" in docs/3ds-spike.md.
@@ -234,7 +238,7 @@ start and `AS3D_LAZY_LOADS` at the end. At the end `log.txt` gets the end state 
 `as3d_sim` and `PERF_SUMMARY` lines (step and frame time avg/p95/max, frames over 17 ms, load time,
 heap high-water, linear free, lazy loads, arena). Fetch with ftpd and report:
 
-    tools/3ds_fetch_logs.sh 192.168.1.133         # -> out/3ds/<date>-<commit>/
+    tools/3ds_fetch_logs.sh <console-ip>         # -> out/3ds/<date>-<commit>/
     python3 tools/3ds_perf_report.py out/3ds/<date>-<commit>
 
 ## Soak mode and the log push (P7)
@@ -244,7 +248,7 @@ launcher to come back; the agent runs the receiver on the PC. docs/3ds-port.md, 
 push (round 2, P7)". The drop's `run.ini`:
 
     mode=soak
-    report_to=192.168.1.86:7777
+    report_to=<pc-ip>:7777
     perf=1
     state_check=1
     log_lazy=1
@@ -297,7 +301,7 @@ over 64 MB are refused), prints `soak.txt`, runs `tools/3ds_perf_report.py` per 
 (`stages/<NN>-<game>-<level>-<eyes>/`), converts the marks to PNG with `marks_sheet.png` (top | right |
 depth | bottom per mark) and runs `tools/3ds_soak_compare.py`, which replays every stage with
 `as3d_sim --game G --level N --frames F --bot --bot-weapons` and compares map_pos, entities, slots,
-created, freed (PASS/FAIL per stage). The console's address for the PC: `ip route get 192.168.1.133`
+created, freed (PASS/FAIL per stage). The console's address for the PC: `ip route get <console-ip>`
 (`src`). `mode=play` is unchanged for playing.
 
 Code: `ctr_main.cpp` (entry), `run_config.*`, `ctr_loop.*` (the loop, `FrameHook`), `ctr_frame.*`

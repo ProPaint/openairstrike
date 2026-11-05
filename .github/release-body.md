@@ -1,5 +1,5 @@
 OpenAirStrike __VERSION__: a new engine that plays **AirStrike 3D**, **AirStrike 2** and
-**AirStrike II: Gulf Thunder** (DivoGames) on Linux, Android and the web. No game data is
+**AirStrike II: Gulf Thunder** (DivoGames) on Linux, Android, the web and the Nintendo 3DS. No game data is
 included: you need your own copy of each game (`pak0.apk`, `pak1.apk`, `pak2.apk`, Gulf
 Thunder also `pak4.apk`, plus the game's `.exe` for the menu texts, and optionally
 `Settings.xml` and `data/gfx/logo2s.tga`), or the original installer zip.
@@ -11,6 +11,7 @@ Thunder also `pak4.apk`, plus the game's `.exe` for the menu texts, and optional
 | `openairstrike-__VERSION__-android.apk` | Android 8.0 or newer, arm64 and x86_64, signed, no game data |
 | `openairstrike-__VERSION__-linux-x86_64.tar.gz` | `as3d_game` and the headless `as3d_sim`, built on Ubuntu 22.04 |
 | `openairstrike-__VERSION__-web.zip` | the web version, to host on any static web server |
+| `openairstrike-__VERSION__-3ds.zip` | Nintendo 3DS: the Homebrew Launcher app, the CIA, `run.ini` and `INSTALL.txt` |
 
 ## Install
 
@@ -28,6 +29,11 @@ imported files in its own storage. "Clear data" in the system settings removes t
 **Web.** Unzip and serve the folder with any static web server (`python3 -m http.server`
 inside it is enough on your own machine), open it in Chromium, Chrome or Edge and pick your
 game files on the start page; they stay in the browser's storage.
+
+**Nintendo 3DS.** Needs custom firmware (Luma3DS) and the Homebrew Launcher, or FBI for the
+CIA; a New 3DS is recommended. Unzip, copy the `3ds/` folder to the root of the SD card and
+your game files under `sdmc:/3ds/openairstrike/<game>/` as `INSTALL.txt` says (the DSP
+firmware dump `sdmc:/3ds/dspfirm.cdc` is needed for sound).
 
 ## Changes
 

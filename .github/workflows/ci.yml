@@ -6,6 +6,10 @@
 # is missing; tools/ci.sh says so in its log. Nothing that holds game data is cached or
 # uploaded.
 #
+# The Nintendo 3DS app (apps/3ds, docs/3ds-port.md) holds no data either: it is compiled in the
+# pinned devkitPro Docker image that tools/3ds_build.sh uses on a developer's machine, and the
+# .3dsx is kept as a build artifact for a test on a console.
+#
 # Not in CI:
 #   * Android (tools/android_build.sh): needs the Android SDK and NDK, and the APK embeds the
 #     games' copyrighted pak files, so it cannot be built without data.
@@ -65,3 +69,28 @@ jobs:
 
       - name: Build the site
         run: AS3D_BUILD_JOBS="$(nproc)" tools/web_build.sh byo
+
+  # The 3DS build: devkitARM, libctru and citro3d come from the pinned Docker image
+  # (tools/3ds_build.sh IMAGE, by digest); libopenmpt's source (the music decoder, SHA-256
+  # pinned by tools/fetch_third_party.sh) is downloaded first so the real configuration compiles,
+  # not the stub. Compile and link only: the app's tests run on a console (docs/3ds-port.md).
+  nintendo-3ds:
+    name: Nintendo 3DS build
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch libopenmpt
+        run: tools/fetch_third_party.sh openmpt
+
+      - name: Build in the devkitPro image
+        run: AS3D_BUILD_JOBS="$(nproc)" tools/3ds_build.sh all
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nintendo-3ds
+          path: |
+            build-3ds/apps/3ds/openairstrike.3dsx
+            build-3ds/apps/3ds/openairstrike.smdh
+          if-no-files-found: error
