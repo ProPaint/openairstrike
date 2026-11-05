@@ -81,11 +81,14 @@ ArchiveKind plainKind(const std::uint8_t* p, size_t n) {
     return ArchiveKind::Unknown;
 }
 
-// A CAB header that fits the bytes that follow it: "MSCF", reserved1 0, cbCabinet, coffFiles.
+// A CAB header: "MSCF", reserved 0, format version 1.3, a first file entry inside both the
+// cabinet and the bytes that follow. The cabinet may claim more bytes than follow (the
+// self-extractors of the survey carry a CAB cut short; its complete files still read).
 bool plausibleCab(const std::uint8_t* p, size_t n, std::uint64_t remaining) {
     if (n < 36 || std::memcmp(p, "MSCF", 4) != 0) return false;
     const std::uint32_t cbCabinet = le32(p + 8), coffFiles = le32(p + 16);
-    return le32(p + 4) == 0 && cbCabinet >= 36 && cbCabinet <= remaining && coffFiles >= 36 && coffFiles < cbCabinet && p[24] <= 1;
+    return le32(p + 4) == 0 && le32(p + 12) == 0 && p[24] == 3 && p[25] == 1 && cbCabinet >= 36 && coffFiles >= 36 &&
+           coffFiles < cbCabinet && coffFiles < remaining && le16(p + 26) > 0;
 }
 
 // The end of the last section of a PE file (where an appended payload starts), 0 if the
@@ -110,11 +113,12 @@ std::uint64_t peOverlayStart(IStream& s) {
 }
 
 // Scans the first `limit` bytes of a stream for a signature, in windows; returns its offset or -1.
-long long scanFor(IStream& s, std::uint64_t limit, const char* sig, size_t len, const std::uint8_t* mustPrecede, size_t precedeLen) {
+long long scanFor(IStream& s, std::uint64_t limit, const char* sig, size_t len, const std::uint8_t* mustPrecede, size_t precedeLen,
+                  std::uint64_t from = 0) {
     const size_t window = 1u << 20;
     std::vector<std::uint8_t> buf(window + len + precedeLen);
     const std::uint64_t total = std::min<std::uint64_t>(limit, s.size());
-    for (std::uint64_t pos = 0; pos < total; pos += window) {
+    for (std::uint64_t pos = from; pos < total; pos += window) {
         const size_t n = static_cast<size_t>(std::min<std::uint64_t>(buf.size(), total - pos));
         if (!s.readAt(static_cast<size_t>(pos), buf.data(), n)) return -1;
         for (long at = findBytes(buf.data(), n, sig, len); at >= 0; at = findBytes(buf.data(), n, sig, len, static_cast<size_t>(at) + 1)) {
@@ -148,9 +152,7 @@ ArchiveKind detect(IStream& s, bool complete, std::uint64_t* offset) {
     // A Windows executable: an installer's stub, or a self-extractor with a container appended.
     std::uint64_t o0, o1, tablePos;
     if (archive_internal::findInnoLoaderTable(s, kStubScanLimit, &o0, &o1, &tablePos)) return ArchiveKind::Inno;
-    static const std::uint8_t kNsisMagic[4] = {0xEF, 0xBE, 0xAD, 0xDE};
-    if (scanFor(s, kStubScanLimit, "NullsoftInst", 12, kNsisMagic, 4) >= 0 || scanFor(s, kStubScanLimit, "NullsoftInst", 12, nullptr, 0) >= 0)
-        return ArchiveKind::Nsis;
+    if (scanFor(s, kStubScanLimit, "NullsoftInst", 12, nullptr, 0) >= 0) return ArchiveKind::Nsis;
     if (!complete) return ArchiveKind::Pe;
     const std::uint64_t overlay = peOverlayStart(s);
     if (overlay > 0 && overlay + 36 <= n) {
@@ -168,6 +170,24 @@ ArchiveKind detect(IStream& s, bool complete, std::uint64_t* offset) {
             }
         }
     }
+    // A CAB anywhere in the file whose header fits what follows it (IExpress and other
+    // self-extractors keep it in a resource section).
+    {
+        std::uint64_t from = 0;
+        for (int tries = 0; tries < 64; ++tries) {
+            const long long at = scanFor(s, kStubScanLimit * 2, "MSCF", 4, nullptr, 0, from);
+            if (at < 0) break;
+            std::uint8_t h[36];
+            const std::uint64_t pos = static_cast<std::uint64_t>(at);
+            if (pos + 36 <= n && s.readAt(static_cast<size_t>(pos), h, 36) && plausibleCab(h, 36, n - pos)) {
+                if (offset) *offset = pos;
+                return ArchiveKind::Cab;
+            }
+            from = pos + 1;
+        }
+    }
+    // A Gentee installer without a CAB inside: its own compressed data.
+    if (scanFor(s, 1u << 20, "Gentee.Installer", 16, nullptr, 0) >= 0) return ArchiveKind::Gentee;
     // A zip appended to an executable: its end record is in the last 64 KB + 22 bytes.
     {
         const size_t tailLen = std::min<size_t>(n, (64u << 10) + 22);
@@ -270,48 +290,48 @@ public:
         return true;
     }
 
+    ~LibarchiveReader() override { closeCursor(); }
+
+    // Entries are read in order through one open handle that is kept between calls, so that
+    // extracting a solid archive's entries in order (7z, RAR, CAB folders) decompresses it once;
+    // an entry before the handle's position reopens the archive.
     bool extract(const ArchiveEntry& e, const ArchiveSink& sink, std::string* error) override {
         if (e.index >= entries_.size()) {
             if (error) *error = "no such entry";
             return false;
         }
-        Client c;
-        struct archive* a = openArchive(&c, error);
-        if (!a) return false;
+        if (!cur_ || e.index < next_) {
+            closeCursor();
+            cur_ = openArchive(&client_, error);
+            if (!cur_) return false;
+            next_ = 0;
+        }
         struct archive_entry* ae = nullptr;
-        bool found = false;
-        for (size_t i = 0; i <= e.index; ++i) {
-            const int r = archive_read_next_header(a, &ae);
+        while (next_ <= e.index) {
+            const int r = archive_read_next_header(cur_, &ae);
             if (r != ARCHIVE_OK && r != ARCHIVE_WARN) {
-                if (error) *error = laError(a, "cannot reach the entry");
-                archive_read_free(a);
+                if (error) *error = laError(cur_, "cannot reach the entry");
+                closeCursor();
                 return false;
             }
-            found = i == e.index;
-        }
-        if (!found) {
-            if (error) *error = "no such entry";
-            archive_read_free(a);
-            return false;
+            ++next_;
         }
         std::vector<std::uint8_t> buf(256u << 10);
         std::uint64_t total = 0;
         for (;;) {
-            const la_ssize_t n = archive_read_data(a, buf.data(), buf.size());
+            const la_ssize_t n = archive_read_data(cur_, buf.data(), buf.size());
             if (n == 0) break;
             if (n < 0) {
-                if (error) *error = laError(a, "cannot read the entry's data");
-                archive_read_free(a);
+                if (error) *error = laError(cur_, "cannot read the entry's data");
+                closeCursor();
                 return false;
             }
             total += static_cast<std::uint64_t>(n);
             if (!sink(buf.data(), static_cast<size_t>(n))) {
                 if (error) *error = "stopped";
-                archive_read_free(a);
-                return false;
+                return false; // the handle stays usable: the next header read skips the rest
             }
         }
-        archive_read_free(a);
         if (e.size != 0 && total != e.size) {
             if (error) *error = "truncated: " + std::to_string(e.size - total) + " bytes short";
             return false;
@@ -357,8 +377,17 @@ private:
         return a;
     }
 
+    void closeCursor() {
+        if (cur_) archive_read_free(cur_);
+        cur_ = nullptr;
+        next_ = 0;
+    }
+
     std::unique_ptr<IStream> stream_;
     ArchiveKind kind_;
+    Client client_;
+    struct archive* cur_ = nullptr;
+    size_t next_ = 0; // the index of the entry the next header read returns
 };
 
 int g_tempCounter = 0;
@@ -378,6 +407,7 @@ const char* archiveKindName(ArchiveKind kind) {
     case ArchiveKind::Iso: return "iso";
     case ArchiveKind::Inno: return "inno";
     case ArchiveKind::Nsis: return "nsis";
+    case ArchiveKind::Gentee: return "gentee";
     case ArchiveKind::Pe: return "pe";
     default: return "unknown";
     }
@@ -434,6 +464,9 @@ std::unique_ptr<ArchiveReader> ArchiveReader::open(std::unique_ptr<IStream> stre
     }
     case ArchiveKind::Nsis:
         if (error) *error = "an NSIS installer, which this app cannot open; install it on a PC and pick the game's data folder";
+        return nullptr;
+    case ArchiveKind::Gentee:
+        if (error) *error = "a Gentee CreateInstall installer, which this app cannot open; install it on a PC and pick the game's data folder";
         return nullptr;
     case ArchiveKind::Pe:
         if (error) *error = "a Windows program, not an installer or archive this app can open";

@@ -28,15 +28,18 @@ enum class ArchiveKind {
     Tar,
     Iso,
     Inno, // an Inno Setup installer (the loader's offset table found and checked)
-    Nsis, // a Nullsoft installer: recognised, not opened
+    Nsis,   // a Nullsoft installer: recognised, not opened
+    Gentee, // a Gentee CreateInstall installer: recognised, not opened
     Pe,   // a Windows executable with nothing this module opens
 };
-const char* archiveKindName(ArchiveKind kind); // "zip", "rar", "7z", "cab", "tar", "iso", "inno", "nsis", "pe", "unknown"
+const char* archiveKindName(ArchiveKind kind); // "zip", "rar", "7z", "cab", "tar", "iso", "inno", "nsis", "gentee", "pe", "unknown"
 
 // What a file is, from its signatures: the head bytes of a plain container; for a Windows
 // executable (MZ) the Inno Setup loader table (anywhere in the stub, with its CRC), the NSIS
-// marker, or a container signature at the start of the executable's overlay (the bytes after
-// its last section) or a zip end record at its end. `offset` (optional) receives where the
+// marker, the Gentee installer's manifest name, a container signature at the start of the
+// executable's overlay (the bytes after its last section), a CAB header whose sizes fit the file
+// anywhere in it (IExpress self-extractors keep the CAB in a resource), or a zip end record at
+// its end. `offset` (optional) receives where the
 // container starts (0 for a plain file; the overlay's for a self-extractor).
 ArchiveKind archiveKind(IStream& stream, std::uint64_t* offset = nullptr);
 ArchiveKind archiveKind(const std::string& path, std::uint64_t* offset = nullptr);
