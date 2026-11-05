@@ -41,19 +41,28 @@ The detailed table is "Implementation status" in `docs/spec/README.md`.
 
 ### Game data you need
 
-You need your own installation of each game you want to play. For every game the engine reads:
+You need your own copy of each game you want to play. For every game the engine reads:
 
 | Game | Key | Executable | Pak files in `data/` |
 |---|---|---|---|
-| AirStrike 3D 1.70 | `as3d` | `AirStrike3D.exe` | `pak0.apk`, `pak1.apk`, `pak2.apk` |
+| AirStrike 3D 1.70 | `as3d` | `AirStrike3D.exe` | `pak0.apk`, `pak1.apk`, `pak2.apk`; `pak3.apk` when a patch added it |
 | AirStrike 2 2.51 | `as2` | `AirStrike3D II.exe` | `pak0.apk`, `pak1.apk`, `pak2.apk` |
 | AirStrike II: Gulf Thunder 2.71 | `gulf` | `AirStrike3D II - Gulf.exe` | `pak0.apk`, `pak1.apk`, `pak2.apk`, `pak4.apk` |
 
 Also used when present: `data/Settings.xml` and `data/gfx/logo2s.tga` (intro pages, version
 line and menu logo). The executable is needed once, to extract the front-end texts that the
-original keeps inside it (`tools/extract_exe_texts.py`). A game is recognised by its pak
-files, which are checked against `tools/games.json`; a different version of a game is not
-accepted.
+original keeps inside it (`tools/extract_exe_texts.py`).
+
+Any build of a game is accepted, not only the versions above (`docs/spec/issues/170`): a pak
+is recognised by the names in its file table, compared with the lists of the owner's paks in
+`tools/pak_entries/` (a pak of another build with a few files more or less passes; one that
+came out of a download truncated is refused with the number of bytes missing), the texts are
+read out of any build of the executable by a hash dictionary (`tools/exe_texts/*.hashes.json`),
+and a copy that keeps `pak0.apk`'s content as loose files under `data/` (the "Full RIP" and
+"Desert Hawk" downloads) gets a `pak0.apk` built from them: the desktop tools do it through
+`--paks DIR` (the file is kept under `third_party_local/built/<key>/`), the Android import and
+the web page as they take the files. AirStrike 3D's `pak3.apk` is the override pak of one
+patch: mounted last when it is there, never required.
 
 Everything goes into gitignored directories:
 

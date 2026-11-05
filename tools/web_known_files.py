@@ -85,9 +85,9 @@ def build(root, previous):
                     sys.exit("web_known_files: %s of %s is not a build games.json lists (sha256 %s)" % (name, key, h))
                 e.update(size=size, sha256=h)
             elif shas:
-                e["sha256"] = shas[0]
                 if "size" in o and o.get("sha256") == shas[0]:
-                    e["size"] = o["size"]
+                    e["size"] = o["size"]  # before the hash: the same key order as a file read from the disk
+                e["sha256"] = shas[0]
             elif "sha256" in o:
                 e.update({k: o[k] for k in ("size", "sha256") if k in o})
             else:

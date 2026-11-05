@@ -113,11 +113,17 @@ files, no support library).
 What the player chooses (Android's document picker, several files at once):
 
 - required: the game's paks from its `data` folder, `pak0.apk`, `pak1.apk`, `pak2.apk`
-  (Gulf Thunder also `pak4.apk`);
+  (Gulf Thunder also `pak4.apk`); any build of them (docs/spec/issues/170: a pak is recognised
+  by the names in its file table, so another release's paks pass; a truncated one is refused
+  with the bytes missing). A copy that has no `pak0.apk` but its content as loose files under
+  `data/` (`gfx/`, `models/`, `textures/`, ...: the "Full RIP" and "Desert Hawk" downloads)
+  works when the whole `data` folder is given: a `pak0.apk` is built from the files. AirStrike
+  3D's `pak3.apk` (a patch's override pak) is taken when there, never needed;
 - recommended: the game's executable (`AirStrike3D.exe`, `AirStrike3D II.exe`,
-  `AirStrike3D II - Gulf.exe`): the menu texts (Information pages, ranks, the sequels' menus
-  and dialogues) are read out of it as `tools/extract_exe_texts.py` does, chosen by its
-  SHA-256, and only the texts file is kept;
+  `AirStrike3D II - Gulf.exe`, or any other build of them, `DesertHawk.exe` or `engine.exe`
+  included): the menu texts (Information pages, ranks, the sequels' menus and dialogues) are
+  read out of it as `tools/extract_exe_texts.py` does, by address for the builds the specs came
+  from and by a hash dictionary for any other, and only the texts file is kept;
 - optional: `data/Settings.xml` (intro pages, version line) and `data/gfx/logo2s.tga` (the
   main menu's logo);
 - or one zip of the game folder, or of the original download (which holds several games: all
@@ -126,15 +132,19 @@ What the player chooses (Android's document picker, several files at once):
 Loose files have the same names in every game, so they are chosen one game at a time; a
 second game is added later the same way. The picked documents are copied into
 `files/games/incoming/` under their names, then `as3d::importGameFiles` (on a background
-thread) recognises them by content: `pak0.apk` by its signature (`as3d/game_data.h`), the
-other paks by the SHA-256 of `tools/games.json` (or by name beside an identified `pak0.apk`
-when no hash is known), the executable by its SHA-256; `Settings.xml` and the logo go to the
-game identified beside them (in a zip: the same game folder, `data/` and `data/gfx/` counting
-as the folder), or, chosen on their own, to the one game already imported. Each game is
-installed in `files/games/<key>/` under the names the APK's assets use (`pak0.apk`...,
-`Settings.xml`, `logo2s.tga`, the texts file of `tools/games.json`), and the screen lists what
-was recognised, ignored or is missing ("AirStrike 2: pak1.apk missing."). A game counts once
-all its paks are there. `incoming/` is removed afterwards. The game (`apps/game/android_main.cpp`)
+thread) recognises them by content: `pak0.apk` by its entry names (`as3d/game_data.h`,
+`identifyPakFile`; the reference lists `tools/pak_entries/` travel in the APK as
+`assets/pak_entries/`), the other paks by a known SHA-256 of `tools/games.json` or by their
+names beside an identified `pak0.apk`, the executable by its SHA-256 or by the hash
+dictionary; `Settings.xml` and the logo go to the game identified beside them (in a zip: the
+same game folder, `data/` and `data/gfx/` counting as the folder), or, chosen on their own, to
+the one game already imported. Each game is installed in `files/games/<key>/` under the names
+the APK's assets use (`pak0.apk`..., `Settings.xml`, `logo2s.tga`, the texts file of
+`tools/games.json`), and the screen lists what was recognised, ignored or is missing
+("AirStrike 2: pak1.apk missing."; "pak2.apk: truncated, 827833 bytes short: unpack it
+again."; "the chosen files: no pak0.apk, but 1142 loose files are 100.0 % of AirStrike II:
+Gulf Thunder's pak0.apk entries: built pak0.apk from them."). A game counts once all its
+required paks are there. `incoming/` is removed afterwards. The game (`apps/game/android_main.cpp`)
 then reads a bundled game from the assets as before and an imported one from the absolute
 `files/games/<key>/`; bundled assets win over an import of the same game. Profiles stay where
 they were (`files/<key>/profile.bin`).
@@ -162,6 +172,21 @@ adb shell am start -n org.as3dport.game/.ImportActivity --ez import_pending true
 
 A personal build with bundled games behaves as before: the import screen never shows unless
 asked for with the extra.
+
+### Where the files come from
+
+What the survey of docs/spec/issues/170 found in the public downloads, and what the import
+does with each (package A; the containers of package B are not opened yet):
+
+| Source | What it holds | Import |
+|---|---|---|
+| The subreddit's pinned zips, myabandonware's "RIP" zips | the game folder: the executable, `data/pak*.apk` | pick the zip, or its unpacked files: works |
+| The gametop installers (Inno Setup), the "Setup" and "Version 2.71" installers | a game folder inside the installer | install on a PC first, then pick the game's `data` folder and executable: works (Air Assault 2 is AirStrike 2, Desert Hawk is Gulf Thunder without pak0) |
+| "Full RIP 2.50" of AirStrike 2, gametop's Desert Hawk | `data/` with pak1, pak2 (pak4) and pak0's content loose | pick the whole `data` folder (and the executable): a pak0.apk is built |
+| The "Windows 10 ... nVidia" packages | a CAB self-extractor holding the executable, `pak3.apk` (AirStrike 3D) and loose files | unpack on a PC first; the loose files, pak3 and the executable are then taken |
+| The pinned AirStrike 3D RAR | the game folder | unpack on a PC first (RAR is not opened yet) |
+| NSIS and DRM-wrapped "Setup" files | nothing the import can read | install on a PC, pick the game's folder |
+| Any `.exe` of a game | another build's texts | taken by the hash dictionary |
 
 ## Building
 
