@@ -499,7 +499,7 @@ void planDesktopLauncher(const Args& a, LoopOptions& o) {
 // 4 pi in 100.
 int writeMarqueeFrames(const Args& a, LauncherScreen& screen, ui::Renderer2D& r, RenderTarget& target,
                        const std::vector<const GameProfile*>& games) {
-    constexpr int kW = 352, kH = 162;
+    constexpr int kW = kMarqueeW, kH = kMarqueeH;
     if (a.width != 800 || a.height != 600) {
         std::fprintf(stderr, "as3d_game: --selector-marquees needs --size 800x600\n");
         return 2;
@@ -511,8 +511,8 @@ int writeMarqueeFrames(const Args& a, LauncherScreen& screen, ui::Renderer2D& r,
     std::string index;
     for (size_t g = 0; g < games.size(); ++g) {
         const bool banner = games[g]->id == GameId::AirStrike3D;
-        const int frames = banner ? 75 : 100;
-        const float loop = banner ? 6.28318531f : 12.5663706f;
+        const int frames = banner ? kBannerLoopFrames : kLogoLoopFrames;
+        const float loop = banner ? kBannerLoopSeconds : kLogoLoopSeconds;
         for (int f = 0; f < frames; ++f) {
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
             target.bind();

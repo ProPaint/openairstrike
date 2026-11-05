@@ -28,27 +28,75 @@
 //   as3d_web_context_lost(), as3d_web_context_restored()   WebGL context loss
 //   as3d_unpack(inDir)               the player's archive or installer (docs/spec/issues/170
 //                                    section 5): see below
+//   as3d_banner_begin(canvas, paks), as3d_banner_frame(i), as3d_banner_end()
+//                                    the selector card's banner from the player's paks, before
+//                                    a game is chosen (docs/web.md): see below
 // Calls to the page: window.as3dPage.{onScreen, onLayout, onTouchMode, onFirstFrame,
 // onFinished, onProfileSaved, onChangeGame}.
+#include <GLES3/gl3.h>
 #include <SDL.h>
 #include <emscripten.h>
 #include <emscripten/html5.h>
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "as3d/core.h"
 #include "as3d/game_data.h"
 #include "as3d/game_import.h"
+#include "as3d/gfx.h"
 #include "game_loop.h"
+#include "game_view.h"
+#include "launcher_screen.h"
 
 namespace {
 
 as3d::SafeInsets g_insets;
 float g_dpi = 0;
+
+// The banner render of as3d_banner_*: a WebGL 2 context of its own on the page's hidden canvas,
+// current only inside the calls (the game's SDL window context, made later or already there,
+// is current again on return), the paks mounted, the mesh, an 800x600 target.
+struct BannerRender {
+    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context = 0;
+    std::unique_ptr<as3d::Vfs> vfs;
+    std::unique_ptr<as3d::DefDatabase> defs;
+    std::unique_ptr<as3d_game::BannerMesh> mesh;
+    std::unique_ptr<as3d::RenderTarget> target;
+    std::vector<unsigned char> frame; // kMarqueeW x kMarqueeH RGBA, the last frame
+};
+std::unique_ptr<BannerRender> g_banner;
+
+// Makes the banner's context current for a scope and the one before current again after.
+struct BannerContextScope {
+    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE previous;
+    explicit BannerContextScope(EMSCRIPTEN_WEBGL_CONTEXT_HANDLE c) : previous(emscripten_webgl_get_current_context()) {
+        emscripten_webgl_make_context_current(c);
+    }
+    ~BannerContextScope() { emscripten_webgl_make_context_current(previous); }
+};
+
+void endBanner() {
+    if (!g_banner) return;
+    if (g_banner->context) {
+        {
+            // The GL objects are deleted in their own context.
+            BannerContextScope scope(g_banner->context);
+            g_banner->target.reset();
+            g_banner->mesh.reset();
+            g_banner->defs.reset();
+            g_banner->vfs.reset();
+        }
+        emscripten_webgl_destroy_context(g_banner->context);
+    }
+    g_banner.reset();
+}
 
 } // namespace
 
@@ -156,6 +204,95 @@ EMSCRIPTEN_KEEPALIVE const char* as3d_unpack(const char* inDir) {
     json += "]}";
     return json.c_str();
 }
+
+// The game selector's banner card from the player's files (docs/web.md, issue 164): the page
+// writes the paks that hold the banner into MEMFS and calls
+//   as3d_banner_begin("#canvas-selector", "/banner/pak0.apk\n...")
+// which makes a WebGL 2 context on that (hidden) canvas, mounts the paks and loads AirStrike 3D's
+// banner object, and returns {"frames": N, "ms": M, "width": W, "height": H} or {"error": "..."};
+// then as3d_banner_frame(i) for i in 0..N-1 returns frame i, W x H RGBA (alpha 255) in the
+// module's memory, valid until the next call: the selector card's marquee box drawn by
+// drawBannerInBox as `as3d_game --headless --selector-marquees` draws it for the bundled site
+// (the same loop: N frames over 2 pi seconds, M ms each). as3d_banner_end() frees it all, the
+// context too, and closes the paks (the page then removes them). Each call leaves the context
+// that was current before it current again.
+EMSCRIPTEN_KEEPALIVE const char* as3d_banner_begin(const char* canvas, const char* paks) {
+    using namespace as3d_game;
+    static std::string json;
+    endBanner();
+    auto fail = [](const std::string& why) {
+        AS3D_WARN("as3d_banner: %s", why.c_str());
+        endBanner();
+        std::string text = why;
+        for (char& c : text)
+            if (c == '"' || c == '\\' || static_cast<unsigned char>(c) < 0x20) c = '\'';
+        json = "{\"error\": \"" + text + "\"}";
+        return json.c_str();
+    };
+    std::unique_ptr<BannerRender> b(new BannerRender());
+    EmscriptenWebGLContextAttributes attr;
+    emscripten_webgl_init_context_attributes(&attr);
+    attr.majorVersion = 2;
+    attr.minorVersion = 0;
+    attr.alpha = false;
+    attr.depth = false;
+    attr.stencil = false;
+    attr.antialias = false;
+    attr.preserveDrawingBuffer = false;
+    attr.enableExtensionsByDefault = true;
+    b->context = emscripten_webgl_create_context(canvas ? canvas : "", &attr);
+    if (b->context <= 0) return fail("no WebGL 2 context");
+    g_banner = std::move(b);
+    BannerRender& r = *g_banner;
+    BannerContextScope scope(r.context);
+    GameOptions files;
+    files.game = &as3d::gameProfile(as3d::GameId::AirStrike3D);
+    for (const char *p = paks ? paks : "", *q; *p; p = *q ? q + 1 : q) {
+        q = std::strchr(p, '\n');
+        if (!q) q = p + std::strlen(p);
+        if (q > p) files.paks.emplace_back(p, static_cast<size_t>(q - p));
+    }
+    std::string err;
+    r.vfs.reset(new as3d::Vfs());
+    if (files.paks.empty() || !mountGameFiles(files, *r.vfs, nullptr, &err)) return fail(err.empty() ? "no paks" : err);
+    r.defs.reset(new as3d::DefDatabase());
+    r.mesh.reset(new BannerMesh());
+    if (!r.defs->load(*r.vfs) || !r.mesh->init(*r.vfs, *r.defs, &err)) return fail("no banner: " + err);
+    r.target.reset(new as3d::RenderTarget());
+    if (!r.target->create(800, 600, 4)) return fail("no render target");
+    r.frame.assign(static_cast<size_t>(kMarqueeW) * kMarqueeH * 4, 255);
+    char buf[128];
+    std::snprintf(buf, sizeof buf, "{\"frames\": %d, \"ms\": %d, \"width\": %d, \"height\": %d}", kBannerLoopFrames,
+                  static_cast<int>(std::lround(1000.0f * kBannerLoopSeconds / static_cast<float>(kBannerLoopFrames))),
+                  kMarqueeW, kMarqueeH);
+    json = buf;
+    return json.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE const unsigned char* as3d_banner_frame(int index) {
+    using namespace as3d_game;
+    if (!g_banner || !g_banner->target || index < 0 || index >= kBannerLoopFrames) return nullptr;
+    BannerRender& r = *g_banner;
+    BannerContextScope scope(r.context);
+    const as3d::ui::RectF box{(800 - kMarqueeW) / 2.0f, (600 - kMarqueeH) / 2.0f, static_cast<float>(kMarqueeW),
+                              static_cast<float>(kMarqueeH)};
+    r.target->bind();
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    drawBannerInBox(*r.mesh, box, kBannerLoopSeconds * static_cast<float>(index) / static_cast<float>(kBannerLoopFrames),
+                    800, 600, true);
+    as3d::Image full;
+    if (!r.target->readPixels(full)) return nullptr;
+    for (int y = 0; y < kMarqueeH; ++y)
+        for (int x = 0; x < kMarqueeW; ++x) {
+            const size_t from = (static_cast<size_t>(static_cast<int>(box.y) + y) * 800 + static_cast<size_t>(box.x) + x) * 4;
+            const size_t to = (static_cast<size_t>(y) * kMarqueeW + x) * 4;
+            for (int c = 0; c < 3; ++c) r.frame[to + c] = full.rgba[from + c];
+        }
+    return r.frame.data();
+}
+
+EMSCRIPTEN_KEEPALIVE void as3d_banner_end() { endBanner(); }
 
 } // extern "C"
 

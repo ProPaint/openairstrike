@@ -34,6 +34,20 @@ const char* gameLogoPath(as3d::GameId id);
 // The kind of marquee a game's card has.
 as3d::ui::Marquee gameMarquee(as3d::GameId id);
 
+// The web page's marquee loops (docs/web.md): a box of kMarqueeW x kMarqueeH virtual pixels (the
+// marquee of a 380 wide card) of an 800x600 framebuffer, looping exactly (GameSelector::
+// setLoopFit): the banner's 2 pi seconds in 75 frames, the logos' 4 pi in 100. Drawn by
+// `as3d_game --headless --selector-marquees` for the bundled site and by the bring-your-own
+// page's as3d_banner_* exports (apps/web/web_main.cpp) from the player's own files.
+constexpr int kMarqueeW = 352, kMarqueeH = 162;
+constexpr int kBannerLoopFrames = 75, kLogoLoopFrames = 100;
+constexpr float kBannerLoopSeconds = 6.28318531f, kLogoLoopSeconds = 12.5663706f;
+
+// The first game's banner in the marquee `box` (virtual pixels) of the bound framebuffer of
+// fbWidth x fbHeight at the selector's `clock`: the selector card's banner drawer.
+void drawBannerInBox(BannerMesh& banner, const as3d::ui::RectF& box, float clock, int fbWidth, int fbHeight,
+                     bool loopFit);
+
 class LauncherScreen {
 public:
     LauncherScreen() = default;

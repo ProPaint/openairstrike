@@ -1,5 +1,6 @@
 #include "launcher_screen.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
@@ -52,6 +53,24 @@ ui::Marquee gameMarquee(GameId id) {
         case GameId::GulfThunder: return ui::Marquee::Emblem;
         default: return ui::Marquee::None;
     }
+}
+
+void drawBannerInBox(BannerMesh& banner, const ui::RectF& box, float clock, int fbWidth, int fbHeight, bool loopFit) {
+    // The mesh fills the marquee box with the part of the 800x200 banner viewport that the title
+    // covers (ui::kBannerContent), the viewport scaled and placed to do so, scissored to the box.
+    const ui::BannerContent& k = ui::kBannerContent;
+    float vw = box.w / (k.x1 - k.x0);
+    vw = std::min(vw, box.h / (k.y1 - k.y0) * 4.0f);
+    const float vh = vw * 0.25f;
+    const float vx = box.x + box.w * 0.5f - (k.x0 + k.x1) * 0.5f * vw;
+    const float vy = box.y + box.h * 0.5f - (k.y0 + k.y1) * 0.5f * vh;
+    const ui::Mapping m = ui::computeMapping(fbWidth, fbHeight);
+    auto px = [](float v) { return static_cast<int>(std::lround(v)); };
+    const int x0 = px(m.toFbX(vx)), y0 = px(m.toFbY(vy)), x1 = px(m.toFbX(vx + vw)), y1 = px(m.toFbY(vy + vh));
+    const int cx0 = px(m.toFbX(box.x)), cy0 = px(m.toFbY(box.y)), cx1 = px(m.toFbX(box.x + box.w)),
+              cy1 = px(m.toFbY(box.y + box.h));
+    const int clip[4] = {cx0, cy0, cx1 - cx0, cy1 - cy0};
+    banner.draw(clock, fbWidth, fbHeight, x0, y0, x1 - x0, y1 - y0, clip, loopFit);
 }
 
 bool LauncherScreen::init(const std::vector<LauncherEntry>& games, int preselected, bool touch, std::string* error) {
@@ -111,22 +130,7 @@ bool LauncherScreen::init(const std::vector<LauncherEntry>& games, int preselect
     sel_->setTouchMode(touch);
     if (banner_.valid()) {
         sel_->setBannerDrawer([this](const ui::RectF& box, float clock) {
-            // The mesh fills the marquee box with the part of the 800x200 banner viewport that
-            // the title covers (ui::kBannerContent), the viewport scaled and placed to do so,
-            // scissored to the box.
-            const ui::BannerContent& k = ui::kBannerContent;
-            float vw = box.w / (k.x1 - k.x0);
-            vw = std::min(vw, box.h / (k.y1 - k.y0) * 4.0f);
-            const float vh = vw * 0.25f;
-            const float vx = box.x + box.w * 0.5f - (k.x0 + k.x1) * 0.5f * vw;
-            const float vy = box.y + box.h * 0.5f - (k.y0 + k.y1) * 0.5f * vh;
-            const ui::Mapping m = ui::computeMapping(fbW_, fbH_);
-            auto px = [](float v) { return static_cast<int>(std::lround(v)); };
-            const int x0 = px(m.toFbX(vx)), y0 = px(m.toFbY(vy)), x1 = px(m.toFbX(vx + vw)), y1 = px(m.toFbY(vy + vh));
-            const int cx0 = px(m.toFbX(box.x)), cy0 = px(m.toFbY(box.y)), cx1 = px(m.toFbX(box.x + box.w)),
-                      cy1 = px(m.toFbY(box.y + box.h));
-            const int clip[4] = {cx0, cy0, cx1 - cx0, cy1 - cy0};
-            banner_.draw(clock, fbW_, fbH_, x0, y0, x1 - x0, y1 - y0, clip, loopFit_);
+            drawBannerInBox(banner_, box, clock, fbW_, fbH_, loopFit_);
         });
     }
     return true;
