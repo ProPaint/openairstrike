@@ -757,15 +757,16 @@
       }, unpack);
       for (const [g, files] of Object.entries(res.games)) chosen[g] = Object.assign(chosen[g] || {}, files);
       await renderFileList(res.notes);
-      // Forced: that game's files must all be there. Adding: the game being added must be
-      // complete. Otherwise any playable game's will do.
+      // The games whose files are all there are kept, whichever game the page starts.
+      const complete = Object.keys(chosen).filter((g) => games[g] && !AS3DFiles.missing(chosen[g], g).length);
+      // Forced: that game's files must all be there. Adding: these files completed a game, the
+      // one listed or any other (an installer of another game than the listed one). Otherwise
+      // any playable game's will do.
       const ready = FORCED ? !AS3DFiles.missing(chosen[FORCED], FORCED).length
-                  : adding ? !AS3DFiles.missing(chosen[target], target).length
+                  : adding ? complete.some((g) => res.games[g])
                   : startable().length > 0;
       const miss = ready ? [] : AS3DFiles.missing(chosen[target], target);
       const bad = res.notes.filter((n) => !n.ok).map((n) => n.text);
-      // The games whose files are all there are kept, whichever game the page starts.
-      const complete = Object.keys(chosen).filter((g) => games[g] && !AS3DFiles.missing(chosen[g], g).length);
       const others = complete.filter((g) => g !== target && res.games[g]);
       const info = others.map((g) => `${titleOf(g)}: files recognised and stored` +
         (games[g].playable ? '' : '; the game is not playable yet'));
@@ -785,7 +786,7 @@
       if (adding) {
         // The engine may already hold the first game: start over with every game offered.
         status.textContent = 'Stored. Reloading...';
-        log('AS3D_WEB files_added=' + target);
+        log('AS3D_WEB files_added=' + complete.filter((g) => res.games[g]).join(','));
         location.reload();
         return;
       }
