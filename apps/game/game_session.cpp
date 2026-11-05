@@ -52,6 +52,15 @@ bool mountGameFiles(const GameOptions& options, Vfs& vfs, std::string* where, st
             std::unique_ptr<IStream> stream = openPlatformStream(pak);
             std::unique_ptr<IFileSource> source = stream ? makePakSource(std::move(stream)) : nullptr;
             if (!source) {
+                // A pak the profile lists as optional (AirStrike 3D's pak3.apk, the override pak
+                // of one patch) may be absent from a copy of the game: the hosts list the
+                // profile's paks without looking, so the gap is closed here.
+                const size_t slash = pak.find_last_of("/\\");
+                const std::string name = slash == std::string::npos ? pak : pak.substr(slash + 1);
+                if (!stream && options.game && pakIsOptional(*options.game, name)) {
+                    AS3D_INFO("mount: optional %s is not there, skipped", pak.c_str());
+                    continue;
+                }
                 if (error) *error = "cannot mount " + pak;
                 return false;
             }

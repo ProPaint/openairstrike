@@ -176,13 +176,13 @@ GameRules rulesGulf() {
 
 const GameProfile kProfiles[kGameCount] = {
     {GameId::AirStrike3D, "as3d", "AirStrike 3D", "1.70", "AirStrike3D.exe",
-     {"pak0.apk", "pak1.apk", "pak2.apk", nullptr}, "texts_v170.txt", "v170", 24,
+     {"pak0.apk", "pak1.apk", "pak2.apk", "pak3.apk", nullptr}, {"pak3.apk", nullptr}, "texts_v170.txt", "v170", 24,
      FrontendStyle::V170Menus, rulesAs3d()},
     {GameId::AirStrike2, "as2", "AirStrike 2", "2.51", "AirStrike3D II.exe",
-     {"pak0.apk", "pak1.apk", "pak2.apk", nullptr}, "texts_as2.txt", "v251", 28,
+     {"pak0.apk", "pak1.apk", "pak2.apk", nullptr}, {nullptr}, "texts_as2.txt", "v251", 28,
      FrontendStyle::SequelMenus, rulesAs2()},
     {GameId::GulfThunder, "gulf", "AirStrike II: Gulf Thunder", "2.71", "AirStrike3D II - Gulf.exe",
-     {"pak0.apk", "pak1.apk", "pak2.apk", "pak4.apk", nullptr}, "texts_gulf.txt", "v271", 28,
+     {"pak0.apk", "pak1.apk", "pak2.apk", "pak4.apk", nullptr}, {nullptr}, "texts_gulf.txt", "v271", 28,
      FrontendStyle::SequelMenus, rulesGulf()},
 };
 
@@ -200,5 +200,18 @@ const GameProfile* findGameProfile(std::string_view key) {
 }
 
 const GameRules& defaultGameRules() { return kProfiles[0].rules; }
+
+bool pakIsOptional(const GameProfile& game, std::string_view pak) {
+    for (const char* const* p = game.optionalPaks; *p; ++p)
+        if (pak == *p) return true;
+    return false;
+}
+
+int requiredPakCount(const GameProfile& game) {
+    int n = 0;
+    for (const char* const* p = game.paks; *p; ++p)
+        if (!pakIsOptional(game, *p)) ++n;
+    return n;
+}
 
 } // namespace as3d

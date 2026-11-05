@@ -1,0 +1,1 @@
+models\mapobjects\elektro\power_plant.tga

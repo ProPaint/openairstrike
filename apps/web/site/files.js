@@ -492,13 +492,16 @@ window.AS3DFiles = (function () {
     if (!known) {
       const r = await fetch('known_files.json?v=' + ((window.AS3D_BUILD || {}).stamp || ''));
       const k = (await r.json()).games;
-      // A file name (lower case) -> what the games call it; a SHA-256 -> [{ game, name }].
+      // A file name (lower case) -> what the games call it; a SHA-256 -> [{ game, name }]
+      // (every known build of a pak: "sha256" the owner's, "sha256_also" the others, issue 170).
       byName = {};
       byHash = {};
       for (const [g, def] of Object.entries(k)) {
         for (const [name, f] of Object.entries(def.files)) {
           (byName[name.toLowerCase()] = byName[name.toLowerCase()] || { name, games: [] }).games.push(g);
-          if (f.sha256) (byHash[f.sha256] = byHash[f.sha256] || []).push({ game: g, name });
+          for (const h of [f.sha256].concat(f.sha256_also || [])) {
+            if (h) (byHash[h] = byHash[h] || []).push({ game: g, name, build: h === f.sha256 ? '' : 'another build' });
+          }
         }
       }
       known = k;
@@ -542,10 +545,11 @@ window.AS3DFiles = (function () {
         notes.push({ name, game: g, ok: true, text: `${name}: OK` });
         continue;
       }
-      // Size first: no need to hash a file no game has in that size.
+      // Size first: no need to hash a file no game has in that size (a file with other known
+      // builds, whose sizes are not listed, is always hashed).
       const cands = byName[name.toLowerCase()].games.filter((g) => {
         const k = kn[g].files[name];
-        return !k.size || k.size === f.size;
+        return !k.size || k.size === f.size || (k.sha256_also && k.sha256_also.length);
       });
       if (!cands.length) {
         notes.push({ name, ok: false, text: `${name}: ${f.size} bytes, not the file of any game this page knows (${titles})` });
@@ -576,7 +580,7 @@ window.AS3DFiles = (function () {
       }
       const blob = new Blob([bytes]);
       for (const x of hits) keep(x.game, name, blob);
-      const of = hits.map((x) => kn[x.game].title).join(' and ');
+      const of = hits.map((x) => kn[x.game].title + (x.build ? ` (${x.build})` : '')).join(' and ');
       notes.push({ name, game: hits[0].game, ok: true, text: `${name}: OK, ${of}` });
     }
     if (progress) progress('', 1);

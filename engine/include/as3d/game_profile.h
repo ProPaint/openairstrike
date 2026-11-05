@@ -125,6 +125,9 @@ struct GameProfile {
     const char* version = "";   // of the executable the specs were taken from
     const char* exeName = "";
     const char* paks[kMaxPaks + 1] = {}; // mount order, later ones override; nullptr-terminated
+    // Names of `paks` a copy of the game may lack (AirStrike 3D's pak3.apk, the override pak
+    // of one patch, docs/spec/issues/170): mounted when there, a game is complete without them.
+    const char* optionalPaks[kMaxPaks + 1] = {};
     const char* textsFile = ""; // texts extracted from the user's own executable
     const char* builtinSet = ""; // name of the builtin table and arity list
     int globalCount = 0;        // script globals of the executable
@@ -133,6 +136,10 @@ struct GameProfile {
 };
 
 const GameProfile& gameProfile(GameId id);
+// Whether `pak` (a name of GameProfile::paks) may be missing from a copy of the game.
+bool pakIsOptional(const GameProfile& game, std::string_view pak);
+// The paks of the profile a copy must have: `paks` without the optional ones.
+int requiredPakCount(const GameProfile& game);
 // nullptr if the key names no game.
 const GameProfile* findGameProfile(std::string_view key);
 // The first game's rules: the default wherever none is given, so that code and tests written

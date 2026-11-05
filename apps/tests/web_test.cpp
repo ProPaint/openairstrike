@@ -75,7 +75,10 @@ TEST_CASE("web: known_files.json matches the owner's game files") {
         ++entries;
         const bool required = m[2] == "true";
         if (required) ++paks;
-        CHECK(required == (m[1].str().size() == 8 && m[1].str().rfind("pak", 0) == 0));
+        // Every pak is required, except an optional one of the profile (AirStrike 3D's pak3.apk,
+        // which has no size here: it is not the owner's, so the regex passes it over).
+        const bool isPak = m[1].str().size() == 8 && m[1].str().rfind("pak", 0) == 0;
+        CHECK(required == (isPak && !pakIsOptional(gameProfile(GameId::AirStrike3D), m[1].str())));
         std::FILE* f = std::fopen((orig + m[5].str()).c_str(), "rb");
         if (!f) continue;
         std::fseek(f, 0, SEEK_END);

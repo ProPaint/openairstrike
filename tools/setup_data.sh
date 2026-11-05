@@ -55,12 +55,13 @@ ls "$DEST" "$DEST/data"
 
 if [ -n "$EXTRACT" ]; then
     PAKARGS=()
-    for p in $PAKS; do PAKARGS+=("$DEST/data/$p"); done
+    for p in $PAKS; do [ -f "$DEST/data/$p" ] && PAKARGS+=("$DEST/data/$p"); done  # an optional pak may be absent
     rm -rf "$EXTRACT"; mkdir -p "$EXTRACT"
     ( ulimit -v 6000000; timeout 600 python3 "$HERE/tools/paktool.py" extract "$EXTRACT" "${PAKARGS[@]}" )
     echo "setup_data: $KEY: extracted to $EXTRACT (paks in order: $PAKS)"
     echo "  files per pak (before overrides):"
     for p in $PAKS; do
+        [ -f "$DEST/data/$p" ] || continue
         n="$(python3 "$HERE/tools/paktool.py" list "$DEST/data/$p" | wc -l)"
         echo "    $p: $n list lines"
     done

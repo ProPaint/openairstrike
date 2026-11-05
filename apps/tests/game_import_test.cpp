@@ -18,7 +18,9 @@
 #include "as3d/game_data.h"
 #include "as3d/game_import.h"
 #include "as3d/sha256.h"
+#include "as3d/pak_file.h"
 #include "as3d/zip_reader.h"
+#include "synthetic_games.h"
 #include "test_data.h"
 
 using namespace as3d;
@@ -81,33 +83,6 @@ std::string allNotes(const ImportResult& r) {
     for (const std::string& n : r.notes) s += n + "\n";
     return s;
 }
-
-// Puts the built-in tables back at the end of a test.
-struct TableGuard {
-    ~TableGuard() {
-        setPakSignaturesForTest(nullptr, 0);
-        setKnownPakHashesForTest(nullptr, 0);
-    }
-};
-
-// Synthetic pak0 contents with signatures for the three games, and no known pak hashes.
-struct FakeGames {
-    std::string pak0[3];
-    PakSignature sigs[3];
-    explicit FakeGames(const fs::path& scratch) {
-        for (int i = 0; i < 3; ++i) {
-            pak0[i] = std::string(70000 + i, static_cast<char>('A' + i));
-            const fs::path p = scratch / ("sig" + std::to_string(i)) / "pak0.apk";
-            writeBytes(p, pak0[i]);
-            std::uint64_t size = 0, hash = 0;
-            readPakSignature(p.string(), &size, &hash);
-            sigs[i] = {static_cast<GameId>(i), size, hash};
-        }
-        setPakSignaturesForTest(sigs, 3);
-        static const KnownPakHash none[1] = {{GameId::AirStrike3D, "", ""}};
-        setKnownPakHashesForTest(none, 0);
-    }
-};
 
 // ---- a zip writer for the tests (stored, or deflated from a precomputed stream)
 void put16(std::string& s, unsigned v) {
@@ -411,172 +386,337 @@ TEST_CASE("exe texts: the sequels' address lists are tools/exe_texts/<key>.json'
     CHECK(err.find("MZ") != std::string::npos);
 }
 
-TEST_CASE("exe texts: the built-in pak hashes are tools/games.json's") {
+TEST_CASE("the built-in pak hashes are tools/games.json's (every build of every pak)") {
     const std::string json = readBytes(std::string(AS3D_REPO_ROOT) + "/tools/games.json");
     REQUIRE_FALSE(json.empty());
-    // Every pak of every profile has a hash in games.json, and the importer knows the same
-    // one: an unrelated pak1.apk is refused, so the table must be right. Checked through an
-    // import that offers each game's real name with a fake content: refused by hash.
-    int hashes = 0;
-    for (size_t p = json.find("\"pak_sha256\""); p != std::string::npos; p = json.find("\"pak_sha256\"", p + 1)) {
-        const size_t end = json.find('}', p);
-        for (size_t q = json.find(".apk\": \"", p); q != std::string::npos && q < end; q = json.find(".apk\": \"", q + 1))
-            ++hashes;
-    }
-    CHECK(hashes == 10);
+    // Every hash listed under pak_sha256 (lists per name since issue 170) is in the importer's
+    // table, and the importer has no other: an unrelated pak is refused by hash first.
     const std::string src = readBytes(std::string(AS3D_REPO_ROOT) + "/engine/src/game/game_import.cpp");
+    std::vector<std::string> hashes;
     for (size_t p = json.find("\"pak_sha256\""); p != std::string::npos; p = json.find("\"pak_sha256\"", p + 1)) {
         const size_t end = json.find('}', p);
-        for (size_t q = json.find(".apk\": \"", p); q != std::string::npos && q < end; q = json.find(".apk\": \"", q + 1)) {
-            const std::string sha = json.substr(q + 8, 64);
-            CHECK(src.find(sha) != std::string::npos);
+        for (size_t q = json.find('"', p + 12); q != std::string::npos && q < end; q = json.find('"', q + 1)) {
+            const size_t e = json.find('"', q + 1);
+            if (e == std::string::npos || e > end) break;
+            const std::string s = json.substr(q + 1, e - q - 1);
+            if (s.size() == 64 && s.find_first_not_of("0123456789abcdef") == std::string::npos) hashes.push_back(s);
+            q = e;
         }
     }
+    CHECK(hashes.size() == 15);
+    for (const std::string& h : hashes) CHECK(src.find(h) != std::string::npos);
+    // And the table has no hash the file does not: count the 64-hex literals of the table.
+    const size_t tb = src.find("kBuiltinPakHashes[] = {");
+    const size_t te = src.find("};", tb);
+    int inTable = 0;
+    for (size_t q = src.find('"', tb); q != std::string::npos && q < te; q = src.find('"', q + 1)) {
+        const size_t e = src.find('"', q + 1);
+        const std::string s = src.substr(q + 1, e - q - 1);
+        if (s.size() == 64) ++inTable;
+        q = e;
+    }
+    CHECK(inTable == static_cast<int>(hashes.size()));
 }
 
 TEST_CASE("import: loose files of one game, then what is missing, then the rest") {
-    TableGuard guard;
+    synth::Games games;
     TempDir tmp("loose");
-    FakeGames fake(tmp.path);
-    const fs::path in = tmp.path / "incoming", games = tmp.path / "games";
+    const fs::path in = tmp.path / "incoming", games_ = tmp.path / "games";
 
     // AirStrike 2: three paks, Settings.xml, the logo, and things that are not game files.
-    writeBytes(in / "pak0.apk", fake.pak0[1]);
-    writeBytes(in / "PAK1.APK", "second pak");
-    writeBytes(in / "pak2.apk", "third pak");
+    REQUIRE(games.pak(in / "pak0.apk", "as2", "pak0.apk"));
+    REQUIRE(games.pak(in / "PAK1.APK", "as2", "pak1.apk"));
+    REQUIRE(games.pak(in / "pak2.apk", "as2", "pak2.apk"));
+    REQUIRE(games.pak(in / "pak7.apk", "as2", "pak1.apk")); // a pak of the game's names under a name the game has not
     writeBytes(in / "Settings.xml", "<settings/>");
     writeBytes(in / "logo2s.tga", "logo");
     writeBytes(in / "readme.txt", "hello");
-    writeBytes(in / "pak7.apk", "not one of this game's paks");
-    ImportResult r = importGameFiles(in.string(), games.string());
+    ImportResult r = importGameFiles(in.string(), games_.string());
     INFO(allNotes(r));
     REQUIRE(r.imported == std::vector<std::string>{"as2"});
-    CHECK(readBytes(games / "as2/pak0.apk") == fake.pak0[1]);
-    CHECK(readBytes(games / "as2/pak1.apk") == "second pak"); // the installed name is lower case
-    CHECK(readBytes(games / "as2/pak2.apk") == "third pak");
-    CHECK(readBytes(games / "as2/Settings.xml") == "<settings/>");
-    CHECK(readBytes(games / "as2/logo2s.tga") == "logo");
+    CHECK(readBytes(games_ / "as2/pak0.apk") == readBytes(in / "../games/as2/pak0.apk"));
+    CHECK(identifyPak0File((games_ / "as2/pak0.apk").string()) == &gameProfile(GameId::AirStrike2));
+    CHECK(there(games_ / "as2/pak1.apk")); // the installed name is lower case
+    CHECK(there(games_ / "as2/pak2.apk"));
+    CHECK(readBytes(games_ / "as2/Settings.xml") == "<settings/>");
+    CHECK(readBytes(games_ / "as2/logo2s.tga") == "logo");
     CHECK_FALSE(there(in / "pak0.apk")); // used files are moved
     CHECK(there(in / "readme.txt"));     // the rest stays for the caller to remove
     CHECK(hasNote(r, "readme.txt: not a game file, ignored."));
     CHECK(hasNote(r, "pak7.apk: AirStrike 2 has no pak7.apk, ignored."));
+    CHECK(hasNote(r, "AirStrike 2: imported pak0.apk, pak1.apk, pak2.apk, Settings.xml, logo2s.tga."));
     CHECK(hasNote(r, "AirStrike 2: ready to play."));
     CHECK(hasNote(r, "the executable (AirStrike3D II.exe) for the menu texts"));
-    CHECK_FALSE(there(games / ".import-staging"));
-    CHECK(importedGameComplete(games.string(), gameProfile(GameId::AirStrike2)));
+    CHECK_FALSE(there(games_ / ".import-staging"));
+    CHECK(importedGameComplete(games_.string(), gameProfile(GameId::AirStrike2)));
 
     // Gulf Thunder with two of its four paks: imported but not complete.
     fs::remove_all(in);
-    writeBytes(in / "pak0.apk", fake.pak0[2]);
-    writeBytes(in / "pak1.apk", "gulf 1");
-    r = importGameFiles(in.string(), games.string());
+    REQUIRE(games.pak(in / "pak0.apk", "gulf", "pak0.apk"));
+    REQUIRE(games.pak(in / "pak1.apk", "gulf", "pak1.apk"));
+    r = importGameFiles(in.string(), games_.string());
     CHECK(r.imported.empty());
     CHECK(hasNote(r, "AirStrike II: Gulf Thunder: pak2.apk missing."));
     CHECK(hasNote(r, "AirStrike II: Gulf Thunder: pak4.apk missing."));
-    CHECK(importedGames(games.string()).size() == 1);
+    CHECK(importedGames(games_.string()).size() == 1);
 
-    // The other two later, on their own: known by their hash.
-    static std::string h2, h4;
-    h2 = sha256Hex("gulf 2", 6);
-    h4 = sha256Hex("gulf 4", 6);
-    const KnownPakHash table[2] = {{GameId::GulfThunder, "pak2.apk", h2.c_str()}, {GameId::GulfThunder, "pak4.apk", h4.c_str()}};
-    setKnownPakHashesForTest(table, 2);
+    // The other two later, on their own: pak4 by its names (only Gulf Thunder has them),
+    // pak2 by the names both sequels share, resolved by the pak4 beside it; Settings.xml
+    // follows them.
     fs::remove_all(in);
-    writeBytes(in / "pak2.apk", "gulf 2");
-    writeBytes(in / "pak4.apk", "gulf 4");
-    writeBytes(in / "Settings.xml", "<gulf/>"); // beside Gulf Thunder's paks: Gulf Thunder's
-    r = importGameFiles(in.string(), games.string());
+    REQUIRE(games.pak(in / "pak2.apk", "gulf", "pak2.apk"));
+    REQUIRE(games.pak(in / "pak4.apk", "gulf", "pak4.apk"));
+    writeBytes(in / "Settings.xml", "<gulf/>");
+    r = importGameFiles(in.string(), games_.string());
     INFO(allNotes(r));
     CHECK(r.imported == std::vector<std::string>{"gulf"});
     CHECK(hasNote(r, "AirStrike II: Gulf Thunder: imported pak2.apk, pak4.apk, Settings.xml."));
-    CHECK(readBytes(games / "gulf/Settings.xml") == "<gulf/>");
+    CHECK(readBytes(games_ / "gulf/Settings.xml") == "<gulf/>");
+    // The shared pak2 alone: nothing tells the games apart.
+    fs::remove_all(in);
+    REQUIRE(games.pak(in / "pak2.apk", "as2", "pak2.apk"));
+    r = importGameFiles(in.string(), games_.string());
+    CHECK(r.imported.empty());
+    CHECK(hasNote(r, "pak2.apk: the pak2.apk of more than one game (import it with the game's pak0.apk), ignored."));
     // On its own with two games there: nowhere to put it.
     fs::remove_all(in);
     writeBytes(in / "logo2s.tga", "which game?");
-    r = importGameFiles(in.string(), games.string());
+    r = importGameFiles(in.string(), games_.string());
     CHECK(r.imported.empty());
     CHECK(hasNote(r, "logo2s.tga: no game to attach it to"));
-    CHECK_FALSE(there(games / "gulf/logo2s.tga"));
+    CHECK_FALSE(there(games_ / "gulf/logo2s.tga"));
     CHECK(there(in / "logo2s.tga"));
-    REQUIRE(importedGames(games.string()).size() == 2);
-    CHECK(importedGames(games.string())[0]->id == GameId::AirStrike2);
-    CHECK(importedGames(games.string())[1]->id == GameId::GulfThunder);
+    REQUIRE(importedGames(games_.string()).size() == 2);
+    CHECK(importedGames(games_.string())[0]->id == GameId::AirStrike2);
+    CHECK(importedGames(games_.string())[1]->id == GameId::GulfThunder);
 
-    // A pak with a known hash for its name but other content is refused beside its pak0.
+    // Beside its pak0: a pak2 with other names is refused, a pak1 of another build (19 of
+    // 20 names, one new) is taken, one with 15 of 20 is not, a truncated one and a file that
+    // is no pak say so.
     fs::remove_all(in);
-    writeBytes(in / "pak0.apk", fake.pak0[2]);
-    writeBytes(in / "pak2.apk", "not gulf 2");
-    r = importGameFiles(in.string(), games.string());
+    REQUIRE(games.pak(in / "pak0.apk", "gulf", "pak0.apk"));
+    REQUIRE(games.pak(in / "pak2.apk", "as3d", "pak2.apk"));
+    std::vector<std::string> pak1 = synth::refNames("gulf", "pak1.apk");
+    pak1[0] = "maps\\gulf\\bonus.hsc";
+    REQUIRE(synth::writeNamedPak(in / "pak1.apk", pak1));
+    r = importGameFiles(in.string(), games_.string());
+    INFO(allNotes(r));
     CHECK(hasNote(r, "pak2.apk: not AirStrike II: Gulf Thunder's pak2.apk (different content), ignored."));
-    CHECK(readBytes(games / "gulf/pak2.apk") == "gulf 2");
+    CHECK(hasNote(r, "AirStrike II: Gulf Thunder: imported pak0.apk, pak1.apk."));
+    CHECK(readBytes(games_ / "gulf/pak1.apk").find("bonus.hsc") != std::string::npos);
+    fs::remove_all(in);
+    REQUIRE(games.pak(in / "pak0.apk", "gulf", "pak0.apk"));
+    for (int i = 0; i < 5; ++i) pak1[i] = "maps\\gulf\\new" + std::to_string(i) + ".hsc";
+    REQUIRE(synth::writeNamedPak(in / "pak1.apk", pak1));
+    REQUIRE(games.pak(in / "pak4.apk", "gulf", "pak4.apk"));
+    const std::string whole4 = readBytes(in / "pak4.apk");
+    writeBytes(in / "pak4.apk", whole4.substr(0, whole4.size() - 30));
+    writeBytes(in / "pak2.apk", "x");
+    r = importGameFiles(in.string(), games_.string());
+    INFO(allNotes(r));
+    CHECK(hasNote(r, "pak1.apk: not AirStrike II: Gulf Thunder's pak1.apk (different content), ignored."));
+    CHECK(hasNote(r, "pak4.apk: truncated, 30 bytes short: unpack it again."));
+    CHECK(hasNote(r, "pak2.apk: not a pak archive (too short)."));
+    CHECK(readBytes(games_ / "gulf/pak1.apk").find("bonus.hsc") != std::string::npos); // the earlier one stays
+
+    // A known hash is taken before anything is looked at, even for a file that is no pak.
+    static std::string h4;
+    h4 = sha256Hex("gulf 4", 6);
+    const KnownPakHash table[1] = {{GameId::GulfThunder, "pak4.apk", h4.c_str()}};
+    setKnownPakHashesForTest(table, 1);
+    fs::remove_all(in);
+    writeBytes(in / "pak4.apk", "gulf 4");
+    r = importGameFiles(in.string(), games_.string());
+    INFO(allNotes(r));
+    CHECK(hasNote(r, "AirStrike II: Gulf Thunder: imported pak4.apk."));
+    CHECK(readBytes(games_ / "gulf/pak4.apk") == "gulf 4");
 }
 
 TEST_CASE("import: Settings.xml and the logo alone go to the one game there is; unknown paks; nothing at all") {
-    TableGuard guard;
+    synth::Games games;
     TempDir tmp("attach");
-    FakeGames fake(tmp.path);
-    const fs::path in = tmp.path / "incoming", games = tmp.path / "games";
-    for (const char* p : {"pak0.apk", "pak1.apk", "pak2.apk"}) writeBytes(games / "as3d" / p, p);
+    const fs::path in = tmp.path / "incoming", games_ = tmp.path / "games";
+    for (const char* p : {"pak0.apk", "pak1.apk", "pak2.apk"}) writeBytes(games_ / "as3d" / p, p);
     writeBytes(in / "Settings.xml", "<as3d/>");
     writeBytes(in / "logo2s.tga", "logo");
-    ImportResult r = importGameFiles(in.string(), games.string());
+    ImportResult r = importGameFiles(in.string(), games_.string());
     INFO(allNotes(r));
     CHECK(r.imported == std::vector<std::string>{"as3d"});
-    CHECK(readBytes(games / "as3d/Settings.xml") == "<as3d/>");
-    CHECK(readBytes(games / "as3d/logo2s.tga") == "logo");
+    CHECK(readBytes(games_ / "as3d/Settings.xml") == "<as3d/>");
+    CHECK(readBytes(games_ / "as3d/logo2s.tga") == "logo");
 
     fs::remove_all(in);
     writeBytes(in / "pak0.apk", std::string(5000, 'q'));
     writeBytes(in / "pak1.apk", "x");
-    r = importGameFiles(in.string(), games.string());
+    r = importGameFiles(in.string(), games_.string());
+    CHECK(r.imported.empty());
+    CHECK(hasNote(r, "pak0.apk: not a pak archive (bad header)."));
+    CHECK(hasNote(r, "pak1.apk: not a pak archive (too short)."));
+    CHECK(there(in / "pak0.apk"));
+    fs::remove_all(in);
+    REQUIRE(synth::writeNamedPak(in / "pak0.apk", {"other\\game.txt", "other\\thing.bin"}));
+    REQUIRE(synth::writeNamedPak(in / "pak1.apk", {"other\\more.txt"}));
+    r = importGameFiles(in.string(), games_.string());
     CHECK(r.imported.empty());
     CHECK(hasNote(r, "pak0.apk: not the pak0.apk of a known game, ignored."));
     CHECK(hasNote(r, "pak1.apk: not a pak of a known game, ignored."));
-    CHECK(there(in / "pak0.apk"));
 
     fs::remove_all(in);
     fs::create_directories(in);
-    r = importGameFiles(in.string(), games.string());
+    r = importGameFiles(in.string(), games_.string());
     CHECK(r.imported.empty());
     CHECK(hasNote(r, "No game files recognised."));
 }
 
-TEST_CASE("import: a zip with two game directories and a third without pak0, nested data/ and data/gfx/") {
-    TableGuard guard;
+TEST_CASE("import: a zip with two game directories, a third without pak0 whose loose files make one, nested data/ and data/gfx/") {
+    synth::Games games;
     TempDir tmp("zipimport");
-    FakeGames fake(tmp.path);
-    const fs::path in = tmp.path / "incoming", games = tmp.path / "games";
+    const fs::path in = tmp.path / "incoming", games_ = tmp.path / "games", scratch = tmp.path / "scratch";
     const std::string lines = linesText();
-    const std::string zip = buildZip({
+    auto pakBytes = [&](const char* key, const char* pak) {
+        REQUIRE(games.pak(scratch / key / pak, key, pak));
+        return readBytes(scratch / key / pak);
+    };
+    std::vector<ZipItem> items = {
         {"AirStrike/AirStrike_3D/", "", ""},
-        {"AirStrike/AirStrike_3D/data/pak0.apk", fake.pak0[0], ""},
-        {"AirStrike/AirStrike_3D/data/pak1.apk", "as3d 1", ""},
-        {"AirStrike/AirStrike_3D/data/pak2.apk", "as3d 2", ""},
+        {"AirStrike/AirStrike_3D/data/pak0.apk", pakBytes("as3d", "pak0.apk"), ""},
+        {"AirStrike/AirStrike_3D/data/pak1.apk", pakBytes("as3d", "pak1.apk"), ""},
+        {"AirStrike/AirStrike_3D/data/pak2.apk", pakBytes("as3d", "pak2.apk"), ""},
         {"AirStrike/AirStrike_3D/data/Settings.xml", lines, std::string(kDynamic, kDynamicSize)},
         {"AirStrike/AirStrike_3D/data/gfx/logo2s.tga", "as3d logo", ""},
         {"AirStrike/AirStrike_3D/AirStrike3D.exe", "not the real executable", ""},
         {"AirStrike/AirStrike_3D/data/textures/x.tga", "ignored", ""},
-        {"AirStrike/AirStrike 2/data/pak0.apk", fake.pak0[1], ""},
-        {"AirStrike/AirStrike 2/data/pak1.apk", "as2 1", ""},
+        {"AirStrike/AirStrike 2/data/pak0.apk", pakBytes("as2", "pak0.apk"), ""},
+        {"AirStrike/AirStrike 2/data/pak1.apk", pakBytes("as2", "pak1.apk"), ""},
         {"AirStrike/AirStrike 2/data/Settings.xml", "<as2/>", ""},
         {"AirStrike/Galaxy Strike/data/pak1.apk", "other game 1", ""},
         {"AirStrike/Galaxy Strike/data/Settings.xml", "<other/>", ""},
-    });
-    writeBytes(in / "AirStrike.zip", zip);
-    ImportResult r = importGameFiles(in.string(), games.string());
+        {"Desert Hawk/app/data/pak1.apk", pakBytes("gulf", "pak1.apk"), ""},
+        {"Desert Hawk/app/data/pak2.apk", pakBytes("gulf", "pak2.apk"), ""},
+        {"Desert Hawk/app/data/pak4.apk", pakBytes("gulf", "pak4.apk"), ""},
+        {"Desert Hawk/app/data/Settings.xml", "<desert/>", ""},
+    };
+    // The Gulf Thunder copy without pak0.apk: its content loose under data/.
+    for (const std::string& n : synth::refNames("gulf", "pak0.apk")) {
+        std::string rel = n;
+        for (char& c : rel) if (c == '\\') c = '/';
+        items.push_back({"Desert Hawk/app/data/" + rel, "body of " + n, ""});
+    }
+    writeBytes(in / "AirStrike.zip", buildZip(items));
+    ImportResult r = importGameFiles(in.string(), games_.string());
     INFO(allNotes(r));
-    CHECK(r.imported == std::vector<std::string>{"as3d"});
-    CHECK(readBytes(games / "as3d/pak0.apk") == fake.pak0[0]);
-    CHECK(readBytes(games / "as3d/pak2.apk") == "as3d 2");
-    CHECK(readBytes(games / "as3d/Settings.xml") == lines);
-    CHECK(readBytes(games / "as3d/logo2s.tga") == "as3d logo");
-    CHECK(readBytes(games / "as2/Settings.xml") == "<as2/>");
-    CHECK(readBytes(games / "as2/pak1.apk") == "as2 1");
+    CHECK(r.imported == std::vector<std::string>{"as3d", "gulf"});
+    CHECK(identifyPak0File((games_ / "as3d/pak0.apk").string()) == &gameProfile(GameId::AirStrike3D));
+    CHECK(there(games_ / "as3d/pak2.apk"));
+    CHECK(readBytes(games_ / "as3d/Settings.xml") == lines);
+    CHECK(readBytes(games_ / "as3d/logo2s.tga") == "as3d logo");
+    CHECK(readBytes(games_ / "as2/Settings.xml") == "<as2/>");
+    CHECK(there(games_ / "as2/pak1.apk"));
     CHECK(hasNote(r, "AirStrike 2: pak2.apk missing."));
     CHECK(hasNote(r, "1 other executable(s) in the zip ignored."));
-    CHECK_FALSE(there(games / "gulf"));
+    CHECK(hasNote(r, "AirStrike.zip: Desert Hawk/app/: no pak0.apk, but 201 loose files are 100.0 % of AirStrike II: Gulf Thunder's pak0.apk entries: built pak0.apk from them."));
+    CHECK(hasNote(r, "AirStrike II: Gulf Thunder: imported pak0.apk (built), pak1.apk, pak2.apk, pak4.apk, Settings.xml."));
+    CHECK(identifyPak0File((games_ / "gulf/pak0.apk").string()) == &gameProfile(GameId::GulfThunder));
+    std::unique_ptr<IFileSource> src = makePakSource(openFileStream((games_ / "gulf/pak0.apk").string()));
+    REQUIRE(src);
+    Blob b;
+    REQUIRE(src->read("maps\\gulf\\levels.txt", b));
+    CHECK(std::string(b.begin(), b.end()) == "body of maps\\gulf\\levels.txt");
     CHECK(there(in / "AirStrike.zip")); // zips stay for the caller
-    CHECK_FALSE(there(games / ".import-staging"));
+    CHECK_FALSE(there(games_ / ".import-staging"));
+}
+
+TEST_CASE("import: a game folder without pak0.apk, loose: built when the files cover 99 %, not below") {
+    synth::Games games;
+    TempDir tmp("desert");
+    const fs::path in = tmp.path / "incoming", games_ = tmp.path / "games";
+    const std::vector<std::string> ref = synth::refNames("gulf", "pak0.apk");
+    auto layOut = [&](size_t count, const fs::path& root) {
+        for (size_t i = 0; i < count && i < ref.size(); ++i) {
+            std::string rel = ref[i];
+            for (char& c : rel) if (c == '\\') c = '/';
+            writeBytes(root / rel, "body of " + ref[i]);
+        }
+        REQUIRE(games.pak(root / "pak1.apk", "gulf", "pak1.apk"));
+        REQUIRE(games.pak(root / "pak2.apk", "gulf", "pak2.apk"));
+        REQUIRE(games.pak(root / "pak4.apk", "gulf", "pak4.apk"));
+        writeBytes(root / "Settings.xml", "<desert/>");
+    };
+    // The data folder itself was picked: everything flat under incoming/.
+    layOut(ref.size(), in);
+    for (int i = 0; i < 12; ++i) writeBytes(in / ("note" + std::to_string(i) + ".txt"), "x");
+    ImportResult r = importGameFiles(in.string(), games_.string());
+    INFO(allNotes(r));
+    CHECK(r.imported == std::vector<std::string>{"gulf"});
+    CHECK(hasNote(r, "the chosen files: no pak0.apk, but 201 loose files are 100.0 % of AirStrike II: Gulf Thunder's pak0.apk entries: built pak0.apk from them."));
+    CHECK(hasNote(r, "AirStrike II: Gulf Thunder: imported pak0.apk (built), pak1.apk, pak2.apk, pak4.apk, Settings.xml."));
+    CHECK(hasNote(r, "AirStrike II: Gulf Thunder: ready to play."));
+    CHECK(hasNote(r, "note0.txt: not a game file, ignored."));
+    CHECK(hasNote(r, "2 more files that are not game files ignored."));
+    CHECK_FALSE(hasNote(r, "file0.bin"));
+    CHECK(identifyPak0File((games_ / "gulf/pak0.apk").string()) == &gameProfile(GameId::GulfThunder));
+    CHECK(there(in / "models")); // the loose files stay for the caller to remove
+    CHECK_FALSE(there(games_ / ".import-staging"));
+
+    // The app folder was picked (data/ below it): the same; 199 of 201 files is 99.0 %.
+    fs::remove_all(in);
+    fs::remove_all(games_);
+    layOut(199, in / "app/data");
+    r = importGameFiles(in.string(), games_.string());
+    INFO(allNotes(r));
+    CHECK(r.imported == std::vector<std::string>{"gulf"});
+    CHECK(hasNote(r, "app/: no pak0.apk, but 199 loose files are 99.0 % of AirStrike II: Gulf Thunder's pak0.apk entries: built pak0.apk from them."));
+    CHECK(identifyPak0File((games_ / "gulf/pak0.apk").string()) == &gameProfile(GameId::GulfThunder)); // by overlap
+
+    // 150 of 201: no pak0.apk; the rest of the game is imported and waits for it.
+    fs::remove_all(in);
+    fs::remove_all(games_);
+    layOut(150, in / "data");
+    r = importGameFiles(in.string(), games_.string());
+    INFO(allNotes(r));
+    CHECK(r.imported.empty());
+    CHECK(hasNote(r, "the chosen files: 150 loose files cover 74.6 % of a pak0.apk's entries, 99.0 % are needed: no pak0.apk built."));
+    CHECK(hasNote(r, "AirStrike II: Gulf Thunder: pak0.apk missing."));
+    CHECK_FALSE(there(games_ / "gulf/pak0.apk"));
+    CHECK(there(games_ / "gulf/pak4.apk"));
+}
+
+TEST_CASE("import: AirStrike 3D's optional pak3.apk: an override pak is kept, a foreign one refused, the game is complete without it") {
+    synth::Games games;
+    TempDir tmp("pak3");
+    const fs::path in = tmp.path / "incoming", games_ = tmp.path / "games";
+    const GameProfile& as3d = gameProfile(GameId::AirStrike3D);
+    REQUIRE(games.pak(in / "pak0.apk", "as3d", "pak0.apk"));
+    REQUIRE(games.pak(in / "pak1.apk", "as3d", "pak1.apk"));
+    REQUIRE(games.pak(in / "pak2.apk", "as3d", "pak2.apk"));
+    std::vector<std::string> over = {synth::refNames("as3d", "pak0.apk")[5], synth::refNames("as3d", "pak0.apk")[6],
+                                     synth::refNames("as3d", "pak1.apk")[1]};
+    REQUIRE(synth::writeNamedPak(in / "pak3.apk", over));
+    ImportResult r = importGameFiles(in.string(), games_.string());
+    INFO(allNotes(r));
+    CHECK(r.imported == std::vector<std::string>{"as3d"});
+    CHECK(hasNote(r, "AirStrike 3D: imported pak0.apk, pak1.apk, pak2.apk, pak3.apk."));
+    CHECK(hasNote(r, "AirStrike 3D: ready to play."));
+    CHECK(there(games_ / "as3d/pak3.apk"));
+    CHECK(importedGameComplete(games_.string(), as3d));
+    fs::remove(games_ / "as3d/pak3.apk");
+    CHECK(importedGameComplete(games_.string(), as3d)); // optional
+
+    fs::remove_all(in);
+    REQUIRE(games.pak(in / "pak0.apk", "as3d", "pak0.apk"));
+    over.push_back("models\\nobody\\x.bin");
+    REQUIRE(synth::writeNamedPak(in / "pak3.apk", over));
+    r = importGameFiles(in.string(), games_.string());
+    INFO(allNotes(r));
+    CHECK(hasNote(r, "pak3.apk: not an override pak of AirStrike 3D (1 of its 4 entries are not the game's), ignored."));
+    CHECK(hasNote(r, "AirStrike 3D: ready to play."));
+    CHECK_FALSE(there(games_ / "as3d/pak3.apk"));
+    // A pak3 of another game: the profile has none.
+    fs::remove_all(in);
+    REQUIRE(games.pak(in / "pak0.apk", "as2", "pak0.apk"));
+    REQUIRE(synth::writeNamedPak(in / "pak3.apk", {synth::refNames("as2", "pak0.apk")[0]}));
+    r = importGameFiles(in.string(), games_.string());
+    CHECK(hasNote(r, "pak3.apk: AirStrike 2 has no pak3.apk, ignored."));
 }
 
 // ---- the real files, when this machine has them

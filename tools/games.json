@@ -1,5 +1,5 @@
 {
-  "comment": "The games the engine runs, for the shell and Python tools. Same keys, titles and pak lists as engine/src/game/game_profiles.cpp; apps/tests/game_profile_test.cpp checks that both agree. zip_member is the game's directory inside binaries/AirStrike.zip.",
+  "comment": "The games the engine runs, for the shell and Python tools. Same keys, titles and pak lists as engine/src/game/game_profiles.cpp; apps/tests/game_profile_test.cpp checks that both agree. zip_member is the game's directory inside binaries/AirStrike.zip. optional_paks: the paks of `paks` a copy may lack. pak_sha256: every known build of each pak, the owner's first (docs/spec/issues/170 section 1: the gametop repack of AirStrike 2's pak0, the nVidia installer's pak1 of AirStrike 2, Desert Hawk's pak1 and pak2 of Gulf Thunder, the nVidia patch's pak3 of AirStrike 3D); a pak the survey found truncated is not listed. The entry names of the owner's paks are in tools/pak_entries/ (tools/paktool.py names).",
   "games": [
     {
       "key": "as3d",
@@ -7,11 +7,13 @@
       "version": "1.70",
       "exe": "AirStrike3D.exe",
       "zip_member": "AirStrike/AirStrike_3D",
-      "paks": ["pak0.apk", "pak1.apk", "pak2.apk"],
+      "paks": ["pak0.apk", "pak1.apk", "pak2.apk", "pak3.apk"],
+      "optional_paks": ["pak3.apk"],
       "pak_sha256": {
-        "pak0.apk": "86745b285a6d31d7c1a9d1ee50c6afeb1b78163a75e5a52a39191095c7a6b3df",
-        "pak1.apk": "548d8f1ad37cd3c2864ee1626dc4a592ba3640130ed8c0ec6155a99321a8d94a",
-        "pak2.apk": "c992f0a28add309cedef544534c1a77d3cdf1415322ddffc9b3030766a6919d3"
+        "pak0.apk": ["86745b285a6d31d7c1a9d1ee50c6afeb1b78163a75e5a52a39191095c7a6b3df"],
+        "pak1.apk": ["548d8f1ad37cd3c2864ee1626dc4a592ba3640130ed8c0ec6155a99321a8d94a"],
+        "pak2.apk": ["c992f0a28add309cedef544534c1a77d3cdf1415322ddffc9b3030766a6919d3"],
+        "pak3.apk": ["9a8243b742997686cd49594e3bcf919bcbf2cc48e1c5337b63d8c75ef0111acf"]
       },
       "texts": "texts_v170.txt",
       "missions": 20,
@@ -24,10 +26,13 @@
       "exe": "AirStrike3D II.exe",
       "zip_member": "AirStrike/AirStrike 2",
       "paks": ["pak0.apk", "pak1.apk", "pak2.apk"],
+      "optional_paks": [],
       "pak_sha256": {
-        "pak0.apk": "9df601a5ebe1fec171a5089f054bdcc550268080b262043db30fb22c9f77250f",
-        "pak1.apk": "858f176fd875f7c84439fb2398b1d37d1292afb708f0b63c0f2faa96efe46952",
-        "pak2.apk": "bc29cf7375e5557f3e9e19278e5318e77324d3f32d57f64116387712050c6175"
+        "pak0.apk": ["9df601a5ebe1fec171a5089f054bdcc550268080b262043db30fb22c9f77250f",
+                     "989b8324922a018c3d76a78583c419f94901393cac61409415df3623a06e1afa"],
+        "pak1.apk": ["858f176fd875f7c84439fb2398b1d37d1292afb708f0b63c0f2faa96efe46952",
+                     "8189fbc64cf5051d9d7fba1dd1e9a1a4b8274abfc9233aaad6316f71dc539931"],
+        "pak2.apk": ["bc29cf7375e5557f3e9e19278e5318e77324d3f32d57f64116387712050c6175"]
       },
       "texts": "texts_as2.txt",
       "missions": 18,
@@ -40,11 +45,14 @@
       "exe": "AirStrike3D II - Gulf.exe",
       "zip_member": "AirStrike/AirStrike II Gulf Thunder",
       "paks": ["pak0.apk", "pak1.apk", "pak2.apk", "pak4.apk"],
+      "optional_paks": [],
       "pak_sha256": {
-        "pak0.apk": "0fde2db91134fdb2b97bed1797bc826f468fc9ad4f83198a2cb8fcbecc8d38f8",
-        "pak1.apk": "34dcddcbfb9b501f71a0a27c192431893345850843314eb2686e2b46d4f410c0",
-        "pak2.apk": "4c7513ebcf969da5127e7db7953414bcfff36b3cafe628c9bba679100697f930",
-        "pak4.apk": "836cf9c2d8e917ddc8cb442f2ff3e1d21b764b781bed4fe1cb95ece879552b6b"
+        "pak0.apk": ["0fde2db91134fdb2b97bed1797bc826f468fc9ad4f83198a2cb8fcbecc8d38f8"],
+        "pak1.apk": ["34dcddcbfb9b501f71a0a27c192431893345850843314eb2686e2b46d4f410c0",
+                     "1cd68ae7e16cfef2979abf36ebde64c3467e523873b2d18ae5a76dee428265ff"],
+        "pak2.apk": ["4c7513ebcf969da5127e7db7953414bcfff36b3cafe628c9bba679100697f930",
+                     "a4a688683374f4b6909d9c4a70eecc73546eaba7c3e8b92501fd23bf9219c941"],
+        "pak4.apk": ["836cf9c2d8e917ddc8cb442f2ff3e1d21b764b781bed4fe1cb95ece879552b6b"]
       },
       "texts": "texts_gulf.txt",
       "missions": 24,

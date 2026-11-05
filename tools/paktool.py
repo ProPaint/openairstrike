@@ -2,9 +2,18 @@
 """Reader for AirStrike 3D .apk pak archives. See docs/spec/pak.md.
 
 Usage:
-  paktool.py list     <pak>...
-  paktool.py extract  <outdir> <pak>...      later paks override earlier ones
-  paktool.py manifest <out.json> <pak>...    name/pak/size/flag/sha1, after overrides
+  paktool.py list        <pak>...
+  paktool.py extract     <outdir> <pak>...      later paks override earlier ones
+  paktool.py manifest    <out.json> <pak>...    name/pak/size/flag/sha1, after overrides
+  paktool.py names       <pak>                  the entry names, lower case, sorted, one per line
+  paktool.py fingerprint <pak or names.txt>...  count and SHA-256 of the sorted names joined by LF
+
+`names` writes the reference lists tools/pak_entries/<key>.txt (pak0) and
+tools/pak_entries/<key>.<pakN>.txt of docs/spec/issues/170: the names are facts about the
+files, like the hashes of tools/games.json. `fingerprint` gives what engine/src/game/game_data.cpp
+compiles in per reference pak (kPakFingerprints); apps/tests/game_data_test.cpp checks the
+table against the lists. Lower case is ASCII only and a slash becomes a backslash, as
+as3d::normalizePakEntryName does; every shipped name is plain ASCII.
 """
 import hashlib
 import json
@@ -45,6 +54,44 @@ def read_pak(path):
         yield name, flag, data
 
 
+def entry_names(path):
+    """The names of a pak's file table as the identification compares them (sorted, unique)."""
+    with open(path, "rb") as f:
+        d = f.read()
+    if d[:8] != MAGIC:
+        raise ValueError(f"{path}: bad magic {d[:8].hex()}")
+    table_offset, count = struct.unpack_from("<II", d, 8)
+    key = d[KEY_OFFSET:KEY_OFFSET + KEY_SIZE]
+    table = xor(d[table_offset:table_offset + count * ENTRY_SIZE], key)
+    if len(table) != count * ENTRY_SIZE:
+        raise ValueError(f"{path}: truncated file table")
+    names = set()
+    for i in range(count):
+        raw = table[i * ENTRY_SIZE:i * ENTRY_SIZE + 64].split(b"\0")[0]
+        names.add(normalize_name(raw.decode("cp1251")))
+    return sorted(names)
+
+
+def normalize_name(name):
+    """ASCII lower case, '/' turned into '\\' (as3d::normalizePakEntryName)."""
+    return "".join(chr(ord(c) + 32) if "A" <= c <= "Z" else "\\" if c == "/" else c for c in name)
+
+
+def fingerprint(names):
+    """(count, sha256 hex) of the sorted names joined by LF: the engine's reference per pak."""
+    return len(names), hashlib.sha256("\n".join(names).encode("cp1251")).hexdigest()
+
+
+def names_of(path):
+    """The names of a pak, or of a names list written by `names`."""
+    with open(path, "rb") as f:
+        head = f.read(8)
+    if head == MAGIC:
+        return entry_names(path)
+    with open(path, encoding="utf-8") as f:
+        return [line.rstrip("\n") for line in f if line.strip()]
+
+
 def merged(paks):
     files = {}
     for pak in paks:
@@ -71,6 +118,13 @@ def main(argv):
             with open(dest, "wb") as f:
                 f.write(data)
         print(f"extracted {len(files)} files to {out}")
+    elif cmd == "names":
+        for name in entry_names(argv[2]):
+            print(name)
+    elif cmd == "fingerprint":
+        for path in argv[2:]:
+            count, digest = fingerprint(names_of(path))
+            print(f"{count:6d} {digest} {path}")
     elif cmd == "manifest":
         files = merged(argv[3:])
         entries = [

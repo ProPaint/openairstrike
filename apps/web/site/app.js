@@ -694,7 +694,7 @@
       const have = !!(chosen[listed()] && chosen[listed()][n]);
       const bad = notes.find((x) => !x.ok && (x.name === n || (n === def.texts && x.name === def.exe)));
       li.className = have ? 'ok' : bad ? 'bad' : 'missing';
-      const what = def.files[n].gives ? ` (optional: ${def.files[n].gives})` : n.endsWith('.apk') ? ' (needed)' : '';
+      const what = def.files[n].gives ? ` (optional: ${def.files[n].gives})` : def.files[n].required ? ' (needed)' : ' (optional)';
       li.textContent = n + (have ? '' : what) + (bad ? ' - ' + bad.text : '');
       ul.appendChild(li);
     }

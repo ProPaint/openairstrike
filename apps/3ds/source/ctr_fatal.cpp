@@ -22,7 +22,8 @@ std::string layoutText() {
     for (int i = 0; i < as3d::kGameCount; ++i) {
         const as3d::GameProfile& g = as3d::gameProfile(static_cast<as3d::GameId>(i));
         std::string files;
-        for (const char* const* p = g.paks; *p; ++p) files += std::string(files.empty() ? "" : " ") + *p;
+        for (const char* const* p = g.paks; *p; ++p)
+            if (!as3d::pakIsOptional(g, *p)) files += std::string(files.empty() ? "" : " ") + *p;
         s += std::string("  ") + g.key + "/\n    " + files + "\n    Settings.xml";
         if (g.textsFile && *g.textsFile) s += std::string(" ") + g.textsFile;
         s += "\n    music/*.ogg  (optional)\n";

@@ -54,13 +54,13 @@ export PATH="$EMSCRIPTEN_DIR:$EMSDK_DIR/upstream/bin:${NODE_DIR:+$NODE_DIR:}$PAT
 # Where a game's install directory and extracted files are (docs/spec/README.md, data layout).
 install_dir() { if [ "$1" = as3d ]; then echo "$DATA_ROOT/third_party_local/original"; else echo "$DATA_ROOT/third_party_local/games/$1"; fi; }
 extracted_dir() { if [ "$1" = as3d ]; then echo "$DATA_ROOT/assets_extracted"; else echo "$DATA_ROOT/assets_extracted_games/$1"; fi; }
-# "key|pak names|texts file" of a game of tools/games.json.
+# "key|pak names|texts file|optional pak names" of a game of tools/games.json.
 game_line() {
   python3 - "$ROOT/tools/games.json" "$1" <<'PY'
 import json, sys
 for g in json.load(open(sys.argv[1]))["games"]:
     if g["key"] == sys.argv[2]:
-        print(g["key"] + "|" + " ".join(g["paks"]) + "|" + g["texts"])
+        print(g["key"] + "|" + " ".join(g["paks"]) + "|" + g["texts"] + "|" + " ".join(g.get("optional_paks", [])))
         break
 else:
     sys.exit(1)
@@ -72,10 +72,11 @@ IFS=',' read -r -a GAME_KEYS <<< "$GAMES"
 if [ "$MODE" = bundled ]; then
   for key in "${GAME_KEYS[@]}"; do
     line="$(game_line "$key")" || { echo "web_build: unknown game '$key' in AS3D_WEB_GAMES (see tools/games.json)" >&2; exit 2; }
-    IFS='|' read -r _ paks _ <<< "$line"
+    IFS='|' read -r _ paks _ optional <<< "$line"
     inst="$(install_dir "$key")"
     for pak in $paks; do
       if [ ! -f "$inst/data/$pak" ]; then
+        case " $optional " in *" $pak "*) continue ;; esac  # a pak a copy may lack (as3d's pak3.apk)
         echo "web_build: missing $inst/data/$pak (set AS3D_DATA_ROOT, or build byo)" >&2
         exit 1
       fi
@@ -139,11 +140,11 @@ if [ "$MODE" = bundled ]; then
     echo "web_build: WARNING: could not render the selector's marquees: the cards show titles in text" >&2
   fi
   for key in "${GAME_KEYS[@]}"; do
-    IFS='|' read -r _ paks texts <<< "$(game_line "$key")"
+    IFS='|' read -r _ paks texts _ <<< "$(game_line "$key")"
     inst="$(install_dir "$key")"
     out="$NEW/data/$key"
     mkdir -p "$out"
-    for pak in $paks; do cp "$inst/data/$pak" "$out/"; done
+    for pak in $paks; do [ -f "$inst/data/$pak" ] && cp "$inst/data/$pak" "$out/"; done
     [ -f "$inst/data/Settings.xml" ] && cp "$inst/data/Settings.xml" "$out/"
     [ -f "$inst/data/gfx/logo2s.tga" ] && cp "$inst/data/gfx/logo2s.tga" "$out/logo2s.tga"
     [ -f "$(extracted_dir "$key")/$texts" ] && cp "$(extracted_dir "$key")/$texts" "$out/$texts"
@@ -172,8 +173,9 @@ for g in json.load(open(gj))["games"]:
     key = g["key"]
     inst = os.path.join(root, "third_party_local", "original" if key == "as3d" else os.path.join("games", key))
     ext = os.path.join(root, "assets_extracted" if key == "as3d" else os.path.join("assets_extracted_games", key))
-    for name, sha in g["pak_sha256"].items():
-        known[sha] = key + "/" + name  # the checksums themselves are facts, no file needed
+    for name, shas in g["pak_sha256"].items():
+        for sha in (shas if isinstance(shas, list) else [shas]):  # every known build (issue 170)
+            known[sha] = key + "/" + name  # the checksums themselves are facts, no file needed
     for rel in ["data/Settings.xml", "data/gfx/logo2s.tga", g["exe"]] + ["data/" + p for p in g["paks"]]:
         p = os.path.join(inst, rel)
         if os.path.isfile(p):

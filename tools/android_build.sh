@@ -50,13 +50,13 @@ GAMES="${AS3D_ANDROID_GAMES:-as3d,as2,gulf}"
 GAME_KEYS=()
 if [ "${GAMES}" != none ]; then IFS=',' read -r -a GAME_KEYS <<< "${GAMES}"; fi
 
-# One line per game from tools/games.json: key|paks (space separated)|texts file.
+# One line per game from tools/games.json: key|paks (space separated)|texts file|optional paks.
 game_line() {
     python3 - "${GAMES_JSON}" "$1" <<'PY'
 import json, sys
 for g in json.load(open(sys.argv[1]))["games"]:
     if g["key"] == sys.argv[2]:
-        print(g["key"] + "|" + " ".join(g["paks"]) + "|" + g["texts"])
+        print(g["key"] + "|" + " ".join(g["paks"]) + "|" + g["texts"] + "|" + " ".join(g.get("optional_paks", [])))
         break
 else:
     sys.exit(1)
@@ -94,12 +94,13 @@ copy_optional() {
 TRACKED=()
 for key in "${GAME_KEYS[@]}"; do
     line="$(game_line "${key}")" || { echo "android_build: unknown game '${key}' in AS3D_ANDROID_GAMES (see tools/games.json)" >&2; exit 1; }
-    IFS='|' read -r _ paks texts <<< "${line}"
+    IFS='|' read -r _ paks texts optional <<< "${line}"
     DATA_DIR="$(game_data_dir "${key}")"
     OUT="${ASSETS_DIR}/${key}"
     mkdir -p "${OUT}"
     for pak in ${paks}; do
         if [ ! -f "${DATA_DIR}/${pak}" ]; then
+            case " ${optional} " in *" ${pak} "*) continue ;; esac  # a pak a copy may lack (as3d's pak3.apk)
             echo "android_build: missing game data file ${DATA_DIR}/${pak}" >&2
             echo "  Set AS3D_DATA_ROOT to a checkout that has the data of '${key}' (tools/setup_data.sh)." >&2
             exit 1

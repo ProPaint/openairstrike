@@ -4,13 +4,16 @@ build accepts from the player, grouped by game (docs/web.md).
 
     tools/web_known_files.py [--root DIR] [--out FILE] [--previous FILE] [--check]
 
-The list of games, their executables, pak names, texts file names and the SHA-256 of every pak
-come from tools/games.json. What games.json does not hold (sizes, and the hashes of
-Settings.xml, the menu logo and the executable) is read from the game's files under the data
-root ($AS3D_DATA_ROOT or the repository root; layout as in docs/spec/README.md); a value that
-cannot be read from the disk stays what the existing output file says, so the file can be
-regenerated on a machine that has only some of the games. Only sizes and checksums are written,
-never file contents. A dropped file is identified as belonging to a game by its SHA-256.
+The list of games, their executables, pak names, texts file names and the SHA-256 of every
+known build of every pak come from tools/games.json (`pak_sha256`: a list per name, the owner's
+first; `optional_paks`: paks a copy may lack, not required). What games.json does not hold
+(sizes, and the hashes of Settings.xml, the menu logo and the executable) is read from the
+game's files under the data root ($AS3D_DATA_ROOT or the repository root; layout as in
+docs/spec/README.md); a value that cannot be read from the disk stays what the existing output
+file says, so the file can be regenerated on a machine that has only some of the games. Only
+sizes and checksums are written, never file contents. A dropped file is identified as belonging
+to a game by its SHA-256: "sha256" is the owner's build (with its size), "sha256_also" the
+other builds (docs/spec/issues/170), whose sizes are not known here.
 
 --check compares instead of writing (exit 1 when the file is out of date).
 """
@@ -71,18 +74,19 @@ def build(root, previous):
         old = (previous.get("games", {}).get(key) or {}).get("files", {})
         files = {}
 
-        def entry(name, where, required, gives=None, sha=None):
+        def entry(name, where, required, gives=None, shas=None):
+            """shas: every known build's hash (games.json), the owner's first; None: unknown."""
             path = os.path.join(inst, where)
             e = {"required": required}
             o = old.get(name, {})
             if os.path.isfile(path):
                 h, size = digest(path)
-                if sha and h != sha:
-                    sys.exit("web_known_files: %s of %s is not the file games.json lists (sha256 %s)" % (name, key, h))
+                if shas and h not in shas:
+                    sys.exit("web_known_files: %s of %s is not a build games.json lists (sha256 %s)" % (name, key, h))
                 e.update(size=size, sha256=h)
-            elif sha:
-                e["sha256"] = sha
-                if "size" in o and o.get("sha256") == sha:
+            elif shas:
+                e["sha256"] = shas[0]
+                if "size" in o and o.get("sha256") == shas[0]:
                     e["size"] = o["size"]
             elif "sha256" in o:
                 e.update({k: o[k] for k in ("size", "sha256") if k in o})
@@ -91,10 +95,14 @@ def build(root, previous):
             e["where"] = where
             if gives:
                 e["gives"] = gives
+            also = [h for h in (shas or []) if h != e["sha256"]]
+            if also:
+                e["sha256_also"] = also
             files[name] = e
 
+        optional = set(g.get("optional_paks", []))
         for pak in g["paks"]:
-            entry(pak, "data/" + pak, True, sha=g["pak_sha256"].get(pak))
+            entry(pak, "data/" + pak, pak not in optional, shas=g["pak_sha256"].get(pak))
         entry("Settings.xml", "data/Settings.xml", False, GIVES["Settings.xml"])
         entry("logo2s.tga", "data/gfx/logo2s.tga", False, GIVES["logo2s.tga"])
         entry(g["exe"], g["exe"], False, GIVES["exe"])
@@ -139,7 +147,7 @@ def render(doc):
     for i, n in enumerate(names):
         e = first[n]
         parts = ['"required": %s' % json.dumps(e["required"])]
-        for k in ("size", "sha256", "where", "gives"):
+        for k in ("size", "sha256", "where", "gives", "sha256_also"):
             if k in e:
                 parts.append('%s: %s' % (json.dumps(k), json.dumps(e[k])))
         lines.append('    %s: { %s }%s' % (json.dumps(n), ", ".join(parts), "," if i + 1 < len(names) else ""))

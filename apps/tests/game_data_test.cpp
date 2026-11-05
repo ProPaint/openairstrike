@@ -290,3 +290,249 @@ TEST_CASE("detectGames on the real data, and Gulf Thunder's pak4 override") {
     CHECK(tga[12] + 256 * tga[13] == 256);
     CHECK(tga[14] + 256 * tga[15] == 256);
 }
+
+// ---- identification by entry names (docs/spec/issues/170, section 2)
+
+#include "as3d/pak_file.h"
+#include "synthetic_games.h"
+
+namespace {
+std::string readFile(const std::string& path) {
+    std::string s;
+    if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+        char buf[65536];
+        size_t n;
+        while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) s.append(buf, n);
+        std::fclose(f);
+    }
+    return s;
+}
+} // namespace
+
+TEST_CASE("the built-in pak fingerprints are those of tools/pak_entries (count and SHA-256 of the sorted names)") {
+    int count = 0;
+    const PakFingerprint* table = pakFingerprints(&count);
+    REQUIRE(count == 10);
+    const std::string dir = std::string(AS3D_REPO_ROOT) + "/tools/pak_entries/";
+    for (int i = 0; i < count; ++i) {
+        const PakFingerprint& f = table[i];
+        const GameProfile& g = gameProfile(f.game);
+        const std::string pak = f.pak;
+        const std::string file = dir + g.key + (pak == "pak0.apk" ? "" : "." + pak.substr(0, pak.size() - 4)) + ".txt";
+        INFO(file);
+        const std::string text = readFile(file);
+        REQUIRE_FALSE(text.empty());
+        std::vector<std::string> names;
+        size_t p = 0;
+        while (p < text.size()) {
+            size_t e = text.find('\n', p);
+            if (e == std::string::npos) e = text.size();
+            if (e > p) names.push_back(text.substr(p, e - p));
+            p = e + 1;
+        }
+        // The list is what tools/paktool.py names writes: normalized, sorted, unique, ASCII.
+        for (size_t k = 0; k < names.size(); ++k) {
+            CHECK(normalizePakEntryName(names[k]) == names[k]);
+            if (k) CHECK(names[k - 1] < names[k]);
+            for (char c : names[k]) CHECK((c >= 0x20 && c <= 0x7E));
+        }
+        CHECK(names.size() == f.count);
+        std::string joined;
+        for (size_t k = 0; k < names.size(); ++k) joined += (k ? "\n" : "") + names[k];
+        CHECK(sha256Hex(joined.data(), joined.size()) == f.sha256);
+        // And the engine reads the same list from the source tree.
+        const std::vector<std::string>* loaded = pakEntryNamesOf(f.game, pak);
+        REQUIRE(loaded);
+        CHECK(*loaded == names);
+    }
+    // Every pak of every profile has a reference, except the override pak nobody owns.
+    for (int i = 0; i < kGameCount; ++i) {
+        const GameProfile& g = gameProfile(static_cast<GameId>(i));
+        for (const char* const* p = g.paks; *p; ++p) CHECK(pakHasReference(g, *p) == !pakIsOptional(g, *p));
+    }
+    CHECK(pakIsOptional(gameProfile(GameId::AirStrike3D), "pak3.apk"));
+    CHECK_FALSE(pakIsOptional(gameProfile(GameId::AirStrike3D), "pak0.apk"));
+    CHECK(requiredPakCount(gameProfile(GameId::AirStrike3D)) == 3);
+    CHECK(requiredPakCount(gameProfile(GameId::GulfThunder)) == 4);
+}
+
+TEST_CASE("identifyPakFile: exact fingerprint, another build by overlap, too different, truncated, not a pak, shared names, override pak") {
+    synth::Games games;
+    TempDir tmp("names");
+    const fs::path d = tmp.path;
+    const GameProfile& as2 = gameProfile(GameId::AirStrike2);
+    const GameProfile& gulf = gameProfile(GameId::GulfThunder);
+    const GameProfile& as3d = gameProfile(GameId::AirStrike3D);
+
+    // The reference pak0 of as2, under any name.
+    REQUIRE(games.pak(d / "x.bin", "as2", "pak0.apk"));
+    PakIdentity id = identifyPakFile((d / "x.bin").string());
+    CHECK(id.game == &as2);
+    CHECK(id.pak == "pak0.apk");
+    CHECK(id.exact);
+    CHECK(id.overlap == 1.0);
+    CHECK_FALSE(id.ambiguous);
+    CHECK(id.entries == 201);
+    CHECK(id.names.size() == 201);
+    CHECK(identifyPak0File((d / "x.bin").string()) == &as2);
+    CHECK(pakMatches(id, as2, "pak0.apk", kPak0MinOverlap, nullptr));
+    CHECK_FALSE(pakMatches(id, gulf, "pak0.apk", 0.5, nullptr));
+    CHECK_FALSE(pakMatches(id, as2, "pak1.apk", 0.5, nullptr));
+
+    // Another build: two names of 201 replaced -> Jaccard 199/203 = 0.980, still as2's pak0.
+    std::vector<std::string> names = synth::refNames("as2", "pak0.apk");
+    names[0] = "models\\as2\\extra_a.bin";
+    names[1] = "models\\as2\\extra_b.bin";
+    REQUIRE(synth::writeNamedPak(d / "near.apk", names));
+    id = identifyPakFile((d / "near.apk").string());
+    CHECK(id.game == &as2);
+    CHECK_FALSE(id.exact);
+    CHECK(id.overlap == doctest::Approx(199.0 / 203.0));
+    CHECK(identifyPak0File((d / "near.apk").string()) == &as2);
+    // Ten replaced -> 0.906: best match as2 but not its pak0; a pak1 of another build is
+    // taken at 0.9 (19 of 20 names plus one new one: 19/21).
+    for (int i = 0; i < 10; ++i) names[i] = "models\\as2\\other" + std::to_string(i) + ".bin";
+    REQUIRE(synth::writeNamedPak(d / "far.apk", names));
+    id = identifyPakFile((d / "far.apk").string());
+    CHECK(id.game == &as2);
+    CHECK(id.overlap < kPak0MinOverlap);
+    CHECK(identifyPak0File((d / "far.apk").string()) == nullptr);
+    std::vector<std::string> pak1 = synth::refNames("gulf", "pak1.apk");
+    pak1[0] = "maps\\gulf\\bonus.hsc";
+    REQUIRE(synth::writeNamedPak(d / "pak1.apk", pak1));
+    id = identifyPakFile((d / "pak1.apk").string());
+    CHECK(id.game == &gulf);
+    CHECK(id.pak == "pak1.apk");
+    double overlap = 0;
+    CHECK(pakMatches(id, gulf, "pak1.apk", kPakMinOverlap, &overlap));
+    CHECK(overlap == doctest::Approx(19.0 / 21.0));
+    CHECK_FALSE(pakMatches(id, as2, "pak1.apk", kPakMinOverlap, &overlap));
+    CHECK(overlap == 0.0);
+
+    // The sequels' pak2 share their names: exact for both, ambiguous alone.
+    REQUIRE(games.pak(d / "pak2.apk", "gulf", "pak2.apk"));
+    id = identifyPakFile((d / "pak2.apk").string());
+    CHECK(id.exact);
+    CHECK(id.ambiguous);
+    CHECK(id.game == &as2); // the first in GameId order
+    CHECK(pakMatches(id, gulf, "pak2.apk", kPakMinOverlap, nullptr));
+    CHECK(pakMatches(id, as2, "pak2.apk", kPakMinOverlap, nullptr));
+    CHECK_FALSE(pakMatches(id, as3d, "pak2.apk", kPakMinOverlap, nullptr));
+    CHECK(identifyPak0File((d / "pak2.apk").string()) == nullptr);
+
+    // Truncated: the reference pak cut by 100 bytes.
+    const std::string whole = readFile((d / "x.bin").string());
+    writeBytes(d / "cut.apk", whole.substr(0, whole.size() - 100));
+    id = identifyPakFile((d / "cut.apk").string());
+    CHECK(id.game == nullptr);
+    CHECK(id.bytesShort == 100);
+    CHECK(id.error == "truncated, 100 bytes short: unpack it again");
+    CHECK(identifyPak0File((d / "cut.apk").string()) == nullptr);
+    // Not a pak, and a pak of unknown names.
+    writeBytes(d / "text.apk", std::string(5000, 'q'));
+    id = identifyPakFile((d / "text.apk").string());
+    CHECK(id.game == nullptr);
+    CHECK(id.error.find("not a pak archive") != std::string::npos);
+    REQUIRE(synth::writeNamedPak(d / "alien.apk", {"foo\\bar.txt", "baz.txt"}));
+    id = identifyPakFile((d / "alien.apk").string());
+    CHECK(id.error.empty());
+    CHECK(id.game == nullptr);
+    CHECK(id.overlap == 0.0);
+
+    // An override pak: every name one of the game's (of pak0 or pak1); one foreign name spoils it.
+    std::vector<std::string> over = {synth::refNames("as3d", "pak0.apk")[3], synth::refNames("as3d", "pak1.apk")[2]};
+    REQUIRE(synth::writeNamedPak(d / "pak3.apk", over));
+    id = identifyPakFile((d / "pak3.apk").string());
+    CHECK(shareOfGameNames(id.names, as3d) == 1.0);
+    CHECK(shareOfGameNames(id.names, as2) == 0.0);
+    over.push_back("models\\nobody\\x.bin");
+    REQUIRE(synth::writeNamedPak(d / "pak3b.apk", over));
+    id = identifyPakFile((d / "pak3b.apk").string());
+    CHECK(shareOfGameNames(id.names, as3d) == doctest::Approx(2.0 / 3.0));
+    CHECK_FALSE(pakHasReference(as3d, "pak3.apk"));
+    CHECK(pakHasReference(as3d, "pak2.apk"));
+
+    // Without the synthetic name lists only the exact matches remain: the lists read again are
+    // the real ones of the source tree ($AS3D_PAK_ENTRIES without lists is passed over), which
+    // the synthetic names overlap by nothing.
+    resetPakEntryNamesForTest();
+    setenv("AS3D_PAK_ENTRIES", (d / "nowhere").string().c_str(), 1);
+    id = identifyPakFile((d / "near.apk").string());
+    CHECK(id.game == nullptr);
+    CHECK(id.error.empty());
+    id = identifyPakFile((d / "x.bin").string());
+    CHECK(id.game == &as2);
+    CHECK(shareOfGameNames(id.names, as3d) == 0.0);
+    REQUIRE(pakEntryNamesOf(GameId::AirStrike2, "pak0.apk"));
+    CHECK(pakEntryNamesOf(GameId::AirStrike2, "pak0.apk")->size() == 1609);
+    unsetenv("AS3D_PAK_ENTRIES");
+    resetPakEntryNamesForTest();
+}
+
+TEST_CASE("chooseGameData --paks without pak0.apk: a pak0.apk built from the loose files, kept under the data root") {
+    synth::Games games;
+    TempDir tmp("loose");
+    const fs::path r = tmp.path;
+    const GameProfile& gulf = gameProfile(GameId::GulfThunder);
+    // A "Desert Hawk" install: pak0's content loose under data/, beside the other paks.
+    const fs::path dir = r / "desert/app/data";
+    for (const std::string& n : synth::refNames("gulf", "pak0.apk")) {
+        std::string rel = n;
+        for (char& c : rel) if (c == '\\') c = '/';
+        writeBytes(dir / rel, "body of " + n);
+    }
+    REQUIRE(games.pak(dir / "pak1.apk", "gulf", "pak1.apk"));
+    REQUIRE(games.pak(dir / "pak2.apk", "gulf", "pak2.apk"));
+    REQUIRE(games.pak(dir / "pak4.apk", "gulf", "pak4.apk"));
+    writeBytes(dir / "Settings.xml", "<s/>");
+
+    const std::vector<LooseFile> files = looseFilesUnder(dir.string());
+    CHECK(files.size() == 201 + 4);
+    double coverage = 0;
+    CHECK(gameOfLooseFiles(files, nullptr, &coverage) == &gulf);
+    CHECK(coverage == 1.0);
+    CHECK(gameOfLooseFiles(files, &gameProfile(GameId::AirStrike2), &coverage) == nullptr);
+    CHECK(coverage == 0.0);
+
+    unsetenv("AS3D_GAME");
+    GameData d;
+    std::string error;
+    REQUIRE(chooseGameData(r.string(), "", dir.string(), &d, &error));
+    CHECK(d.game == &gulf);
+    REQUIRE(d.paks.size() == 4);
+    const std::string built = r.string() + "/third_party_local/built/gulf/pak0.apk";
+    CHECK(d.paks[0] == built);
+    CHECK(d.paks[1] == dir.string() + "/pak1.apk");
+    CHECK(d.paks[3] == dir.string() + "/pak4.apk");
+    CHECK(d.missing.size() == 1); // the extracted files only
+    CHECK(d.settingsXml == dir.string() + "/Settings.xml");
+    CHECK(identifyPak0File(built) == &gulf);
+    PakTable t;
+    REQUIRE(readPakTableFile(built, &t, &error));
+    CHECK(t.entries.size() == 201);
+    // The built pak serves the files, in the reference order.
+    std::unique_ptr<IFileSource> src = makePakSource(openFileStream(built));
+    REQUIRE(src);
+    Blob b;
+    REQUIRE(src->read("maps\\gulf\\levels.txt", b));
+    CHECK(bytesOf(b) == "body of maps\\gulf\\levels.txt");
+    // A second call reuses it; with the game named it is the same; another game is refused.
+    const auto stamp = fs::last_write_time(built);
+    REQUIRE(chooseGameData(r.string(), "gulf", dir.string(), &d, &error));
+    CHECK(d.paks[0] == built);
+    CHECK(fs::last_write_time(built) == stamp);
+    CHECK_FALSE(chooseGameData(r.string(), "as2", dir.string(), &d, &error));
+    CHECK(error.find("0.0 % of AirStrike 2's pak0.apk entries") != std::string::npos);
+    // Too few files: the message gives the share.
+    const fs::path part = r / "part";
+    int n = 0;
+    for (const std::string& name : synth::refNames("gulf", "pak0.apk")) {
+        if (++n > 150) break;
+        std::string rel = name;
+        for (char& c : rel) if (c == '\\') c = '/';
+        writeBytes(part / rel, "x");
+    }
+    CHECK_FALSE(chooseGameData(r.string(), "", part.string(), &d, &error));
+    CHECK(error.find("74.6 % of any game's pak0.apk entries") != std::string::npos);
+    CHECK(error.find("99 % needed") != std::string::npos);
+}

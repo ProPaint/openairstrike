@@ -28,7 +28,8 @@ std::vector<GameInstall> detectInstalls(const std::string& root) {
                 if (pak) ++paksMissing;
             }
         };
-        for (const char* const* p = g.game->paks; *p; ++p) check(*p, true);
+        for (const char* const* p = g.game->paks; *p; ++p)
+            if (!as3d::pakIsOptional(*g.game, *p)) check(*p, true); // optional paks (as3d's pak3.apk) mount when there
         check("Settings.xml", false);
         if (g.game->textsFile && *g.game->textsFile) check(g.game->textsFile, false);
         g.paksPresent = paksMissing == 0;
