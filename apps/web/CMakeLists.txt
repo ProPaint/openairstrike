@@ -49,6 +49,7 @@ endif()
 
 set(AS3D_WEB_LINK
   -sUSE_SDL=2
+  -sUSE_ZLIB=1
   -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2
   -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB
   -sSTACK_SIZE=4MB
@@ -57,7 +58,7 @@ set(AS3D_WEB_LINK
   -sENVIRONMENT=web
   -fwasm-exceptions
   -lidbfs.js
-  "-sEXPORTED_RUNTIME_METHODS=['callMain','FS','HEAPU8','addRunDependency','removeRunDependency']"
+  "-sEXPORTED_RUNTIME_METHODS=['callMain','FS','HEAPU8','addRunDependency','removeRunDependency','ccall']"
 )
 if(AS3D_WEB_FULL_ES3)
   list(APPEND AS3D_WEB_LINK -sFULL_ES3=1)

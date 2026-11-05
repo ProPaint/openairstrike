@@ -26,17 +26,23 @@
 //   as3d_web_pause(reason)           1: full screen was left, 2: turned to portrait
 //   as3d_web_back()                  the browser's back navigation (the game's Back key)
 //   as3d_web_context_lost(), as3d_web_context_restored()   WebGL context loss
+//   as3d_unpack(inDir)               the player's archive or installer (docs/spec/issues/170
+//                                    section 5): see below
 // Calls to the page: window.as3dPage.{onScreen, onLayout, onTouchMode, onFirstFrame,
 // onFinished, onProfileSaved, onChangeGame}.
 #include <SDL.h>
 #include <emscripten.h>
 #include <emscripten/html5.h>
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <string>
 
 #include "as3d/core.h"
 #include "as3d/game_data.h"
+#include "as3d/game_import.h"
 #include "game_loop.h"
 
 namespace {
@@ -90,6 +96,57 @@ EMSCRIPTEN_KEEPALIVE void as3d_web_context_restored() {
         }
     });
     as3d_game::hostGlContextRestored();
+}
+
+// The files the page could not take as loose game files (an archive, an installer, a game file
+// it does not know) go through the importer of the Android app (as3d/game_import.h, with the
+// archive module): the page writes them under `inDir` in MEMFS (/unpack/in/), calls this, and
+// reads back what the JSON names, the files the importer wrote under /unpack/out/<key>/ with the
+// names the page stores (pak0.apk, Settings.xml, logo2s.tga, the texts file):
+//   {"imported": ["as3d"], "files": {"as3d": ["pak0.apk", ...]}, "notes": ["...", ...]}
+// The page removes /unpack afterwards. The returned string lives until the next call.
+EMSCRIPTEN_KEEPALIVE const char* as3d_unpack(const char* inDir) {
+    namespace fs = std::filesystem;
+    static std::string json;
+    auto quote = [](const std::string& s) {
+        std::string q = "\"";
+        for (unsigned char c : s) {
+            if (c == '"' || c == '\\') q += '\\', q += static_cast<char>(c);
+            else if (c < 0x20) {
+                char b[8];
+                std::snprintf(b, sizeof b, "\\u%04x", c);
+                q += b;
+            } else q += static_cast<char>(c);
+        }
+        return q + "\"";
+    };
+    const std::string out = "/unpack/out";
+    std::error_code ec;
+    fs::remove_all(out, ec);
+    fs::create_directories(out, ec);
+    const as3d::ImportResult r = as3d::importGameFiles(inDir ? inDir : "/unpack/in", out);
+    json = "{\"imported\": [";
+    for (size_t i = 0; i < r.imported.size(); ++i) json += (i ? ", " : "") + quote(r.imported[i]);
+    json += "], \"files\": {";
+    bool firstGame = true;
+    for (int g = 0; g < as3d::kGameCount; ++g) {
+        const as3d::GameProfile& p = as3d::gameProfile(static_cast<as3d::GameId>(g));
+        const fs::path dir = fs::path(out) / p.key;
+        if (!fs::is_directory(dir, ec)) continue;
+        json += std::string(firstGame ? "" : ", ") + quote(p.key) + ": [";
+        firstGame = false;
+        bool first = true;
+        for (const fs::directory_entry& e : fs::directory_iterator(dir, ec)) {
+            if (!e.is_regular_file(ec)) continue;
+            json += (first ? "" : ", ") + quote(e.path().filename().string());
+            first = false;
+        }
+        json += "]";
+    }
+    json += "}, \"notes\": [";
+    for (size_t i = 0; i < r.notes.size(); ++i) json += (i ? ", " : "") + quote(r.notes[i]);
+    json += "]}";
+    return json.c_str();
 }
 
 } // extern "C"

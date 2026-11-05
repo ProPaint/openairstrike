@@ -97,6 +97,10 @@ if(NOT TARGET liblzma)
   set(XZ_DOXYGEN OFF CACHE BOOL "" FORCE)
   add_subdirectory("${AS3D_XZ_SRC}" "${CMAKE_BINARY_DIR}/third_party/xz" EXCLUDE_FROM_ALL)
   set_target_properties(liblzma PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  # xz exports its API headers only for an installed package: its users get them from the tree
+  # here (BEFORE, so that a system lzma.h of another version is never the one compiled against).
+  target_include_directories(liblzma BEFORE INTERFACE "${AS3D_XZ_SRC}/src/liblzma/api")
+  target_compile_definitions(liblzma INTERFACE LZMA_API_STATIC)
   if(AS3D_SANITIZE)
     target_compile_options(liblzma PRIVATE -fno-sanitize=address,undefined)
   endif()
