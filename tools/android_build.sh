@@ -80,6 +80,11 @@ done
 copy_if_changed() {
     if ! cmp -s "$1" "$2"; then cp -f "$1" "$2"; fi
 }
+# The reference entry lists of the paks (tools/pak_entries/, names only: docs/spec/issues/170),
+# in every APK: the import recognises a pak of another build, an override pak and a game kept
+# as loose files by them (apps/game/android_import.cpp, loadPakEntryLists).
+mkdir -p "${ASSETS_DIR}/pak_entries"
+for f in "${REPO_ROOT}"/tools/pak_entries/*.txt; do copy_if_changed "${f}" "${ASSETS_DIR}/pak_entries/$(basename "${f}")"; done
 # Optional: without them the menus still work (no intro pages or logo; Information pages show
 # a notice). assets/.gitignore keeps all of it out of git.
 copy_optional() {

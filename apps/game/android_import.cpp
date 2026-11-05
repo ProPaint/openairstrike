@@ -51,6 +51,28 @@ bool inAssets(AAssetManager* am, const as3d::GameProfile& g) {
     return true;
 }
 
+// The reference entry lists of the paks (tools/pak_entries/, copied into assets/pak_entries/
+// by tools/android_build.sh): what identifying a pak of another build by its names, keeping an
+// override pak and building a pak0.apk from loose files need (docs/spec/issues/170). Without
+// them only the exact matches work.
+void loadPakEntryLists(AAssetManager* am) {
+    if (!am) return;
+    for (int i = 0; i < as3d::kGameCount; ++i) {
+        const as3d::GameProfile& g = as3d::gameProfile(static_cast<as3d::GameId>(i));
+        for (const char* const* p = g.paks; *p; ++p) {
+            const std::string pak = *p;
+            const std::string stem = pak == "pak0.apk" ? std::string(g.key) : std::string(g.key) + "." + pak.substr(0, pak.size() - 4);
+            const std::string path = "pak_entries/" + stem + ".txt";
+            AAsset* a = AAssetManager_open(am, path.c_str(), AASSET_MODE_BUFFER);
+            if (!a) continue;
+            const void* data = AAsset_getBuffer(a);
+            const off_t size = AAsset_getLength(a);
+            if (data && size > 0) as3d::setPakEntryNames(g.id, pak, std::string(static_cast<const char*>(data), static_cast<size_t>(size)));
+            AAsset_close(a);
+        }
+    }
+}
+
 } // namespace
 
 // "key:title" of every playable game the app holds, bundled or imported, in GameId order.
@@ -71,7 +93,9 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_org_as3dport_game_ImportActivity_
 // {imported keys separated by spaces, note, note, ...}
 extern "C" JNIEXPORT jobjectArray JNICALL Java_org_as3dport_game_ImportActivity_nativeImport(JNIEnv* env, jclass,
                                                                                               jstring incomingDir,
-                                                                                              jstring gamesDir) {
+                                                                                              jstring gamesDir,
+                                                                                              jobject assets) {
+    loadPakEntryLists(assets ? AAssetManager_fromJava(env, assets) : nullptr);
     const as3d::ImportResult r = as3d::importGameFiles(str(env, incomingDir), str(env, gamesDir));
     std::vector<std::string> out;
     std::string keys;

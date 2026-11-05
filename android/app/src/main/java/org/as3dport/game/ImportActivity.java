@@ -56,7 +56,8 @@ public class ImportActivity extends Activity {
     private static final int PICK = 1;
 
     private static native String[] nativeListGames(String gamesDir, android.content.res.AssetManager assets);
-    private static native String[] nativeImport(String incomingDir, String gamesDir);
+    // `assets`: the APK's, for the reference entry lists of the paks (assets/pak_entries/).
+    private static native String[] nativeImport(String incomingDir, String gamesDir, android.content.res.AssetManager assets);
 
     private static boolean sLoaded;
     private static boolean sLoadTried;
@@ -289,7 +290,7 @@ public class ImportActivity extends Activity {
                     }
                     status("Recognising the files…");
                     if (!loadNative()) throw new Exception("the app's native library is missing");
-                    String[] r = nativeImport(incomingDir.getAbsolutePath(), gamesDir.getAbsolutePath());
+                    String[] r = nativeImport(incomingDir.getAbsolutePath(), gamesDir.getAbsolutePath(), getAssets());
                     importedKeys = r.length > 0 ? r[0] : "";
                     for (int i = 1; i < r.length; ++i) report.append(r[i]).append('\n');
                     if (!importedKeys.isEmpty()) importedSomething = true;
