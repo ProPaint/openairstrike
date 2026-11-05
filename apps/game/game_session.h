@@ -19,6 +19,7 @@
 #include "as3d/vfs.h"
 #include "as3d/script.h"
 #include "as3d/ui.h"
+#include "as3d/cheats.h"
 #include "as3d/world.h"
 
 namespace as3d {
@@ -129,6 +130,19 @@ public:
     // HUD score: ftol(p_scores) + banked (engine-behaviour.md 10.4).
     long long displayScore(int player = 0) const;
 
+    // Cheat codes (as3d/cheats.h, engine-behaviour.md 14): one typed character. Outside
+    // intermission levels the character goes into the rolling buffer; when it completes a code
+    // word the cheat is applied to the world, the "cheat used" flag is set and the cheat is
+    // returned, with the texts key of its message in `messageKey` ("" when it has none). The
+    // caller plays `sounds\cheat.wav` and posts the message (postMessage).
+    as3d::Cheat typeCheat(char c, const char** messageKey = nullptr);
+    // A cheat was used in this session: rank Cheater, no score posting (frontend.h cheatUsed).
+    bool cheatUsed() const { return cheatUsed_; }
+    // The HUD message (ui::HudState::message), shown 3 s from now (the age advances per step).
+    void postMessage(std::string text);
+    const std::string& message() const { return message_; }
+    float messageAge() const { return messageAge_; }
+
     // Where init() spent its time (the 3DS load profile; wall clock, milliseconds).
     struct InitTimes {
         double mountMs = 0, defsMs = 0, worldMs = 0, levelMs = 0;
@@ -151,6 +165,11 @@ private:
     bool wasComplete_ = false, wasGameOver_ = false;
     as3d::script::u64 hintsSeen_ = 0;
     as3d::u32 totalFrames_ = 0;
+    as3d::CheatInput cheats_;
+    bool cheatUsed_ = false;
+    bool godCheat_ = false;       // the god-mode cheat is on: re-applied when a level re-inits the world
+    std::string message_;
+    float messageAge_ = -1.0f;    // seconds since postMessage; negative = none
 };
 
 // The HUD state for the current frame, from the world: health, lives, score (scores + banked,

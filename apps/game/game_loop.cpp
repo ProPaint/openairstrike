@@ -554,6 +554,9 @@ bool GameWindow::handleFlowEvent(const SDL_Event& e) {
                 if (!down) uiIn_.release(vk);
             }
             if (!e.key.repeat) pending_.push_back({false, sc, down});
+            // The cheat codes (engine-behaviour.md 14): letters typed during play.
+            if (down && !e.key.repeat && sc >= SDL_SCANCODE_A && sc <= SDL_SCANCODE_Z)
+                stack_.flow->typed(static_cast<char>('a' + (sc - SDL_SCANCODE_A)));
             return true;
         }
         case SDL_TEXTINPUT:
@@ -782,6 +785,15 @@ void GameWindow::handleEvent(const SDL_Event& e) {
                 break;
             }
             Hotkey h = keys_.keyEvent(e.key.keysym.scancode, e.type == SDL_KEYDOWN, e.key.repeat != 0);
+            // Without the front end (--level N): the cheat codes with the built-in messages.
+            if (e.type == SDL_KEYDOWN && !e.key.repeat && stack_.session && e.key.keysym.scancode >= SDL_SCANCODE_A &&
+                e.key.keysym.scancode <= SDL_SCANCODE_Z) {
+                const char* key = nullptr;
+                if (ses().typeCheat(static_cast<char>('a' + (e.key.keysym.scancode - SDL_SCANCODE_A)), &key) != Cheat::None) {
+                    stack_.audio.playUi("sounds\\cheat.wav");
+                    if (key && *key) ses().postMessage(ui::Texts().get(key));
+                }
+            }
             if (h == Hotkey::Quit && !o_.mobile) running_ = false;
             if (h == Hotkey::Quit && o_.mobile) pauseGame("back");
             if (h == Hotkey::Screenshot) screenshot_ = true;

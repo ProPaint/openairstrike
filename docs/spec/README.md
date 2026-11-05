@@ -137,7 +137,7 @@ Issues of a sequel are in its own directory, `as2/issues/` (numbers from 200).
 | Rendering | `engine/src/render`, `apps/viewer` | meshes, terrain, water, particles, shadows, ground marks, sprites, dynamic lights, environment maps, lightning, health bars, driven by the live world |
 | 2D layer, font, HUD | `engine/src/ui` | follows frontend.md section 4 |
 | Audio | `engine/src/audio`, `apps/game/audio_bridge.*` | mixer and music, driven by the world's sound queue |
-| Game app | `apps/game`, `engine/src/input`, `engine/src/render/world_render*` | full flow on desktop: intro, menus, missions, mission complete, game over, high scores, options, two players, saved profile; no cheat codes; video options and 3D sound hidden |
+| Game app | `apps/game`, `engine/src/input`, `engine/src/render/world_render*` | full flow on desktop: intro, menus, missions, mission complete, game over, high scores, options, two players, saved profile, cheat codes; video options and 3D sound hidden |
 | Menus, progression, save | `engine/src/ui`, `engine/src/game/profile*`, `apps/game/game_flow.*`, `tools/extract_exe_texts.py` | wired into the game on all targets |
 | Android | `android`, `apps/game`, `engine/src/input/touch_mapper.cpp`, `docs/android.md` | runs on the owner's phone; touch overlay with item previews, Wide / 4:3, touch speed, FPS counter |
 | Web | `apps/web`, `tools/web_build.sh`, `tools/web_serve.sh`, `docs/web.md` | the whole game in the browser, one player; verified in headless Chromium and by the owner on Android Chrome and Edge; Safari, iPhone and Firefox untested |

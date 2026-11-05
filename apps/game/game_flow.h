@@ -94,6 +94,10 @@ public:
     int step(const as3d::FrameInput& input);
     // World, HUD, front end, brightness into the bound framebuffer (needs setView).
     void draw(int width, int height);
+    // A typed letter during play (the cheat codes, engine-behaviour.md 14): nothing while a
+    // menu is up or the game is paused. Plays `sounds\cheat.wav`, posts the message and, for
+    // the credits cheat, shows the credits over the in-game menu.
+    void typed(char c);
 
     // The app goes to the background: the in-game menu opens during play (so the game comes
     // back paused), and the profile is saved.

@@ -50,6 +50,9 @@ const std::map<std::string, std::string>& defaults() {
             {"info.missing.1", "Run {tools/extract_exe_texts.py} with your copy of"},
             {"info.missing.2", "AirStrike 3D v1.70 to import them."},
             {"congrats.0", "Congratulations!"},
+            {"cheat.god_on", "God Mode: Enabled"}, {"cheat.god_off", "God Mode: Disabled"},
+            {"cheat.lives", "All Lives: Enabled"}, {"cheat.weapons", "All Weapons: Enabled"},
+            {"cheat.missiles", "All Missiles: Enabled"}, {"cheat.powerups", "All Power-Ups: Enabled"},
             {"congrats.missing", "(The texts of this screen are not installed.)"},
             // Ours: the plain front end of the sequels (docs/spec/as2/issues/260).
             {"plain.back", "Back"}, {"plain.ok", "OK"}, {"plain.apply", "Apply"}, {"plain.start", "Start"},

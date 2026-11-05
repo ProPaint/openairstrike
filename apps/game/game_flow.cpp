@@ -312,7 +312,7 @@ ui::MissionReport GameFlow::report() const {
     r.totals.starTotal = w.starTotal();
     r.totals.maxScore = w.maxLevelScore();
     r.totals.enemyTotal = w.enemiesInLevel();
-    r.cheatUsed = false; // no cheat codes yet
+    r.cheatUsed = session_.cheatUsed();
     r.hasUpgrades = true;
     for (int p = 0; p < 2; ++p) {
         r.weapon[p] = static_cast<int>(w.player(p).weapon);
@@ -391,6 +391,19 @@ int GameFlow::step(const FrameInput& input) {
     if (ev & GameSession::kGameOver) fe_->onGameOver(report());
     playUiSounds();
     return ev;
+}
+
+void GameFlow::typed(char c) {
+    if (!playing()) return;
+    const char* key = nullptr;
+    const Cheat cheat = session_.typeCheat(c, &key);
+    if (cheat == Cheat::None) return;
+    audio_.playUi("sounds\\cheat.wav");
+    if (key && *key) session_.postMessage(fe_->texts().get(key));
+    if (cheat == Cheat::Credits) {
+        fe_->showCredits();
+        playUiSounds();
+    }
 }
 
 void GameFlow::drawModel(const ui::ModelView& v) {

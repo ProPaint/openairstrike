@@ -610,6 +610,9 @@ public:
     // --- players ------------------------------------------------------------------
     void spawnPlayer(int p);
     PlayerRecord& player(int p) { return players_[p]; }
+    // God mode (the cheat, WorldConfig::godMode): player damage ignored while on.
+    bool godMode() const { return config_.godMode; }
+    void setGodMode(bool on) { config_.godMode = on; }
     const PlayerRecord& player(int p) const { return players_[p]; }
     int playerEntityIndex(int p) const;    // in-use slot of the player's entity, or -1
     int numPlayers() const { return config_.players; }

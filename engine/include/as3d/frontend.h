@@ -309,7 +309,10 @@ public:
     // Game -> front end.
     void onEndLevel(const MissionReport& report); // EndLevel(): unlocks, then S15 or S16
     void onGameOver(const MissionReport& report); // all lives lost: S14
-    void showTutorialHint(std::string text);      // ShowTutorialHint: S12
+    void showTutorialHint(std::string text);
+    // The credits cheat (engine-behaviour.md 14, the first game): pauses, opens the in-game
+    // menu and the Information screen on its CREDITS page over it (Back returns to the menu).
+    void showCredits();      // ShowTutorialHint: S12
 
     // Queries for the game loop.
     FrontendState state() const { return state_; }

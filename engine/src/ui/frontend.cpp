@@ -282,7 +282,7 @@ Frontend::Facts Frontend::facts() const {
             c.bank(report_.players, report_.totals);
     }
     f.endScore = c.p[0].banked;
-    f.endSlot = c.players == 1 ? profile_.progress.qualifyingSlot(f.endScore) : -1;
+    f.endSlot = c.players == 1 && !report_.cheatUsed ? profile_.progress.qualifyingSlot(f.endScore) : -1;
     f.endRank = rankIndex(c.highScoreRankValue(), report_.cheatUsed);
     f.hintText = hintText_;
     return f;
@@ -290,6 +290,7 @@ Frontend::Facts Frontend::facts() const {
 
 void Frontend::highScoreCheck() {
     if (campaign_.players != 1) return; // two-player scores are never recorded
+    if (report_.cheatUsed) return;      // no score posting after a cheat (engine-behaviour.md 14)
     if (profile_.progress.qualifyingSlot(campaign_.p[0].banked) >= 0) open(Screen::NameEntry);
 }
 
@@ -320,6 +321,18 @@ void Frontend::onGameOver(const MissionReport& report) {
     hudHidden_ = true;
     host_.gameOverMusic();
     open(Screen::GameOver);
+}
+
+// The Information page the credits cheat opens (info.10.title is CREDITS, pages 0..9).
+constexpr int kCreditsInfoPage = 9;
+
+void Frontend::showCredits() {
+    if (state_ != FrontendState::Playing || !menus_.empty()) return;
+    setPausedFlag(true);
+    hudHidden_ = true;
+    open(Screen::InGame);
+    infoPage_ = kCreditsInfoPage;
+    open(Screen::Information);
 }
 
 void Frontend::showTutorialHint(std::string text) {

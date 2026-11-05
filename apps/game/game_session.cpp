@@ -88,6 +88,11 @@ bool GameSession::init(const GameOptions& options, std::string* error) {
         c.rules = &options.rules();
         world_->init(vfs_, *db_, c);
     }
+    cheats_.setGame(world_->game());
+    cheatUsed_ = false;
+    godCheat_ = false;
+    message_.clear();
+    messageAge_ = -1.0f;
     const Clock::time_point t3 = Clock::now();
     initTimes_.mountMs = ms(t0, t1);
     initTimes_.defsMs = ms(t1, t2);
@@ -119,6 +124,7 @@ bool GameSession::startMission(const LevelSetup& s, std::string* error) {
     c.heli[1] = s.heli[1];
     c.cameraMode = s.camera;
     c.rules = &rules();
+    c.godMode = c.godMode || godCheat_; // the god-mode cheat outlives the level (a global in the original)
     world_->init(vfs_, *db_, c);
     for (int p = 0; p < kMaxPlayers; ++p) {
         PlayerRecord& pr = world_->player(p);
@@ -207,6 +213,7 @@ int GameSession::step(const FrameInput& input) {
     }
     w.step(input.toPlayerInput());
     ++totalFrames_;
+    if (messageAge_ >= 0.0f) messageAge_ += w.config().dt;
     if (w.hintsShown() != hintsSeen_) {
         hintsSeen_ = w.hintsShown();
         events |= kHintShown;
@@ -281,7 +288,27 @@ ui::HudState hudStateOf(const World& w, const std::string& levelName) {
 ui::HudState hudStateOf(const GameSession& session) {
     ui::HudState hs = hudStateOf(session.world(), session.levelName());
     for (int p = 0; p < hs.playerCount; ++p) hs.players[p].score = session.displayScore(p);
+    hs.message = session.message();
+    hs.messageAge = session.messageAge();
     return hs;
+}
+
+Cheat GameSession::typeCheat(char c, const char** messageKey) {
+    if (messageKey) *messageKey = "";
+    // Only outside intermission levels (engine-behaviour.md 14).
+    if (!hasLevel_ || !world_ || world_->intermission()) return Cheat::None;
+    const Cheat cheat = cheats_.feed(c);
+    if (cheat == Cheat::None) return cheat;
+    cheatUsed_ = true;
+    const char* key = applyCheat(*world_, cheat);
+    if (cheat == Cheat::GodMode) godCheat_ = world_->godMode();
+    if (messageKey) *messageKey = key;
+    return cheat;
+}
+
+void GameSession::postMessage(std::string text) {
+    message_ = std::move(text);
+    messageAge_ = 0.0f;
 }
 
 } // namespace as3d_game

@@ -67,8 +67,16 @@ touch additions of the menus themselves, 100 the touch controls.
   and stops while paused).
 * The mission report takes `p_scores`, `p_lives`, `p_stars` and kills from the player records
   and the star total, maximum score and enemy total from the world.
-* Cheat codes (`engine-behaviour.md` 14) are not implemented: the game side has none yet, so the
-  "cheat used" flag is always false and the rank is never "Cheater".
+* Cheat codes (`engine-behaviour.md` 14, as2 delta 14): typed on the keyboard during play
+  (`as3d/cheats.h`, `GameSession::typeCheat`, `GameFlow::typed`): the letters A..Z go into the
+  rolling buffer whatever they are bound to (the original took every typed character; the words
+  are letters only), outside intermission levels and only while playing with no menu up. A match
+  applies the cheat, sets the session's "cheat used" flag (rank Cheater, no score posting; the
+  sequels' checkpoint is not saved), plays `sounds\cheat.wav` and shows the message for 3 s at
+  the HUD's message line. The god-mode cheat outlives the level, as the original's global did.
+  The credits cheat opens the Information screen's CREDITS page over the in-game menu (the
+  original showed a message box). Hosts without a keyboard (touch, the 3DS) have no way to type
+  them; the web page's full-screen key F also lands in the buffer, which is harmless.
 * The bot's (or an input script's) hint confirm closes the front end's hint box, as Enter does.
 
 ## 5. Saving
