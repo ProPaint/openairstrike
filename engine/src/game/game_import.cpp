@@ -372,7 +372,7 @@ private:
             src.archiveEntry = e.index;
             addFile(src, e.name, shown + ": " + e.name);
         }
-        if (candidates_.size() == before) notes_.push_back(shown + ": no game files in this " + archiveKindLabel(a.kind()) + ".");
+        if (candidates_.size() == before) notes_.push_back(shown + ": no game files in it.");
     }
 
     static std::string archiveKindLabel(ArchiveKind k) {

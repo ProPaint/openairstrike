@@ -10,6 +10,7 @@
 //             [--out-dir DIR] [--dump-state FILE] [--record FILE] [--quiet] ...
 //   as3d_game --headless --ui-script FILE [--frames N] [--size WxH] [--touch] ...
 //   as3d_game --headless --selector-shot FILE.png [--selector-games as3d,as2] [--size WxH] [--touch]
+//   as3d_game --import FILE_OR_DIR [--data ROOT]
 //
 // With the front end, no --game, no $AS3D_GAME and no --paks, the window opens on the game
 // selector when the data of more than one playable game is present (docs/spec/issues/163;
@@ -17,6 +18,13 @@
 // then offers "Change game". The last choice is kept in <user data dir>/launcher.bin and only
 // preselected. Headless runs and --level never show it: they take the game as before.
 // --selector-shot draws the selector once into a PNG (the games present, or those named).
+// --import runs the importer of the Android and web apps (as3d/game_import.h) on a file (a pak,
+// an executable, a zip, RAR, 7z or CAB archive, an Inno Setup installer: docs/spec/archive.md)
+// or a directory, and installs what it recognises into ROOT's layout: a game's paks and
+// Settings.xml in its install directory's data/ (third_party_local/original for AirStrike 3D,
+// third_party_local/games/<key> for the others), the logo in data/gfx/, the texts read from the
+// executable in its extracted directory. Files already there are kept. Prints the importer's
+// notes; the given file or directory is only read.
 //
 // Without --level, --bot or --input-script the window opens on the front end: intro pages,
 // main menu over the attract level, and the whole mission flow (docs/spec/frontend.md; the
@@ -67,6 +75,7 @@
 #include <filesystem>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <memory>
 #include <string>
 
@@ -76,6 +85,7 @@
 #include "as3d/world.h"
 #include "audio_bridge.h"
 #include "as3d/game_data.h"
+#include "as3d/game_import.h"
 #include "as3d/launcher.h"
 #include "as3d/load_stats.h"
 #include "game_loop.h"
@@ -115,6 +125,7 @@ struct Args {
     std::string renderOnly;                            // --render-only LIST
     std::string gameKey, paksDir;
     bool listGames = false, errorShown = false;
+    std::string importPath; // --import
     bool allowUnfinished = false;
     std::string selectorShot, selectorGames;
     int selectorFocus = -1;
@@ -138,7 +149,8 @@ int usage() {
                  "                 [--render-only LIST]  (terrain,models,particles,sprites,healthbars,shadows,marks,skid,water,lightning: only these passes, no 2D layer)\n"
                  "       as3d_game --headless --ui-script FILE [--frames N] [--touch] ...\n"
                  "       as3d_game --headless --selector-shot FILE.png [--selector-games K1,K2] [--size WxH] [--touch]\n"
-                 "                      [--screen wide|4x3] [--insets L,T,R,B] [--selector-focus N] [--selector-time SECONDS]\n");
+                 "                      [--screen wide|4x3] [--insets L,T,R,B] [--selector-focus N] [--selector-time SECONDS]\n"
+                 "       as3d_game --import FILE_OR_DIR [--data ROOT]  (a game's files, archive or installer into ROOT)\n");
     return 2;
 }
 
@@ -191,6 +203,7 @@ bool parseArgs(int argc, char** argv, Args& a) {
         else if (s == "--data" && next()) a.game.dataRoot = v;
         else if (s == "--game" && next()) a.gameKey = v;
         else if (s == "--list-games") a.listGames = true;
+        else if (s == "--import" && next()) a.importPath = v;
         else if (s == "--frames" && next()) a.frames = std::strtol(v, nullptr, 10);
         else if (s == "--input-script" && next()) a.inputScript = v;
         else if (s == "--record" && next()) a.recordPath = v;
@@ -228,7 +241,7 @@ bool parseArgs(int argc, char** argv, Args& a) {
         const char* env = std::getenv("AS3D_DATA_ROOT");
         a.game.dataRoot = env && *env ? env : ".";
     }
-    if (a.listGames || !a.selectorShot.empty()) return true;
+    if (a.listGames || !a.selectorShot.empty() || !a.importPath.empty()) return true;
     std::string gerr;
     if (!chooseGameData(a.game.dataRoot, a.gameKey, a.paksDir, &a.data, &gerr)) {
         std::fprintf(stderr, "as3d_game: %s\n", gerr.c_str());
@@ -537,6 +550,65 @@ int writeMarqueeFrames(const Args& a, LauncherScreen& screen, ui::Renderer2D& r,
 }
 
 // --selector-shot: the selector drawn once, headless (the games present, or --selector-games).
+// --import: the importer into a scratch directory, then each game's files into the data root's
+// layout (docs/spec/README.md, "Games and which spec applies").
+int runImport(const Args& a) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path src(a.importPath);
+    if (!fs::exists(src, ec)) {
+        std::fprintf(stderr, "as3d_game: --import: %s does not exist\n", a.importPath.c_str());
+        return 2;
+    }
+    const fs::path scratch = fs::path(a.game.dataRoot) / "out" / ("import-" + std::to_string(static_cast<long long>(std::time(nullptr))));
+    const fs::path incoming = scratch / "incoming", games = scratch / "games";
+    fs::create_directories(incoming, ec);
+    // The importer moves the loose files it uses: it gets copies (the player's file stays).
+    if (fs::is_directory(src, ec)) fs::copy(src, incoming / src.filename(), fs::copy_options::recursive, ec);
+    else fs::copy_file(src, incoming / src.filename(), ec);
+    if (ec) {
+        std::fprintf(stderr, "as3d_game: --import: cannot copy %s: %s\n", a.importPath.c_str(), ec.message().c_str());
+        fs::remove_all(scratch, ec);
+        return 1;
+    }
+    const ImportResult r = importGameFiles(incoming.string(), games.string());
+    for (const std::string& n : r.notes) std::printf("%s\n", n.c_str());
+    int installed = 0;
+    for (int i = 0; i < kGameCount; ++i) {
+        const GameProfile& g = gameProfile(static_cast<GameId>(i));
+        const fs::path from = games / g.key;
+        if (!fs::is_directory(from, ec)) continue;
+        const GameData d = locateGameData(a.game.dataRoot, g);
+        const fs::path dataDir = fs::path(d.installDir) / "data";
+        for (const fs::directory_entry& e : fs::directory_iterator(from, ec)) {
+            const std::string name = e.path().filename().string();
+            fs::path to;
+            if (name == "logo2s.tga") to = dataDir / "gfx" / name;
+            else if (name == g.textsFile) to = fs::path(d.extractedDir) / name;
+            else to = dataDir / name;
+            if (fs::exists(to, ec)) {
+                std::printf("%s: %s already there, kept\n", g.key, to.string().c_str());
+                continue;
+            }
+            fs::create_directories(to.parent_path(), ec);
+            fs::copy_file(e.path(), to, ec);
+            if (ec) std::printf("%s: cannot write %s: %s\n", g.key, to.string().c_str(), ec.message().c_str());
+            else {
+                std::printf("%s: installed %s\n", g.key, to.string().c_str());
+                ++installed;
+            }
+        }
+    }
+    fs::remove_all(scratch, ec);
+    std::printf("import: %d file(s) installed; games complete: %s\n", installed,
+                r.imported.empty() ? "none" : [&] {
+                    std::string k;
+                    for (const std::string& s : r.imported) k += (k.empty() ? "" : " ") + s;
+                    return k;
+                }().c_str());
+    return r.imported.empty() && installed == 0 ? 1 : 0;
+}
+
 int runSelectorShot(const Args& a) {
     const std::vector<GameData> found = detectGames(a.game.dataRoot);
     std::vector<const GameProfile*> games;
@@ -799,6 +871,7 @@ int main(int argc, char** argv) {
         std::fputs(describeGames(a.game.dataRoot).c_str(), stdout);
         return 0;
     }
+    if (!a.importPath.empty()) return runImport(a);
     if (!a.selectorShot.empty()) return runSelectorShot(a);
     InputScript script;
     bool haveScript = false;
