@@ -354,8 +354,17 @@ private:
                 return n.size() > l && n.compare(n.size() - l, l, x) == 0;
             };
             // Game executables are below 1 MB; an executable above that is an installer or a
-            // self-extractor, worth opening (the survey's are 12 to 45 MB).
-            const bool container = ends(".zip") || ends(".rar") || ends(".7z") || ends(".cab") || (ends(".exe") && e.size > (1u << 20));
+            // self-extractor, worth opening (the survey's are 12 to 45 MB). A smaller one is
+            // looked at whole: a patch can be a small self-extractor ("Latest Patch.exe").
+            bool container = ends(".zip") || ends(".rar") || ends(".7z") || ends(".cab") || (ends(".exe") && e.size > (1u << 20));
+            if (!container && ends(".exe") && depth < 2) {
+                std::vector<std::uint8_t> bytes;
+                std::string err;
+                if (a.extractToMemory(e, &bytes, 1u << 20, &err)) {
+                    const ArchiveKind k = archiveKind(bytes.data(), bytes.size(), true);
+                    container = k != ArchiveKind::Unknown && k != ArchiveKind::Pe;
+                }
+            }
             if (container && depth < 2) {
                 std::string err;
                 std::unique_ptr<ArchiveReader> inner = a.openEntry(e, &err, staging_);

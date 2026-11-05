@@ -96,6 +96,20 @@ file is not a game executable. The fixed-address tables stay first for the known
 
 ## 4. Archives and installers (package B)
 
+**Status (package B, 2026-11-05): done.** `as3d/archive.h`, `engine/src/formats/archive/`,
+`engine/src/formats/archive.cmake`; the format and the version coverage are in
+[../archive.md](../archive.md). Pinned: libarchive 3.8.11 and xz 5.8.4
+(`tools/fetch_third_party.sh archive`). Differences from the plan below: the Inno Setup reader
+covers setup data 5.1.0 to 6.4.x (6.5 changed the file entries and is refused with a note
+naming the version); a CAB is found anywhere in an executable by its header fields, not only in
+the overlay (the survey's "Windows 10 Setup" keeps it inside the data of a Gentee CreateInstall
+stub, with a cabinet size larger than the bytes present: pak0 and pak1 come out whole, pak2 and
+Settings.xml are truncated and noted); the Gulf Thunder "Setup 2.6" `instalator.exe` is a
+Gentee CreateInstall installer, not NSIS, and is refused with a note naming Gentee
+(`ArchiveKind::Gentee`); a cut RAR 5 archive is refused (libarchive ends its listing quietly;
+the end-of-archive block is checked). The importer uses the module through its `addFile` entry
+point (`Source::archive`); `collectZip` stays for builds without archives.
+
 A new engine module `engine/src/formats/archive/` (desktop, Android, web; not the 3DS, which
 never imports) gives the importer one way to open any container:
 
@@ -132,6 +146,18 @@ The importer (`game_import.cpp`) walks archives through `ArchiveReader` instead 
 
 ## 5. The hosts (package B, then integration)
 
+**Status (package B, 2026-11-05): done.** Android: the picker already used `*/*`; the import
+screen's text now offers the downloaded file as it is. Web: `as3d_unpack(inDir)` takes the
+MEMFS directory the page wrote the file into (`/unpack/in/`) rather than a pointer and length,
+and returns JSON naming the files under `/unpack/out/<key>/`; the engine's runtime now starts
+before the game files are chosen (main waits for them), so that the page can call it; an
+executable that is not a game's by name also goes to the engine (an installer, or another
+build whose texts the importer reads). Desktop: `as3d_game --import FILE_OR_DIR [--data ROOT]`.
+Verified on the survey files (as3d_w10.rar, Desert-Hawk.exe, Air-Assault-2.exe,
+gulf_v271.zip with its Inno Setup 5.1.10 setup.exe, as3d_rip155.zip: each game complete;
+as3d_win10setup.zip: pak2 truncated as above; gulf_setup26.zip and as2_setup.exe refused with
+their notes).
+
 - **Android**: `ImportActivity` already copies the picked documents into `incoming/`; the
   importer now opens any of them. The picker's MIME filter accepts `*/*`.
 - **Web**: `files.js` keeps hashing loose files in JavaScript; a dropped or picked file that
@@ -145,6 +171,15 @@ The importer (`game_import.cpp`) walks archives through `ArchiveReader` instead 
   (`third_party_local/...` layout), so the desktop gets the same path and the tests cover it.
 
 ## 6. Tests
+
+**Status (package B, 2026-11-05): done**, with one change: the Wine run of ISCC was not
+possible in the agent's sandbox, so the Inno Setup fixtures (`inno5_setup.bin`,
+`inno6_setup.bin`) are written by `tools/make_inno_fixture.py` from Inno Setup's published
+structure definitions (5.1.10 ANSI with LZMA1 chunks and MD5, 6.4.3 unicode with one solid
+LZMA2 chunk and SHA-256, the call instruction transform on the .exe); the reader was checked
+against the real 5.1.10 and 6.0.0 installers of the survey besides. RAR 4 is made with RAR
+6.24 from rarlab (Debian's rar 7 no longer writes RAR 4). Tests: `apps/tests/archive_test.cpp`,
+`apps/tests/game_import_archive_test.cpp`, the web walk `byo_archive`.
 
 - Package A: unit tests on synthetic paks (names-based identification, near matches, extra
   pak, truncated pak, pak0 built from a folder, texts by hash on a synthetic "executable"
