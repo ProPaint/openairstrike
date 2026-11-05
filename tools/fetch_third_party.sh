@@ -3,9 +3,10 @@
 # into third_party_local/ (gitignored), rather than committing SDL's source
 # tree to this repository. See docs/android.md.
 #
-# Usage: tools/fetch_third_party.sh [openmpt|ctrtools]
+# Usage: tools/fetch_third_party.sh [openmpt|ctrtools|archive]
 #        (openmpt: libopenmpt only, for tools/3ds_build.sh;
-#         ctrtools: makerom and bannertool only, for tools/3ds_package.sh)
+#         ctrtools: makerom and bannertool only, for tools/3ds_package.sh;
+#         archive: libarchive and xz source trees only, for engine/src/formats/archive.cmake)
 # Env:   AS3D_DATA_ROOT   repo checkout to put third_party_local/ under
 #                          (default: this repo's root; use the main checkout
 #                          from a worktree so the download is shared).
@@ -100,6 +101,48 @@ fetch_ctrtools() {
 
 if [ "${1:-}" = "ctrtools" ]; then
     fetch_ctrtools
+    exit 0
+fi
+
+# --- libarchive and xz (the player's archives and installers; engine/src/formats/archive.cmake,
+# docs/spec/archive.md) ---
+# Release tarballs from the projects' GitHub releases, each downloaded into an empty directory
+# of its own and checked against the pinned SHA-256 before it is unpacked. The libraries are
+# built from these trees by CMake (archive.cmake), not by this script: liblzma through xz's own
+# CMake project with the decoders only, libarchive from a source list with a hand-written
+# configuration header (no OpenSSL, libxml2, bzip2, zstd, lz4, iconv, ACLs or xattrs).
+LIBARCHIVE_VERSION="3.8.11"
+LIBARCHIVE_URL="https://github.com/libarchive/libarchive/releases/download/v${LIBARCHIVE_VERSION}/libarchive-${LIBARCHIVE_VERSION}.tar.gz"
+# Verified by this script against the file downloaded from the URL above on 2026-11-05.
+LIBARCHIVE_SHA256="900fe9fc7237c2b04f090f3c3648de8fe597525771f5035016537ce2d667d12b"
+XZ_VERSION="5.8.4"
+XZ_URL="https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz"
+# Verified by this script against the file downloaded from the URL above on 2026-11-05.
+XZ_SHA256="0014c7886930454fe8bd4228665b51af55eeae560ea135c9c4cd33f55b2591d9"
+
+# unpack_verified <url> <sha256> <name> <marker file>: fetches <name>.tar.gz and unpacks it
+# into third_party_local/<name>/ unless the marker file is already there.
+unpack_verified() {
+    local url="$1" sha="$2" name="$3" marker="$4"
+    if [ -f "${TPL_DIR}/${name}/${marker}" ]; then
+        echo "fetch_third_party: ${name} already present at ${TPL_DIR}/${name}"
+        return
+    fi
+    fetch_verified "${url}" "${sha}" "${DL_DIR}/${name}" "${name}.tar.gz"
+    rm -rf "${TPL_DIR}/${name}"
+    echo "fetch_third_party: unpacking ${name} to ${TPL_DIR}"
+    tar xzf "${DL_DIR}/${name}/${name}.tar.gz" -C "${TPL_DIR}" --no-same-owner
+    [ -f "${TPL_DIR}/${name}/${marker}" ] || { echo "fetch_third_party: ${name}: ${marker} missing after unpacking" >&2; exit 1; }
+}
+
+fetch_archive() {
+    unpack_verified "${LIBARCHIVE_URL}" "${LIBARCHIVE_SHA256}" "libarchive-${LIBARCHIVE_VERSION}" libarchive/archive.h
+    unpack_verified "${XZ_URL}" "${XZ_SHA256}" "xz-${XZ_VERSION}" src/liblzma/api/lzma.h
+    echo "fetch_third_party: AS3D_LIBARCHIVE_DIR=${TPL_DIR}/libarchive-${LIBARCHIVE_VERSION} AS3D_XZ_DIR=${TPL_DIR}/xz-${XZ_VERSION}"
+}
+
+if [ "${1:-}" = "archive" ]; then
+    fetch_archive
     exit 0
 fi
 
