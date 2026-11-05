@@ -126,8 +126,13 @@ What the player chooses (Android's document picker, several files at once):
   from and by a hash dictionary for any other, and only the texts file is kept;
 - optional: `data/Settings.xml` (intro pages, version line) and `data/gfx/logo2s.tga` (the
   main menu's logo);
-- or one zip of the game folder, or of the original download (which holds several games: all
-  of them are imported; its fourth game, which the engine does not run, is left out).
+- or the file downloaded, as it is: a zip, RAR, 7z or CAB archive of the game folder or of
+  the original download (every game in it is imported; a game the engine does not run is left
+  out), an Inno Setup installer (`setup.exe`), or a zip holding one of those (opened two levels
+  deep; docs/spec/archive.md). NSIS installers and Gentee CreateInstall installers are refused
+  with a note that names them ("Setup.exe: an NSIS installer, which this app cannot open;
+  install it on a PC and pick the game's data folder"), as are password-protected archives and
+  multi-volume sets.
 
 Loose files have the same names in every game, so they are chosen one game at a time; a
 second game is added later the same way. The picked documents are copied into
@@ -176,16 +181,18 @@ asked for with the extra.
 ### Where the files come from
 
 What the survey of docs/spec/issues/170 found in the public downloads, and what the import
-does with each (package A; the containers of package B are not opened yet):
+does with each, picked as downloaded (checked on 2026-11-05 with `as3d_game --import`, the
+same importer):
 
 | Source | What it holds | Import |
 |---|---|---|
-| The subreddit's pinned zips, myabandonware's "RIP" zips | the game folder: the executable, `data/pak*.apk` | pick the zip, or its unpacked files: works |
-| The gametop installers (Inno Setup), the "Setup" and "Version 2.71" installers | a game folder inside the installer | install on a PC first, then pick the game's `data` folder and executable: works (Air Assault 2 is AirStrike 2, Desert Hawk is Gulf Thunder without pak0) |
-| "Full RIP 2.50" of AirStrike 2, gametop's Desert Hawk | `data/` with pak1, pak2 (pak4) and pak0's content loose | pick the whole `data` folder (and the executable): a pak0.apk is built |
-| The "Windows 10 ... nVidia" packages | a CAB self-extractor holding the executable, `pak3.apk` (AirStrike 3D) and loose files | unpack on a PC first; the loose files, pak3 and the executable are then taken |
-| The pinned AirStrike 3D RAR | the game folder | unpack on a PC first (RAR is not opened yet) |
-| NSIS and DRM-wrapped "Setup" files | nothing the import can read | install on a PC, pick the game's folder |
+| The subreddit's pinned zips, myabandonware's "RIP" zips | the game folder: the executable, `data/pak*.apk` | pick the zip: works |
+| The pinned AirStrike 3D RAR (RAR 5) | the game folder | pick the RAR: works |
+| The gametop installers "Air Assault 2" and "Desert Hawk" (Inno Setup 6) | AirStrike 2; Gulf Thunder with pak0's content loose | pick the installer: works (a pak0.apk is built for Desert Hawk) |
+| The "Version 2.71" zip of Gulf Thunder and the other Inno Setup 5 "Setup" files | a zip holding an Inno Setup installer | pick the zip: works |
+| "Full RIP 2.50" of AirStrike 2 | `data/` with pak1, pak2 and pak0's content loose | pick the zip, or the whole `data` folder: a pak0.apk is built |
+| The "Windows 10 Setup" and "Windows 10 ... nVidia" packages | a zip of a Gentee installer with a CAB inside, and a "Latest Patch" CAB self-extractor | the CABs are opened, but the installer's is cut short: pak0 and pak1 come out, pak2 does not (add it from another copy); the patch gives the executable's texts |
+| Gulf Thunder "Setup 2.6" (a Gentee installer), the NSIS and DRM-wrapped "Setup" files | nothing the import can read | refused with a note: install on a PC, pick the game's folder |
 | Any `.exe` of a game | another build's texts | taken by the hash dictionary |
 
 ## Building

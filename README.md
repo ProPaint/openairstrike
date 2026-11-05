@@ -11,6 +11,12 @@ The original games were created by DivoGames. This project is not affiliated wit
 
 The engine is released under the MIT licence (`LICENSE`).
 
+Third-party code, downloaded with a pinned checksum by `tools/fetch_third_party.sh` and built
+from source, not part of this repository: SDL2 (zlib licence), libopenmpt (BSD 3-clause),
+libarchive (BSD 2-clause; the archive module, not in the 3DS build) and xz's liblzma (0BSD /
+public domain; the same). The repository itself vendors doctest (MIT) and stb (public domain
+or MIT) under `third_party/`.
+
 The engine in this repository is original code, written from reverse-engineering
 specifications (`docs/spec/`). The game data (pak archives, art, sound, music, texts) is
 copyrighted, is not included here and must come from your own copy of each game; builds that
@@ -48,6 +54,13 @@ You need your own copy of each game you want to play. For every game the engine 
 | AirStrike 3D 1.70 | `as3d` | `AirStrike3D.exe` | `pak0.apk`, `pak1.apk`, `pak2.apk`; `pak3.apk` when a patch added it |
 | AirStrike 2 2.51 | `as2` | `AirStrike3D II.exe` | `pak0.apk`, `pak1.apk`, `pak2.apk` |
 | AirStrike II: Gulf Thunder 2.71 | `gulf` | `AirStrike3D II - Gulf.exe` | `pak0.apk`, `pak1.apk`, `pak2.apk`, `pak4.apk` |
+
+The Android app, the web page and `build/apps/game/as3d_game --import FILE_OR_DIR` also take
+the game as you downloaded it: a zip, RAR, 7z or CAB archive, an Inno Setup installer, or a zip
+holding one of those, opened by the engine's archive module (libarchive and xz, fetched and
+built from source; docs/spec/archive.md) and installed by content; NSIS and Gentee installers
+are refused with a note (install those on a PC first). On the desktop the files go into the
+layout below under `--data ROOT`.
 
 Also used when present: `data/Settings.xml` and `data/gfx/logo2s.tga` (intro pages, version
 line and menu logo). The executable is needed once, to extract the front-end texts that the

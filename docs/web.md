@@ -183,7 +183,18 @@ unless `&unfinished=1`), `?frames=N`, `?maxlines=N` the cap of the drawing buffe
 
 On the first visit the page asks for the files of your own AirStrike 3D v1.70 or AirStrike 2
 v2.51 (or both): choose the files, choose the game folder (computers), or drop the folder or
-the files on the page. The list shows AirStrike 3D's files; the files of any known game are
+the files on the page; or give it the archive or installer you downloaded, as it is (a zip,
+RAR, 7z or CAB archive, an Inno Setup installer, a zip holding one of those). A file that is
+not a known loose game file goes to the engine: the page writes it into the engine's memory
+file system (`/unpack/in/`), calls `as3d_unpack` (`apps/web/web_main.cpp`: the importer of the
+Android app with the archive module, docs/spec/archive.md), reads back the games' files it
+wrote under `/unpack/out/<key>/` and stores them as it stores loose files; the importer's
+notes are listed under the file list. NSIS and Gentee installers are refused with a note that
+names them (install the game on a PC and give the page its folder), as are
+password-protected archives and multi-volume sets. Inside a dropped or chosen folder only the
+files that may be archives or installers (`.zip`, `.rar`, `.7z`, `.cab`, `.exe`, ...) go to
+the engine; a file dropped or chosen on its own goes whatever its name. The archive is read in
+memory: a 45 MB installer and the files it holds fit (memory growth is on). The list shows AirStrike 3D's files; the files of any known game are
 taken.
 
 | File | Needed | Gives |
@@ -225,15 +236,16 @@ it is offered beside the others.
 ### Where the files come from
 
 What the survey of docs/spec/issues/170 found in the public downloads, and what the page does
-with each today (package A; the engine-side unpacking of package B is not wired in yet):
+with each:
 
 | Source | What it holds | The page |
 |---|---|---|
 | The subreddit's pinned zips, myabandonware's "RIP" zips, unpacked | the game folder: the executable, `data/pak*.apk` | drop the folder: works, for every build of the paks the survey saw (`sha256_also`) |
-| The gametop installers, the "Setup" and "Version 2.71" installers | a game folder inside an Inno Setup installer | install on a PC first, drop the game folder: Air Assault 2 (AirStrike 2) works |
-| "Full RIP 2.50" of AirStrike 2, gametop's Desert Hawk | `data/` with pak1, pak2 (pak4) and pak0's content loose | not yet (no `pak0.apk` to take; the engine builds one, package B hands it the files) |
-| The "Windows 10 ... nVidia" packages | a CAB self-extractor: the executable, `pak3.apk` (AirStrike 3D), loose files | unpack on a PC; `pak3.apk` and the executable are taken |
-| A zip, RAR, 7z or an installer dropped as such | | not yet (package B) |
+| The gametop installers, the "Setup" and "Version 2.71" installers | a game folder inside an Inno Setup installer | drop the installer (or the zip holding it): the engine opens it; Desert Hawk gets its pak0.apk built from its loose files |
+| "Full RIP 2.50" of AirStrike 2 | `data/` with pak1, pak2 and pak0's content loose | drop the zip as downloaded: the engine builds the pak0.apk (a dropped folder of loose files is not handed to it) |
+| The pinned AirStrike 3D RAR, the "RIP" zips as downloaded | the game folder | drop the archive: works |
+| The "Windows 10 Setup" and "Windows 10 ... nVidia" packages | a Gentee installer with a cut-short CAB inside, a "Latest Patch" CAB | pak0, pak1 and the texts come out; pak2 has to come from another copy |
+| NSIS, DRM-wrapped and Gentee "Setup" files | nothing the page can read | refused with a note: install on a PC, drop the game folder |
 | Any `.exe` of a game, under any name | another build's texts | taken by the hash dictionary |
 
 ## What the browser stores

@@ -28,6 +28,7 @@ Every claim carries one of:
 | Spec | Version | Status |
 |---|---|---|
 | [pak.md](pak.md) | 1.0 | verified |
+| [archive.md](archive.md) | 1.0 | the player's archives and installers: libarchive's formats, the Inno Setup layouts 5.1 to 6.4 read by our own reader, the detector; checked on the survey of issue 170 |
 | [text-blocks.md](text-blocks.md) | 1.1 | verified |
 | [tga.md](tga.md) | 1.0 | verified |
 | [mdl.md](mdl.md) | 1.1 | verified, with corrections in render-pipeline.md section 11.3: front face is counter-clockwise, normals are renormalised |
@@ -125,7 +126,7 @@ Rules for delta specs:
 | [163](issues/163-game-selector.md) | the game selector, "Change game", switching games in one process |
 | [164](issues/164-game-selector-look.md) | the selector's marquees per game and its web parity through build-time renders |
 | [165](issues/165-stuck-effect-and-lost-player.md) | stuck explosion and lost player report: faulted scripts stop their entity, respawn watchdog, FPS-counter diagnostics; root cause open |
-| [170](issues/170-game-files-from-anywhere.md) | the player's game files from any copy: survey of the public downloads; paks identified by entry names, a pak0 built from loose files, texts of any executable by hash dictionary (package A, done); archives and installers through libarchive and an Inno Setup reader (package B) |
+| [170](issues/170-game-files-from-anywhere.md) | the player's game files from any copy: survey of the public downloads; paks identified by entry names, a pak0 built from loose files, texts of any executable by hash dictionary (package A, done); archives and installers through libarchive and an Inno Setup reader (package B, done: [archive.md](archive.md)) |
 
 Issues of a sequel are in its own directory, `as2/issues/` (numbers from 200).
 
