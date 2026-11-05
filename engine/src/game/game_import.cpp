@@ -16,6 +16,9 @@
 #include "as3d/pak_file.h"
 #include "as3d/sha256.h"
 #include "as3d/zip_reader.h"
+#if AS3D_WITH_ARCHIVES
+#include "as3d/archive.h"
+#endif
 
 namespace as3d {
 
@@ -59,7 +62,14 @@ struct Source {
     int container = -1; // -1: loose
     std::string path;
     ZipEntry entry;
-    bool loose() const { return container < 0; }
+    int archive = -1;        // an entry of an ArchiveReader (as3d/archive.h; AS3D_WITH_ARCHIVES)
+    size_t archiveEntry = 0; // its index in the reader's entries()
+    bool loose() const { return container < 0 && archive < 0; }
+    // The candidates' group prefix: one name space per container.
+    std::string prefix() const {
+        if (archive >= 0) return "archive" + std::to_string(archive) + ":";
+        return loose() ? "loose:" : "zip" + std::to_string(container) + ":";
+    }
 };
 
 // One game file found in the import (by name: a pak, Settings.xml, the logo, an executable).
@@ -241,7 +251,7 @@ private:
     // ---- 1: every file, loose or in a container. One entry point per file, whatever it
     // comes from, so that another container reader can feed it.
     void addFile(const Source& src, const std::string& rel, const std::string& display) {
-        const std::string prefix = src.loose() ? "loose:" : "zip" + std::to_string(src.container) + ":";
+        const std::string prefix = src.prefix();
         Candidate c;
         if (classify(baseName(rel), &c)) {
             c.group = prefix + gameRoot(dirName(rel));
@@ -274,12 +284,16 @@ private:
         for (const std::string& path : files) {
             std::string rel = path.compare(0, prefix.size(), prefix) == 0 ? path.substr(prefix.size()) : baseName(path);
             Candidate probe;
+#if AS3D_WITH_ARCHIVES
+            if (collectArchiveFile(path, rel, probe)) continue;
+#else
             if (!classify(baseName(rel), &probe)) {
                 if ((lower(rel).size() > 4 && lower(rel).compare(lower(rel).size() - 4, 4, ".zip") == 0) || looksLikeZip(path)) {
                     collectZip(path, baseName(rel));
                     continue;
                 }
             }
+#endif
             Source src;
             src.path = path;
             addFile(src, rel, baseName(rel));
@@ -306,6 +320,72 @@ private:
         zips_.push_back(std::move(z));
     }
 
+#if AS3D_WITH_ARCHIVES
+    // A loose file that is an archive or an installer (docs/spec/issues/170 section 4): its
+    // entries go to addFile like a zip's. A file with a game file's name is one, except an
+    // executable that turns out to be an installer or a self-extractor. True when taken here.
+    bool collectArchiveFile(const std::string& path, const std::string& rel, Candidate& probe) {
+        const bool named = classify(baseName(rel), &probe);
+        if (named && probe.kind != Kind::Exe) return false;
+        const ArchiveKind k = archiveKind(path);
+        if (k == ArchiveKind::Unknown || k == ArchiveKind::Pe) return false;
+        std::string err;
+        std::unique_ptr<ArchiveReader> r = ArchiveReader::open(path, &err);
+        if (!r) {
+            notes_.push_back(baseName(rel) + ": " + err + ".");
+            return true;
+        }
+        collectArchive(std::move(r), baseName(rel), 0);
+        return true;
+    }
+
+    // The entries of an opened container; an entry that is itself an archive or an installer
+    // (a setup.exe in a zip, a zip in a RAR) is opened in turn, two levels deep.
+    void collectArchive(std::unique_ptr<ArchiveReader> r, const std::string& shown, int depth) {
+        const int index = static_cast<int>(archives_.size());
+        archives_.push_back(std::move(r));
+        ArchiveReader& a = *archives_.back();
+        const size_t before = candidates_.size();
+        for (const ArchiveEntry& e : a.entries()) {
+            if (e.isDir) continue;
+            const std::string n = lower(e.name);
+            auto ends = [&](const char* x) {
+                const size_t l = std::char_traits<char>::length(x);
+                return n.size() > l && n.compare(n.size() - l, l, x) == 0;
+            };
+            // Game executables are below 1 MB; an executable above that is an installer or a
+            // self-extractor, worth opening (the survey's are 12 to 45 MB).
+            const bool container = ends(".zip") || ends(".rar") || ends(".7z") || ends(".cab") || (ends(".exe") && e.size > (1u << 20));
+            if (container && depth < 2) {
+                std::string err;
+                std::unique_ptr<ArchiveReader> inner = a.openEntry(e, &err, staging_);
+                if (inner) {
+                    notes_.push_back(shown + ": " + e.name + ": " + archiveKindLabel(inner->kind()) + ", opened.");
+                    collectArchive(std::move(inner), shown + ": " + e.name, depth + 1);
+                } else {
+                    notes_.push_back(shown + ": " + e.name + ": " + err + ".");
+                }
+                continue;
+            }
+            Source src;
+            src.archive = index;
+            src.archiveEntry = e.index;
+            addFile(src, e.name, shown + ": " + e.name);
+        }
+        if (candidates_.size() == before) notes_.push_back(shown + ": no game files in this " + archiveKindLabel(a.kind()) + ".");
+    }
+
+    static std::string archiveKindLabel(ArchiveKind k) {
+        switch (k) {
+        case ArchiveKind::Inno: return "an Inno Setup installer";
+        case ArchiveKind::Cab: return "a cabinet";
+        case ArchiveKind::SevenZip: return "a 7z archive";
+        case ArchiveKind::Rar: return "a RAR archive";
+        default: return std::string("a ") + archiveKindName(k) + " archive";
+        }
+    }
+#endif
+
     // A container entry copied out into the staging directory (once); a loose file as it is.
     bool materialize(Source& src, const std::string& name, const std::string& display) {
         if (!src.path.empty()) return true;
@@ -313,6 +393,17 @@ private:
         if (!makeDirs(dir)) return false;
         const std::string to = joinPath(dir, name);
         std::string err;
+#if AS3D_WITH_ARCHIVES
+        if (src.archive >= 0) {
+            ArchiveReader& a = *archives_[static_cast<size_t>(src.archive)];
+            if (!a.extractToFile(a.entries()[src.archiveEntry], to, &err)) {
+                notes_.push_back(display + ": " + err + ".");
+                return false;
+            }
+            src.path = to;
+            return true;
+        }
+#endif
         if (!zips_[static_cast<size_t>(src.container)]->extractToFile(src.entry, to, &err)) {
             notes_.push_back(display + ": " + err + ".");
             return false;
@@ -365,7 +456,7 @@ private:
             const OtherFile& o = others_[i];
             std::string root, name;
             if (!splitLooseEntry(o.rel, &root, &name)) continue;
-            const std::string prefix = o.src.loose() ? "loose:" : "zip" + std::to_string(o.src.container) + ":";
+            const std::string prefix = o.src.prefix();
             LooseGroup& g = groups[prefix + root];
             if (g.key.empty()) {
                 g.key = prefix + root;
@@ -440,8 +531,15 @@ private:
             if (c.kind != Kind::Exe) continue;
             std::vector<std::uint8_t> bytes;
             std::string err;
-            bool ok = c.src.loose() ? readWhole(c.src.path, &bytes, kMaxExeSize)
-                                    : zips_[static_cast<size_t>(c.src.container)]->extractToMemory(c.src.entry, &bytes, kMaxExeSize, &err);
+            bool ok;
+#if AS3D_WITH_ARCHIVES
+            if (c.src.archive >= 0) {
+                ArchiveReader& a = *archives_[static_cast<size_t>(c.src.archive)];
+                ok = a.extractToMemory(a.entries()[c.src.archiveEntry], &bytes, kMaxExeSize, &err);
+            } else
+#endif
+            ok = c.src.loose() ? readWhole(c.src.path, &bytes, kMaxExeSize)
+                               : zips_[static_cast<size_t>(c.src.container)]->extractToMemory(c.src.entry, &bytes, kMaxExeSize, &err);
             const GameProfile* g = nullptr;
             std::string text;
             if (!ok || !extractExeTexts(bytes, ok ? sha256Hex(bytes.data(), bytes.size()) : std::string(), &g, &text, &err)) {
@@ -671,6 +769,9 @@ private:
     std::string incoming_, games_, staging_;
     int stageCount_ = 0;
     std::vector<std::unique_ptr<ZipReader>> zips_;
+#if AS3D_WITH_ARCHIVES
+    std::vector<std::unique_ptr<ArchiveReader>> archives_;
+#endif
     std::vector<Candidate> candidates_;
     std::vector<OtherFile> others_;
     std::set<std::string> pak0Names_;
