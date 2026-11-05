@@ -1265,15 +1265,25 @@ window.AS3DFiles = (function () {
     return base.endsWith('.exe') ? file : null;
   }
 
+  // Names that may be an archive or an installer (docs/spec/issues/170 section 5): inside a
+  // chosen or dropped folder only these go to the engine; a file chosen or dropped on its own
+  // goes whatever its name.
+  const CONTAINER = /\.(zip|rar|7z|cab|exe|tar|tgz|gz|iso|bin)$/i;
+  const inFolder = (f) => !!(f.webkitRelativePath && f.webkitRelativePath.includes('/')) || !!f.as3dInFolder;
+
   // Checks the given File objects. Returns { games: {key: {name: Blob}}, notes: [{name, ok,
   // text, game}] }: the files to keep, grouped by the game each belongs to (by SHA-256; the
-  // exe becomes the game's texts file), and a line per file looked at.
-  async function check(fileList, progress) {
+  // exe becomes the game's texts file), and a line per file looked at. `unpacker` (optional,
+  // the page's engine: app.js) takes the other files, archives and installers: it resolves to
+  // { files: {key: {name: Blob}}, notes: [text] } from the engine's importer.
+  async function check(fileList, progress, unpacker) {
     const kn = await knownFiles();
     const games = {}, notes = [];
     const keep = (g, name, blob) => { (games[g] = games[g] || {})[name] = blob; };
     const titles = Object.values(kn).map((g) => g.title).join(', ');
-    const list = Array.from(fileList).filter((f) => canonical(f.webkitRelativePath || f.name));
+    const all = Array.from(fileList);
+    const list = all.filter((f) => canonical(f.webkitRelativePath || f.name));
+    const others = all.filter((f) => !canonical(f.webkitRelativePath || f.name) && (!inFolder(f) || CONTAINER.test(f.name)));
     let i = 0;
     for (const f of list) {
       const name = canonical(f.webkitRelativePath || f.name);
@@ -1295,6 +1305,12 @@ window.AS3DFiles = (function () {
       const exeNamed = !!byName[name.toLowerCase()] && byName[name.toLowerCase()].games.some((g) => kn[g].exe === name);
       const anyExe = !byName[name.toLowerCase()];
       if (exeNamed || anyExe) {
+        // Another executable (a setup.exe, a self-extractor, another build under its own name),
+        // or one too large for a game's: the engine's importer opens installers and reads texts.
+        if (unpacker && (anyExe || f.size > MAX_EXE_SIZE)) {
+          others.push(f);
+          continue;
+        }
         if (f.size > MAX_EXE_SIZE) {
           notes.push({ name, ok: false, text: `${name}: ${f.size} bytes, too large for a game executable` });
           continue;
@@ -1338,6 +1354,25 @@ window.AS3DFiles = (function () {
       const of = hits.map((x) => kn[x.game].title + (x.build ? ` (${x.build})` : '')).join(' and ');
       notes.push({ name, game: hits[0].game, ok: true, text: `${name}: OK, ${of}` });
     }
+    // Archives, installers and other files: the engine's importer (as3d_unpack).
+    for (const f of others) {
+      if (!unpacker) {
+        notes.push({ name: f.name, ok: false, text: `${f.name}: not a file of any game this page knows (${titles})` });
+        continue;
+      }
+      if (progress) progress(f.name, 0.99);
+      let r;
+      try {
+        r = await unpacker(f);
+      } catch (e) {
+        notes.push({ name: f.name, ok: false, unpacked: true, text: `${f.name}: ${e.message}` });
+        continue;
+      }
+      const got = Object.keys(r.files).length > 0;
+      for (const [g, files] of Object.entries(r.files)) for (const [n, blob] of Object.entries(files)) keep(g, n, blob);
+      for (const t of r.notes) notes.push({ name: f.name, ok: got, unpacked: true, text: t });
+      if (!r.notes.length) notes.push({ name: f.name, ok: got, unpacked: true, text: `${f.name}: no game files in it` });
+    }
     if (progress) progress('', 1);
     return { games, notes };
   }
@@ -1354,7 +1389,13 @@ window.AS3DFiles = (function () {
     const out = [];
     const walk = async (e, depth) => {
       if (e.isFile) {
-        if (canonical(e.name)) out.push(await new Promise((ok, fail) => e.file(ok, fail)));
+        // A dropped file on its own is kept whatever it is (it may be an installer); inside a
+        // folder only game files and what may be an archive or installer.
+        if (depth === 0 || canonical(e.name) || CONTAINER.test(e.name)) {
+          const file = await new Promise((ok, fail) => e.file(ok, fail));
+          if (depth > 0) file.as3dInFolder = true;
+          out.push(file);
+        }
       } else if (e.isDirectory && depth < 4) {
         const r = e.createReader();
         for (;;) {

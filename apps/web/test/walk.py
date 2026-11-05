@@ -49,6 +49,7 @@ Screenshots go to DIR; a JSON report beside them (walk_<engine>.json). Exit code
 """
 import argparse
 import os
+import shutil
 import re
 import struct
 import sys
@@ -705,7 +706,7 @@ def byo(w, b):
         w.step("byo: a wrong file is refused")
         p.page.set_input_files("#pick-files", [{"name": "pak1.apk", "mimeType": "application/octet-stream",
                                                 "buffer": b"\0" * 1000}])
-        p.page.wait_for_function("document.getElementById('files-status').textContent.includes('not the file of any game')", timeout=20000)
+        p.page.wait_for_function("/not the file of any game|the contents differ from the file of every game/.test(document.getElementById('files-status').textContent)", timeout=20000)
         r["wrong_file_message"] = p.page.locator("#files-status").text_content()
         w.step("byo: the owner's files through the file input")
         t0 = time.time()
@@ -810,6 +811,48 @@ def byo(w, b):
             r["as2"] = "skipped: no AirStrike 2 data"
         r["errors"] = p.errors()
     finally:
+        p.close()
+    return r
+
+
+def byo_archive(w, b):
+    """docs/spec/issues/170 section 5: an installer the engine cannot open is refused with its
+    note, then the owner's AirStrike 3D as one zip of the game folder (made here, in a temporary
+    directory, from the install; nothing is kept) goes through as3d_unpack and starts."""
+    import tempfile
+    import zipfile
+    orig = os.path.join(DATA_ROOT, "third_party_local", "original")
+    p = b.page(w.a.byo_url, "", viewport={"width": 1280, "height": 720})
+    r = {}
+    tmp = tempfile.mkdtemp(prefix="as3d_walk_zip_")
+    try:
+        p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
+        w.step("byo_archive: an NSIS installer is refused with a note that names it")
+        nsis = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "testdata", "archives", "nsis_dummy.pe")
+        p.page.set_input_files("#pick-files", [{"name": "Setup.exe", "mimeType": "application/octet-stream",
+                                                "buffer": open(nsis, "rb").read()}])
+        p.page.wait_for_function("document.getElementById('files-list').textContent.includes('NSIS installer')", timeout=60000)
+        r["nsis_note"] = [t for t in p.page.locator("#files-list li").all_text_contents() if "NSIS" in t]
+        w.step("byo_archive: the game folder as one zip")
+        z = os.path.join(tmp, "AirStrike 3D.zip")
+        with zipfile.ZipFile(z, "w", zipfile.ZIP_STORED) as zf:
+            for rel in ("data/pak0.apk", "data/pak1.apk", "data/pak2.apk", "data/Settings.xml", "data/gfx/logo2s.tga", "AirStrike3D.exe"):
+                zf.write(os.path.join(orig, rel), "Air Strike 3D/" + rel)
+        t0 = time.time()
+        p.page.set_input_files("#pick-files", [z])
+        p.wait_ready(240)
+        r["unpack_seconds"] = round(time.time() - t0, 1)
+        r["unpack_line"] = [t for t in p.texts() if "AS3D_WEB unpack" in t]
+        r["data_line"] = [t for t in p.texts() if "AS3D_WEB data=" in t]
+        assert r["unpack_line"] and "games=as3d" in r["unpack_line"][-1], r["unpack_line"]
+        assert r["data_line"] and "game=as3d" in r["data_line"][-1] and "texts_v170.txt" in r["data_line"][-1], r["data_line"]
+        p.page.click("#play")
+        to_main_menu(w, p)
+        w.shot(p, "byo_archive_main")
+        p.page.evaluate("AS3DFiles.clearStored()")  # leave the browser's storage empty
+        r["errors"] = p.errors()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
         p.close()
     return r
 
@@ -1191,7 +1234,7 @@ def gulf(w, b):
     return r
 
 
-SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "complete": complete,
+SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "byo_archive": byo_archive, "complete": complete,
              "gameover": gameover, "migration": migration, "choose": choose, "gulf": gulf}
 
 

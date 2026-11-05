@@ -389,13 +389,15 @@
   // the signed-in user and restores the cloud copy. Runs once the game is chosen and /persist
   // is populated, before the engine starts (a run dependency holds main back).
   let profileLoaded = Promise.resolve();
+  // The engine's runtime starts before the game files are there (it unpacks the player's
+  // archives, as3d_unpack); main waits for them instead: ready() runs once the runtime, the
+  // files and the restored profile are all there.
+  let restoreDone = Promise.resolve();
   function restoreProfile() {
     if (!window.launcherSaves) return;
-    Module.addRunDependency('as3d-restore');
-    Promise.all([profileLoaded, filesReady]).then(() =>
+    restoreDone = Promise.all([profileLoaded, filesReady]).then(() =>
       window.launcherSaves.restoreFile(Module.FS, '/persist/' + GAME + '/profile.bin'))
-      .catch((e) => log('AS3D_WEB restore skipped: ' + e))
-      .then(() => Module.removeRunDependency('as3d-restore'));
+      .catch((e) => log('AS3D_WEB restore skipped: ' + e));
   }
 
   // ---------------------------------------------------------------------------------------
@@ -404,9 +406,9 @@
   // Resolved with the chosen game's files ({name: bytes or Blob}); GAME is set by then.
   let resolveFiles;
   const filesReady = new Promise((ok) => { resolveFiles = ok; });
+  let dataWritten = null;
   function writeGameFiles() {
-    Module.addRunDependency('as3d-data');
-    filesReady.then(async (files) => {
+    dataWritten = filesReady.then(async (files) => {
       Module.FS.mkdir('/data');
       Module.FS.mkdir('/data/' + GAME);
       for (const [name, v] of Object.entries(files)) {
@@ -414,8 +416,46 @@
         Module.FS.writeFile('/data/' + GAME + '/' + name, bytes);
       }
       log('AS3D_WEB data=' + Object.keys(files).sort().join(',') + ' game=' + GAME);
-      Module.removeRunDependency('as3d-data');
-    }).catch((e) => fail('Cannot prepare the game files: ' + e.message));
+    });
+    dataWritten.catch((e) => fail('Cannot prepare the game files: ' + e.message));
+  }
+
+  // The player's archive or installer, through the engine's importer (as3d_unpack in
+  // web_main.cpp, docs/spec/issues/170 section 5): the file goes into MEMFS under /unpack/in/,
+  // the games' files the importer made come back from /unpack/out/<key>/ as Blobs, and the
+  // staging files are removed. Resolves to { files: {key: {name: Blob}}, notes: [text] }.
+  let runtimeUp;
+  const runtimeReady = new Promise((ok) => { runtimeUp = ok; });
+  function rmTree(path) {
+    const FS = Module.FS;
+    let st;
+    try { st = FS.stat(path); } catch (e) { return; }
+    if (FS.isDir(st.mode)) {
+      for (const n of FS.readdir(path)) if (n !== '.' && n !== '..') rmTree(path + '/' + n);
+      FS.rmdir(path);
+    } else {
+      FS.unlink(path);
+    }
+  }
+  async function unpack(file) {
+    await runtimeReady;
+    const FS = Module.FS;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    rmTree('/unpack');
+    FS.mkdirTree('/unpack/in');
+    const safe = file.name.replace(/[\/\\]/g, '_') || 'download';
+    FS.writeFile('/unpack/in/' + safe, bytes);
+    try {
+      const r = JSON.parse(Module.ccall('as3d_unpack', 'string', ['string'], ['/unpack/in']));
+      const files = {};
+      for (const [g, names] of Object.entries(r.files)) {
+        for (const n of names) (files[g] = files[g] || {})[n] = new Blob([FS.readFile('/unpack/out/' + g + '/' + n)]);
+      }
+      log('AS3D_WEB unpack ' + safe + ' games=' + Object.keys(files).join(','));
+      return { files, notes: r.notes };
+    } finally {
+      rmTree('/unpack');
+    }
   }
 
   const bar = $('bar');
@@ -698,6 +738,13 @@
       li.textContent = n + (have ? '' : what) + (bad ? ' - ' + bad.text : '');
       ul.appendChild(li);
     }
+    // What the engine's importer said about an archive or installer (refused installers too).
+    for (const x of notes.filter((y) => y.unpacked)) {
+      const li = document.createElement('li');
+      li.className = x.ok ? 'ok' : 'bad';
+      li.textContent = x.text;
+      ul.appendChild(li);
+    }
   }
   async function takeFiles(list) {
     const status = $('files-status');
@@ -707,7 +754,7 @@
       const res = await AS3DFiles.check(list, (name, f) => {
         status.textContent = name ? `Checking ${name}...` : 'Checking...';
         progress(f);
-      });
+      }, unpack);
       for (const [g, files] of Object.entries(res.games)) chosen[g] = Object.assign(chosen[g] || {}, files);
       await renderFileList(res.notes);
       // Forced: that game's files must all be there. Adding: the game being added must be
@@ -964,9 +1011,12 @@
     preRun: [mountProfile, writeGameFiles, restoreProfile],
     setStatus: () => {},
     onRuntimeInitialized: () => {
-      state.runtimeMs = performance.now();
-      lwProgress(0.9);   // engine and data ready
-      ready();
+      runtimeUp();
+      Promise.all([dataWritten, restoreDone]).then(() => {
+        state.runtimeMs = performance.now();
+        lwProgress(0.9);   // engine and data ready
+        ready();
+      }, () => {});
     },
     onAbort: (what) => fail('The engine stopped: ' + what),
     onExit: () => { if (LAUNCH && !state.failed) window.launcherSaves.quitToDesktop(); },
