@@ -823,6 +823,12 @@ def byo(w, b):
             p.wait_line(r"AS3D_WEB banner_stored frames=75", 60)
             assert p.page.evaluate(IDB_CACHE_KEYS) == ["as3d/marquee"], p.page.evaluate(IDB_CACHE_KEYS)
             assert not any(k.startswith("as3d/marquee") for k in p.page.evaluate(IDB_KEYS)), "the banner is not a game file"
+            w.step("byo: the game starts and draws after the banner's render (its WebGL context is gone, the game's is its own)")
+            p.lines.clear()
+            p.page.click("#game-list button[data-game=as3d]")
+            p.wait_ready(180)
+            to_main_menu(w, p)
+            w.shot(p, "byo_main_after_banner")
             w.step("byo: reload: the banner comes from the cache, without a new render")
             mk = p.mark()
             p.goto("")
