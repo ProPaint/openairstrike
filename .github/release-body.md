@@ -2,7 +2,7 @@ OpenAirStrike __VERSION__: a new engine that plays **AirStrike 3D**, **AirStrike
 **AirStrike II: Gulf Thunder** (DivoGames) on Linux, Android, the web and the Nintendo 3DS. No game data is
 included: you need your own copy of each game (`pak0.apk`, `pak1.apk`, `pak2.apk`, Gulf
 Thunder also `pak4.apk`, plus the game's `.exe` for the menu texts, and optionally
-`Settings.xml` and `data/gfx/logo2s.tga`), or the original installer zip.
+`Settings.xml` and `data/gfx/logo2s.tga`), or the archive or installer you downloaded.
 
 ## Downloads
 
@@ -16,8 +16,8 @@ Thunder also `pak4.apk`, plus the game's `.exe` for the menu texts, and optional
 ## Install
 
 **Android.** Install the APK (allow installs from your browser or file manager if asked).
-On first start the app asks for your game files: copy the original installer zip or the
-games' `data` folders and executables to the phone, tap "Choose files" and pick the zip or
+On first start the app asks for your game files: copy the archive or installer you downloaded, or the
+games' `data` folders and executables to the phone, tap "Choose files" and pick the archive or
 one game's files. The app is `io.github.propaint.openairstrike`; it keeps its saves and the
 imported files in its own storage. "Clear data" in the system settings removes them.
 

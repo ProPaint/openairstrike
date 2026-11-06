@@ -5,31 +5,20 @@ they list the commits since the previous tag.
 
 ## 0.4.0
 
-- Nintendo 3DS port: the three games on a New 3DS (an Old 3DS runs a 30 Hz profile with fewer
-  effects), as a Homebrew Launcher app and as a CIA for the HOME menu. Stereoscopic 3D with
-  the slider, the game selector, the menus and the HUD on the touch screen with the game's
-  own font at readable sizes, the comic pages of the sequels read at 1:1, music from the
-  original modules or pre-rendered Ogg files, a self-test mode that plays every installed game
-  (`docs/3ds-port.md`, `apps/3ds/README.md`). One player; the game files go on the SD card.
-- Cheat codes: the original words typed on the keyboard during play, on the desktop and the
-  web (`iwannabe`, `endisnear`, ... for AirStrike 3D; `invulnerability`,
-  `igonnaliveforever`, ... for the sequels). A cheat marks the session (rank Cheater, no high
-  score, no checkpoint in the sequels) and shows its message.
-- Engine: a level-start precache loads every model, texture, script and sound a mission can use
-  before it starts, so nothing stalls on first use; the simulation step costs a fraction of
-  what it did in the sequels' big fights (hashed name lookups, an inlined script VM, per-entity
-  passes without allocations); dynamic lights, decals and particles are culled earlier.
-- Audio: the music is decoded outside the mixer's lock (no stalls on a module change), with an
-  interpolation setting.
-- Saves are written atomically (a temporary file, then a rename), so a crash or a power loss
-  never leaves a truncated profile.
-- Sequels' front end with a game pad: Left and Right browse the helicopters, the name entry's
-  keyboard works from the D-pad.
-- Web: the page can run inside a launcher page (`?autostart=1` with a `launcherSaves` hook):
-  a loading dialog with the real progress, full screen on the first input, the profile handed
-  to the host page, and a way back to it when the game ends. Standalone pages are unchanged.
-- Tools: `as3d_sim --time` and `--step-times` (per-step costs), `tools/sim_bench.sh`, and the
-  3DS build in CI (`.github/workflows/ci.yml`) with the package in the release workflow.
+- **Nintendo 3DS port**: the three games on a New 3DS, as a Homebrew Launcher app or a CIA for
+  the HOME menu, with stereoscopic 3D and the menus and HUD on the touch screen. An Old 3DS
+  runs at 30 Hz with fewer effects. One player (`apps/3ds/README.md`).
+- **Game files from any copy**: give the archive or installer as you downloaded it (zip, RAR,
+  7z, CAB, Inno Setup, self-extracting executables) on the web, Android or `as3d_game
+  --import`. Any build of the games is recognised by its contents, including copies without
+  `pak0.apk`. NSIS and Gentee installers are refused with a note: install them on a PC first.
+- **Cheat codes**: the original words typed during play on the desktop and the web
+  (`iwannabe`, `invulnerability`, ...). A cheat gives the rank Cheater and no high score.
+- **Web**: AirStrike 3D's flaming banner on the game selector when you bring your own files;
+  "Add another game's files" takes any game's files; the page can be embedded in a launcher.
+- **Performance**: missions preload everything they use, and the sequels' big fights cost a
+  fraction of what they did.
+- Saves are written atomically; the sequels' helicopter and name screens work with a game pad.
 
 ## 0.3.2
 
