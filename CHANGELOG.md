@@ -3,6 +3,11 @@
 The release notes take a version's section from here (tools/release_notes.sh); without one
 they list the commits since the previous tag.
 
+## 0.4.1
+
+- Nintendo 3DS: closing the game from the HOME menu (Close, or starting another title) no longer
+  hangs the console; the app left without the GPU waited forever for its last frames.
+
 ## 0.4.0
 
 - **Nintendo 3DS port**: the three games on a New 3DS, as a Homebrew Launcher app or a CIA for
