@@ -35,7 +35,7 @@ constexpr size_t kCmdBufBytes = 0x100000;
 class Impl final : public CtrContext {
 public:
     ~Impl() override {
-        if (inFrame_) C3D_FrameEnd(0);
+        if (inFrame_ && gspHasGpuRight()) C3D_FrameEnd(0);
         for (C3D_RenderTarget* t : {top_[0], top_[1], bottom_}) {
             if (t) C3D_RenderTargetDelete(t);
         }
@@ -92,6 +92,16 @@ public:
     C3D_RenderTarget* bottomTarget() const override { return bottom_; }
     bool beginFrame(u8 flags) override {
         if (inFrame_) return false;
+        // Closed from the HOME menu (Close, or another title started), libctru wakes the app
+        // without giving the GPU back (aptWaitForWakeUp: APTCMD_WAKEUP_CANCEL acquires no right
+        // and calls no APTHOOK_ONRESTORE, so citro3d's vblank stays off). A frame then waits
+        // forever for a vblank or a GPU interrupt: the exit's empty frames (GameFrame::end, the
+        // selector's) hung the app with the HOME menu on screen. No frame without the right.
+        if (!gspHasGpuRight()) {
+            if (!noRightLogged_) AS3D_INFO("ctr: no GPU right (the app is closing from the HOME menu): no frame");
+            noRightLogged_ = true;
+            return false;
+        }
         inFrame_ = C3D_FrameBegin(flags);
         return inFrame_;
     }
@@ -118,6 +128,7 @@ private:
     C3D_RenderTarget* top_[2] = {nullptr, nullptr};
     C3D_RenderTarget* bottom_ = nullptr;
     float cmdBufWarned_ = 0.4f;
+    bool noRightLogged_ = false;
     bool gfxInit_ = false, c3dInit_ = false, inFrame_ = false, new3ds_ = false;
     std::string description_;
 };

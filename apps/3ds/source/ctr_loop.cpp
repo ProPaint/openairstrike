@@ -411,7 +411,9 @@ void drawFrame(CtrContext& ctx, FrameHook& hook, const FrameInfo& info, FrameSam
     // every other one at 30), its timestamp for the frame clock, then the frame (C3D_FrameBegin
     // waits for the GPU to finish the previous frame).
     const uint64_t w0 = nowTicks();
-    C3D_FrameSync();
+    // Without the GPU right (closing from the HOME menu, graphics_context_ctr.cpp beginFrame)
+    // citro3d's vblank is off: no wait, no frame.
+    if (gspHasGpuRight()) C3D_FrameSync();
     const uint64_t ws = nowTicks();
     g_clock.lastSync = ws;
     sample.syncMs = static_cast<float>(ticksToMs(ws - w0));

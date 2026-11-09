@@ -83,6 +83,7 @@ void dumpConsole(gfxScreen_t screen, const std::string& path) {
 
 void showFatal(bool dump) {
     if (!g_fatal) return;
+    if (aptShouldClose()) return; // closed from the HOME menu: no screen to show it on (the log has it)
     gfxInitDefault();
     PrintConsole top, bottom;
     consoleInit(GFX_TOP, &top);
