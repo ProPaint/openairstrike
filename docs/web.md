@@ -128,21 +128,24 @@ differently in the two builds, and each is the engine's own picture:
   of them is in the site or the repository. The selector is shown only with two games or more
   stored, and so is the render.
 
-**Keys** (a new profile on the web; change them in Options, Controls):
+**Keys** (a new profile on the web; change them in Options, Controls, "Controls Set"):
 
-| | |
-|---|---|
-| Arrows | fly |
-| Space | fire |
-| X | missile |
-| C | use item (power-up) |
-| 1 / 2 | switch missiles / switch weapon and item |
-| P, Esc | pause, in-game menu |
-| Return | close a hint |
-| F | full screen on and off (F11 is the browser's own full screen) |
+| | player 1 | player 2 (two players) |
+|---|---|---|
+| fly | arrows | W A S D |
+| fire | Space | V |
+| missile | X | G |
+| use item (power-up) | C | H |
+| switch weapon / missiles / item | 2 / 1 / 2 | E / Q / R |
+| pause, in-game menu | P, Esc | P, Esc |
+| close a hint | Return | Return |
+| full screen on and off | F (F11 is the browser's own) | F |
 
 The original fires with Ctrl, but Ctrl+W closes the browser tab, so the web profile uses
-Space, X and C. A profile carried over keeps its keys. The keys reach the game while the game
+Space, X and C. Player 2's keys are the desktop's (issue 130) except fire: V, because F is the
+page's full-screen key. A profile carried over keeps its keys; one whose player 2 keys are
+still a copy of player 1's (every web profile before two players came to the web) gets player
+2's keys above when it is loaded. The keys reach the game while the game
 has the focus (click it once if you clicked elsewhere); F5, F11, F12 and every Ctrl, Alt or
 Cmd combination stay with the browser. The mouse works in the menus as on the desktop.
 
@@ -171,7 +174,25 @@ use takes them back. The page's start screen also follows the pad until the game
 after one of its buttons was pressed, and a pad press is no user gesture: full screen (and,
 where the browser holds it back, sound) still needs a click, a tap or a key once. Touch mode
 is not changed by the pad, as it is not by keys. The `AS3D_PAD` console lines (added, removed,
-held bits, navigation) are for the tests.
+held bits, navigation, the player each pad flies) are for the tests. In a one-player game every
+pad flies player 1; with two players each pad flies its own player (below).
+
+**Two players** (ours; the same on the desktop and Android, `as3d/player_pads.h`): Start Game
+offers "2 Players" when a second player has something to fly with: the keyboard (both players
+have their keys, the table above), or a pad. On a phone or tablet in touch mode with no
+keyboard, touch is player 1 and a pad is needed for player 2. After Start, the **Players**
+screen shows who flies with what, a panel per player: the touch screen (player 1), the
+keyboard with that player's own keys, and the pads, "Gamepad 1", "Gamepad 2" with their names.
+A pad pushed left (D-pad or stick) goes to player 1, pushed right to player 2; a click or a tap
+on a pad moves it to the other player; holding any button lights the pad's row up, so each
+player sees which one is theirs. A (or Return, or the Start button) starts the mission, B or
+Esc goes back. Start waits while a player has nothing to fly with (the panel says "needs a
+gamepad"). Without a choice the pads take sides by themselves: the player with fewer devices
+gets the next pad (touch counts for player 1), player 1 on a tie, so one pad beside the
+keyboard is player 1's and one pad on a phone is player 2's. A pad keeps its side when it is
+unplugged and plugged in again, and when another game is chosen, until the page is closed. The
+pause button and Back of any pad open the in-game menu. Only AirStrike 3D offers two players
+for now; the sequels get them from their own front ends.
 
 **Touch**: phones and tablets start in touch mode with the Android app's controls (drag
 anywhere to fly, the round buttons for missile, power-up and switching, the pause button for
@@ -308,7 +329,10 @@ backup and the missing old file are in storage, and after a second reload as wel
   key `gulf`, the same by taps on a touch phone; desktop by mouse and keys; a 20:9 Android phone and an iPhone
   profile by synthesized touch, multi-touch; Mission Complete with the bot; Game Over and name
   entry; the byo files through the file input, AirStrike 2's files started and both games
-  offered, old-style stored files; the migration of a version 1 profile). The scenarios of the
+  offered, old-style stored files; the migration of a version 1 profile; `twoplayer`: two
+  players with two fake gamepads, player 2's web keys in a fresh profile, the Players screen,
+  pads taking sides and moved by D-pad pushes, then the split keyboard and each pad flying its
+  own player, checked on the `AS3D_INPUT` lines). The scenarios of the
   first game force `?game=as3d`. It taps the real menu items from the engine's
   `AS3D_MENU` lines.
 * `gamepad.js` (node): a fake standard gamepad plays AirStrike 3D with no key or click (start
@@ -395,7 +419,7 @@ from documentation.
 | Firefox | Not tested (see above). Nothing used is Chromium-only: WebGL 2, Fullscreen API, IndexedDB, `webkitdirectory` and folder drops exist in Firefox. No landscape lock on Firefox for Android in most versions; the rotate notice covers that. |
 | Safari on iPhone | No full-screen API and no orientation lock: add the page to the home screen for a full-screen app, turn the phone yourself (the rotate notice shows in portrait). WebGL 2 needs iOS 15; the wasm uses native exceptions (libopenmpt), which need Safari 15.2. Web Audio follows the silent switch. Safari may delete a site's storage after 7 days without a visit unless it is on the home screen: the profile and the byo files could vanish. Safe-area insets (the notch) come from `env(safe-area-inset-*)`, untested. |
 | Safari on iPad and macOS | Element full screen exists (Play and the toggle work, from iPadOS 12 / Safari 16.4 unprefixed); no orientation lock. Otherwise as above. |
-| All | One player only (no two-player mode on the web). A computer with a touch screen switches to touch mode at the first touch; the Options rows only touch mode has (Controls hand, touch speed) are then missing; open the page with `?touch=1` to have them. Hidden tabs pause the game and silence it; the game comes back in the in-game menu. A lost WebGL context pauses and rebuilds everything when the browser restores it (tested with `WEBGL_lose_context`). |
+| All | Two players on one keyboard or with pads (see "Two players"). A computer with a touch screen switches to touch mode at the first touch; the Options rows only touch mode has (Controls hand, touch speed) are then missing; open the page with `?touch=1` to have them. Hidden tabs pause the game and silence it; the game comes back in the in-game menu. A lost WebGL context pauses and rebuilds everything when the browser restores it (tested with `WEBGL_lose_context`). |
 
 ## Spike measurements (2026-09-29, before WP-52)
 

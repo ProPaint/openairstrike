@@ -18,6 +18,8 @@
 //                                      framebuffer pixels (tools/android_smoke.sh taps them)
 //   AS3D_GAME_FRAME n=N mission=M ... every `frameMarkerEvery` simulation frames
 //   AS3D_LEVEL_LOADED mission=M ms=T  after every level load
+//   AS3D_INPUT players=N p1=0xBITS p2=0xBITS   each player's held p_action bits when they change
+//                                      (local input only: not with the bot or a script)
 //   AS3D_PERF avg_ms=... max_ms=... sim_steps=...   every 5 s with `perfLog`
 //   AS3D_PAUSED reason=... / AS3D_RESUMED, AS3D_BACKGROUND / AS3D_FOREGROUND,
 //   AS3D_GL_REBUILD ms=T, AS3D_TOUCH ... (with `logTouches`)
@@ -27,7 +29,10 @@
 //   AS3D_GAME_CHOSEN game=KEY / AS3D_GAME_CHANGE game=KEY   a game was chosen / left
 //   AS3D_PAD added id=N name="..." count=C / removed id=N count=C / held=0xBITS (pad:: bits
 //                                      of as3d/console_pad.h) / navigation=0|1 (the menus'
-//                                      pad mode): game controllers (docs/web.md "Controllers")
+//                                      pad mode): game controllers (docs/web.md "Controllers");
+//                                      added ... player=P, side id=N player=P (the player the pad
+//                                      flies in a two-player game), held=... p1= p2= (each
+//                                      player's pads), keyboard=0|1 (keyboardQuery)
 #pragma once
 
 #include <functional>
@@ -109,6 +114,10 @@ struct LoopOptions {
     // The touch layout changed (size, insets, hand, screen mode), framebuffer pixels.
     std::function<void(const as3d::TouchLayout& layout, int width, int height)> layoutChanged;
     std::function<void()> firstFrame;        // after the first frame was presented
+    // Two players on one screen (as3d/player_pads.h): whether a hardware keyboard is there for
+    // the split keyboard (Android asks the system; a typed letter or arrow counts too). Unset:
+    // a keyboard whenever touch mode is off (the desktop, the web).
+    std::function<bool()> keyboardQuery;
     std::function<void(int code)> finished;  // the browser loop ended (the front end's Exit)
 };
 

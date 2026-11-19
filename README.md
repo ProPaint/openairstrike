@@ -27,13 +27,15 @@ never be shared or published.
 
 - AirStrike 3D: all shipped files load, all 20 missions can be played to the end, with the
   original front end (intro, menus, high scores, options, two players, saved profile).
-  See `docs/missions-status.md`.
+  Two players share one keyboard (player 2 on W A S D) or play with game controllers, on the
+  desktop, the web and Android; a Players screen shows who flies with what and lets each
+  pad be given to a player. See `docs/missions-status.md` and `docs/web.md` "Two players".
 - AirStrike 2: all 18 missions play to the end, with its own HUD and front end.
   Two players (co-op) on the desktop. See `docs/missions-status-as2.md`.
 - Gulf Thunder: all 24 operations play to the end, with its own loadouts, HUD and front end.
   Two players (co-op) on the desktop. See `docs/missions-status-gulf.md`.
 - The web version is online at https://propaint.github.io/openairstrike/ (it asks for your
-  own game files). It plays one player at a time and
+  own game files). It plays one or two players and
   was tested in Chromium and on Android Chrome and Edge; Safari, iPhone and Firefox are
   untested.
 - Nintendo 3DS: the three games play on a New 3DS (an Old 3DS runs a 30 Hz profile) with

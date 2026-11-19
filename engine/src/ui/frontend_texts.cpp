@@ -94,6 +94,15 @@ const std::map<std::string, std::string>& defaults() {
             {"heli.generic", "Helicopter"}, {"button.change_game", " Change game "}, {"button.clear", " Clear "},
             {"button.cancel", " Cancel "}, {"button.touch_menu", " MENU "},
             {"info.missing.2s", " to import them."},
+            // Ours: the Players screen (two players on one screen, screens_players.cpp).
+            {"players.title", "Who flies with what?"}, {"players.keyboard", "Keyboard"},
+            {"players.touch", "Touch screen"}, {"players.arrows", "Arrow keys"}, {"players.fly", "fly"},
+            {"players.fire", "fire"}, {"players.missile", "missile"}, {"players.item", "item"},
+            {"players.gamepad", "Gamepad"}, {"players.needs", "needs a gamepad"},
+            {"players.hint.move", "Gamepads: push left for Player 1, right for Player 2."},
+            {"players.hint.click", "Or click a gamepad to move it. A pressed button lights its pad up."},
+            {"players.hint.tap", "Or tap a gamepad to move it. A pressed button lights its pad up."},
+            {"players.hint.none", "Plug in a gamepad and press one of its buttons to fly with it."},
         };
         char key[32], val[32];
         for (int n = 1; n <= 10; n++) {

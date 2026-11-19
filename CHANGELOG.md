@@ -8,6 +8,15 @@ they list the commits since the previous tag.
 - **Two players in AirStrike 2 and Gulf Thunder** on the desktop: choose "Cooperative" in Start
   Game, pick a helicopter for each player, and play the campaign together with the two-player
   HUD; the checkpoint, Restart and Next keep both players' lives and scores.
+- **Two players on the web and Android**, in all three games: "2 Players" (the sequels'
+  "Cooperative") in Start Game whenever a second player has something to fly with, the
+  keyboard or a game controller. On a phone, touch is player 1 and a pad player 2.
+- **One pad per player**: each game controller now flies its own player instead of every pad
+  flying player 1. In AirStrike 3D a new Players screen before a two-player mission shows who
+  flies with what; push a pad left or right (or tap it) to give it to the other player.
+- **Two players on one keyboard on the web**: player 2 flies with W A S D and fires with V (F
+  stays the page's full-screen key), G missile, H item. Older web and Android saves get player
+  2's keys when they still had none of their own.
 
 ## 0.4.1
 

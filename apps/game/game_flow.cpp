@@ -49,6 +49,18 @@ void applyDesktopPlayer2Keys(Settings& s) {
     for (int a = 0; a < kActionCount; ++a) s.keys[1][a][0] = kKeys[a];
 }
 
+void applyWebPlayer2Keys(Settings& s) {
+    applyDesktopPlayer2Keys(s);
+    s.keys[1][static_cast<int>(Action::PrimaryAttack)][0] = 'V'; // F is the page's full-screen key
+}
+
+bool player2KeysCopyPlayer1(const Settings& s) {
+    for (int a = 0; a < kActionCount; ++a)
+        for (int slot = 0; slot < 2; ++slot)
+            if (s.keys[0][a][slot] != s.keys[1][a][slot]) return false;
+    return true;
+}
+
 GameFlow::GameFlow(GameSession& session, AudioBridge& audio) : session_(session), audio_(audio) {}
 
 GameFlow::~GameFlow() = default;
@@ -80,9 +92,16 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     if (loaded == ProfileLoad::Unusable)
         AS3D_WARN("profile %s: %s; using the defaults", config_.profilePath.c_str(), why.c_str());
     if (loaded == ProfileLoad::Migrated && config_.profileSaved) config_.profileSaved(); // web: sync the new tree
+    if (loaded == ProfileLoad::Fresh && config_.webKeys) applyWebKeyBindings(profile_.settings);
+    // Two players on one keyboard (issue 130): player 2 gets keys of its own while its keys are a
+    // copy of player 1's, which would fly both: a fresh profile (the built-in table binds both
+    // players alike), or one saved where two players were not offered (the web and Android
+    // before 0.5, desktop --touch). Not on a console (no keyboard; its profile stays as it was).
+    if (config_.twoPlayerMode && !config_.consoleOptions && player2KeysCopyPlayer1(profile_.settings)) {
+        if (config_.webKeys) applyWebPlayer2Keys(profile_.settings);
+        else applyDesktopPlayer2Keys(profile_.settings);
+    }
     if (loaded == ProfileLoad::Fresh) {
-        if (config_.twoPlayerMode) applyDesktopPlayer2Keys(profile_.settings);
-        if (config_.webKeys) applyWebKeyBindings(profile_.settings);
         // The game's default MouseControl (as2 7.2: on), with the mouse buttons it binds;
         // never in touch mode nor on the web (a captured pointer needs the page's pointer lock,
         // issue as2/272). The first game's default is off, the Settings default.

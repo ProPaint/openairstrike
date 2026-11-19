@@ -39,6 +39,8 @@ namespace {
 
 // Display cutout insets in window pixels, set from the UI thread by GameActivity.
 std::atomic<int> g_insets[4] = {{0}, {0}, {0}, {0}};
+// A hardware keyboard is there (GameActivity.reportKeyboard), for the split keyboard of two players.
+std::atomic<bool> g_hardKeyboard{false};
 
 as3d::SafeInsets currentInsets() {
     as3d::SafeInsets s;
@@ -107,6 +109,11 @@ extern "C" JNIEXPORT void JNICALL Java_org_as3dport_game_GameActivity_nativeSetS
     g_insets[3] = bottom;
 }
 
+extern "C" JNIEXPORT void JNICALL Java_org_as3dport_game_GameActivity_nativeSetHardwareKeyboard(JNIEnv*, jclass,
+                                                                                                 jboolean present) {
+    g_hardKeyboard = present != JNI_FALSE;
+}
+
 int main(int argc, char* argv[]) {
     using namespace as3d_game;
     LoopOptions o;
@@ -119,6 +126,7 @@ int main(int argc, char* argv[]) {
     o.logTouches = true;
     o.quiet = true;
     o.safeInsets = currentInsets;
+    o.keyboardQuery = [] { return g_hardKeyboard.load(); };
     std::string forced;
     bool allowUnfinished = false;
     int level = 0, difficulty = -1; // as given; checked against the game's rules once it is known
@@ -210,16 +218,17 @@ int main(int argc, char* argv[]) {
     else if (difficulty != -1) AS3D_WARN("--difficulty %d is outside 0..%d, ignored", difficulty, profile->rules.difficultyCount - 1);
     if (o.game.world.difficulty >= profile->rules.difficultyCount) o.game.world.difficulty = profile->rules.defaultDifficulty;
     if (!direct) {
-        // The front end in touch mode (docs/spec/issues/090, 130): no two-player mode, no
-        // mouse control, no video options; the touch overlay's pause button opens the
-        // in-game menu. Settings.xml, the menu logo and the texts imported from the exe are
+        // The front end in touch mode (docs/spec/issues/090, 130): no mouse control, no video
+        // options; the touch overlay's pause button opens the in-game menu. Two players when a
+        // second player has something to fly with (docs/android.md "Two players"): touch is
+        // player 1, a game controller or a hardware keyboard player 2. Settings.xml, the menu logo and the texts imported from the exe are
         // copied into the APK's assets by tools/android_build.sh when the data has them, or
         // imported with the paks (ImportActivity).
         o.frontend = true;
         o.game.startLevel = false;
         o.game.levelFlow = false;
         o.flow.touch = true;
-        o.flow.twoPlayerMode = false;
+        o.flow.twoPlayerMode = true;
         o.flow.mouseControlOption = false;
         o.flow.touchMenuButton = false;
         o.flow.screenOptionAlways = true; // Options offers Screen (Wide / 4:3) on every device

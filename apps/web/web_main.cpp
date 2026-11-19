@@ -386,16 +386,17 @@ int main(int argc, char* argv[]) {
     o.firstFrame = [] { callPage("onFirstFrame"); };
     o.finished = [](int) { callPage("onFinished"); };
     if (!direct) {
-        // The front end as on Android (docs/spec/issues/090, 130, 150): no two-player mode
-        // (one keyboard, and F is the full-screen key), no video options; the touch overlay's
-        // pause button opens the in-game menu. The optional files come from /data when the
+        // The front end as on Android (docs/spec/issues/090, 130, 150): no video options; the
+        // touch overlay's pause button opens the in-game menu. Two players (docs/web.md "Two
+        // players") on the split keyboard (player 2's fire key is V there: F is the page's
+        // full-screen key) or with game controllers. The optional files come from /data when the
         // page has them.
         o.frontend = true;
         o.game.startLevel = false;
         o.game.levelFlow = false;
         o.game.extraFiles.push_back({"gfx\\logo2s.tga", dir + "logo2s.tga"});
         o.flow.touch = o.touch;
-        o.flow.twoPlayerMode = false;
+        o.flow.twoPlayerMode = true;
         o.flow.mouseControlOption = !o.touch;
         o.flow.touchMenuButton = false;
         o.flow.settingsXml = dir + "Settings.xml";

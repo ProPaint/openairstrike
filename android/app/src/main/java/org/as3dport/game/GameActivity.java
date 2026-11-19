@@ -1,6 +1,7 @@
 package org.as3dport.game;
 
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -22,7 +23,8 @@ import org.libsdl.app.SDLActivity;
  * docs/spec/issues/163). Everything runs in native code (apps/game, entry point
  * apps/game/android_main.cpp); this class names the native libraries, turns the launching
  * intent's extras into program arguments, lays the surface out under display cutouts and
- * reports the cutout insets so the touch controls stay clear of them.
+ * reports the cutout insets so the touch controls stay clear of them, and whether a hardware
+ * keyboard is there (the second player's keys, docs/android.md "Two players").
  *
  * Intent extras (all optional), e.g.
  *   adb shell am start -n org.as3dport.game/.GameActivity --ez bot true --ei level 2
@@ -43,6 +45,7 @@ public class GameActivity extends SDLActivity {
     private static final String TAG = "AS3D";
 
     private static native void nativeSetSafeInsets(int left, int top, int right, int bottom);
+    private static native void nativeSetHardwareKeyboard(boolean present);
 
     @Override
     protected String[] getLibraries() {
@@ -100,6 +103,7 @@ public class GameActivity extends SDLActivity {
         super.onCreate(savedInstanceState);
         if (mBrokenLibraries) return;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        reportKeyboard(getResources().getConfiguration());
         // With targetSdk 36 the system handles Back through OnBackInvokedDispatcher
         // (predictive back): no KEYCODE_BACK or onBackPressed reaches the app. Forward it to
         // SDL as the Back key, which pauses the game.
@@ -122,6 +126,27 @@ public class GameActivity extends SDLActivity {
                 return v.onApplyWindowInsets(insets);
             }
         });
+    }
+
+    // The manifest handles keyboard and keyboardHidden changes itself: a keyboard plugged in or out
+    // while the game runs arrives here instead of restarting the activity.
+    @Override
+    public void onConfigurationChanged(Configuration c) {
+        super.onConfigurationChanged(c);
+        reportKeyboard(c);
+    }
+
+    // A hardware keyboard (USB, Bluetooth, a keyboard cover) that is not folded away: both players
+    // then have their keys, so "2 Players" is offered without a game controller.
+    private static void reportKeyboard(Configuration c) {
+        boolean present = c != null && c.keyboard == Configuration.KEYBOARD_QWERTY
+            && c.hardKeyboardHidden != Configuration.HARDKEYBOARDHIDDEN_YES;
+        Log.i(TAG, "AS3D_KEYBOARD present=" + (present ? 1 : 0));
+        try {
+            nativeSetHardwareKeyboard(present);
+        } catch (UnsatisfiedLinkError e) {
+            Log.w(TAG, "nativeSetHardwareKeyboard unavailable: " + e);
+        }
     }
 
     private static void reportInsets(WindowInsets insets) {

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "as3d/menu.h"
+#include "as3d/player_pads.h"
 #include "as3d/profile.h"
 #include "as3d/ui.h"
 
@@ -242,6 +243,9 @@ enum class Screen {
     // The sequels' own (as2/frontend.md 1.2): helicopter selection (S3b), credits (S8b),
     // portrait dialogue (S9b, S13b).
     HeliSelect, Credits, Dialogue,
+    // Ours (two players on one screen): who flies with what, between Start Game and a
+    // two-player mission (screens_players.cpp).
+    Players,
 };
 const char* screenName(Screen s);
 bool screenFromName(std::string_view name, Screen& out);
@@ -249,7 +253,7 @@ bool screenFromName(std::string_view name, Screen& out);
 constexpr Screen kAllScreens[] = {
     Screen::MainMenu, Screen::Exit, Screen::StartGame, Screen::TopScores, Screen::NameEntry,
     Screen::Options, Screen::Controls, Screen::Information, Screen::InGame, Screen::Hint,
-    Screen::GameOver, Screen::MissionComplete, Screen::GameComplete,
+    Screen::GameOver, Screen::MissionComplete, Screen::GameComplete, Screen::Players,
 };
 // The sequels' screens (FrontendStyle::SequelMenus).
 constexpr Screen kSequelScreens[] = {
@@ -279,6 +283,16 @@ public:
         menus_.padMode = on || content_.padNavigation;
         menus_.hideCursor = on;
     }
+    // Ours (two players on one screen, as3d/player_pads.h): the host's game controllers. With
+    // them, "2 Players" is offered only while a second player has something to fly with
+    // (PlayerPads::twoPlayersPossible; FrontendContent::twoPlayerMode stays the game's and the
+    // platform's own gate, see twoPlayerChoice), and a two-player start goes through the Players
+    // screen. Without them (headless runs, tests) both are as before.
+    void setPlayerPads(PlayerPads* pads) { pads_ = pads; }
+    // Whether Start Game offers two players now: FrontendContent::twoPlayerMode as built, and
+    // the devices above. FrontendContent::twoPlayerMode itself follows it from every open(), so
+    // that a screen reading it sees both gates.
+    bool twoPlayerChoice() const { return twoPlayerGame_ && (!pads_ || pads_->twoPlayersPossible()); }
     // Whether Options offers the Screen row (the host: always on Android, on desktop while
     // the window is wider than 4:3). Takes effect when Options is next opened.
     void setScreenOptionShown(bool on) { content_.screenOption = on; }
@@ -393,6 +407,7 @@ private:
     Menu buildGameOver();
     Menu buildMissionComplete();
     Menu buildGameComplete();
+    Menu buildPlayers();
     // The plain front end of a PlainList game (engine/src/ui/screens_plain.cpp). Screens not
     // listed (top scores, name entry, options, controls) are the same builders with plain
     // widgets, see plain().
@@ -466,6 +481,10 @@ private:
     int captureRow_ = -1;
     int infoPage_ = 0;
     int typedChars_ = 0;               // Game Complete typing sound state
+    // Two players on one screen (setPlayerPads): the Players screen starts this mission.
+    PlayerPads* pads_ = nullptr;
+    bool twoPlayerGame_ = true;        // FrontendContent::twoPlayerMode as given
+    int playersMission_ = 0;
     int carriedUpgrades_[2][kMaxWeaponSlots] = {};
     int carriedWeapon_[2] = {0, 0};
     bool haveCarried_ = false;

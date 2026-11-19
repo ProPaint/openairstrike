@@ -15,7 +15,7 @@ namespace {
 
 const char* kScreenNames[] = {"main",     "exit",     "start",        "scores", "name",    "options",
                               "controls", "info",     "ingame",       "hint",   "gameover", "complete",
-                              "gamecomplete", "heli", "credits", "dialogue"};
+                              "gamecomplete", "heli", "credits", "dialogue", "players"};
 
 // Touch mode: the button that stands for Esc during play (docs/spec/issues/090).
 constexpr RectF kTouchMenuButton{360, 6, 80, 22};
@@ -42,6 +42,7 @@ const char* screenName(Screen s) { return kScreenNames[static_cast<int>(s)]; }
 bool screenFromName(std::string_view name, Screen& out) {
     for (Screen s : kSequelScreens)
         if (name == screenName(s)) { out = s; return true; }
+    if (name == screenName(Screen::Players)) { out = Screen::Players; return true; }
     return false;
 }
 
@@ -52,6 +53,7 @@ Frontend::Frontend(GameHost& host, Profile& profile, FrontendContent content, Te
     menus_.drawCursor = !profile_.settings.useSystemMouse;
     menus_.plain = plain();
     menus_.padMode = content_.padNavigation;
+    twoPlayerGame_ = content_.twoPlayerMode;
     pending_ = profile_.settings;
     refreshLocks();
     if (plain()) {
@@ -128,6 +130,8 @@ Screen Frontend::topScreen() const {
 
 void Frontend::open(Screen s) {
     Menu m;
+    // Both gates of two players (twoPlayerChoice) for whatever this screen reads.
+    content_.twoPlayerMode = twoPlayerChoice();
     if (sequel()) {
         SequelScreens::applyLook(*this);
         m = SequelScreens::build(*this, s);
@@ -162,6 +166,7 @@ void Frontend::open(Screen s) {
         case Screen::GameOver: m = buildGameOver(); break;
         case Screen::MissionComplete: m = buildMissionComplete(); break;
         case Screen::GameComplete: m = buildGameComplete(); break;
+        case Screen::Players: m = buildPlayers(); break;
         default: return; // the sequels' own screens
     }
     m.tag = static_cast<int>(s);

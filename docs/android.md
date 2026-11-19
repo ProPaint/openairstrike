@@ -271,8 +271,8 @@ Landscape only (either way round), full screen, the screen stays on.
 **Menus**: tap. Spinners go back with a tap left of their value; the Start Game list scrolls
 with its arrows; the name entry has its own keyboard; Configure keys has Clear and Cancel
 (issue 090). The **Back** key is the original's Esc (back one screen; on the main menu it
-asks whether to quit; it closes a hint box). Two players, mouse control and the video options
-are not offered on Android.
+asks whether to quit; it closes a hint box). Mouse control and the video options are not
+offered on Android; two players are, with a game controller or a keyboard (below).
 
 - **Move: drag anywhere** outside the buttons. The movement is relative: the helicopter moves
   by the finger's displacement (times 1.875 by default, see Touch speed below), it does not jump to the finger, so your finger
@@ -296,6 +296,19 @@ On screens of 16:9 and wider (most phones) the buttons sit beside the 4:3 play-f
 on 20:9, a column on 16:9); on 16:10 and 4:3 tablets they are drawn translucent inside it,
 clear of the HUD. They stay clear of display cutouts. The design and the reasons are in
 `docs/spec/issues/100-touch-controls.md` and `140-android-polish.md`.
+
+**Two players** (AirStrike 3D; the web's and the desktop's way, docs/web.md "Two players"):
+Start Game offers "2 Players" once a second player has something to fly with. Touch is always
+player 1; player 2 needs a game controller (Bluetooth or USB, Xbox or PlayStation style), or a
+hardware keyboard (USB, Bluetooth, a keyboard cover: then both players have their keys, player
+1 the arrows with Ctrl, Shift and Space, player 2 W A S D with F fire, G missile, H item,
+E / Q / R to switch). The app learns about a keyboard from Android (`GameActivity` reports
+`Configuration.keyboard`; logcat `AS3D_KEYBOARD present=1`) or from the first letter or arrow
+typed. After Start, the Players screen shows each player's devices: tap a pad's row to give it
+to the other player, or push the pad left (player 1) or right (player 2); a held button lights
+its pad up. The first pad goes to player 2, a second one to player 1 (beside touch). With a
+pad, player 1 can also put the phone down and play with a second pad: give both pads their
+sides and leave the screen alone. Pads follow the desktop's layout (docs/web.md "Controllers").
 
 The three small "next" buttons show the item a press will select (icon, its count for missiles
 and power-ups, and a small double-arrow badge); with nothing to switch to they are dimmed to the
@@ -413,9 +426,15 @@ with the key `as3d`, the app logged no profile problem and comes up with Screen 
 - Model textures load on first draw; a new enemy type can cause a short hitch on a slow
   device (`AS3D_HITCH`). Terrain, water and the map objects' shadow silhouettes are built at
   level load.
-- Two players and the hardware keyboard's rebinding are not supported on Android (a
-  Bluetooth keyboard works with the desktop keys). Gamepads go through the desktop's SDL game
-  controller code (docs/web.md "Controllers"), not tried on a device yet.
+- Gamepads and the two-player mode go through the desktop's SDL game controller code
+  (docs/web.md "Controllers", "Two players"), not tried on a device yet. To check on a phone with
+  a Bluetooth pad: Start Game offers "2 Players" only once the pad is connected (and again
+  without it after unplugging, back to one player); the Players screen lists Touch screen under
+  Player 1 and the pad under Player 2; tapping the pad's row and pushing the pad left / right
+  move it, a held button lights it; Start then flies player 1 by touch and player 2 by the pad
+  (both HUDs, the pad's Start opens the in-game menu); with a keyboard cover or a Bluetooth
+  keyboard, `AS3D_KEYBOARD present=1` in logcat and "2 Players" offered without a pad, player 2
+  on W A S D.
 - The emulator renders with SwiftShader (a CPU GLES implementation): its frame times say
   nothing about a phone's. Measured on the `atticpad-test` AVD (Pixel 6 profile, 2400x1080,
   x86_64, KVM, SwiftShader), emulator numbers only: 6 to 9 displayed frames per second

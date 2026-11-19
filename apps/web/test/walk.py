@@ -43,6 +43,13 @@ as2 and gulf (tools/web_build.sh); every scenario but `choose`, `gulf` and `byo`
              3D's banner by the engine from the stored paks (a moving canvas), kept and shown
              again after a reload without a new render, gone with "Remove them"; files stored
              by the first version of the page (no game key) still found.
+  twoplayer  two players at 1280x720 (docs/web.md "Two players"), with two fake "standard"
+             gamepads (navigator.getGamepads stubbed): a fresh profile gives player 2 W A S D
+             and V to fire; Start Game, 2 Players, Start opens the Players screen (keyboard
+             only); the pads plugged in take one player each (AS3D_PAD ... player=); a pad
+             pushed right and left changes sides (AS3D_PAD side id=); A starts mission 1; the
+             split keyboard flies both players (AS3D_INPUT players=2 p1= p2=, V asks for no
+             full screen), then each pad flies its own player.
   migration  a version 1 profile at the old path /persist/profile.bin (Screen 4:3 and Show
              FPS set): after a reload the settings are in effect, /persist/as3d/profile.bin
              and /persist/profile.v1.bak exist and /persist/profile.bin is gone; the same
@@ -907,6 +914,159 @@ def byo_archive(w, b):
     return r
 
 
+# Two fake "standard" gamepads (index 0 and 1), unplugged until window.__connect(i) (the
+# browser shows a pad only after a press; Emscripten's SDL polls navigator.getGamepads).
+TWO_PADS_JS = """
+(() => {
+  const mk = (index, id) => ({ id, index, connected: false, mapping: 'standard', timestamp: 1,
+    buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
+    axes: [0, 0, 0, 0] });
+  window.__pads = [mk(0, 'Fake Xbox Controller (STANDARD GAMEPAD Vendor: 045e Product: 02ea)'),
+                   mk(1, 'Fake DualSense (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)')];
+  navigator.getGamepads = () => {
+    const out = [null, null, null, null];
+    for (const p of window.__pads) if (p.connected) { p.timestamp = performance.now(); out[p.index] = p; }
+    return out;
+  };
+  window.__connect = (i) => {
+    const p = window.__pads[i];
+    p.connected = true;
+    const e = new Event('gamepadconnected');
+    Object.defineProperty(e, 'gamepad', { value: p });
+    window.dispatchEvent(e);
+  };
+  window.__btn = (i, b, on) => { const x = window.__pads[i].buttons[b]; x.pressed = on; x.touched = on; x.value = on ? 1 : 0; };
+})();
+"""
+PAD = {"A": 0, "B": 1, "START": 9, "UP": 12, "DOWN": 13, "LEFT": 14, "RIGHT": 15}
+
+
+def twoplayer(w, b):
+    p = b.page(w.a.url, None, viewport={"width": 1280, "height": 720})
+    p.ctx.add_init_script(TWO_PADS_JS)
+    p.goto("game=as3d")
+    r = {}
+
+    def pad_press(i, button, ms=150):
+        p.page.evaluate("([i, b]) => window.__btn(i, b, true)", [i, PAD[button]])
+        p.page.wait_for_timeout(ms)
+        p.page.evaluate("([i, b]) => window.__btn(i, b, false)", [i, PAD[button]])
+        p.page.wait_for_timeout(200)
+
+    def input_line(mk, rx, timeout=10):
+        return p.wait_line(r"AS3D_INPUT players=2 " + rx, timeout, after=mk)
+
+    try:
+        p.wait_ready()
+        w.step("twoplayer: Play, main menu")
+        p.page.click("#play")
+        to_main_menu(w, p)
+
+        w.step("twoplayer: a fresh web profile gives player 2 W A S D and V")
+        mk = p.mark()
+        p.tap_item("main", 3)
+        wait_new_screen(p, "options", mk)
+        p.page.wait_for_timeout(300)
+        mk = p.mark()
+        p.tap_item("options", 1)    # Back (saves)
+        wait_new_screen(p, "main", mk)
+        p.wait_line(r"AS3D_WEB profile_synced", 10, after=mk)
+        prof = parse_profile(read_profile(p))
+        keys = {k: prof["settings"].get(k) for k in ("key0.0.0", "key1.0.0", "key1.2.0", "key1.4.0", "key1.6.0", "key1.8.0")}
+        r["profile_keys"] = keys
+        assert keys["key0.0.0"] == 32, "player 1 does not fire with Space"
+        assert keys["key1.0.0"] == ord("V") and keys["key1.2.0"] == ord("G") and keys["key1.4.0"] == ord("H"), keys
+        assert keys["key1.6.0"] == ord("W") and keys["key1.8.0"] == ord("A"), keys
+
+        w.step("twoplayer: Start Game, 2 Players, Start: the Players screen")
+        mk = p.mark()
+        p.tap_item("main", 1)
+        wait_new_screen(p, "start", mk)
+        p.page.wait_for_timeout(400)
+        assert 5 in p.menu_items("start"), "no Game mode spinner with a keyboard"
+        p.tap_item("start", 5)      # 1 Player -> 2 Players
+        p.page.wait_for_timeout(300)
+        mk = p.mark()
+        p.tap_item("start", 2)
+        wait_new_screen(p, "players", mk)
+        p.page.wait_for_timeout(600)
+        w.shot(p, "twoplayer_players_keyboard")
+
+        w.step("twoplayer: two pads plugged in take one player each")
+        mk = p.mark()
+        p.page.evaluate("window.__connect(0)")
+        m0 = p.wait_line(r"AS3D_PAD added id=(\d+) .* player=(\d)", 15, after=mk)
+        mk1 = p.mark()
+        p.page.evaluate("window.__connect(1)")
+        m1 = p.wait_line(r"AS3D_PAD added id=(\d+) .* player=(\d)", 15, after=mk1)
+        r["pad_sides"] = [m0.group(2), m1.group(2)]
+        assert m0.group(2) == "1" and m1.group(2) == "2", r["pad_sides"]
+        id0 = m0.group(1)
+
+        w.step("twoplayer: pad 1 pushed right goes to player 2, pushed left back to player 1")
+        mk = p.mark()
+        pad_press(0, "RIGHT")
+        p.wait_line(r"AS3D_PAD side id=%s player=2" % id0, 5, after=mk)
+        mk = p.mark()
+        pad_press(0, "LEFT")
+        p.wait_line(r"AS3D_PAD side id=%s player=1" % id0, 5, after=mk)
+        assert p.state()["screen"] == "players", "a push left the Players screen"
+        p.page.evaluate("window.__btn(1, 3, true)")   # Y held on pad 2: its row lights up
+        p.page.wait_for_timeout(400)
+        w.shot(p, "twoplayer_players_pads")
+        p.page.evaluate("window.__btn(1, 3, false)")
+        p.page.wait_for_timeout(200)
+
+        w.step("twoplayer: A on pad 1 starts mission 1 for two players")
+        mk = p.mark()
+        pad_press(0, "A")
+        p.wait_line(r"AS3D_LEVEL_LOADED mission=1", 90, after=mk)
+        if wait_new_screen(p, "(playing|hint)", mk, 60).group(1) == "hint":
+            p.key("Enter")
+            p.page.wait_for_timeout(500)
+        p.page.wait_for_timeout(1200)
+        p.page.locator("#canvas").focus()
+
+        w.step("twoplayer: the split keyboard flies both players")
+        fs0 = p.state()["fullscreenRequests"]
+        mk = p.mark()
+        for k in ("Space", "ArrowRight", "v", "d"):
+            p.page.keyboard.down(k)
+        p.page.wait_for_timeout(600)
+        m = input_line(mk, r"p1=0x081 p2=0x081")
+        r["keyboard_input"] = m.group(0)
+        w.shot(p, "twoplayer_play_keys")
+        for k in ("Space", "ArrowRight", "v", "d"):
+            p.page.keyboard.up(k)
+        p.page.wait_for_timeout(300)
+        assert p.state()["fullscreenRequests"] == fs0, "V asked for full screen"
+        mk = p.mark()
+        p.page.keyboard.down("a")    # player 2 alone: left
+        p.page.wait_for_timeout(400)
+        input_line(mk, r"p1=0x000 p2=0x040")
+        p.page.keyboard.up("a")
+        p.page.wait_for_timeout(300)
+
+        w.step("twoplayer: each pad flies its own player")
+        mk = p.mark()
+        p.page.evaluate("window.__btn(0, 0, true); window.__btn(0, 15, true)")   # pad 1: A + right
+        p.page.wait_for_timeout(500)
+        input_line(mk, r"p1=0x081 p2=0x000")
+        mk = p.mark()
+        p.page.evaluate("window.__btn(1, 0, true); window.__btn(1, 14, true)")   # pad 2: A + left
+        p.page.wait_for_timeout(500)
+        m = input_line(mk, r"p1=0x081 p2=0x041")
+        r["pad_input"] = m.group(0)
+        w.shot(p, "twoplayer_play_pads")
+        p.page.evaluate("for (const i of [0, 1]) for (const b of [0, 14, 15]) window.__btn(i, b, false)")
+        p.page.wait_for_timeout(400)
+        assert p.state()["screen"] == "playing", p.state()["screen"]
+        r["errors"] = p.errors()
+    finally:
+        p.close()
+    return r
+
+
 def profile_paths(p):
     return {"old": fs_exists(p, OLD_PROFILE), "new": fs_exists(p, PROFILE), "bak": fs_exists(p, BACKUP),
             "dir": fs_exists(p, "/persist/as3d")}
@@ -1285,7 +1445,8 @@ def gulf(w, b):
 
 
 SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "byo_archive": byo_archive, "complete": complete,
-             "gameover": gameover, "migration": migration, "choose": choose, "gulf": gulf}
+             "gameover": gameover, "migration": migration, "choose": choose, "gulf": gulf,
+             "twoplayer": twoplayer}
 
 
 def main():
@@ -1295,7 +1456,7 @@ def main():
     ap.add_argument("--shots", required=True)
     ap.add_argument("--engine", default="chromium", choices=["chromium", "firefox"])
     ap.add_argument("--gl", default="gpu", choices=["gpu", "swiftshader"])
-    ap.add_argument("--only", default="choose,gulf,desktop,phone,iphone,byo,complete,gameover,migration")
+    ap.add_argument("--only", default="choose,gulf,desktop,phone,iphone,byo,complete,gameover,migration,twoplayer")
     a = ap.parse_args()
     os.makedirs(a.shots, exist_ok=True)
     w = Walk(a)

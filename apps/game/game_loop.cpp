@@ -18,6 +18,7 @@
 #include "as3d/gfx.h"
 #include "as3d/launcher.h"
 #include "as3d/platform.h"
+#include "as3d/player_pads.h"
 #include "as3d/ui.h"
 #include "as3d/world.h"
 #include "audio_bridge.h"
@@ -222,8 +223,21 @@ private:
     void controllerEvent(const SDL_Event& e);
     void readControllers(float dt);
     void setPadNavigation(bool on);
+    // Two players on one screen (as3d/player_pads.h): which pad flies for which player, kept
+    // for the whole run (across "Change game"); the front end shows it on its Players screen.
+    // `pad_` has every pad ORed (the menus, the pause, a one-player game); `padPlayer_` each
+    // player's pads in a two-player game.
+    void updatePlayerDevices();
+    bool keyboardPresent();
     std::vector<SDL_GameController*> controllers_;
     GamepadInput pad_;
+    GamepadInput padPlayer_[2];
+    PlayerPads pads_;
+    std::map<int, int> padSideLogged_;      // AS3D_PAD side=: the last side logged per pad id
+    bool keyboardSeen_ = false;             // a key of a hardware keyboard reached the loop
+    u32 lastHeld_[2] = {0, 0};              // AS3D_INPUT: the players' held bits last logged
+    double lastKeyboardQuery_ = -1;
+    bool keyboardQueried_ = false;
     PadBindings padBindings_ = gamepadBindings();
     bool padNavigation_ = false;
     double lastPadRead_ = -1;
@@ -466,6 +480,7 @@ void GameWindow::setBackground(bool bg) {
         uiFingers_.clear();
         keys_.releaseAll();
         pad_.releaseAll();
+        for (GamepadInput& g : padPlayer_) g.releaseAll();
         touch_.releaseAll();
         mouseFinger_ = false;
         stack_.audio.setPaused(true);
@@ -732,7 +747,10 @@ void GameWindow::uiFrame() {
     const bool took = stack_.flow->uiFrame(dt, uiIn_);
     uiIn_.events.clear();
     const bool live = stack_.flow->playing() && !took;
-    if (!live) pad_.dropPending(); // a menu had them
+    if (!live) { // a menu had them
+        pad_.dropPending();
+        for (GamepadInput& g : padPlayer_) g.dropPending();
+    }
     for (const PendingInput& p : pending_) {
         if (p.down && !live) continue;
         if (p.mouse) keys_.mouseButtonEvent(p.code, p.down);
@@ -754,6 +772,10 @@ void GameWindow::uiFrame() {
 
 void GameWindow::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_FINGERDOWN && !touchMode_ && o_.autoTouch) setTouchMode(true);
+    // A letter or an arrow typed: a keyboard is there for the second player's keys.
+    if (e.type == SDL_KEYDOWN && ((e.key.keysym.scancode >= SDL_SCANCODE_A && e.key.keysym.scancode <= SDL_SCANCODE_Z) ||
+                                  (e.key.keysym.scancode >= SDL_SCANCODE_RIGHT && e.key.keysym.scancode <= SDL_SCANCODE_UP)))
+        keyboardSeen_ = true;
     if (e.type == SDL_CONTROLLERDEVICEADDED || e.type == SDL_CONTROLLERDEVICEREMOVED) {
         controllerEvent(e);
         return;
@@ -848,6 +870,7 @@ void GameWindow::handleEvent(const SDL_Event& e) {
             if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
                 keys_.releaseAll();
                 pad_.releaseAll();
+                for (GamepadInput& g : padPlayer_) g.releaseAll();
                 touch_.releaseAll();
                 mouseFinger_ = false;
             }
@@ -875,8 +898,15 @@ void GameWindow::simulate(int steps) {
         touch_.setPlayerScreen(valid, px, py);
         touch_.setPaused(stack_.flow ? false : pausedByPlayer(cw));
         FrameInput local = keys_.takeFrame();
-        // The pad plays only while the game does (with the front end: no menu up).
-        const FrameInput fromPad = pad_.takeFrame(padBindings_);
+        // The pad plays only while the game does (with the front end: no menu up). With two
+        // players each pad flies its own player (as3d/player_pads.h), else every pad flies
+        // player 1. Every input is taken, so that no press waits for a later step.
+        FrameInput fromPad = pad_.takeFrame(padBindings_);
+        const FrameInput p1 = padPlayer_[0].takeFrame(padBindings_), p2 = padPlayer_[1].takeFrame(padBindings_);
+        if (cw.numPlayers() >= 2) {
+            fromPad.held[0] = p1.held[0];
+            fromPad.held[1] = p2.held[0];
+        }
         if (!stack_.flow || stack_.flow->playing()) local = mergeFrameInput(local, fromPad);
         FrameInput fromTouch = touch_.takeFrame();
         LoadStats::setFrame(frame_);
@@ -889,6 +919,14 @@ void GameWindow::simulate(int steps) {
             mouseRelX_ = mouseRelY_ = 0.0f;
         }
         recorder_.record(static_cast<u32>(frame_), in);
+        // Each player's input as it changes, for the web tests of two players (not with the bot
+        // or a script, which change it all the time).
+        if (o_.markers && !source_.external() && (in.held[0] != lastHeld_[0] || in.held[1] != lastHeld_[1])) {
+            lastHeld_[0] = in.held[0];
+            lastHeld_[1] = in.held[1];
+            AS3D_INFO("AS3D_INPUT players=%d p1=0x%03x p2=0x%03x frame=%ld", cw.numPlayers(), static_cast<unsigned>(in.held[0]),
+                      static_cast<unsigned>(in.held[1]), frame_);
+        }
         double t0 = nowSeconds();
         const int loads = stack_.flow ? stack_.flow->levelLoads() : 0;
         int ev = stack_.flow ? stack_.flow->step(in) : ses().step(in);
@@ -1084,6 +1122,8 @@ bool GameWindow::startGame(std::string* err) {
         SDL_ShowCursor(touchMode_ || stack_.flow->profile().settings.useSystemMouse ? SDL_ENABLE : SDL_DISABLE);
         stack_.flow->setTouchMode(touchMode_);
         stack_.flow->frontend().setPadNavigation(padNavigation_);
+        updatePlayerDevices();
+        stack_.flow->setPlayerPads(&pads_);
         SDL_StopTextInput();
         textInput_ = false;
         stack_.flow->boot();
@@ -1252,6 +1292,7 @@ void GameWindow::selectorFrame() {
         const ui::UiInput padUi = pad_.menuInputs(false);
         uiIn_.events.insert(uiIn_.events.end(), padUi.events.begin(), padUi.events.end());
         pad_.dropPending();
+        for (GamepadInput& g : padPlayer_) g.dropPending();
     }
     selector_->update(dt, uiIn_);
     uiIn_.events.clear();
@@ -1396,8 +1437,15 @@ void GameWindow::controllerEvent(const SDL_Event& e) {
         }
         controllers_.push_back(c);
         const char* name = SDL_GameControllerName(c);
-        if (o_.markers) AS3D_INFO("AS3D_PAD added id=%d name=\"%s\" count=%d", static_cast<int>(id), name ? name : "",
-                                  static_cast<int>(controllers_.size()));
+        // Its model, for its side when it is plugged in again: the name and the GUID.
+        char guid[40] = {};
+        SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(SDL_GameControllerGetJoystick(c)), guid, sizeof guid);
+        updatePlayerDevices(); // the automatic side counts the touch screen
+        const int index = pads_.connect(static_cast<int>(id), name ? name : "", std::string(name ? name : "") + "/" + guid);
+        const int player = pads_.pads()[static_cast<size_t>(index)].player;
+        padSideLogged_[static_cast<int>(id)] = player;
+        if (o_.markers) AS3D_INFO("AS3D_PAD added id=%d name=\"%s\" count=%d player=%d", static_cast<int>(id), name ? name : "",
+                                  static_cast<int>(controllers_.size()), player + 1);
         return;
     }
     // Removed: `which` is the instance id.
@@ -1405,14 +1453,20 @@ void GameWindow::controllerEvent(const SDL_Event& e) {
         if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controllers_[i])) != e.cdevice.which) continue;
         SDL_GameControllerClose(controllers_[i]);
         controllers_.erase(controllers_.begin() + static_cast<long>(i));
+        pads_.disconnect(static_cast<int>(e.cdevice.which));
+        padSideLogged_.erase(static_cast<int>(e.cdevice.which));
         if (o_.markers) AS3D_INFO("AS3D_PAD removed id=%d count=%d", static_cast<int>(e.cdevice.which),
                                   static_cast<int>(controllers_.size()));
         break;
     }
     if (controllers_.empty()) pad_.releaseAll(); // nothing stays held
+    // A player whose pads are gone has nothing held either (the next read sets the rest).
+    for (int p = 0; p < 2; ++p)
+        if (pads_.padsOf(p) == 0) padPlayer_[p].releaseAll();
 }
 
 void GameWindow::readControllers(float dt) {
+    updatePlayerDevices();
     if (controllers_.empty()) return;
     uint32_t held = 0;
     for (SDL_GameController* c : controllers_) {
@@ -1420,14 +1474,55 @@ void GameWindow::readControllers(float dt) {
         for (int b = 0; b < gamepad::ButtonCount; ++b)
             s.buttons[b] = SDL_GameControllerGetButton(c, static_cast<SDL_GameControllerButton>(b)) != 0;
         for (int a = 0; a < gamepad::AxisCount; ++a) s.axes[a] = SDL_GameControllerGetAxis(c, static_cast<SDL_GameControllerAxis>(a));
-        held |= gamepadHeldBits(s, pad_.pad().held);
+        // Each pad's own bits (its stick hysteresis from its own last read), for its player and
+        // for the Players screen's pushes (left: player 1, right: player 2).
+        const int id = static_cast<int>(SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(c)));
+        const int index = pads_.find(id);
+        const uint32_t mine0 = index >= 0 ? pads_.pads()[static_cast<size_t>(index)].held : 0;
+        const uint32_t mine = gamepadHeldBits(s, mine0);
+        const uint32_t down = mine & ~mine0;
+        if (down & pad::DLeft) pads_.pushMove(id, -1);
+        if (down & pad::DRight) pads_.pushMove(id, 1);
+        pads_.setHeld(id, mine);
+        held |= mine;
+    }
+    for (int p = 0; p < 2; ++p) padPlayer_[p].update(pads_.heldOf(p), dt);
+    for (const PlayerPads::Pad& pd : pads_.pads()) {
+        int& logged = padSideLogged_[pd.id];
+        if (logged == pd.player) continue;
+        logged = pd.player;
+        if (o_.markers) AS3D_INFO("AS3D_PAD side id=%d player=%d", pd.id, pd.player + 1);
     }
     const uint32_t before = pad_.pad().held;
     if (pad_.update(held, dt)) {
         setPadNavigation(true);
         redraw_ = true;
     }
-    if (o_.markers && held != before) AS3D_INFO("AS3D_PAD held=0x%08x frame=%ld", static_cast<unsigned>(held), frame_);
+    if (o_.markers && held != before)
+        AS3D_INFO("AS3D_PAD held=0x%08x p1=0x%08x p2=0x%08x frame=%ld", static_cast<unsigned>(held),
+                  static_cast<unsigned>(pads_.heldOf(0)), static_cast<unsigned>(pads_.heldOf(1)), frame_);
+}
+
+// What the players have besides the pads: the touch controls (player 1) and a keyboard with
+// both key sets (LoopOptions::keyboardQuery, else whenever touch mode is off), or once a
+// letter or an arrow was typed (a tablet with a keyboard, a laptop with a touch screen).
+void GameWindow::updatePlayerDevices() {
+    pads_.setTouch(touchMode_);
+    pads_.setKeyboard(keyboardPresent());
+}
+
+bool GameWindow::keyboardPresent() {
+    if (!o_.keyboardQuery) return !touchMode_ || keyboardSeen_;
+    // Asked at most once a second (Android: what GameActivity last reported); a key typed
+    // counts as well.
+    const double now = nowSeconds();
+    if (lastKeyboardQuery_ < 0 || now - lastKeyboardQuery_ > 1.0) {
+        lastKeyboardQuery_ = now;
+        const bool was = keyboardQueried_;
+        keyboardQueried_ = o_.keyboardQuery();
+        if (o_.markers && keyboardQueried_ != was) AS3D_INFO("AS3D_PAD keyboard=%d", keyboardQueried_ ? 1 : 0);
+    }
+    return keyboardQueried_ || keyboardSeen_;
 }
 
 void GameWindow::setPadNavigation(bool on) {

@@ -52,7 +52,7 @@ Every claim carries one of:
 | `TerrainHeight` outside the map | reads one cell past the edge | clamps to the edge |
 | Frame timing | variable step, capped at 100 ms | fixed step, for determinism |
 | Collision rectangles | window pixels of the actual video mode, previous frame's matrices | same formulas on a fixed 800x600 viewport; the player's x clamp uses that same 4:3 view, whatever the window's aspect |
-| Player 2 default keys | same keys as player 1 | W/A/S/D, F/G/H, E/Q/R on a fresh profile (issue 130) |
+| Player 2 default keys | same keys as player 1 | W/A/S/D, F/G/H, E/Q/R on a fresh profile (the web: V/G/H, F being its full-screen key; issue 130) |
 | Entity reference of 0 or to a freed entity | crashes, or acts on whatever now occupies the slot | references carry a generation count; a builtin given a null or stale reference does nothing and returns 0 |
 | Uninitialised values (`MoveToNextWP` bank on straight stretches, `Shoot` muzzle offset without a model) | whatever is on the stack | interpolated table value; zero offset |
 | Texts compiled into the executable (Information pages, congratulations, rank names, labels) | in the exe | a data setup tool reads them from the user's own exe into a gitignored text file that ships with the game data; short generic labels have built-in English defaults so the game runs without it (issue 080); any build of the exe gives them, by address for the builds the specs came from and by a hash dictionary for the others (issue 170) |

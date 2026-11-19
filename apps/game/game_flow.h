@@ -26,7 +26,9 @@ namespace as3d_game {
 
 struct FlowConfig {
     bool touch = false;               // front end in touch mode (Android)
-    bool twoPlayerMode = true;        // Start Game offers two players (desktop)
+    // Start Game may offer two players (the platform's gate; the game has its own, and the window
+    // offers them only while a second player has a device: as3d/player_pads.h).
+    bool twoPlayerMode = true;
     bool mouseControlOption = true;   // Options offers Mouse Control (desktop)
     bool touchMenuButton = true;      // the front end's own MENU button in touch mode
     std::string profilePath;          // where the profile is loaded from and saved; "" = never saved
@@ -76,6 +78,11 @@ public:
     // touches InputMapper, which needs SDL's scancodes and does not exist on the 3DS).
     void setView(FlowView* view) { view_ = view; }
     void setInputMapper(as3d::InputMapper* keys);
+    // Two players on one screen (as3d/player_pads.h): the window's game controllers, for the
+    // front end's "2 Players" choice and its Players screen (after init). Never set: as before.
+    void setPlayerPads(as3d::PlayerPads* pads) {
+        if (fe_) fe_->setPlayerPads(pads);
+    }
     // Called while a level loads (progress 0..1; `intermission`: attract level) and once it
     // is loaded (after the view's beginLevel), for the window to present the loading screen
     // and warm the renderer up.
@@ -200,7 +207,12 @@ std::string defaultProfilePath();
 // Fresh-profile key bindings of player 2 on a desktop keyboard (issue 130): the spec's
 // built-in defaults bind both players to the same keys (the original expected a joystick for
 // player 2), so player 2 gets W/A/S/D and the keys around them, keeping the joystick codes.
+// The web's (docs/web.md "Two players") are the same with V to fire: F is the page's
+// full-screen key. GameFlow::init applies them while player2KeysCopyPlayer1 (every binding of
+// both players alike, so one key would fly both).
 void applyDesktopPlayer2Keys(as3d::Settings& s);
+void applyWebPlayer2Keys(as3d::Settings& s);
+bool player2KeysCopyPlayer1(const as3d::Settings& s);
 
 // The settings' bindings (the original's codes) into the mapper's (SDL codes); the pause and
 // hint-confirm bindings are cleared, the front end handles P, Enter and Esc. Inline, so that

@@ -16,7 +16,12 @@ touch additions of the menus themselves, 100 the touch controls.
 * **Mouse Control** is implemented on the desktop (`engine-behaviour.md` 7.3: player 1's four
   direction bits follow the pointer with a 20-pixel dead zone, `gfx\mc_cur.tga` is drawn during
   play) and hidden in touch mode, where there is no pointer between taps.
-* **Two players** are offered on the desktop and hidden on Android (one touch layout).
+* **Two players** are offered on the desktop, the web and Android while a second player has
+  something to fly with (ours, `as3d/player_pads.h`): the keyboard (both key sets below), or a
+  game controller; on a touch device without a keyboard a pad is needed (touch flies player
+  1). A two-player Start goes through our Players screen (`screens_players.cpp`, docs/web.md
+  "Two players"), where each pad is given to a player. The first game only for now (the
+  sequels' front ends gate it themselves).
 
 ## 2. Key bindings
 
@@ -28,7 +33,10 @@ touch additions of the menus themselves, 100 the touch controls.
   for player 2), so with a keyboard both helicopters would answer the same keys. A **fresh
   profile on the desktop gives player 2** W / S / A / D to move, F fire, G missile, H power-up,
   E next weapon, Q next missile, R next power-up (the joystick codes stay in the second slot).
-  An existing profile is used as it is.
+  The web's player 2 fires with V instead (F is the page's full-screen key). A profile whose
+  player 2 keys are still an exact copy of player 1's (made where two players were not
+  offered: the web and Android before, `--touch`) gets them when loaded; any other profile is
+  used as it is.
 * Player 1's built-in defaults bind '2' to both Switch Weapon and Switch Power-Up, as the spec
   says; kept.
 * P, Pause, Esc, F5 to F9 and Enter are the front end's (pause, in-game menu, volumes, camera,

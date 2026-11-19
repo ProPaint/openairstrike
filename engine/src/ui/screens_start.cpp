@@ -44,10 +44,28 @@ Menu Frontend::buildStartGame() {
             case 2: {
                 const MenuItem* list = menu.find(3);
                 const int mission = list ? list->selected : 0;
+                if (twoPlayers_ && pads_) {
+                    // Ours: who flies with what first (the host has game controllers).
+                    playersMission_ = mission;
+                    open(Screen::Players);
+                    break;
+                }
                 startCampaign(mission, difficultyChoice_, twoPlayers_ ? 2 : 1);
                 break;
             }
             default: break;
+        }
+    };
+    // Ours: the "2 Players" choice comes and goes with the second player's devices (a pad
+    // plugged in or out while the screen is up, setPlayerPads).
+    m.onUpdate = [this](Menu& menu, float, float) {
+        MenuItem* mode = menu.find(5);
+        const bool offer = twoPlayerChoice();
+        if (!mode || mode->hidden() == !offer) return;
+        mode->setShown(offer);
+        if (!offer && twoPlayers_) {
+            twoPlayers_ = false;
+            mode->index = 0;
         }
     };
     m.drawBack = [this](MenuDrawContext& c) {
