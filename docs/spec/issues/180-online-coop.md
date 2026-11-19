@@ -1026,6 +1026,42 @@ Where the code differs from the sections above, the headers win:
   `GameSession::stateHash()` / `stateHashFull()` are inline over the world.
 * The 3DS: nothing to pass; `engine/CMakeLists.txt` forces the null backend for `NINTENDO_3DS`
   (`apps/3ds/CMakeLists.txt` carries a comment only).
+* **T1 (landed after T0; what the other tasks rely on):**
+  * **Pacing rule changed** (`Lockstep::shouldThrottle`, the comment in `net_lockstep.h` updated,
+    no signature change). 4.1's `frame - remoteAck > delay + 2` cannot fire while the remote keeps
+    acking and, when it would, the stall comes first. Instead each side compares its lead over the
+    remote (`frame + delay - newest remote record`) with the remote's lead over it as its newest
+    packet saw it (`last record - ack`); a difference of 3 or more (about a frame and a half ahead)
+    throttles, at most once every 10 frames, never while stalled. The caller asks once per display
+    frame **before** `setLocal`, and on true skips `setLocal` and the step but still sends the
+    packet. No pacing until the remote's ack covers one of our real records (frame >= delay;
+    before that its lead reads too small). Balanced links never throttle (tested at 0, 50, 150 ms);
+    a side held back makes the other throttle.
+  * Stalls measured over the loopback pair (3,000 frames, delay from the latency): none at 0 %
+    loss; ~0.5 to 2 % of frames at 10 %; 7 to 12 % at 30 % (a stall needs the two or so packets
+    that can still arrive in time all lost; the per-level delay has a margin of one or two frames
+    over the one-way latency). A lossier link would want a larger delay than 4.1's formula.
+  * `setLocal` normalises the record (unknown flag bits dropped, `steer` zeroed without `kSteer`)
+    because `decodeInputs` refuses anything else; it also fills any frames the caller skipped, so
+    the local ring is gap-free. `addRemote` does not check the token: the caller drops packets of
+    another token (as the loopback test does). Frame numbers for `noteLocalHash` /
+    `checkRemoteHash` are the lockstep's (`frame() - 1` after the step).
+  * Decoders are strict: exact length, no trailing bytes; `Bye.reason <= 4`, `FlowChoice <= 4`,
+    `Hello.role <= 1` (the platform byte is free), the booleans 0/1, `StartMission.inputDelay` in
+    2..10 and `players` in 1..2, `Inputs.count` in 1..12 with frames below `kNoFrame`. `decodeHello`
+    returns any `protocolVersion` (the caller compares it first). An accepted buffer always
+    re-encodes to the same bytes (fuzz-tested).
+  * Codes: `signalFromSdp` drops TCP, relay, component-2, loopback, link-local (IPv6 fe80::/10 and,
+    beyond 2.3, IPv4 169.254/16) and **mDNS host candidates** (`<uuid>.local`, which Chromium writes
+    for host addresses by default): a web peer's code carries its srflx (and IPv6 host) candidates
+    only, so two browsers on one LAN connect through their public address (NAT hairpinning). The
+    SDP session id is SHA-256(ufrag)'s first 8 bytes big-endian with the top bit cleared. `setup`
+    and the sha-256 fingerprint are required; `sctp-port` defaults to 5000. A typical invite (one srflx, one
+    host IPv4) is 170 characters, six IPv6 candidates 380.
+  * The loopback pair: the host is `SignalReady` after `hostOffer` + `update`, the guest
+    `SignalReady` after `joinOffer` + `update` and `Connecting` once the host accepted;
+    both `Connected` on an `update` after `latencyMs`; sends before `Connected` are dropped;
+    `close()` makes the other side `Failed` with `Failure::Closed` after the latency.
 
 ### T1: Protocol, codes and the lockstep core (Opus)
 

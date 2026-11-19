@@ -136,9 +136,12 @@ public:
     // The highest frame of ours the remote acknowledged holding (kNoFrame: none), and of its ours.
     u32 remoteAck() const { return remoteAck_; }
     u32 localAck() const;
-    // Pacing (4.1): true when this side runs ahead (frame() - remoteAck() > delay() + 2); the
-    // loop then skips one step this display frame. True at most once every 10 frames; call it
-    // once per display frame.
+    // Pacing (4.1): true when this side runs ahead of the remote: its lead over the remote (from
+    // the newest remote record) exceeds the remote's lead over it (from that packet's ack) by 3
+    // frames or more, about a frame and a half ahead (lockstep.cpp says why the spec's first rule,
+    // frame() - remoteAck() > delay() + 2, was replaced). The loop then skips one step this display
+    // frame (no setLocal, no step; the packet still goes out). False while stalled; true at most
+    // once every 10 frames; call it once per display frame, before setLocal.
     bool shouldThrottle();
     // Display frames that could not step for want of the remote record (AS3D_NET stall).
     u32 stalls() const { return stalls_; }
@@ -151,25 +154,37 @@ public:
     bool desynced(u32* frame = nullptr, u64* mine = nullptr, u64* yours = nullptr) const;
 
 private:
+    static constexpr int kWindow = 256; // frames held per side (a power of two above any delay + redundancy)
+    static constexpr int kHashKeep = 64; // own hashes kept, and remote ones waiting for ours
+    struct Slot {
+        u32 frame = kNoFrame;
+        InputRecord rec;
+    };
+    struct HashSlot {
+        u32 frame = kNoFrame;
+        u64 hash = 0;
+    };
+    const Slot* find(const Slot* ring, i64 frame) const;
+    void compareHash(u32 frame, u64 mine, u64 yours);
+
     bool host_ = true;
+    bool started_ = false;
     u32 token_ = 0;
     int delay_ = kMinInputDelay;
     u32 frame_ = 0;
     u32 remoteAck_ = kNoFrame;
     u32 stalls_ = 0;
-    u32 lastThrottle_ = 0;
-    struct Slot {
-        u32 frame = kNoFrame;
-        InputRecord rec;
-    };
-    static constexpr int kWindow = 256; // frames held per side (a power of two above any delay + redundancy)
+    bool throttled_ = false;     // lastThrottle_ is valid
+    u32 lastThrottle_ = 0;       // frame() at the last throttle
+    i64 localHigh_ = -1;         // the highest local frame set
+    i64 remoteContig_ = -1;      // the highest remote frame held with no gap below (localAck)
+    i64 remoteHigh_ = -1;        // the highest remote frame received
+    i64 remoteLead_ = 0;         // the remote's lead over us as its newest packet saw it
+    bool remoteLeadValid_ = false; // a packet acked one of our real records (frame >= delay)
     Slot local_[kWindow];
     Slot remote_[kWindow];
-    struct HashSlot {
-        u32 frame = kNoFrame;
-        u64 hash = 0;
-    };
-    HashSlot localHash_[64];
+    HashSlot localHash_[kHashKeep];
+    int localHashNext_ = 0;
     std::vector<HashSlot> remoteHashes_; // received before this side had its own
     bool desync_ = false;
     u32 desyncFrame_ = 0;
