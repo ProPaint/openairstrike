@@ -1465,9 +1465,10 @@ Ordered by impact on a playable game.
    Partly settled (2026-11-19, the original under Wine, `docs/missions-status-as2.md` "Two
    players"): Start Game's "Cooperative", the selection screen's Player spinner at (400, 435)
    with the panel 310 high, and the second column's score, weapon icon and missile column are
-   where 3.4, 3.18 and 4.3 put them. Seen differently: the original does not draw player 2's
-   health bar nor its weapon and missile frames (the mirrored quads of 4.3; cause unknown, see
-   issue 280 item 1); ours draws them (a choice). Still not seen: Mission Complete with two
+   where 3.4, 3.18 and 4.3 put them. Player 2's health bar and its weapon and missile frames
+   (the mirrored quads of 4.3) were missing from the Wine run, but the owner remembers the
+   original showing both health bars, one on each side of the screen: the Wine run's loss of
+   these quads (issue 280 item 1), not the game. Ours draws them, as 4.3 reads. Still not seen: Mission Complete with two
    players, the spinner's stale value (ours always opens on Player 1, issue 240 item 5).
 2. **Helicopter selection backdrop UVs** (low): the original passes zero divisors to the tiling
    helper (as2@0x4290c0), so what it shows is undefined by the code; GUESS one tile of texels

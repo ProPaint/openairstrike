@@ -111,10 +111,10 @@ Compared with the original under Wine (2026-11-19, `tools/run_original.sh as2`, 
 ("Cooperative"), the selection screen's "Player: Player 1 / Player 2" spinner at y 441 with the
 20 px taller panel, and the two-player HUD's positions (player 2's score at (600, 51) in its
 mirrored frame, its weapon icon at (719, 91), its missile column on the right with the count's
-right end at x 780) are as ours. One difference is kept on purpose: the original draws neither
-player 2's health bar nor its weapon and missile frames (the mirrored quads of 4.3; its mirrored
-score frame does show, as in issue as2/280 item 1). Ours draws them, as 4.3 reads: a second
-player needs its health bar. Mission Complete with two players was not reached in the original.
+right end at x 780) are as ours. Player 2's health bar and its weapon and missile frames (the
+mirrored quads of 4.3) were missing under Wine (its mirrored score frame does show, as in issue
+as2/280 item 1), but the owner remembers the original showing both health bars, one on each
+side: a Wine run effect. Ours draws them, as 4.3 reads. Mission Complete with two players was not reached in the original.
 
 ## Builtins, errors, missing data
 

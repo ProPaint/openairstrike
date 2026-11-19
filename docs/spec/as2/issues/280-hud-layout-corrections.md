@@ -34,8 +34,9 @@ as2/frontend.md 4 and 3.15.
    of the main checkout, mission 4 in Cooperative) shows the same effect on player 2's column:
    its score frame (mirrored) and score, its weapon icon and its missile icon and count are
    drawn where 4.3 says, but not its health frame and fill, nor its weapon and missile frames.
-   We keep them (a choice, not the screenshot): without a health bar the second player cannot
-   see its health.
+   We keep them, as 4.3 reads: the owner remembers the original (played on Windows, not Wine)
+   showing both players' health bars, one on each side of the screen, so the missing quads are
+   a Wine run effect, which casts doubt on the one-player power-up column above too.
 
 ## Rectangles checked and kept
 
