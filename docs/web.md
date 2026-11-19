@@ -191,8 +191,10 @@ gamepad"). Without a choice the pads take sides by themselves: the player with f
 gets the next pad (touch counts for player 1), player 1 on a tie, so one pad beside the
 keyboard is player 1's and one pad on a phone is player 2's. A pad keeps its side when it is
 unplugged and plugged in again, and when another game is chosen, until the page is closed. The
-pause button and Back of any pad open the in-game menu. Only AirStrike 3D offers two players
-for now; the sequels get them from their own front ends.
+pause button and Back of any pad open the in-game menu. AirStrike 2 and Gulf Thunder offer two
+players the same way ("Cooperative" in their Start Game, shown under the same condition when
+the screen opens); they have no Players screen, so their pads keep the sides they took by
+themselves or were given on AirStrike 3D's Players screen earlier in the visit.
 
 **Touch**: phones and tablets start in touch mode with the Android app's controls (drag
 anywhere to fly, the round buttons for missile, power-up and switching, the pause button for

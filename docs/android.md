@@ -297,7 +297,8 @@ on 20:9, a column on 16:9); on 16:10 and 4:3 tablets they are drawn translucent 
 clear of the HUD. They stay clear of display cutouts. The design and the reasons are in
 `docs/spec/issues/100-touch-controls.md` and `140-android-polish.md`.
 
-**Two players** (AirStrike 3D; the web's and the desktop's way, docs/web.md "Two players"):
+**Two players** (all three games, the sequels' "Cooperative" without the Players screen; the
+web's and the desktop's way, docs/web.md "Two players"):
 Start Game offers "2 Players" once a second player has something to fly with. Touch is always
 player 1; player 2 needs a game controller (Bluetooth or USB, Xbox or PlayStation style), or a
 hardware keyboard (USB, Bluetooth, a keyboard cover: then both players have their keys, player

@@ -20,8 +20,9 @@ touch additions of the menus themselves, 100 the touch controls.
   something to fly with (ours, `as3d/player_pads.h`): the keyboard (both key sets below), or a
   game controller; on a touch device without a keyboard a pad is needed (touch flies player
   1). A two-player Start goes through our Players screen (`screens_players.cpp`, docs/web.md
-  "Two players"), where each pad is given to a player. The first game only for now (the
-  sequels' front ends gate it themselves).
+  "Two players"), where each pad is given to a player. The sequels' "Cooperative" follows
+  the same device condition (FrontendContent::twoPlayerMode, refreshed at every screen
+  opening) but has no Players screen: pads keep their automatic or earlier sides.
 
 ## 2. Key bindings
 

@@ -50,6 +50,9 @@ as2 and gulf (tools/web_build.sh); every scenario but `choose`, `gulf` and `byo`
              pushed right and left changes sides (AS3D_PAD side id=); A starts mission 1; the
              split keyboard flies both players (AS3D_INPUT players=2 p1= p2=, V asks for no
              full screen), then each pad flies its own player.
+  twoplayer_as2  AirStrike 2's "Cooperative" on the web: Start Game, Cooperative, Next, the
+             helicopter selection, the start dialogue, then the split keyboard flies both
+             players (AS3D_INPUT players=2).
   migration  a version 1 profile at the old path /persist/profile.bin (Screen 4:3 and Show
              FPS set): after a reload the settings are in effect, /persist/as3d/profile.bin
              and /persist/profile.v1.bak exist and /persist/profile.bin is gone; the same
@@ -1067,6 +1070,54 @@ def twoplayer(w, b):
     return r
 
 
+def twoplayer_as2(w, b):
+    p = b.page(w.a.url, "game=as2", viewport={"width": 1280, "height": 720})
+    r = {}
+    try:
+        p.wait_ready()
+        p.page.click("#play")
+        to_main_menu(w, p)
+        w.step("twoplayer_as2: Start Game, Cooperative, Next, the selection, Start")
+        mk = p.mark()
+        p.tap_item("main", 1)
+        wait_new_screen(p, "start", mk)
+        p.page.wait_for_timeout(600)
+        p.tap_item("start", 4)      # Game mode: Single Player -> Cooperative
+        p.page.wait_for_timeout(300)
+        mk = p.mark()
+        p.tap_item("start", 2)      # Next
+        wait_new_screen(p, "heli", mk)
+        p.page.wait_for_timeout(600)
+        w.shot(p, "twoplayer_as2_heli")
+        p.tap_item("heli", 1)       # Start
+        p.wait_line(r"AS3D_LEVEL_LOADED mission=1", 90, after=mk)
+        if wait_new_screen(p, "(playing|hint|dialogue)", mk, 60).group(1) == "dialogue":
+            for _ in range(40):
+                if any(re.search(r"AS3D_SCREEN name=(playing|hint)\b", t) for t in p.texts()[mk:]):
+                    break
+                p.tap_virtual(400, 300)
+                p.page.wait_for_timeout(700)
+            wait_new_screen(p, "(playing|hint)", mk, 60)
+        if p.state()["screen"] == "hint":
+            p.key("Enter")
+        p.page.wait_for_timeout(1000)
+        p.page.locator("#canvas").focus()
+        w.step("twoplayer_as2: the split keyboard flies both players")
+        mk = p.mark()
+        for k in ("Space", "ArrowRight", "v", "d"):
+            p.page.keyboard.down(k)
+        p.page.wait_for_timeout(600)
+        m = p.wait_line(r"AS3D_INPUT players=2 p1=0x081 p2=0x081", 10, after=mk)
+        r["keyboard_input"] = m.group(0)
+        w.shot(p, "twoplayer_as2_play")
+        for k in ("Space", "ArrowRight", "v", "d"):
+            p.page.keyboard.up(k)
+        r["errors"] = p.errors()
+    finally:
+        p.close()
+    return r
+
+
 def profile_paths(p):
     return {"old": fs_exists(p, OLD_PROFILE), "new": fs_exists(p, PROFILE), "bak": fs_exists(p, BACKUP),
             "dir": fs_exists(p, "/persist/as3d")}
@@ -1446,7 +1497,7 @@ def gulf(w, b):
 
 SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "byo_archive": byo_archive, "complete": complete,
              "gameover": gameover, "migration": migration, "choose": choose, "gulf": gulf,
-             "twoplayer": twoplayer}
+             "twoplayer": twoplayer, "twoplayer_as2": twoplayer_as2}
 
 
 def main():
@@ -1456,7 +1507,7 @@ def main():
     ap.add_argument("--shots", required=True)
     ap.add_argument("--engine", default="chromium", choices=["chromium", "firefox"])
     ap.add_argument("--gl", default="gpu", choices=["gpu", "swiftshader"])
-    ap.add_argument("--only", default="choose,gulf,desktop,phone,iphone,byo,complete,gameover,migration,twoplayer")
+    ap.add_argument("--only", default="choose,gulf,desktop,phone,iphone,byo,complete,gameover,migration,twoplayer,twoplayer_as2")
     a = ap.parse_args()
     os.makedirs(a.shots, exist_ok=True)
     w = Walk(a)

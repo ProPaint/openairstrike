@@ -167,12 +167,15 @@ Menu Frontend::buildPlayers() {
             std::snprintf(label, sizeof label, "%s %d: ", texts_.get("players.gamepad").c_str(), pad.number);
             widgets::text(c, rect.x + 18, rect.y + 2, fit(label + pad.name, rect.w - 40), lit ? grey(1) : orange());
         }
+        // The hints on a panel of their own between Back and Start (the world behind is bright).
         const std::string second = texts_.get(touch_ ? "players.hint.tap" : "players.hint.click");
-        if (pads_->count() > 0) {
-            widgets::text(c, 400, 424, texts_.get("players.hint.move"), rust(), Align::Center);
-            widgets::text(c, 400, 442, fit(second, 420), rust(), Align::Center);
+        const bool any = pads_->count() > 0;
+        widgets::panel(c, 190, 420, 420, any ? 42 : 24);
+        if (any) {
+            widgets::text(c, 400, 423, fit(texts_.get("players.hint.move"), 410), orange(), Align::Center);
+            widgets::text(c, 400, 441, fit(second, 410), orange(), Align::Center);
         } else {
-            widgets::text(c, 400, 424, texts_.get("players.hint.none"), rust(), Align::Center);
+            widgets::text(c, 400, 423, fit(texts_.get("players.hint.none"), 410), orange(), Align::Center);
         }
     };
     return m;
