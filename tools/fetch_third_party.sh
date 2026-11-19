@@ -3,10 +3,12 @@
 # into third_party_local/ (gitignored), rather than committing SDL's source
 # tree to this repository. See docs/android.md.
 #
-# Usage: tools/fetch_third_party.sh [openmpt|ctrtools|archive]
+# Usage: tools/fetch_third_party.sh [openmpt|ctrtools|archive|net]
 #        (openmpt: libopenmpt only, for tools/3ds_build.sh;
 #         ctrtools: makerom and bannertool only, for tools/3ds_package.sh;
-#         archive: libarchive and xz source trees only, for engine/src/formats/archive.cmake)
+#         archive: libarchive and xz source trees only, for engine/src/formats/archive.cmake;
+#         net: libdatachannel with libjuice, usrsctp and plog, Mbed TLS and datachannel-wasm,
+#              for engine/src/net/net.cmake and apps/web)
 # Env:   AS3D_DATA_ROOT   repo checkout to put third_party_local/ under
 #                          (default: this repo's root; use the main checkout
 #                          from a worktree so the download is shared).
@@ -143,6 +145,91 @@ fetch_archive() {
 
 if [ "${1:-}" = "archive" ]; then
     fetch_archive
+    exit 0
+fi
+
+# --- the online co-op transport (engine/src/net/net.cmake, docs/spec/issues/180-online-coop.md 2.1) ---
+# libdatachannel (MPL-2.0) has no release tarball with its submodules, so it is cloned at the
+# pinned tag with --depth 1 and the tag's commit is checked against the SHA pinned here; then
+# only the submodules the build uses (libjuice, usrsctp, plog: not libsrtp, not json) are
+# fetched at the commits the tag pins, each checked against the SHA pinned here. datachannel-wasm
+# (MIT, no release tags) is fetched at its pinned commit the same way. Mbed TLS (Apache-2.0) is
+# the official release tarball, checked against its SHA-256. Each tree goes into an empty
+# directory of its own; the libraries are built by CMake (net.cmake, apps/web/CMakeLists.txt).
+LIBDATACHANNEL_VERSION="0.24.6"
+LIBDATACHANNEL_URL="https://github.com/paullouisageneau/libdatachannel.git"
+# Verified by this script against the clone of tag v0.24.6 from the URL above on 2026-11-19
+# (git rev-parse HEAD; the tag object is d9617a53201615ef729e99dc39ad6736982d0346).
+LIBDATACHANNEL_COMMIT="6b1e2e620f1e37f0eafeee702eaea0043cb305fd"
+# The submodule commits of that tag (git submodule status), verified on 2026-11-19.
+LIBJUICE_COMMIT="b89c792e3612faf2f12cf35bcc56857313a06be3"
+USRSCTP_COMMIT="fec583d54493f879d2ae44a743423bf8a04371ab"
+PLOG_COMMIT="94899e0b926ac1b0f4750bfbd495167b4a6ae9ef"
+DATACHANNEL_WASM_URL="https://github.com/paullouisageneau/datachannel-wasm.git"
+# Verified by this script against the fetch of this commit from the URL above on 2026-11-19.
+DATACHANNEL_WASM_COMMIT="f9200eb942f66ddbfecf088ce7122d095aca1c3e"
+MBEDTLS_VERSION="3.6.8"
+MBEDTLS_URL="https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-${MBEDTLS_VERSION}/mbedtls-${MBEDTLS_VERSION}.tar.bz2"
+# Verified by this script against the file downloaded from the URL above on 2026-11-19 (equal to
+# the checksum in the release notes).
+MBEDTLS_SHA256="bc54b818e87f49c0b3281dd85d24adaede0e63b4e822e3fbd49c005a38b9595b"
+
+# check_commit <dir> <expected sha> <what>
+check_commit() {
+    local actual
+    actual="$(git -C "$1" rev-parse HEAD)"
+    if [ "${actual}" != "$2" ]; then
+        echo "fetch_third_party: $3: commit mismatch in $1" >&2
+        echo "  expected: $2" >&2
+        echo "  actual:   ${actual}" >&2
+        exit 1
+    fi
+}
+
+fetch_net() {
+    local ldc_dir="${TPL_DIR}/libdatachannel-${LIBDATACHANNEL_VERSION}"
+    if [ -f "${ldc_dir}/.as3d_verified" ]; then
+        echo "fetch_third_party: libdatachannel ${LIBDATACHANNEL_VERSION} already present at ${ldc_dir}"
+    else
+        rm -rf "${ldc_dir}"
+        echo "fetch_third_party: cloning libdatachannel v${LIBDATACHANNEL_VERSION}"
+        git -c advice.detachedHead=false clone -q --depth 1 --branch "v${LIBDATACHANNEL_VERSION}" \
+            "${LIBDATACHANNEL_URL}" "${ldc_dir}"
+        check_commit "${ldc_dir}" "${LIBDATACHANNEL_COMMIT}" libdatachannel
+        git -C "${ldc_dir}" submodule -q update --init --depth 1 deps/libjuice deps/usrsctp deps/plog
+        check_commit "${ldc_dir}/deps/libjuice" "${LIBJUICE_COMMIT}" libjuice
+        check_commit "${ldc_dir}/deps/usrsctp" "${USRSCTP_COMMIT}" usrsctp
+        check_commit "${ldc_dir}/deps/plog" "${PLOG_COMMIT}" plog
+        touch "${ldc_dir}/.as3d_verified"
+    fi
+    local dcw_dir="${TPL_DIR}/datachannel-wasm-${DATACHANNEL_WASM_COMMIT:0:7}"
+    if [ -f "${dcw_dir}/.as3d_verified" ]; then
+        echo "fetch_third_party: datachannel-wasm ${DATACHANNEL_WASM_COMMIT:0:7} already present at ${dcw_dir}"
+    else
+        rm -rf "${dcw_dir}"
+        mkdir -p "${dcw_dir}"
+        echo "fetch_third_party: fetching datachannel-wasm ${DATACHANNEL_WASM_COMMIT}"
+        git -C "${dcw_dir}" init -q
+        git -C "${dcw_dir}" fetch -q --depth 1 "${DATACHANNEL_WASM_URL}" "${DATACHANNEL_WASM_COMMIT}"
+        git -C "${dcw_dir}" -c advice.detachedHead=false checkout -q FETCH_HEAD
+        check_commit "${dcw_dir}" "${DATACHANNEL_WASM_COMMIT}" datachannel-wasm
+        touch "${dcw_dir}/.as3d_verified"
+    fi
+    local mb_name="mbedtls-${MBEDTLS_VERSION}"
+    if [ -f "${TPL_DIR}/${mb_name}/include/mbedtls/ssl.h" ]; then
+        echo "fetch_third_party: ${mb_name} already present at ${TPL_DIR}/${mb_name}"
+    else
+        fetch_verified "${MBEDTLS_URL}" "${MBEDTLS_SHA256}" "${DL_DIR}/${mb_name}" "${mb_name}.tar.bz2"
+        rm -rf "${TPL_DIR:?}/${mb_name}"
+        echo "fetch_third_party: unpacking ${mb_name} to ${TPL_DIR}"
+        tar xjf "${DL_DIR}/${mb_name}/${mb_name}.tar.bz2" -C "${TPL_DIR}" --no-same-owner
+        [ -f "${TPL_DIR}/${mb_name}/include/mbedtls/ssl.h" ] || { echo "fetch_third_party: ${mb_name}: include/mbedtls/ssl.h missing after unpacking" >&2; exit 1; }
+    fi
+    echo "fetch_third_party: AS3D_LIBDATACHANNEL_DIR=${ldc_dir} AS3D_MBEDTLS_DIR=${TPL_DIR}/${mb_name} AS3D_DATACHANNEL_WASM_DIR=${dcw_dir}"
+}
+
+if [ "${1:-}" = "net" ]; then
+    fetch_net
     exit 0
 fi
 

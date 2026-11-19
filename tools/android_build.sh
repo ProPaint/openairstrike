@@ -38,6 +38,8 @@ export AS3D_DATA_ROOT="${AS3D_DATA_ROOT:-${REPO_ROOT}}"
 
 echo "== fetch_third_party =="
 "${SCRIPT_DIR}/fetch_third_party.sh"
+# The online co-op transport (libdatachannel, Mbed TLS; engine/src/net/net.cmake).
+"${SCRIPT_DIR}/fetch_third_party.sh" net
 
 SDL_VERSION="2.30.12"
 export AS3D_SDL2_DIR="${AS3D_SDL2_DIR:-${AS3D_DATA_ROOT}/third_party_local/SDL2-${SDL_VERSION}}"

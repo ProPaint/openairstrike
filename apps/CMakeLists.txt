@@ -6,6 +6,11 @@ foreach(app game viewer rcsl_tool sim_tool audio_tool)
     add_subdirectory(${app})
   endif()
 endforeach()
+# The online transport's command-line tool (docs/spec/issues/180-online-coop.md 13 "T3"): only
+# with the rtc backend (it connects real transports).
+if(AS3D_NET_BACKEND STREQUAL "rtc")
+  add_subdirectory(net_tool)
+endif()
 
 if(AS3D_BUILD_TESTS)
   enable_testing()

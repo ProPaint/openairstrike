@@ -94,6 +94,8 @@ fi
 
 BUILD="${AS3D_WEB_BUILD_DIR:-$ROOT/build-web}"
 export AS3D_DATA_ROOT="$DATA_ROOT"  # libopenmpt's source under third_party_local
+# datachannel-wasm, the online co-op transport (engine/src/net/net.cmake), also under it.
+"$ROOT/tools/fetch_third_party.sh" net
 
 emcmake cmake -S "$ROOT/apps/web" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release \
   -DAS3D_WEB_FULL_ES3="${AS3D_WEB_FULL_ES3:-0}" >/dev/null

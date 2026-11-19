@@ -11,11 +11,14 @@ The original games were created by DivoGames. This project is not affiliated wit
 
 The engine is released under the MIT licence (`LICENSE`).
 
-Third-party code, downloaded with a pinned checksum by `tools/fetch_third_party.sh` and built
-from source, not part of this repository: SDL2 (zlib licence), libopenmpt (BSD 3-clause),
-libarchive (BSD 2-clause; the archive module, not in the 3DS build) and xz's liblzma (0BSD /
-public domain; the same). The repository itself vendors doctest (MIT) and stb (public domain
-or MIT) under `third_party/`.
+Third-party code, downloaded with a pinned checksum or commit by `tools/fetch_third_party.sh`
+and built from source, not part of this repository: SDL2 (zlib licence), libopenmpt (BSD
+3-clause), libarchive (BSD 2-clause; the archive module, not in the 3DS build), xz's liblzma
+(0BSD / public domain; the same), and for online co-op (not in the 3DS build) libdatachannel
+(MPL-2.0, unmodified; source at github.com/paullouisageneau/libdatachannel) with its libjuice
+(MIT), usrsctp (BSD 3-clause) and plog (MIT), Mbed TLS (Apache-2.0) and, on the web,
+datachannel-wasm (MIT). The repository itself vendors doctest (MIT) and stb (public domain or
+MIT) under `third_party/`.
 
 The engine in this repository is original code, written from reverse-engineering
 specifications (`docs/spec/`). The game data (pak archives, art, sound, music, texts) is

@@ -211,6 +211,11 @@ emulator ABI (faster); `AS3D_NATIVE_JOBS` sets the parallel compile jobs (defaul
 Output: `android/app/build/outputs/apk/debug/app-debug.apk`. Stop the Gradle daemon
 afterwards on a shared machine: `(cd android && ./gradlew --stop)`.
 
+Third-party: besides SDL2 and libopenmpt, the build links libdatachannel 0.24.6 (MPL-2.0) with
+libjuice (MIT), usrsctp (BSD 3-clause) and plog (MIT), and Mbed TLS 3.6.8 (Apache-2.0), for
+online co-op (docs/spec/issues/180-online-coop.md; `tools/fetch_third_party.sh net`, pinned
+commits and SHA-256). The manifest asks for `android.permission.INTERNET` for it.
+
 Toolchain: Android SDK 36, NDK 28.2.13676358, CMake 3.31.6, JDK 17, Android Gradle Plugin
 9.4.1 with Gradle 9.7.0, SDL 2.30.12 (SHA-256 pinned in `fetch_third_party.sh`).
 

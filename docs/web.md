@@ -45,6 +45,10 @@ builds).
 
 The web build is not part of the desktop build, Android or `tools/ci.sh`.
 
+Third-party: online co-op (docs/spec/issues/180-online-coop.md) links datachannel-wasm (MIT,
+commit f9200eb, fetched by `tools/fetch_third_party.sh net`), a thin C++ bridge to the
+browser's own `RTCPeerConnection`; its two `--js-library` files are linked into `as3d_web.js`.
+
 ## Serve
 
 ```bash

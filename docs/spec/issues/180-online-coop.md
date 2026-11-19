@@ -1062,6 +1062,37 @@ Where the code differs from the sections above, the headers win:
     `SignalReady` after `joinOffer` + `update` and `Connecting` once the host accepted;
     both `Connected` on an `update` after `latencyMs`; sends before `Connected` are dropped;
     `close()` makes the other side `Failed` with `Failure::Closed` after the latency.
+* **T3 (the rtc backend; what T4 to T6 rely on):**
+  * **Channels are announced in band (DCEP), not `negotiated`** (2.2 changed): datachannel-wasm's
+    `DataChannelInit` has no `negotiated`/`id`, and all three platforms must do the same. The host
+    creates `in` (unordered, `maxRetransmits = 0`) and `ctl` (reliable, ordered) before its offer;
+    the guest takes them from `onDataChannel` by label. Same reliability as 2.2.
+  * **DTLS roles reversed** (2.3 changed): the invite's `SignalInfo::setup` is `Active` (the host
+    is the DTLS client), so the reply is `passive` and the guest only waits. Measured: a reply
+    pasted on the host 90 s after the guest made it still connects (with the guest as DTLS client
+    its handshake would start on the host's early ICE answers and give up within about a minute).
+    The host's own SDP still says `actpass`; only the code differs.
+  * States: host `New -> Gathering -> SignalReady` (`localSignal` true) `-> Connecting`
+    (`acceptAnswer`) `-> Connected` (both channels open). **The guest goes `Gathering ->
+    SignalReady -> Connected` with no `Connecting`** (it cannot tell when the host pasted the
+    reply; the loopback pair does show `Connecting` for it). Timeouts: gathering cut at 5 s (the
+    code holds what was found), host `Connecting` -> `Failed/CantConnect` after 20 s, either side
+    `SignalReady` -> `Failed/Expired` after 600 s. ICE failing before `Connected` ->
+    `CantConnect`; the peer connection failing or a channel closing after it (the other side quit
+    or vanished; libjuice's consent check gives up after 30 s of silence) -> `Failed/Closed`.
+    `close()` -> `Closed`. `error()` holds the English detail for the log.
+  * Threads: libdatachannel's callbacks (the browser's on the web) only fill mutex-guarded queues;
+    every `Transport` member is for the game thread. `update()` once per display frame drives the
+    timers and the state; polling works in any state. Sends before `Connected`, over the size
+    limits, or on `in` while more than 16 KB wait in SCTP are dropped silently. Queues: `in` keeps
+    the newest 512 packets, `ctl` fails the transport (`Other`) past 16,384 unread messages.
+  * STUN: `TransportConfig::stunServers` as given; empty or `"none"` entries mean no server (the
+    caller turns `AS3D_STUN` / `?stun=` into the list; `as3d_net_tool` reads `AS3D_STUN` itself).
+    With no STUN the code carries host candidates only (a LAN address: loopback is dropped), which
+    is what `as3d_net_tool pair --stun none` connects over.
+  * `apps/net_tool` (`as3d_net_tool pair|host|join`), and a raw-SDP path for it only
+    (`engine/src/net/rtc/transport_rtc_raw.h`, `--raw-sdp`). The rtc code is reached only through
+    `makeRtcTransport`: until T4 calls it, the game binaries link none of it.
 
 ### T1: Protocol, codes and the lockstep core (Opus)
 
