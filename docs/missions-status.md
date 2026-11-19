@@ -56,6 +56,15 @@ The missing files are missing from the shipped data, not from our loaders:
 but not shipped, and `rocketlauncher_rocketblock.mdl` without `tag_gun13`..`tag_gun16` (the
 muzzle flashes of those guns are detached; spec issue 113).
 
+## Two players
+
+Every mission was also played with two players, each flown by its own world-aware pilot
+(`as3d_sim --level N --players 2 --two-pilots`, seed 1, Normal), in god mode to the end and
+without god mode for 20000 frames, with no script error, stall, refused spawn or forced
+respawn. In god mode every mission ends (missions 6 and 20 at frames 65065 and 27669, the others
+between 9683 and 13854); without it, all but 6 and 20 end within the 20000 frames (no game over).
+`apps/tests/two_player_missions_test.cpp` keeps a short version in the CI, with the sequels'.
+
 ## What the screenshots show
 
 Every mission was looked at through contact sheets of its screenshots, with the boss fights

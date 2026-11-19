@@ -29,9 +29,9 @@ never be shared or published.
   original front end (intro, menus, high scores, options, two players, saved profile).
   See `docs/missions-status.md`.
 - AirStrike 2: all 18 missions play to the end, with its own HUD and front end.
-  Co-op is not done. See `docs/missions-status-as2.md`.
+  Two players (co-op) on the desktop. See `docs/missions-status-as2.md`.
 - Gulf Thunder: all 24 operations play to the end, with its own loadouts, HUD and front end.
-  Co-op is not done. See `docs/missions-status-gulf.md`.
+  Two players (co-op) on the desktop. See `docs/missions-status-gulf.md`.
 - The web version is online at https://propaint.github.io/openairstrike/ (it asks for your
   own game files). It plays one player at a time and
   was tested in Chromium and on Android Chrome and Edge; Safari, iPhone and Firefox are

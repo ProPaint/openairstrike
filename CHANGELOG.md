@@ -3,6 +3,12 @@
 The release notes take a version's section from here (tools/release_notes.sh); without one
 they list the commits since the previous tag.
 
+## Unreleased
+
+- **Two players in AirStrike 2 and Gulf Thunder** on the desktop: choose "Cooperative" in Start
+  Game, pick a helicopter for each player, and play the campaign together with the two-player
+  HUD; the checkpoint, Restart and Next keep both players' lives and scores.
+
 ## 0.4.1
 
 - Nintendo 3DS: closing the game from the HOME menu (Close, or starting another title) no longer

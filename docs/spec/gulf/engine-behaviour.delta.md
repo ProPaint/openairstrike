@@ -359,7 +359,9 @@ today.
 
 ## Open questions
 
-1. Co-op was not played (as for AirStrike 2).
+1. Co-op was not played in the original (AirStrike 2's was, briefly: its menus and HUD,
+   `docs/missions-status-as2.md` "Two players"). Ours runs AirStrike 2's rules; every operation
+   was played with two pilots without a script error (`docs/missions-status-gulf.md`).
 
 ## Changelog
 

@@ -1462,6 +1462,13 @@ Ordered by impact on a playable game.
 
 1. **Two-player menus and HUD not seen running** (medium): layouts were read and emulated, not
    played (the player spinner's stale value, 3.18; the HUD's second column, 4.3).
+   Partly settled (2026-11-19, the original under Wine, `docs/missions-status-as2.md` "Two
+   players"): Start Game's "Cooperative", the selection screen's Player spinner at (400, 435)
+   with the panel 310 high, and the second column's score, weapon icon and missile column are
+   where 3.4, 3.18 and 4.3 put them. Seen differently: the original does not draw player 2's
+   health bar nor its weapon and missile frames (the mirrored quads of 4.3; cause unknown, see
+   issue 280 item 1); ours draws them (a choice). Still not seen: Mission Complete with two
+   players, the spinner's stale value (ours always opens on Player 1, issue 240 item 5).
 2. **Helicopter selection backdrop UVs** (low): the original passes zero divisors to the tiling
    helper (as2@0x4290c0), so what it shows is undefined by the code; GUESS one tile of texels
    0..120 per 120-px square.

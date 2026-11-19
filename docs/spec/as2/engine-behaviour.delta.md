@@ -866,7 +866,12 @@ What the code shows (VERIFIED-CODE unless marked; co-op was not played):
   script uses them.
 - The two-player HUD (as2@0x408b00) is not decoded here (frontend package).
 - Not verified: joining or leaving during a game, the camera when one player is dead for long,
-  the checkpoint with two players (both records are saved, 10.5).
+  the checkpoint with two players (both records are saved, 10.5). Ours (GUESS kept, as read):
+  no joining or leaving; the camera follows the live players only; the checkpoint and Next carry
+  both records. Every mission of AirStrike 2 and Gulf Thunder was played with two pilots, to the
+  end and with deaths, respawns and game overs, without a script error
+  (`docs/missions-status-as2.md`, "Two players"); co-op was still not played in the original
+  beyond its first seconds.
 
 ### 7.6 Helicopter choice: changed
 

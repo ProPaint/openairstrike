@@ -77,6 +77,50 @@ attract levels for 1500 frames under the same pilot (no script error, stall, ref
 and plays operation 1 to its end (frame 12423, score 97320, 4 lives);
 `apps/tests/gulf_rules_test.cpp` plays operation 24 to its end.
 
+## Two players
+
+Co-op is playable on the desktop with AirStrike 2's code and Gulf Thunder's skin (its Start Game
+is AirStrike 2's, look only, frontend.delta.md 3.4): the Game mode spinner ("Cooperative"), a
+helicopter per player, both records through the campaign, the two-player HUD
+(frontend.delta.md 4.3: same code); see `docs/missions-status-as2.md`, "Two players", for what
+it covers and the comparison with AirStrike 2's original. Gulf Thunder's own two-player screens
+were not run in the original: they are AirStrike 2's code by the spec, not by a screenshot.
+
+The scripts with two-player branches (`IsMultiplayer` in 1 script, `GetPlayersDistance` in 3,
+`player1` / `player2` in `bonus_level_start.scr`, engine-behaviour.delta.md 7) are played with
+a second player in the runs below. Two players, each flown by its own world-aware pilot (`as3d_sim --game gulf
+--level N --players 2 --two-pilots`, player 1 in `player_2`, player 2 in `player_1`, seed 1,
+Normal): once in god mode to the end, once without god mode for 20000 frames. No run had a
+script error, a stall, a refused spawn or a forced respawn. The CI keeps a short version:
+`apps/tests/two_player_missions_test.cpp` (2400 frames in god mode, 1800 at Nightmare).
+
+| Operation | Two pilots, god (EndLevel frame) | Two pilots, mortal | Script errors | Stalls | Forced respawns |
+|---|---|---|---|---|---|
+| 1 | 12565 | ends at 12622 | 0 | 0 | 0 |
+| 2 | 13337 | ends at 13407 | 0 | 0 | 0 |
+| 3 | 12952 | ends at 13199 | 0 | 0 | 0 |
+| 4 | 13184 | game over at 6935 | 0 | 0 | 0 |
+| 5 | 12536 | ends at 12854 | 0 | 0 | 0 |
+| 6 | 12739 | ends at 12895 | 0 | 0 | 0 |
+| 7 | 12868 | ends at 12884 | 0 | 0 | 0 |
+| 8 | 13089 | ends at 13237 | 0 | 0 | 0 |
+| 9 | 13060 | ends at 12964 | 0 | 0 | 0 |
+| 10 | 8600 | game over at 9281 | 0 | 0 | 0 |
+| 11 | 6863 | ends at 4116 | 0 | 0 | 0 |
+| 12 | 13065 | ends at 13103 | 0 | 0 | 0 |
+| 13 | 12808 | game over at 8555 | 0 | 0 | 0 |
+| 14 | 12506 | game over at 7156 | 0 | 0 | 0 |
+| 15 | 12781 | ends at 12842 | 0 | 0 | 0 |
+| 16 | 12445 | ends at 12456 | 0 | 0 | 0 |
+| 17 | 12472 | ends at 12411 | 0 | 0 | 0 |
+| 18 | 6936 | ends at 6945 | 0 | 0 | 0 |
+| 19 | 12425 | game over at 8943 | 0 | 0 | 0 |
+| 20 | 12625 | game over at 6800 | 0 | 0 | 0 |
+| 21 | 11891 | ends at 12041 | 0 | 0 | 0 |
+| 22 | 12682 | game over at 8048 | 0 | 0 | 0 |
+| 23 | 11872 | ends at 11934 | 0 | 0 | 0 |
+| 24 | 24774 | game over at 8639 | 0 | 0 | 0 |
+
 ## Builtins, errors, missing data
 
 - Script errors, stalls and refused spawns: 0 in every run, attract levels included. No stub
@@ -174,3 +218,4 @@ Ordered by how much a player would notice.
 - 1.1 (F2): the loadout table, operation 24 ended (pilot), the Gulf Thunder HUD, all 24
   operations re-run and ending, operations 1, 10 and 24 compared with the original, smoke,
   water and texts measured (issues 400 to 402).
+- 1.2: two players: the co-op front end lifted, every operation played by two pilots.

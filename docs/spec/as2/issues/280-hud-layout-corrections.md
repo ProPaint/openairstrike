@@ -29,8 +29,13 @@ as2/frontend.md 4 and 3.15.
    are as 4.2 says. We follow the screenshots (`HudColumn::drawFrames`, `drawLine` false for
    this column only). Why the original draws nothing is not known: the score frame is also a
    mirrored quad (4.2) and does show, mirrored, in the same screenshots, so it is not simply
-   "negative widths are culled". The two-player layout keeps the frames and lines of 4.3
-   (no two-player screenshot yet; unverified).
+   "negative widths are culled". The two-player layout keeps the frames and lines of 4.3.
+   A two-player screenshot of the original (2026-11-19, `out/reference/as2/coop/hud_coop*.png`
+   of the main checkout, mission 4 in Cooperative) shows the same effect on player 2's column:
+   its score frame (mirrored) and score, its weapon icon and its missile icon and count are
+   drawn where 4.3 says, but not its health frame and fill, nor its weapon and missile frames.
+   We keep them (a choice, not the screenshot): without a health bar the second player cannot
+   see its health.
 
 ## Rectangles checked and kept
 

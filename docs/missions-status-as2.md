@@ -67,6 +67,55 @@ Attract levels: `intro1` (map `intro2.hsc`) spawns its 67 objects and `intro2` (
 `intro1.hsc`) its 88 at the load (spawnAllOnIntermission); 3600 frames each with no script
 error, stall, refused spawn or builtin that is not implemented (5 and 11 builtins called).
 
+## Two players
+
+Co-op ("Cooperative" in Start Game, as2/frontend.md 3.4, 5.9) is playable on the desktop: a
+helicopter per player on the selection screen's "Player:" spinner, `G_NewGame` and the restarts
+for both records, the loadout for both, the two-player HUD (4.3), Mission Complete without the
+statistics, game over when both are out, no high-score check, the checkpoint and Next with both
+players' lives, scores and upgrades. The web and Android still offer one player (their input,
+not the game).
+
+Every mission was played with two players, each flown by its own world-aware pilot
+(`as3d_sim --game as2 --level N --players 2 --two-pilots`, `as3d::botInputPlayers`: player 2's
+home is 70 units right of player 1's; player 1 in `player_2`, the tools' default entry 1,
+player 2 in `player_1`; seed 1, Normal): once in god mode to the end (up to 60000 frames), once
+without god mode for 20000 frames. "Two pilots, god" is the frame of `EndLevel`; "Two pilots,
+mortal" is how the run without god mode ended. No run had a script error, a stall, a refused
+spawn or a forced respawn. The CI keeps a short version: `apps/tests/two_player_missions_test.cpp`
+runs every mission with two pilots for 2400 frames in god mode and 1800 frames at Nightmare.
+
+| Mission | Two pilots, god | Two pilots, mortal | Script errors | Stalls | Forced respawns |
+|---|---|---|---|---|---|
+| 1 | 13448 | ends at 13448 | 0 | 0 | 0 |
+| 2 | 12232 | ends at 12232 | 0 | 0 | 0 |
+| 3 | 13377 | ends at 13377 | 0 | 0 | 0 |
+| 4 | 13832 | ends at 13848 | 0 | 0 | 0 |
+| 5 | 13235 | ends at 13249 | 0 | 0 | 0 |
+| 6 | 9975 | game over at 8427 | 0 | 0 | 0 |
+| 7 | 6232 | ends at 6232 | 0 | 0 | 0 |
+| 8 | 13103 | ends at 13116 | 0 | 0 | 0 |
+| 9 | 13761 | ends at 13761 | 0 | 0 | 0 |
+| 10 | 13624 | ends at 13624 | 0 | 0 | 0 |
+| 11 | 13047 | ends at 13066 | 0 | 0 | 0 |
+| 12 | 4005 | ends at 4003 | 0 | 0 | 0 |
+| 13 | 6018 | ends at 6018 | 0 | 0 | 0 |
+| 14 | 13435 | ends at 13435 | 0 | 0 | 0 |
+| 15 | 13402 | ends at 13414 | 0 | 0 | 0 |
+| 16 | 13629 | ends at 13629 | 0 | 0 | 0 |
+| 17 | 14040 | ends at 14040 | 0 | 0 | 0 |
+| 18 | 20797 | game over at 14562 | 0 | 0 | 0 |
+
+Compared with the original under Wine (2026-11-19, `tools/run_original.sh as2`, screenshots in
+`out/reference/as2/coop/` of the main checkout, not committed): the Game mode spinner
+("Cooperative"), the selection screen's "Player: Player 1 / Player 2" spinner at y 441 with the
+20 px taller panel, and the two-player HUD's positions (player 2's score at (600, 51) in its
+mirrored frame, its weapon icon at (719, 91), its missile column on the right with the count's
+right end at x 780) are as ours. One difference is kept on purpose: the original draws neither
+player 2's health bar nor its weapon and missile frames (the mirrored quads of 4.3; its mirrored
+score frame does show, as in issue as2/280 item 1). Ours draws them, as 4.3 reads: a second
+player needs its health bar. Mission Complete with two players was not reached in the original.
+
 ## Builtins, errors, missing data
 
 - Script errors, stalls and refused spawns: 0 in every run.
