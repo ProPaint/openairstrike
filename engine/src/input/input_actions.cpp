@@ -96,26 +96,22 @@ u32 steer(float pos, float vel, float target, u32 plus, u32 minus) {
     return 0u;
 }
 
-} // namespace
-
-FrameInput botInput(const World& w, u32 frame) {
-    FrameInput in;
-    in.confirm = true;
+// The pilot's p_action bits for one player: botInput(world, frame) flies player 1 and gives
+// player 2 the same bits; botInputPlayers flies each player on its own.
+u32 pilotBits(const World& w, u32 frame, int player) {
     u32 a = ACT_FIRE;
     if ((frame / 30) % 2) a |= ACT_MISSILE;
     if (frame % 600 == 300) a |= ACT_POWERUP;
-    const int pi = w.playerEntityIndex(0);
-    if (pi < 0 || w.entity(pi).f(F_DEAD) != 0.0f) {
-        in.held[0] = in.held[1] = a;
-        return in;
-    }
+    const int pi = w.playerEntityIndex(player);
+    if (pi < 0 || w.entity(pi).f(F_DEAD) != 0.0f) return a;
     const Entity& p = w.entity(pi);
     const Vec3 o = p.v3(F_ORIGIN), v = p.v3(F_VELOCITY);
     const float mp = w.mapPos();
     const float cx = w.camera().field[0];
     const float kTwoPi = 6.2831853f;
-    // Home: the lower middle of the play-field, weaving gently.
-    float tx = cx + 50.0f * std::sin(static_cast<float>(frame) * kTwoPi / 480.0f);
+    // Home: the lower middle of the play-field, weaving gently; player 2 (spawned 100 units
+    // right of player 1) keeps its home 70 units to the right of player 1's.
+    float tx = cx + (player == 0 ? 0.0f : 70.0f) + 50.0f * std::sin(static_cast<float>(frame) * kTwoPi / 480.0f);
     float ty = mp + 95.0f + 25.0f * std::sin(static_cast<float>(frame) * kTwoPi / 900.0f);
 
     // Aim: line up under the toughest on-screen enemy ahead (bosses and their parts are
@@ -208,7 +204,23 @@ FrameInput botInput(const World& w, u32 frame) {
 
     a |= steer(o.x, v.x, tx, ACT_RIGHT, ACT_LEFT);
     a |= steer(o.y - mp, v.y, ty - mp, ACT_FORWARD, ACT_BACKWARD);
-    in.held[0] = in.held[1] = a;
+    return a;
+}
+
+} // namespace
+
+FrameInput botInput(const World& w, u32 frame) {
+    FrameInput in;
+    in.confirm = true;
+    in.held[0] = in.held[1] = pilotBits(w, frame, 0);
+    return in;
+}
+
+FrameInput botInputPlayers(const World& w, u32 frame) {
+    FrameInput in;
+    in.confirm = true;
+    const int players = std::clamp(w.config().players, 1, kMaxPlayers);
+    for (int p = 0; p < kMaxPlayers; ++p) in.held[p] = pilotBits(w, frame, p < players ? p : 0);
     return in;
 }
 

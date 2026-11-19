@@ -2,7 +2,7 @@
 //
 //   as3d_sim --level 1 --frames 3600 [--seed S] [--difficulty D] [--players N] [--heli 0..9]
 //            [--dump-state state.json] [--builtin-report report.json] [--data ROOT]
-//            [--bot | --pilot | --input-script FILE] [--bot-weapons] [--record FILE] [--god] [--trace-player FILE]
+//            [--bot | --pilot | --two-pilots | --input-script FILE] [--bot-weapons] [--record FILE] [--god] [--trace-player FILE]
 //            [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]
 //            [--time] [--step-times [N]] [--watch NAME [N]]
 //
@@ -13,7 +13,9 @@
 // count, stubs marked.
 //
 // --bot flies the scripted test pilot of as3d/input.h (the same input as `as3d_game --bot`);
-// --pilot the pilot that looks at the world (stays in the lower middle, dodges, collects);
+// --pilot the pilot that looks at the world (stays in the lower middle, dodges, collects; player
+// 2 gets player 1's input); --two-pilots that pilot for each player on its own helicopter
+// (botInputPlayers, the two-player soak of apps/tests/two_player_missions_test.cpp);
 // --bot-weapons adds the weapon tour of as3d/input.h applyWeaponTour on top of --bot or --pilot
 // (as as3d_game --bot-weapons and the 3DS's run.ini bot_weapons=1: the 3DS soak's end states are
 // compared against this, tools/3ds_soak_compare.py);
@@ -82,7 +84,7 @@ int usage() {
     std::fprintf(stderr,
                  "usage: as3d_sim --level N --frames N [--seed S] [--difficulty 0..4] [--camera 0..3] [--players 1|2] [--heli 0..9]\n"
                  "                [--dump-state FILE] [--builtin-report FILE] [--data ROOT]\n"
-                 "                [--bot | --pilot | --input-script FILE] [--bot-weapons] [--record FILE] [--god]\n"
+                 "                [--bot | --pilot | --two-pilots | --input-script FILE] [--bot-weapons] [--record FILE] [--god]\n"
                  "                [--trace-player FILE] [--game as3d|as2|gulf] [--paks DIR] [--list-games]\n"
                  "                [--upgrades N] [--items N] [--powerup T] [--missile T] [--pause-every K] [--fault-player F]\n"
                  "                [--time] [--step-times [N]] [--watch NAME [N]]\n");
@@ -114,7 +116,7 @@ int main(int argc, char** argv) {
     std::string level = "1", dumpPath, reportPath, dataRoot, inputPath, tracePath, recordPath, gameKey, paksDir;
     bool listGames = false;
     long frames = 600;
-    bool bot = false, pilot = false, timeSteps = false, botWeapons = false;
+    bool bot = false, pilot = false, twoPilots = false, timeSteps = false, botWeapons = false;
     long stepWindow = 0; // --step-times: window length in steps (0: off)
     std::string watchName; // --watch NAME [N]: every N frames, the entities of that definition name
     long watchEvery = 60;
@@ -147,6 +149,7 @@ int main(int argc, char** argv) {
         else if (a == "--record" && next(v)) recordPath = v;
         else if (a == "--bot") bot = true;
         else if (a == "--pilot") pilot = true;
+        else if (a == "--two-pilots") pilot = twoPilots = true;
         else if (a == "--bot-weapons") botWeapons = true;
         else if (a == "--god") cfg.godMode = true;
         else if (a == "--time") timeSteps = true;
@@ -286,7 +289,9 @@ int main(int argc, char** argv) {
             }
         }
         if (bot || pilot) {
-            FrameInput in = bot ? botInput(static_cast<u32>(f)) : botInput(world, static_cast<u32>(f));
+            FrameInput in = bot         ? botInput(static_cast<u32>(f))
+                            : twoPilots ? botInputPlayers(world, static_cast<u32>(f))
+                                        : botInput(world, static_cast<u32>(f));
             if (botWeapons) applyWeaponTour(world, static_cast<u32>(f), in);
             recorder.record(static_cast<u32>(f), in);
             input = in.toPlayerInput();

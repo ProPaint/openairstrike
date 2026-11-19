@@ -80,6 +80,11 @@ FrameInput botInput(u32 frame);
 // pick-up ahead, and sideways out of the path of enemy fire and rammers. Deterministic (a
 // pure function of the world state and the frame); it reads the world, never writes it.
 FrameInput botInput(const World& world, u32 frame);
+// Two pilots (the two-player soak, `as3d_sim --players 2 --pilot`): each player of the world's
+// config flies the pilot above from its own helicopter, player 2's home 70 units right of
+// player 1's; botInput(world, frame) instead gives player 2 player 1's input. With one
+// player, held[0] is botInput's.
+FrameInput botInputPlayers(const World& world, u32 frame);
 
 // The weapon tour of the precache checks (precache_test, as3d_game --bot-weapons, the 3DS run.ini
 // bot_weapons=1): on top of a pilot's input, makes the players use everything the game lets a

@@ -108,7 +108,6 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
             content.heli[h].hasSpeed = d->hasSpeed;
             content.heli[h].speed = d->speed;
         }
-        content.twoPlayerMode = false;
     }
     int i = 0;
     for (const LevelDef& d : session_.db().levels()) {
@@ -130,9 +129,14 @@ bool GameFlow::init(const FlowConfig& config, std::string* error) {
     // Video modes, refresh rate, colour depth, fullscreen and 3D sound are not offered: the
     // window is sized from the command line and sound is always 2D (issue 130).
     content.videoOptions = false;
-    // The sequels' co-operative mode is not done yet: their Start Game offers one player.
+    // Two players: what the game's front end has (the first game's "2 Players", the sequels'
+    // "Cooperative" Game mode, as2/frontend.md 3.4, 5.9; the plain list has no players choice)
+    // and what the host offers (FlowConfig::twoPlayerMode: the platform, its input). The two
+    // conditions stay apart.
     const bool console = config_.consoleOptions;
-    content.twoPlayerMode = config_.twoPlayerMode && !plainGame && !sequelGame && !console;
+    const bool gameHasTwoPlayers = !plainGame;
+    const bool hostOffersTwoPlayers = config_.twoPlayerMode && !console;
+    content.twoPlayerMode = gameHasTwoPlayers && hostOffersTwoPlayers;
     content.mouseControlOption = config_.mouseControlOption && !console;
     content.touchMenuButton = config_.touchMenuButton;
     content.screenOption = config_.screenOptionAlways && !console;
