@@ -674,10 +674,16 @@ so the final test compares desktop and wasm without an Android device (section 1
 * The residual risk (compiler bugs, an audit miss) is what the desync detector of 4.4 is for: it
   turns a silent divergence into a report with two dumps.
 
-Android cannot be run on this machine (no device, no emulator; Bionic binaries do not run on
-glibc, and no `qemu-user` is installed): the Android guarantee is the same clang family, the same
-flags (`-ffp-contract=off`), the same `sim_math`, and the sort/hash/conversion audit. The 3DS
-console soaks remain the only ARM hardware check (coarse: end counts, not a hash).
+Correction (owner, 2026-11-19): an Android emulator IS installed: `~/Android/sdk/emulator/emulator`,
+AVD `atticpad-test` (android-36 google_apis x86_64, 2 GB), KVM usable; the host is 10.0.2.2 from
+the emulator. The final test (section 14) runs an Android peer in it against a desktop peer
+(identical end states), and an x86_64 APK's `as3d_sim`-equivalent known-answer hash for Bionic's
+libm. ARM code (the FMA risk) is only reachable through the image's ARM translation if an
+arm64-only APK installs; whether that translation is bit-faithful is to be checked, not assumed.
+The emulator needs RAM: run it alone, never next to builds. Beyond that, the Android guarantee is
+the same clang family, the same flags (`-ffp-contract=off`), the same `sim_math`, and the
+sort/hash/conversion audit, with the desync detector as the net. The 3DS console soaks remain the
+only real ARM hardware check (coarse: end counts, not a hash).
 
 ## 8. The front end
 
