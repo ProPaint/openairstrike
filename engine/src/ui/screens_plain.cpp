@@ -9,6 +9,7 @@
 // the top bar, panels of 0x50000000 black, orange and rust text, buttons in the bottom bar.
 #include <algorithm>
 #include <cstdio>
+#include <memory>
 
 #include "as3d/frontend.h"
 #include "plain_layout.h"
@@ -157,12 +158,27 @@ Menu Frontend::buildPlainStartGame() {
     difficultyChoice_ = rules().defaultDifficulty; // Normal on every opening, as the first game's
     twoPlayers_ = false;                           // single player only until the co-op mode exists
     m.addSpinner(4, 630, 360, texts_.get("label.difficulty"), diffs, difficultyChoice_);
+    // Ours (online co-op, docs/spec/issues/180-online-coop.md 8.2): the game mode, only where the host offers Online.
+    if (content_.onlineMode)
+        m.addSpinner(5, 630, 390, texts_.get("label.game_mode"), {texts_.get("label.players.1"), texts_.get("label.players.online")}, 0);
     addPlainHeliRows(m, 490, 134, 290, 30);
     m.addTextButton(1, kPlainLeft, texts_.get("plain.back")).textScale = kPlainButtonScale;
     m.addTextButton(2, kPlainRight, texts_.get("plain.start")).textScale = kPlainButtonScale;
     auto start = [this](Menu& menu) {
         const MenuItem* list = menu.find(3);
-        startCampaign(list ? list->selected : 0, difficultyChoice_, 1);
+        const int mission = list ? list->selected : 0;
+        const MenuItem* mode = menu.find(5);
+        if (mode && mode->index == 1) {
+            // Ours: the choices are the lobby's initial values; the helicopters are chosen there.
+            onlineInitial_ = OnlineLobby{};
+            onlineInitial_.mission = mission;
+            onlineInitial_.difficulty = difficultyChoice_;
+            onlineInitial_.heli[0] = heli_[0];
+            onlineInitial_.heli[1] = heli_[1];
+            open(Screen::Online);
+            return;
+        }
+        startCampaign(mission, difficultyChoice_, 1);
     };
     m.onItem = [this, start](Menu& menu, MenuItem& it, int ev) {
         if (ev != kActivate) return;
@@ -205,7 +221,7 @@ Menu Frontend::buildPlainInGame() {
         if (ev != kActivate) return;
         if (it.id == 1) resume();
         else if (it.id == 2) { optionsInGame_ = true; open(Screen::Options); }
-        else if (it.id == 3) quitToMainMenu(false, false); // no banking, no high-score check
+        else if (it.id == 3) { onlineChoose(OnlineFlowChoice::Quit); quitToMainMenu(false, false); } // no banking, no high-score check; online: the other side follows
     };
     m.onKey = [resume](Menu&, int code) {
         if (code != keys::Escape && code != keys::Mouse2) return false;
@@ -225,7 +241,15 @@ Menu Frontend::buildPlainHint() {
     const float hs = layout.scale;
     const RectF ok{400 - 50 * hs, layout.box.y + layout.box.h - 46 * hs, 100 * hs, 32 * hs};
     m.addTextButton(1, ok, texts_.get("plain.ok")).setShown(false); // hidden until the opening animation ends
-    auto close = [this]() {
+    // Online (docs/spec/issues/180-online-coop.md 8.3): the OK is the session's confirm bit; the
+    // box closes when the merged confirm reaches both (onlineHintConfirmed).
+    auto sent = std::make_shared<bool>(false);
+    auto close = [this, sent]() {
+        if (online()) {
+            if (!*sent) online_->requestConfirm();
+            *sent = true;
+            return;
+        }
         menus_.pop();
         resumePlay();
     };
@@ -240,10 +264,14 @@ Menu Frontend::buildPlainHint() {
         }
         return false;
     };
-    m.onUpdate = [](Menu& menu, float, float mt) {
-        if (mt >= kHintOpenSeconds && !menu.items.empty() && menu.items[0].hidden()) menu.items[0].setShown(true);
+    m.onUpdate = [sent](Menu& menu, float, float mt) {
+        if (mt >= kHintOpenSeconds && !menu.items.empty() && menu.items[0].hidden() && !*sent) menu.items[0].setShown(true);
+        if (*sent && !menu.items.empty()) menu.items[0].setShown(false);
     };
-    m.drawBack = [layout](MenuDrawContext& c) { drawHintPanel(c.r, c.a, layout, c.mt); };
+    m.drawBack = [this, layout, sent, ok](MenuDrawContext& c) {
+        drawHintPanel(c.r, c.a, layout, c.mt);
+        if (*sent) widgets::text(c, 400, ok.y + 8, texts_.get("online.note.stalled"), orange(), Align::Center);
+    };
     return m;
 }
 
@@ -254,21 +282,24 @@ Menu Frontend::buildPlainGameOver() {
         kPlainButtonScale;
     m.addTextButton(2, {410, 316, 150, 40}, texts_.get("plain.quit"), itemflag::Disabled | itemflag::Hidden).textScale =
         kPlainButtonScale;
-    m.onUpdate = [](Menu& menu, float, float mt) {
+    m.onUpdate = [this](Menu& menu, float, float mt) {
         if (mt >= 2.0f)
             for (MenuItem& it : menu.items)
-                if (it.hidden()) it.setShown(true);
+                if (it.hidden() && !(it.id == 1 && onlineGuest())) it.setShown(true); // online: Restart is the host's
     };
     m.onItem = [this](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
         if (it.id == 1) {
+            onlineChoose(OnlineFlowChoice::Restart);
             menus_.clear();
             startLevel(true); // same mission, lives as at its start
         } else if (it.id == 2) {
+            onlineChoose(OnlineFlowChoice::Quit);
             quitToMainMenu(true, true);
         }
     };
     m.drawBack = [this](MenuDrawContext& c) {
+        if (onlineGuest() && c.mt >= 2.0f) widgets::text(c, 400, 300, texts_.get("online.waiting_host"), orange(), Align::Center);
         const float f = std::min(c.mt / 2.0f, 1.0f);
         c.r.fullscreen({0.25f, 0, 0, 0.6f * f}, Blend::Alpha);
         c.r.rect(150, 190, 500, 90, {0, 0, 0, 0.55f * f}, Blend::Alpha);
@@ -286,15 +317,19 @@ Menu Frontend::buildPlainMissionComplete() {
     refreshLocks();
     const int mission = std::clamp(campaign_.mission, 0, rules().missionCount - 1);
     const bool newHeli = content_.enableHelic[mission] >= 0 && content_.enableHelic[mission] < rules().helicopterCount;
-    if (rules().helicopterCount > 1) addPlainHeliRows(m, 210, 320, 380, 26);
+    if (rules().helicopterCount > 1 && !online()) addPlainHeliRows(m, 210, 320, 380, 26); // online: chosen in the lobby
     m.addTextButton(2, kPlainLeft, texts_.get("plain.restart")).textScale = kPlainButtonScale;
     m.addTextButton(1, kPlainMiddle, texts_.get("plain.quit")).textScale = kPlainButtonScale;
     m.addTextButton(3, kPlainRight, texts_.get("plain.next")).textScale = kPlainButtonScale;
+    // Online (docs/spec/issues/180-online-coop.md 8.3): the guest has Quit and waits for the host.
+    if (onlineGuest())
+        for (MenuItem& it : m.items)
+            if (it.id == 2 || it.id == 3) it.setShown(false);
     m.onItem = [this](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
-        if (it.id == 3) continueCampaign();
-        else if (it.id == 2) { menus_.clear(); startLevel(true); } // no banking
-        else if (it.id == 1) quitToMainMenu(false, false);          // no banking, no check
+        if (it.id == 3) { onlineChoose(OnlineFlowChoice::Next); continueCampaign(); }
+        else if (it.id == 2) { onlineChoose(OnlineFlowChoice::Restart); menus_.clear(); startLevel(true); } // no banking
+        else if (it.id == 1) { onlineChoose(OnlineFlowChoice::Quit); quitToMainMenu(false, false); }       // no banking, no check
         else if (it.id >= kHeliBase) heli_[0] = it.id - kHeliBase;
     };
     m.drawBack = [this, mission, newHeli](MenuDrawContext& c) {
@@ -303,7 +338,8 @@ Menu Frontend::buildPlainMissionComplete() {
         widgets::text(c, 400, 76, missionLabel(mission), rust(), Align::Center);
         drawStats(c, 120);
         if (newHeli && c.mt > 2.2f) widgets::text(c, 400, 252, texts_.get("plain.new_heli"), Color{}, Align::Center);
-        if (rules().helicopterCount > 1) widgets::text(c, 210, 296, texts_.get("plain.heli"), orange());
+        if (onlineGuest()) widgets::text(c, 400, 330, texts_.get("online.waiting_host"), orange(), Align::Center);
+        else if (rules().helicopterCount > 1 && !online()) widgets::text(c, 210, 296, texts_.get("plain.heli"), orange());
     };
     return m;
 }
@@ -313,7 +349,9 @@ Menu Frontend::buildPlainGameComplete() {
     m.swallowBack = true;
     m.addTextButton(1, kPlainMiddle, texts_.get("plain.continue")).textScale = kPlainButtonScale;
     m.onItem = [this](Menu&, MenuItem& it, int ev) {
-        if (ev == kActivate && it.id == 1) quitToMainMenu(true, true);
+        if (ev != kActivate || it.id != 1) return;
+        onlineChoose(OnlineFlowChoice::Quit); // online: either side ends the session
+        quitToMainMenu(true, true);
     };
     m.drawBack = [this](MenuDrawContext& c) {
         widgets::letterbox(c);

@@ -51,7 +51,9 @@ Menu Frontend::buildOptions() {
     m.addSpinner(kSound3D, 400, 320, texts_.get("opt.sound3d"), {off, on}, s.sound3D ? 1 : 0);
     std::vector<std::string> cams;
     for (int i = 0; i < 4; i++) cams.push_back(texts_.get("camera." + std::to_string(i)));
-    m.addSpinner(kCamera, 400, 360, texts_.get("opt.camera"), cams, s.camera);
+    // Online (docs/spec/issues/180-online-coop.md 8.3): the camera is the host's choice, not editable.
+    if (online()) m.addSpinner(kCamera, 400, 360, texts_.get("opt.camera"), {texts_.get("online.options.camera_host")}, 0).setEnabled(false);
+    else m.addSpinner(kCamera, 400, 360, texts_.get("opt.camera"), cams, s.camera);
     m.addSpinner(kMouse, 400, 400, texts_.get("opt.mouse"), {off, on}, s.mouseControl ? 1 : 0);
     // Ours (issue 140): in the rows of the video options, which this port does not offer.
     {

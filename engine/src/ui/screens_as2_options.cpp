@@ -59,7 +59,9 @@ Menu SequelScreens::options(Frontend& f) {
     spinner(kSound3D, 360, tr(f, "opt.sound3d"), {off, on}, s.sound3D ? 1 : 0);
     std::vector<std::string> cams;
     for (int i = 0; i < 4; i++) cams.push_back(tr(f, "camera." + std::to_string(i)));
-    spinner(kCamera, 400, tr(f, "opt.camera"), cams, s.camera);
+    // Online (docs/spec/issues/180-online-coop.md 8.3): the camera is the host's choice, not editable.
+    if (f.online()) spinner(kCamera, 400, tr(f, "opt.camera"), {f.texts_.get("online.options.camera_host")}, 0).setEnabled(false);
+    else spinner(kCamera, 400, tr(f, "opt.camera"), cams, s.camera);
     spinner(kMouse, 440, tr(f, "opt.mouse"), {off, on}, s.mouseControl ? 1 : 0);
     // Ours (issue 140), in the rows of the video options when the port offers none.
     {

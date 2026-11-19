@@ -42,23 +42,39 @@ Menu SequelScreens::startGame(Frontend& f) {
     f.difficultyChoice_ = f.rules().defaultDifficulty; // Normal at every opening
     m.addSpinner(kDifficulty, 400, 375, tr(f, "label.difficulty"), diffs, f.difficultyChoice_).flags |= itemflag::NoHoverSound;
     // "Cooperative" only where the host offers two players.
+    // Ours (online co-op, docs/spec/issues/180-online-coop.md 8.2): "Online" as a last value while the host offers it.
     std::vector<std::string> modes{tr(f, "mode.0")};
     if (f.content_.twoPlayerMode) modes.push_back(tr(f, "mode.1"));
     else f.twoPlayers_ = false;
+    const std::string onlineLabel = f.texts_.get("label.players.online");
+    if (f.content_.onlineMode) modes.push_back(onlineLabel);
     m.addSpinner(kGameMode, 400, 405, tr(f, "label.game_mode"), modes, f.twoPlayers_ ? 1 : 0).flags |= itemflag::NoHoverSound;
     m.addSequelButton(kBack, 40, 520, tr(f, "button.back"));
     m.addSequelButton(kNext, 645, 520, tr(f, "button.next"));
-    m.onItem = [&f](Menu& menu, MenuItem& it, int ev) {
+    m.onItem = [&f, onlineLabel](Menu& menu, MenuItem& it, int ev) {
         if (ev != kActivate) return;
+        const bool online = it.id == kGameMode && it.values[static_cast<size_t>(it.index)] == onlineLabel;
         switch (it.id) {
             case kBack: f.menus_.pop(); break;
             case kMissionList: f.sq_->missionChoice = it.selected; break;
             case kDifficulty: f.difficultyChoice_ = it.index; break;
-            case kGameMode: f.twoPlayers_ = it.index == 1; break;
+            case kGameMode: f.twoPlayers_ = it.index == 1 && !online; break;
             case kNext: {
                 // Nothing is loaded yet: the choices, then the selection in start mode.
                 const MenuItem* l = menu.find(kMissionList);
                 f.sq_->missionChoice = l ? l->selected : 0;
+                const MenuItem* mode = menu.find(kGameMode);
+                if (mode && mode->values[static_cast<size_t>(mode->index)] == onlineLabel) {
+                    // Ours: the choices are the lobby's initial values; helicopters are chosen there.
+                    f.onlineInitial_ = OnlineLobby{};
+                    f.onlineInitial_.mission = f.sq_->missionChoice;
+                    f.onlineInitial_.difficulty = f.difficultyChoice_;
+                    f.onlineInitial_.heli[0] = f.heli_[0];
+                    f.onlineInitial_.heli[1] = f.heli_[1];
+                    f.twoPlayers_ = false;
+                    f.open(Screen::Online);
+                    break;
+                }
                 f.campaign_.mission = f.sq_->missionChoice;
                 f.campaign_.difficulty = f.difficultyChoice_;
                 f.campaign_.players = f.twoPlayers_ ? 2 : 1;

@@ -1265,6 +1265,19 @@ This document wins where they differ.
 - 0x42b3b0 (not a Ghidra function) is the shared Start Game callback (Back, Start, game
   mode).
 
+## 10. Online (ours)
+
+Online two-player co-op adds five screens (`Online`, `OnlineHostCode`, `OnlineJoinCode`,
+`OnlineLobby`, `OnlineNotice`), an "Online" value of Start Game's game mode (shown only when the
+host sets an `OnlineHost`, `FrontendContent::onlineMode`), and online variants of the hint box,
+the in-game menu and the end screens. The design, the texts (`online.*` keys, defaults in
+`frontend_texts.cpp`) and the `OnlineHost` interface are in
+`docs/spec/issues/180-online-coop.md` sections 8 and 9; the code is
+`engine/src/ui/screens_online.cpp`. The screens come in the three styles (the first game's Start
+Game look, the plain list's, the sequels' panel and text buttons). The code screens' paste field
+is a custom item (`kOnlineFieldItem`) because a code is far longer than an edit field takes. The
+viewer shows them with `as3d_viewer screen online_host --state online=invite`.
+
 ## Changelog
 
 - 1.0 (WP-26): first version.

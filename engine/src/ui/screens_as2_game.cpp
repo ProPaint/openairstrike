@@ -3,6 +3,7 @@
 // 3.13, 3.15, and what each button does to the campaign (5.4).
 #include <algorithm>
 #include <cmath>
+#include <memory>
 
 #include "as2_screens.h"
 
@@ -50,6 +51,10 @@ Menu SequelScreens::inGame(Frontend& f) {
     m.addSequelButton(2, 400, lay.inGameY[1], tr(f, "button.options"), kCentre, lay.inGameMinW);
     m.addSequelButton(4, 400, lay.inGameY[2], tr(f, "button.restart"), kCentre, lay.inGameMinW);
     m.addSequelButton(3, 400, lay.inGameY[3], tr(f, "button.quit"), kCentre, lay.inGameMinW);
+    // Online (docs/spec/issues/180-online-coop.md 8.3): the host decides a restart.
+    if (f.onlineGuest())
+        for (MenuItem& it : m.items)
+            if (it.id == 4) it.setShown(false);
     auto resume = [&f]() {
         f.menus_.pop();
         f.resumePlay();
@@ -59,8 +64,8 @@ Menu SequelScreens::inGame(Frontend& f) {
         switch (it.id) {
             case 1: resume(); break;
             case 2: f.optionsInGame_ = true; f.open(Screen::Options); break;
-            case 4: f.menus_.clear(); f.startLevel(true); break;  // the mission's loadout again
-            case 3: f.quitToMainMenu(false, false); break;        // no banking, no high-score check
+            case 4: f.onlineChoose(OnlineFlowChoice::Restart); f.menus_.clear(); f.startLevel(true); break;  // the mission's loadout again
+            case 3: f.onlineChoose(OnlineFlowChoice::Quit); f.quitToMainMenu(false, false); break;       // no banking, no high-score check
             default: break;
         }
     };
@@ -83,12 +88,23 @@ Menu SequelScreens::hint(Frontend& f) {
     const HintLayout layout = layoutHint(FontMetrics::original(), f.hintText_, HintStyle::SequelPanel, f.hintScale());
     MenuItem& ok = m.addSequelButton(1, 400, layout.okButton.y, trOr(f, "button.hint_ok", "button.ok"), kCentre);
     if (f.touch_ && layout.scale > 1.0f) ok.hit = {ok.hit.x - 20, ok.hit.y - 10, ok.hit.w + 40, ok.hit.h + 20}; // finger-sized
-    auto close = [&f]() {
+    // Online (docs/spec/issues/180-online-coop.md 8.3): the OK is the session's confirm bit; the
+    // box closes when the merged confirm reaches both (Frontend::onlineHintConfirmed).
+    auto sent = std::make_shared<bool>(false);
+    auto close = [&f, sent]() {
+        if (f.online()) {
+            if (!*sent) f.online_->requestConfirm();
+            *sent = true;
+            return;
+        }
         f.menus_.pop();
         f.resumePlay();
     };
     m.onItem = [close](Menu&, MenuItem& it, int ev) {
         if (ev == kActivate && it.id == 1) close();
+    };
+    m.onUpdate = [sent](Menu& menu, float, float) {
+        if (*sent && !menu.items.empty()) menu.items[0].setShown(false);
     };
     // Enter, Esc and Space close it; right click too, and resumes (spec README deviation).
     m.onKey = [close](Menu&, int code) {
@@ -98,7 +114,7 @@ Menu SequelScreens::hint(Frontend& f) {
         }
         return false;
     };
-    m.drawFront = [&f, layout](MenuDrawContext& c) {
+    m.drawFront = [&f, layout, sent](MenuDrawContext& c) {
         panel(c.r, c.a, layout.box.x, layout.box.y, layout.box.w, layout.box.h, c.menu.open, tr(f, "title.hint"));
         if (c.menu.open < 1) return;
         float y = layout.textTop;
@@ -106,6 +122,7 @@ Menu SequelScreens::hint(Frontend& f) {
             text(c.r, c.a, 400, y, line, accent(), Align::Center, true, layout.scale);
             y += 18.0f * layout.scale;
         }
+        if (*sent) text(c.r, c.a, 400, layout.okButton.y + 4, f.texts_.get("online.note.stalled"), accent(), Align::Center);
     };
     return m;
 }
@@ -119,12 +136,15 @@ Menu SequelScreens::gameOver(Frontend& f) {
     // Usable at once (the first game hid them for 2 s).
     m.addSequelButton(1, 550, 520, trOr(f, "button.restart.gameover", "button.restart"), kCentre);
     m.addSequelButton(2, 250, 520, tr(f, "button.quit_wide"), kCentre);
+    if (f.onlineGuest()) m.items[0].setShown(false); // online: the host restarts; the guest waits (drawn below)
     m.onItem = [&f](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
         if (it.id == 1) {
+            f.onlineChoose(OnlineFlowChoice::Restart);
             f.menus_.clear();
             f.startLevel(true); // the lives it began with, the mission's loadout
         } else if (it.id == 2) {
+            f.onlineChoose(OnlineFlowChoice::Quit);
             f.quitToMainMenu(true, true); // banked, then the high-score check
         }
     };
@@ -140,7 +160,10 @@ Menu SequelScreens::gameOver(Frontend& f) {
         }
         comic(c.r, c.a, "gamov", 144, 260, grey(fade), Blend::Add);
     };
-    m.drawFront = [&f](MenuDrawContext& c) { panel(c.r, c.a, 16, 108, 768, 384, c.mt, tr(f, "title.game_over")); };
+    m.drawFront = [&f](MenuDrawContext& c) {
+        panel(c.r, c.a, 16, 108, 768, 384, c.mt, tr(f, "title.game_over"));
+        if (f.onlineGuest()) text(c.r, c.a, 400, 470, f.texts_.get("online.waiting_host"), accent(), Align::Center);
+    };
     return m;
 }
 
@@ -155,12 +178,17 @@ Menu SequelScreens::missionComplete(Frontend& f) {
     m.addSequelButton(2, 120, 520, tr(f, "button.restart"), kCentre);
     m.addSequelButton(1, 400, 520, tr(f, "button.quit_wide"), kCentre);
     m.addSequelButton(3, 680, 520, tr(f, "button.next_wide"), kCentre);
+    // Online (docs/spec/issues/180-online-coop.md 8.3): the helicopters were chosen in the lobby;
+    // the guest has Quit and waits for the host.
+    if (f.online())
+        for (MenuItem& it : m.items)
+            if (it.id == 4 || (f.onlineGuest() && (it.id == 2 || it.id == 3))) it.setShown(false);
     m.onItem = [&f](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
         switch (it.id) {
-            case 3: f.continueCampaign(); break;                       // bank, next mission, upgrades kept
-            case 2: f.menus_.clear(); f.startLevel(true); break;       // no banking, the loadout again
-            case 1: f.quitToMainMenu(false, false); break;             // no banking; the checkpoint stays
+            case 3: f.onlineChoose(OnlineFlowChoice::Next); f.continueCampaign(); break;                  // bank, next mission, upgrades kept
+            case 2: f.onlineChoose(OnlineFlowChoice::Restart); f.menus_.clear(); f.startLevel(true); break; // no banking, the loadout again
+            case 1: f.onlineChoose(OnlineFlowChoice::Quit); f.quitToMainMenu(false, false); break;         // no banking; the checkpoint stays
             case 4: f.sq_->heliAccept = true; f.open(Screen::HeliSelect); break;
             default: break;
         }
@@ -192,6 +220,7 @@ Menu SequelScreens::missionComplete(Frontend& f) {
             }
         }
         if (newHeli) text(c.r, c.a, 400, 400, tr(f, "msg.new_heli"), Color{}, Align::Center);
+        if (f.onlineGuest()) text(c.r, c.a, 400, 470, f.texts_.get("online.waiting_host"), accent(), Align::Center);
         panel(c.r, c.a, 180, 160, 440, 200, c.menu.open, tr(f, "title.mission_complete"));
         header(c, f);
     };
@@ -208,7 +237,9 @@ Menu SequelScreens::gameComplete(Frontend& f) {
     m.addSequelButton(1, 400, 520, tr(f, "button.continue"), kCentre | itemflag::Disabled | itemflag::Hidden);
     f.sq_->congratsTyped = 0;
     m.onItem = [&f](Menu&, MenuItem& it, int ev) {
-        if (ev == kActivate && it.id == 1) f.quitToMainMenu(true, true); // banked, then the high-score check
+        if (ev != kActivate || it.id != 1) return;
+        f.onlineChoose(OnlineFlowChoice::Quit); // online: either side ends the session
+        f.quitToMainMenu(true, true);           // banked, then the high-score check
     };
     m.onUpdate = [&f](Menu& menu, float, float mt) {
         if (mt >= 4.0f)

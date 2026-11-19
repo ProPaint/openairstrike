@@ -252,8 +252,7 @@ enum class Screen {
     Players,
     // Ours (online co-op, docs/spec/issues/180-online-coop.md 8.3; screens_online.cpp, in every
     // front-end style): host or join, the host's invite code, the guest's paste and reply code,
-    // the lobby, the end / failure notice. Not in kAllScreens / kSequelScreens until T5 builds
-    // them for real (screenFromName knows them).
+    // the lobby, the end / failure notice.
     Online, OnlineHostCode, OnlineJoinCode, OnlineLobby, OnlineNotice,
 };
 const char* screenName(Screen s);
@@ -263,6 +262,7 @@ constexpr Screen kAllScreens[] = {
     Screen::MainMenu, Screen::Exit, Screen::StartGame, Screen::TopScores, Screen::NameEntry,
     Screen::Options, Screen::Controls, Screen::Information, Screen::InGame, Screen::Hint,
     Screen::GameOver, Screen::MissionComplete, Screen::GameComplete, Screen::Players,
+    Screen::Online, Screen::OnlineHostCode, Screen::OnlineJoinCode, Screen::OnlineLobby, Screen::OnlineNotice,
 };
 // The sequels' screens (FrontendStyle::SequelMenus).
 constexpr Screen kSequelScreens[] = {
@@ -270,7 +270,13 @@ constexpr Screen kSequelScreens[] = {
     Screen::NameEntry, Screen::Options, Screen::Controls, Screen::Information, Screen::Credits,
     Screen::InGame, Screen::Hint, Screen::Dialogue, Screen::GameOver, Screen::MissionComplete,
     Screen::GameComplete,
+    Screen::Online, Screen::OnlineHostCode, Screen::OnlineJoinCode, Screen::OnlineLobby, Screen::OnlineNotice,
 };
+
+// The id of the online screens' paste field (a custom item holding the code in MenuItem::text,
+// which may be far longer than an edit field takes): Frontend::wantsTextInput starts the text
+// input while it has the focus (docs/spec/issues/180-online-coop.md 8.3).
+constexpr int kOnlineFieldItem = 8;
 
 enum class FrontendState { Boot, Intro, Attract, Playing };
 
@@ -374,6 +380,11 @@ public:
     // player...", ...), drawn by drawOver while playing; "" = none.
     void setOnlineNote(std::string note) { onlineNote_ = std::move(note); }
     const std::string& onlineNote() const { return onlineNote_; }
+    // The merged hint-box confirm reached both sides (the hint box's OK went through
+    // OnlineHost::requestConfirm and the box stays up until now): closes the Hint screen when
+    // it is the top one and resumes play, as the offline OK does. T4 calls it from the step that
+    // applies the confirm bit.
+    void onlineHintConfirmed();
 
     // Ours (docs/3ds-ui-design.md "AirStrike 3D menus on the console (round 4, R4.5)"): what a
     // console layout (as3d/console_menu.h) shows besides the menu items, read-only.
@@ -441,6 +452,18 @@ private:
     Menu buildPlayers();
     // The online screens in every style (screens_online.cpp; sequel() / plain() pick the look).
     Menu buildOnlineScreen(Screen s);
+    // 8.5: the in-play note from OnlineHost::status() every update (Playing: the ping, the stall,
+    // the other player's pause, the lost connection; else none).
+    void updateOnlineNote();
+    // `--state online=NAME` of the viewer: a canned host (every action does nothing) in a state a
+    // screen shows: checking, gathering, invite, reply, lobbyhost, lobbyguest, failed, playing.
+    bool debugOnline(const std::string& state);
+    // Online helpers of the end screens: the guest (not the host) of a running session; the
+    // host's end-screen choice and Quit from either side go to OnlineHost::chooseFlow.
+    bool onlineGuest() const { return online() && !online_->status().host; }
+    void onlineChoose(OnlineFlowChoice c) {
+        if (online()) online_->chooseFlow(c);
+    }
     // The plain front end of a PlainList game (engine/src/ui/screens_plain.cpp). Screens not
     // listed (top scores, name entry, options, controls) are the same builders with plain
     // widgets, see plain().
@@ -483,6 +506,7 @@ public:
 
 private:
     friend struct SequelScreens; // the sequels' screens and flow (engine/src/ui/as2_screens.h)
+    friend struct OnlineScreens; // the online screens in every style (engine/src/ui/screens_online.cpp)
     struct SequelState;
     std::unique_ptr<SequelState> sq_;
 
@@ -525,7 +549,12 @@ private:
     std::function<std::string(const std::string&)> hintFilter_;
     // Online co-op (setOnlineHost, setOnlineNote).
     OnlineHost* online_ = nullptr;
+    std::unique_ptr<OnlineHost> debugOnline_; // the viewer's canned host
     std::string onlineNote_;
+    // Start Game's choices handed to the Online screen (the lobby's initial values) and the text
+    // the notice shows.
+    OnlineLobby onlineInitial_;
+    std::string onlineMessage_;
 };
 
 // Loading screen (S9, frontend.md 3.16): black, menu\loading.tga unless an intermission level

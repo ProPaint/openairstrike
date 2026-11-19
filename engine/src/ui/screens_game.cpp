@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <memory>
 
 #include "as3d/frontend.h"
 
@@ -80,7 +81,7 @@ Menu Frontend::buildInGame() {
         if (ev != kActivate) return;
         if (it.id == 1) resume();
         else if (it.id == 2) { optionsInGame_ = true; open(Screen::Options); }
-        else if (it.id == 3) quitToMainMenu(false, false); // no banking, no high-score check
+        else if (it.id == 3) { onlineChoose(OnlineFlowChoice::Quit); quitToMainMenu(false, false); } // no banking, no high-score check; online: the other side follows
     };
     m.onKey = [resume](Menu&, int code) {
         if (code != keys::Escape && code != keys::Mouse2) return false;
@@ -98,7 +99,15 @@ Menu Frontend::buildHint() {
         drawHintOk(c.r, c.a, layout, focused, c.mt);
     });
     m.items.back().setShown(false); // hidden until the opening animation ends
-    auto close = [this]() {
+    // Online (docs/spec/issues/180-online-coop.md 8.3): the OK goes to the session as the confirm
+    // bit of the record; the box closes when the merged confirm reaches both (onlineHintConfirmed).
+    auto sent = std::make_shared<bool>(false);
+    auto close = [this, sent]() {
+        if (online()) {
+            if (!*sent) online_->requestConfirm();
+            *sent = true;
+            return;
+        }
         menus_.pop();
         resumePlay();
     };
@@ -117,10 +126,14 @@ Menu Frontend::buildHint() {
         (void)menu;
         return false;
     };
-    m.onUpdate = [](Menu& menu, float, float mt) {
-        if (mt >= kHintOpenSeconds && !menu.items.empty() && menu.items[0].hidden()) menu.items[0].setShown(true);
+    m.onUpdate = [sent](Menu& menu, float, float mt) {
+        if (mt >= kHintOpenSeconds && !menu.items.empty() && menu.items[0].hidden() && !*sent) menu.items[0].setShown(true);
+        if (*sent && !menu.items.empty()) menu.items[0].setShown(false);
     };
-    m.drawBack = [layout](MenuDrawContext& c) { drawHintPanel(c.r, c.a, layout, c.mt); };
+    m.drawBack = [this, layout, sent](MenuDrawContext& c) {
+        drawHintPanel(c.r, c.a, layout, c.mt);
+        if (*sent) widgets::text(c, 400, layout.okButton.y + 20, texts_.get("online.note.stalled"), orange(), Align::Center);
+    };
     return m;
 }
 
@@ -131,21 +144,24 @@ Menu Frontend::buildGameOver() {
                 itemflag::Disabled | itemflag::Hidden);
     m.addButton(2, 542, 450, 128, 64, "menu\\quit_1.tga", "menu\\quit_2.tga", {0, 0, 1, 1},
                 itemflag::Disabled | itemflag::Hidden);
-    m.onUpdate = [](Menu& menu, float, float mt) {
+    m.onUpdate = [this](Menu& menu, float, float mt) {
         if (mt >= 2.0f)
             for (MenuItem& it : menu.items)
-                if (it.hidden()) it.setShown(true);
+                if (it.hidden() && !(it.id == 1 && onlineGuest())) it.setShown(true); // online: Restart is the host's
     };
     m.onItem = [this](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
         if (it.id == 1) {
+            onlineChoose(OnlineFlowChoice::Restart);
             menus_.clear();
             startLevel(true); // same mission, lives as at its start
         } else if (it.id == 2) {
+            onlineChoose(OnlineFlowChoice::Quit);
             quitToMainMenu(true, true);
         }
     };
-    m.drawBack = [](MenuDrawContext& c) {
+    m.drawBack = [this](MenuDrawContext& c) {
+        if (onlineGuest() && c.mt >= 2.0f) widgets::text(c, 400, 300, texts_.get("online.waiting_host"), orange(), Align::Center);
         const float mt = c.mt;
         const float g = mt < 2.0f ? (255.0f - 64.0f * mt) / 255.0f : 0.5f;
         c.r.fullscreen({1, g, g, 1}, Blend::Filter);
@@ -166,14 +182,20 @@ Menu Frontend::buildMissionComplete() {
     m.addButton(2, 64, 470, 210, 64, "menu\\restart_1.tga", "menu\\restart_2.tga", {0, 0, 0.8203f, 1});
     m.addButton(1, 332, 470, 128, 64, "menu\\quit_1.tga", "menu\\quit_2.tga");
     m.addButton(3, 482, 470, 256, 64, "menu\\continue_1.tga", "menu\\continue_2.tga");
+    // Online (docs/spec/issues/180-online-coop.md 8.3): the helicopters were chosen in the lobby;
+    // the host's buttons go to the session too, the guest has Quit and waits for the host.
+    if (online())
+        for (MenuItem& it : m.items)
+            if (it.id == 7 || (onlineGuest() && (it.id == 2 || it.id == 3))) it.setShown(false);
     m.onItem = [this](Menu&, MenuItem& it, int ev) {
         if (ev != kActivate) return;
-        if (it.id == 3) continueCampaign();
-        else if (it.id == 2) { menus_.clear(); startLevel(true); } // no banking
-        else if (it.id == 1) quitToMainMenu(false, false);          // no banking, no check
+        if (it.id == 3) { onlineChoose(OnlineFlowChoice::Next); continueCampaign(); }
+        else if (it.id == 2) { onlineChoose(OnlineFlowChoice::Restart); menus_.clear(); startLevel(true); } // no banking
+        else if (it.id == 1) { onlineChoose(OnlineFlowChoice::Quit); quitToMainMenu(false, false); }       // no banking, no check
     };
     m.drawBack = [this](MenuDrawContext& c) {
         missionCompleteTitle(c);
+        if (onlineGuest()) widgets::text(c, 400, 330, texts_.get("online.waiting_host"), orange(), Align::Center);
         drawStats(c, 156);
     };
     return m;
@@ -185,7 +207,9 @@ Menu Frontend::buildGameComplete() {
     m.addButton(1, 272, 470, 256, 64, "menu\\continue_1.tga", "menu\\continue_2.tga");
     typedChars_ = 0;
     m.onItem = [this](Menu&, MenuItem& it, int ev) {
-        if (ev == kActivate && it.id == 1) quitToMainMenu(true, true);
+        if (ev != kActivate || it.id != 1) return;
+        onlineChoose(OnlineFlowChoice::Quit); // online: either side ends the session
+        quitToMainMenu(true, true);
     };
     m.onUpdate = [this](Menu&, float, float mt) {
         // sounds\type.wav per new non-space character.

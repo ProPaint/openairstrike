@@ -125,7 +125,10 @@ bool Frontend::bannerVisible() const {
 bool Frontend::wantsTextInput() const {
     // Touch mode has its own keyboard on the name-entry screen.
     const Menu* m = menus_.top();
-    return !touch_ && m && m->focused >= 0 && m->items[static_cast<size_t>(m->focused)].type == ItemType::Edit;
+    if (touch_ || !m || m->focused < 0) return false;
+    const MenuItem& it = m->items[static_cast<size_t>(m->focused)];
+    // The online screens' paste field is a custom item (the code is far longer than an edit field takes).
+    return it.type == ItemType::Edit || (it.type == ItemType::Custom && it.id == kOnlineFieldItem && !it.disabled());
 }
 
 Screen Frontend::topScreen() const {
@@ -182,11 +185,17 @@ void Frontend::open(Screen s) {
     m.name = screenName(s);
     if (s == Screen::MainMenu) menus_.replaceAll(std::move(m));
     else menus_.push(std::move(m));
-    // Screens that start with a focused widget (name entry: the edit field).
+    // Screens that start with a focused widget (name entry: the edit field; the online code
+    // screens: the paste field).
     if (s == Screen::NameEntry)
         if (Menu* top = menus_.top())
             for (size_t i = 0; i < top->items.size(); i++)
                 if (top->items[i].type == ItemType::Edit) menus_.focus(*top, static_cast<int>(i));
+    if (s == Screen::OnlineHostCode || s == Screen::OnlineJoinCode)
+        if (Menu* top = menus_.top())
+            for (size_t i = 0; i < top->items.size(); i++)
+                if (top->items[i].id == kOnlineFieldItem && !top->items[i].disabled() && !top->items[i].hidden())
+                    menus_.focus(*top, static_cast<int>(i));
 }
 
 // ---------------------------------------------------------------------------
@@ -457,6 +466,7 @@ bool Frontend::update(float dt, const UiInput& input) {
         return true;
     }
     if (sequel()) SequelScreens::tick(*this, dt);
+    if (online_) updateOnlineNote();
     if (!menus_.empty()) {
         menus_.update(dt, input);
         return true;
@@ -532,6 +542,13 @@ void Frontend::drawOver(Renderer2D& r, const UiAssets& a) {
     if (state_ == FrontendState::Intro) return;
     if (state_ == FrontendState::Playing && menus_.empty() && touch_ && content_.touchMenuButton) drawTouchPlayButtons(r, a);
     menus_.drawItems(r, a);
+    // Online co-op (8.5): the one-line note at the top right of the play area, the HUD message style.
+    if (state_ == FrontendState::Playing && !onlineNote_.empty()) {
+        TextStyle st;
+        st.color = Color{};
+        const float w = measureText(FontMetrics::original(), onlineNote_);
+        drawTextShadowed(r, a.uiFont(), 792 - w, 8, onlineNote_, st);
+    }
 }
 
 LoadingInfo loadingInfo() {
@@ -615,6 +632,7 @@ bool Frontend::debugSet(std::string_view key, std::string_view value) {
     const std::string v(value);
     const double num = std::atof(v.c_str());
     const int n = static_cast<int>(num);
+    if (key == "online") return debugOnline(v); // the online screens' states (screens_online.cpp)
     if (sequel()) {
         SequelState& s = *sq_;
         if (key == "dialogue") {
