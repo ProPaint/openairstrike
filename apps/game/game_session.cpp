@@ -134,6 +134,14 @@ bool GameSession::startMission(const LevelSetup& s, std::string* error) {
     c.cameraMode = s.camera;
     c.rules = &rules();
     c.godMode = c.godMode || godCheat_; // the god-mode cheat outlives the level (a global in the original)
+    // Online (docs/spec/issues/180-online-coop.md 6.3): the host's seed, camera and god mode.
+    if (s.seed != 0) c.seed = s.seed;
+    if (s.cameraOverride >= 0) c.cameraMode = std::min(s.cameraOverride, 3);
+    if (s.godMode >= 0) c.godMode = s.godMode != 0;
+    if (s.freshWorld) {
+        world_.reset();
+        world_.reset(new World());
+    }
     world_->init(vfs_, *db_, c);
     for (int p = 0; p < kMaxPlayers; ++p) {
         PlayerRecord& pr = world_->player(p);

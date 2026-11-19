@@ -25,6 +25,10 @@
 #include "game_stack.h"
 #include "game_view.h"
 #include "touch_overlay.h"
+#if AS3D_WITH_NET
+#include "as3d/net_transport.h"
+#include "net_play.h"
+#endif
 
 namespace as3d_game {
 
@@ -144,6 +148,8 @@ public:
     const LoopOptions& options() const { return o_; }
 
     // Host lifecycle events (game_loop.h, host*).
+    void onlineCode(const std::string& code);
+    void onlineDismiss();
     void setBackground(bool bg);
     void requestPause(const char* reason);
     void glContextLost();
@@ -182,6 +188,12 @@ private:
     void pauseGame(const char* reason);
     void updatePauseState();
     void simulate(int steps);
+    // Online co-op (docs/spec/issues/180-online-coop.md 6.2): the session beside the game, made
+    // with the stack (startGame) and gone before it (dropNet).
+    void makeNet();
+    void dropNet();
+    bool netPlaying() const;
+    bool netHolds() const;
     void draw();
     void saveScreenshot();
     void updateLayout();
@@ -267,6 +279,7 @@ private:
     bool glLost_ = false;                   // the WebGL context is lost: nothing is drawn
     bool pendingShown_ = false;             // the loading screen of a deferred load was presented
     bool firstFrame_ = true;
+    bool dumpWritten_ = false;              // online --frames: written when both sides were there
 
     // With the front end.
     ui::UiInput uiIn_;
@@ -281,6 +294,10 @@ private:
     bool textInput_ = false;
     int loadsSeen_ = 0;
     std::string screen_;                    // last AS3D_SCREEN name
+#if AS3D_WITH_NET
+    std::unique_ptr<NetPlay> net_;
+    bool netFinishing_ = false;             // --frames reached online: waiting for the other side
+#endif
 };
 
 // The FPS counter's warning line: script errors, forced respawns and entities stopped after a
@@ -562,6 +579,14 @@ bool GameWindow::handleFlowEvent(const SDL_Event& e) {
                 return true;
             }
             if (down && sc == SDL_SCANCODE_F12 && !e.key.repeat) screenshot_ = true;
+            // Ctrl+V pastes the clipboard into a text field (the online codes, 8.4).
+            if (down && sc == SDL_SCANCODE_V && (e.key.keysym.mod & KMOD_CTRL) && stack_.flow->frontend().wantsTextInput()) {
+                if (char* t = SDL_GetClipboardText()) {
+                    uiIn_.text(t);
+                    SDL_free(t);
+                }
+                return true;
+            }
             const int vk = scancodeToVk(sc);
             if (vk) {
                 // Autorepeat reaches the menus only (list scrolling, Backspace in a name).
@@ -918,6 +943,30 @@ void GameWindow::simulate(int steps) {
             in.mouseDy = -mouseRelY_;
             mouseRelX_ = mouseRelY_ = 0.0f;
         }
+#if AS3D_WITH_NET
+        const bool net = netPlaying();
+        if (net) {
+            // Online (6.2): every local device flies this side's player, whose record is held[0];
+            // the bot flies the host's player 1 or the guest's player 2 of the two-pilot bot.
+            if (o_.bot) {
+                const FrameInput b = botInputPlayers(cw, cw.frame());
+                in.held[0] = b.held[net_->status().host ? 0 : 1];
+                in.confirm = b.confirm;
+            } else {
+                in.held[0] |= in.held[1]; // the pads a two-player game would give player 2
+            }
+            in.held[1] = 0;
+            stack_.flow->resolveLocalInput(in);
+            FrameInput merged;
+            if (!net_->prepareStep(in, merged)) {
+                // A stall: nothing is stepped until the other side's input is there, and the
+                // wait is not replayed as a burst afterwards.
+                acc_ = std::min(acc_, dt_);
+                break;
+            }
+            in = merged;
+        }
+#endif
         recorder_.record(static_cast<u32>(frame_), in);
         // Each player's input as it changes, for the web tests of two players (not with the bot
         // or a script, which change it all the time).
@@ -929,7 +978,12 @@ void GameWindow::simulate(int steps) {
         }
         double t0 = nowSeconds();
         const int loads = stack_.flow ? stack_.flow->levelLoads() : 0;
+#if AS3D_WITH_NET
+        int ev = stack_.flow ? stack_.flow->step(in, net) : ses().step(in);
+        if (net) net_->afterStep();
+#else
         int ev = stack_.flow ? stack_.flow->step(in) : ses().step(in);
+#endif
         double ts = nowSeconds() - t0;
         if (isHitch(ts, stepAvg_)) AS3D_INFO("AS3D_HITCH part=step frame=%ld ms=%.0f", frame_, 1000.0 * ts);
         if (stack_.flow) {
@@ -954,9 +1008,93 @@ void GameWindow::simulate(int steps) {
                       static_cast<double>(w.mapPos()), w.paused() ? 1 : 0);
         }
         if (o_.screenshotEvery > 0 && frame_ % o_.screenshotEvery == 0) screenshot_ = true;
+#if AS3D_WITH_NET
+        if (net_ && o_.online != LoopOptions::Online::Off) {
+            // An online --frames run counts the frames under the lockstep, and ends once the
+            // other side has stepped as far (NetPlay::finish).
+            if (o_.frames >= 0 && net_->steppedFrames() >= o_.frames && !netFinishing_) {
+                netFinishing_ = true;
+                net_->finish();
+            }
+            continue;
+        }
+#endif
         if (o_.frames >= 0 && frame_ >= o_.frames) running_ = false;
     }
 }
+
+#if AS3D_WITH_NET
+bool GameWindow::netPlaying() const { return net_ && stack_.flow && net_->playing(); }
+
+// A session between levels (the level loads, the barrier, the guest waiting for the host's
+// start): the world is frozen.
+bool GameWindow::netHolds() const {
+    if (!net_ || !net_->active()) return false;
+    const ui::OnlinePhase p = net_->status().phase;
+    return p == ui::OnlinePhase::Loading || p == ui::OnlinePhase::Barrier || (p == ui::OnlinePhase::Playing && !net_->playing());
+}
+
+void GameWindow::makeNet() {
+    if (!stack_.flow || (!net::rtcTransportAvailable() && o_.online == LoopOptions::Online::Off)) return;
+    NetPlay::Options no;
+    no.stunServers = o_.stunServers;
+    no.anyBuild = o_.netAnyBuild;
+    no.hashFull = o_.netHashFull;
+    no.hashEvery = o_.netHashEvery > 0 ? o_.netHashEvery : net::kHashEvery;
+    no.seed = o_.netSeed;
+    no.faultFrame = o_.netFaultFrame;
+    no.codeOutPath = o_.netCodeOut;
+    no.inviteInPath = o_.netInviteIn;
+    no.replyInPath = o_.netReplyIn;
+    no.invite = o_.netInvite;
+    if (o_.online == LoopOptions::Online::Host) no.autoRole = NetPlay::Options::Role::Host;
+    if (o_.online == LoopOptions::Online::Join || !o_.netInvite.empty()) no.autoRole = NetPlay::Options::Role::Join;
+    no.autoLobby = o_.bot && o_.online != LoopOptions::Online::Off;
+    no.autoInitial.mission = std::max(game_.mission - 1, 0);
+    no.autoInitial.difficulty = game_.world.difficulty;
+    no.autoInitial.godMode = game_.world.godMode;
+    no.clipboardGet = o_.clipboardGet ? o_.clipboardGet : []() {
+        std::string s;
+        if (char* t = SDL_GetClipboardText()) {
+            s = t;
+            SDL_free(t);
+        }
+        return s;
+    };
+    no.clipboardSet = o_.clipboardSet ? o_.clipboardSet : [](const std::string& s) { SDL_SetClipboardText(s.c_str()); };
+    no.pageDialog = o_.onlinePageDialog;
+    no.showCode = o_.onlineShowCode;
+    no.askCode = o_.onlineAskCode;
+    net_.reset(new NetPlay(*stack_.session, *stack_.flow, no));
+    stack_.flow->setNetPlay(net_.get());
+    stack_.flow->frontend().setOnlineHost(net_.get());
+}
+
+void GameWindow::dropNet() {
+    if (!net_) return;
+    if (net_->active()) net_->endSession(net::ByeReason::Quit);
+    if (stack_.flow) {
+        stack_.flow->frontend().setOnlineHost(nullptr);
+        stack_.flow->setNetPlay(nullptr);
+    }
+    net_.reset();
+}
+
+void GameWindow::onlineCode(const std::string& code) {
+    if (net_) net_->pageCode(code);
+}
+
+void GameWindow::onlineDismiss() {
+    if (net_) net_->pageDismissed();
+}
+#else
+bool GameWindow::netPlaying() const { return false; }
+bool GameWindow::netHolds() const { return false; }
+void GameWindow::makeNet() {}
+void GameWindow::dropNet() {}
+void GameWindow::onlineCode(const std::string&) {}
+void GameWindow::onlineDismiss() {}
+#endif
 
 void GameWindow::saveScreenshot() {
     // Reads the back buffer before the swap.
@@ -1124,6 +1262,7 @@ bool GameWindow::startGame(std::string* err) {
         stack_.flow->frontend().setPadNavigation(padNavigation_);
         updatePlayerDevices();
         stack_.flow->setPlayerPads(&pads_);
+        makeNet();
         SDL_StopTextInput();
         textInput_ = false;
         stack_.flow->boot();
@@ -1161,6 +1300,7 @@ bool GameWindow::buildSelector(std::string* err, int preselected) {
 void GameWindow::openSelector() {
     if (stack_.active()) {
         if (o_.markers) AS3D_INFO("AS3D_GAME_CHANGE game=%s frame=%ld", profileGameKey(ses().game()), frame_);
+        dropNet();
         stack_.teardown();
     }
     keys_.releaseAll();
@@ -1354,6 +1494,27 @@ void GameWindow::frame() {
     }
     if (stack_.flow) {
         const int loads = stack_.flow->levelLoads();
+#if AS3D_WITH_NET
+        if (net_) {
+            net_->update(nowSeconds());
+            if (netFinishing_ && net_->finished() && !net_->desynced()) {
+                if (!o_.dumpPath.empty() && stack_.session->hasLevel() &&
+                    !writeTextFile(o_.dumpPath, ses().world().dumpStateJson()))
+                    std::fprintf(stderr, "as3d_game: cannot write %s\n", o_.dumpPath.c_str());
+                dumpWritten_ = true;
+                if (net_->active()) net_->endSession(net::ByeReason::Quit);
+                running_ = false;
+                return;
+            }
+            if (net_->takeEnded() && o_.online != LoopOptions::Online::Off) {
+                // A command-line session ended (the other side left, a desync, a failure).
+                if (o_.markers) AS3D_INFO("AS3D_NET session over frame=%ld", frame_);
+                dumpWritten_ = true; // the attract level is not the session's state
+                running_ = false;
+                return;
+            }
+        }
+#endif
         uiFrame();
         if (!running_) return;
         if (stack_.flow->changeGameRequested()) {
@@ -1387,6 +1548,15 @@ void GameWindow::frame() {
         acc_ -= dt_;
         ++steps;
     }
+#if AS3D_WITH_NET
+    if (netHolds()) {
+        // Online between levels: nothing is simulated before both sides are at frame 0 (4.3).
+        steps = 0;
+        acc_ = 0.0;
+    } else if (steps > 0 && netPlaying() && net_->throttle()) {
+        --steps; // pacing (4.1): this side runs ahead of the other
+    }
+#endif
     if (acc_ >= dt_) {
         perf_.dropped(static_cast<int>(acc_ / dt_));
         droppedNow_ += static_cast<int>(acc_ / dt_);
@@ -1585,12 +1755,13 @@ int GameWindow::finish() {
     if (!o_.recordPath.empty() && !recorder_.script().save(o_.recordPath))
         std::fprintf(stderr, "as3d_game: cannot write %s\n", o_.recordPath.c_str());
     const bool game = stack_.active();
-    if (game && !o_.dumpPath.empty() && !writeTextFile(o_.dumpPath, ses().world().dumpStateJson()))
+    if (game && !dumpWritten_ && !o_.dumpPath.empty() && !writeTextFile(o_.dumpPath, ses().world().dumpStateJson()))
         std::fprintf(stderr, "as3d_game: cannot write %s\n", o_.dumpPath.c_str());
     const int mission = game ? ses().mission() : 0;
     std::printf("quit after %ld frames (%ld rendered): mission %d, score %lld\n", frame_, rendered_, mission,
                 game ? ses().displayScore(0) : 0LL);
     if (o_.markers) AS3D_INFO("AS3D_GAME_END frames=%ld rendered=%ld mission=%d", frame_, rendered_, mission);
+    dropNet();
     stack_.teardown(); // saves the profile first
     selector_.reset();
     overlay_.reset();
@@ -1620,10 +1791,15 @@ void hostGlContextRestored() {
     if (g_current) g_current->glContextRestored();
 }
 
-// T4 (docs/spec/issues/180-online-coop.md 8.4): the window's NetPlay::pageCode, and the dialog
-// closed without a code.
-void hostOnlineCode(const std::string&) {}
-void hostOnlineDismiss() {}
+// Online co-op on the web (docs/spec/issues/180-online-coop.md 8.4): the window's
+// NetPlay::pageCode, and the dialog closed without a code.
+void hostOnlineCode(const std::string& code) {
+    if (g_current) g_current->onlineCode(code);
+}
+
+void hostOnlineDismiss() {
+    if (g_current) g_current->onlineDismiss();
+}
 
 #ifndef __EMSCRIPTEN__
 int runGameWindow(const LoopOptions& options) {

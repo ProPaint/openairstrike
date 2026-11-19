@@ -8,7 +8,8 @@
 // Arguments come from GameActivity.getArguments(), built from the launching intent's
 // extras: --bot, --menus, --level N, --frames N, --difficulty D, --no-audio,
 // --rebuild-on-resume, --game KEY (extra `game`: as3d, as2 or gulf), --allow-unfinished (extra
-// `allow_unfinished`). A game's files (paks, Settings.xml, logo, texts; the names of the game's
+// `allow_unfinished`), --net-any-build (extra `net_any_build`), --stun LIST (extra `stun`;
+// online co-op, docs/spec/issues/180-online-coop.md 2.3, 3). A game's files (paks, Settings.xml, logo, texts; the names of the game's
 // profile) are read from the APK's assets under assets/<key>/ (tools/android_build.sh,
 // AS3D_ANDROID_GAMES), or, for a game the player imported (the data-free build: ImportActivity,
 // apps/game/android_import.cpp), from the app's files under games/<key>/. Bundled assets win
@@ -153,6 +154,21 @@ int main(int argc, char* argv[]) {
         } else if (!std::strcmp(s, "--frames") && v) {
             long f = std::strtol(v, nullptr, 10);
             if (f > 0) o.frames = f;
+            ++i;
+        } else if (!std::strcmp(s, "--net-any-build")) {
+            o.netAnyBuild = true;
+        } else if (!std::strcmp(s, "--stun") && v) {
+            // Comma-separated "stun:host:port", or "none" (the transport skips empty items).
+            std::string cur;
+            for (const char* c = v;; ++c) {
+                if (*c == ',' || *c == 0) {
+                    if (!cur.empty()) o.stunServers.push_back(cur);
+                    cur.clear();
+                    if (*c == 0) break;
+                } else {
+                    cur += *c;
+                }
+            }
             ++i;
         } else {
             AS3D_WARN("unknown argument '%s' ignored", s);

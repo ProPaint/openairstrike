@@ -18,6 +18,13 @@
 //                               game", which saves and hands back to the page's start screen
 //                               (docs/spec/issues/163: on the web the page, not the engine, chooses
 //                               the game, so that only the chosen game's data is downloaded)
+//   --join CODE                 online co-op (docs/spec/issues/180-online-coop.md 8.4): the
+//                               invite of ?join=; the game joins it once the main menu is up
+//   --stun LIST                 ?stun=: comma-separated "stun:host:port", or "none"
+//   --net-any-build             ?netanybuild=1: a different build of the other side only warns
+//   --simmath                   ?simmath=1: logs AS3D_SIMMATH hash=H (the sim_math known answers)
+//   --dump-state                ?dumpstate=1: at the end of the run the world's state dump is
+//                               printed as one line "AS3D_DUMP_STATE b64=<base64 of the JSON>"
 //
 // Calls from the page (exported, see site/app.js):
 //   as3d_web_set_insets(l, t, r, b)  safe-area insets in framebuffer pixels
@@ -31,12 +38,19 @@
 //   as3d_banner_begin(canvas, paks), as3d_banner_frame(i), as3d_banner_end()
 //                                    the selector card's banner from the player's paks, before
 //                                    a game is chosen (docs/web.md): see below
+//   as3d_web_online_code(text)       online co-op: the code pasted into the page's dialog (the
+//                                    host's: the reply; the guest's: the invite)
+//   as3d_web_online_dismiss()        the dialog was closed without a code
 // Calls to the page: window.as3dPage.{onScreen, onLayout, onTouchMode, onFirstFrame,
-// onFinished, onProfileSaved, onChangeGame}.
+// onFinished, onProfileSaved, onChangeGame, onOnlineCode(kind, code), onOnlineAskCode(kind)}
+// (online: kind "invite" or "reply"; onOnlineCode shows this side's code to copy,
+// onOnlineAskCode opens the paste field for the other side's).
 #include <GLES3/gl3.h>
 #include <SDL.h>
 #include <emscripten.h>
 #include <emscripten/html5.h>
+
+#include "as3d/sim_math.h"
 
 #include <cmath>
 #include <cstdio>
@@ -133,6 +147,10 @@ EMSCRIPTEN_KEEPALIVE void as3d_web_back() {
 }
 
 EMSCRIPTEN_KEEPALIVE void as3d_web_context_lost(){ as3d_game::hostGlContextLost(); }
+
+// Online co-op (docs/spec/issues/180-online-coop.md 8.4): the page's dialog.
+EMSCRIPTEN_KEEPALIVE void as3d_web_online_code(const char* text) { as3d_game::hostOnlineCode(text ? text : ""); }
+EMSCRIPTEN_KEEPALIVE void as3d_web_online_dismiss() { as3d_game::hostOnlineDismiss(); }
 
 EMSCRIPTEN_KEEPALIVE void as3d_web_context_restored() {
     // Emscripten enables the WebGL extensions once per context; a restored context has lost them.
@@ -302,6 +320,46 @@ void callPage(const char* what) {
     EM_ASM({ if (window.as3dPage && window.as3dPage[UTF8ToString($0)]) window.as3dPage[UTF8ToString($0)](); }, what);
 }
 
+std::vector<std::string> splitList(const char* v) {
+    std::vector<std::string> out;
+    std::string cur;
+    for (const char* c = v;; ++c) {
+        if (*c == ',' || *c == 0) {
+            if (!cur.empty()) out.push_back(cur);
+            cur.clear();
+            if (*c == 0) break;
+        } else if (*c != ' ') {
+            cur += *c;
+        }
+    }
+    return out;
+}
+
+std::string base64(const std::string& in) {
+    static const char kB64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string out;
+    size_t i = 0;
+    for (; i + 2 < in.size(); i += 3) {
+        const unsigned v = (static_cast<unsigned char>(in[i]) << 16) | (static_cast<unsigned char>(in[i + 1]) << 8) |
+                           static_cast<unsigned char>(in[i + 2]);
+        out += kB64[(v >> 18) & 63];
+        out += kB64[(v >> 12) & 63];
+        out += kB64[(v >> 6) & 63];
+        out += kB64[v & 63];
+    }
+    if (i < in.size()) {
+        unsigned v = static_cast<unsigned char>(in[i]) << 16;
+        if (i + 1 < in.size()) v |= static_cast<unsigned char>(in[i + 1]) << 8;
+        out += kB64[(v >> 18) & 63];
+        out += kB64[(v >> 12) & 63];
+        out += i + 1 < in.size() ? kB64[(v >> 6) & 63] : '=';
+        out += '=';
+    }
+    return out;
+}
+
+constexpr const char* kDumpPath = "/tmp/as3d_dump_state.json";
+
 } // namespace
 
 int main(int argc, char* argv[]) {
@@ -353,6 +411,18 @@ int main(int argc, char* argv[]) {
             long f = std::strtol(v, nullptr, 10);
             if (f > 0) o.frames = f;
             ++i;
+        } else if (!std::strcmp(s, "--join") && v) {
+            o.netInvite = v;
+            ++i;
+        } else if (!std::strcmp(s, "--stun") && v) {
+            o.stunServers = splitList(v);
+            ++i;
+        } else if (!std::strcmp(s, "--net-any-build")) {
+            o.netAnyBuild = true;
+        } else if (!std::strcmp(s, "--simmath")) {
+            AS3D_INFO("AS3D_SIMMATH hash=%016llx", static_cast<unsigned long long>(as3d::simMathCheckHash()));
+        } else if (!std::strcmp(s, "--dump-state")) {
+            o.dumpPath = kDumpPath;
         } else {
             AS3D_WARN("unknown argument '%s' ignored", s);
         }
@@ -384,7 +454,37 @@ int main(int argc, char* argv[]) {
     };
     o.touchModeChanged = [](bool on) { EM_ASM({ if (window.as3dPage) window.as3dPage.onTouchMode(!!$0); }, on ? 1 : 0); };
     o.firstFrame = [] { callPage("onFirstFrame"); };
-    o.finished = [](int) { callPage("onFinished"); };
+    const bool dumpState = !o.dumpPath.empty();
+    o.finished = [dumpState](int) {
+        if (dumpState) {
+            // ?dumpstate=1: the state dump as one console line (section 14 item 3).
+            std::string text;
+            if (std::FILE* f = std::fopen(kDumpPath, "rb")) {
+                char buf[4096];
+                size_t n;
+                while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) text.append(buf, n);
+                std::fclose(f);
+            }
+            std::printf("AS3D_DUMP_STATE b64=%s\n", base64(text).c_str());
+            std::fflush(stdout);
+        }
+        callPage("onFinished");
+    };
+    // Online co-op (docs/spec/issues/180-online-coop.md 8.4): the codes live in the page's
+    // dialog, not in the canvas.
+    o.onlinePageDialog = true;
+    o.onlineShowCode = [](const std::string& kind, const std::string& code) {
+        EM_ASM({ if (window.as3dPage && window.as3dPage.onOnlineCode) window.as3dPage.onOnlineCode(UTF8ToString($0), UTF8ToString($1)); },
+               kind.c_str(), code.c_str());
+    };
+    o.onlineAskCode = [](const std::string& kind) {
+        EM_ASM({ if (window.as3dPage && window.as3dPage.onOnlineAskCode) window.as3dPage.onOnlineAskCode(UTF8ToString($0)); },
+               kind.c_str());
+    };
+    if (!o.netInvite.empty() && direct) {
+        AS3D_WARN("?join= needs the menus; ignored with --level / --bot");
+        o.netInvite.clear();
+    }
     if (!direct) {
         // The front end as on Android (docs/spec/issues/090, 130, 150): no video options; the
         // touch overlay's pause button opens the in-game menu. Two players (docs/web.md "Two

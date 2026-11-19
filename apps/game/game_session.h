@@ -89,6 +89,10 @@ struct LevelSetup {
     as3d::u32 seed = 0;
     int cameraOverride = -1;
     int godMode = -1;
+    // A new World object instead of re-initialising the one there: nothing of what ran before
+    // (the attract level under the lobby, the entity slots' generation counters it advanced)
+    // reaches the level, so both peers start it from the same state. Online starts set it.
+    bool freshWorld = false;
 };
 
 class GameSession {

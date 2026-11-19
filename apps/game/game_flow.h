@@ -26,6 +26,16 @@ namespace as3d_game {
 
 class NetPlay; // net_play.h (online co-op; not built on the 3DS nor with AS3D_WITH_NET=OFF)
 
+// A level start as the online session decides it (docs/spec/issues/180-online-coop.md 6.3,
+// 6.4): the host's MissionStart and the StartMission values the session applies on both sides
+// (LevelSetup seed, cameraOverride, godMode).
+struct NetLevelStart {
+    as3d::ui::MissionStart start;
+    as3d::u32 seed = 0;
+    int camera = -1;
+    int godMode = -1;
+};
+
 struct FlowConfig {
     bool touch = false;               // front end in touch mode (Android)
     // Start Game may offer two players (the platform's gate; the game has its own, and the window
@@ -114,6 +124,9 @@ public:
     void setNetPlay(NetPlay* net) { net_ = net; }
     NetPlay* netPlay() const { return net_; }
     bool online() const;
+    // The guest's level start waits for the host's StartMission (6.4): NetPlay calls this once
+    // it arrived, and the start held pending runs (or, with deferLoads, is queued).
+    void pollNetStart();
     // World, HUD, front end, brightness into the bound framebuffer (needs setView).
     void draw(int width, int height);
     // A typed letter during play (the cheat codes, engine-behaviour.md 14): nothing while a
@@ -165,8 +178,9 @@ public:
     void clearPlayerActions() override;
     void settingsChanged(const as3d::Settings& settings) override;
     void saveProfile(const as3d::Profile& profile) override;
-    void quit() override { quit_ = true; }
-    void changeGame() override { changeGame_ = true; }
+    // Online, both end the session first (Bye).
+    void quit() override;
+    void changeGame() override;
     // "Change game" was chosen (the profile is saved): the window goes to the game selector.
     bool changeGameRequested() const { return changeGame_; }
     void gameOverMusic() override { audio_.gameOverMusic(); }
@@ -180,7 +194,9 @@ public:
 private:
     std::string lastSaveError_; // the last failed save, so the log has it once
     enum class PendingLoad { None, Mission, Attract };
-    void doStartMission(const as3d::ui::MissionStart& start);
+    // `net`: the online session's values for this start (seed, camera, god mode), or null.
+    void doStartMission(const as3d::ui::MissionStart& start, const NetLevelStart* net = nullptr);
+    void startNetLevel(const NetLevelStart& use);
     void doLoadAttract();
     void levelLoaded(bool intermission);
     void applySettings(const as3d::Settings& s);
@@ -205,6 +221,12 @@ private:
     int lastScreenSetting_ = 0;
     PendingLoad pending_ = PendingLoad::None;
     as3d::ui::MissionStart pendingStart_;
+    // Online: the pending deferred start's session values, and the guest's start that waits
+    // for the host's StartMission (pollNetStart).
+    bool pendingIsNet_ = false;
+    NetLevelStart pendingNet_;
+    bool netStartWaiting_ = false;
+    as3d::ui::MissionStart netWaitingStart_;
 };
 
 // The player's helicopter centre in the virtual 800x600 screen (y down), from its collision

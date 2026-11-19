@@ -1,6 +1,6 @@
 # 180: Online two-player co-op (peer to peer)
 
-Status: specified, not implemented (2026-11-19). Ours; the originals had no network play. Affects
+Status: specified (2026-11-19); T0 to T5 landed, the game integration (T4) on 2026-11-20. Ours; the originals had no network play. Affects
 a new engine module `engine/src/net/` (`as3d/net_*.h`), `as3d/sim_math.h` and the simulation
 sources it replaces libm calls in (`engine/src/game`, `engine/src/script`, `engine/src/core`,
 `as3d/math.h`), `as3d/world.h` (`stateHash`), `as3d/frontend.h` + `engine/src/ui/screens_online.cpp`
@@ -1093,6 +1093,58 @@ Where the code differs from the sections above, the headers win:
   * `apps/net_tool` (`as3d_net_tool pair|host|join`), and a raw-SDP path for it only
     (`engine/src/net/rtc/transport_rtc_raw.h`, `--raw-sdp`). The rtc code is reached only through
     `makeRtcTransport`: until T4 calls it, the game binaries link none of it.
+* **T4 (game integration; what T5, T6 and the final test rely on):**
+  * `NetLevelStart` lives in `apps/game/game_flow.h` (the 3DS and OFF builds compile GameFlow
+    without `net_play.h`); every `net_->` call in `game_flow.cpp` and `game_loop.cpp` is under
+    `#if AS3D_WITH_NET`. `GameFlow::pollNetStart()` runs the guest's start held pending once the
+    host's `StartMission` arrived; `GameFlow::levelLoaded` sends `Ready` (`NetPlay::levelLoaded`).
+  * **Online level starts build a new `World`** (`LevelSetup::freshWorld`): `World::init` keeps the
+    entity slots' generation counters, which the attract level under the lobby advanced by a
+    different amount on each side, so the dumps (and `stateHashFull`) of two peers differed in the
+    `gen` and reference fields although they simulated alike.
+  * Pause (6.3): `setPaused(true)` while a hint box or a level end owns the pause is not this
+    player's pause and sets no bit; the sequels' start-dialogue pause no longer pauses the world
+    directly online (`levelLoaded`), it goes through the records like any other. The new level's
+    start clears the local pause and confirm. The merged confirm closes the hint box in
+    `GameFlow::step(in, true)` with `World::dismissHint` + `Frontend::onlineHintConfirmed` (the
+    box's own OK only calls `requestConfirm`). The bot's hint OK (`FrameInput::confirm`) also
+    becomes `kConfirm`.
+  * Every local device flies the local player online: `held[0] | held[1]` of the local input
+    (pads a two-player level would give player 2) becomes the record; the bot gives the host
+    `botInputPlayers(world, world.frame()).held[0]`, the guest `.held[1]`.
+  * The host's Quit sends `Bye` only (no `FlowChoice(Quit)`); the guest shows "The other player
+    left" from the `Bye`. A guest receiving `FlowChoice` Next / Restart / Continue stops its
+    lockstep at once (phase `Loading`), so the tail of the old level may differ in length between
+    the sides; nothing of it survives the fresh world.
+  * Input delay: 4.1's formula on the median of the last five round trips, **plus one frame when
+    those five spread over more than 16.7 ms** (a jittery link); no extra frame otherwise. The
+    bot lobby (`--bot`) starts only after three pongs, so the delay comes from a measured ping.
+  * Silence: `lastHeard` counts any ctl message or Inputs packet; it is moved to "now" after this
+    side's own level load. "Connection lost..." (`OnlineStatus::losing`) after 3 s of silence.
+  * A transport kept 1.5 s after the end (`Bye`, `Desync`) so that the last message leaves before
+    the connection closes.
+  * `--frames N` online counts frames simulated under the lockstep (all levels); at N the side
+    sends a `Hash` of its last frame (if that frame was not hashed anyway) and waits for the other
+    side's hash of a frame at least as far (or 15 s), then writes `--dump-state` and ends with
+    `Bye(Quit)`; exit 0. A desync is a clean end too (exit 0); any other end before N exits 1.
+  * Command line (`main.cpp`): `--online host|join`, `--invite CODE` / `--join CODE`,
+    `--invite-in FILE`, `--reply-in FILE`, `--code-out FILE` (written through a rename),
+    `--stun LIST|none` (and `AS3D_STUN`), `--net-any-build` (and `AS3D_NET_ANY_BUILD=1`),
+    `--net-hash-full`, `--net-hash-every N`, `--net-fault-frame F` (the F-th online frame,
+    0-based, on this side), `--seed S` (the host's level seed; random without), `--markers` (the
+    AS3D_* lines of a windowed run). `--online` forces the front end; the session starts by itself
+    once the main menu is up and opens the Online and code screens as a player would. With
+    `--headless` the run has no window and no GL (a 60 Hz wall clock; `AS3D_LEVEL_LOADED` and,
+    with `--markers`, `AS3D_GAME_FRAME` every 600 online frames).
+  * Web (`web_main.cpp`): `--join CODE`, `--stun LIST`, `--net-any-build`, `--simmath` (logs
+    `AS3D_SIMMATH hash=%016llx` at start), `--dump-state` (at the end of the run one line
+    `AS3D_DUMP_STATE b64=<base64 of the JSON>` on stdout, the console). Exports
+    `as3d_web_online_code(const char* text)` and `as3d_web_online_dismiss()`; calls
+    `window.as3dPage.onOnlineCode(kind, code)` (host: "invite" when its code is ready; guest:
+    "reply"; again on Copy) and `window.as3dPage.onOnlineAskCode(kind)` (host: "reply" right after
+    its invite; guest: "invite" when the join screen opens with no code). Dismiss only goes back
+    from the guest's empty join screen. `?join=` (as `--join`) needs the menus.
+  * Android: extras `net_any_build` (boolean) and `stun` (string) through `GameActivity.java`.
 
 ### T1: Protocol, codes and the lockstep core (Opus)
 
@@ -1371,3 +1423,5 @@ Open questions (with the recommendation):
 Version 1 (2026-11-19): the specification and the work breakdown.
 Version 1.1 (2026-11-19): T0 landed the headers and stubs; "T0 notes" under T0 list where they
 refine the sections above.
+Version 1.2 (2026-11-20): T4 landed the game integration; "T4" notes under T0 list where it refines
+sections 6 and 8.4.

@@ -131,6 +131,7 @@ struct LoopOptions {
     bool netHashFull = false;                // --net-hash-full
     int netHashEvery = 0;                    // --net-hash-every N (0: as3d::net::kHashEvery)
     long netFaultFrame = -1;                 // --net-fault-frame F (section 14 item 2)
+    as3d::u32 netSeed = 0;                   // --seed with --online: the host's level seed (0: random)
     std::string netInvite;                   // --invite CODE / --join CODE (the web's ?join=)
     std::string netInviteIn;                 // --invite-in FILE (read once it exists)
     std::string netReplyIn;                  // --reply-in FILE (read once it exists)

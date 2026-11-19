@@ -7,6 +7,9 @@
 
 #include "as3d/defs.h"
 #include "as3d/platform.h"
+#if AS3D_WITH_NET
+#include "net_play.h"
+#endif
 
 namespace as3d_game {
 
@@ -206,14 +209,34 @@ void GameFlow::levelLoaded(bool intermission) {
     std::string err;
     if (view_ && !view_->beginLevel(session_, &err)) AS3D_ERROR("renderer: %s", err.c_str());
     // A level the front end holds paused from its start (the sequels' start dialogue, whose
-    // pause may have been asked for before a deferred load ran).
-    if (fe_ && fe_->sequel() && fe_->paused() && session_.hasLevel()) session_.world().setPaused(true);
+    // pause may have been asked for before a deferred load ran). Online the pause goes through
+    // both peers' records instead (6.3), so that it starts at the same frame on both.
+    if (fe_ && fe_->sequel() && fe_->paused() && session_.hasLevel() && !online()) session_.world().setPaused(true);
     if (loadingHook) loadingHook(1.0f, intermission);
     if (levelLoadedHook) levelLoadedHook();
     audio_.startLevel(session_.musicPath());
+#if AS3D_WITH_NET
+    // The barrier (4.3): this side is at frame 0 of the level.
+    if (!intermission && online()) net_->levelLoaded();
+#endif
 }
 
 void GameFlow::startMission(const ui::MissionStart& ms) {
+#if AS3D_WITH_NET
+    if (online()) {
+        // The host's StartMission decides the start on both sides (6.3, 6.4); the guest's own
+        // start waits for it.
+        NetLevelStart use;
+        if (!net_->interceptStartMission(ms, use)) {
+            netStartWaiting_ = true;
+            netWaitingStart_ = ms;
+            return;
+        }
+        netStartWaiting_ = false;
+        startNetLevel(use);
+        return;
+    }
+#endif
     if (config_.deferLoads) {
         pending_ = PendingLoad::Mission;
         pendingStart_ = ms;
@@ -222,7 +245,29 @@ void GameFlow::startMission(const ui::MissionStart& ms) {
     doStartMission(ms);
 }
 
+void GameFlow::startNetLevel(const NetLevelStart& use) {
+    if (config_.deferLoads) {
+        pending_ = PendingLoad::Mission;
+        pendingStart_ = use.start;
+        pendingIsNet_ = true;
+        pendingNet_ = use;
+        return;
+    }
+    doStartMission(use.start, &use);
+}
+
+void GameFlow::pollNetStart() {
+#if AS3D_WITH_NET
+    if (!netStartWaiting_ || !online()) return;
+    NetLevelStart use;
+    if (!net_->interceptStartMission(netWaitingStart_, use)) return;
+    netStartWaiting_ = false;
+    startNetLevel(use);
+#endif
+}
+
 void GameFlow::loadAttract() {
+    netStartWaiting_ = false;
     if (config_.deferLoads) {
         pending_ = PendingLoad::Attract;
         return;
@@ -233,11 +278,13 @@ void GameFlow::loadAttract() {
 void GameFlow::runPendingLoad() {
     const PendingLoad p = pending_;
     pending_ = PendingLoad::None;
-    if (p == PendingLoad::Mission) doStartMission(pendingStart_);
+    const bool net = pendingIsNet_;
+    pendingIsNet_ = false;
+    if (p == PendingLoad::Mission) doStartMission(pendingStart_, net ? &pendingNet_ : nullptr);
     else if (p == PendingLoad::Attract) doLoadAttract();
 }
 
-void GameFlow::doStartMission(const ui::MissionStart& ms) {
+void GameFlow::doStartMission(const ui::MissionStart& ms, const NetLevelStart* net) {
     if (loadingHook) loadingHook(0.1f, false);
     LevelSetup s;
     s.mission = ms.mission + 1;
@@ -249,6 +296,12 @@ void GameFlow::doStartMission(const ui::MissionStart& ms) {
         s.banked[p] = ms.banked[p];
     }
     s.camera = profile_.settings.camera;
+    if (net) {
+        s.seed = net->seed;
+        s.cameraOverride = net->camera;
+        s.godMode = net->godMode;
+        s.freshWorld = true;
+    }
     // "Next" in a game whose upgrades carry over (as2 engine-behaviour.delta.md 8.2): the
     // session starts the level with them instead of the mission's loadout; a new game and a
     // Restart get the loadout.
@@ -280,20 +333,37 @@ void GameFlow::doLoadAttract() {
 void GameFlow::setPaused(bool paused) {
     if (!session_.hasLevel()) return;
     World& w = session_.world();
+#if AS3D_WITH_NET
+    if (online()) {
+        // The pause is a held bit of this peer's records and the hint box's OK a confirm bit
+        // (6.3): the world changes at the same frame on both sides. A hint box or a level end
+        // owns the pause by itself (their pause asks are not this player's).
+        if (paused) {
+            if (!w.hintShowing() && !w.levelComplete() && !w.gameOver()) net_->localPause(true);
+        } else if (w.hintShowing()) {
+            net_->requestConfirm();
+        } else {
+            net_->localPause(false);
+        }
+        return;
+    }
+#endif
     // Closing the hint box releases the world's hint pause.
     if (!paused && w.hintShowing()) w.dismissHint();
     else w.setPaused(paused);
 }
 
 void GameFlow::clearPlayerActions() {
-    if (!session_.hasLevel()) return;
+    // Online the merged pause edge clears them, on both sides at the same frame (6.3).
+    if (!session_.hasLevel() || online()) return;
     for (int p = 0; p < kMaxPlayers; ++p) session_.world().player(p).action = 0.0f;
 }
 
 void GameFlow::applySettings(const Settings& s) {
     audio_.setVolumes(s.sfxVolume, s.musicVolume);
     if (keysHook_) keysHook_(s);
-    if (session_.hasLevel()) session_.world().camera().mode = std::min(std::max(s.camera, 0), 3);
+    // Online the camera is the host's (StartMission::camera; 6.3).
+    if (session_.hasLevel() && !online()) session_.world().camera().mode = std::min(std::max(s.camera, 0), 3);
 }
 
 void GameFlow::settingsChanged(const Settings& s) {
@@ -396,8 +466,27 @@ void GameFlow::resolveLocalInput(FrameInput& in) const {
     }
 }
 
-// T4 (docs/spec/issues/180-online-coop.md 6.3): net_ && net_->active().
-bool GameFlow::online() const { return false; }
+bool GameFlow::online() const {
+#if AS3D_WITH_NET
+    return net_ && net_->active();
+#else
+    return false;
+#endif
+}
+
+void GameFlow::quit() {
+#if AS3D_WITH_NET
+    if (online()) net_->endSession(net::ByeReason::Quit);
+#endif
+    quit_ = true;
+}
+
+void GameFlow::changeGame() {
+#if AS3D_WITH_NET
+    if (online()) net_->endSession(net::ByeReason::Quit);
+#endif
+    changeGame_ = true;
+}
 
 int GameFlow::step(const FrameInput& input, bool fromNet) {
     if (!worldRunning()) return 0;
@@ -405,7 +494,15 @@ int GameFlow::step(const FrameInput& input, bool fromNet) {
     if (!fromNet) in.pausePressed = false;
     const bool confirm = in.confirm;
     in.confirm = false;
-    if (confirm && fe_->menuOpen() && fe_->topScreen() == Screen::Hint) {
+    if (fromNet) {
+        // Online: the merged confirm closes the hint box on both sides at this frame (the box's
+        // own OK only asked for it, OnlineHost::requestConfirm).
+        if (confirm && session_.world().hintShowing()) {
+            session_.world().dismissHint();
+            fe_->onlineHintConfirmed();
+            playUiSounds();
+        }
+    } else if (confirm && fe_->menuOpen() && fe_->topScreen() == Screen::Hint) {
         fe_->update(0.0f, ui::UiInput().key(ui::keys::Enter));
         playUiSounds();
     }
@@ -425,7 +522,8 @@ int GameFlow::step(const FrameInput& input, bool fromNet) {
 }
 
 void GameFlow::typed(char c) {
-    if (!playing()) return;
+    // No cheats online (they would desync; the god mode is the host's lobby choice).
+    if (!playing() || online()) return;
     const char* key = nullptr;
     const Cheat cheat = session_.typeCheat(c, &key);
     if (cheat == Cheat::None) return;

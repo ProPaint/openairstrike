@@ -40,6 +40,8 @@ import org.libsdl.app.SDLActivity;
  *                      more than one playable game (bundled in the APK or imported by
  *                      ImportActivity, the launcher entry)
  *   allow_unfinished (boolean)  start a game that is not playable yet (development only)
+ *   net_any_build (boolean)     online co-op: a different build of the other side only warns
+ *   stun (string)      online co-op: comma-separated "stun:host:port" servers, or "none"
  */
 public class GameActivity extends SDLActivity {
     private static final String TAG = "AS3D";
@@ -62,6 +64,12 @@ public class GameActivity extends SDLActivity {
             if (intent.getBooleanExtra("no_audio", false)) args.add("--no-audio");
             if (intent.getBooleanExtra("rebuild_on_resume", false)) args.add("--rebuild-on-resume");
             if (intent.getBooleanExtra("allow_unfinished", false)) args.add("--allow-unfinished");
+            if (intent.getBooleanExtra("net_any_build", false)) args.add("--net-any-build");
+            String stun = intent.getStringExtra("stun");
+            if (stun != null && stun.matches("[A-Za-z0-9:.,_-]{1,512}")) {
+                args.add("--stun");
+                args.add(stun);
+            }
             String game = intent.getStringExtra("game");
             if (game != null && game.matches("[a-z0-9]{1,16}")) {
                 args.add("--game");

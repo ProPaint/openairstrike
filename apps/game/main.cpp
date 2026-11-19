@@ -11,6 +11,9 @@
 //   as3d_game --headless --ui-script FILE [--frames N] [--size WxH] [--touch] ...
 //   as3d_game --headless --selector-shot FILE.png [--selector-games as3d,as2] [--size WxH] [--touch]
 //   as3d_game --import FILE_OR_DIR [--data ROOT]
+//   as3d_game --online host|join [--invite CODE | --join CODE] [--invite-in FILE] [--reply-in FILE]
+//             [--code-out FILE] [--stun LIST|none] [--net-any-build] [--net-hash-full]
+//             [--net-hash-every N] [--net-fault-frame F] [--seed S] [--markers] ...
 //
 // With the front end, no --game, no $AS3D_GAME and no --paks, the window opens on the game
 // selector when the data of more than one playable game is present (docs/spec/issues/163;
@@ -62,6 +65,22 @@
 // `--ui-script` runs the front end headless, fed by the pointer and key events of the script
 // (format in ui_script.h), with its `shot` screenshots; UI time is 1/60 s per frame.
 //
+// Online co-op (docs/spec/issues/180-online-coop.md 6, 14): `--online host` hosts a game as soon
+// as the main menu is up (the invite code is printed as an AS3D_NET line's length only, written
+// to --code-out FILE), `--online join` joins with --invite CODE (or --join CODE, the web's ?join=)
+// or the code in --invite-in FILE once it exists; the host reads the reply from --reply-in FILE
+// the same way. With --bot the lobby plays itself (the host's mission and difficulty from
+// --level / --difficulty, the guest readies, the host starts once three pings came back, and
+// chooses Next / Restart on the end screens) and the bot flies this side's player (the host
+// player 1, the guest player 2). --frames N then counts the frames simulated under the lockstep;
+// at N both sides wait for each other's last hash, write --dump-state and end. --headless runs
+// the same without a window (a 60 Hz wall clock). --stun: comma-separated "stun:host:port" or
+// "none" ($AS3D_STUN the same; the default is Google's and Cloudflare's public servers).
+// --net-any-build ($AS3D_NET_ANY_BUILD=1) lets two different builds play (a warning only);
+// --net-hash-full hashes the whole state dump, every --net-hash-every N frames (default 20);
+// --net-fault-frame F flips a bit of player 2's health at the F-th online frame on this side
+// (the desync test). --markers prints the AS3D_* lines of a windowed run.
+//
 // Keys without the front end: arrows move, Ctrl / left mouse fire, Shift / right mouse
 // missile, Space / middle mouse power-up, 1 / 2 / 3 cycle missiles / weapons / power-ups,
 // Return confirms a hint, P pauses, F12 saves a screenshot, Escape quits. With the front end
@@ -78,6 +97,8 @@
 #include <ctime>
 #include <memory>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include "as3d/gfx.h"
 #include "as3d/input.h"
@@ -88,6 +109,10 @@
 #include "as3d/game_import.h"
 #include "as3d/launcher.h"
 #include "as3d/load_stats.h"
+#if AS3D_WITH_NET
+#include "as3d/net_transport.h"
+#include "net_play.h"
+#endif
 #include "game_loop.h"
 #include "game_flow.h"
 #include "game_session.h"
@@ -133,6 +158,13 @@ struct Args {
     std::string marqueeDir;     // --selector-marquees: the web page's marquee frames go here
     SafeInsets insets; // --insets, for the selector shot
     GameData data; // where the chosen game's files are
+    // Online (see the top of this file).
+    LoopOptions::Online online = LoopOptions::Online::Off;
+    std::string invite, inviteIn, replyIn, codeOut;
+    std::vector<std::string> stun;
+    bool netAnyBuild = false, netHashFull = false, markers = false, seedGiven = false;
+    int netHashEvery = 0;
+    long netFaultFrame = -1;
 };
 
 int usage() {
@@ -152,6 +184,22 @@ int usage() {
                  "                      [--screen wide|4x3] [--insets L,T,R,B] [--selector-focus N] [--selector-time SECONDS]\n"
                  "       as3d_game --import FILE_OR_DIR [--data ROOT]  (a game's files, archive or installer into ROOT)\n");
     return 2;
+}
+
+// "a,b,c" -> {"a", "b", "c"} (empty items dropped).
+std::vector<std::string> splitList(const char* v) {
+    std::vector<std::string> out;
+    std::string cur;
+    for (const char* c = v;; ++c) {
+        if (*c == ',' || *c == 0) {
+            if (!cur.empty()) out.push_back(cur);
+            cur.clear();
+            if (*c == 0) break;
+        } else if (*c != ' ') {
+            cur += *c;
+        }
+    }
+    return out;
 }
 
 bool parseArgs(int argc, char** argv, Args& a) {
@@ -199,7 +247,28 @@ bool parseArgs(int argc, char** argv, Args& a) {
         }
         else if (s == "--dpi" && next()) a.dpi = static_cast<float>(std::atof(v));
         else if (s == "--difficulty" && next()) a.game.world.difficulty = std::atoi(v);
-        else if (s == "--seed" && next()) a.game.world.seed = static_cast<u32>(std::strtoul(v, nullptr, 10));
+        else if (s == "--seed" && next()) {
+            a.game.world.seed = static_cast<u32>(std::strtoul(v, nullptr, 10));
+            a.seedGiven = true;
+        }
+        else if (s == "--online" && next()) {
+            if (!std::strcmp(v, "host")) a.online = LoopOptions::Online::Host;
+            else if (!std::strcmp(v, "join")) a.online = LoopOptions::Online::Join;
+            else return false;
+        }
+        else if ((s == "--invite" || s == "--join") && next()) {
+            a.invite = v;
+            if (a.online == LoopOptions::Online::Off) a.online = LoopOptions::Online::Join;
+        }
+        else if (s == "--invite-in" && next()) a.inviteIn = v;
+        else if (s == "--reply-in" && next()) a.replyIn = v;
+        else if (s == "--code-out" && next()) a.codeOut = v;
+        else if (s == "--stun" && next()) a.stun = splitList(v);
+        else if (s == "--net-any-build") a.netAnyBuild = true;
+        else if (s == "--net-hash-full") a.netHashFull = true;
+        else if (s == "--net-hash-every" && next()) a.netHashEvery = std::atoi(v);
+        else if (s == "--net-fault-frame" && next()) a.netFaultFrame = std::strtol(v, nullptr, 10);
+        else if (s == "--markers") a.markers = true;
         else if (s == "--data" && next()) a.game.dataRoot = v;
         else if (s == "--game" && next()) a.gameKey = v;
         else if (s == "--list-games") a.listGames = true;
@@ -237,6 +306,10 @@ bool parseArgs(int argc, char** argv, Args& a) {
         }
         else return false;
     }
+    if (a.stun.empty())
+        if (const char* env = std::getenv("AS3D_STUN"); env && *env) a.stun = splitList(env);
+    if (const char* env = std::getenv("AS3D_NET_ANY_BUILD"); env && !std::strcmp(env, "1")) a.netAnyBuild = true;
+    if (a.netHashEvery < 0 || a.netHashEvery > 100000) return false;
     if (a.game.dataRoot.empty()) {
         const char* env = std::getenv("AS3D_DATA_ROOT");
         a.game.dataRoot = env && *env ? env : ".";
@@ -260,7 +333,7 @@ bool parseArgs(int argc, char** argv, Args& a) {
     }
     if (a.width < 16 || a.height < 16 || a.width > 8192 || a.height > 8192) return false;
     if (a.frames > 100'000'000 || a.screenshotEvery < 0) return false;
-    if (a.headless && a.frames < 0 && a.uiScript.empty()) return false;
+    if (a.headless && a.frames < 0 && a.uiScript.empty() && a.online == LoopOptions::Online::Off) return false;
     if (a.attract < 0 || a.attract > a.game.rules().attractCount) return false;
     return true;
 }
@@ -862,6 +935,158 @@ int runHeadlessFlow(const Args& a, const FlowConfig& fc, GameSession& session, c
     return 0;
 }
 
+#if AS3D_WITH_NET
+// --headless --online: the game behind its front end with an online session, no window: the
+// lobby and the level flow as the window runs them (NetPlay::Options::autoRole, autoLobby with
+// --bot), the steps on a 60 Hz wall clock (both sides run in real time, as the lockstep expects).
+// Exit 0 once --frames online frames were simulated on both sides (or the session ended with a
+// desync: a clean end), 1 when it failed or the other side left first.
+NetPlay::Options netOptions(const Args& a) {
+    NetPlay::Options no;
+    no.stunServers = a.stun;
+    no.anyBuild = a.netAnyBuild;
+    no.hashFull = a.netHashFull;
+    no.hashEvery = a.netHashEvery > 0 ? a.netHashEvery : net::kHashEvery;
+    no.seed = a.seedGiven ? a.game.world.seed : 0;
+    no.faultFrame = a.netFaultFrame;
+    no.codeOutPath = a.codeOut;
+    no.inviteInPath = a.inviteIn;
+    no.replyInPath = a.replyIn;
+    no.invite = a.invite;
+    no.autoRole = a.online == LoopOptions::Online::Host ? NetPlay::Options::Role::Host : NetPlay::Options::Role::Join;
+    no.autoLobby = a.bot;
+    no.autoInitial.mission = std::max(a.game.mission - 1, 0);
+    no.autoInitial.difficulty = a.game.world.difficulty;
+    no.autoInitial.godMode = a.game.world.godMode;
+    return no;
+}
+
+int runHeadlessOnline(const Args& a, FlowConfig fc, GameSession& session) {
+    using Clock = std::chrono::steady_clock;
+    const Clock::time_point t0 = Clock::now();
+    auto seconds = [&]() { return std::chrono::duration<double>(Clock::now() - t0).count(); };
+    fc.showLogo = false; // no intro pages: the session starts at the main menu
+    AudioBridge audio;
+    if (!a.noAudio) audio.init(session.vfs(), true);
+    GameFlow flow(session, audio);
+    std::string err;
+    if (!flow.init(fc, &err)) {
+        std::fprintf(stderr, "as3d_game: %s\n", err.c_str());
+        return 1;
+    }
+    InputMapper keys; // bindings only
+    flow.setInputMapper(&keys);
+    NetPlay net(session, flow, netOptions(a));
+    flow.setNetPlay(&net);
+    flow.frontend().setOnlineHost(&net);
+    ConsoleStatus status(a.quiet);
+    flow.levelLoadedHook = [&]() {
+        status.update(session, GameSession::kLevelStarted);
+        AS3D_INFO("AS3D_LEVEL_LOADED mission=%d", session.mission());
+    };
+    flow.boot();
+    const double dt = 1.0 / 60.0;
+    double last = seconds(), acc = 0.0;
+    bool finishing = false, connected = false, done = false;
+    int rc = 1;
+    while (!done) {
+        const double now = seconds();
+        const int loads = flow.levelLoads();
+        net.update(now);
+        if (net.status().phase >= ui::OnlinePhase::Lobby && net.active()) connected = true;
+        if (finishing && net.finished() && !net.desynced()) {
+            if (!a.dumpPath.empty() && session.hasLevel() && !writeTextFile(a.dumpPath, session.world().dumpStateJson())) {
+                std::fprintf(stderr, "as3d_game: cannot write %s\n", a.dumpPath.c_str());
+                return 1;
+            }
+            if (net.active()) net.endSession(net::ByeReason::Quit);
+            rc = 0;
+            // A moment for the Bye to leave.
+            for (int i = 0; i < 30; ++i) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                net.update(seconds());
+            }
+            break;
+        }
+        if (net.takeEnded()) {
+            rc = net.desynced() ? 0 : 1;
+            std::printf("online session ended: %s\n", net.status().message.empty() ? "(quiet)" : net.status().message.c_str());
+            break;
+        }
+        if (!connected && now > 180.0) {
+            std::fprintf(stderr, "as3d_game: no online session after 180 s\n");
+            return 1;
+        }
+        flow.uiFrame(static_cast<float>(dt), ui::UiInput());
+        if (flow.quitRequested()) break;
+        if (flow.levelLoads() != loads) last = seconds(); // a level load is not a frame time
+        acc += std::min(0.25, seconds() - last);
+        last = seconds();
+        int steps = 0;
+        while (acc >= dt && steps < 5) {
+            acc -= dt;
+            ++steps;
+        }
+        if (acc >= dt) acc = 0.0;
+        const ui::OnlinePhase ph = net.status().phase;
+        const bool hold = net.active() && (ph == ui::OnlinePhase::Loading || ph == ui::OnlinePhase::Barrier ||
+                                           (ph == ui::OnlinePhase::Playing && !net.playing()));
+        if (hold || finishing) {
+            steps = 0;
+        } else if (steps > 0 && net.playing() && net.throttle()) {
+            --steps;
+        }
+        for (int s = 0; s < steps; ++s) {
+            if (!flow.worldRunning()) break;
+            if (net.playing()) {
+                FrameInput in;
+                if (a.bot) {
+                    const FrameInput b = botInputPlayers(session.world(), session.world().frame());
+                    in.held[0] = b.held[net.status().host ? 0 : 1];
+                    in.confirm = b.confirm;
+                }
+                flow.resolveLocalInput(in);
+                FrameInput merged;
+                if (!net.prepareStep(in, merged)) {
+                    acc = std::min(acc, dt);
+                    break;
+                }
+                const int ev = flow.step(merged, true);
+                net.afterStep();
+                status.update(session, ev & ~GameSession::kLevelStarted);
+                if (a.markers && net.steppedFrames() % 600 == 0) {
+                    const World& w = session.world();
+                    AS3D_INFO("AS3D_GAME_FRAME n=%ld mission=%d score=%lld lives=%.0f map_pos=%.1f paused=%d", net.steppedFrames(),
+                              session.mission(), session.displayScore(0), static_cast<double>(w.player(0).lives),
+                              static_cast<double>(w.mapPos()), w.paused() ? 1 : 0);
+                }
+                if (a.frames >= 0 && net.steppedFrames() >= a.frames) {
+                    finishing = true;
+                    net.finish();
+                    break;
+                }
+            } else if (!net.active()) {
+                flow.step(FrameInput()); // the attract level under the menus
+            } else {
+                flow.step(FrameInput()); // the lobby: the attract level still runs
+            }
+            if (session.hasLevel()) audio.drain(session.world());
+        }
+        audio.pump(44100 / 60);
+        // The next frame: at most 1 ms early.
+        const double wait = dt - acc - (seconds() - last);
+        if (wait > 0.001) std::this_thread::sleep_for(std::chrono::microseconds(static_cast<long>((wait - 0.0005) * 1e6)));
+    }
+    flow.saveNow();
+    if (!a.quiet)
+        std::printf("done: %ld online frames, mission %d, score %lld, loads %d\n", net.steppedFrames(), session.mission(),
+                    session.hasLevel() ? session.displayScore(0) : 0LL, flow.levelLoads());
+    flow.frontend().setOnlineHost(nullptr);
+    flow.setNetPlay(nullptr);
+    return rc;
+}
+#endif
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -883,7 +1108,15 @@ int main(int argc, char** argv) {
         }
         haveScript = true;
     }
-    const bool frontend = a.headless ? !a.uiScript.empty() : !a.levelGiven && !a.bot && !haveScript;
+    const bool online = a.online != LoopOptions::Online::Off;
+#if !AS3D_WITH_NET
+    if (online) {
+        std::fprintf(stderr, "as3d_game: online play is not in this build\n");
+        return 2;
+    }
+#endif
+    // Online the front end always runs (the session lives in its menus).
+    const bool frontend = online || (a.headless ? !a.uiScript.empty() : !a.levelGiven && !a.bot && !haveScript);
     FlowConfig flowConfig;
     if (frontend) {
         flowConfig = desktopFlow(a, a.headless);
@@ -910,7 +1143,7 @@ int main(int argc, char** argv) {
         o.resizable = a.touch; // try other aspect ratios with the touch layout
         o.touch = a.touch;
         o.perfLog = a.perf;
-        o.markers = a.perf;
+        o.markers = a.perf || a.markers;
         o.frameMarkerEvery = a.perf ? 600 : 0;
         o.logTouches = a.perf;
         o.dpi = a.dpi;
@@ -920,7 +1153,20 @@ int main(int argc, char** argv) {
         o.stereoEyeOffset = a.stereoEyeOffset;
         o.stereoFocal = a.stereoFocal;
         o.dualScreen = a.dual;
-        if (frontend) planDesktopLauncher(a, o);
+        o.online = a.online;
+        o.stunServers = a.stun;
+        o.netAnyBuild = a.netAnyBuild;
+        o.netHashFull = a.netHashFull;
+        o.netHashEvery = a.netHashEvery;
+        o.netFaultFrame = a.netFaultFrame;
+        o.netInvite = a.invite;
+        o.netInviteIn = a.inviteIn;
+        o.netReplyIn = a.replyIn;
+        o.netCodeOut = a.codeOut;
+        o.netSeed = a.seedGiven ? a.game.world.seed : 0;
+        if (online) o.frameMarkerEvery = a.markers ? 600 : o.frameMarkerEvery;
+        // The game selector only without --online (the session is one game's).
+        if (frontend && !online) planDesktopLauncher(a, o);
         return runGameWindow(o);
     }
     GameSession session;
@@ -929,6 +1175,9 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "as3d_game: %s\n", err.c_str());
         return 1;
     }
+#if AS3D_WITH_NET
+    if (online) return runHeadlessOnline(a, flowConfig, session);
+#endif
     if (frontend) {
         UiScript ui;
         if (!ui.load(a.uiScript, &err)) {
