@@ -20,7 +20,7 @@ namespace as3d::ui {
 namespace {
 
 enum PlayersId { kBack = 1, kStart = 2 };
-constexpr float kPanelX[2] = {60, 410}, kPanelY = 165, kPanelW = 330, kPanelH = 250;
+constexpr float kPanelX[2] = {60, 410}, kPanelY = 165, kPanelW = 330, kPanelH = 230;
 constexpr float kRowH = 20;
 
 // The panel's lines before the pads (title, touch, keyboard) and the pad rows after them.
@@ -167,15 +167,17 @@ Menu Frontend::buildPlayers() {
             std::snprintf(label, sizeof label, "%s %d: ", texts_.get("players.gamepad").c_str(), pad.number);
             widgets::text(c, rect.x + 18, rect.y + 2, fit(label + pad.name, rect.w - 40), lit ? grey(1) : orange());
         }
-        // The hints on a panel of their own between Back and Start (the world behind is bright).
+        // The hints on a panel of their own under the players' panels, above Back and Start (the
+        // world behind is bright).
         const std::string second = texts_.get(touch_ ? "players.hint.tap" : "players.hint.click");
         const bool any = pads_->count() > 0;
-        widgets::panel(c, 190, 420, 420, any ? 42 : 24);
+        const float hy = kPanelY + kPanelH + 8;
+        widgets::panel(c, kPanelX[0], hy, kPanelX[1] + kPanelW - kPanelX[0], any ? 44 : 24);
         if (any) {
-            widgets::text(c, 400, 423, fit(texts_.get("players.hint.move"), 410), orange(), Align::Center);
-            widgets::text(c, 400, 441, fit(second, 410), orange(), Align::Center);
+            widgets::text(c, 400, hy + 3, fit(texts_.get("players.hint.move"), 670), orange(), Align::Center);
+            widgets::text(c, 400, hy + 22, fit(second, 670), orange(), Align::Center);
         } else {
-            widgets::text(c, 400, 423, fit(texts_.get("players.hint.none"), 410), orange(), Align::Center);
+            widgets::text(c, 400, hy + 3, fit(texts_.get("players.hint.none"), 670), orange(), Align::Center);
         }
     };
     return m;
