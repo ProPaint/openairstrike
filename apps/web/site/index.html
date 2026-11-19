@@ -9,6 +9,10 @@
        fps=1, god=1, noaudio=1, frames=N, difficulty=D
        maxlines=N           cap of the drawing buffer's shorter side (default 1080)
        dpr=X                device pixel ratio to use instead of the screen's
+       join=CODE            online co-op: join the invite code (the page removes it from the address)
+       stun=LIST            STUN servers, "stun:host:port" separated by commas, or "none"
+       netanybuild=1        let a different build of the other side play (a warning only)
+       simmath=1, dumpstate=1   determinism checks (tests): the math hash, the end state as a log line
        autostart=1          start without the Play button (no full screen, audio may wait
                             for the first key or tap)
      The page holds no game data: tools/web_build.sh either copies the owner's files into
@@ -94,6 +98,32 @@ if (location.pathname.indexOf('/airstrike/') === 0 && /[?&]autostart=1(&|$)/.tes
     <p id="warn" class="small warn" hidden></p>
   </div>
 </div>
+
+<dialog id="online" aria-labelledby="online-title">
+  <h2 id="online-title">Online co-op</h2>
+  <section id="online-own" hidden>
+    <p id="online-own-lead"></p>
+    <textarea id="online-code" readonly rows="6" spellcheck="false" autocomplete="off" aria-label="Your code"></textarea>
+    <div class="row">
+      <button id="online-copy" type="button" class="primary">Copy</button>
+      <button id="online-share" type="button" class="secondary" hidden>Share</button>
+      <button id="online-copylink" type="button" class="secondary" hidden>Copy join link</button>
+    </div>
+    <p class="small warn" id="online-warning">This code contains your network addresses (including your public IP address
+      when a STUN server finds it). Send it only to the person you play with.</p>
+  </section>
+  <section id="online-ask" hidden>
+    <p id="online-ask-lead"></p>
+    <textarea id="online-paste" rows="4" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
+      aria-label="The other player's code" placeholder="Paste the code here"></textarea>
+    <div class="row">
+      <button id="online-paste-btn" type="button" class="secondary">Paste</button>
+      <button id="online-continue" type="button" class="primary">Continue</button>
+    </div>
+  </section>
+  <p id="online-note" class="small" role="status"></p>
+  <div class="row"><button id="online-close" type="button" class="secondary">Close</button></div>
+</dialog>
 
 <div id="rotate" class="overlay" hidden>
   <div class="panel"><svg viewBox="0 0 48 48" class="rot" aria-hidden="true"><rect x="12" y="4" width="24" height="40" rx="4"/><path d="M6 30a18 18 0 0 0 12 14M42 18A18 18 0 0 0 30 4"/></svg>

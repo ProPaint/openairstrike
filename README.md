@@ -45,6 +45,9 @@ never be shared or published.
   stereoscopic 3D, the HUD and the menus on the touch screen, and the game's own font at
   readable sizes. One player; no keyboard, so no cheat codes. See `docs/3ds-port.md`.
 - The original cheat codes work on the desktop and the web (typed during play).
+- Online co-op: two players over the internet, in all three games, on the desktop, Android and
+  the web, with no server: the players swap two codes through any chat. See "Online co-op"
+  below.
 
 The detailed table is "Implementation status" in `docs/spec/README.md`.
 
@@ -162,6 +165,40 @@ The bring-your-own site contains no game data: on first start the page asks you 
 files of your own copy and keeps them in the browser's storage. `tools/web_build.sh bundled`
 copies your data into the site instead; never host that build publicly. Details in
 `docs/web.md`.
+
+### Online co-op
+
+Two players can fly the campaign together over the internet (or a local network) on the desktop,
+Android and the web, in any mix of the three, in AirStrike 3D, AirStrike 2 and Gulf Thunder.
+There is no server to run or to trust: the game connects the two machines directly, and the
+players introduce them to each other by sending two short codes through any chat.
+
+1. **Host**: Start Game, set Game mode to **Online**, Start, **Host a game**. The game makes an
+   *invite code* and shows it with a Copy button (on the web, in a dialog over the page). Send it
+   to the other player.
+2. **Guest**: Start Game, Game mode **Online**, Start, **Join a game**, paste the invite code,
+   Next. The game makes a *reply code*; send it back to the host. (On the web the host can send a
+   `?join=` link instead: opening it joins by itself, and the page shows the reply code.)
+3. **Host**: paste the reply code, Connect. The lobby opens: the host picks the mission and
+   difficulty, each player picks a helicopter, the guest presses Ready and the host Starts.
+
+Both machines run the same simulation and exchange only the players' inputs (lockstep), so a
+game needs the same game files and the same build on both sides; the game checks that and says
+what differs. The host's choices of the campaign (Next, Restart, Continue) are followed by the
+guest. The profile and saves of each player stay local.
+
+**Privacy.** A code holds the network addresses of the machine that made it, and, when the game
+asked a public STUN server (by default Google's and Cloudflare's), your public IP address.
+Send it only to the person you play with. Nothing else leaves your machine. To keep the STUN
+servers out of it, start the desktop game with `--stun none` (or `AS3D_STUN=none`), or the web
+page with `?stun=none`; then the two machines connect only when they can reach each other
+directly (the same network, a virtual LAN, or a port-forwarded address).
+
+**If it cannot connect** (the game says so after 20 seconds): most home routers work with the
+STUN servers. Two phones on mobile networks, or a strict corporate network, often do not. Try
+one of these: play on the same Wi-Fi; join the same virtual LAN with a tool such as Tailscale or
+ZeroTier (both players install it, and the codes then carry the virtual addresses); or forward
+a UDP port on the host's router to the host's machine. A code expires after ten minutes: make a fresh one for each try.
 
 ### Nintendo 3DS
 

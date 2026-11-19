@@ -25,11 +25,11 @@ def browser_rss_mb():
 class Browser:
     """One browser for a whole run (the machine allows one at a time)."""
 
-    def __init__(self, engine="chromium", gl="gpu", headless=True):
+    def __init__(self, engine="chromium", gl="gpu", headless=True, extra_flags=()):
         self.pw = sync_playwright().start()
         self.engine = engine
         if engine == "chromium":
-            flags = (GPU_FLAGS if gl == "gpu" else SWIFTSHADER_FLAGS) + ["--autoplay-policy=user-gesture-required"]
+            flags = (GPU_FLAGS if gl == "gpu" else SWIFTSHADER_FLAGS) + ["--autoplay-policy=user-gesture-required"] + list(extra_flags)
             self.browser = self.pw.chromium.launch(headless=headless, args=flags,
                                                    ignore_default_args=["--autoplay-policy=no-user-gesture-required"])
         else:

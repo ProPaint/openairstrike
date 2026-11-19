@@ -256,3 +256,45 @@ body.fullscreen #fs-toggle .leave { display: inline; }
   z-index: 5; color: var(--muted); font-size: 13px; text-decoration: none; opacity: .75; }
 .desk-link:hover, .desk-link:focus-visible { opacity: 1; text-decoration: underline; }
 .desk-link[hidden] { display: none; }
+
+/* Online co-op: the dialog for the codes (docs/spec/issues/180-online-coop.md 8.4). */
+#online {
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 14px 18px;
+  color: var(--text);
+  background: #14110f;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-align: center;
+  z-index: 30;
+}
+#online::backdrop { background: rgba(0, 0, 0, 0.6); }
+#online h2 { margin: 0 0 8px; font-size: 20px; }
+#online p { margin: 6px 0; }
+#online textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font: 13px/1.35 ui-monospace, Menlo, Consolas, monospace;
+  color: var(--text);
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  resize: none;
+  word-break: break-all;
+}
+#online .row { margin: 10px 0 4px; }
+#online button.primary { color: var(--accent-text); background: var(--accent); border: none; font-weight: 700; }
+#online-note:empty { display: none; }
+@media (max-height: 480px) {
+  #online { padding: 8px 12px; }
+  #online h2 { font-size: 16px; margin-bottom: 4px; }
+  #online textarea { font-size: 12px; }
+  #online #online-code { height: 4.6em; }
+  #online .row { margin: 6px 0 2px; }
+}

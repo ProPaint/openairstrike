@@ -5,6 +5,16 @@ they list the commits since the previous tag.
 
 ## Unreleased
 
+- **Online co-op** for two players over the internet or a local network, in AirStrike 3D,
+  AirStrike 2 and Gulf Thunder, on the desktop, Android and the web, in any mix: Start Game,
+  Game mode **Online**, Host a game or Join a game. There is no server: the players send each
+  other two codes through any chat and the game connects the machines directly (WebRTC, with
+  public STUN servers to find the public address; `--stun none` or `?stun=none` leaves them
+  out). Both machines run the same simulation and exchange only the inputs, and the game checks
+  that both have the same game files and build; a lobby picks the mission, difficulty and
+  helicopters, and the host's Next, Restart and Continue are followed by the guest. The web page
+  shows the codes in a dialog with Copy, Share, Paste and a `?join=` link. A code contains your
+  network addresses: send it only to the person you play with. See "Online co-op" in the README.
 - **The simulation's trigonometry is now the engine's own** (a port of musl's, `as3d/sim_math.h`)
   instead of the C library's, and nothing in the engine fuses multiplications and additions any
   more (`-ffp-contract=off` everywhere): the desktop, Android, the web and the 3DS compute the

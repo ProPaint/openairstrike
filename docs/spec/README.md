@@ -127,6 +127,7 @@ Rules for delta specs:
 | [164](issues/164-game-selector-look.md) | the selector's marquees per game and its web parity through build-time renders |
 | [165](issues/165-stuck-effect-and-lost-player.md) | stuck explosion and lost player report: faulted scripts stop their entity, respawn watchdog, FPS-counter diagnostics; root cause open |
 | [170](issues/170-game-files-from-anywhere.md) | the player's game files from any copy: survey of the public downloads; paks identified by entry names, a pak0 built from loose files, texts of any executable by hash dictionary (package A, done); archives and installers through libarchive and an Inno Setup reader (package B, done: [archive.md](archive.md)) |
+| [180](issues/180-online-coop.md) | online two-player co-op, peer to peer: WebRTC data channels with signalling by pasted codes (no server), delay-based lockstep with state hashes, a libm of our own for bit-identical simulation on desktop, Android, web and 3DS, the lobby and the web page's code dialog |
 
 Issues of a sequel are in its own directory, `as2/issues/` (numbers from 200).
 

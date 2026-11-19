@@ -216,7 +216,54 @@ ignored),
 `?game=as3d|as2|gulf` (that game, no choice and no "Change game"; without it the start screen
 offers the playable games; a game that does not play yet, `gulf`, is not started, nor offered,
 unless `&unfinished=1`), `?frames=N`, `?maxlines=N` the cap of the drawing buffer's shorter side (default 1080),
-`?dpr=X` a pixel ratio of your choice, `?autostart=1` no Play button.
+`?dpr=X` a pixel ratio of your choice, `?autostart=1` no Play button, and the online ones
+(`?join=`, `?stun=`, `?netanybuild=1`, `?simmath=1`, `?dumpstate=1`) described in "Online co-op".
+
+## Online co-op
+
+The web version plays online with desktop and Android players too (the same lockstep and the
+same codes). The engine does the connecting (WebRTC data channels, no server of ours); the
+page's only part is the **dialog for the codes**, since the canvas cannot read the clipboard:
+
+* **Host**: Start Game, Game mode **Online**, Start, **Host a game**. The page opens a dialog
+  with the invite code, **Copy** (the clipboard, or the code selected for a manual copy), **Share**
+  where the browser has a share sheet (phones), and **Copy join link**, a
+  `?game=KEY&join=CODE` address to send instead of the bare code. Under it, a field for the
+  guest's reply code with **Paste** and **Continue**. The dialog's text warns that the code
+  contains your network addresses. Close hides the dialog; Copy on the game's own screen brings it
+  back.
+* **Guest**: open the host's join link, or Start Game, Online, **Join a game**: the dialog asks
+  for the invite code. Continue; the dialog then shows the guest's reply code to send back
+  (the game connects as soon as the host has pasted it, up to ten minutes later). Close on the
+  empty field goes back to the game's Online screen.
+* **Paste** reads the clipboard where the browser allows it (Chrome asks; Firefox and Safari
+  refuse outside their own paste menu): then paste with Ctrl+V or a long press into the field.
+* The same machine needs nothing else. Over the internet the browser asks public STUN servers
+  for the public address; **`?stun=none`** leaves them out (the codes then hold local addresses
+  only), `?stun=stun:host:port,...` names others.
+
+Both players need the same game files (the page's browser storage or the bundled data) and the
+same build of the engine; a different build refuses unless **`?netanybuild=1`** (a warning
+only, for testing). The browser's tab must stay in front for the game to run at full speed:
+a background tab is throttled and the other player's game waits for it ("Waiting for the other
+player..."). If it cannot connect, see "Online co-op" in the README (same network, a virtual
+LAN like Tailscale or ZeroTier, a forwarded UDP port).
+
+URL parameters: `?join=CODE` (the invite; the page takes it out of the address once read, and
+the game joins when its main menu is up; with `?level=` or `?bot=1` and no `&menus=1` it is
+ignored), `?stun=`, `?netanybuild=1`, and for the determinism tests `?simmath=1` (logs
+`AS3D_SIMMATH hash=` of the engine's math: the desktop and the wasm both give
+`c38a83fb2d80117b`) and `?dumpstate=1` (the end state of a `?frames=N` run as one console line,
+`AS3D_DUMP_STATE b64=...`, equal to the desktop's `--dump-state` after the same frames).
+
+Tests: `walk.py --only online` (a desktop host process, started by the scenario from
+`$AS3D_GAME_BIN` or `build/apps/game/as3d_game`, against a Chromium guest over loopback ICE, the
+codes carried by the test; about a minute of play, the `AS3D_NET hash` and `AS3D_GAME_FRAME`
+lines compared) and `--only online_web` (two Chromium pages, one hosting). Both launch Chromium
+with `--disable-features=WebRtcHideLocalIpsWithMdns` (otherwise it hides its addresses behind
+`.local` names that a code cannot carry) and need a network interface with an address. The
+`phone` scenario opens the dialog by touch. `tools/online_test.sh --web URL` runs the
+determinism checks against a served build.
 
 ## Full screen on a phone: add it to the home screen
 
@@ -338,7 +385,8 @@ backup and the missing old file are in storage, and after a second reload as wel
   offered, old-style stored files; the migration of a version 1 profile; `twoplayer`: two
   players with two fake gamepads, player 2's web keys in a fresh profile, the Players screen,
   pads taking sides and moved by D-pad pushes, then the split keyboard and each pad flying its
-  own player, checked on the `AS3D_INPUT` lines). The scenarios of the
+  own player, checked on the `AS3D_INPUT` lines; `online` and `online_web`: online co-op, see "Online
+  co-op"). The scenarios of the
   first game force `?game=as3d`. It taps the real menu items from the engine's
   `AS3D_MENU` lines.
 * `gamepad.js` (node): a fake standard gamepad plays AirStrike 3D with no key or click (start

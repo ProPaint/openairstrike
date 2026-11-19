@@ -130,6 +130,23 @@
   if (q.get('fps') === '1') args.push('--fps');
   if (intParam('frames', 1, 1e9)) args.push('--frames', intParam('frames', 1, 1e9));
   if (intParam('difficulty', 0, 9999)) args.push('--difficulty', intParam('difficulty', 0, 9999));
+  // Online co-op (docs/spec/issues/180-online-coop.md 8.4): ?join=<invite code> (read once, then
+  // taken out of the address so a reload or a shared screenshot does not carry it), ?stun=
+  // (comma-separated "stun:host:port", or "none"), ?netanybuild=1, and the determinism checks.
+  const joinCode = (q.get('join') || '').replace(/\s+/g, '');
+  if (/^[A-Za-z0-9-]{8,4000}$/.test(joinCode)) args.push('--join', joinCode);
+  if (q.has('join')) {
+    try {
+      const u = new URL(location.href);
+      u.searchParams.delete('join');
+      history.replaceState(null, '', u.toString());
+    } catch (e) { /* a page without history access keeps its address */ }
+  }
+  const stunParam = q.get('stun') || '';
+  if (/^[A-Za-z0-9:.,_\-\[\]]{1,500}$/.test(stunParam)) args.push('--stun', stunParam);
+  if (q.get('netanybuild') === '1') args.push('--net-any-build');
+  if (q.get('simmath') === '1') args.push('--simmath');
+  if (q.get('dumpstate') === '1') args.push('--dump-state');
 
   // ---------------------------------------------------------------------------------------
   // The canvas: the whole window at the device's pixel ratio, the drawing buffer's shorter
@@ -341,7 +358,7 @@
       e.stopImmediatePropagation();
       return;
     }
-    if (e.code === 'KeyF' && state.running && !keyScreens.has(state.screen)) {
+    if (e.code === 'KeyF' && state.running && !keyScreens.has(state.screen) && !(e.target && e.target.closest && e.target.closest('#online'))) {
       e.stopImmediatePropagation();
       e.preventDefault();
       if (!e.repeat && fsApi && !installed) toggleFullscreen();
@@ -995,6 +1012,133 @@
   });
   window.addEventListener('gamepaddisconnected', (e) => log('AS3D_WEB gamepad disconnected index=' + e.gamepad.index));
 
+
+  // ---------------------------------------------------------------------------------------
+  // Online co-op: the dialog for the codes (docs/spec/issues/180-online-coop.md 8.4). The canvas
+  // cannot read the clipboard, so the engine hands the codes to the page: onOnlineCode shows this
+  // side's code (the host's invite, the guest's reply) to copy or share, onOnlineAskCode opens
+  // the field for the other side's. Continue passes the pasted code to the engine.
+  // ---------------------------------------------------------------------------------------
+  const online = { dialog: $('online'), kind: '', ask: '', code: '' };
+  state.online = { shown: [], asked: [], submitted: 0, dismissed: 0 };
+  const onlineEls = {
+    own: $('online-own'), ownLead: $('online-own-lead'), code: $('online-code'), copy: $('online-copy'),
+    share: $('online-share'), copyLink: $('online-copylink'), ask: $('online-ask'), askLead: $('online-ask-lead'),
+    paste: $('online-paste'), pasteBtn: $('online-paste-btn'), cont: $('online-continue'), note: $('online-note'),
+    close: $('online-close'), title: $('online-title'),
+  };
+  function onlineNote(text) { onlineEls.note.textContent = text || ''; }
+  function onlineOpen() {
+    const d = online.dialog;
+    if (!d.open) {
+      try { d.showModal(); } catch (e) { d.setAttribute('open', ''); }
+    }
+  }
+  function onlineRender() {
+    const e = onlineEls;
+    e.own.hidden = !online.code;
+    e.ask.hidden = !online.ask;
+    if (online.code) {
+      e.code.value = online.code;
+      e.code.scrollTop = 0;
+      e.ownLead.textContent = online.kind === 'invite'
+        ? 'Your invite code. Send it to the other player, then paste their reply code below.'
+        : 'Your reply code. Send it back to the host; the game connects once they have it.';
+      e.copyLink.hidden = !(online.kind === 'invite' && GAME);
+      e.share.hidden = typeof navigator.share !== 'function';
+    }
+    if (online.ask) {
+      e.askLead.textContent = online.ask === 'reply'
+        ? "Paste the other player's reply code here:"
+        : "Paste the host's invite code here:";
+    }
+    e.title.textContent = online.code
+      ? (online.kind === 'invite' ? 'Invite a player' : 'Join a game')
+      : (online.ask === 'invite' ? 'Join a game' : 'Online co-op');
+  }
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (err) { /* no permission or no secure context: select and copy by hand */ }
+    try {
+      const ta = onlineEls.code;
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      if (text === ta.value && document.execCommand('copy')) return true;
+    } catch (err) { /* fall through */ }
+    return false;
+  }
+  onlineEls.copy.addEventListener('click', async () => {
+    const ok = await copyText(online.code);
+    log('AS3D_WEB online_copy ok=' + (ok ? 1 : 0));
+    onlineNote(ok ? 'Copied.' : 'The code is selected: copy it with Ctrl+C or a long press.');
+  });
+  onlineEls.share.addEventListener('click', async () => {
+    try {
+      await navigator.share({ title: 'AirStrike co-op', text: online.code });
+      log('AS3D_WEB online_share ok=1');
+    } catch (err) {
+      log('AS3D_WEB online_share ok=0');   // cancelled, or not allowed here
+    }
+  });
+  onlineEls.copyLink.addEventListener('click', async () => {
+    const u = new URL(location.href);
+    u.search = '';
+    u.hash = '';
+    u.searchParams.set('game', GAME);
+    u.searchParams.set('join', online.code);
+    const ok = await copyText(u.toString().replace(/%2D/g, '-'));
+    log('AS3D_WEB online_copylink ok=' + (ok ? 1 : 0));
+    onlineNote(ok ? 'Join link copied.' : 'Could not copy the link here; copy the code instead.');
+  });
+  onlineEls.pasteBtn.addEventListener('click', async () => {
+    try {
+      const t = await navigator.clipboard.readText();
+      onlineEls.paste.value = t;
+      onlineNote(t ? '' : 'The clipboard is empty.');
+    } catch (err) {
+      onlineEls.paste.focus();
+      onlineNote('This browser does not let the page read the clipboard: long-press or press Ctrl+V in the field.');
+    }
+  });
+  function onlineSubmit() {
+    const text = onlineEls.paste.value.replace(/\s+/g, '');
+    if (!text) {
+      onlineNote('Paste the code first.');
+      return;
+    }
+    onlineEls.paste.value = '';
+    online.ask = '';
+    state.online.submitted++;
+    log('AS3D_WEB online_submit kind=' + online.kind + ' len=' + text.length);
+    onlineNote('');
+    online.dialog.close();
+    if (state.running) Module.ccall('as3d_web_online_code', null, ['string'], [text]);
+    canvas.focus();
+  }
+  onlineEls.cont.addEventListener('click', onlineSubmit);
+  onlineEls.paste.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onlineSubmit(); }
+  });
+  function onlineClose() {
+    // Leaving the guest's empty join screen goes back to the Online screen; any other close only
+    // hides the dialog (the canvas has Back, and Copy there brings it up again).
+    const dismissing = online.ask === 'invite' && !online.code;
+    if (online.dialog.open) online.dialog.close();
+    if (dismissing) {
+      online.ask = '';
+      state.online.dismissed++;
+      log('AS3D_WEB online_dismiss');
+      if (state.running) Module._as3d_web_online_dismiss();
+    }
+    onlineNote('');
+    canvas.focus();
+  }
+  onlineEls.close.addEventListener('click', onlineClose);
+  online.dialog.addEventListener('cancel', (e) => { e.preventDefault(); onlineClose(); });
+
   // Calls from the engine.
   window.as3dPage = {
     onScreen(name) {
@@ -1040,6 +1184,29 @@
       $('ended').hidden = false;
     },
     onProfileSaved: syncProfile,
+    // Online co-op: this side's code (kind "invite" on the host, "reply" on the guest). The
+    // engine calls it again when the player presses Copy on its own screen.
+    onOnlineCode(kind, code) {
+      online.kind = kind;
+      online.code = String(code || '');
+      if (kind === 'reply' && online.ask === 'invite') online.ask = '';   // the guest's invite was taken
+      state.online.shown.push({ kind, code: online.code });
+      state.online.lastCode = online.code;
+      log('AS3D_WEB online_code kind=' + kind + ' len=' + online.code.length);
+      onlineNote('');
+      onlineRender();
+      onlineOpen();
+    },
+    // The other side's code is needed: "reply" on the host, "invite" on the guest.
+    onOnlineAskCode(kind) {
+      online.ask = kind;
+      if (kind === 'invite') { online.kind = 'reply'; online.code = ''; }
+      state.online.asked.push(kind);
+      log('AS3D_WEB online_ask kind=' + kind);
+      onlineNote('');
+      onlineRender();
+      onlineOpen();
+    },
     // "Change game" (the profile was just saved): once browser storage has it, the start
     // screen again, without ?game= (the choice is remembered there).
     onChangeGame() {

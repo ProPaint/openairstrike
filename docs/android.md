@@ -264,10 +264,38 @@ Any arm64 phone with Android 8.0 or later and OpenGL ES 3.0 should run it. To re
 | `--ei frames N` | quit after N simulation frames |
 | `--ei difficulty D` | 0 up to the game's difficulty count minus one (0..4 for `as3d`); a value outside is ignored |
 | `--ez no_audio true` | no sound |
+| `--ez net_any_build true` | online co-op: a different build of the other side only warns |
+| `--es stun LIST` | online co-op: the STUN servers (`stun:host:port` separated by commas, or `none`) |
 | `--ez rebuild_on_resume true` | test hook: rebuild every GL resource after each resume |
 
 The activity is `singleInstance`: extras only apply when the app is not already running
 (`adb shell am force-stop org.as3dport.game` first).
+
+## Online co-op
+
+The app plays online with desktop, web and other Android players (any of the three games; the
+same game files and the same build on both sides). There is no server: the game connects the two
+phones directly and the players swap two codes through any chat. The app has the `INTERNET`
+permission for it (nothing else uses the network).
+
+* **Host**: Start Game, Game mode **Online**, Start, **Host a game**. The invite code is shown
+  in a box; **Copy** puts it on the clipboard (paste it in your chat app). Then paste the guest's
+  reply code into the field below with the **Paste** button (the soft keyboard also opens for
+  the field) and press **Connect**.
+* **Guest**: Start Game, Online, **Join a game**, **Paste** the invite code, **Next**; the
+  reply code appears: **Copy** it and send it back. The game connects once the host has it (up
+  to ten minutes later). There is no share sheet in this version.
+* The lobby follows: the host picks mission and difficulty, each player a helicopter, the guest
+  presses Ready and the host Starts.
+
+The code holds the phone's network addresses (the Wi-Fi address and, from a public STUN server,
+the public one): send it only to the person you play with. Intent extra `--ez net_any_build true`
+lets two different builds play (a warning only, for tests) and `--es stun LIST` sets the STUN
+servers (comma-separated `stun:host:port`, or `none` for none; with none the codes hold local
+addresses only, which connects phones on the same Wi-Fi). Two phones on mobile networks may fail
+to connect (carrier NAT); use the same Wi-Fi, or a virtual LAN such as Tailscale or ZeroTier, or
+see "Online co-op" in the README. While a game runs, keep the app in front: Android pauses the
+game in the background and the other player's game waits.
 
 ## Controls
 

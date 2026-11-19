@@ -1145,6 +1145,18 @@ Where the code differs from the sections above, the headers win:
     its invite; guest: "invite" when the join screen opens with no code). Dismiss only goes back
     from the guest's empty join screen. `?join=` (as `--join`) needs the menus.
   * Android: extras `net_any_build` (boolean) and `stun` (string) through `GameActivity.java`.
+* **T6 (web page, docs, tooling):** the dialog is `<dialog id="online">` in `index.html`
+  (textarea of this side's code, Copy, Share where `navigator.share` exists, "Copy join link" on the
+  host's invite when the game is known, the pasted field with Paste / Continue, Close); `app.js`
+  keeps `window.as3dState.online` = `{shown: [{kind, code}], asked: [kind], submitted, dismissed}`
+  and logs `AS3D_WEB online_code|online_ask|online_copy|online_submit|online_dismiss` for the walks.
+  Close hides the dialog (calls `as3d_web_online_dismiss` only on the guest's empty invite
+  field); Continue calls `as3d_web_online_code`. Page parameters: `?join=` (read once, removed
+  from the address, charset-checked), `?stun=`, `?netanybuild=1`, `?simmath=1`, `?dumpstate=1`. The
+  walks start Chromium with `--disable-features=WebRtcHideLocalIpsWithMdns` (mDNS candidate names
+  are dropped from codes). The web lobby has no auto-bot (`autoLobby` needs `online != Off`):
+  the walks tap Ready (id 14) and Start (id 13) on `online_lobby`. `tools/online_test.sh` runs
+  items 1 to 3 (`--games`, `--frames`, `--long`, `--web URL`, `--quick`).
 
 ### T1: Protocol, codes and the lockstep core (Opus)
 

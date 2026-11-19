@@ -53,6 +53,19 @@ as2 and gulf (tools/web_build.sh); every scenario but `choose`, `gulf` and `byo`
   twoplayer_as2  AirStrike 2's "Cooperative" on the web: Start Game, Cooperative, Next, the
              helicopter selection, the start dialogue, then the split keyboard flies both
              players (AS3D_INPUT players=2).
+  online     online co-op, a desktop host against a Chromium guest over loopback ICE (docs/spec/issues/180):
+             as3d_game --online host --headless --bot --stun none is started by the scenario (the
+             binary: $AS3D_GAME_BIN, else build/apps/game/as3d_game), its invite code is read from
+             the --code-out file and passed to the page as ?join=; the page's dialog shows the
+             guest's reply code, which the scenario writes to the host's --reply-in file; the guest
+             readies in the lobby by a tap; about 60 s of play; both sides' AS3D_NET hash lines
+             agree at every common frame, the AS3D_GAME_FRAME lines at the same frame agree, no
+             AS3D_DESYNC, the host exits 0. Needs a network interface with an address (the codes
+             carry no loopback candidates).
+  online_web online co-op between two Chromium pages (host and guest), the codes carried by the
+             test from the one page's dialog to the other's: the host through Start Game, Game mode
+             Online, Host a game; the guest by ?join=; the dialog's Copy, Paste field and Continue;
+             Start in the lobby; the same hash and frame checks.
   migration  a version 1 profile at the old path /persist/profile.bin (Screen 4:3 and Show
              FPS set): after a reload the settings are in effect, /persist/as3d/profile.bin
              and /persist/profile.v1.bak exist and /persist/profile.bin is gone; the same
@@ -64,7 +77,9 @@ import os
 import shutil
 import re
 import struct
+import subprocess
 import sys
+import tempfile
 import time
 import traceback
 import zlib
@@ -460,6 +475,20 @@ def phone(w, b, device="Pixel 7"):
         assert st["canvas"]["h"] == 1080, st["canvas"]  # 412 x 2.625 = 1081.5 lines, capped at 1080
         to_main_menu(w, p, by="touch")
         w.shot(p, "phone_main")
+        w.step("phone: the online code dialog fits the screen; Copy and Close by touch do not throw")
+        p.page.evaluate("window.as3dPage.onOnlineCode('invite', 'ABCDEFGH-' + 'ABCDEFGH-'.repeat(40))")
+        p.page.wait_for_timeout(300)
+        box = p.page.locator("#online").bounding_box()
+        assert box and box["y"] >= 0 and box["y"] + box["height"] <= vp["height"] and box["x"] >= 0 \
+            and box["x"] + box["width"] <= vp["width"], box
+        w.shot(p, "phone_online_dialog")
+        n_err = len(p.errors())
+        p.page.tap("#online-copy")
+        p.page.wait_for_timeout(300)
+        p.page.tap("#online-close")
+        p.page.wait_for_timeout(300)
+        assert not p.page.locator("#online").evaluate("(d) => d.open"), "Close left the dialog open"
+        assert len(p.errors()) == n_err, p.errors()
         fs = p.page.locator("#fs-toggle")
         assert fs.is_visible(), "no full screen toggle in touch mode"
 
@@ -1495,9 +1524,225 @@ def gulf(w, b):
     return r
 
 
+
+# ------------------------------------------------------------------------------------------
+# Online co-op (docs/spec/issues/180-online-coop.md 13 T6, 14 item 4)
+# ------------------------------------------------------------------------------------------
+# Chromium hides local addresses behind mDNS names, which the codes cannot carry: the guest and
+# the web host need the real ones.
+ONLINE_FLAGS = ["--disable-features=WebRtcHideLocalIpsWithMdns"]
+ONLINE_FRAMES = 3700   # about a minute of play at 60 Hz
+
+
+def game_bin():
+    here = os.path.dirname(os.path.abspath(__file__))
+    for c in (os.environ.get("AS3D_GAME_BIN"), os.path.join(here, "..", "..", "..", "build", "apps", "game", "as3d_game")):
+        if c and os.access(c, os.X_OK):
+            return os.path.abspath(c)
+    raise AssertionError("no desktop build: set AS3D_GAME_BIN or build build/apps/game/as3d_game")
+
+
+def wait_file(path, timeout):
+    end = time.time() + timeout
+    while time.time() < end:
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            with open(path) as f:
+                return f.read().strip()
+        time.sleep(0.1)
+    raise AssertionError("timeout waiting for " + path)
+
+
+def write_atomic(path, text):
+    with open(path + ".tmp", "w") as f:
+        f.write(text)
+    os.rename(path + ".tmp", path)
+
+
+def net_hashes(lines):
+    out = {}
+    for t in lines:
+        m = re.search(r"AS3D_NET hash frame=(\d+) h=([0-9a-f]+)", t)
+        if m:
+            out[int(m.group(1))] = m.group(2)
+    return out
+
+
+def game_frames(lines):
+    out = {}
+    for t in lines:
+        m = re.search(r"AS3D_GAME_FRAME n=(\d+) mission=(\d+) score=(-?\d+) lives=(\S+) map_pos=(\S+) paused=(\d)", t)
+        if m:
+            out[int(m.group(1))] = m.groups()[1:5]
+    return out
+
+
+def compare_online(a_lines, b_lines, r, min_hashes=100):
+    """The two sides' AS3D_NET hash lines and AS3D_GAME_FRAME lines agree where both have them."""
+    for lines in (a_lines, b_lines):
+        bad = [t for t in lines if "AS3D_DESYNC" in t]
+        assert not bad, "a desync: " + bad[0]
+    ha, hb = net_hashes(a_lines), net_hashes(b_lines)
+    common = sorted(set(ha) & set(hb))
+    r["common_hashes"] = len(common)
+    assert len(common) >= min_hashes, "only %d common hash frames (%d / %d)" % (len(common), len(ha), len(hb))
+    bad = [f for f in common if ha[f] != hb[f]]
+    assert not bad, "hashes differ at frames %s" % bad[:5]
+    fa, fb = game_frames(a_lines), game_frames(b_lines)
+    fcommon = sorted(set(fa) & set(fb))
+    r["common_frame_markers"] = fcommon
+    assert fcommon and fcommon[-1] >= 3000, "AS3D_GAME_FRAME lines at the same frame: %s" % fcommon
+    for n in fcommon:
+        assert fa[n] == fb[n], "AS3D_GAME_FRAME n=%d differs: %s vs %s" % (n, fa[n], fb[n])
+    r["frame_marker_sample"] = {n: fa[n] for n in fcommon[-1:]}
+
+
+def web_page_start(w, bb, url, query):
+    p = bb.page(url, query, viewport={"width": 1024, "height": 640})
+    p.wait_ready()
+    p.page.click("#play")
+    to_main_menu(w, p)
+    return p
+
+
+def wait_dialog_code(p, kind, timeout=90):
+    """The page's dialog showed this side's code: its text, from the dialog's textarea."""
+    p.page.wait_for_function("window.as3dState.online.shown.some((s) => s.kind === '%s')" % kind, timeout=timeout * 1000)
+    code = p.page.evaluate("document.getElementById('online-code').value")
+    assert p.page.locator("#online").evaluate("(d) => d.open"), "the code dialog is not open"
+    assert len(code) > 100, "a short code: %r" % code
+    return code
+
+
+def lobby_ready_and_play(w, p, role, timeout=60):
+    p.wait_screen("online_lobby", timeout)
+    p.page.wait_for_timeout(1500)
+    if role == "guest":
+        w.step("online: the guest taps Ready")
+        p.tap_item("online_lobby", 14)
+    else:
+        w.step("online: the host taps Start once the guest is ready")
+        end = time.time() + 30
+        while time.time() < end:
+            if not p.menu_items("online_lobby")[13][4]:
+                break
+            p.page.wait_for_timeout(500)
+        p.tap_item("online_lobby", 13)
+
+
+def online(w, b):
+    """A desktop host process and a Chromium guest over loopback ICE (docs/spec/issues/180, 14 item 4)."""
+    exe = game_bin()
+    T = tempfile.mkdtemp(prefix="as3d_online_")
+    r = {"dir": T}
+    out = open(os.path.join(T, "host.log"), "w")
+    host = subprocess.Popen([exe, "--online", "host", "--headless", "--bot", "--level", "1", "--seed", "7",
+                             "--frames", str(ONLINE_FRAMES), "--stun", "none", "--markers",
+                             "--code-out", os.path.join(T, "invite"), "--reply-in", os.path.join(T, "reply")],
+                            stdout=out, stderr=subprocess.STDOUT, env=dict(os.environ))
+    bb = None
+    p = None
+    try:
+        w.step("online: the host's invite code from its --code-out file")
+        invite = wait_file(os.path.join(T, "invite"), 60)
+        assert len(invite) > 100, invite
+        bb = Browser(w.a.engine, w.a.gl, extra_flags=ONLINE_FLAGS)
+        w.step("online: the guest page opens ?join=<invite>, skips the intro, the reply code comes up in the dialog")
+        p = web_page_start(w, bb, w.a.url, "game=as3d&bot=1&menus=1&noaudio=1&stun=none&join=" + invite)
+        reply = wait_dialog_code(p, "reply")
+        assert "join=" not in p.page.url, "?join= was left in the address"
+        w.shot(p, "online_reply_dialog")
+        w.step("online: the reply code goes to the host's --reply-in file")
+        write_atomic(os.path.join(T, "reply"), reply)
+        lobby_ready_and_play(w, p, "guest", 60)
+        w.step("online: about a minute of play, the host ends the run at frame %d" % ONLINE_FRAMES)
+        end = time.time() + 150
+        while host.poll() is None and time.time() < end:
+            p.page.wait_for_timeout(500)
+            assert not p.state()["failed"], p.state()["failed"]
+        assert host.poll() == 0, "the host exited with %s" % host.poll()
+        p.page.wait_for_timeout(1500)
+        w.shot(p, "online_end")
+        out.flush()
+        with open(os.path.join(T, "host.log")) as f:
+            host_lines = f.read().splitlines()
+        compare_online(host_lines, p.texts(), r)
+        r["errors"] = p.errors()
+        assert not r["errors"], r["errors"]
+    finally:
+        if host.poll() is None:
+            host.kill()
+        out.close()
+        if p:
+            p.close()
+        if bb:
+            bb.close()
+    return r
+
+
+def online_web(w, b):
+    """Two Chromium pages, one hosting and one joining; the test carries the codes between the dialogs."""
+    r = {}
+    bb = Browser(w.a.engine, w.a.gl, extra_flags=ONLINE_FLAGS)
+    h = g = None
+    base = "game=as3d&bot=1&menus=1&noaudio=1&stun=none&frames=%d" % ONLINE_FRAMES
+    try:
+        w.step("online_web: the host page: Start Game, Game mode Online, Start, Host a game")
+        h = web_page_start(w, bb, w.a.url, base)
+        mk = h.mark()
+        h.tap_item("main", 1)
+        wait_new_screen(h, "start", mk)
+        h.page.wait_for_timeout(500)
+        h.tap_item("start", 5)      # 1 Player -> 2 Players -> Online
+        h.page.wait_for_timeout(250)
+        h.tap_item("start", 5)
+        h.page.wait_for_timeout(250)
+        mk = h.mark()
+        h.tap_item("start", 2)
+        wait_new_screen(h, "online", mk)
+        h.page.wait_for_timeout(2500)   # "Checking game files..."
+        mk = h.mark()
+        h.tap_item("online", 2)
+        wait_new_screen(h, "online_host", mk)
+        invite = wait_dialog_code(h, "invite")
+        assert h.page.evaluate("window.as3dState.online.asked.includes('reply')"), "the host's dialog did not ask for the reply"
+        assert h.page.locator("#online-ask").is_visible() and h.page.locator("#online-copy").is_visible()
+        w.shot(h, "online_web_host_dialog")
+        w.step("online_web: Copy in the dialog (the clipboard may refuse: the page says so, no error)")
+        h.page.click("#online-copy")
+        h.page.wait_for_timeout(300)
+        assert any("AS3D_WEB online_copy" in t for t in h.texts())
+
+        w.step("online_web: the guest page joins with ?join=")
+        g = web_page_start(w, bb, w.a.url, base + "&join=" + invite)
+        reply = wait_dialog_code(g, "reply")
+        w.shot(g, "online_web_guest_dialog")
+
+        w.step("online_web: the reply is pasted into the host's dialog and Continue pressed")
+        h.page.fill("#online-paste", reply)
+        h.page.click("#online-continue")
+        lobby_ready_and_play(w, g, "guest", 60)
+        lobby_ready_and_play(w, h, "host", 60)
+        w.step("online_web: play until the frames run out")
+        end = time.time() + 240
+        while time.time() < end and not (h.state()["finished"] or g.state()["finished"]):
+            h.page.wait_for_timeout(1000)
+            for pg in (h, g):
+                assert not pg.state()["failed"], pg.state()["failed"]
+        h.page.wait_for_timeout(1500)
+        w.shot(h, "online_web_end")
+        compare_online(h.texts(), g.texts(), r)
+        r["errors"] = h.errors() + g.errors()
+        assert not r["errors"], r["errors"]
+    finally:
+        for pg in (h, g):
+            if pg:
+                pg.close()
+        bb.close()
+    return r
+
 SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "byo_archive": byo_archive, "complete": complete,
              "gameover": gameover, "migration": migration, "choose": choose, "gulf": gulf,
-             "twoplayer": twoplayer, "twoplayer_as2": twoplayer_as2}
+             "twoplayer": twoplayer, "twoplayer_as2": twoplayer_as2, "online": online, "online_web": online_web}
 
 
 def main():
@@ -1507,7 +1752,7 @@ def main():
     ap.add_argument("--shots", required=True)
     ap.add_argument("--engine", default="chromium", choices=["chromium", "firefox"])
     ap.add_argument("--gl", default="gpu", choices=["gpu", "swiftshader"])
-    ap.add_argument("--only", default="choose,gulf,desktop,phone,iphone,byo,complete,gameover,migration,twoplayer,twoplayer_as2")
+    ap.add_argument("--only", default="choose,gulf,desktop,phone,iphone,byo,complete,gameover,migration,twoplayer,twoplayer_as2,online,online_web")
     a = ap.parse_args()
     os.makedirs(a.shots, exist_ok=True)
     w = Walk(a)
