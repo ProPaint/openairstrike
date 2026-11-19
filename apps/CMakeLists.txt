@@ -18,6 +18,12 @@ if(AS3D_BUILD_TESTS)
                         ${AS3D_REPO_ROOT}/apps/3ds/source/soak_report.cpp
                         ${AS3D_REPO_ROOT}/apps/3ds/source/wash_detect.cpp)
   add_executable(as3d_tests ${test_srcs} ${pica_neutral_srcs})
+  # Online co-op (docs/spec/issues/180-online-coop.md 13 "T0 notes"): NetPlay is compiled into the
+  # tests here, once, as the game's flow and session are (game_flow_test.cpp and
+  # game_integration_test.cpp include their .cpp files); tests include net_play.h, never its .cpp.
+  if(AS3D_WITH_NET)
+    target_sources(as3d_tests PRIVATE ${AS3D_REPO_ROOT}/apps/game/net_play.cpp)
+  endif()
   target_include_directories(as3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/third_party/doctest
                                                 ${AS3D_REPO_ROOT}/engine/src/render/pica)
   # Listed twice so static libraries resolve regardless of dependency order.

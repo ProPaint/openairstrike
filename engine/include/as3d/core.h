@@ -14,6 +14,10 @@ using u16 = std::uint16_t;
 using u32 = std::uint32_t;
 using i16 = std::int16_t;
 using i32 = std::int32_t;
+// 64-bit (as3d/audio.h and as3d/script.h declare the same aliases; redeclaring one is allowed):
+// the state hash and the online protocol (docs/spec/issues/180-online-coop.md).
+using u64 = std::uint64_t;
+using i64 = std::int64_t;
 
 // Owned contents of one file.
 using Blob = std::vector<u8>;

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "as3d/menu.h"
+#include "as3d/online.h"
 #include "as3d/player_pads.h"
 #include "as3d/profile.h"
 #include "as3d/ui.h"
@@ -97,6 +98,9 @@ struct FrontendContent {
     // Ours (docs/spec/issues/163): more than one playable game is present, the main menu offers
     // "Change game" (GameHost::changeGame). Off: the main menu is exactly as before.
     bool changeGame = false;
+    // Ours (docs/spec/issues/180-online-coop.md 8.1): Start Game offers "Online". Follows
+    // Frontend::setOnlineHost (true while a host is set); false by default and on the 3DS.
+    bool onlineMode = false;
 
     // Ours, for the plain front end (docs/spec/as2/issues/260): what the object definitions
     // named by GameRules::heliObjects say about each helicopter, for its list entry.
@@ -246,6 +250,11 @@ enum class Screen {
     // Ours (two players on one screen): who flies with what, between Start Game and a
     // two-player mission (screens_players.cpp).
     Players,
+    // Ours (online co-op, docs/spec/issues/180-online-coop.md 8.3; screens_online.cpp, in every
+    // front-end style): host or join, the host's invite code, the guest's paste and reply code,
+    // the lobby, the end / failure notice. Not in kAllScreens / kSequelScreens until T5 builds
+    // them for real (screenFromName knows them).
+    Online, OnlineHostCode, OnlineJoinCode, OnlineLobby, OnlineNotice,
 };
 const char* screenName(Screen s);
 bool screenFromName(std::string_view name, Screen& out);
@@ -344,6 +353,28 @@ public:
     const int* helicopters() const { return heli_; }
     bool twoPlayers() const { return twoPlayers_; }
 
+    // Ours: online co-op (docs/spec/issues/180-online-coop.md 6.4, 8; bodies in
+    // engine/src/ui/screens_online.cpp). The host's session (apps/game NetPlay; null: offline,
+    // no "Online" choice): sets FrontendContent::onlineMode.
+    void setOnlineHost(OnlineHost* h);
+    OnlineHost* onlineHost() const { return online_; }
+    // A session is on: a host is set and its phase is Lobby .. Playing.
+    bool online() const;
+    // The guest runs the host's end-screen choice (FlowChoice): Next -> continueCampaign,
+    // Restart -> startLevel(true), Continue -> the checkpoint start, Quit -> quitToMainMenu
+    // (banked as the in-game Quit).
+    void onlineApplyFlow(OnlineFlowChoice c);
+    // Both sides at FlowChoice(StartCampaign) / the host's Start: heli_ and difficultyChoice_
+    // from the lobby, then startCampaign(l.mission, l.difficulty, 2).
+    void onlineStartCampaign(const OnlineLobby& l);
+    // The session ended (Bye, lost, desync): quitToMainMenu(false, false), the attract level,
+    // then the OnlineNotice screen with `message`.
+    void onlineEnded(std::string message);
+    // The in-play line at the top right (8.5: "Online 45 ms", "Waiting for the other
+    // player...", ...), drawn by drawOver while playing; "" = none.
+    void setOnlineNote(std::string note) { onlineNote_ = std::move(note); }
+    const std::string& onlineNote() const { return onlineNote_; }
+
     // Ours (docs/3ds-ui-design.md "AirStrike 3D menus on the console (round 4, R4.5)"): what a
     // console layout (as3d/console_menu.h) shows besides the menu items, read-only.
     struct Facts {
@@ -408,6 +439,8 @@ private:
     Menu buildMissionComplete();
     Menu buildGameComplete();
     Menu buildPlayers();
+    // The online screens in every style (screens_online.cpp; sequel() / plain() pick the look).
+    Menu buildOnlineScreen(Screen s);
     // The plain front end of a PlainList game (engine/src/ui/screens_plain.cpp). Screens not
     // listed (top scores, name entry, options, controls) are the same builders with plain
     // widgets, see plain().
@@ -490,6 +523,9 @@ private:
     bool haveCarried_ = false;
     float playPointerX_ = 0, playPointerY_ = 0;
     std::function<std::string(const std::string&)> hintFilter_;
+    // Online co-op (setOnlineHost, setOnlineNote).
+    OnlineHost* online_ = nullptr;
+    std::string onlineNote_;
 };
 
 // Loading screen (S9, frontend.md 3.16): black, menu\loading.tga unless an intermission level

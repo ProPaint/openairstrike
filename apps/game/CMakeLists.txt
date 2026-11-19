@@ -12,6 +12,10 @@ add_library(as3d_game_shell STATIC
   game_session.cpp game_view.cpp audio_bridge.cpp game_flow.cpp ui_script.cpp game_loop.cpp touch_overlay.cpp
   game_stack.cpp launcher_screen.cpp)
 target_include_directories(as3d_game_shell PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# Online co-op (docs/spec/issues/180-online-coop.md 6.1): NetPlay, with AS3D_WITH_NET only.
+if(AS3D_WITH_NET)
+  target_sources(as3d_game_shell PRIVATE net_play.cpp)
+endif()
 # Listed twice so static libraries resolve regardless of dependency order.
 target_link_libraries(as3d_game_shell PUBLIC ${AS3D_MODULES} ${AS3D_MODULES})
 if(ANDROID)

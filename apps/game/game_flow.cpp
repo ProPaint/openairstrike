@@ -379,16 +379,7 @@ bool GameFlow::uiFrame(float dt, const ui::UiInput& input) {
     return took;
 }
 
-int GameFlow::step(const FrameInput& input) {
-    if (!worldRunning()) return 0;
-    FrameInput in = input;
-    in.pausePressed = false;
-    const bool confirm = in.confirm;
-    in.confirm = false;
-    if (confirm && fe_->menuOpen() && fe_->topScreen() == Screen::Hint) {
-        fe_->update(0.0f, ui::UiInput().key(ui::keys::Enter));
-        playUiSounds();
-    }
+void GameFlow::resolveLocalInput(FrameInput& in) const {
     if (!playing() || !relativeMouseActive()) {
         in.mouseSteer = false;
         in.mouseDx = in.mouseDy = 0.0f;
@@ -403,6 +394,23 @@ int GameFlow::step(const FrameInput& input) {
         if (playerScreenCentre(session_.world(), 0, hx, hy))
             in.held[0] = (in.held[0] & ~kDirectionBits) | mouseControlBits(pointerX_, pointerY_, hx, hy);
     }
+}
+
+// T4 (docs/spec/issues/180-online-coop.md 6.3): net_ && net_->active().
+bool GameFlow::online() const { return false; }
+
+int GameFlow::step(const FrameInput& input, bool fromNet) {
+    if (!worldRunning()) return 0;
+    FrameInput in = input;
+    if (!fromNet) in.pausePressed = false;
+    const bool confirm = in.confirm;
+    in.confirm = false;
+    if (confirm && fe_->menuOpen() && fe_->topScreen() == Screen::Hint) {
+        fe_->update(0.0f, ui::UiInput().key(ui::keys::Enter));
+        playUiSounds();
+    }
+    // After the confirm: closing the hint box may have resumed play.
+    if (!fromNet) resolveLocalInput(in);
     const World& w = session_.world();
     const float t0 = w.time();
     const int ev = session_.step(in);

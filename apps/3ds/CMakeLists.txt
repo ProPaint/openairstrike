@@ -12,6 +12,9 @@ add_link_options(-Wl,--gc-sections)
 ctr_add_shader_library(scene_shbin OUTPUT scene.shbin source/scene.v.pica)
 dkp_add_embedded_binary_library(scene_shbin_data scene_shbin)
 
+# Online co-op is not on the 3DS (docs/spec/issues/180-online-coop.md 12): engine/CMakeLists.txt
+# forces AS3D_WITH_NET OFF and the null net backend here, and apps/game/net_play.cpp is not listed
+# below (game_flow.cpp only holds a NetPlay pointer, its calls are under #if AS3D_WITH_NET).
 # The apps/game files the 3DS app shares with the desktop: the session, the audio bridge, and the
 # front end's GameFlow and GameStack, which reach the renderer only through the FlowView seam
 # (flow_view.h): the desktop's GameView (game_view.cpp, GLES) is not built here, the frame

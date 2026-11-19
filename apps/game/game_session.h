@@ -83,6 +83,12 @@ struct LevelSetup {
     int upgrades[2][as3d::kMaxWeaponSlots] = {};
     int weapon[2] = {0, 0};
     double rankAccumulator[2] = {0.0, 0.0}; // the campaign's, for EndLevel's checkpoint rank
+    // Online (docs/spec/issues/180-online-coop.md 6.3): the host's StartMission values, which
+    // startMission applies to the WorldConfig it re-initialises the world with. 0 / -1: as
+    // configured (the session's WorldConfig::seed, `camera` above, WorldConfig::godMode).
+    as3d::u32 seed = 0;
+    int cameraOverride = -1;
+    int godMode = -1;
 };
 
 class GameSession {
@@ -115,6 +121,10 @@ public:
 
     as3d::World& world() { return *world_; }
     const as3d::World& world() const { return *world_; }
+    // The world's state hashes (World::stateHash, stateHashFull; online desync detection), 0
+    // without a world.
+    as3d::u64 stateHash() const { return world_ ? world_->stateHash() : 0; }
+    as3d::u64 stateHashFull() const { return world_ ? world_->stateHashFull() : 0; }
     as3d::Vfs& vfs() { return vfs_; }
     const as3d::DefDatabase& db() const { return *db_; }
     int mission() const { return mission_; }

@@ -119,6 +119,29 @@ struct LoopOptions {
     // a keyboard whenever touch mode is off (the desktop, the web).
     std::function<bool()> keyboardQuery;
     std::function<void(int code)> finished;  // the browser loop ended (the front end's Exit)
+
+    // Online co-op (docs/spec/issues/180-online-coop.md 6.2, 8.4, 14). With AS3D_WITH_NET the
+    // window owns a NetPlay (net_play.h) beside the GameFlow and sets it as the front end's
+    // OnlineHost when a transport can be made (as3d::net::rtcTransportAvailable). `online`:
+    // the command line's --online host|join (headless runs and tests; Off: the menus decide).
+    enum class Online { Off, Host, Join };
+    Online online = Online::Off;
+    std::vector<std::string> stunServers;    // --stun LIST|none, AS3D_STUN, ?stun= (empty: the defaults)
+    bool netAnyBuild = false;                // --net-any-build, AS3D_NET_ANY_BUILD=1, ?netanybuild=1
+    bool netHashFull = false;                // --net-hash-full
+    int netHashEvery = 0;                    // --net-hash-every N (0: as3d::net::kHashEvery)
+    long netFaultFrame = -1;                 // --net-fault-frame F (section 14 item 2)
+    std::string netInvite;                   // --invite CODE / --join CODE (the web's ?join=)
+    std::string netInviteIn;                 // --invite-in FILE (read once it exists)
+    std::string netReplyIn;                  // --reply-in FILE (read once it exists)
+    std::string netCodeOut;                  // --code-out FILE (the invite or reply code, once known)
+    // The platform's clipboard (SDL on desktop and Android; NetPlay has no SDL) and the web
+    // page's code dialog (8.4: showCode(kind, code), kind "invite" | "reply"; askCode(kind)).
+    std::function<std::string()> clipboardGet;
+    std::function<void(const std::string&)> clipboardSet;
+    bool onlinePageDialog = false;
+    std::function<void(const std::string& kind, const std::string& code)> onlineShowCode;
+    std::function<void(const std::string& kind)> onlineAskCode;
 };
 
 // Runs until the window is closed, Escape, or `frames`. Returns the process exit code.
@@ -131,6 +154,11 @@ void hostSetBackground(bool background);   // hidden (pause, silence, save the p
 void hostRequestPause(const char* reason); // during play, the in-game menu (full screen left, portrait)
 void hostGlContextLost();                  // nothing is drawn until restored; play pauses
 void hostGlContextRestored();              // every GL object is gone: rebuild them all
+// Online co-op on the web (docs/spec/issues/180-online-coop.md 8.4, T4): the code pasted into
+// the page's dialog (as3d_web_online_code -> NetPlay::pageCode) and the dialog closed by the
+// player (as3d_web_online_dismiss). Nothing without a window or a session.
+void hostOnlineCode(const std::string& code);
+void hostOnlineDismiss();
 
 // Where the input of each frame comes from besides the local controls.
 class InputSource {

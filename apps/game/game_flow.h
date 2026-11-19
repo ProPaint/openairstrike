@@ -24,6 +24,8 @@
 
 namespace as3d_game {
 
+class NetPlay; // net_play.h (online co-op; not built on the 3DS nor with AS3D_WITH_NET=OFF)
+
 struct FlowConfig {
     bool touch = false;               // front end in touch mode (Android)
     // Start Game may offer two players (the platform's gate; the game has its own, and the window
@@ -98,7 +100,20 @@ public:
     // One fixed simulation step. Gameplay input is used only while playing with no menu;
     // `confirm` closes an open hint box (the bot's OK); the pause edge is ignored (the front
     // end owns P). Returns GameSession::StepEvent bits.
-    int step(const as3d::FrameInput& input);
+    // Online (`fromNet`, docs/spec/issues/180-online-coop.md 6.2): `input` is the merged input
+    // of both peers for this frame, already resolved on each side (resolveLocalInput): the
+    // resolution is skipped and the pause edge is kept (the pause is a bit of each peer's record).
+    int step(const as3d::FrameInput& input, bool fromNet = false);
+    // The local input made ready for the world, as step() does offline after the hint-box
+    // confirm: held bits cleared while not playing, the first game's mouse control into
+    // held[0], the sequels' relative mouse steering kept only while live. Online the loop calls
+    // it on the local input before NetPlay turns it into a record.
+    void resolveLocalInput(as3d::FrameInput& input) const;
+    // Online co-op (6.3): the session that the GameHost calls go through while it is active
+    // (null: offline). online(): a session is active.
+    void setNetPlay(NetPlay* net) { net_ = net; }
+    NetPlay* netPlay() const { return net_; }
+    bool online() const;
     // World, HUD, front end, brightness into the bound framebuffer (needs setView).
     void draw(int width, int height);
     // A typed letter during play (the cheat codes, engine-behaviour.md 14): nothing while a
@@ -175,6 +190,7 @@ private:
     GameSession& session_;
     AudioBridge& audio_;
     FlowView* view_ = nullptr;
+    NetPlay* net_ = nullptr;
     std::function<void(const as3d::Settings&)> keysHook_; // setInputMapper
     FlowConfig config_;
     as3d::Profile profile_;

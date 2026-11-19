@@ -24,6 +24,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 add_compile_options(-Wall -Wextra -Wno-unused-parameter)
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
+# T2 (docs/spec/issues/180-online-coop.md 7.1): -ffp-contract=off goes here too (own project).
 
 get_filename_component(AS3D_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 add_compile_definitions(AS3D_REPO_ROOT="${AS3D_REPO_ROOT}")
@@ -73,6 +74,12 @@ add_executable(as3d_web web_main.cpp
   ${AS3D_GAME_DIR}/game_flow.cpp ${AS3D_GAME_DIR}/ui_script.cpp ${AS3D_GAME_DIR}/game_loop.cpp
   ${AS3D_GAME_DIR}/touch_overlay.cpp ${AS3D_GAME_DIR}/game_stack.cpp ${AS3D_GAME_DIR}/launcher_screen.cpp)
 target_include_directories(as3d_web PRIVATE ${AS3D_GAME_DIR})
+# Online co-op (docs/spec/issues/180-online-coop.md 8.4, 12): AS3D_WITH_NET and the net backend
+# come from engine/CMakeLists.txt (ON, rtc). NetPlay here; T3 adds datachannel-wasm (its
+# add_subdirectory and --js-library link flag) below this line.
+if(AS3D_WITH_NET)
+  target_sources(as3d_web PRIVATE ${AS3D_GAME_DIR}/net_play.cpp)
+endif()
 target_link_libraries(as3d_web PRIVATE ${AS3D_MODULES} ${AS3D_MODULES})
 target_link_options(as3d_web PRIVATE ${AS3D_WEB_LINK})
 set_target_properties(as3d_web PROPERTIES SUFFIX ".js")

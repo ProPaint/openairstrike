@@ -945,6 +945,82 @@ Dependencies: none. Smoke: `cmake -S . -B build -DAS3D_WITH_NET=ON && cmake --bu
 Acceptance: the above, plus `tools/3ds_build.sh` is at least configured (`AS3D_NET_BACKEND=null`
 path reviewed; the docker build itself is in section 14).
 
+#### T0 notes (decisions taken while landing the contract; the headers are authoritative)
+
+Where the code differs from the sections above, the headers win:
+
+* **Build options live in `engine/CMakeLists.txt`**, not the root: the web project adds `engine/`
+  directly, so that is the one file every platform build passes through. `AS3D_WITH_NET`
+  (option, ON; forced OFF on the 3DS), `AS3D_NET_BACKEND` (`rtc` default, forced `null`
+  without `AS3D_WITH_NET`), `AS3D_BUILD_ID` (internal cache entry from `git describe --tags
+  --always --dirty`, recomputed at every configure). The root and `apps/web` CMake files carry a
+  `# T2` placeholder comment for `-ffp-contract=off`; `apps/web/CMakeLists.txt` a T3 line for
+  datachannel-wasm; `engine/src/net/net.cmake` returns early without `rtc` and is empty (T3).
+* `as3d_net` exports the compile definitions `AS3D_WITH_NET=0|1` and `AS3D_NET_RTC=0|1` to
+  everything that links the modules (apps/game, the tests, the 3DS app). `AS3D_BUILD_ID` is a
+  definition of `engine/src/net/net_common.cpp` only (a new T0 file, so that a commit recompiles
+  one file): read it through `as3d::net::netBuildId()`. That file also holds `peerPlatformName`,
+  `localPlatform` and `transportStateName`.
+* `as3d/core.h` gains `as3d::u64` and `as3d::i64`.
+* **net_transport.h**: as 2.4, plus `rtcTransportAvailable()` (false with `null` and in T0's rtc
+  stub; T3 returns true; the window offers "Online" only then), `Transport::Failure`
+  (`CantConnect`, `Expired`, ...; T3 sets it so the screen picks the text), `transportStateName`,
+  `kDefaultStunServers`, `kGatherTimeoutSeconds = 5`, `kConnectTimeoutSeconds = 20`,
+  `kOfferExpirySeconds = 600`, and `LoopbackOptions::nowSeconds` (a test clock; null = steady).
+* **net_protocol.h**: one struct per message (`HelloMsg`, `ByeMsg`, `PingMsg` (Ping and Pong),
+  `LobbyMsg`, `LobbyGuestMsg`, `StartMissionMsg` with a `WireMissionStart`, `ReadyMsg`,
+  `FlowChoiceMsg`, `HashMsg`, `DesyncMsg`, `InputsPacket`, `InputRecord`), enums `MsgType`,
+  `PeerPlatform`, `PeerRole`, `ByeReason`, `FlowCode`; `encodeX(const XMsg&, std::vector<u8>&)`
+  (replaces the contents) / `decodeX(const u8*, size_t, XMsg&)` for every X; `messageType()`;
+  `kNoFrame` (an `ack` with nothing held); `kWireWeaponSlots = 20` (static_asserted against
+  `kMaxWeaponSlots` in `net_play.cpp`); `kPingIntervalSeconds`, `kSilenceTimeoutSeconds`,
+  `kStallNoteSeconds`.
+* **net_signal.h**: as 2.3 plus the pieces T1 needs to test separately: `encodeSignalBinary` /
+  `decodeSignalBinary`, `base32Encode` / `base32Decode`, `candidateFromSdpLine`,
+  `candidateAddress`. `signalFromSdp` does not set `kind` (not in the SDP; the caller does).
+* **net_lockstep.h**: `Lockstep(bool host)`; `setLocal` sets the record of `frame() + delay()`
+  and the **first call per frame wins** (returns false after), since a record may already have
+  gone out; `addRemote` also takes an `InputsPacket`; `shouldThrottle()` is non-const (it
+  remembers the last throttle); the hash check is `noteLocalHash` / `checkRemoteHash` (void)
+  plus `desynced(&frame, &mine, &yours)`, the remote hash kept until the local one exists;
+  `stalls()` / `noteStall()`; free `inputDelayForRtt(rttMs)` and `steerByte(dx, dy)`;
+  `kSteerTable` is `SteerVec{x, y}[256]` (the three axis values below 1e-15 written as 0). The
+  private section is T1's to change.
+* **sim_math.h**: the names of 7.2 plus `u64 simMathCheckHash()` (T2: FNV-1a of the known-answer
+  results; the `sim_math hash` test prints it and T4's `web_main.cpp` logs it for `?simmath=1` as
+  `AS3D_SIMMATH hash=`). **sim_fingerprint.h**: `void simDataFingerprintBytes(Vfs&, u8 out[32])`.
+* **online.h**: `OnlineStatus::losing` added (the "Connection lost..." note of 8.5).
+* **frontend.h**: the five `Screen` values are named `online`, `online_host`, `online_join`,
+  `online_lobby`, `online_notice`; `screenFromName` knows them, but they are **not yet in
+  `kAllScreens` / `kSequelScreens`** (existing tests iterate those lists): T5 adds them with the
+  real screens. `Frontend::open` sends all five to one private builder
+  `Menu buildOnlineScreen(Screen)` in `screens_online.cpp`, in every style (after the sequels'
+  `applyLook`), so T5 never edits the dispatch. Also `onlineHost()` and `onlineNote()` getters;
+  private `online_`, `onlineNote_`.
+* **GameFlow**: `step(input, bool fromNet = false)`; `resolveLocalInput(FrameInput&) const` is the
+  code step() ran before, extracted and called by step() at the same place (after the hint-box
+  confirm) when `!fromNet`, so offline is unchanged. `online()` returns false until T4.
+  Section 12's "hook calls compile everywhere against a forward declaration" cannot work for
+  member calls: T4 puts every `net_->...` call in `game_flow.cpp` under `#if AS3D_WITH_NET` with
+  `#include "net_play.h"` (the 3DS and OFF builds have no `net_play.cpp`).
+* **NetPlay** (6.1): `interceptStartMission(ms, NetLevelStart& use)` (a struct with the
+  MissionStart, seed, camera and god mode) instead of three out-parameters; no `flowChoice`
+  (the OnlineHost's `chooseFlow` is the one); added `endSession(ByeReason)`, `pageCode(code)`
+  (the web dialog), `throttle()` non-const; `Options` also has `seed`, `faultFrame`,
+  `inviteInPath`, `invite`, `autoLobby`, `clipboardGet/Set`, `pageDialog`, `showCode`, `askCode`.
+* **Tests**: `net_play.cpp` is compiled into `as3d_tests` by `apps/CMakeLists.txt` when
+  `AS3D_WITH_NET` (as the flow and session are by their tests): tests include `net_play.h`, never
+  `net_play.cpp`, and guard online cases with `#if AS3D_WITH_NET`.
+* **LoopOptions** (6.2): `online` (`LoopOptions::Online::{Off, Host, Join}`), `stunServers`,
+  `netAnyBuild`, `netHashFull`, `netHashEvery`, `netFaultFrame`, `netInvite` (`--invite` /
+  `--join CODE`), `netInviteIn`, `netReplyIn`, `netCodeOut`, `clipboardGet/Set`,
+  `onlinePageDialog`, `onlineShowCode`, `onlineAskCode`; free functions `hostOnlineCode(code)` and
+  `hostOnlineDismiss()` (empty in `game_loop.cpp` until T4) for `web_main.cpp`'s exports.
+* `GameSession::LevelSetup` gets `seed`, `cameraOverride`, `godMode` (declared; T4 applies them);
+  `GameSession::stateHash()` / `stateHashFull()` are inline over the world.
+* The 3DS: nothing to pass; `engine/CMakeLists.txt` forces the null backend for `NINTENDO_3DS`
+  (`apps/3ds/CMakeLists.txt` carries a comment only).
+
 ### T1: Protocol, codes and the lockstep core (Opus)
 
 Goal: `engine/src/net/{protocol,signal,lockstep,loopback}.cpp` real, with unit tests.
@@ -1220,3 +1296,5 @@ Open questions (with the recommendation):
 ---
 
 Version 1 (2026-11-19): the specification and the work breakdown.
+Version 1.1 (2026-11-19): T0 landed the headers and stubs; "T0 notes" under T0 list where they
+refine the sections above.

@@ -1620,6 +1620,11 @@ void hostGlContextRestored() {
     if (g_current) g_current->glContextRestored();
 }
 
+// T4 (docs/spec/issues/180-online-coop.md 8.4): the window's NetPlay::pageCode, and the dialog
+// closed without a code.
+void hostOnlineCode(const std::string&) {}
+void hostOnlineDismiss() {}
+
 #ifndef __EMSCRIPTEN__
 int runGameWindow(const LoopOptions& options) {
     std::unique_ptr<GameWindow> w(new GameWindow(options));

@@ -692,6 +692,11 @@ public:
 
     // Deterministic JSON dump of the whole simulation state.
     std::string dumpStateJson() const;
+    // Online desync detection (docs/spec/issues/180-online-coop.md 4.4, engine/src/game/
+    // world_hash.cpp): FNV-1a 64 of the cheap identifying state (a few microseconds, every
+    // kHashEvery frames), and of dumpStateJson() (slow; the tests' --net-hash-full).
+    u64 stateHash() const;
+    u64 stateHashFull() const;
 
     // Level-flow actions (builtins EndLevel etc.).
     void endLevel();

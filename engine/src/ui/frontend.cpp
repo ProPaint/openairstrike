@@ -15,7 +15,10 @@ namespace {
 
 const char* kScreenNames[] = {"main",     "exit",     "start",        "scores", "name",    "options",
                               "controls", "info",     "ingame",       "hint",   "gameover", "complete",
-                              "gamecomplete", "heli", "credits", "dialogue", "players"};
+                              "gamecomplete", "heli", "credits", "dialogue", "players",
+                              "online", "online_host", "online_join", "online_lobby", "online_notice"};
+static_assert(sizeof(kScreenNames) / sizeof(kScreenNames[0]) == static_cast<size_t>(Screen::OnlineNotice) + 1,
+              "a name for every Screen");
 
 // Touch mode: the button that stands for Esc during play (docs/spec/issues/090).
 constexpr RectF kTouchMenuButton{360, 6, 80, 22};
@@ -42,7 +45,9 @@ const char* screenName(Screen s) { return kScreenNames[static_cast<int>(s)]; }
 bool screenFromName(std::string_view name, Screen& out) {
     for (Screen s : kSequelScreens)
         if (name == screenName(s)) { out = s; return true; }
-    if (name == screenName(Screen::Players)) { out = Screen::Players; return true; }
+    for (Screen s : {Screen::Players, Screen::Online, Screen::OnlineHostCode, Screen::OnlineJoinCode,
+                     Screen::OnlineLobby, Screen::OnlineNotice})
+        if (name == screenName(s)) { out = s; return true; }
     return false;
 }
 
@@ -132,9 +137,13 @@ void Frontend::open(Screen s) {
     Menu m;
     // Both gates of two players (twoPlayerChoice) for whatever this screen reads.
     content_.twoPlayerMode = twoPlayerChoice();
+    const bool onlineScreen = s >= Screen::Online && s <= Screen::OnlineNotice;
     if (sequel()) {
         SequelScreens::applyLook(*this);
-        m = SequelScreens::build(*this, s);
+        // The online screens in every style come from screens_online.cpp.
+        m = onlineScreen ? buildOnlineScreen(s) : SequelScreens::build(*this, s);
+    } else if (onlineScreen) {
+        m = buildOnlineScreen(s);
     } else if (plain()) {
         switch (s) {
             case Screen::MainMenu: m = buildPlainMain(); break;
