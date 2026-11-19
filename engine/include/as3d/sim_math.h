@@ -8,7 +8,8 @@
 // Every libm call of these functions in the simulation (engine/src/game, engine/src/script,
 // engine/src/core, as3d/math.h, as3d/vec.h) goes through here; sqrt, floor, ceil, trunc and fmod
 // are exact on every platform and stay std:: (apps/tests/sim_math_test.cpp enforces both).
-// T2 makes them real; until then they forward to std::.
+// Any NaN result is the canonical quiet NaN (the sign and payload of an arithmetic NaN differ
+// between x86, ARM and wasm). The renderer and the UI may use them too (as3d/math.h does).
 #pragma once
 
 #include "as3d/core.h"
@@ -35,10 +36,25 @@ double simAcos(double x);
 double simExp(double x);
 double simLog(double x);
 
-// FNV-1a 64 of the bits of every function above over the known-answer inputs of
-// apps/tests/sim_math_test.cpp: one number to compare between platforms (as3d_tests
-// -tc="sim_math hash" prints it, the web page's ?simmath=1 logs AS3D_SIMMATH hash=...,
-// section 14 item 3). 0 until T2.
+// FNV-1a 64 of the bits of every function above over the known-answer inputs (built in
+// sim_math.cpp, checked by apps/tests/sim_math_test.cpp): one number to compare between
+// platforms (as3d_tests -tc="sim_math hash" prints it, the web page's ?simmath=1 logs
+// AS3D_SIMMATH hash=..., section 14 item 3).
 u64 simMathCheckHash();
+
+// The known-answer table behind simMathCheckHash, for the test: function f in
+// [0, kSimMathCheckFunctions) in the order of the declarations above (simSinf first, simLog
+// last), input i in [0, kSimMathCheckInputs).
+constexpr int kSimMathCheckFunctions = 18;
+constexpr int kSimMathCheckInputs = 200;
+const char* simMathCheckName(int f);
+bool simMathCheckIsFloat(int f);  // float arguments and result
+bool simMathCheckTwoArgs(int f);  // atan2 (y, x) and pow (x, y)
+// The arguments of input i (b is 0 for one-argument functions; float values for float ones).
+void simMathCheckArgs(int f, int i, double& a, double& b);
+// The bits of the result (a float's in the low 32 bits).
+u64 simMathCheckBits(int f, int i);
+// FNV-1a 64 of one function's results (the hash above runs over all of them in order).
+u64 simMathCheckHashOf(int f);
 
 } // namespace as3d

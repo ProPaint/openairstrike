@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "as3d/sim_math.h"
 #include "as3d/world.h"
 #include "world_internal.h"
 
@@ -16,7 +17,7 @@ constexpr int kStepsPerSegment = 1000;
 
 float headingOfDirection(float dx, float dy) {
     if (dx == 0.0f && dy == 0.0f) return -90.0f;
-    float yaw = std::atan2(dy, dx) * kRadToDeg;
+    float yaw = simAtan2f(dy, dx) * kRadToDeg;
     if (yaw < 0.0f) yaw += 360.0f;
     return yaw - 90.0f;
 }
@@ -86,6 +87,9 @@ float GamePath::paramAt(float s, int& k, float& f) const {
     int N = sampleCount();
     float n = s * 0.125f;
     if (!(n > 0.0f)) n = 0.0f;
+    // Past the end is the end; capped so that the conversion below stays in the int range (out
+    // of range it is undefined: INT_MIN on x86, INT_MAX on ARM; spec issue 180, 7.3).
+    if (n > 1.0e9f) n = 1.0e9f;
     k = static_cast<int>(std::floor(n));
     f = n - static_cast<float>(k);
     if (k >= N - 1) {

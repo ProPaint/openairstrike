@@ -16,6 +16,13 @@ set(AS3D_UI_BACKEND "${_as3d_d_ui}" CACHE STRING "ui backend directory (gles, pi
 set(AS3D_AUDIO_BACKEND "${_as3d_d_audio}" CACHE STRING "audio backend directory (sdl, ndsp)")
 set(AS3D_PLATFORM_BACKEND "${_as3d_d_platform}" CACHE STRING "platform backend directory (sdl, ctr)")
 
+# No fused multiply-add in any engine module (docs/spec/issues/180-online-coop.md 7.1): the
+# simulation must compute the same bits on x86-64, arm64, wasm and the 3DS. Here too (not only in
+# the root CMakeLists.txt) because the web project and the standalone apps/sim_tool add this
+# directory directly; directory scope, so it reaches every module whatever CMAKE_CXX_FLAGS say
+# (it comes after them on the command line).
+add_compile_options(-ffp-contract=off)
+
 # Online two-player co-op (docs/spec/issues/180-online-coop.md 12). Here rather than in the root
 # CMakeLists.txt because every platform build passes through this file: the desktop and Android
 # (the root adds it), the web (apps/web adds the engine directly) and the 3DS. AS3D_WITH_NET is

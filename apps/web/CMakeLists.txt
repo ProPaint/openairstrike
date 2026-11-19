@@ -24,7 +24,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 add_compile_options(-Wall -Wextra -Wno-unused-parameter)
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
-# T2 (docs/spec/issues/180-online-coop.md 7.1): -ffp-contract=off goes here too (own project).
+# No fused multiply-add (docs/spec/issues/180-online-coop.md 7.1; wasm has no FMA instruction
+# without relaxed-simd, but the option keeps the promise explicit, as in the root CMakeLists.txt).
+add_compile_options(-ffp-contract=off)
 
 get_filename_component(AS3D_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 add_compile_definitions(AS3D_REPO_ROOT="${AS3D_REPO_ROOT}")

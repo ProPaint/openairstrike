@@ -5,6 +5,14 @@ they list the commits since the previous tag.
 
 ## Unreleased
 
+- **The simulation's trigonometry is now the engine's own** (a port of musl's, `as3d/sim_math.h`)
+  instead of the C library's, and nothing in the engine fuses multiplications and additions any
+  more (`-ffp-contract=off` everywhere): the desktop, Android, the web and the 3DS compute the
+  same bits, which online co-op needs. Glibc's results differed from these in the last bit for
+  some angles, so the desktop's end states changed once: some missions play out slightly
+  differently from before (the long boss fights and some two-player runs end at other frames;
+  the bot regression runs of the three games are unchanged).
+
 - **Two players in AirStrike 2 and Gulf Thunder** on the desktop: choose "Cooperative" in Start
   Game, pick a helicopter for each player, and play the campaign together with the two-player
   HUD; the checkpoint, Restart and Next keep both players' lives and scores.

@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "as3d/core.h"
+#include "as3d/sim_math.h"
 #include "as3d/vec.h"
 
 namespace as3d {
@@ -38,9 +39,9 @@ constexpr float kRadToDeg = 180.0f / 3.14159265358979323846f;
 
 // AnglesToAxis (engine-behaviour.md 4.3, rcsl-builtins-table.md): rows forward, left, up.
 inline void anglesToAxisRows(float ax, float ay, float az, float m[9]) {
-    float sa = std::sin(ax * kDegToRad), ca = std::cos(ax * kDegToRad);
-    float sb = std::sin(ay * kDegToRad), cb = std::cos(ay * kDegToRad);
-    float sc = std::sin(az * kDegToRad), cc = std::cos(az * kDegToRad);
+    float sa = simSinf(ax * kDegToRad), ca = simCosf(ax * kDegToRad);
+    float sb = simSinf(ay * kDegToRad), cb = simCosf(ay * kDegToRad);
+    float sc = simSinf(az * kDegToRad), cc = simCosf(az * kDegToRad);
     m[0] = cb * cc;
     m[1] = cb * sc;
     m[2] = sb;
@@ -64,9 +65,9 @@ inline float wrap180(float d) {
 inline void vecToAngles(float x, float y, float z, float out[3]) {
     float yaw, pitch;
     if (x != 0.0f || y != 0.0f) {
-        yaw = std::atan2(y, x) * kRadToDeg;
+        yaw = simAtan2f(y, x) * kRadToDeg;
         if (yaw < 0.0f) yaw += 360.0f;
-        pitch = std::atan2(z, std::sqrt(x * x + y * y)) * kRadToDeg;
+        pitch = simAtan2f(z, std::sqrt(x * x + y * y)) * kRadToDeg;
         if (pitch < 0.0f) pitch += 360.0f;
     } else {
         yaw = 0.0f;

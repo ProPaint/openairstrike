@@ -127,10 +127,13 @@ void WorldParticles::update(World& world, float dt) {
             candidates_.push_back(&p);
         }
         // Walk order: oldest root first, then preorder (a parent's path is a prefix of its
-        // descendants' and comes first).
+        // descendants' and comes first). Equal keys can only be the same holder recorded twice;
+        // the slot still breaks the tie, so that the order is total and std::sort cannot order
+        // them differently in libstdc++ and libc++ (docs/spec/issues/180-online-coop.md 7.3).
         std::sort(candidates_.begin(), candidates_.end(), [](const Pending* a, const Pending* b) {
             if (a->rootOrder != b->rootOrder) return a->rootOrder < b->rootOrder;
-            return a->path < b->path;
+            if (a->path != b->path) return a->path < b->path;
+            return a->slot < b->slot;
         });
         for (Pending* p : candidates_) pickUp(world, p->slot);
     }

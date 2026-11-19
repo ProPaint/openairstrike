@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "as3d/math.h"
+#include "as3d/sim_math.h"
 
 namespace as3d {
 
@@ -47,7 +48,7 @@ WaterSurface buildWaterSurface(const Terrain& terrain, bool waves, const std::st
 
 float waterWaveOffset(float weight, int col, int row, float t) {
     return kWaterWaveAmplitude * weight * 0.5f *
-           (std::sin(0.75f * static_cast<float>(row) + t) + std::sin(static_cast<float>(col) + t));
+           (simSinf(0.75f * static_cast<float>(row) + t) + simSinf(static_cast<float>(col) + t));
 }
 
 float waterVertexHeight(const WaterSurface& s, const TerrainGridView& grid, int c, int r, float t) {

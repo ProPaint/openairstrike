@@ -35,7 +35,7 @@ run: the pilot never picked up the lightning bomb.
 | 3 | Desert Strike | yes | yes | 13760 | 42060 | 3 | 50 | `hlanno2.tga` | completes, 3 lives |
 | 4 | Area 55 | | yes | 13805 | 47140 | 3 | 54 | `hlanno2.tga`, `scripts\j_cannon.scr`, tags `tag_gun13..16` | game over at 9015 |
 | 5 | Millburg | yes | yes | 13723 | 42710 | 3 | 51 | `hlanno2.tga`, tags `tag_gun13..16` | completes, 2 lives |
-| 6 | Fear Factory (boss 1) | yes | yes | 55975 | 91750 | 4 | 56 | `hlanno2.tga`, tags `tag_gun13..16` | game over at 23295 |
+| 6 | Fear Factory (boss 1) | yes | yes | 55969 | 91750 | 4 | 56 | `hlanno2.tga`, tags `tag_gun13..16` | game over at 23295 |
 | 7 | Cold Battle | | yes | 13542 | 54170 | 2 | 56 | `hlanno2.tga`, `scripts\j_cannon.scr` | completes, 0 lives |
 | 8 | Snow Storm | yes | yes | 13812 | 40420 | 3 | 54 | `hlanno2.tga` | completes, 2 lives |
 | 9 | Great River | | yes | 13718 | 55770 | 2 | 50 | `hlanno2.tga`, `scripts\j_cannon.scr` | completes, 0 lives |
@@ -49,7 +49,7 @@ run: the pilot never picked up the lightning bomb.
 | 17 | The nuclear winter | yes | yes | 13354 | 63850 | 2 | 57 | `hlanno2.tga` | game over at 6743 |
 | 18 | End is Near | | yes | 12478 | 66250 | 2 | 57 | `hlanno2.tga` | completes, 0 lives |
 | 19 | The BadLands | yes | yes | 13646 | 56100 | 3 | 58 | `hlanno2.tga` | game over at 9692 |
-| 20 | N.I.T.O. Headquarters (boss 3) | yes | yes | 81798 | 180000 | 4 | 58 | `hlanno2.tga` | game over at 19275 |
+| 20 | N.I.T.O. Headquarters (boss 3) | yes | yes | 79715 | 180000 | 4 | 58 | `hlanno2.tga` | game over at 19275 |
 
 The missing files are missing from the shipped data, not from our loaders:
 `models\misc\hlanno2.tga` (a placeholder texture is drawn), two scripts named by the data
@@ -61,7 +61,7 @@ muzzle flashes of those guns are detached; spec issue 113).
 Every mission was also played with two players, each flown by its own world-aware pilot
 (`as3d_sim --level N --players 2 --two-pilots`, seed 1, Normal), in god mode to the end and
 without god mode for 20000 frames, with no script error, stall, refused spawn or forced
-respawn. In god mode every mission ends (missions 6 and 20 at frames 65065 and 27669, the others
+respawn. In god mode every mission ends (missions 6 and 20 at frames 68971 and 27690, the others
 between 9683 and 13854); without it, all but 6 and 20 end within the 20000 frames (no game over).
 `apps/tests/two_player_missions_test.cpp` keeps a short version in the CI, with the sequels'.
 

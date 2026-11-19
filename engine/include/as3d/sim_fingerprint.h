@@ -14,7 +14,7 @@ namespace as3d {
 
 class Vfs;
 
-// 64 lower-case hex digits (logged as AS3D_NET fingerprint=...). T2; the stub returns 64 '0'.
+// 64 lower-case hex digits (logged as AS3D_NET fingerprint=...).
 std::string simDataFingerprint(Vfs& vfs);
 // The same digest as 32 bytes (Hello::simFingerprint).
 void simDataFingerprintBytes(Vfs& vfs, u8 out[32]);

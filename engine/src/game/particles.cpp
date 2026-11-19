@@ -6,6 +6,8 @@
 #include <cstring>
 
 #include "as3d/defs.h"
+#include "as3d/sim_math.h"
+#include "world_internal.h"
 
 namespace as3d {
 
@@ -54,7 +56,7 @@ namespace {
 struct SinTable {
     float v[360];
     SinTable() {
-        for (int i = 0; i < 360; i++) v[i] = std::sin(degToRad(static_cast<float>(i)));
+        for (int i = 0; i < 360; i++) v[i] = simSinf(degToRad(static_cast<float>(i)));
     }
 };
 const SinTable& sinTable() {
@@ -134,7 +136,7 @@ void ParticleEmitter::spawn(Particle& p) {
         vel[1] = w.y;
         vel[2] = w.z;
         // "+ yaw of the axis when oriented" (6.5). GUESS: atan2(row0.y, row0.x) in degrees.
-        p.angle += radToDeg(std::atan2(axis_[0].y, axis_[0].x));
+        p.angle += radToDeg(simAtan2f(axis_[0].y, axis_[0].x));
     }
     for (int i = 0; i < 3; i++) p.v[i] = vel[i];
     for (int i = 0; i < 4; i++) p.rgba[i] = d.initColor[i];
@@ -202,7 +204,8 @@ void ParticleEmitter::update(float dt) {
         }
         if (d.animLinear) {
             float ratio = life > 0.0f ? p.age / life : 1.0f;
-            p.frame = static_cast<int>(ratio * static_cast<float>(cells));
+            // ftol: a defined result for any ratio (a tiny life makes it huge; spec issue 180, 7.3).
+            p.frame = ftol(ratio * static_cast<float>(cells));
         }
         p.age += dt;
         if (!(p.age <= life)) --live_; // died this step

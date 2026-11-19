@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "as3d/math.h"
+#include "as3d/sim_math.h"
 #include "as3d/terrain.h"
 
 namespace as3d {
@@ -26,7 +27,7 @@ Vec2 bezTangent(const Vec2& p0, const Vec2& p1, const Vec2& p2, const Vec2& p3, 
 }
 // Heading convention (internally consistent; the spec does not pin the absolute
 // yaw frame): degrees, 0 = travelling along +y, 90 = along +x.
-float headingOf(const Vec2& d) { return radToDeg(std::atan2(d.x, d.y)); }
+float headingOf(const Vec2& d) { return radToDeg(simAtan2f(d.x, d.y)); }
 float lerpAngle(float a, float b, float t) {
     float d = std::fmod(b - a, 360.0f);
     if (d > 180.0f) d -= 360.0f;

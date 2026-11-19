@@ -10,6 +10,7 @@
 #include <cmath>
 
 #include "as3d/defs.h"
+#include "as3d/sim_math.h"
 #include "builtins_common.h"
 
 namespace as3d {
@@ -27,11 +28,11 @@ PlayerRecord& selfPlayer(World& w) { return w.player(w.currentPlayerIndex()); }
 
 // atan(x): degrees of atan(x); the first game's quirk is gone (delta 9).
 void bAtan(BuiltinArgs& a, void*) {
-    a.setReturnFloat(static_cast<float>(std::atan(static_cast<double>(a.f32(0))) * kRadToDegD));
+    a.setReturnFloat(static_cast<float>(simAtan(static_cast<double>(a.f32(0))) * kRadToDegD));
 }
 // atan2(y, x): degrees in (-180, 180] (delta 10).
 void bAtan2(BuiltinArgs& a, void*) {
-    a.setReturnFloat(static_cast<float>(std::atan2(static_cast<double>(a.f32(0)), static_cast<double>(a.f32(1))) * kRadToDegD));
+    a.setReturnFloat(static_cast<float>(simAtan2(static_cast<double>(a.f32(0)), static_cast<double>(a.f32(1))) * kRadToDegD));
 }
 // copysign(x, sign): |x| with the sign bit of `sign` (delta 15).
 void bCopysign(BuiltinArgs& a, void*) {

@@ -10,6 +10,7 @@
 #include "as3d/core.h"
 #include "as3d/defs.h"
 #include "as3d/model.h"
+#include "as3d/sim_math.h"
 #include "as3d/vfs.h"
 
 namespace as3d {
@@ -48,8 +49,8 @@ Mat4 rigidTransform(const Mat3& rot, const Vec3& pos) {
 // and returns a mirrored `right`; see the WP-30/33 report.
 Mat3 rotFromAngles(const Vec3& angles) {
     float x = degToRad(angles.x), y = degToRad(angles.y), z = degToRad(angles.z);
-    float sx = std::sin(x), cx = std::cos(x), sy = std::sin(y), cy = std::cos(y);
-    float sz = std::sin(z), cz = std::cos(z);
+    float sx = simSinf(x), cx = simCosf(x), sy = simSinf(y), cy = simCosf(y);
+    float sz = simSinf(z), cz = simCosf(z);
     Vec3 forward{cy * cz, cy * sz, sy};
     Vec3 left{sx * sy * cz - cx * sz, sx * sy * sz + cx * cz, -sx * cy};
     Vec3 up{-sx * sz - cx * sy * cz, sx * cz - cx * sy * sz, cx * cy};

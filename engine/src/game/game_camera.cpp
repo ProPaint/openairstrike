@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "as3d/sim_math.h"
+
 namespace as3d {
 
 GameCamera computeGameCamera(int mode, float mapPos, float cameraX, float aspect, bool hasFog, float fogEnd) {
@@ -22,8 +24,8 @@ GameCamera computeGameCamera(const CameraPreset& p, float minX, float maxX, floa
     // spec facts: screen right = +x, screen up = +y, and the view centre hits z = 0 at
     // height * tan(t) ahead (270 for the default mode).
     float t = degToRad(-p.pitchDegrees);
-    Vec3 fwd{0.0f, std::sin(t), -std::cos(t)};
-    Vec3 up{0.0f, std::cos(t), std::sin(t)};
+    Vec3 fwd{0.0f, simSinf(t), -simCosf(t)};
+    Vec3 up{0.0f, simCosf(t), simSinf(t)};
     cam.view = lookAt(cam.position, cam.position + fwd, up);
     cam.projection = perspective(p.fovDegrees, aspect, kGameCameraNear, cam.farPlane);
     return cam;

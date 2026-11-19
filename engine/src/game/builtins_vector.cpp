@@ -3,6 +3,7 @@
 // component, as specified.
 #include <cmath>
 
+#include "as3d/sim_math.h"
 #include "builtins_common.h"
 
 namespace as3d {
@@ -85,7 +86,7 @@ void bVecToyaw(BuiltinArgs& a, void*) {
         a.setReturnFloat(-90.0f);
         return;
     }
-    float yaw = std::atan2(v[1], v[0]) * kRadToDeg;
+    float yaw = simAtan2f(v[1], v[0]) * kRadToDeg;
     if (yaw < 0.0f) yaw += 360.0f;
     a.setReturnFloat(yaw - 90.0f);
 }

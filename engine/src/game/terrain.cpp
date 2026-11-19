@@ -4,6 +4,7 @@
 #include "as3d/terrain.h"
 
 #include "as3d/defs.h"
+#include "as3d/sim_math.h"
 
 #include <algorithm>
 #include <cmath>
@@ -104,11 +105,11 @@ Vec3 combineFaceNormals(int c, int r, int w, int h, FaceFn face) {
     if (n == 0) return {0.0f, 0.0f, 0.0f};
     float sums[3] = {0.0f, 0.0f, 0.0f};
     for (int k = 0; k < n; k++) {
-        sums[0] += std::acos(clampf(acc[k].x, -1.0f, 1.0f));
-        sums[1] += std::acos(clampf(acc[k].y, -1.0f, 1.0f));
-        sums[2] += std::acos(clampf(acc[k].z, -1.0f, 1.0f));
+        sums[0] += simAcosf(clampf(acc[k].x, -1.0f, 1.0f));
+        sums[1] += simAcosf(clampf(acc[k].y, -1.0f, 1.0f));
+        sums[2] += simAcosf(clampf(acc[k].z, -1.0f, 1.0f));
     }
-    Vec3 combined{std::cos(sums[0] / n), std::cos(sums[1] / n), std::cos(sums[2] / n)};
+    Vec3 combined{simCosf(sums[0] / n), simCosf(sums[1] / n), simCosf(sums[2] / n)};
     return vnorm(combined);
 }
 

@@ -29,6 +29,9 @@
 //    unit vectors (an orthonormal, left-handed frame), which is what is tested.
 #pragma once
 
+// sin, cos and tan through as3d/sim_math.h: the simulation builds its rotations here, and they
+// must be the same bits on every platform (docs/spec/issues/180-online-coop.md 7.2).
+#include "as3d/sim_math.h"
 #include "as3d/vec.h"
 #include <cmath>
 #include <cstddef>
@@ -266,7 +269,7 @@ inline Mat4 scale(const Vec3& s) {
 // +X towards the origin.
 inline Mat4 rotationX(float degrees) {
     float rad = degToRad(degrees);
-    float c = std::cos(rad), s = std::sin(rad);
+    float c = simCosf(rad), s = simSinf(rad);
     Mat4 r;
     r.at(1, 1) = c;
     r.at(2, 1) = -s;
@@ -277,7 +280,7 @@ inline Mat4 rotationX(float degrees) {
 
 inline Mat4 rotationY(float degrees) {
     float rad = degToRad(degrees);
-    float c = std::cos(rad), s = std::sin(rad);
+    float c = simCosf(rad), s = simSinf(rad);
     Mat4 r;
     r.at(0, 0) = c;
     r.at(2, 0) = s;
@@ -288,7 +291,7 @@ inline Mat4 rotationY(float degrees) {
 
 inline Mat4 rotationZ(float degrees) {
     float rad = degToRad(degrees);
-    float c = std::cos(rad), s = std::sin(rad);
+    float c = simCosf(rad), s = simSinf(rad);
     Mat4 r;
     r.at(0, 0) = c;
     r.at(1, 0) = -s;
@@ -300,7 +303,7 @@ inline Mat4 rotationZ(float degrees) {
 // Right-handed OpenGL perspective projection. `fovYDegrees` is the full vertical
 // field of view. Maps view-space z in [-near, -far] to NDC z in [-1, 1].
 inline Mat4 perspective(float fovYDegrees, float aspect, float znear, float zfar) {
-    float f = 1.0f / std::tan(degToRad(fovYDegrees) * 0.5f);
+    float f = 1.0f / simTanf(degToRad(fovYDegrees) * 0.5f);
     Mat4 r;
     for (int i = 0; i < 16; i++) r.m[i] = 0.0f;
     r.at(0, 0) = f / aspect;
@@ -352,9 +355,9 @@ inline void anglesToAxis(const Vec3& anglesDegrees, Vec3& forward, Vec3& right, 
     float yaw = degToRad(anglesDegrees.y);
     float roll = degToRad(anglesDegrees.z);
 
-    float sy = std::sin(yaw), cy = std::cos(yaw);
-    float sp = std::sin(pitch), cp = std::cos(pitch);
-    float sr = std::sin(roll), cr = std::cos(roll);
+    float sy = simSinf(yaw), cy = simCosf(yaw);
+    float sp = simSinf(pitch), cp = simCosf(pitch);
+    float sr = simSinf(roll), cr = simCosf(roll);
 
     forward = {cp * cy, cp * sy, -sp};
     right = {-sr * sp * cy + -cr * -sy, -sr * sp * sy + -cr * cy, -sr * cp};

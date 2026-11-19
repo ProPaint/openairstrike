@@ -42,7 +42,12 @@ add_compile_options(-Wall -Wextra -Wno-unused-parameter)
 # RTTI is off everywhere, tests included, so that interface vtables agree
 # between translation units.
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
-# T2 (docs/spec/issues/180-online-coop.md 7.1): -ffp-contract=off engine-wide goes here.
+# No fused multiply-add (docs/spec/issues/180-online-coop.md 7.1): clang contracts a*b+c into
+# one FMA by default where the target has it (Android arm64; x86-64 with -mfma), which rounds
+# once instead of twice, so online peers on different platforms would desync. Off everywhere:
+# here for the apps and tests (and Android, which adds this directory), in engine/CMakeLists.txt
+# for the engine modules whichever project adds them, and in apps/web/CMakeLists.txt.
+add_compile_options(-ffp-contract=off)
 # Online co-op: AS3D_WITH_NET, AS3D_NET_BACKEND and AS3D_BUILD_ID are defined in
 # engine/CMakeLists.txt, which every platform build (desktop, Android, web, 3DS) passes through.
 if(AS3D_SANITIZE)

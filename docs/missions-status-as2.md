@@ -102,9 +102,9 @@ runs every mission with two pilots for 2400 frames in god mode and 1800 frames a
 | 13 | 6018 | ends at 6018 | 0 | 0 | 0 |
 | 14 | 13435 | ends at 13435 | 0 | 0 | 0 |
 | 15 | 13402 | ends at 13414 | 0 | 0 | 0 |
-| 16 | 13629 | ends at 13629 | 0 | 0 | 0 |
-| 17 | 14040 | ends at 14040 | 0 | 0 | 0 |
-| 18 | 20797 | game over at 14562 | 0 | 0 | 0 |
+| 16 | 13629 | ends at 13645 | 0 | 0 | 0 |
+| 17 | 14025 | ends at 14040 | 0 | 0 | 0 |
+| 18 | 17954 | game over at 14562 | 0 | 0 | 0 |
 
 Compared with the original under Wine (2026-11-19, `tools/run_original.sh as2`, screenshots in
 `out/reference/as2/coop/` of the main checkout, not committed): the Game mode spinner

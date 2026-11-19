@@ -1,6 +1,7 @@
 // Math and random builtins (docs/spec/rcsl-builtins-table.md, "Math").
 #include <cmath>
 
+#include "as3d/sim_math.h"
 #include "builtins_common.h"
 
 namespace as3d {
@@ -22,11 +23,11 @@ void bCrandom(BuiltinArgs& a, void*) {
     a.setReturnFloat(static_cast<float>(static_cast<double>(v) - 1.0));
 }
 
-void bSin(BuiltinArgs& a, void*) { a.setReturnFloat(static_cast<float>(std::sin(a.f32(0) * kPiOver180))); }
-void bCos(BuiltinArgs& a, void*) { a.setReturnFloat(static_cast<float>(std::cos(a.f32(0) * kPiOver180))); }
-void bTan(BuiltinArgs& a, void*) { a.setReturnFloat(static_cast<float>(std::tan(a.f32(0) * kPiOver180))); }
+void bSin(BuiltinArgs& a, void*) { a.setReturnFloat(static_cast<float>(simSin(a.f32(0) * kPiOver180))); }
+void bCos(BuiltinArgs& a, void*) { a.setReturnFloat(static_cast<float>(simCos(a.f32(0) * kPiOver180))); }
+void bTan(BuiltinArgs& a, void*) { a.setReturnFloat(static_cast<float>(simTan(a.f32(0) * kPiOver180))); }
 // QUIRK: the input is converted as if it were degrees, the output stays in radians.
-void bAtan(BuiltinArgs& a, void*) { a.setReturnFloat(static_cast<float>(std::atan(a.f32(0) * kPiOver180))); }
+void bAtan(BuiltinArgs& a, void*) { a.setReturnFloat(static_cast<float>(simAtan(a.f32(0) * kPiOver180))); }
 void bAbs(BuiltinArgs& a, void*) { a.setReturnFloat(std::fabs(a.f32(0))); }
 
 void bMin(BuiltinArgs& a, void*) {

@@ -62,7 +62,7 @@ screenshots in `out/gulf/cmp/` and `out/gulf/cmp24/`; ours rendered headless or 
 | 21 | Urban Trip | | yes | 11798 | 182050 | 98 / 110 | 6 | 0 | 0 | 0 | 3 | yes | 19 |
 | 22 | Metal Storm | | yes | 12280 | 325400 | 115 / 125 | 3 | 0 | 0 | 0 | 0 | yes | 20 |
 | 23 | Close to Headquarters | | yes | 11633 | 461700 | 79 / 92 | 3 | 0 | 0 | 0 | 1 | yes | 19 |
-| 24 | Phoenix Burning | boss 2 | yes | 38047 | 174250 | 138 / 159 | 6 | 0 | 0 | 0 | 1 | yes | 63 |
+| 24 | Phoenix Burning | boss 2 | yes | 38177 | 175750 | 138 / 159 | 6 | 0 | 0 | 0 | 1 | yes | 63 |
 
 "End frame" is the frame of `EndLevel`. "Kills / enemy total" is the mission-complete
 statistic as for AirStrike 2 (load-time spawns left out of the total, kills capped at it).
@@ -97,29 +97,29 @@ script error, a stall, a refused spawn or a forced respawn. The CI keeps a short
 | Operation | Two pilots, god (EndLevel frame) | Two pilots, mortal | Script errors | Stalls | Forced respawns |
 |---|---|---|---|---|---|
 | 1 | 12565 | ends at 12622 | 0 | 0 | 0 |
-| 2 | 13337 | ends at 13407 | 0 | 0 | 0 |
+| 2 | 13337 | ends at 13475 | 0 | 0 | 0 |
 | 3 | 12952 | ends at 13199 | 0 | 0 | 0 |
 | 4 | 13184 | game over at 6935 | 0 | 0 | 0 |
-| 5 | 12536 | ends at 12854 | 0 | 0 | 0 |
+| 5 | 12536 | ends at 12798 | 0 | 0 | 0 |
 | 6 | 12739 | ends at 12895 | 0 | 0 | 0 |
 | 7 | 12868 | ends at 12884 | 0 | 0 | 0 |
 | 8 | 13089 | ends at 13237 | 0 | 0 | 0 |
 | 9 | 13060 | ends at 12964 | 0 | 0 | 0 |
-| 10 | 8600 | game over at 9281 | 0 | 0 | 0 |
+| 10 | 9298 | game over at 9281 | 0 | 0 | 0 |
 | 11 | 6863 | ends at 4116 | 0 | 0 | 0 |
 | 12 | 13065 | ends at 13103 | 0 | 0 | 0 |
 | 13 | 12808 | game over at 8555 | 0 | 0 | 0 |
-| 14 | 12506 | game over at 7156 | 0 | 0 | 0 |
-| 15 | 12781 | ends at 12842 | 0 | 0 | 0 |
+| 14 | 12506 | game over at 5292 | 0 | 0 | 0 |
+| 15 | 12781 | game over at 10753 | 0 | 0 | 0 |
 | 16 | 12445 | ends at 12456 | 0 | 0 | 0 |
-| 17 | 12472 | ends at 12411 | 0 | 0 | 0 |
+| 17 | 12471 | ends at 12379 | 0 | 0 | 0 |
 | 18 | 6936 | ends at 6945 | 0 | 0 | 0 |
-| 19 | 12425 | game over at 8943 | 0 | 0 | 0 |
+| 19 | 12347 | game over at 8943 | 0 | 0 | 0 |
 | 20 | 12625 | game over at 6800 | 0 | 0 | 0 |
 | 21 | 11891 | ends at 12041 | 0 | 0 | 0 |
-| 22 | 12682 | game over at 8048 | 0 | 0 | 0 |
+| 22 | 12673 | game over at 8048 | 0 | 0 | 0 |
 | 23 | 11872 | ends at 11934 | 0 | 0 | 0 |
-| 24 | 24774 | game over at 8639 | 0 | 0 | 0 |
+| 24 | 24041 | game over at 11979 | 0 | 0 | 0 |
 
 ## Builtins, errors, missing data
 

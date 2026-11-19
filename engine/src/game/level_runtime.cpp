@@ -11,6 +11,7 @@
 #include "as3d/game_camera.h"
 #include "as3d/load_stats.h"
 #include "as3d/player_select.h"
+#include "as3d/sim_math.h"
 #include "as3d/world.h"
 #include "world_internal.h"
 #include "world_path.h"
@@ -263,9 +264,9 @@ void World::updateCamera() {
     if (intermission_) {
         // 9.6: fixed camera, pitch and roll sway, FOV 60, no scroll.
         for (int k = 0; k < 3; ++k) c.field[k] = intermissionCam_[k];
-        c.field[3] = intermissionCam_[3] + 0.5f * std::sin(0.5f * time_);
+        c.field[3] = intermissionCam_[3] + 0.5f * simSinf(0.5f * time_);
         c.field[4] = intermissionCam_[4];
-        c.field[5] = intermissionCam_[5] + 1.4f * std::sin(0.75f * time_);
+        c.field[5] = intermissionCam_[5] + 1.4f * simSinf(0.75f * time_);
         c.field[14] = 60.0f;
     } else {
         const CameraPreset& preset = rules_->cameraModes[c.mode];
@@ -311,11 +312,11 @@ void World::updateCamera() {
         float fov = preset.fovDegrees;
         if (c.quakeClock > 0.0f) {
             float t = c.quakeElapsed;
-            float e = std::exp(-2.0f * t);
+            float e = simExpf(-2.0f * t);
             float a = c.quakeAmplitude;
-            c.quakeYaw = 2.0f * a * e * std::sin(24.0f * t);
-            c.quakeRoll = a * e * std::sin(12.0f * t);
-            fov += a * e * std::sin(18.0f * t);
+            c.quakeYaw = 2.0f * a * e * simSinf(24.0f * t);
+            c.quakeRoll = a * e * simSinf(12.0f * t);
+            fov += a * e * simSinf(18.0f * t);
             c.quakeElapsed += frametime_;
             c.quakeClock -= frametime_;
         } else {

@@ -7,6 +7,7 @@
 
 #include "as3d/defs.h"
 #include "as3d/model.h"
+#include "as3d/sim_math.h"
 #include "as3d/world.h"
 #include "world_internal.h"
 
@@ -117,7 +118,7 @@ void World::setupTransform(int idx) {
         if (n.z < 0.0f) n = -n;
         n = normalize(n);
         float yaw = e.f(F_ANGLES + 2) * kDegToRad;
-        Vec3 f0{std::cos(yaw), std::sin(yaw), 0.0f};
+        Vec3 f0{simCosf(yaw), simSinf(yaw), 0.0f};
         Vec3 left = normalize(cross(n, f0));
         Vec3 fwd = cross(left, n);
         float m[9] = {fwd.x, fwd.y, fwd.z, left.x, left.y, left.z, n.x, n.y, n.z};
@@ -127,7 +128,7 @@ void World::setupTransform(int idx) {
         // construction on the plane through the water surface at the same three points.
         const Vec3 n = waterSample(e.f(F_ORIGIN), e.f(F_ORIGIN + 1)).normal;
         float yaw = e.f(F_ANGLES + 2) * kDegToRad;
-        Vec3 f0{std::cos(yaw), std::sin(yaw), 0.0f};
+        Vec3 f0{simCosf(yaw), simSinf(yaw), 0.0f};
         Vec3 left = normalize(cross(n, f0));
         Vec3 fwd = cross(left, n);
         float m[9] = {fwd.x, fwd.y, fwd.z, left.x, left.y, left.z, n.x, n.y, n.z};
