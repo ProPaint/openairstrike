@@ -362,7 +362,18 @@ private:
                 rc.iceServers.emplace_back(url);
             } catch (const std::exception& e) {
                 AS3D_WARN("AS3D_NET ignoring STUN server '%s': %s", url.c_str(), e.what());
+                continue;
             }
+#ifndef __EMSCRIPTEN__
+            // libjuice asks a single STUN server, and libdatachannel picks it at random from the
+            // list. Behind a carrier-grade NAT whose public address depends on the destination
+            // (the owner's line: Cloudflare's STUN sees one address, Google's and most of the
+            // internet another), a random pick made the code carry the wrong address one time
+            // in two ("can't connect" to a phone on 5G). The first server of the list is used:
+            // the same one every time, and the list puts the most common path first.
+            AS3D_INFO("AS3D_NET stun %s", url.c_str());
+            break;
+#endif
         }
 #ifndef __EMSCRIPTEN__
         rc.maxMessageSize = 262144;
