@@ -516,6 +516,16 @@ void NetPlay::chooseFlow(OnlineFlowChoice c) {
         return;
     }
     if (role_ != Role::Host || !inPlay()) return;
+    // The hash of this side's last frame of the level goes first (ctl is ordered): the guest,
+    // which stops its lockstep where the FlowChoice finds it (a frame or two off), counts the
+    // level as long as the host's (FlowChoice below), so that --frames N ends both sides of a
+    // multi-level run on the same frame.
+    if (lockstepLive_ && lockstep_.frame() > 0 && lastHashed_ != lockstep_.frame() - 1) {
+        const u32 f = lockstep_.frame() - 1;
+        const u64 h = options_.hashFull ? session_.stateHashFull() : session_.stateHash();
+        lockstep_.noteLocalHash(f, h);
+        sendHash(f, h);
+    }
     FlowChoiceMsg m;
     m.choice = static_cast<u8>(c);
     encodeFlowChoice(m, buf_);
@@ -875,6 +885,12 @@ void NetPlay::handleCtl(const std::vector<u8>& m) {
                 if (status_.phase != OnlinePhase::Lobby) return;
             } else {
                 if (!inPlay()) return;
+                // The host's last frame of the level is its newest hash (chooseFlow sent it just
+                // before): the level counts that long here too, whether this side stepped a
+                // frame or two less or more (nothing of the tail survives the next level's fresh
+                // world; the frame count is what --frames and AS3D_GAME_FRAME go by).
+                if (lockstepLive_ && remoteHashAny_ && remoteHashToken_ == token_)
+                    steppedFrames_ += static_cast<long>(remoteHashFrame_) + 1 - static_cast<long>(lockstep_.frame());
                 lockstepLive_ = false;
                 stalling_ = false;
                 setPhase(OnlinePhase::Loading);
