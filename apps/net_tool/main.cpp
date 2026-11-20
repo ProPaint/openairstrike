@@ -395,8 +395,23 @@ int runJoin(Options o) {
 
 int usage() {
     std::printf("usage: as3d_net_tool pair|host|join [--stun none|URL,...] [--raw-sdp] [--packets N] [--pings N]\n"
-                "                     [--rate HZ] [--verbose] [invite]\n");
+                "                     [--rate HZ] [--verbose] [invite]\n"
+                "       as3d_net_tool decode CODE   (what an invite or reply code carries)\n");
     return 2;
+}
+
+// The addresses a player's code carries, for a "can't connect" report.
+int runDecode(const std::string& code) {
+    SignalInfo s;
+    if (!decodeSignalCode(code, s)) {
+        std::printf("not a valid code\n");
+        return 1;
+    }
+    std::printf("%s, setup %d, sctp port %u, %zu candidate(s):\n", s.kind == SignalKind::Invite ? "invite" : "reply",
+                static_cast<int>(s.setup), static_cast<unsigned>(s.sctpPort), s.candidates.size());
+    for (const SignalCandidate& c : s.candidates)
+        std::printf("  %-5s %s port %u\n", (c.type == CandidateType::Host ? "host" : c.type == CandidateType::Srflx ? "srflx" : "prflx"), candidateAddress(c).c_str(), static_cast<unsigned>(c.port));
+    return 0;
 }
 
 } // namespace
@@ -404,6 +419,7 @@ int usage() {
 int main(int argc, char** argv) {
     if (argc < 2) return usage();
     const std::string mode = argv[1];
+    if (mode == "decode") return argc == 3 ? runDecode(argv[2]) : usage();
     Options o;
     for (int i = 2; i < argc; ++i) {
         const std::string a = argv[i];

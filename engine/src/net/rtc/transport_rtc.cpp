@@ -79,12 +79,28 @@ const Impair& impair() {
     return im;
 }
 
+// "srflx 203.0.113.7:17167, host [2001:db8::1]:5000, ..." for the AS3D_NET candidates lines: what
+// a code carries, so that a "can't connect" report says which addresses were tried.
+std::string describeCandidates(const SignalInfo& s) {
+    std::string out;
+    for (const SignalCandidate& c : s.candidates) {
+        if (!out.empty()) out += ", ";
+        out += c.type == CandidateType::Host ? "host " : c.type == CandidateType::Srflx ? "srflx " : "prflx ";
+        out += c.ipv6 ? "[" + candidateAddress(c) + "]" : candidateAddress(c);
+        out += ":" + std::to_string(c.port);
+    }
+    return out.empty() ? "none" : out;
+}
+
 void initRtcLogger() {
 #ifndef __EMSCRIPTEN__
     static std::once_flag once;
     std::call_once(once, [] {
-        rtc::InitLogger(rtc::LogLevel::Warning, [](rtc::LogLevel, std::string message) {
-            AS3D_WARN("AS3D_NET rtc: %s", message.c_str());
+        // Info: the ICE agent's candidate pairs and state changes, the lines a "can't connect"
+        // report needs (libdatachannel writes a few dozen per connection, nothing per packet).
+        rtc::InitLogger(rtc::LogLevel::Info, [](rtc::LogLevel level, std::string message) {
+            if (level <= rtc::LogLevel::Warning) AS3D_WARN("AS3D_NET rtc: %s", message.c_str());
+            else AS3D_INFO("AS3D_NET rtc: %s", message.c_str());
         });
     });
 #endif
@@ -213,6 +229,7 @@ public:
             fail(Failure::Other, "not an invite code");
             return;
         }
+        AS3D_INFO("AS3D_NET remote candidates: %s", describeCandidates(invite).c_str());
         std::string sdp = sdpFromSignal(invite);
         if (sdp.empty()) {
             fail(Failure::Other, "the invite code could not be turned into a session description");
@@ -227,6 +244,7 @@ public:
             fail(Failure::Other, "not a reply code");
             return;
         }
+        AS3D_INFO("AS3D_NET remote candidates: %s", describeCandidates(reply).c_str());
         std::string sdp = sdpFromSignal(reply);
         if (sdp.empty()) {
             fail(Failure::Other, "the reply code could not be turned into a session description");
@@ -497,6 +515,7 @@ private:
         signal_ = s;
         haveSignal_ = true;
         if (config_.verboseLog) AS3D_INFO("AS3D_NET local %s: %zu candidate(s)", host_ ? "invite" : "reply", s.candidates.size());
+        AS3D_INFO("AS3D_NET local candidates: %s", describeCandidates(s).c_str());
         return true;
     }
 
