@@ -283,7 +283,9 @@ public:
         if (state_ == State::Connected) {
             if (pcFailed || pcClosed || channelClosed) {
                 fail(Failure::Closed, channelError.empty() ? "the connection was lost" : "the connection was lost: " + channelError);
+                return;
             }
+            reportDiagnostics(now);
             return;
         }
         // Before Connected: any failure of the peer connection is "can't connect".
@@ -496,13 +498,46 @@ private:
         }
         if (!dc) return;
         try {
-            if (!ctl && dc->bufferedAmount() > kMaxInputsBuffered) return; // congested: the next packet repeats these frames
+            // Diagnostics (AS3D_NET sctp): how much the channel held back since the last report.
+            const size_t buffered = dc->bufferedAmount();
+            size_t& peak = ctl ? diagCtlPeak_ : diagInPeak_;
+            peak = std::max(peak, buffered);
+            if (!ctl && buffered > kMaxInputsBuffered) { // congested: the next packet repeats these frames
+                ++diagSkipped_;
+                return;
+            }
             if (!ctl && impair().lossPercent > 0 && std::rand() % 100 < impair().lossPercent) return; // test hook
             dc->send(reinterpret_cast<const rtc::byte*>(data), n);
         } catch (const std::exception& e) {
             // The channel closed under us; update() reports it.
             AS3D_WARN("AS3D_NET send on %s failed: %s", ctl ? "ctl" : "in", e.what());
         }
+    }
+
+    // Every 2 s while connected, when the channels held data back (a congested or blocked SCTP
+    // association: the inputs then stop reaching the other side) or dropped input packets; the
+    // selected candidate pair at the first report and whenever it changes (desktop, Android).
+    void reportDiagnostics(double now) {
+        if (now < diagNext_) return;
+        diagNext_ = now + 2.0;
+        if (diagInPeak_ > 256 || diagCtlPeak_ > 1024 || diagSkipped_ > 0)
+            AS3D_INFO("AS3D_NET sctp in_buffered_max=%zu ctl_buffered_max=%zu inputs_dropped=%u", diagInPeak_, diagCtlPeak_,
+                      diagSkipped_);
+        diagInPeak_ = diagCtlPeak_ = 0;
+        diagSkipped_ = 0;
+#ifndef __EMSCRIPTEN__
+        try {
+            rtc::Candidate l, r;
+            if (pc_ && pc_->getSelectedCandidatePair(&l, &r)) {
+                std::string pair = std::string(l) + " | " + std::string(r);
+                if (pair != diagPair_) {
+                    diagPair_ = pair;
+                    AS3D_INFO("AS3D_NET pair %s", pair.c_str());
+                }
+            }
+        } catch (const std::exception&) {
+        }
+#endif
     }
 
     void setState(State s) {
@@ -550,6 +585,10 @@ private:
     TransportConfig config_;
     std::shared_ptr<Shared> shared_;
     std::shared_ptr<rtc::PeerConnection> pc_;
+    size_t diagInPeak_ = 0, diagCtlPeak_ = 0;
+    unsigned diagSkipped_ = 0;
+    double diagNext_ = 0.0;
+    std::string diagPair_;
     State state_ = State::New;
     Failure failure_ = Failure::None;
     std::string error_;

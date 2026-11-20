@@ -214,6 +214,16 @@ private:
     // Stalls (AS3D_NET stall, the HUD's note).
     bool stalling_ = false;
     double stallStart_ = 0.0;
+    // sendPacket's pacing: the newest local frame sent and when the last packet left.
+    static constexpr double kInputsResendSeconds = 1.0 / 30.0;
+    as3d::u32 lastSentToken_ = 0, lastSentNewest_ = as3d::net::kNoFrame;
+    double lastSentAt_ = -1.0;
+    // Link diagnostics (AS3D_NET link, the stall line's fields).
+    as3d::u32 diagRx_ = 0, diagRxLogged_ = 0, stallRx_ = 0;
+    double lastInputsRx_ = 0.0, diagGapMax_ = 0.0, diagNextLink_ = 0.0;
+    double diagRttMax_ = 0.0, diagRttLast_ = -1.0;
+    as3d::u32 remoteNewest_ = as3d::net::kNoFrame, stallRemoteNewest_ = as3d::net::kNoFrame;
+    as3d::u32 remoteAckSeen_ = as3d::net::kNoFrame, stallRemoteAck_ = as3d::net::kNoFrame;
     long steppedFrames_ = 0;
     as3d::u32 lastHashed_ = as3d::net::kNoFrame;
     bool desyncSeen_ = false;

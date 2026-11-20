@@ -289,7 +289,21 @@ void NetPlay::sendLobbyGuest() {
 void NetPlay::sendPacket() {
     if (!transport_ || !lockstepLive_) return;
     lockstep_.buildInputsPacket(buf_);
-    if (!buf_.empty()) transport_->sendInputs(buf_.data(), buf_.size());
+    if (buf_.empty()) return;
+    // One packet per new local record; a packet that only repeats them (a newer ack, a stall, the
+    // per-frame keep-alive of update) at most every kInputsResendSeconds. Every call used to send:
+    // two or three packets per display frame, 140 to 200 a second each way, each with its SCTP
+    // acknowledgement, which a mobile uplink handled badly.
+    InputsPacket p;
+    if (decodeInputs(buf_.data(), buf_.size(), p) && p.count > 0) {
+        const u32 newest = p.firstFrame + p.count - 1;
+        const bool fresh = p.token != lastSentToken_ || lastSentNewest_ == kNoFrame || newest > lastSentNewest_;
+        if (!fresh && now_ - lastSentAt_ < kInputsResendSeconds) return;
+        lastSentToken_ = p.token;
+        lastSentNewest_ = newest;
+    }
+    lastSentAt_ = now_;
+    transport_->sendInputs(buf_.data(), buf_.size());
 }
 
 void NetPlay::sendHash(u32 frame, u64 hash) {
@@ -600,6 +614,7 @@ void NetPlay::levelLoaded() {
     if (status_.phase != OnlinePhase::Loading || token_ == 0) return;
     lockstep_.setHost(role_ == Role::Host);
     lockstep_.start(token_, delay_);
+    remoteNewest_ = remoteAckSeen_ = kNoFrame;
     lockstepLive_ = true;
     ReadyMsg r;
     r.token = token_;
@@ -646,6 +661,9 @@ bool NetPlay::prepareStep(const FrameInput& local, FrameInput& merged) {
         if (!stalling_) {
             stalling_ = true;
             stallStart_ = now_;
+            stallRx_ = diagRx_;
+            stallRemoteNewest_ = remoteNewest_;
+            stallRemoteAck_ = remoteAckSeen_;
         }
         lockstep_.noteStall();
         sendPacket();
@@ -654,7 +672,14 @@ bool NetPlay::prepareStep(const FrameInput& local, FrameInput& merged) {
     if (stalling_) {
         stalling_ = false;
         const double ms = (now_ - stallStart_) * 1000.0;
-        if (ms > 100.0) AS3D_INFO("AS3D_NET stall ms=%.0f frame=%u", ms, lockstep_.frame());
+        // rx: input packets that arrived during the stall (0: nothing came in; some, with the
+        // remote's newest frame unchanged: the other side was waiting for ours); their_ack: the
+        // newest of our frames the other side had acknowledged at the start and at the end.
+        if (ms > 100.0)
+            AS3D_INFO("AS3D_NET stall ms=%.0f frame=%u rx=%u remote_newest=%d->%d their_ack=%d->%d since_rx_ms=%.0f", ms,
+                      lockstep_.frame(), diagRx_ - stallRx_, static_cast<int>(stallRemoteNewest_),
+                      static_cast<int>(remoteNewest_), static_cast<int>(stallRemoteAck_), static_cast<int>(remoteAckSeen_),
+                      lastInputsRx_ > 0.0 ? (now_ - lastInputsRx_) * 1000.0 : -1.0);
     }
     InputRecord h, g;
     lockstep_.takeInputs(h, g);
@@ -823,6 +848,8 @@ void NetPlay::handleCtl(const std::vector<u8>& m) {
             if (!decodePong(d, n, p)) return protocolError("Pong");
             const double rtt = static_cast<double>(static_cast<u32>(nowMs() - p.sentMs));
             if (rtt >= 0 && rtt < 60000) {
+                diagRttMax_ = std::max(diagRttMax_, rtt);
+                diagRttLast_ = rtt;
                 rtts_.push_back(rtt);
                 if (rtts_.size() > 5) rtts_.erase(rtts_.begin());
                 ++pongs_;
@@ -934,6 +961,15 @@ void NetPlay::handleInputs(const std::vector<u8>& m) {
     InputsPacket p;
     if (!decodeInputs(m.data(), m.size(), p)) return; // the unreliable channel: a bad packet is dropped
     lastHeard_ = now_;
+    // Diagnostics (AS3D_NET link and the stall line): arrival gaps and the newest remote frame.
+    if (lastInputsRx_ > 0.0) diagGapMax_ = std::max(diagGapMax_, now_ - lastInputsRx_);
+    lastInputsRx_ = now_;
+    ++diagRx_;
+    if (p.count > 0 && p.token == token_) {
+        const u32 newest = p.firstFrame + p.count - 1;
+        if (remoteNewest_ == kNoFrame || newest > remoteNewest_) remoteNewest_ = newest;
+        remoteAckSeen_ = p.ack;
+    }
     if (!lockstepLive_ || p.token != token_) return;   // another level's (the barrier, 4.3)
     lockstep_.addRemote(p);
 }
@@ -1031,6 +1067,16 @@ void NetPlay::update(double nowSeconds) {
         return;
     }
     status_.stalled = stalling_ && now_ - stallStart_ >= kStallNoteSeconds;
+    // Every 5 s in play: input packets received, the longest gap between two, the round trips.
+    if (status_.phase == OnlinePhase::Playing && now_ >= diagNextLink_) {
+        if (diagNextLink_ > 0.0)
+            AS3D_INFO("AS3D_NET link rx=%u gap_max_ms=%.0f rtt_last=%.0f rtt_max=%.0f stalls=%u", diagRx_ - diagRxLogged_,
+                      diagGapMax_ * 1000.0, diagRttLast_, diagRttMax_, lockstep_.stalls());
+        diagNextLink_ = now_ + 5.0;
+        diagRxLogged_ = diagRx_;
+        diagGapMax_ = 0.0;
+        diagRttMax_ = 0.0;
+    }
     // Keep the other side fed while nothing steps here (a stall, the menus over a paused
     // level, the end of a --frames run).
     if (playing()) sendPacket();
