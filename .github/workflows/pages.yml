@@ -1,11 +1,15 @@
-# The web version on GitHub Pages: https://propaint.github.io/openairstrike/
+# The web version on GitHub Pages:
+#   https://propaint.github.io/openairstrike/        the stable version, built from main
+#   https://propaint.github.io/openairstrike/beta/   the beta, built from dev
 # The bring-your-own-data site (tools/web_build.sh byo) holds only the engine; the player
-# picks their own game files on the page. Rebuilt on every push to main.
+# picks their own game files on the page. Both are rebuilt and deployed together on every push
+# to main or dev. They share the browser storage of propaint.github.io (the imported game files
+# and the saves).
 name: pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
@@ -19,10 +23,19 @@ concurrency:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        include:
+          - branch: main
+            dir: .
+          - branch: dev
+            dir: beta
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
       - name: Install packages
         run: |
           sudo apt-get update
@@ -35,12 +48,29 @@ jobs:
       - name: Check that no game data is in the site
         run: |
           ! find out/web/site-byo -type f | grep -Ei 'pak[0-9]\.apk|texts_(v170|as2|gulf)\.txt|\.exe$|Settings\.xml'
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
+          name: site-${{ matrix.branch }}
           path: out/web/site-byo
 
-  deploy:
+  assemble:
     needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site-main
+          path: site
+      - uses: actions/download-artifact@v4
+        with:
+          name: site-dev
+          path: site/beta
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: assemble
     runs-on: ubuntu-latest
     environment:
       name: github-pages

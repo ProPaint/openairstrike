@@ -153,8 +153,9 @@ This builds `android/app/build/outputs/apk/debug/app-debug.apk` and bundles the 
 
 ### Web
 
-The bring-your-own-data site is published at https://propaint.github.io/openairstrike/ on
-every push (`.github/workflows/pages.yml`). To build it yourself: needs Emscripten (`docs/web.md` names the version and how to install it).
+The bring-your-own-data site is published at https://propaint.github.io/openairstrike/ (from
+`main`) and https://propaint.github.io/openairstrike/beta/ (from `dev`) on every push
+(`.github/workflows/pages.yml`). To build it yourself: needs Emscripten (`docs/web.md` names the version and how to install it).
 
 ```
 tools/web_build.sh byo      # engine only, into out/web/site-byo/

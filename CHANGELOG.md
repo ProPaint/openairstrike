@@ -5,7 +5,8 @@ they list the commits since the previous tag.
 
 ## 0.5.0-beta.1
 
-A beta for two-player co-op and online play.
+A beta for two-player co-op and online play. In the browser: https://propaint.github.io/openairstrike/beta/
+(the stable version stays at https://propaint.github.io/openairstrike/).
 
 **Online is capricious outside a local network.** On the same Wi-Fi it plays smoothly. Over the
 internet it depends on both players' connections: behind some mobile networks or carrier-grade
