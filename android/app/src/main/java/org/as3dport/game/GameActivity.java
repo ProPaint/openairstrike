@@ -70,6 +70,19 @@ public class GameActivity extends SDLActivity {
                 args.add("--stun");
                 args.add(stun);
             }
+            // Test hooks of the online work (docs/android.md, "Intent extras").
+            if (intent.getBooleanExtra("simmath", false)) args.add("--simmath");
+            if (intent.getBooleanExtra("dump_state", false)) args.add("--dump-state");
+            String online = intent.getStringExtra("online");
+            if ("host".equals(online) || "join".equals(online)) {
+                args.add("--online");
+                args.add(online);
+            }
+            String join = intent.getStringExtra("join");
+            if (join != null && join.matches("[A-Za-z0-9 -]{1,1024}")) {
+                args.add("--join");
+                args.add(join);
+            }
             String game = intent.getStringExtra("game");
             if (game != null && game.matches("[a-z0-9]{1,16}")) {
                 args.add("--game");
@@ -78,6 +91,7 @@ public class GameActivity extends SDLActivity {
             addInt(intent, "level", "--level", args);
             addInt(intent, "frames", "--frames", args);
             addInt(intent, "difficulty", "--difficulty", args);
+            addInt(intent, "seed", "--seed", args);
         }
         return args.toArray(new String[0]);
     }

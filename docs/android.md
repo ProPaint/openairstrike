@@ -267,6 +267,11 @@ Any arm64 phone with Android 8.0 or later and OpenGL ES 3.0 should run it. To re
 | `--ez net_any_build true` | online co-op: a different build of the other side only warns |
 | `--es stun LIST` | online co-op: the STUN servers (`stun:host:port` separated by commas, or `none`) |
 | `--ez rebuild_on_resume true` | test hook: rebuild every GL resource after each resume |
+| `--es online host\|join` | test hook: host or join an online game by itself once the main menu is up (the desktop's `--online`; with `bot` the lobby plays itself); the code is written to `files/online_code.txt` (read it with `run-as ... cat`); needs `game` when the app holds several games |
+| `--es join CODE` | test hook: the invite code for `online join` (the desktop's `--join`) |
+| `--ei seed S` | test hook: the host's level seed online |
+| `--ez simmath true` | test hook: logs `AS3D_SIMMATH hash=H`, the simulation maths' known answers (must be `c38a83fb2d80117b` as on the desktop and the web) |
+| `--ez dump_state true` | test hook: writes the world's state dump to `files/dump.json` at the end of the run (`frames`), to compare with `as3d_sim --dump-state` |
 
 The activity is `singleInstance`: extras only apply when the app is not already running
 (`adb shell am force-stop org.as3dport.game` first).
@@ -296,6 +301,16 @@ addresses only, which connects phones on the same Wi-Fi). Two phones on mobile n
 to connect (carrier NAT); use the same Wi-Fi, or a virtual LAN such as Tailscale or ZeroTier, or
 see "Online co-op" in the README. While a game runs, keep the app in front: Android pauses the
 game in the background and the other player's game waits.
+
+On the emulator (the final test of docs/spec/issues/180, 2026-11-20): a desktop host
+(`as3d_game --online host --headless --bot --stun none --net-any-build --level 1 --seed 7 --frames
+3000 --code-out invite --reply-in reply --dump-state host.json`) and the app as the guest
+(`am start ... --es game as3d --ez bot true --es online join --es join <invite> --ei frames 3000
+--ez dump_state true --es stun none --ez net_any_build true`, the reply read from
+`files/online_code.txt` with `run-as`) connect through the emulator's NAT with no STUN: the host's
+code carries its LAN address, which the emulator reaches, and the host answers the guest's checks
+from where they come (a peer-reflexive candidate; the guest's own 10.0.2.15 is unreachable).
+`--net-hash-full` must be on both sides or neither (the full and the short hash differ).
 
 ## Controls
 

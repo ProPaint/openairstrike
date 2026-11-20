@@ -9,7 +9,12 @@
 // extras: --bot, --menus, --level N, --frames N, --difficulty D, --no-audio,
 // --rebuild-on-resume, --game KEY (extra `game`: as3d, as2 or gulf), --allow-unfinished (extra
 // `allow_unfinished`), --net-any-build (extra `net_any_build`), --stun LIST (extra `stun`;
-// online co-op, docs/spec/issues/180-online-coop.md 2.3, 3). A game's files (paks, Settings.xml, logo, texts; the names of the game's
+// online co-op, docs/spec/issues/180-online-coop.md 2.3, 3); test hooks of the online work
+// (section 14): --online host|join (extra `online`; the session starts by itself as with the
+// desktop's --online, the code is written to files/online_code.txt), --join CODE (extra
+// `join`), --seed S (extra `seed`), --simmath (extra `simmath`: logs AS3D_SIMMATH hash=H, the
+// sim_math known answers) and --dump-state (extra `dump_state`: the world's state dump at the
+// end of the run, files/dump.json). A game's files (paks, Settings.xml, logo, texts; the names of the game's
 // profile) are read from the APK's assets under assets/<key>/ (tools/android_build.sh,
 // AS3D_ANDROID_GAMES), or, for a game the player imported (the data-free build: ImportActivity,
 // apps/game/android_import.cpp), from the app's files under games/<key>/. Bundled assets win
@@ -34,6 +39,7 @@
 #include "as3d/game_import.h"
 #include "as3d/launcher.h"
 #include "as3d/platform.h"
+#include "as3d/sim_math.h"
 #include "game_loop.h"
 
 namespace {
@@ -131,6 +137,8 @@ int main(int argc, char* argv[]) {
     std::string forced;
     bool allowUnfinished = false;
     int level = 0, difficulty = -1; // as given; checked against the game's rules once it is known
+    LoopOptions::Online online = LoopOptions::Online::Off;
+    bool dumpState = false;
     for (int i = 1; i < argc; ++i) {
         const char* s = argv[i];
         const char* v = i + 1 < argc ? argv[i + 1] : nullptr;
@@ -170,11 +178,30 @@ int main(int argc, char* argv[]) {
                 }
             }
             ++i;
+        } else if (!std::strcmp(s, "--online") && v) {
+            // Test hook: host or join by itself once the main menu is up (the desktop's
+            // --online); with --bot the lobby plays itself too.
+            if (!std::strcmp(v, "host")) online = LoopOptions::Online::Host;
+            else if (!std::strcmp(v, "join")) online = LoopOptions::Online::Join;
+            ++i;
+        } else if (!std::strcmp(s, "--join") && v) {
+            o.netInvite = v;
+            if (online == LoopOptions::Online::Off) online = LoopOptions::Online::Join;
+            ++i;
+        } else if (!std::strcmp(s, "--seed") && v) {
+            o.netSeed = static_cast<as3d::u32>(std::strtoul(v, nullptr, 10));
+            ++i;
+        } else if (!std::strcmp(s, "--simmath")) {
+            // The determinism check of the online work: the desktop and the web log the same hash.
+            AS3D_INFO("AS3D_SIMMATH hash=%016llx", static_cast<unsigned long long>(as3d::simMathCheckHash()));
+        } else if (!std::strcmp(s, "--dump-state")) {
+            dumpState = true;
         } else {
             AS3D_WARN("unknown argument '%s' ignored", s);
         }
     }
     if (menus && level == 0) direct = false; // --bot --menus: the menus, the pilot plays
+    if (online != LoopOptions::Online::Off) direct = false; // the session lives in the menus
 
     // Back is a game key (it pauses), not "finish the activity". Touches must not also
     // arrive as synthetic mouse clicks. Landscape only, either way round. Keep the screen on.
@@ -266,6 +293,13 @@ int main(int argc, char* argv[]) {
             o.launcher.atStart = true;
             o.launcher.choicePath = choicePath;
             o.launcher.configure = [](const as3d::GameProfile& g, GameOptions& go, FlowConfig& f) { configureGame(g, go, f); };
+        }
+    }
+    if (!dataDir.empty()) {
+        if (dumpState) o.dumpPath = dataDir + "dump.json";
+        if (online != LoopOptions::Online::Off) {
+            o.online = online;
+            o.netCodeOut = dataDir + "online_code.txt";
         }
     }
     AS3D_INFO("AS3D_ARGS bot=%d mission=%d frames=%ld audio=%d rebuild_on_resume=%d menus=%d", o.bot ? 1 : 0,
