@@ -80,14 +80,11 @@ const fileLike = (p) => {
     if (fs.existsSync(exe)) {
       const bytes = new Uint8Array(fs.readFileSync(exe));
       const r = F.textsFromExe(bytes, crypto.createHash('sha256').update(bytes).digest('hex'), games);
-      if (key === 'as3d' || key === 'as2') {
-        check(r.game === key && r.text !== null, `${key}: executable recognised with a text table`);
-        if (fs.existsSync(texts)) {
-          check(r.text === fs.readFileSync(texts, 'utf8'), `${key}: texts from ${g.exe} equal tools/extract_exe_texts.py output`);
-        }
-      } else {
-        check(r.game === key && r.text === null && r.notMapped === `texts of ${g.title} are not mapped yet`,
-          `${key}: "${r.notMapped}"`);
+      // Every game's texts are mapped now (Gulf Thunder's too: the check expecting "not mapped
+      // yet" for it failed with "undefined").
+      check(r.game === key && r.text !== null, `${key}: executable recognised with a text table`);
+      if (fs.existsSync(texts)) {
+        check(r.text === fs.readFileSync(texts, 'utf8'), `${key}: texts from ${g.exe} equal tools/extract_exe_texts.py output`);
       }
     }
   }
