@@ -3,7 +3,15 @@
 The release notes take a version's section from here (tools/release_notes.sh); without one
 they list the commits since the previous tag.
 
-## Unreleased
+## 0.5.0-beta.1
+
+A beta for two-player co-op and online play.
+
+**Online is capricious outside a local network.** On the same Wi-Fi it plays smoothly. Over the
+internet it depends on both players' connections: behind some mobile networks or carrier-grade
+NATs the game cannot connect, and a connection that freezes now and then (as some phones' mobile
+data does) freezes the game for both players, since each side waits for the other's inputs. If
+it cannot connect, try the same Wi-Fi, or a virtual LAN such as Tailscale or ZeroTier.
 
 - **Online co-op** for two players over the internet or a local network, in AirStrike 3D,
   AirStrike 2 and Gulf Thunder, on the desktop, Android and the web, in any mix: Start Game,
