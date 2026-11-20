@@ -1144,6 +1144,14 @@
     onScreen(name) {
       state.screen = name;
       lwHide();
+      // The codes are done once the session leaves the code screens (the lobby, a notice, the
+      // menus): the guest's reply dialog would otherwise stay up, modal, over the lobby's Ready.
+      if (online.dialog.open && name !== 'online_host' && name !== 'online_join') {
+        online.dialog.close();
+        online.ask = '';
+        onlineNote('');
+        log('AS3D_WEB online_autoclose screen=' + name);
+      }
     },
     onLayout(x, y, r, hitR, w, h) {
       pauseButton = [x, y, r, hitR, w, h];
