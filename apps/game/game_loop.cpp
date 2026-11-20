@@ -294,6 +294,7 @@ private:
     bool textInput_ = false;
     int loadsSeen_ = 0;
     std::string screen_;                    // last AS3D_SCREEN name
+    std::string menuItemKey_;               // the ids and enabled states of its last AS3D_MENU line
 #if AS3D_WITH_NET
     std::unique_ptr<NetPlay> net_;
     bool netFinishing_ = false;             // --frames reached online: waiting for the other side
@@ -735,25 +736,36 @@ void GameWindow::logScreen() {
     else if (fe.menuOpen()) s = ui::screenName(fe.topScreen());
     else if (fe.state() == ui::FrontendState::Playing) s = fe.paused() ? "paused" : "playing";
     else s = "none";
-    if (s == screen_) return;
-    screen_ = s;
-    if (o_.markers) {
-        AS3D_INFO("AS3D_SCREEN name=%s frame=%ld mission=%d", s.c_str(), frame_, ses().hasLevel() ? ses().mission() : 0);
-        // The top menu's items (virtual 800x600), for scripted taps from outside (the web
-        // version's browser tests): id@x,y,w,h per visible item.
-        if (fe.menuOpen()) {
-            if (const ui::Menu* m = stack_.flow->frontend().menus().top()) {
-                std::string items;
-                char buf[64];
-                for (const ui::MenuItem& it : m->items) {
-                    if (it.hidden() || it.hit.w <= 0 || it.hit.h <= 0) continue;
-                    std::snprintf(buf, sizeof buf, " %d@%.0f,%.0f,%.0f,%.0f%s", it.id, it.hit.x, it.hit.y, it.hit.w,
-                                  it.hit.h, it.disabled() ? "d" : "");
-                    items += buf;
-                }
-                AS3D_INFO("AS3D_MENU name=%s items=%s", s.c_str(), items.c_str());
+    // The top menu's items (virtual 800x600), for scripted taps from outside (the web
+    // version's browser tests): id@x,y,w,h per visible item, "d" when disabled. Logged with the
+    // screen, and again when the visible items or their enabled state change on the same screen
+    // (the online lobby's Start comes on once the guest is ready).
+    std::string items, itemKey;
+    if (o_.markers && fe.menuOpen()) {
+        if (const ui::Menu* m = stack_.flow->frontend().menus().top()) {
+            char buf[64];
+            for (const ui::MenuItem& it : m->items) {
+                if (it.hidden() || it.hit.w <= 0 || it.hit.h <= 0) continue;
+                std::snprintf(buf, sizeof buf, " %d@%.0f,%.0f,%.0f,%.0f%s", it.id, it.hit.x, it.hit.y, it.hit.w, it.hit.h,
+                              it.disabled() ? "d" : "");
+                items += buf;
+                std::snprintf(buf, sizeof buf, " %d%s", it.id, it.disabled() ? "d" : "");
+                itemKey += buf;
             }
         }
+    }
+    if (s == screen_) {
+        if (!items.empty() && itemKey != menuItemKey_) {
+            menuItemKey_ = itemKey;
+            AS3D_INFO("AS3D_MENU name=%s items=%s", s.c_str(), items.c_str());
+        }
+        return;
+    }
+    screen_ = s;
+    menuItemKey_ = itemKey;
+    if (o_.markers) {
+        AS3D_INFO("AS3D_SCREEN name=%s frame=%ld mission=%d", s.c_str(), frame_, ses().hasLevel() ? ses().mission() : 0);
+        if (!items.empty()) AS3D_INFO("AS3D_MENU name=%s items=%s", s.c_str(), items.c_str());
     }
     if (o_.screenChanged) o_.screenChanged(s.c_str());
 }
@@ -1001,17 +1013,27 @@ void GameWindow::simulate(int steps) {
         status_.update(ses(), ev);
         updatePauseState();
         ++frame_;
-        if (o_.frameMarkerEvery > 0 && frame_ % o_.frameMarkerEvery == 0) {
+        // Online the markers count the frames under the lockstep (NetPlay::steppedFrames), as the
+        // headless online runner does, so that the two sides' lines compare by n; none while a
+        // session holds the world between levels or sits in the lobby.
+        long markerFrame = frame_;
+#if AS3D_WITH_NET
+        if (net) markerFrame = net_->steppedFrames();
+        else if (net_ && net_->active()) markerFrame = -1;
+#endif
+        if (o_.frameMarkerEvery > 0 && markerFrame > 0 && markerFrame % o_.frameMarkerEvery == 0) {
             const World& w = ses().world();
-            if (o_.markers) AS3D_INFO("AS3D_GAME_FRAME n=%ld mission=%d score=%lld lives=%.0f map_pos=%.1f paused=%d", frame_,
+            if (o_.markers) AS3D_INFO("AS3D_GAME_FRAME n=%ld mission=%d score=%lld lives=%.0f map_pos=%.1f paused=%d", markerFrame,
                       ses().mission(), ses().displayScore(0), static_cast<double>(w.player(0).lives),
                       static_cast<double>(w.mapPos()), w.paused() ? 1 : 0);
         }
         if (o_.screenshotEvery > 0 && frame_ % o_.screenshotEvery == 0) screenshot_ = true;
 #if AS3D_WITH_NET
-        if (net_ && o_.online != LoopOptions::Online::Off) {
+        if (net_ && (o_.online != LoopOptions::Online::Off || net_->active() || netFinishing_)) {
             // An online --frames run counts the frames under the lockstep, and ends once the
-            // other side has stepped as far (NetPlay::finish).
+            // other side has stepped as far (NetPlay::finish); also a session a player opened
+            // from the menus (the web host of the walks: ?frames= counted the attract level and
+            // the lobby before, and the page ended mid-mission).
             if (o_.frames >= 0 && net_->steppedFrames() >= o_.frames && !netFinishing_) {
                 netFinishing_ = true;
                 net_->finish();
