@@ -81,6 +81,10 @@ target_include_directories(as3d_web PRIVATE ${AS3D_GAME_DIR})
 # add_subdirectory and --js-library link flag) below this line.
 if(AS3D_WITH_NET)
   target_sources(as3d_web PRIVATE ${AS3D_GAME_DIR}/net_play.cpp)
+  # datachannel-wasm's JS library (wasm/js/webrtc.js) calls _malloc and _free without declaring
+  # them as dependencies: without the exports every SDP, candidate and message callback threw
+  # "ReferenceError: _free is not defined" (found by the final test's online walks).
+  list(APPEND AS3D_WEB_LINK "-sEXPORTED_FUNCTIONS=['_main','_malloc','_free']")
 endif()
 target_link_libraries(as3d_web PRIVATE ${AS3D_MODULES} ${AS3D_MODULES})
 target_link_options(as3d_web PRIVATE ${AS3D_WEB_LINK})
