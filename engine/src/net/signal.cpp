@@ -288,10 +288,14 @@ bool isUnusable(const SignalCandidate& c) {
     return zero || (c.address[0] == 0xfe && (c.address[1] & 0xc0) == 0x80);
 }
 
-// 2.3's order: server-reflexive (and peer-reflexive) first, then host IPv4, then host IPv6.
+// 2.3's order: server-reflexive (and peer-reflexive) first, then host IPv6 global unicast
+// (2000::/3: reachable from anywhere, so the best path out of a carrier-grade NAT; it was cut
+// at six on a machine with Docker bridges and a VPN), then host IPv4, then the other host IPv6
+// (unique local fc00::/7, such as a VPN's).
 int candidateRank(const SignalCandidate& c) {
     if (c.type != CandidateType::Host) return 0;
-    return c.ipv6 ? 2 : 1;
+    if (!c.ipv6) return 2;
+    return (c.address[0] & 0xE0) == 0x20 ? 1 : 3;
 }
 
 const char* candidateTypeName(CandidateType t) {

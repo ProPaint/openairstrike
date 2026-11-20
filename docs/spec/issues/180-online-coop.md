@@ -180,7 +180,8 @@ u32  check            CRC-32 of everything before it
 ```
 
 Candidate selection keeps the code short: UDP only (TCP candidates dropped), no loopback, no
-IPv6 link-local (`fe80::/10`), server-reflexive first, then host IPv4, then host IPv6, cut at
+IPv6 link-local (`fe80::/10`), server-reflexive first, then host IPv6 global unicast (`2000::/3`, the way past a carrier-grade
+NAT), then host IPv4, then the other host IPv6 (unique local, a VPN's), cut at
 six. Foundations are regenerated as the candidate's index; `raddr`/`rport` are written as
 `0.0.0.0 0` (optional in SDP and not used). A typical invite is 85 to 130 bytes; the worst case
 (six candidates, IPv6) ~220 bytes. **Encoding: Crockford base32** (digits and capitals without

@@ -331,9 +331,26 @@ TEST_CASE("net signal: selectCandidates keeps reachable UDP addresses, srflx fir
     selectCandidates(c);
     REQUIRE(c.size() == 4);
     CHECK(c[0].type == CandidateType::Srflx);
-    CHECK(candidateAddress(c[1]) == "10.0.0.2");
-    CHECK(candidateAddress(c[2]) == "192.168.1.2");
-    CHECK(candidateAddress(c[3]) == "2001:db8::5");
+    CHECK(candidateAddress(c[1]) == "2001:db8::5");
+    CHECK(candidateAddress(c[2]) == "10.0.0.2");
+    CHECK(candidateAddress(c[3]) == "192.168.1.2");
+
+    // A laptop behind a carrier-grade NAT with Docker bridges and a VPN: the global IPv6 address
+    // stays in the six, the VPN's unique local IPv6 goes last and is cut.
+    std::vector<SignalCandidate> laptop;
+    laptop.push_back(fromLine("candidate:1 1 udp 2000 2001:db8:1::58 5 typ host"));
+    laptop.push_back(fromLine("candidate:1 1 udp 2000 fd00:1234::ab 5 typ host"));
+    laptop.push_back(v4(CandidateType::Host, 192, 168, 1, 10, 5));
+    laptop.push_back(v4(CandidateType::Host, 192, 168, 1, 11, 5));
+    laptop.push_back(v4(CandidateType::Host, 100, 64, 0, 9, 5));
+    laptop.push_back(v4(CandidateType::Host, 172, 60, 0, 1, 5));
+    laptop.push_back(v4(CandidateType::Host, 172, 18, 0, 1, 5));
+    laptop.push_back(v4(CandidateType::Srflx, 203, 0, 113, 9, 7));
+    selectCandidates(laptop);
+    REQUIRE(laptop.size() == static_cast<size_t>(kMaxSignalCandidates));
+    CHECK(laptop[0].type == CandidateType::Srflx);
+    CHECK(candidateAddress(laptop[1]) == "2001:db8:1::58");
+    for (const SignalCandidate& k : laptop) CHECK(candidateAddress(k) != "fd00:1234::ab");
 
     std::vector<SignalCandidate> many;
     for (int i = 0; i < 10; i++) many.push_back(v4(CandidateType::Host, 10, 0, 0, static_cast<u8>(i + 1), 9));
@@ -351,13 +368,13 @@ TEST_CASE("net signal: SDP to SignalInfo and back, idempotent on libdatachannel 
     CHECK(s.fingerprint[31] == 0xBC);
     CHECK(s.setup == DtlsSetup::ActPass);
     CHECK(s.sctpPort == 5000);
-    // srflx, then the two host IPv4 by priority, then the global IPv6; no link-local, loopback, TCP.
+    // srflx, then the global IPv6, then the two host IPv4 by priority; no link-local, loopback, TCP.
     REQUIRE(s.candidates.size() == 4);
     CHECK(s.candidates[0].type == CandidateType::Srflx);
     CHECK(candidateAddress(s.candidates[0]) == "82.64.101.7");
-    CHECK(candidateAddress(s.candidates[1]) == "192.168.1.20");
-    CHECK(candidateAddress(s.candidates[2]) == "172.17.0.1");
-    CHECK(candidateAddress(s.candidates[3]) == "2a01:e0a:1f2:3b40:4c1e:22ff:fe5d:9a10");
+    CHECK(candidateAddress(s.candidates[1]) == "2a01:e0a:1f2:3b40:4c1e:22ff:fe5d:9a10");
+    CHECK(candidateAddress(s.candidates[2]) == "192.168.1.20");
+    CHECK(candidateAddress(s.candidates[3]) == "172.17.0.1");
 
     std::string sdp1 = sdpFromSignal(s);
     SignalInfo s2;
@@ -366,7 +383,7 @@ TEST_CASE("net signal: SDP to SignalInfo and back, idempotent on libdatachannel 
     CHECK(sdpFromSignal(s2) == sdp1);
     CHECK(sdp1.find("a=candidate:0 1 udp 1686109951 82.64.101.7 50373 typ srflx raddr 0.0.0.0 rport 0 generation 0\r\n") !=
           std::string::npos);
-    CHECK(sdp1.find("a=candidate:1 1 udp 2122317823 192.168.1.20 50373 typ host generation 0\r\n") != std::string::npos);
+    CHECK(sdp1.find("a=candidate:2 1 udp 2122317823 192.168.1.20 50373 typ host generation 0\r\n") != std::string::npos);
     CHECK(sdp1.find("a=setup:actpass\r\n") != std::string::npos);
     CHECK(sdp1.find("a=fingerprint:sha-256 6B:8B:5D:EA:") != std::string::npos);
     CHECK(sdp1.rfind("v=0\r\no=- ", 0) == 0);
