@@ -154,6 +154,12 @@ Menu SequelScreens::buildScreen(Frontend& f, Screen s) {
         case Screen::GameOver: return gameOver(f);
         case Screen::MissionComplete: return missionComplete(f);
         case Screen::GameComplete: return gameComplete(f);
+        // Frontend::open builds the online screens itself in every style (screens_online.cpp).
+        case Screen::Online:
+        case Screen::OnlineHostCode:
+        case Screen::OnlineJoinCode:
+        case Screen::OnlineLobby:
+        case Screen::OnlineNotice: break;
     }
     return Menu{};
 }
