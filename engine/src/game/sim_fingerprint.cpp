@@ -1,5 +1,6 @@
 // The simulation data fingerprint (as3d/sim_fingerprint.h, docs/spec/issues/180-online-coop.md
-// 5.3): SHA-256 of the mounted non-media files in sorted path order, each as the normalised path,
+// 5.3): SHA-256 of the mounted non-media files below a directory (a file at the root is left
+// out, see isMedia) in sorted path order, each as the normalised path,
 // its NUL, its size (u32, little-endian) and its bytes. Vfs::list gives the paths sorted and
 // without duplicates, and a read takes the file of the source that wins, so the pak layout does
 // not matter, only what the game reads.
@@ -24,6 +25,12 @@ constexpr const char* kMediaExtensions[] = {
 bool isMedia(const std::string& path) {
     const size_t dot = path.find_last_of('.');
     const size_t sep = path.find_last_of("\\/");
+    // A file at the root is not the paks' either: the three games' paks hold none (tools/
+    // pak_entries/), and the root of an extracted data directory holds the texts file read out
+    // of the executable (texts_v170.txt...: menu texts, never read by the simulation). Counting
+    // it made a desktop playing from assets_extracted/ refuse a peer playing from the paks (the
+    // web, Android, any player's install) with "Your game files differ".
+    if (sep == std::string::npos) return true;
     if (dot == std::string::npos || (sep != std::string::npos && dot < sep)) return false;
     std::string ext = path.substr(dot + 1);
     for (char& c : ext)

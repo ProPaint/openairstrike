@@ -146,8 +146,13 @@ TEST_CASE("sim fingerprint: media files are left out, the pak layout does not ma
     renamed[0].first = "scripts/b.scr";
     CHECK(fingerprintOf({renamed}) != fp);
     FileList extra = all;
-    extra.push_back({"readme.txt", ""});
+    extra.push_back({"scripts/readme.txt", ""});
     CHECK(fingerprintOf({extra}) != fp);
+    // A file at the root (the extracted data's texts file; the paks hold none) does not count:
+    // a desktop playing from assets_extracted/ meets a peer playing from the paks.
+    FileList texts = all;
+    texts.push_back({"texts_v170.txt", "menu texts"});
+    CHECK(fingerprintOf({texts}) == fp);
 
     Vfs vfs;
     auto src = std::make_unique<FingerprintSource>();

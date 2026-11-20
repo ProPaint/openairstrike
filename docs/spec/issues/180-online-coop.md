@@ -453,7 +453,10 @@ file system takes seconds. Instead `as3d::simDataFingerprint(Vfs&)` (`as3d/sim_f
 reach the simulation, in sorted path order, each as `path, u32 size, bytes`: every entry of
 `vfs.list("")` **except** those whose extension is one of the media types
 `tga bmp jpg jpeg png dds wav ogg mp3 xm it s3m mod mo3 mid ttf fnt avi bik` (the implementer
-confirms the list against what the paks hold, `tools/pak_entries/`; anything unknown stays in).
+confirms the list against what the paks hold, `tools/pak_entries/`; anything unknown stays in),
+and every file at the root (the paks hold none; the root of an extracted data directory holds the
+executable's texts file, which made a desktop playing from `assets_extracted/` refuse every peer
+playing from the paks: found by the final test).
 Scripts, object definitions, weapons, particle systems, levels.txt, maps and models (collision
 data) are in. Computed once per game session when the Online screen first opens (the screen says
 "Checking game files..." for the second it takes; ~20 to 40 MB read) and cached in `NetPlay`.
