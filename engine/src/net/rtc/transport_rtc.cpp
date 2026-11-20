@@ -29,6 +29,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <mutex>
@@ -47,6 +49,34 @@ constexpr size_t kMaxInputsBuffered = 16384; // bytes queued in SCTP: drop input
 double nowSeconds() {
     using namespace std::chrono;
     return duration<double>(steady_clock::now().time_since_epoch()).count();
+}
+
+// A test hook for the final integration test (docs/spec/issues/180-online-coop.md 14 item 5) on
+// machines where `tc netem` needs root: AS3D_NET_IMPAIR="DELAY_MS,LOSS_PERCENT" holds every
+// received message DELAY_MS before the game sees it (both channels, so the measured ping and the
+// input delay follow) and drops LOSS_PERCENT of the Inputs packets this side sends. Set on both
+// processes it is a symmetric link of that one-way latency and loss. Never set in normal play.
+struct Impair {
+    double delaySeconds = 0;
+    int lossPercent = 0;
+};
+
+const Impair& impair() {
+    static const Impair im = [] {
+        Impair r;
+#ifndef __EMSCRIPTEN__
+        if (const char* e = std::getenv("AS3D_NET_IMPAIR")) {
+            int d = 0, l = 0;
+            if (std::sscanf(e, "%d,%d", &d, &l) >= 1) {
+                r.delaySeconds = std::clamp(d, 0, 2000) / 1000.0;
+                r.lossPercent = std::clamp(l, 0, 100);
+                AS3D_WARN("AS3D_NET impaired link (test): delay %d ms, loss %d %%", d, r.lossPercent);
+            }
+        }
+#endif
+        return r;
+    }();
+    return im;
 }
 
 void initRtcLogger() {
@@ -71,7 +101,11 @@ struct Shared {
     bool inOpen = false, ctlOpen = false;
     bool channelClosed = false;
     std::string channelError;
-    std::deque<std::vector<u8>> inQueue, ctlQueue;
+    struct Message {
+        double at; // arrival time (nowSeconds), held until at + the AS3D_NET_IMPAIR delay
+        std::vector<u8> data;
+    };
+    std::deque<Message> inQueue, ctlQueue;
     bool ctlOverflow = false;
     size_t droppedInputs = 0;
 };
@@ -89,13 +123,13 @@ void pushMessage(Shared& s, bool ctl, rtc::message_variant data) {
             s.ctlOverflow = true;
             return;
         }
-        s.ctlQueue.push_back(std::move(msg));
+        s.ctlQueue.push_back({nowSeconds(), std::move(msg)});
     } else {
         if (s.inQueue.size() >= kMaxQueuedInputs) {
             s.inQueue.pop_front(); // the oldest is the least useful (redundancy covers it)
             ++s.droppedInputs;
         }
-        s.inQueue.push_back(std::move(msg));
+        s.inQueue.push_back({nowSeconds(), std::move(msg)});
     }
 }
 
@@ -212,16 +246,16 @@ public:
 
     bool pollCtl(std::vector<u8>& out) override {
         std::lock_guard<std::mutex> lock(shared_->mutex);
-        if (shared_->ctlQueue.empty()) return false;
-        out = std::move(shared_->ctlQueue.front());
+        if (shared_->ctlQueue.empty() || !due(shared_->ctlQueue.front())) return false;
+        out = std::move(shared_->ctlQueue.front().data);
         shared_->ctlQueue.pop_front();
         return true;
     }
 
     bool pollInputs(std::vector<u8>& out) override {
         std::lock_guard<std::mutex> lock(shared_->mutex);
-        if (shared_->inQueue.empty()) return false;
-        out = std::move(shared_->inQueue.front());
+        if (shared_->inQueue.empty() || !due(shared_->inQueue.front())) return false;
+        out = std::move(shared_->inQueue.front().data);
         shared_->inQueue.pop_front();
         return true;
     }
@@ -314,6 +348,10 @@ public:
     }
 
 private:
+    static bool due(const Shared::Message& m) {
+        return impair().delaySeconds <= 0 || nowSeconds() >= m.at + impair().delaySeconds;
+    }
+
     bool createPeer() {
         rtc::Configuration rc;
         for (const std::string& url : config_.stunServers) {
@@ -459,6 +497,7 @@ private:
         if (!dc) return;
         try {
             if (!ctl && dc->bufferedAmount() > kMaxInputsBuffered) return; // congested: the next packet repeats these frames
+            if (!ctl && impair().lossPercent > 0 && std::rand() % 100 < impair().lossPercent) return; // test hook
             dc->send(reinterpret_cast<const rtc::byte*>(data), n);
         } catch (const std::exception& e) {
             // The channel closed under us; update() reports it.

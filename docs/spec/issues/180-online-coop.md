@@ -1377,7 +1377,10 @@ two processes with game data at a time, builds with `-j2`. `tools/online_test.sh
    Then `--only online_web` (two Chromium pages).
 5. **Lockstep under loss**: the loopback unit test of T1 at 150 ms / 30 % (already in
    `as3d_tests`), and the two-process run of item 1 with `tc` (`tc qdisc add dev lo root netem
-   delay 60ms loss 5%`, needs sudo: optional, by hand) to see stalls stay rare.
+   delay 60ms loss 5%`, needs sudo: optional, by hand) to see stalls stay rare. Without root,
+   `AS3D_NET_IMPAIR=DELAY_MS,LOSS_PERCENT` set for both processes (a test hook of the native rtc
+   transport: every received message held DELAY_MS, LOSS_PERCENT of the sent Inputs packets
+   dropped) gives the same link: `AS3D_NET_IMPAIR=60,5 tools/online_test.sh`.
 6. **Owner's hands-on** (the only part needing another machine): desktop host, Android guest on
    the same Wi-Fi (codes by any chat); then the web guest on a phone browser; then one peer behind
    a mobile network (STUN path); then a pair that cannot connect (two mobile networks) to see the
