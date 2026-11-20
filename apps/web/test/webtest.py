@@ -25,8 +25,12 @@ def browser_rss_mb():
 class Browser:
     """One browser for a whole run (the machine allows one at a time)."""
 
-    def __init__(self, engine="chromium", gl="gpu", headless=True, extra_flags=()):
-        self.pw = sync_playwright().start()
+    def __init__(self, engine="chromium", gl="gpu", headless=True, extra_flags=(), pw=None):
+        # pw: the Playwright of a Browser already open (a second sync_playwright().start() in
+        # the same thread fails: "Sync API inside the asyncio loop"); this one then closes only
+        # its own browser.
+        self.own_pw = pw is None
+        self.pw = sync_playwright().start() if pw is None else pw
         self.engine = engine
         if engine == "chromium":
             flags = (GPU_FLAGS if gl == "gpu" else SWIFTSHADER_FLAGS) + ["--autoplay-policy=user-gesture-required"] + list(extra_flags)
@@ -45,7 +49,8 @@ class Browser:
 
     def close(self):
         self.browser.close()
-        self.pw.stop()
+        if self.own_pw:
+            self.pw.stop()
 
 
 class Page:

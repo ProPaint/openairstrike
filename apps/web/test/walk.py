@@ -1645,7 +1645,7 @@ def online(w, b):
         w.step("online: the host's invite code from its --code-out file")
         invite = wait_file(os.path.join(T, "invite"), 60)
         assert len(invite) > 100, invite
-        bb = Browser(w.a.engine, w.a.gl, extra_flags=ONLINE_FLAGS)
+        bb = Browser(w.a.engine, w.a.gl, extra_flags=ONLINE_FLAGS, pw=b.pw)
         w.step("online: the guest page opens ?join=<invite>, skips the intro, the reply code comes up in the dialog")
         p = web_page_start(w, bb, w.a.url, "game=as3d&bot=1&menus=1&noaudio=1&stun=none&join=" + invite)
         reply = wait_dialog_code(p, "reply")
@@ -1682,7 +1682,7 @@ def online(w, b):
 def online_web(w, b):
     """Two Chromium pages, one hosting and one joining; the test carries the codes between the dialogs."""
     r = {}
-    bb = Browser(w.a.engine, w.a.gl, extra_flags=ONLINE_FLAGS)
+    bb = Browser(w.a.engine, w.a.gl, extra_flags=ONLINE_FLAGS, pw=b.pw)
     h = g = None
     base = "game=as3d&bot=1&menus=1&noaudio=1&stun=none&frames=%d" % ONLINE_FRAMES
     try:
