@@ -48,6 +48,9 @@ The web build is not part of the desktop build, Android or `tools/ci.sh`.
 Third-party: online co-op (docs/spec/issues/180-online-coop.md) links datachannel-wasm (MIT,
 commit f9200eb, fetched by `tools/fetch_third_party.sh net`), a thin C++ bridge to the
 browser's own `RTCPeerConnection`; its two `--js-library` files are linked into `as3d_web.js`.
+Size (measured 2026-11-20 against the same commit built with `-DAS3D_WITH_NET=OFF`):
+`as3d_web.wasm` 4,093,977 bytes against 3,962,981 (+128 KB, net_play and the protocol code; the
+WebRTC stack is the browser's), `as3d_web.js` 278,691 against 266,551 (+12 KB).
 
 ## Serve
 

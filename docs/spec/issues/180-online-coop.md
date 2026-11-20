@@ -1394,6 +1394,20 @@ two processes with game data at a time, builds with `-j2`. `tools/online_test.sh
    `tools/web_build.sh bundled` and `byo` build and `files_check.js` passes; the APK and wasm size
    deltas written into the docs.
 
+**Run on 2026-11-20** (all green after the fixes, items 1 to 5 and 7; item 6 is the owner's):
+item 1 for the three games and the 40,000-frame three-level run, item 2, item 3 (wasm
+`c38a83fb2d80117b`, the bot dump byte-identical), item 4 (and every other walk), item 5 with
+`AS3D_NET_IMPAIR` (no root here), item 7. Android on the emulator in place of "not runnable":
+`c38a83fb2d80117b` and the bot dump identical to the desktop's on x86_64 and on arm64-v8a under
+ndk_translation, and a desktop host with the app as guest, identical dumps (docs/android.md,
+"Online co-op"). Bugs found and fixed: the guest's level length after the host's Next (the
+`--frames` count and the markers drifted), the fingerprint counting the extracted texts file at
+the root, the web page's code dialog staying over the lobby, `AS3D_MENU` not following the
+lobby's Start, the window loop's markers and `?frames=` counting window frames in a menu-opened
+session, `_malloc`/`_free` missing from the wasm exports for datachannel-wasm, messages lost when
+they arrived with the close, the walks' second Playwright, and `files_check.js`'s stale Gulf
+Thunder expectation.
+
 ## 15. Decisions taken here, and open questions for the owner
 
 Decided (in this spec; the owner may overturn any):
@@ -1428,7 +1442,10 @@ Open questions (with the recommendation):
    address to that provider during setup). Recommendation: yes, with `AS3D_STUN` to override or
    disable; name them in the docs.
 3. **The APK grows by ~4 to 5 MB** (two ABIs) and the desktop binary by ~2.5 MB for the WebRTC
-   stack. Recommendation: accept; an `AS3D_WITH_NET=OFF` build stays available.
+   stack. Recommendation: accept; an `AS3D_WITH_NET=OFF` build stays available. Measured by the
+   final test (ON against OFF at the same commit): the APK +5.5 MB (libmain.so +2.7 MB arm64,
+   +2.8 MB x86_64, stored uncompressed), the stripped desktop binary +2.8 MB (7.96 MB against
+   5.20), the wasm +128 KB (the browser has the WebRTC stack).
 4. **The guest's mission choice**: a guest may join a mission its own profile has not unlocked
    (it unlocks on completion). Recommendation: yes, it is the point of joining a friend; the
    alternative (both must have it unlocked) is one line to change.

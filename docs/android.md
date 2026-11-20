@@ -214,7 +214,11 @@ afterwards on a shared machine: `(cd android && ./gradlew --stop)`.
 Third-party: besides SDL2 and libopenmpt, the build links libdatachannel 0.24.6 (MPL-2.0) with
 libjuice (MIT), usrsctp (BSD 3-clause) and plog (MIT), and Mbed TLS 3.6.8 (Apache-2.0), for
 online co-op (docs/spec/issues/180-online-coop.md; `tools/fetch_third_party.sh net`, pinned
-commits and SHA-256). The manifest asks for `android.permission.INTERNET` for it.
+commits and SHA-256). The manifest asks for `android.permission.INTERNET` for it. Size (measured
+2026-11-20 against the same commit built with `-DAS3D_WITH_NET=OFF`): `libmain.so` 7,647,504
+bytes against 4,914,144 on arm64-v8a (+2.7 MB) and 8,093,880 against 5,272,584 on x86_64
+(+2.8 MB); the libraries are stored uncompressed, so the APK with both ABIs grows by 5.5 MB
+(the data-free debug APK is 21.8 MB).
 
 Toolchain: Android SDK 36, NDK 28.2.13676358, CMake 3.31.6, JDK 17, Android Gradle Plugin
 9.4.1 with Gradle 9.7.0, SDL 2.30.12 (SHA-256 pinned in `fetch_third_party.sh`).
