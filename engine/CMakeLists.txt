@@ -45,11 +45,19 @@ endif()
 set(_as3d_build_id "unknown")
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${AS3D_REPO_ROOT}/.git")
-  execute_process(COMMAND "${GIT_EXECUTABLE}" describe --tags --always --dirty
+  # The commit alone (12 hex digits), not `git describe`: a release built from its tag and the
+  # Pages site built from main at the same commit must give the same id, or their players
+  # refuse each other online ("different version"). "-dirty" when the tree has changes.
+  execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse --short=12 HEAD
                   WORKING_DIRECTORY "${AS3D_REPO_ROOT}"
                   OUTPUT_VARIABLE _as3d_git_describe OUTPUT_STRIP_TRAILING_WHITESPACE
                   RESULT_VARIABLE _as3d_git_result ERROR_QUIET)
   if(_as3d_git_result EQUAL 0 AND NOT _as3d_git_describe STREQUAL "")
+    execute_process(COMMAND "${GIT_EXECUTABLE}" diff --quiet HEAD
+                    WORKING_DIRECTORY "${AS3D_REPO_ROOT}" RESULT_VARIABLE _as3d_git_dirty ERROR_QUIET)
+    if(NOT _as3d_git_dirty EQUAL 0)
+      string(APPEND _as3d_git_describe "-dirty")
+    endif()
     set(_as3d_build_id "${_as3d_git_describe}")
   endif()
 endif()

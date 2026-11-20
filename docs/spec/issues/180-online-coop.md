@@ -318,7 +318,7 @@ Packets of a `token` other than the current level's are dropped (the barrier, se
 
 **Versioning**: `kNetProtocolVersion` (u16) is checked first; a mismatch ends with "different
 version" (section 9). Then `buildId` = `AS3D_BUILD_ID`, a compile definition set by the root
-`CMakeLists.txt` from `git describe --tags --always --dirty` at configure time (every platform
+`CMakeLists.txt` from `git rev-parse --short=12 HEAD` (plus `-dirty`) at configure time (every platform
 build configures through it: the desktop, Android via `add_subdirectory`, the web via its own
 project that adds the engine; "unknown" without git). Two different builds may simulate
 differently (any change in the simulation sources), so by default the session is refused unless
@@ -962,8 +962,9 @@ Where the code differs from the sections above, the headers win:
 * **Build options live in `engine/CMakeLists.txt`**, not the root: the web project adds `engine/`
   directly, so that is the one file every platform build passes through. `AS3D_WITH_NET`
   (option, ON; forced OFF on the 3DS), `AS3D_NET_BACKEND` (`rtc` default, forced `null`
-  without `AS3D_WITH_NET`), `AS3D_BUILD_ID` (internal cache entry from `git describe --tags
-  --always --dirty`, recomputed at every configure). The root and `apps/web` CMake files carry a
+  without `AS3D_WITH_NET`), `AS3D_BUILD_ID` (internal cache entry from `git rev-parse --short=12
+  HEAD` plus `-dirty`, recomputed at every configure; not `git describe`, which gave a tag build
+  and the Pages build of the same commit different ids). The root and `apps/web` CMake files carry a
   `# T2` placeholder comment for `-ffp-contract=off`; `apps/web/CMakeLists.txt` a T3 line for
   datachannel-wasm; `engine/src/net/net.cmake` returns early without `rtc` and is empty (T3).
 * `as3d_net` exports the compile definitions `AS3D_WITH_NET=0|1` and `AS3D_NET_RTC=0|1` to
