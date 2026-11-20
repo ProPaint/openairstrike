@@ -977,6 +977,17 @@ void NetPlay::update(double nowSeconds) {
     transport_->update();
     const Transport::State st = transport_->state();
     if (st == Transport::State::Failed || st == Transport::State::Closed) {
+        // What arrived before the connection closed comes first: the other side's Bye, Desync or
+        // Hello (a build mismatch), sent just before it closed. A slow peer (the Android
+        // emulator at 10 frames a second) saw the message and the close in one update, and
+        // ended with "connection lost" instead of the message (and wrote no desync dump).
+        if (helloSent_) {
+            while (transport_ && transport_->pollCtl(buf_)) {
+                const std::vector<u8> m = buf_;
+                handleCtl(m);
+            }
+            if (!transport_ || !active()) return;
+        }
         AS3D_INFO("AS3D_NET transport %s: %s", transportStateName(st), transport_->error().c_str());
         const char* key = "online.err.lost";
         if (!helloOk_) {
