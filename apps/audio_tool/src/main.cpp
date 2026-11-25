@@ -10,12 +10,15 @@
 //   audio_tool play <game path> [--seconds N]
 //       Plays a sound or track through the host's real audio device (Sdl
 //       backend), if one is available.
-//   audio_tool render-music <game path> <out.ogg|out.wav> [--rate R] [--order N] [--quality Q]
-//   audio_tool render-music --all <out dir> [--rate R] [--quality Q]
+//   audio_tool render-music <game path> <out.ogg|out.wav> [--rate R] [--order N] [--quality Q] [--external-encoder]
+//   audio_tool render-music --all <out dir> [--rate R] [--quality Q] [--external-encoder]
 //       Pre-renders tracker music for the 3DS (docs/3ds-port.md M2.4): the
 //       module played once from pattern order N (default 0) at R Hz (default
-//       32728, the 3DS DSP's rate), as Ogg Vorbis (oggenc, else ffmpeg's
-//       libvorbis; quality Q, default 4) or 16-bit WAV. --all writes every
+//       32728, the 3DS DSP's rate), as Ogg Vorbis (quality Q, default 4) or
+//       16-bit WAV (as3d/music_prerender.h, shared with the web page's
+//       "Prepare files for 3DS"). The Ogg encoder is libvorbis in the process
+//       when the tool was built with it (tools/fetch_third_party.sh vorbis),
+//       else (or with --external-encoder) oggenc, else ffmpeg. --all writes every
 //       module of music\ as <name>.ogg, plus <name>_gameover.ogg (from order
 //       35, where the game jumps on game over) when the module has that order.
 //       The output is derived from the game data: never commit it.
@@ -30,11 +33,16 @@
 #include <fstream>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #include "as3d/audio.h"
 #include "as3d/core.h"
+#include "as3d/music_prerender.h"
 #include "as3d/vfs.h"
+#if AS3D_HAVE_VORBISENC
+#include "as3d/ogg_vorbis_encoder.h"
+#endif
 
 // Whitebox reuse of the audio module's internal WAV parser and music
 // decoder wrapper for richer inventory output (original sample layout,
@@ -81,17 +89,10 @@ std::string toLower(std::string s) {
     return s;
 }
 
-bool isMusicPath(const std::string& path) {
-    std::string p = toLower(path);
-    static const char* kExt[] = {".mo3", ".it", ".xm", ".s3m", ".mod"};
-    for (const char* ext : kExt) {
-        size_t elen = std::strlen(ext);
-        if (p.size() >= elen && p.compare(p.size() - elen, elen, ext) == 0) return true;
-    }
-    return false;
-}
+bool isMusicPath(const std::string& path) { return as3d::audio::isTrackerModulePath(path); }
 
-bool writeWavStereo16(const std::string& path, int rate, const std::vector<float>& interleaved, int frames) {
+template <typename Sample>
+bool writeWavStereo16(const std::string& path, int rate, const std::vector<Sample>& interleaved, int frames) {
     std::ofstream f(path, std::ios::binary);
     if (!f) return false;
     auto putU32 = [&](std::uint32_t v) {
@@ -121,9 +122,14 @@ bool writeWavStereo16(const std::string& path, int rate, const std::vector<float
     putU32(dataSize);
 
     for (int i = 0; i < frames * channels; ++i) {
-        float s = interleaved[static_cast<size_t>(i)];
-        s = std::max(-1.0f, std::min(1.0f, s));
-        auto v = static_cast<std::int16_t>(std::lround(s * 32767.0f));
+        std::int16_t v;
+        if constexpr (std::is_same_v<Sample, std::int16_t>) {
+            v = interleaved[static_cast<size_t>(i)];
+        } else {
+            float s = interleaved[static_cast<size_t>(i)];
+            s = std::max(-1.0f, std::min(1.0f, s));
+            v = static_cast<std::int16_t>(std::lround(s * 32767.0f));
+        }
         char b[2] = {char(v & 0xFF), char((v >> 8) & 0xFF)};
         f.write(b, 2);
     }
@@ -267,76 +273,92 @@ bool haveCommand(const char* name) {
     return std::system(cmd.c_str()) == 0;
 }
 
-// Renders one module from `order` to its end (no loop) and writes `outPath` (.ogg or .wav).
+// Renders one module from `order` to its end (no loop) and writes `outPath` (.ogg or .wav): the
+// shared render of as3d/music_prerender.h, encoded in the process (libvorbis, when built with
+// it) or by oggenc / ffmpeg from a temporary WAV (`external`, or no libvorbis).
 int renderMusicFile(as3d::Vfs& vfs, const std::string& gamePath, const std::string& outPath, int rate, int order,
-                    double quality) {
+                    double quality, bool external) {
     as3d::Blob data;
     if (!vfs.read(as3d::normalizePath(gamePath), data)) {
         std::fprintf(stderr, "audio_tool: music not found: %s\n", gamePath.c_str());
         return 1;
     }
-    as3d::audio::MusicDecoder dec;
-    if (!dec.load(data)) {
-        std::fprintf(stderr, "audio_tool: cannot load module %s\n", gamePath.c_str());
-        return 1;
-    }
-    dec.setLoop(false);
-    if (order > 0 && !dec.setOrder(order)) {
-        std::fprintf(stderr, "audio_tool: %s has no pattern order %d (%d orders)\n", gamePath.c_str(), order,
-                     dec.numOrders());
-        return 1;
-    }
-    constexpr int kChunk = 4096;
-    constexpr double kMaxSeconds = 20.0 * 60.0;
-    std::vector<float> pcm;
-    std::vector<float> chunk(2 * kChunk);
-    while (pcm.size() / 2 < static_cast<size_t>(kMaxSeconds * rate)) {
-        if (!dec.read(rate, chunk.data(), kChunk)) break;  // the module ended (padded with silence)
-        pcm.insert(pcm.end(), chunk.begin(), chunk.end());
-    }
-    // Trailing digital silence (the padding of the last read).
-    size_t frames = pcm.size() / 2;
-    while (frames > 0 && pcm[2 * frames - 1] == 0.0f && pcm[2 * frames - 2] == 0.0f) --frames;
-    if (frames == 0) {
-        std::fprintf(stderr, "audio_tool: %s rendered nothing\n", gamePath.c_str());
-        return 1;
-    }
-    float peak = 0.0f;
-    size_t clipped = 0;
-    for (size_t i = 0; i < 2 * frames; ++i) {
-        const float a = std::fabs(pcm[i]);
-        peak = std::max(peak, a);
-        clipped += a > 1.0f ? 1 : 0;
-    }
     const bool ogg = endsWith(outPath, ".ogg");
-    const std::string wavPath = ogg ? outPath + ".tmp.wav" : outPath;
-    if (!writeWavStereo16(wavPath, rate, pcm, static_cast<int>(frames))) {
-        std::fprintf(stderr, "audio_tool: failed to write '%s'\n", wavPath.c_str());
+#if AS3D_HAVE_VORBISENC
+    const bool inProcess = ogg && !external;
+#else
+    const bool inProcess = false;
+    (void)external;
+#endif
+    std::vector<std::int16_t> pcm;
+#if AS3D_HAVE_VORBISENC
+    as3d::audio::OggVorbisEncoder enc;
+    if (inProcess && !enc.begin(2, rate, quality)) {
+        std::fprintf(stderr, "audio_tool: %s\n", enc.error().c_str());
         return 1;
     }
-    if (ogg) {
-        char q[32];
-        std::snprintf(q, sizeof q, "%.1f", quality);
-        std::string cmd;
-        if (haveCommand("oggenc"))
-            cmd = std::string("oggenc -Q -q ") + q + " -o '" + outPath + "' '" + wavPath + "'";
-        else if (haveCommand("ffmpeg"))
-            cmd = std::string("ffmpeg -y -loglevel error -i '") + wavPath + "' -c:a libvorbis -q:a " + q + " '" +
-                  outPath + "'";
-        if (cmd.empty()) {
-            std::fprintf(stderr, "audio_tool: no Ogg Vorbis encoder (oggenc or ffmpeg); kept %s\n", wavPath.c_str());
+#endif
+    auto sink = [&](const std::int16_t* frames, size_t n) {
+#if AS3D_HAVE_VORBISENC
+        if (inProcess) return enc.write(frames, n);
+#endif
+        pcm.insert(pcm.end(), frames, frames + 2 * n);
+        return true;
+    };
+    as3d::audio::RenderStats stats;
+    std::string error;
+    if (!as3d::audio::renderModule(data, rate, order, sink, stats, error)) {
+        std::fprintf(stderr, "audio_tool: %s from order %d: %s\n", gamePath.c_str(), order, error.c_str());
+        return 1;
+    }
+    const char* how = "wav";
+    if (inProcess) {
+#if AS3D_HAVE_VORBISENC
+        if (!enc.finish()) {
+            std::fprintf(stderr, "audio_tool: %s\n", enc.error().c_str());
             return 1;
         }
-        const int rc = std::system(cmd.c_str());
-        std::remove(wavPath.c_str());
-        if (rc != 0) {
-            std::fprintf(stderr, "audio_tool: the encoder failed (%d): %s\n", rc, cmd.c_str());
+        std::ofstream f(outPath, std::ios::binary);
+        f.write(reinterpret_cast<const char*>(enc.bytes().data()), static_cast<std::streamsize>(enc.bytes().size()));
+        if (!f.good()) {
+            std::fprintf(stderr, "audio_tool: failed to write '%s'\n", outPath.c_str());
             return 1;
+        }
+        how = "libvorbis";
+#endif
+    } else {
+        const std::string wavPath = ogg ? outPath + ".tmp.wav" : outPath;
+        if (!writeWavStereo16(wavPath, rate, pcm, static_cast<int>(stats.frames))) {
+            std::fprintf(stderr, "audio_tool: failed to write '%s'\n", wavPath.c_str());
+            return 1;
+        }
+        if (ogg) {
+            char q[32];
+            std::snprintf(q, sizeof q, "%.1f", quality);
+            std::string cmd;
+            if (haveCommand("oggenc")) {
+                cmd = std::string("oggenc -Q -q ") + q + " -o '" + outPath + "' '" + wavPath + "'";
+                how = "oggenc";
+            } else if (haveCommand("ffmpeg")) {
+                cmd = std::string("ffmpeg -y -loglevel error -i '") + wavPath + "' -c:a libvorbis -q:a " + q + " '" +
+                      outPath + "'";
+                how = "ffmpeg";
+            }
+            if (cmd.empty()) {
+                std::fprintf(stderr, "audio_tool: no Ogg Vorbis encoder (oggenc or ffmpeg); kept %s\n", wavPath.c_str());
+                return 1;
+            }
+            const int rc = std::system(cmd.c_str());
+            std::remove(wavPath.c_str());
+            if (rc != 0) {
+                std::fprintf(stderr, "audio_tool: the encoder failed (%d): %s\n", rc, cmd.c_str());
+                return 1;
+            }
         }
     }
-    std::printf("audio_tool: %s from order %d -> %s (%.1f s at %d Hz, peak %.3f%s)\n", gamePath.c_str(), order,
-                outPath.c_str(), static_cast<double>(frames) / rate, rate, peak,
-                clipped ? ", CLIPPED: some samples above full scale" : "");
+    std::printf("audio_tool: %s from order %d -> %s (%.1f s at %d Hz, %zu frames, peak %.3f%s, %s)\n",
+                gamePath.c_str(), order, outPath.c_str(), static_cast<double>(stats.frames) / rate, rate,
+                stats.frames, stats.peak, stats.clipped ? ", CLIPPED: some samples above full scale" : "", how);
     return 0;
 }
 
@@ -345,34 +367,25 @@ int cmdRenderMusic(int argc, char** argv) {
     if (argc < 4) return -1;
     const bool all = std::strcmp(argv[2], "--all") == 0;
     const std::string first = argv[2], out = argv[3];
-    int rate = 32728, order = 0;
-    double quality = 4.0;
+    int rate = as3d::audio::kPrerenderedMusicRate, order = 0;
+    double quality = as3d::audio::kPrerenderedMusicQuality;
+    bool external = false;
     for (int i = 4; i < argc; ++i) {
         if (std::strcmp(argv[i], "--rate") == 0 && i + 1 < argc) rate = std::atoi(argv[++i]);
         else if (std::strcmp(argv[i], "--order") == 0 && i + 1 < argc) order = std::atoi(argv[++i]);
         else if (std::strcmp(argv[i], "--quality") == 0 && i + 1 < argc) quality = std::atof(argv[++i]);
+        else if (std::strcmp(argv[i], "--external-encoder") == 0) external = true;
         else return -1;
     }
     if (rate < 8000 || rate > 192000) return -1;
     as3d::Vfs vfs;
     buildVfs(vfs);
-    if (!all) return renderMusicFile(vfs, first, out, rate, order, quality);
+    if (!all) return renderMusicFile(vfs, first, out, rate, order, quality, external);
 
     int failures = 0, written = 0;
-    for (const std::string& name : vfs.list("music\\")) {
-        if (!isMusicPath(name)) continue;
-        std::string base = name.substr(name.find_last_of("\\/") + 1);
-        base = toLower(base.substr(0, base.find_last_of('.')));
-        const std::string dst = out + "/" + base + ".ogg";
-        failures += renderMusicFile(vfs, name, dst, rate, 0, quality) != 0;
+    for (const as3d::audio::PrerenderJob& job : as3d::audio::prerenderJobs(vfs)) {
+        failures += renderMusicFile(vfs, job.module, out + "/" + job.file, rate, job.order, quality, external) != 0;
         ++written;
-        as3d::Blob data;
-        as3d::audio::MusicDecoder dec;
-        if (vfs.read(name, data) && dec.load(data) && dec.numOrders() > as3d::kGameOverMusicOrder) {
-            failures += renderMusicFile(vfs, name, out + "/" + base + "_gameover.ogg", rate,
-                                        as3d::kGameOverMusicOrder, quality) != 0;
-            ++written;
-        }
     }
     std::printf("audio_tool: %d files, %d failures; copy them to sdmc:/3ds/openairstrike/<game>/music/\n", written,
                 failures);
@@ -386,7 +399,8 @@ void usage() {
                   "  audio_tool render <game path> --seconds N --out file.wav\n"
                   "  audio_tool play <game path> [--seconds N]\n"
                   "  audio_tool render-music <game path> <out.ogg|out.wav> [--rate R] [--order N] [--quality Q]\n"
-                  "  audio_tool render-music --all <out dir> [--rate R] [--quality Q]\n"
+                  "      [--external-encoder]\n"
+                  "  audio_tool render-music --all <out dir> [--rate R] [--quality Q] [--external-encoder]\n"
                   "  (any command may start with --paks <dir>: that directory's pak0..9.apk)\n");
 }
 

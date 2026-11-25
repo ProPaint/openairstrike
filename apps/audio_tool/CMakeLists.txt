@@ -25,3 +25,14 @@ endif()
 
 add_executable(audio_tool src/main.cpp)
 target_link_libraries(audio_tool PRIVATE as3d_core as3d_vfs as3d_audio)
+
+# render-music encodes in the process with libvorbis when tools/fetch_third_party.sh vorbis has
+# put its sources in third_party_local/ (the encoder of the web page's "Prepare files for 3DS",
+# so both make the same files); without them it runs oggenc or ffmpeg as before.
+if(NOT AS3D_REPO_ROOT)
+  get_filename_component(AS3D_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+endif()
+include(${AS3D_REPO_ROOT}/engine/src/audio/vorbisenc/vorbisenc.cmake)
+if(AS3D_VORBISENC_FOUND)
+  target_link_libraries(audio_tool PRIVATE as3d_vorbisenc)
+endif()

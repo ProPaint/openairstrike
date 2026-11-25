@@ -3,12 +3,13 @@
 # into third_party_local/ (gitignored), rather than committing SDL's source
 # tree to this repository. See docs/android.md.
 #
-# Usage: tools/fetch_third_party.sh [openmpt|ctrtools|archive|net]
+# Usage: tools/fetch_third_party.sh [openmpt|ctrtools|archive|net|vorbis]
 #        (openmpt: libopenmpt only, for tools/3ds_build.sh;
 #         ctrtools: makerom and bannertool only, for tools/3ds_package.sh;
 #         archive: libarchive and xz source trees only, for engine/src/formats/archive.cmake;
 #         net: libdatachannel with libjuice, usrsctp and plog, Mbed TLS and datachannel-wasm,
-#              for engine/src/net/net.cmake and apps/web)
+#              for engine/src/net/net.cmake and apps/web;
+#         vorbis: libogg and libvorbis, the Ogg Vorbis encoder of the 3DS music)
 # Env:   AS3D_DATA_ROOT   repo checkout to put third_party_local/ under
 #                          (default: this repo's root; use the main checkout
 #                          from a worktree so the download is shared).
@@ -145,6 +146,33 @@ fetch_archive() {
 
 if [ "${1:-}" = "archive" ]; then
     fetch_archive
+    exit 0
+fi
+
+# --- libogg and libvorbis (the Ogg Vorbis encoder of the 3DS music: the web page's "Prepare
+# files for 3DS" and audio_tool render-music; engine/src/audio/vorbisenc/vorbisenc.cmake) ---
+# The official Xiph release tarballs, each downloaded into an empty directory of its own and
+# checked against the pinned SHA-256 (equal to the SHA256SUMS files Xiph publishes beside them)
+# before it is unpacked. The libraries are compiled by CMake from these trees (vorbisenc.cmake).
+LIBOGG_VERSION="1.3.6"
+LIBOGG_URL="https://downloads.xiph.org/releases/ogg/libogg-${LIBOGG_VERSION}.tar.gz"
+# Verified by this script against the file downloaded from the URL above on 2026-11-25 (equal to
+# https://downloads.xiph.org/releases/ogg/SHA256SUMS).
+LIBOGG_SHA256="83e6704730683d004d20e21b8f7f55dcb3383cdf84c0daedf30bde175f774638"
+LIBVORBIS_VERSION="1.3.7"
+LIBVORBIS_URL="https://downloads.xiph.org/releases/vorbis/libvorbis-${LIBVORBIS_VERSION}.tar.gz"
+# Verified by this script against the file downloaded from the URL above on 2026-11-25 (equal to
+# https://downloads.xiph.org/releases/vorbis/SHA256SUMS).
+LIBVORBIS_SHA256="0e982409a9c3fc82ee06e08205b1355e5c6aa4c36bca58146ef399621b0ce5ab"
+
+fetch_vorbis() {
+    unpack_verified "${LIBOGG_URL}" "${LIBOGG_SHA256}" "libogg-${LIBOGG_VERSION}" include/ogg/ogg.h
+    unpack_verified "${LIBVORBIS_URL}" "${LIBVORBIS_SHA256}" "libvorbis-${LIBVORBIS_VERSION}" lib/vorbisenc.c
+    echo "fetch_third_party: AS3D_LIBOGG_DIR=${TPL_DIR}/libogg-${LIBOGG_VERSION} AS3D_LIBVORBIS_DIR=${TPL_DIR}/libvorbis-${LIBVORBIS_VERSION}"
+}
+
+if [ "${1:-}" = "vorbis" ]; then
+    fetch_vorbis
     exit 0
 fi
 
