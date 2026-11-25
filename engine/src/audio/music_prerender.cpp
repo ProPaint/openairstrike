@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstring>
+#include <initializer_list>
 
 #include "as3d/audio.h"
 #include "as3d/vfs.h"
