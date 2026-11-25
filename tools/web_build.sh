@@ -96,6 +96,8 @@ BUILD="${AS3D_WEB_BUILD_DIR:-$ROOT/build-web}"
 export AS3D_DATA_ROOT="$DATA_ROOT"  # libopenmpt's source under third_party_local
 # datachannel-wasm, the online co-op transport (engine/src/net/net.cmake), also under it.
 "$ROOT/tools/fetch_third_party.sh" net
+# libogg and libvorbis, the encoder of the music worker (as3d_music, "Prepare files for 3DS").
+"$ROOT/tools/fetch_third_party.sh" vorbis
 
 emcmake cmake -S "$ROOT/apps/web" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release \
   -DAS3D_WEB_FULL_ES3="${AS3D_WEB_FULL_ES3:-0}" >/dev/null
@@ -114,6 +116,9 @@ STAMP="$(date +%Y%m%d%H%M%S)"
 REV="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 cp -r "$ROOT/apps/web/site/." "$NEW/"
 cp "$BUILD/as3d_web.js" "$BUILD/as3d_web.wasm" "$NEW/"
+# The 3DS files' music worker (apps/web/music_main.cpp, site/music_worker.js): loaded only when
+# the player asks for those files.
+cp "$BUILD/as3d_music.js" "$BUILD/as3d_music.wasm" "$NEW/"
 # The checksums by game: from tools/games.json and the game files on this machine (what is not
 # on the disk stays what the committed apps/web/site/known_files.json says).
 python3 "$ROOT/tools/web_known_files.py" --root "$DATA_ROOT" --previous "$ROOT/apps/web/site/known_files.json" \
@@ -161,7 +166,7 @@ else
   while IFS= read -r -d '' f; do
     rel="${f#$NEW/}"
     case "$rel" in
-      index.html|app.js|files.js|marquee.js|style.css|build.js|as3d_web.js|as3d_web.wasm|manifest.webmanifest|known_files.json|icons/*.png|icons/*.svg) ;;
+      index.html|app.js|files.js|marquee.js|sd3ds.js|music_worker.js|style.css|build.js|as3d_web.js|as3d_web.wasm|as3d_music.js|as3d_music.wasm|manifest.webmanifest|known_files.json|icons/*.png|icons/*.svg) ;;
       *) echo "web_build: unexpected file in the byo site: $rel" >&2; bad=1 ;;
     esac
   done < <(find "$NEW" -type f -print0)

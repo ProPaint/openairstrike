@@ -92,3 +92,36 @@ endif()
 target_link_libraries(as3d_web PRIVATE ${AS3D_MODULES} ${AS3D_MODULES})
 target_link_options(as3d_web PRIVATE ${AS3D_WEB_LINK})
 set_target_properties(as3d_web PROPERTIES SUFFIX ".js")
+
+# as3d_music: the 3DS music of "Prepare files for 3DS" (docs/web.md "Files for the 3DS"), a
+# module of its own that the page loads only when the player asks for those files, in a Web
+# Worker (site/music_worker.js): the pak reader, libopenmpt, the shared render of audio_tool
+# render-music (engine/src/audio/music_prerender.cpp) and the Ogg Vorbis encoder (libvorbis,
+# engine/src/audio/vorbisenc/). Not the audio module itself: that one brings SDL's output.
+set(AS3D_VORBISENC_REQUIRED ON)
+include(${AS3D_REPO_ROOT}/engine/src/audio/vorbisenc/vorbisenc.cmake)
+add_executable(as3d_music music_main.cpp
+  ${AS3D_REPO_ROOT}/engine/src/audio/music_prerender.cpp
+  ${AS3D_REPO_ROOT}/engine/src/audio/music_openmpt.cpp)
+# libopenmpt's source root (the C API header), among openmpt_static's include directories.
+get_target_property(_as3d_openmpt_dirs openmpt_static INCLUDE_DIRECTORIES)
+foreach(_d ${_as3d_openmpt_dirs})
+  if(EXISTS "${_d}/libopenmpt/libopenmpt.h")
+    set(_as3d_openmpt_inc "${_d}")
+  endif()
+endforeach()
+target_include_directories(as3d_music PRIVATE ${AS3D_REPO_ROOT}/engine/include ${AS3D_REPO_ROOT}/engine/src/audio
+  ${_as3d_openmpt_inc})
+target_compile_options(as3d_music PRIVATE -fno-exceptions)
+target_link_libraries(as3d_music PRIVATE as3d_vfs as3d_core openmpt_static as3d_vorbisenc)
+target_link_options(as3d_music PRIVATE
+  -sENVIRONMENT=worker
+  -sMODULARIZE=1 -sEXPORT_NAME=AS3DMusic
+  --no-entry
+  -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=32MB
+  -sSTACK_SIZE=1MB
+  -sFORCE_FILESYSTEM=1
+  -lworkerfs.js
+  -fwasm-exceptions
+  "-sEXPORTED_RUNTIME_METHODS=['FS','ccall']")
+set_target_properties(as3d_music PROPERTIES SUFFIX ".js")

@@ -43,6 +43,13 @@ as2 and gulf (tools/web_build.sh); every scenario but `choose`, `gulf` and `byo`
              3D's banner by the engine from the stored paks (a moving canvas), kept and shown
              again after a reload without a new render, gone with "Remove them"; files stored
              by the first version of the page (no game key) still found.
+  byo_3ds    "Files for the 3DS" on the bring-your-own site (not in the default list: renders
+             every game's music, several minutes): the files of each game on this machine
+             stored, the dialog, a run cancelled, a whole run, the zip downloaded and checked
+             (3ds/openairstrike/<key>/music/*.ogg at 32728 Hz, texts, paks, Settings.xml), the
+             music compared with the desktop's audio_tool render-music --all (same files, same
+             frames; same bytes when both encode with libvorbis; $AS3D_AUDIO_TOOL or
+             build/apps/audio_tool/audio_tool or build-audio-tool/audio_tool).
   twoplayer  two players at 1280x720 (docs/web.md "Two players"), with two fake "standard"
              gamepads (navigator.getGamepads stubbed): a fresh profile gives player 2 W A S D
              and V to fire; Start Game, 2 Players, Start opens the Players screen (keyboard
@@ -946,6 +953,145 @@ def byo_archive(w, b):
     return r
 
 
+def audio_tool_bin():
+    """The desktop audio_tool for byo_3ds's comparison: $AS3D_AUDIO_TOOL, else the usual builds."""
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+    for c in [os.environ.get("AS3D_AUDIO_TOOL", ""), os.path.join(root, "build", "apps", "audio_tool", "audio_tool"),
+              os.path.join(root, "build-audio-tool", "audio_tool")]:
+        if c and os.access(c, os.X_OK):
+            return c
+    return None
+
+
+def byo_3ds(w, b):
+    """docs/web.md "Files for the 3DS": with the files of every game on this machine stored, the
+    "Files for the 3DS" dialog renders the music in the page's worker (started, cancelled, started
+    again), the zip downloads and holds 3ds/openairstrike/<key>/ with music/*.ogg (Ogg Vorbis,
+    32728 Hz, stereo), the texts file and, by default, the paks and Settings.xml. The music is
+    compared with the desktop's audio_tool render-music --all of the same paks (when a build of
+    it is there): the same files, the same number of frames, and the bytes when both encode with
+    the same libvorbis. The zip and the desktop files go to a temporary directory, removed after."""
+    import tempfile
+    import zipfile
+    games = []
+    for key, inst, exe, paks in (("as3d", os.path.join(DATA_ROOT, "third_party_local", "original"), "AirStrike3D.exe", 3),
+                                 ("as2", os.path.join(DATA_ROOT, "third_party_local", "games", "as2"), "AirStrike3D II.exe", 3),
+                                 ("gulf", os.path.join(DATA_ROOT, "third_party_local", "games", "gulf"), "AirStrike3D II - Gulf.exe", 5)):
+        data = os.path.join(inst, "data")
+        names = [n for n in sorted(os.listdir(data)) if re.match(r"pak\d+\.apk$", n)] if os.path.isdir(data) else []
+        if not names:
+            continue
+        files = [os.path.join(data, n) for n in names] + [os.path.join(data, "Settings.xml"), os.path.join(inst, exe)]
+        games.append((key, data, [f for f in files if os.path.isfile(f)]))
+    assert games, "no game files on this machine"
+    p = b.page(w.a.byo_url, "", viewport={"width": 1280, "height": 720}, accept_downloads=True)
+    r = {"games": [g[0] for g in games]}
+    tmp = tempfile.mkdtemp(prefix="as3d_walk_3ds_")
+    try:
+        p.page.wait_for_selector("#files:not([hidden])", timeout=60000)
+        assert p.page.locator("#sd3ds-open").is_hidden(), "offered before any game's files are stored"
+        w.step("byo_3ds: the files of %s through the file input" % ", ".join(r["games"]))
+        p.page.set_input_files("#pick-files", [f for _, _, fs in games for f in fs])
+        p.page.wait_for_selector("#sd3ds-open:not([hidden])", timeout=240000)
+        w.step("byo_3ds: the dialog lists the games; a first run is cancelled while it renders")
+        p.page.click("#sd3ds-open")
+        p.page.wait_for_selector("#sd3ds[open]", timeout=10000)
+        listed = p.page.evaluate("Array.from(document.querySelectorAll('#sd3ds-games input')).map((c) => c.value)")
+        r["listed"] = listed
+        assert listed == [g[0] for g in games], listed
+        w.shot(p, "byo_3ds_dialog")
+        p.page.click("#sd3ds-make")
+        p.page.wait_for_function("/Rendering music 2\\//.test(document.getElementById('sd3ds-status').textContent)", timeout=180000)
+        p.page.click("#sd3ds-cancel")
+        p.page.wait_for_function("window.as3dSd3ds.cancelled && !window.as3dSd3ds.running", timeout=10000)
+        assert p.page.locator("#sd3ds-status").text_content() == "Cancelled.", p.page.locator("#sd3ds-status").text_content()
+        assert p.page.locator("#sd3ds-save").is_hidden()
+        w.step("byo_3ds: the whole run")
+        mk = p.mark()
+        t0 = time.time()
+        p.page.click("#sd3ds-make")
+        p.page.wait_for_function("/Rendering music/.test(document.getElementById('sd3ds-status').textContent)", timeout=60000)
+        w.shot(p, "byo_3ds_rendering")
+        p.page.wait_for_function("window.as3dSd3ds.done || window.as3dSd3ds.error", timeout=1800000)
+        st = p.page.evaluate("window.as3dSd3ds")
+        assert not st["error"], st["error"]
+        r["seconds"] = round(time.time() - t0, 1)
+        r["zip_bytes"] = st["zipBytes"]
+        r["status"] = p.page.locator("#sd3ds-status").text_content()
+        by_game = {}
+        for x in st["renders"]:
+            g = by_game.setdefault(x["game"], {"files": 0, "render_ms": 0, "audio_s": 0.0, "ogg_bytes": 0})
+            g["files"] += 1
+            g["render_ms"] += x["ms"]
+            g["audio_s"] = round(g["audio_s"] + x["seconds"], 1)
+            g["ogg_bytes"] += x["bytes"]
+        r["by_game"] = by_game
+        w.shot(p, "byo_3ds_done")
+        with p.page.expect_download() as dl:
+            p.page.click("#sd3ds-save")
+        zpath = os.path.join(tmp, "openairstrike-3ds.zip")
+        dl.value.save_as(zpath)
+        r["download_name"] = dl.value.suggested_filename
+        with zipfile.ZipFile(zpath) as zf:
+            assert zf.testzip() is None, "a CRC in the zip is wrong"
+            names = zf.namelist()
+            zf.extractall(os.path.join(tmp, "zip"))
+        r["zip_entries"] = len(names)
+        texts = {"as3d": "texts_v170.txt", "as2": "texts_as2.txt", "gulf": "texts_gulf.txt"}
+        cmp = {}
+        tool = audio_tool_bin()
+        for key, data, files in games:
+            base = "3ds/openairstrike/%s/" % key
+            mine = sorted(n[len(base) + 6:] for n in names if n.startswith(base + "music/"))
+            assert mine and all(n.endswith(".ogg") for n in mine), (key, mine)
+            assert base + texts[key] in names, (key, "no texts file")
+            for f in files:
+                if f.endswith(".apk") or f.endswith("Settings.xml"):
+                    n = base + os.path.basename(f)
+                    assert n in names, n
+                    assert open(os.path.join(tmp, "zip", n), "rb").read() == open(f, "rb").read(), n + " differs"
+            frames = {x["file"]: x["frames"] for x in st["renders"] if x["game"] == key}
+            c = {"files": mine, "frames": frames}
+            if tool:
+                out = os.path.join(tmp, "desk", key)
+                os.makedirs(out)
+                run = subprocess.run(["bash", "-c", 'ulimit -v 4000000; exec "$@"', "audio_tool", tool, "--paks", data,
+                                      "render-music", "--all", out], capture_output=True, text=True, timeout=1800)
+                assert run.returncode == 0, run.stderr[-2000:]
+                desk = sorted(os.listdir(out))
+                assert desk == mine, (key, desk, mine)
+                dframes = {}
+                for line in run.stdout.splitlines():
+                    m = re.search(r"-> \S+/([^/ ]+\.ogg) \(\S+ s at (\d+) Hz, (\d+) frames", line)
+                    if m:
+                        dframes[m.group(1)] = int(m.group(3))
+                        assert int(m.group(2)) == 32728, line
+                assert dframes == frames, (key, dframes, frames)
+                same = [n for n in mine if open(os.path.join(out, n), "rb").read() ==
+                        open(os.path.join(tmp, "zip", base, "music", n), "rb").read()]
+                c["desktop_encoder"] = "libvorbis" if "libvorbis)" in run.stdout else "external"
+                c["bytes_identical"] = "%d/%d" % (len(same), len(mine))
+                if c["desktop_encoder"] == "libvorbis":
+                    assert len(same) == len(mine), (key, "the Ogg bytes differ from audio_tool's", sorted(set(mine) - set(same)))
+            else:
+                c["desktop"] = "skipped: no audio_tool build"
+            # The stream itself: Ogg Vorbis, 32728 Hz, stereo (the identification header).
+            head = open(os.path.join(tmp, "zip", base, "music", mine[0]), "rb").read(64)
+            assert head[:4] == b"OggS" and head[28:35] == b"\x01vorbis", head[:40]
+            ch, rate = head[39], struct.unpack("<I", head[40:44])[0]
+            assert (ch, rate) == (2, 32728), (ch, rate)
+            cmp[key] = c
+        r["compare"] = cmp
+        r["lines"] = [t for t in p.texts()[mk:] if "AS3D_WEB sd3ds" in t]
+        p.page.click("#sd3ds-close")
+        p.page.evaluate("AS3DFiles.clearStored()")  # leave the browser's storage empty
+        r["errors"] = p.errors()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        p.close()
+    return r
+
+
 # Two fake "standard" gamepads (index 0 and 1), unplugged until window.__connect(i) (the
 # browser shows a pad only after a press; Emscripten's SDL polls navigator.getGamepads).
 TWO_PADS_JS = """
@@ -1740,7 +1886,8 @@ def online_web(w, b):
         bb.close()
     return r
 
-SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "byo_archive": byo_archive, "complete": complete,
+SCENARIOS = {"desktop": desktop, "phone": phone, "iphone": iphone, "byo": byo, "byo_archive": byo_archive, "byo_3ds": byo_3ds,
+             "complete": complete,
              "gameover": gameover, "migration": migration, "choose": choose, "gulf": gulf,
              "twoplayer": twoplayer, "twoplayer_as2": twoplayer_as2, "online": online, "online_web": online_web}
 

@@ -257,8 +257,9 @@ body.fullscreen #fs-toggle .leave { display: inline; }
 .desk-link:hover, .desk-link:focus-visible { opacity: 1; text-decoration: underline; }
 .desk-link[hidden] { display: none; }
 
-/* Online co-op: the dialog for the codes (docs/spec/issues/180-online-coop.md 8.4). */
-#online {
+/* Online co-op: the dialog for the codes (docs/spec/issues/180-online-coop.md 8.4). The 3DS
+   files' dialog (sd3ds.js) looks the same. */
+#online, #sd3ds {
   width: min(560px, calc(100vw - 24px));
   max-height: calc(100vh - 24px);
   max-height: calc(100dvh - 24px);
@@ -272,7 +273,18 @@ body.fullscreen #fs-toggle .leave { display: inline; }
   text-align: center;
   z-index: 30;
 }
-#online::backdrop { background: rgba(0, 0, 0, 0.6); }
+#online::backdrop, #sd3ds::backdrop { background: rgba(0, 0, 0, 0.6); }
+#sd3ds h2 { margin: 0 0 8px; font-size: 20px; }
+#sd3ds p { margin: 6px 0; }
+#sd3ds .row { margin: 10px 0 4px; }
+#sd3ds .primary { color: var(--accent-text); background: var(--accent); border: none; font-weight: 700; }
+#sd3ds a.button { text-decoration: none; }
+#sd3ds-games { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 8px 0; }
+#sd3ds-games label { white-space: nowrap; }
+#sd3ds-games .none { color: var(--muted); }
+#sd3ds-progress { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); overflow: hidden; margin: 10px auto 0; max-width: 360px; }
+#sd3ds-bar { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+#sd3ds-status:empty { display: none; }
 #online h2 { margin: 0 0 8px; font-size: 20px; }
 #online p { margin: 6px 0; }
 #online textarea {

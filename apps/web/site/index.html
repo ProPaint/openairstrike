@@ -94,6 +94,7 @@ if (location.pathname.indexOf('/airstrike/') === 0 && /[?&]autostart=1(&|$)/.tes
       F full screen. Player 2: W A S D fly, V fires, G missile, H item. Keys can be changed in Options, Controls.</p>
     <p id="stored" class="small" hidden><span id="stored-text"></span>
       <button id="add-files" type="button" class="link" hidden>Add another game's files</button>
+      <button id="sd3ds-open" type="button" class="link" hidden>Files for the 3DS</button>
       <button id="forget" type="button" class="link">Remove them</button></p>
     <p id="warn" class="small warn" hidden></p>
   </div>
@@ -125,6 +126,27 @@ if (location.pathname.indexOf('/airstrike/') === 0 && /[?&]autostart=1(&|$)/.tes
   <div class="row"><button id="online-close" type="button" class="secondary">Close</button></div>
 </dialog>
 
+<dialog id="sd3ds" aria-labelledby="sd3ds-title">
+  <h2 id="sd3ds-title">Files for the Nintendo 3DS</h2>
+  <p class="small">OpenAirStrike for the 3DS plays the music from Ogg files made from your games' music. This page
+    makes them here, in this browser, with the texts files, as one zip of the folder the 3DS app reads.</p>
+  <div id="sd3ds-games"></div>
+  <label class="small"><input type="checkbox" id="sd3ds-paks" checked> include the game files (paks, Settings.xml):
+    the zip is then the complete folder</label>
+  <div id="sd3ds-progress" hidden><div id="sd3ds-bar"></div></div>
+  <p id="sd3ds-status" role="status"></p>
+  <div class="row">
+    <button id="sd3ds-make" type="button" class="primary">Make the zip</button>
+    <a id="sd3ds-save" class="button primary" hidden download="openairstrike-3ds.zip">Download the zip</a>
+    <button id="sd3ds-cancel" type="button" class="secondary" hidden>Cancel</button>
+    <button id="sd3ds-close" type="button" class="secondary">Close</button>
+  </div>
+  <p class="small">Unzip it at the root of the SD card: it holds <code>3ds/openairstrike/&lt;game&gt;/</code>, with
+    <code>music/*.ogg</code> and the texts file of each game (and its paks and <code>Settings.xml</code> when
+    included). The app itself (<code>openairstrike.3dsx</code> or the CIA) comes from the 3DS package, with its
+    INSTALL.txt.</p>
+</dialog>
+
 <div id="rotate" class="overlay" hidden>
   <div class="panel"><svg viewBox="0 0 48 48" class="rot" aria-hidden="true"><rect x="12" y="4" width="24" height="40" rx="4"/><path d="M6 30a18 18 0 0 0 12 14M42 18A18 18 0 0 0 30 4"/></svg>
     <p>Turn your device sideways to play.</p></div>
@@ -144,6 +166,7 @@ if (location.pathname.indexOf('/airstrike/') === 0 && /[?&]autostart=1(&|$)/.tes
 <script src="build.js?v=__BUILD__"></script>
 <script src="files.js?v=__BUILD__"></script>
 <script src="marquee.js?v=__BUILD__"></script>
+<script src="sd3ds.js?v=__BUILD__"></script>
 <script>if (location.pathname.indexOf('/airstrike/') === 0) document.querySelectorAll('.desk-link').forEach(function (a) { a.hidden = false; });</script>
 <script src="app.js?v=__BUILD__"></script>
 </body>

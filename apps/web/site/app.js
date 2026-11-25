@@ -763,6 +763,10 @@
       parts.join('; ') + ').';
     // Another game's files can be added as long as a known game lacks them (docs/web.md).
     $('add-files').hidden = !!FORCED || !incompleteGames().length;
+    // The 3DS files (sd3ds.js): offered once a game's files are all stored.
+    const sd = { stored: () => chosen, known: games, log };
+    AS3DSd3ds.setup(sd);
+    $('sd3ds-open').hidden = !AS3DSd3ds.available(sd);
   }
   // The games this page plays whose files are not all stored yet.
   const incompleteGames = () => Object.keys(games).filter((g) => offerable(games, g) && AS3DFiles.missing(chosen[g], g).length);
