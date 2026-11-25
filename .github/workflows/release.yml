@@ -85,7 +85,7 @@ jobs:
         run: |
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            build-essential cmake pkg-config curl ca-certificates git python3 file \
+            build-essential cmake pkg-config curl ca-certificates git python3 file desktop-file-utils \
             libgles-dev libegl-dev zlib1g-dev \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxinerama-dev libxfixes-dev \
             libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \

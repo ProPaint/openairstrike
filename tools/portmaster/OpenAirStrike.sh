@@ -28,7 +28,7 @@ GAMEDIR=/$directory/ports/openairstrike
 CONFDIR="$GAMEDIR/conf"
 
 mkdir -p "$CONFDIR" "$GAMEDIR/gamefiles" "$GAMEDIR/data"
-cd "$GAMEDIR"
+cd "$GAMEDIR" || exit 1
 
 > "$GAMEDIR/log.txt" && exec > >(tee "$GAMEDIR/log.txt") 2>&1
 
