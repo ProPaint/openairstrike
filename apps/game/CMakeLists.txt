@@ -34,7 +34,7 @@ if(ANDROID)
 else()
   # The target is as3d_game_app because the simulation module already owns the target name
   # as3d_game; the executable is still called as3d_game.
-  add_executable(as3d_game_app main.cpp)
+  add_executable(as3d_game_app main.cpp setup_screen.cpp)
   set_target_properties(as3d_game_app PROPERTIES OUTPUT_NAME as3d_game)
   target_link_libraries(as3d_game_app PRIVATE as3d_game_shell)
 endif()

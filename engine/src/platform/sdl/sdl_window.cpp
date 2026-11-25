@@ -136,9 +136,13 @@ std::unique_ptr<GraphicsContext> createWindowContext(const GraphicsConfig& confi
     const char* vendor = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
     const char* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
     const char* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
-    char buf[512];
-    std::snprintf(buf, sizeof buf, "sdl-window: vendor=%s renderer=%s version=%s", vendor ? vendor : "?",
-                  renderer ? renderer : "?", version ? version : "?");
+    // The video driver and the drawable size too: what a tester of a handheld build sends back.
+    const char* driver = SDL_GetCurrentVideoDriver();
+    int dw = 0, dh = 0;
+    SDL_GL_GetDrawableSize(window, &dw, &dh);
+    char buf[640];
+    std::snprintf(buf, sizeof buf, "sdl-window: driver=%s size=%dx%d vendor=%s renderer=%s version=%s",
+                  driver ? driver : "?", dw, dh, vendor ? vendor : "?", renderer ? renderer : "?", version ? version : "?");
     ctx->description_ = buf;
     AS3D_INFO("%s", ctx->description_.c_str());
     return ctx;
