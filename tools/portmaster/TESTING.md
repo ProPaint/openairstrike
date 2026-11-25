@@ -54,4 +54,5 @@ Each line is worth a word in your report, even "works".
 - A photo of the screen where something looks wrong (text cut off, too small, misplaced).
 
 Known limits, no need to report them: entering a name for the high scores needs a keyboard
-(the pad cannot type yet); online co-op works only where the device has a network.
+(the pad cannot type; A accepts an empty name); online co-op needs the codes pasted, which a
+handheld without a keyboard cannot do.

@@ -44,8 +44,9 @@ says who flies with what).
 ## Compile
 
 ```shell
-# Debian bullseye arm64 (glibc 2.31), see .github/workflows/release.yml (portmaster job)
-apt install build-essential cmake pkg-config curl git python3 libsdl2-dev libgles-dev libegl-dev zlib1g-dev
+# Ubuntu 20.04 arm64 (glibc 2.31) with CMake 3.22 or newer, see the linux-arm64 job of
+# .github/workflows/release.yml in the OpenAirStrike repository
+apt install build-essential pkg-config curl git python3 libsdl2-dev libgles-dev libegl-dev zlib1g-dev
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DAS3D_BUILD_TESTS=OFF \
   -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"
 cmake --build build --target as3d_game_app

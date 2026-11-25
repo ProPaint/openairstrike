@@ -135,6 +135,8 @@ full list is at the top of `apps/game/main.cpp`):
   reads the paks straight from a game's `data/` directory.
 - `--level N` starts directly in a mission, `--difficulty 0..4`, `--seed S`.
 - `--size WxH`, `--fullscreen`, `--touch` (touch controls, mouse as finger), `--fps`.
+- `--import-dir DIR` installs what is new in DIR (game folders, archives, installers) into the
+  data root before it starts, and says on screen where the files go when there is no game.
 - `--headless` with `--frames N`, `--screenshot-every K` and `--out-dir DIR` runs without a
   window, for tests and screenshots.
 
@@ -224,14 +226,54 @@ makes that folder from your files, with the pre-rendered music; see "Web"); the 
 (`sdmc:/3ds/dspfirm.cdc`) is needed for sound. Details in `apps/3ds/README.md` and
 `docs/3ds-port.md`.
 
+### Steam Deck
+
+1. In Desktop Mode, download `openairstrike-<version>-x86_64.AppImage` from the releases page
+   (into `~/Applications` or `~/Downloads`), then in Dolphin: right-click it, Properties,
+   Permissions, tick "Is executable".
+2. Start it once (double-click). It opens a screen "No game files yet" and creates the folder
+   `OpenAirStrike-games` beside the AppImage. Copy your own copy of each game into that folder:
+   the game's install folder from a Windows PC (the `.exe` with its `data` folder), or the game
+   as you downloaded it (zip, RAR, 7z or its Inno Setup installer). At its next start the game
+   installs them (`--import-dir`: the same importer as the Android app and the web page) into
+   `~/.local/share/airstrike3d/games/` and opens; you can then delete the copies.
+3. Right-click the AppImage, "Add to Steam". In Game Mode it is under Non-Steam games; it starts
+   full screen at 1280x800 and plays with the Deck's controls (the menus and the game follow the
+   pad: D-pad or stick, A, B, Start; the layout is in `docs/web.md`, "Controllers").
+
+Profiles and saves are in `~/.local/share/airstrike3d/`. `--windowed` (or `--size WxH`) on the
+AppImage's command line opens a window instead; other options go to the game (`--fps`, ...).
+`AS3D_IMPORT_DIR` and `AS3D_DATA_ROOT` move the two folders. The AppImage runs on other
+x86_64 Linux desktops too (glibc 2.35 or newer, an OpenGL ES 3.0 driver: Mesa or NVIDIA); it
+carries SDL 2.30 and uses the system's GL ES, EGL and zlib. It is built by
+`tools/appimage/build.sh` (on Ubuntu 22.04: see the `appimage` job of
+`.github/workflows/release.yml` for the packages).
+
+### Linux handhelds (PortMaster)
+
+`openairstrike-<version>-portmaster.zip` is a port for PortMaster (aarch64 firmwares such as
+ArkOS, ROCKNIX, AmberELEC, muOS, Knulli; glibc 2.31 or newer). The device's GPU must do OpenGL
+ES 3.0: Mali-G31 (RK3326, H700) and Mali-G52 (RK3566) do; Mali-400/450 devices cannot run it.
+Copy `OpenAirStrike.sh` and the `openairstrike/` folder into the device's `ports/` folder,
+then your game files into `ports/openairstrike/gamefiles/` (a game folder, zip or installer, as
+for the Steam Deck); the next start imports them. The launcher writes
+`ports/openairstrike/log.txt`. The package is made by `tools/portmaster/package.sh` from an
+aarch64 build; `tools/portmaster/TESTING.md` lists what a tester should try and send back.
+
 ## Releases
 
 A version tag (`v1.2.3`) builds a draft GitHub release (`.github/workflows/release.yml`) with
-four data-free artifacts and notes made by `tools/release_notes.sh` from `CHANGELOG.md`:
+data-free artifacts and notes made by `tools/release_notes.sh` from `CHANGELOG.md`:
 
 - `openairstrike-<version>-linux-x86_64.tar.gz`: `as3d_game` and `as3d_sim` built on Ubuntu
   22.04 (needs `libsdl2-2.0-0`, `libgles2` and `libegl1`); point them at your data with
   `--data`.
+- `openairstrike-<version>-x86_64.AppImage`: the game for the Steam Deck and other x86_64
+  Linux desktops, with SDL bundled ("Steam Deck" above).
+- `openairstrike-<version>-linux-aarch64.tar.gz`: `as3d_game` and `as3d_sim` for 64-bit ARM
+  Linux, built on Ubuntu 20.04 (glibc 2.31; needs `libsdl2-2.0-0`, `libgles2` and `libegl1`).
+- `openairstrike-<version>-portmaster.zip`: the PortMaster port of the same aarch64 build
+  ("Linux handhelds (PortMaster)" above).
 - `openairstrike-<version>-web.zip`: the bring-your-own-data site, to serve from any static
   web server; the page asks for your game files on first start.
 - `openairstrike-<version>-android.apk`: the signed APK without any game data; the app asks

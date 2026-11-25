@@ -3,6 +3,12 @@
 #
 #   * Linux x86_64: as3d_game and as3d_sim in a tarball, built on the oldest supported Ubuntu
 #     so the glibc requirement stays low; needs the SDL2, GLES and EGL runtime libraries.
+#   * Steam Deck / Linux x86_64 AppImage: the game with SDL 2.30 bundled (tools/appimage/build.sh),
+#     built in the same Ubuntu 22.04 container; it imports the player's files from a folder
+#     beside it (README.md, "Steam Deck").
+#   * Linux aarch64 and PortMaster: built natively on GitHub's arm64 runner in an Ubuntu 20.04
+#     container, so it needs glibc 2.31 (the handhelds' firmwares); as3d_game and as3d_sim in a
+#     tarball, and the PortMaster port (tools/portmaster/package.sh) as a zip.
 #   * Web: the bring-your-own-data site as a zip (the page asks for the game files).
 #   * Android: the signed release APK with no bundled data (AS3D_ANDROID_GAMES=none): the app
 #     imports the player's files on first start. Signing uses the repository secrets
@@ -12,7 +18,7 @@
 #     the CIA for the HOME menu, run.ini and INSTALL.txt), built in the pinned devkitPro image
 #     with makerom and bannertool fetched by tools/fetch_third_party.sh (SHA-256 pinned).
 #
-# The release is created as a draft with the four files attached, so it can be checked and
+# The release is created as a draft with the files attached, so it can be checked and
 # given release notes before it is published.
 name: release
 
@@ -65,6 +71,93 @@ jobs:
         with:
           name: linux
           path: openairstrike-*-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  appimage:
+    name: Linux x86_64 AppImage (Steam Deck)
+    runs-on: ubuntu-latest
+    # The same Ubuntu 22.04 container as the linux job: glibc 2.35 or newer on the player's side.
+    container: ubuntu:22.04
+    timeout-minutes: 60
+    steps:
+      - name: Install packages
+        # SDL's desktop backends are built from these headers and loaded at run time (dlopen).
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config curl ca-certificates git python3 file \
+            libgles-dev libegl-dev zlib1g-dev \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxinerama-dev libxfixes-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
+            libpulse-dev libasound2-dev libpipewire-0.3-dev libudev-dev libdbus-1-dev
+      - uses: actions/checkout@v4
+      - name: Build the AppImage
+        run: |
+          v="${AS3D_VERSION#v}"
+          AS3D_BUILD_JOBS="$(nproc)" tools/appimage/build.sh "$v"
+          cp "out/appimage/OpenAirStrike-$v-x86_64.AppImage" "openairstrike-$v-x86_64.AppImage"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: openairstrike-*-x86_64.AppImage
+          if-no-files-found: error
+
+  linux-arm64:
+    name: Linux aarch64 and PortMaster
+    runs-on: ubuntu-24.04-arm
+    # Ubuntu 20.04: glibc 2.31 (ArkOS, ROCKNIX, AmberELEC, muOS have it or newer) and gcc 9.
+    # Its CMake (3.16) is too old: Kitware's 3.31.6 binary, pinned by SHA-256. (Debian
+    # bullseye has the same glibc but its archive is being retired: its packages and backports
+    # are no longer reliably on the mirrors.)
+    container: ubuntu:20.04
+    timeout-minutes: 90
+    steps:
+      - name: Install packages
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential pkg-config curl ca-certificates git python3 file \
+            libsdl2-dev libgles-dev libegl-dev zlib1g-dev
+          curl -fL --retry 3 -o /tmp/cmake.tar.gz \
+            https://github.com/Kitware/CMake/releases/download/v3.31.6/cmake-3.31.6-linux-aarch64.tar.gz
+          echo "b4cc788d63112b2749b40627e719eb5d3b8ed8f00c36d77189f4019cfe64bc9e  /tmp/cmake.tar.gz" | sha256sum -c -
+          mkdir -p /opt/cmake && tar xzf /tmp/cmake.tar.gz -C /opt/cmake --strip-components=1
+          echo /opt/cmake/bin >> "$GITHUB_PATH"
+      - uses: actions/checkout@v4
+      - name: Build
+        # libstdc++ and libgcc linked statically: the firmwares' own can be older than the compiler's.
+        # SDL2, GL ES and EGL are the device's.
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DAS3D_BUILD_TESTS=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"
+          cmake --build build -j"$(nproc)" --target as3d_game_app as3d_sim
+      - name: Package
+        run: |
+          v="${AS3D_VERSION#v}"
+          d="openairstrike-$v-linux-aarch64"
+          mkdir -p "$d/pak_entries"
+          cp build/apps/game/as3d_game build/apps/sim_tool/as3d_sim README.md LICENSE "$d/"
+          cp tools/pak_entries/*.txt "$d/pak_entries/"
+          strip "$d/as3d_game" "$d/as3d_sim"
+          cat > "$d/RUN.txt" <<EOF
+          openairstrike $v, Linux aarch64 (built on Ubuntu 20.04, glibc 2.31 or newer).
+          Needs the SDL2 (2.0.6 or newer), OpenGL ES 3.0 and EGL runtime libraries: on Debian or Ubuntu
+            sudo apt install libsdl2-2.0-0 libgles2 libegl1
+          Put your own copy of each game where README.md (Setup) says, then run
+            ./as3d_game --data /path/to/that/directory
+          or copy the game's folder, zip or installer into a folder and run
+            ./as3d_game --data /where/to/install --import-dir /that/folder
+          For a handheld with PortMaster, take openairstrike-$v-portmaster.zip instead.
+          EOF
+          tar czf "$d.tar.gz" "$d"
+          tools/portmaster/package.sh build/apps/game/as3d_game "$v"
+          cp "out/portmaster/openairstrike-$v-portmaster.zip" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64
+          path: |
+            openairstrike-*-linux-aarch64.tar.gz
+            openairstrike-*-portmaster.zip
           if-no-files-found: error
 
   web:
@@ -173,7 +266,7 @@ jobs:
 
   release:
     name: Draft release
-    needs: [linux, web, android, nintendo-3ds]
+    needs: [linux, appimage, linux-arm64, web, android, nintendo-3ds]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -189,7 +282,8 @@ jobs:
         run: |
           ls -la dist
           # No pak archive, no original texts file, no copy of a game executable.
-          ! (cd dist && (unzip -l openairstrike-*-web.zip; tar tzf openairstrike-*-linux-x86_64.tar.gz; unzip -l openairstrike-*-android.apk; unzip -l openairstrike-*-3ds.zip) | grep -Ei 'pak[0-9]\.apk|texts_(v170|as2|gulf)\.txt|AirStrike3D.*\.exe|Settings\.xml')
+          # The AppImage is checked when it is built (tools/appimage/build.sh).
+          ! (cd dist && (unzip -l openairstrike-*-web.zip; tar tzf openairstrike-*-linux-x86_64.tar.gz; tar tzf openairstrike-*-linux-aarch64.tar.gz; unzip -l openairstrike-*-portmaster.zip; unzip -l openairstrike-*-android.apk; unzip -l openairstrike-*-3ds.zip) | grep -Ei 'pak[0-9]\.apk|texts_(v170|as2|gulf)\.txt|AirStrike3D.*\.exe|Settings\.xml')
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
