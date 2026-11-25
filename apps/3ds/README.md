@@ -454,7 +454,9 @@ the main menu's Exit too. HOME / sleep during play open the in-game menu and sav
 Files: the paks plus `Settings.xml` (intro pages, version and copyright line) and the texts
 imported from the user's executable (`texts_v170.txt` for AirStrike 3D: menu labels and
 Information pages) in `sdmc:/3ds/openairstrike/<game>/`, copied from the install like the paks
-(both are the game's, never commit them). The profile (settings, progress, high scores) is
+(both are the game's, never commit them). Instead of the texts file the game's executable can be
+put in that folder: at start the app makes the texts file from it once (see the selector below).
+The profile (settings, progress, high scores) is
 `sdmc:/3ds/openairstrike/<game>/profile.bin`, saved through `GameFlow` as on the desktop.
 Options offers brightness, the volumes, Show FPS and the camera (`FlowConfig::consoleOptions`:
 no Configure controls, Mouse Control, Screen, video or touch rows); Start Game one player.
@@ -496,6 +498,11 @@ docs/3ds-port.md, "M2.1".
 ## Game selector (M5.4)
 
 With `mode=menu` (or `mode=play` without `level=`) and no `game=` in run.ini (or `game=select`):
+first, for a game whose texts file is missing, every `*.exe` in its folder is read
+(`importExeTexts`, ctr_install.cpp, the C++ extractor of as3d/exe_texts.h that the other imports
+use) and the game's own executable gives the texts file (log: `install: <key>: <file> made from
+<exe> (N bytes)`; another game's executable or another file is skipped with a line); the
+executable stays, and is not read again once the texts file is there. Then
 the app looks for the games under `sdmc:/3ds/openairstrike/{as3d,as2,gulf}/` (each game's paks,
 `Settings.xml` and its texts file; missing files are logged as `selector: <key> incomplete,
 missing: ...` and shown on its card, which cannot be started), shows the selector on the bottom

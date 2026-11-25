@@ -20,6 +20,14 @@ struct GameInstall {
     bool any() const { return present > 0; }
 };
 
+// The texts files made on the console: for each game whose texts file is missing, every *.exe
+// in its folder is read (as3d/exe_texts.h, the code of the desktop, web and Android imports)
+// and the first one that is that game's executable gives the texts file (written through a
+// .tmp file and renamed). The executable is left where it is; once the texts file is there
+// it is not read again. Returns how many files were written; each result is logged
+// (AS3D_INFO "install: ..." or AS3D_WARN).
+int importExeTexts(const std::string& root);
+
 // `root`: the data directory (no trailing slash). All games of the family, in GameId order,
 // whether present or not.
 std::vector<GameInstall> detectInstalls(const std::string& root);

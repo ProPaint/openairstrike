@@ -2079,6 +2079,10 @@ Down), the name entry and comics on hardware, the stereo model view checked by e
 `game=` in run.ini (or `game=select`; `RunConfig::gameGiven`), `runCtrFrontEnd` (ctr_selector.cpp) runs
 instead of `runCtrMenuLoop` alone:
 
+0. `importExeTexts` (ctr_install.cpp, first pass only): for a game whose texts file is missing,
+   each `*.exe` of its folder goes through `as3d::extractExeTexts` (by address or by hash
+   dictionary, as the desktop, web and Android imports); the first that is that game's
+   executable gives the texts file (`.tmp` then rename). The executable is not removed.
 1. `detectInstalls` (ctr_install.cpp, plain file checks): for `as3d`, `as2`, `gulf` under
    `sdmc:/3ds/openairstrike/<key>/`, the paks of the profile, `Settings.xml` and the texts file.
    Complete = none missing. The log gets `selector: <key> installed (N files)`, `selector: <key>

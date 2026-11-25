@@ -394,6 +394,7 @@ int runCtrFrontEnd(const RunConfig& base) {
         {
             Perf log;
             log.open(false);
+            if (phase == 0) importExeTexts(kDataDir); // the texts files from the executables, once
             installs = detectInstalls(kDataDir);
             std::vector<const GameInstall*> offered;
             int complete = 0;

@@ -25,7 +25,7 @@ std::string layoutText() {
         for (const char* const* p = g.paks; *p; ++p)
             if (!as3d::pakIsOptional(g, *p)) files += std::string(files.empty() ? "" : " ") + *p;
         s += std::string("  ") + g.key + "/\n    " + files + "\n    Settings.xml";
-        if (g.textsFile && *g.textsFile) s += std::string(" ") + g.textsFile;
+        if (g.textsFile && *g.textsFile) s += std::string(" ") + g.textsFile + " (or the game's .exe)";
         s += "\n    music/*.ogg  (optional)\n";
     }
     s += "  (one game is enough)\n";

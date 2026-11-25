@@ -94,17 +94,17 @@ Copy the folder 3ds/ of this package to the root of the SD card, then add the ga
       as3d/                     AirStrike 3D
           pak0.apk  pak1.apk  pak2.apk
           Settings.xml
-          texts_v170.txt
+          texts_v170.txt        or AirStrike3D.exe (see 2)
           music/*.ogg           optional, recommended (see 4)
       as2/                      AirStrike 2 (optional)
           pak0.apk  pak1.apk  pak2.apk
           Settings.xml
-          texts_as2.txt
+          texts_as2.txt         or "AirStrike3D II.exe"
           music/*.ogg
       gulf/                     AirStrike II: Gulf Thunder (optional)
           pak0.apk  pak1.apk  pak2.apk  pak4.apk
           Settings.xml
-          texts_gulf.txt
+          texts_gulf.txt        or "AirStrike3D II - Gulf.exe"
           music/*.ogg
   sdmc:/3ds/dspfirm.cdc         the DSP firmware, for sound (see 5)
 
@@ -121,8 +121,11 @@ From your installed copy of each game (Windows; under Wine the same folders):
   pakN.apk, Settings.xml    the game's data/ folder (data/pak0.apk, ..., data/Settings.xml)
 
 The texts file (the Information pages, the Game Complete text, the rank names) is read out of
-the game's own executable (AirStrike3D.exe, "AirStrike3D II.exe", "AirStrike3D II - Gulf.exe")
-on a computer, with the tool of the source repository:
+the game's own executable (AirStrike3D.exe, "AirStrike3D II.exe", "AirStrike3D II - Gulf.exe").
+The simplest way: copy the executable into the game's folder next to the paks (for example
+sdmc:/3ds/openairstrike/as2/AirStrike3D II.exe). At start the app makes the texts file from it
+once (log.txt: "install: as2: texts_as2.txt made from ..."); you can delete the executable
+afterwards. Or make it on a computer with the tool of the source repository:
 
   python3 tools/extract_exe_texts.py --game as3d --exe /path/to/AirStrike3D.exe --out texts_v170.txt
   python3 tools/extract_exe_texts.py --game as2  --exe "/path/to/AirStrike3D II.exe" --out texts_as2.txt
