@@ -3,13 +3,14 @@
 # into third_party_local/ (gitignored), rather than committing SDL's source
 # tree to this repository. See docs/android.md.
 #
-# Usage: tools/fetch_third_party.sh [openmpt|ctrtools|archive|net|vorbis]
+# Usage: tools/fetch_third_party.sh [openmpt|ctrtools|archive|net|vorbis|appimage]
 #        (openmpt: libopenmpt only, for tools/3ds_build.sh;
 #         ctrtools: makerom and bannertool only, for tools/3ds_package.sh;
 #         archive: libarchive and xz source trees only, for engine/src/formats/archive.cmake;
 #         net: libdatachannel with libjuice, usrsctp and plog, Mbed TLS and datachannel-wasm,
 #              for engine/src/net/net.cmake and apps/web;
-#         vorbis: libogg and libvorbis, the Ogg Vorbis encoder of the 3DS music)
+#         vorbis: libogg and libvorbis, the Ogg Vorbis encoder of the 3DS music;
+#         appimage: appimagetool and the AppImage runtime, for tools/appimage/build.sh)
 # Env:   AS3D_DATA_ROOT   repo checkout to put third_party_local/ under
 #                          (default: this repo's root; use the main checkout
 #                          from a worktree so the download is shared).
@@ -258,6 +259,29 @@ fetch_net() {
 
 if [ "${1:-}" = "net" ]; then
     fetch_net
+    exit 0
+fi
+
+# --- appimagetool and the AppImage runtime (the Steam Deck AppImage, tools/appimage/build.sh) ---
+# appimagetool (MIT) is itself an AppImage: it runs with APPIMAGE_EXTRACT_AND_RUN=1 (no FUSE in a
+# container). The runtime (type2-runtime, MIT; static, needs no libfuse2 on the player's machine)
+# is given to it as a file, so appimagetool downloads nothing itself. x86_64 only. Both are
+# checked against the SHA-256 pinned here before anything runs them.
+APPIMAGETOOL_VERSION="1.9.0"
+APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
+# Verified by this script against the file downloaded from the URL above on 2026-11-25.
+APPIMAGETOOL_SHA256="46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1"
+APPIMAGE_RUNTIME_VERSION="20251108"
+APPIMAGE_RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/${APPIMAGE_RUNTIME_VERSION}/runtime-x86_64"
+# Verified by this script against the file downloaded from the URL above on 2026-11-25.
+APPIMAGE_RUNTIME_SHA256="2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d"
+
+if [ "${1:-}" = "appimage" ]; then
+    fetch_verified "${APPIMAGETOOL_URL}" "${APPIMAGETOOL_SHA256}" "${DL_DIR}/appimagetool-${APPIMAGETOOL_VERSION}" appimagetool-x86_64.AppImage
+    fetch_verified "${APPIMAGE_RUNTIME_URL}" "${APPIMAGE_RUNTIME_SHA256}" "${DL_DIR}/appimage-runtime-${APPIMAGE_RUNTIME_VERSION}" runtime-x86_64
+    chmod 755 "${DL_DIR}/appimagetool-${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
+    echo "fetch_third_party: AS3D_APPIMAGETOOL=${DL_DIR}/appimagetool-${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage" \
+        "AS3D_APPIMAGE_RUNTIME=${DL_DIR}/appimage-runtime-${APPIMAGE_RUNTIME_VERSION}/runtime-x86_64"
     exit 0
 fi
 

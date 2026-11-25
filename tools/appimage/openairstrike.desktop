@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=OpenAirStrike
+Comment=Plays AirStrike 3D, AirStrike 2 and Gulf Thunder with your own game files
+Exec=as3d_game
+Icon=openairstrike
+Categories=Game;ActionGame;
+Terminal=false

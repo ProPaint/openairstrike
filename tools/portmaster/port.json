@@ -1,0 +1,28 @@
+{
+    "version": 2,
+    "name": "openairstrike.zip",
+    "items": [
+        "OpenAirStrike.sh",
+        "openairstrike/"
+    ],
+    "items_opt": null,
+    "attr": {
+        "title": "OpenAirStrike",
+        "desc": "Open-source engine for the helicopter shooters AirStrike 3D, AirStrike 2 and AirStrike II: Gulf Thunder. One or two players, online co-op.",
+        "inst": "Requires your own copy of AirStrike 3D, AirStrike 2 or Gulf Thunder (Windows). Copy the game folder, its zip or its installer into ports/openairstrike/gamefiles/.",
+        "genres": [
+            "action",
+            "arcade"
+        ],
+        "porter": [
+            "ProPaint"
+        ],
+        "image": {},
+        "rtr": false,
+        "runtime": null,
+        "reqs": [],
+        "arch": [
+            "aarch64"
+        ]
+    }
+}

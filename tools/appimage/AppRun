@@ -1,0 +1,45 @@
+#!/bin/bash
+# AppRun of the OpenAirStrike AppImage (tools/appimage/build.sh, README.md "Steam Deck").
+#
+# Where things go (all can be overridden from the environment):
+#   AS3D_IMPORT_DIR  the folder the player copies their game files into: "OpenAirStrike-games"
+#                    beside the AppImage (or in ~/.local/share/airstrike3d when the AppImage's
+#                    folder cannot be written). Each start imports what is new in it.
+#   AS3D_DATA_ROOT   where the imported games are installed:
+#                    ${XDG_DATA_HOME:-~/.local/share}/airstrike3d/games
+#   profiles and saves stay where the desktop game keeps them: ~/.local/share/airstrike3d
+#
+# Full screen unless --size or --windowed is given (--windowed is this script's, not the game's).
+# Any other argument goes to the game (see the top of apps/game/main.cpp), for example
+#   ./OpenAirStrike-x86_64.AppImage --import ~/Downloads/airstrike.zip
+HERE="$(dirname "$(readlink -f "$0")")"
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+export AS3D_DATA_ROOT="${AS3D_DATA_ROOT:-$DATA_HOME/airstrike3d/games}"
+export AS3D_PAK_ENTRIES="${AS3D_PAK_ENTRIES:-$HERE/usr/share/openairstrike/pak_entries}"
+# The bundled SDL 2.30 (usr/lib); GL ES and EGL are the host's.
+export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+if [ -z "${AS3D_IMPORT_DIR:-}" ]; then
+    base="$DATA_HOME/airstrike3d"
+    if [ -n "${APPIMAGE:-}" ] && [ -w "$(dirname "$APPIMAGE")" ]; then
+        base="$(dirname "$APPIMAGE")"
+    fi
+    AS3D_IMPORT_DIR="$base/OpenAirStrike-games"
+fi
+mkdir -p "$AS3D_IMPORT_DIR" "$AS3D_DATA_ROOT"
+if [ ! -e "$AS3D_IMPORT_DIR/README.txt" ]; then
+    cp "$HERE/usr/share/openairstrike/IMPORT-README.txt" "$AS3D_IMPORT_DIR/README.txt" 2>/dev/null
+fi
+
+fullscreen=(--fullscreen)
+args=()
+for a in "$@"; do
+    case "$a" in
+        --windowed) fullscreen=() ;;
+        --size) fullscreen=(); args+=("$a") ;;
+        *) args+=("$a") ;;
+    esac
+done
+
+echo "OpenAirStrike: game files go into $AS3D_IMPORT_DIR, installed into $AS3D_DATA_ROOT"
+exec "$HERE/usr/bin/as3d_game" --data "$AS3D_DATA_ROOT" --import-dir "$AS3D_IMPORT_DIR" "${fullscreen[@]}" "${args[@]}"

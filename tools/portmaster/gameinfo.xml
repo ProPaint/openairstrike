@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gameList>
+  <game>
+    <path>./OpenAirStrike.sh</path>
+    <name>OpenAirStrike</name>
+    <desc>Open-source engine for the helicopter shooters AirStrike 3D, AirStrike 2 and AirStrike II: Gulf Thunder, played with the files of your own copy of each game.</desc>
+    <developer>DivoGames (original games), OpenAirStrike contributors (engine)</developer>
+    <publisher>DivoGames</publisher>
+    <genre>Action</genre>
+    <image>./openairstrike/cover.png</image>
+  </game>
+</gameList>
