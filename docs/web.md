@@ -349,6 +349,45 @@ with each:
 | NSIS, DRM-wrapped and Gentee "Setup" files | nothing the page can read | refused with a note: install on a PC, drop the game folder |
 | Any `.exe` of a game, under any name | another build's texts | taken by the hash dictionary |
 
+## Files for the 3DS
+
+The Nintendo 3DS version (docs/3ds-port.md) reads each game from `sdmc:/3ds/openairstrike/<key>/`
+and plays its music from pre-rendered Ogg files (`music/*.ogg`, "M2.4 Music"), which used to
+need the desktop's `audio_tool render-music`. The byo page makes them: once a game's files are
+all stored, "Files for the 3DS" (in the line under the games, beside "Remove them") opens a
+dialog listing those games (each with a checkbox, "no texts file" when the page has none) and
+"include the game files" (on by default). "Make the zip" then, per chosen game:
+
+* renders the music in a Web Worker (`site/music_worker.js`), with `as3d_music.wasm`
+  (`apps/web/music_main.cpp`): the pak reader, libopenmpt, the render of `audio_tool render-music`
+  (`as3d/music_prerender.h`: every module of `music\` once from order 0, and from order 35 when
+  the module has it, `<name>_gameover.ogg`; 32728 Hz, 16-bit, trailing silence cut) and the
+  same Ogg Vorbis encoder (`as3d/ogg_vorbis_encoder.h`, libvorbis 1.3.7, quality 4). The paks go
+  to the worker as Blobs and are read in place (WORKERFS); the page stays responsive. "Rendering
+  music 3/27 (AirStrike 2: track02.ogg)" and a bar show the progress; Cancel terminates the
+  worker;
+* writes a zip (stored, `sd3ds.js`'s own writer: Ogg and paks do not compress) of
+  `3ds/openairstrike/<key>/music/*.ogg`, `<key>/<texts file>` and, when included, the paks and
+  `Settings.xml`; "Download the zip" saves it as `openairstrike-3ds.zip`. Unzipped at the root of
+  the SD card it is the folder the app reads (the app itself comes from the 3DS package).
+
+The worker's module is loaded only then: the main download is unchanged.
+
+Measured 2026-11-25 (Playwright's headless Chromium 153 on the development machine, the owner's
+files of the three games): `as3d_music.wasm` 2.1 MB (0.76 MB gzipped) and `as3d_music.js`
+0.12 MB, fetched only by "Make the zip"; `as3d_web.wasm` stays 4.10 MB (the new render code is
+not linked into it). Rendering and encoding: AirStrike 3D 10 files (807 s of music, 10.6 MB) in
+19.5 s, AirStrike 2 5 files (1023 s, 11.1 MB) in 18.0 s, Gulf Thunder 5 files (1094 s, 12.4 MB)
+in 24.3 s; the whole zip of the three games with their paks (36 files, 143 MB) in 64 s. The
+desktop's `audio_tool render-music --all` takes 13 to 15 s per game. Every Ogg file is byte for
+byte the one `audio_tool` writes with its in-process libvorbis (the same code and flags, no
+fused multiply-add); against oggenc or ffmpeg's libvorbis (the distribution's libvorbis 1.3.7,
+built with other float flags) the files have the same length in samples but not the same bytes
+(for track05 of AirStrike 3D 96 % of the decoded samples equal, the rest within -49 dB).
+
+Nothing leaves the browser; the zip is made from the stored files and kept only as the
+download. `walk.py --only byo_3ds` checks it (Tests).
+
 ## What the browser stores
 
 | What | Where | Size |
@@ -385,7 +424,10 @@ backup and the missing old file are in storage, and after a second reload as wel
   key `gulf`, the same by taps on a touch phone; desktop by mouse and keys; a 20:9 Android phone and an iPhone
   profile by synthesized touch, multi-touch; Mission Complete with the bot; Game Over and name
   entry; the byo files through the file input, AirStrike 2's files started and both games
-  offered, old-style stored files; the migration of a version 1 profile; `twoplayer`: two
+  offered, old-style stored files; `byo_3ds` (not in the default list): "Files for the 3DS"
+  with every game's files on this machine, a run cancelled, a whole run, the zip checked and its
+  music compared with `audio_tool render-music --all` of the same paks (same files, frames and
+  bytes); the migration of a version 1 profile; `twoplayer`: two
   players with two fake gamepads, player 2's web keys in a fresh profile, the Players screen,
   pads taking sides and moved by D-pad pushes, then the split keyboard and each pad flying its
   own player, checked on the `AS3D_INPUT` lines; `online` and `online_web`: online co-op, see "Online

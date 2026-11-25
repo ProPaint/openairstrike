@@ -17,7 +17,8 @@ and built from source, not part of this repository: SDL2 (zlib licence), libopen
 (0BSD / public domain; the same), and for online co-op (not in the 3DS build) libdatachannel
 (MPL-2.0, unmodified; source at github.com/paullouisageneau/libdatachannel) with its libjuice
 (MIT), usrsctp (BSD 3-clause) and plog (MIT), Mbed TLS (Apache-2.0) and, on the web,
-datachannel-wasm (MIT). The repository itself vendors doctest (MIT) and stb (public domain or
+datachannel-wasm (MIT); libogg and libvorbis (BSD 3-clause; the Ogg encoder of the 3DS music,
+in the web page's music worker and audio_tool only). The repository itself vendors doctest (MIT) and stb (public domain or
 MIT) under `third_party/`.
 
 The engine in this repository is original code, written from reverse-engineering
@@ -167,6 +168,12 @@ files of your own copy and keeps them in the browser's storage. `tools/web_build
 copies your data into the site instead; never host that build publicly. Details in
 `docs/web.md`.
 
+The same page prepares the files for the Nintendo 3DS version: once a game's files are stored,
+"Files for the 3DS" (under the games) renders its music as the Ogg files the 3DS plays, in the
+browser (a few minutes per game, nothing to install, nothing uploaded), and gives one zip of
+`3ds/openairstrike/<game>/` with the music, the texts file and, when ticked, the paks and
+`Settings.xml`: unzip it at the root of the SD card. `docs/web.md` "Files for the 3DS".
+
 ### Online co-op
 
 Two players can fly the campaign together over the internet (or a local network) on the desktop,
@@ -212,7 +219,8 @@ tools/3ds_package.sh          # the .3dsx, the CIA, run.ini and INSTALL.txt as a
 ```
 
 Copy the package's `3ds/` folder to the SD card's root and your game files under
-`sdmc:/3ds/openairstrike/<game>/` as `INSTALL.txt` says; the DSP firmware dump
+`sdmc:/3ds/openairstrike/<game>/` as `INSTALL.txt` says (the web page's "Files for the 3DS"
+makes that folder from your files, with the pre-rendered music; see "Web"); the DSP firmware dump
 (`sdmc:/3ds/dspfirm.cdc`) is needed for sound. Details in `apps/3ds/README.md` and
 `docs/3ds-port.md`.
 

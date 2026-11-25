@@ -1154,9 +1154,13 @@ does when it loops), else the module, else nothing (`audio: cannot play music ..
 
 Pre-rendering (owner, desktop, own data; the output is derived from the game: never committed,
 `*.ogg` is in .gitignore): `audio_tool render-music --all <dir>` renders every module once (no
-loop) at 32728 Hz plus its part from order 35, and encodes with oggenc, else ffmpeg's libvorbis
-(quality 4, about 100 kbps): for AirStrike 3D 10 files, 10.5 MB, 98 to 196 s per module; peaks
-0.39 to 0.93 (no clipping). `--paks <dir>` reads a sequel's paks.
+loop) at 32728 Hz plus its part from order 35, and encodes with libvorbis 1.3.7 in the process
+(`engine/src/audio/vorbisenc/`, when `tools/fetch_third_party.sh vorbis` has fetched it), else
+oggenc, else ffmpeg's libvorbis (quality 4, about 100 kbps): for AirStrike 3D 10 files, 10.5 MB,
+98 to 196 s per module; peaks 0.39 to 0.93 (no clipping). `--paks <dir>` reads a sequel's paks.
+The render and the job list are `as3d/music_prerender.h`, shared with the web page's "Files for
+the 3DS" (docs/web.md), which makes the same files in the browser (the same bytes as the tool's
+in-process encoder) into a zip of the SD folder: the players' way, nothing to install.
 
 The mixer change (desktop too, same output): the music is decoded outside the voice mutex, under a
 music mutex of its own, so the game thread's play/stop never waits for a decode (up to 10 ms per

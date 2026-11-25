@@ -213,6 +213,8 @@ window.AS3DSd3ds = (function () {
     if (!games.length) { setStatus('Choose at least one game.'); return; }
     const withPaks = $('sd3ds-paks').checked;
     dropZip();
+    $('sd3ds-make').className = 'primary';
+    $('sd3ds-make').textContent = 'Make the zip';
     Object.assign(state, { done: false, cancelled: false, error: null, files: [], renders: [], zipBytes: 0, ms: 0 });
     setRunning(true);
     setBar(0);
@@ -294,6 +296,8 @@ window.AS3DSd3ds = (function () {
       state.ms = Math.round(performance.now() - t0);
       state.done = true;
       setBar(1);
+      $('sd3ds-make').className = 'secondary';  // the download is the next step
+      $('sd3ds-make').textContent = 'Make it again';
       const music = state.renders.length;
       setStatus(`Ready: ${music} music files for ${games.map((g) => ctx.known[g].title).join(', ')}, ${mb(blob.size)}, ` +
                 `made in ${Math.round(state.ms / 1000)} s.` + (notes.length ? ' ' + notes.join('; ') + '.' : ''));

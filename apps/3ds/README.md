@@ -387,7 +387,9 @@ copy the files over (they are derived from the game data: never commit them):
     cmake -S apps/audio_tool -B build-audio-tool && cmake --build build-audio-tool --target audio_tool
     build-audio-tool/audio_tool render-music --all out/music     # track01.ogg, track01_gameover.ogg, ...
 
-(`--paks <dir>` before `render-music` for a sequel's paks; oggenc or ffmpeg with libvorbis.)
+(`--paks <dir>` before `render-music` for a sequel's paks; libvorbis in the process after
+`tools/fetch_third_party.sh vorbis`, else oggenc or ffmpeg with libvorbis.) The web page's
+"Files for the 3DS" makes the same files in the browser, as a zip of the SD folder (docs/web.md).
 `<name>_gameover.ogg` is the module from pattern order 35, where the game jumps on game over.
 
 `mode=musictest` (optional `frames=N` per pass, default 600 = 10 s; `music_taps=N`;

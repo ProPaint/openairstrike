@@ -116,7 +116,13 @@ menu brings it back). The app writes its files into the same folder: log.txt, la
 2. Where the game files come from
 ---------------------------------
 
-From your installed copy of each game (Windows; under Wine the same folders):
+The easy way, on any computer with nothing to install: the web version of OpenAirStrike (the
+link is on the project's page). Give it your game files (the game folder, the installer or the
+archive you downloaded), then "Files for the 3DS" under the games makes, in the browser, one zip
+with every game's texts file and music (see 4) and, when ticked, its paks and Settings.xml.
+Unzip it at the root of the SD card: it holds 3ds/openairstrike/<game>/...
+
+By hand, from your installed copy of each game (Windows; under Wine the same folders):
 
   pakN.apk, Settings.xml    the game's data/ folder (data/pak0.apk, ..., data/Settings.xml)
 
@@ -157,11 +163,15 @@ game and save the profile.
 --------------------------------
 
 The games' music is in tracker modules; the 3DS plays pre-rendered Ogg files instead (the Old
-3DS cannot decode the modules in time). Render them once on a computer from your own paks with
-the source repository's audio_tool (built with the desktop version):
+3DS cannot decode the modules in time). The easy way: the web page's "Files for the 3DS" (see 2)
+renders them in the browser from your own paks (a few minutes per game) into the zip, as
+3ds/openairstrike/<game>/music/*.ogg.
+
+Or on a computer with the source repository's audio_tool (built with the desktop version; the
+same files as the web page's):
 
   build/apps/audio_tool/audio_tool render-music --all <out-dir>                 (AirStrike 3D)
-  build/apps/audio_tool/audio_tool render-music --all <out-dir> --paks <as2 or gulf folder>
+  build/apps/audio_tool/audio_tool --paks <as2 or gulf data folder> render-music --all <out-dir>
 
 and copy <out-dir>/*.ogg to sdmc:/3ds/openairstrike/<game>/music/. Without them the modules are
 decoded live: fine on a New 3DS, too slow for an Old 3DS.
