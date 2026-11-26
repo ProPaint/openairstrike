@@ -72,116 +72,121 @@ EOF
 
 # A file list for INSTALL.txt, from the game profiles (engine/src/game/game_profiles.cpp).
 cat > "${OUT}/INSTALL.txt" <<EOF
-OpenAirStrike for the Nintendo 3DS, version ${VERSION} (title version ${TITLE_VER})
+OpenAirStrike for the Nintendo 3DS, version ${VERSION}
 =====================================================
 
-An open source engine for AirStrike 3D (v1.70), AirStrike 2 (v2.51) and AirStrike II: Gulf
-Thunder (v2.71). It contains no game data: you need your own copy of at least one of the games.
-Source, issues and the full documentation: the openairstrike repository (docs/3ds-port.md).
-
-Needs a 3DS with custom firmware (Luma3DS) and the Homebrew Launcher, or FBI to install the CIA.
-A New 3DS is recommended; an Old 3DS runs the Old 3DS profile (30 Hz, fewer effects).
+Play AirStrike 3D, AirStrike 2 and AirStrike II: Gulf Thunder on your 3DS. This package holds
+only the app, no game: you need your own copy of at least one of the games (the PC version, the
+installer or the folder it installed). Project page: https://github.com/ProPaint/openairstrike
 
 
-1. The SD card
---------------
+What you need
+-------------
 
-Copy the folder 3ds/ of this package to the root of the SD card, then add the game files:
+  - A 3DS (any model; a New 3DS runs it best) with custom firmware: Luma3DS, the Homebrew
+    Launcher and FBI. If you do not have it yet, follow https://3ds.hacks.guide first.
+  - Your copy of the game(s) on a computer.
+  - A way to copy files to the 3DS's SD card (a card reader, or ftpd over Wi-Fi).
+
+
+Step 1: make your game files (on the computer, in the browser)
+--------------------------------------------------------------
+
+  1. Open https://propaint.github.io/openairstrike/ in Chrome, Edge or Firefox.
+     (If you do not see "Files for the 3DS" in step 3, use the beta page instead:
+     https://propaint.github.io/openairstrike/beta/)
+  2. Give the page your game: the game's folder, its installer or the archive you downloaded.
+     Nothing is uploaded anywhere; it all stays in your browser.
+  3. Click "Files for the 3DS", keep every box ticked, click "Make the zip" and wait (about
+     half a minute per game), then "Download the zip".
+
+You get openairstrike-3ds.zip with everything for the SD card: the game files, the texts and the
+music, already in the right folders.
+
+
+Step 2: copy everything to the SD card
+--------------------------------------
+
+  1. Put the 3DS's SD card in the computer.
+  2. Unzip THIS package at the root of the SD card (the top, where the "3ds" folder already is).
+  3. Unzip openairstrike-3ds.zip from step 1 at the root of the SD card too.
+     If the computer asks whether to merge the folders, say yes.
+
+The SD card now has a folder 3ds/openairstrike/ with openairstrike.3dsx and one folder per game
+(as3d, as2, gulf).
+
+
+Step 3: sound (once per console)
+--------------------------------
+
+The 3DS needs its sound firmware file, sdmc:/3ds/dspfirm.cdc. If you followed 3ds.hacks.guide
+you probably have it already. If not: get the homebrew "DSP1", start it once from the Homebrew
+Launcher, and it writes the file. Without it the game works but has no sound.
+
+
+Step 4: play
+------------
+
+Put the SD card back in the 3DS and choose one:
+
+  - Homebrew Launcher: start it and pick OpenAirStrike.
+  - HOME menu icon: open FBI, go to SD, choose openairstrike.cia (step 2 put it at the root of
+    the card) > Install CIA. OpenAirStrike is then on the HOME menu; the .cia file can be
+    deleted afterwards.
+
+With more than one game, a game selector shows first ("Change game" in the main menu brings it
+back).
+
+Controls: the menus use the D-pad, A and B, or touch. In the air: circle pad to fly, A fire,
+B missile, X power-up, Y next weapon, R next missile, START pause; the bottom screen's buttons
+work by touch too. START + SELECT quits. Your progress and high scores are saved by themselves.
+
+
+If something is wrong
+---------------------
+
+  - A game says "Missing: ..." in the selector: a file of that game is not where it should be.
+    Redo step 1 and step 2 for that game.
+  - No sound: sdmc:/3ds/dspfirm.cdc is missing (step 3).
+  - The app goes straight back to the launcher: no game was found. Check that the folders are
+    sdmc:/3ds/openairstrike/as3d (or as2, gulf), not one folder deeper.
+  - Anything else: the app writes sdmc:/3ds/openairstrike/log.txt. Attach it to a new issue on
+    the project page.
+
+
+For experts: the files by hand
+------------------------------
 
   sdmc:/3ds/openairstrike/
       openairstrike.3dsx        the app (Homebrew Launcher)
-      run.ini                   optional (see the comments inside)
+      run.ini                   optional settings (see the comments inside)
       as3d/                     AirStrike 3D
-          pak0.apk  pak1.apk  pak2.apk
-          Settings.xml
-          texts_v170.txt        or AirStrike3D.exe (see 2)
-          music/*.ogg           optional, recommended (see 4)
-      as2/                      AirStrike 2 (optional)
-          pak0.apk  pak1.apk  pak2.apk
-          Settings.xml
+          pak0.apk  pak1.apk  pak2.apk  Settings.xml
+          texts_v170.txt        or AirStrike3D.exe
+          music/*.ogg           optional, recommended
+      as2/                      AirStrike 2
+          pak0.apk  pak1.apk  pak2.apk  Settings.xml
           texts_as2.txt         or "AirStrike3D II.exe"
           music/*.ogg
-      gulf/                     AirStrike II: Gulf Thunder (optional)
-          pak0.apk  pak1.apk  pak2.apk  pak4.apk
-          Settings.xml
+      gulf/                     AirStrike II: Gulf Thunder
+          pak0.apk  pak1.apk  pak2.apk  pak4.apk  Settings.xml
           texts_gulf.txt        or "AirStrike3D II - Gulf.exe"
           music/*.ogg
-  sdmc:/3ds/dspfirm.cdc         the DSP firmware, for sound (see 5)
+  sdmc:/3ds/dspfirm.cdc         the sound firmware
 
-One game is enough. With two or more, a game selector shows first ("Change game" in the main
-menu brings it back). The app writes its files into the same folder: log.txt, launcher.bin,
-<game>/profile.bin (options, high scores, unlocked missions), cache/ (rebuilt when deleted).
-
-
-2. Where the game files come from
----------------------------------
-
-The easy way, on any computer with nothing to install: the web version of OpenAirStrike (the
-link is on the project's page). Give it your game files (the game folder, the installer or the
-archive you downloaded), then "Files for the 3DS" under the games makes, in the browser, one zip
-with every game's texts file and music (see 4) and, when ticked, its paks and Settings.xml.
-Unzip it at the root of the SD card: it holds 3ds/openairstrike/<game>/...
-
-By hand, from your installed copy of each game (Windows; under Wine the same folders):
-
-  pakN.apk, Settings.xml    the game's data/ folder (data/pak0.apk, ..., data/Settings.xml)
-
-The texts file (the Information pages, the Game Complete text, the rank names) is read out of
-the game's own executable (AirStrike3D.exe, "AirStrike3D II.exe", "AirStrike3D II - Gulf.exe").
-The simplest way: copy the executable into the game's folder next to the paks (for example
-sdmc:/3ds/openairstrike/as2/AirStrike3D II.exe). At start the app makes the texts file from it
-once (log.txt: "install: as2: texts_as2.txt made from ..."); you can delete the executable
-afterwards. Or make it on a computer with the tool of the source repository:
-
-  python3 tools/extract_exe_texts.py --game as3d --exe /path/to/AirStrike3D.exe --out texts_v170.txt
-  python3 tools/extract_exe_texts.py --game as2  --exe "/path/to/AirStrike3D II.exe" --out texts_as2.txt
-  python3 tools/extract_exe_texts.py --game gulf --exe "/path/to/AirStrike3D II - Gulf.exe" --out texts_gulf.txt
-
-If you already imported a game into the Android app of OpenAirStrike, its games/<key>/ folder
-holds the same files (the paks, Settings.xml and the texts file, made from the executable).
-
-The app checks for these files at start: a game with a file missing shows "Missing: ..." in the
-selector; with no game at all the screens show what is expected, then the app returns to the
-launcher.
-
-
-3. Starting it
---------------
-
-Homebrew Launcher: OpenAirStrike is in the list with its icon. Or install openairstrike.cia
-with FBI (copy it anywhere on the SD card, FBI > SD > the file > Install CIA): then it is a
-HOME menu title (ID 000400000FA35D00) and still reads its data from sdmc:/3ds/openairstrike/.
-
-Keys: menus D-pad / A / B or touch; in play the circle pad flies, A fire, B missile, X power-up,
-Y next weapon, R next missile, START pause (the bottom screen's buttons work by touch too).
-The high-score name opens the system keyboard (B or Cancel: the on-screen keys; Y opens the
-keyboard again). START + SELECT quits (the profile is saved). HOME and closing the lid pause the
-game and save the profile.
-
-
-4. Music (optional, recommended)
---------------------------------
-
-The games' music is in tracker modules; the 3DS plays pre-rendered Ogg files instead (the Old
-3DS cannot decode the modules in time). The easy way: the web page's "Files for the 3DS" (see 2)
-renders them in the browser from your own paks (a few minutes per game) into the zip, as
-3ds/openairstrike/<game>/music/*.ogg.
-
-Or on a computer with the source repository's audio_tool (built with the desktop version; the
-same files as the web page's):
-
-  build/apps/audio_tool/audio_tool render-music --all <out-dir>                 (AirStrike 3D)
-  build/apps/audio_tool/audio_tool --paks <as2 or gulf data folder> render-music --all <out-dir>
-
-and copy <out-dir>/*.ogg to sdmc:/3ds/openairstrike/<game>/music/. Without them the modules are
-decoded live: fine on a New 3DS, too slow for an Old 3DS.
-
-
-5. Sound
---------
-
-The 3DS's DSP needs its firmware dumped from your own console: run "DSP1" (homebrew) once, it
-writes sdmc:/3ds/dspfirm.cdc. Without it the game runs silent (log.txt says so).
+  - pakN.apk and Settings.xml: the data/ folder of the installed game.
+  - The texts file (Information pages, ranks, Game Complete text): put the game's .exe in its
+    folder instead and the app makes the texts file from it at the next start (log.txt:
+    "install: <game>: ... made from ..."); the .exe can be deleted afterwards. Or with the
+    source repository: python3 tools/extract_exe_texts.py --game as3d|as2|gulf --exe <exe>
+    --out <texts file>. The Android app's games/<game>/ folder holds the same files.
+  - The music: the 3DS plays pre-rendered Ogg files (the Old 3DS cannot play the original
+    tracker modules in time; a New 3DS can, so the music is optional there). From the source
+    repository: build/apps/audio_tool/audio_tool [--paks <game data folder>] render-music --all
+    <out dir>, then copy the .ogg files to <game>/music/.
+  - The app also writes its own files there: log.txt, launcher.bin, <game>/profile.bin (options,
+    high scores, unlocked missions) and cache/ (rebuilt when deleted).
+  - HOME menu title ID 000400000FA35D00 (title version ${TITLE_VER}).
 EOF
 
 if [ "${CIA}" = 1 ]; then

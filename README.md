@@ -16,7 +16,7 @@ and built from source, not part of this repository: SDL2 (zlib licence), libopen
 3-clause), libarchive (BSD 2-clause; the archive module, not in the 3DS build), xz's liblzma
 (0BSD / public domain; the same), and for online co-op (not in the 3DS build) libdatachannel
 (MPL-2.0, unmodified; source at github.com/paullouisageneau/libdatachannel) with its libjuice
-(MIT), usrsctp (BSD 3-clause) and plog (MIT), Mbed TLS (Apache-2.0) and, on the web,
+(MPL-2.0), usrsctp (BSD 3-clause) and plog (MIT), Mbed TLS (Apache-2.0) and, on the web,
 datachannel-wasm (MIT); libogg and libvorbis (BSD 3-clause; the Ogg encoder of the 3DS music,
 in the web page's music worker and audio_tool only). The repository itself vendors doctest (MIT) and stb (public domain or
 MIT) under `third_party/`.

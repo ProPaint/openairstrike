@@ -45,6 +45,10 @@ jobs:
           version: 6.0.10
       - name: Build the site
         run: AS3D_BUILD_JOBS="$(nproc)" tools/web_build.sh byo
+      # The beta must not compete with the stable page in search results.
+      - name: Keep the beta out of search engines
+        if: matrix.dir == 'beta'
+        run: sed -i 's#<head>#<head>\n<meta name="robots" content="noindex">#' out/web/site-byo/index.html
       - name: Check that no game data is in the site
         run: |
           ! find out/web/site-byo -type f | grep -Ei 'pak[0-9]\.apk|texts_(v170|as2|gulf)\.txt|\.exe$|Settings\.xml'

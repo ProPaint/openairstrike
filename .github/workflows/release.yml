@@ -19,20 +19,24 @@
 #     with makerom and bannertool fetched by tools/fetch_third_party.sh (SHA-256 pinned).
 #
 # The release is created as a draft with the files attached, so it can be checked and
-# given release notes before it is published.
+# given release notes before it is published. Started by hand (workflow_dispatch), it is a dry
+# run: the same builds and checks, no release.
 name: release
 
 on:
   push:
     tags:
       - "v*"
+  # A dry run from the Actions tab (on dev, before tagging): every job builds and the archives
+  # are checked, but no release is created.
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 env:
-  # "v1.2.3" -> "1.2.3"; AS3D_VERSION_CODE is derived in the Android job.
-  AS3D_VERSION: ${{ github.ref_name }}
+  # "v1.2.3" -> "1.2.3"; AS3D_VERSION_CODE is derived in the Android job. A dry run uses 0.0.1-dryrun.
+  AS3D_VERSION: ${{ github.event_name == 'workflow_dispatch' && 'v0.0.1-dryrun' || github.ref_name }}
 
 jobs:
   linux:
@@ -273,6 +277,7 @@ jobs:
         with:
           fetch-depth: 0 # the previous tag, for the commit list of the notes
       - name: Release notes
+        if: github.event_name == 'push'
         run: tools/release_notes.sh "${AS3D_VERSION#v}" > "$RUNNER_TEMP/notes.md" && cat "$RUNNER_TEMP/notes.md"
       - uses: actions/download-artifact@v4
         with:
@@ -285,6 +290,7 @@ jobs:
           # The AppImage is checked when it is built (tools/appimage/build.sh).
           ! (cd dist && (unzip -l openairstrike-*-web.zip; tar tzf openairstrike-*-linux-x86_64.tar.gz; tar tzf openairstrike-*-linux-aarch64.tar.gz; unzip -l openairstrike-*-portmaster.zip; unzip -l openairstrike-*-android.apk; unzip -l openairstrike-*-3ds.zip) | grep -Ei 'pak[0-9]\.apk|texts_(v170|as2|gulf)\.txt|AirStrike3D.*\.exe|Settings\.xml')
       - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push'
         with:
           draft: true
           name: OpenAirStrike ${{ github.ref_name }}

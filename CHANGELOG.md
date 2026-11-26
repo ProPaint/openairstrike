@@ -3,6 +3,29 @@
 The release notes take a version's section from here (tools/release_notes.sh); without one
 they list the commits since the previous tag.
 
+## 0.5.0-beta.2
+
+The second beta: easier installs on more devices. In the browser: https://propaint.github.io/openairstrike/beta/
+
+- **Steam Deck**: an AppImage, one file. Add it to Steam as a non-Steam game; on its first
+  start it creates a folder `OpenAirStrike-games` next to it: put your game files there (the game
+  folder, its installer or an archive) and start it again. It also runs on other x86_64 Linux
+  desktops. See "Steam Deck" in the README.
+- **Linux handhelds (PortMaster), untested on a real device**: a Linux arm64 build and a
+  PortMaster package. It needs OpenGL ES 3 (most current handhelds; not Mali-400 class devices)
+  and the text is small on 480x320 screens. If you try it, please send the `log.txt` it writes
+  (see TESTING.md in the package).
+- **Desktop first start without game files**: instead of quitting, the game shows where to put
+  them and imports any game folder, zip, RAR, 7z or installer found in its import folder
+  (`--import-dir`).
+- **Files for the 3DS** on the web page: give the page your games, then "Files for the 3DS"
+  makes one zip for the SD card with each game's files, texts and music (rendered in the
+  browser). The 3DS package's INSTALL.txt is now a step by step guide.
+- **3DS**: put the game's .exe in its folder and the app makes the texts file from it at start.
+- `audio_tool render-music` encodes the Ogg files itself (libvorbis) when its sources were
+  fetched (`tools/fetch_third_party.sh vorbis`), else it uses oggenc or ffmpeg as before.
+- The web page has a proper title and description for search engines.
+
 ## 0.5.0-beta.1
 
 A beta for two-player co-op and online play. In the browser: https://propaint.github.io/openairstrike/beta/
