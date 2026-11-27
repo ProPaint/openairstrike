@@ -32,6 +32,12 @@ cd "$GAMEDIR" || exit 1
 
 > "$GAMEDIR/log.txt" && exec > >(tee "$GAMEDIR/log.txt") 2>&1
 
+# Older PortMaster releases (still shipped by some firmwares, e.g. AmberELEC on the RG351P) have a
+# control.txt that sets neither DEVICE_ARCH nor the display size, and has no pm_* helpers.
+DEVICE_ARCH="${DEVICE_ARCH:-$(uname -m)}"
+command -v pm_platform_helper >/dev/null 2>&1 || pm_platform_helper() { :; }
+command -v pm_finish >/dev/null 2>&1 || pm_finish() { :; }
+
 BINARY="as3d_game.${DEVICE_ARCH}"
 
 # What a tester needs to know about this device (TESTING.md).
@@ -39,6 +45,7 @@ echo "=== OpenAirStrike $(cat "$GAMEDIR/VERSION" 2>/dev/null) on $(date)"
 echo "device: ${DEVICE_NAME:-?} cfw: ${CFW_NAME:-?} ${CFW_VERSION:-} arch: ${DEVICE_ARCH:-?} ram: ${DEVICE_RAM:-?} GB"
 echo "display: ${DISPLAY_WIDTH:-?}x${DISPLAY_HEIGHT:-?} analog sticks: ${ANALOG_STICKS:-?}"
 echo "kernel: $(uname -srm)"
+echo "PortMaster: ${controlfolder} $(cat "$controlfolder/version" 2>/dev/null || echo '(no version file)')"
 echo "glibc: $(getconf GNU_LIBC_VERSION 2>/dev/null || echo '?')"
 echo "SDL_VIDEODRIVER=${SDL_VIDEODRIVER:-} SDL_AUDIODRIVER=${SDL_AUDIODRIVER:-}"
 if command -v ldd >/dev/null 2>&1; then
