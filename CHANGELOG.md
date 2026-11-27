@@ -3,6 +3,45 @@
 The release notes take a version's section from here (tools/release_notes.sh); without one
 they list the commits since the previous tag.
 
+## 0.5.0
+
+Two players, online co-op, and more places to play: Steam Deck, Linux handhelds and an easier
+3DS install. Everything from the two betas, plus the fixes their testers found.
+
+**Online is capricious outside a local network.** On the same Wi-Fi it plays smoothly. Over the
+internet it depends on both players' connections: behind some mobile networks or carrier-grade
+NATs the game cannot connect, and a connection that freezes now and then freezes the game for
+both players, since each side waits for the other's inputs. If it cannot connect, try the same
+Wi-Fi, or a virtual LAN such as Tailscale or ZeroTier.
+
+- **Online co-op** for two players in all three games, on the desktop, Android and the web, in
+  any mix: Start Game, Game mode **Online**, Host a game or Join a game. There is no server: the
+  players send each other two codes through any chat and the game connects the machines
+  directly. A code contains your network addresses: send it only to the person you play with.
+  See "Online co-op" in the README.
+- **Two players on one machine**: AirStrike 2 and Gulf Thunder get their "Cooperative" mode on
+  the desktop, and all three games have two players on the web and Android, with the keyboard
+  or a game controller (on a phone, touch is player 1 and a pad player 2). Each pad flies its
+  own player; AirStrike 3D's new Players screen shows who flies with what. On a web keyboard
+  player 2 flies with W A S D, fires with V, G missile, H item.
+- **Steam Deck**: an AppImage, one file. Add it to Steam as a non-Steam game; its first start
+  creates a folder `OpenAirStrike-games` next to it for your game files. It also runs on other
+  x86_64 Linux desktops.
+- **Linux handhelds (PortMaster)**: a Linux arm64 build and a PortMaster package, reported
+  working on an Anbernic RG351P. It needs OpenGL ES 3 (not Mali-400 class devices), and the text
+  is small on 480x320 screens. The launcher also works with older PortMaster versions.
+- **Desktop first start without game files**: the game shows where to put them and imports any
+  game folder, zip, RAR, 7z or installer found in its import folder (`--import-dir`).
+- **Easier 3DS install**: "Files for the 3DS" on the web page makes one zip for the SD card
+  with each game's files, texts and music, and the 3DS app makes the texts file from the game's
+  .exe by itself. INSTALL.txt in the 3DS package is now a step by step guide.
+- The simulation now computes the same bits on every platform (its own trigonometry, no fused
+  multiply-add), which online co-op needs; some missions play out slightly differently from
+  0.4 on the desktop.
+- `audio_tool render-music` encodes the Ogg files itself when libvorbis was fetched
+  (`tools/fetch_third_party.sh vorbis`).
+- The web page has a proper title and description for search engines.
+
 ## 0.5.0-beta.2
 
 The second beta: easier installs on more devices. In the browser: https://propaint.github.io/openairstrike/beta/

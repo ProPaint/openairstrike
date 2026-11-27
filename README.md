@@ -254,6 +254,8 @@ carries SDL 2.30 and uses the system's GL ES, EGL and zlib. It is built by
 `openairstrike-<version>-portmaster.zip` is a port for PortMaster (aarch64 firmwares such as
 ArkOS, ROCKNIX, AmberELEC, muOS, Knulli; glibc 2.31 or newer). The device's GPU must do OpenGL
 ES 3.0: Mali-G31 (RK3326, H700) and Mali-G52 (RK3566) do; Mali-400/450 devices cannot run it.
+A player reported it working on an Anbernic RG351P (RK3326); older PortMaster versions, as
+some firmwares still ship, work too.
 Copy `OpenAirStrike.sh` and the `openairstrike/` folder into the device's `ports/` folder,
 then your game files into `ports/openairstrike/gamefiles/` (a game folder, zip or installer, as
 for the Steam Deck); the next start imports them. The launcher writes
